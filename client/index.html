@@ -52,6 +52,64 @@
       .hud-timer-over {
         color: #ff6b6b;
       }
+      .hud-slack-track {
+        position: absolute;
+        top: 54px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 220px;
+        height: 8px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.15);
+        overflow: hidden;
+      }
+      .hud-slack-fill {
+        height: 100%;
+        width: 100%;
+        background: #6bc6ff;
+        transition: width 0.2s linear;
+      }
+      .hud-slack-depleted {
+        background: #ff6b6b;
+      }
+      .run-end-root {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        background: rgba(6, 8, 12, 0.82);
+        color: #eef2f6;
+        text-align: center;
+        pointer-events: auto;
+      }
+      .run-end-title {
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+      }
+      .run-end-cards {
+        display: flex;
+        gap: 18px;
+      }
+      .run-end-card {
+        width: 180px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 18px;
+        border-radius: 10px;
+        background: rgba(24, 28, 36, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #eef2f6;
+        cursor: pointer;
+        font: inherit;
+      }
+      .run-end-card:hover {
+        border-color: #ffe066;
+      }
       .hud-ability-bar {
         position: absolute;
         bottom: 22px;

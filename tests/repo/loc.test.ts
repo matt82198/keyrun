@@ -16,9 +16,7 @@ const EXCLUDED_DIR_NAMES = new Set(["node_modules", "dist"]);
 // fails the gate if it GROWS past its recorded count here -- it may only shrink from here on. When
 // a file's real line count drops to <=190, the second test below fails, forcing its entry to be
 // removed: the allowlist only ever shrinks, never grows or gets re-padded.
-const ALLOWLIST: Record<string, number> = {
-  "client/src/sim-host/worker.ts": 312,
-};
+const ALLOWLIST: Record<string, number> = {};
 
 function countLines(content: string): number {
   const lines = content.split("\n");
