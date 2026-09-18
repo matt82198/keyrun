@@ -53,7 +53,12 @@ describe("stepEncounter", () => {
     const events: SimEvent[] = [];
     const result = stepEncounter(state, baseEncounter(), dungeon, scripts, (e) => events.push(e));
 
-    expect(result.commands).toEqual([{ tick: 100, actorId: 1, kind: "cast", abilityId: "boss_cleave" }]);
+    // sim/encounter/script-target.ts's P0 fix: with no `abilities` registry passed (stepEncounter's
+    // real call site doesn't have one -- see script-target.ts's WIRING NOTE), the enemy's cast now
+    // always resolves a best-effort hostile target (threat/nearest living player) here that's the
+    // only player actor in this fixture, id 2 -- rather than the pre-fix, never-lands, target-less
+    // command this test used to pin.
+    expect(result.commands).toEqual([{ tick: 100, actorId: 1, kind: "cast", abilityId: "boss_cleave", targetId: 2 }]);
     expect(events.some((e) => e.type === "telegraph")).toBe(true);
     const hit = events.find((e) => e.type === "telegraph_hit");
     expect(hit?.actorIds).toEqual([2]);
