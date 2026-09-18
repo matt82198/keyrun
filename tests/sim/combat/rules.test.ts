@@ -1,6 +1,9 @@
 /**
  * Integration tests for the composed StepRules (sim/combat/rules.ts): movement, instant casts,
- * periodic effect ticks, collision push-out, bounds clamping, and tick advancement.
+ * periodic effect ticks, and collision push-out / bounds clamping. rules() never advances
+ * state.tick itself -- sim/core/tick.ts's step() is the single owner of the tick (per
+ * sim/CLAUDE.md); a caller driving rules() directly, as these tests do, must advance state.tick
+ * itself between calls, exactly as step() does (see the `tick` helper below).
  */
 import { describe, expect, it } from "vitest";
 import { createActor } from "../../../sim/combat/actors";
@@ -47,15 +50,23 @@ function stateWith(actors: ReturnType<typeof createActor>[]): SimState {
   return { tick: 0, seed: 1, prng: [0, 0, 0, 0], actors: record, runTimerTicks: 0, phase: "combat", log: [] };
 }
 
+/** rules() itself never advances state.tick; this helper does it the way sim/core/tick.ts's
+ * step() would, so tests that drive several ticks in a row read the same as before. */
+function tick(state: SimState, rules: ReturnType<typeof makeRules>, cmds: Command[], emit: (e: SimEvent) => void): void {
+  rules(state, cmds, emit);
+  state.tick += 1;
+}
+
 describe("movement command", () => {
-  it("moves the actor and advances the tick", () => {
+  it("moves the actor and does not itself advance the tick", () => {
     const a = createActor({ id: 1, kind: "player", classId: "x", role: "damage", pos: { x: 0, y: 0, z: 0 }, maxHealth: 1, maxResource: 0 });
     const state = stateWith([a]);
     const rules = makeRules(baseCfg());
     const cmd: Command = { tick: 0, actorId: 1, kind: "move", dir: { x: 1, z: 0 }, yaw: 0 };
     rules(state, [cmd], () => {});
     expect(state.actors[1]!.pos.x).toBe(300);
-    expect(state.tick).toBe(1);
+    // sim/core/tick.ts's step() is the single owner of the tick; rules() must not advance it.
+    expect(state.tick).toBe(0);
   });
 });
 
@@ -80,9 +91,10 @@ describe("periodic effects", () => {
     target.effects.push({ effectId: "dot", sourceId: 1, stacks: 1, endsTick: 45, nextPeriodicTick: 20 });
     const rules = makeRules(baseCfg());
     const events: SimEvent[] = [];
-    // rules() checks periodics due at state.tick before advancing it, so the step that
-    // processes tick 20 (and fires the dot) is the 21st call.
-    for (let i = 0; i < 21; i += 1) rules(state, [], (e) => events.push(e));
+    // rules() checks periodics due at state.tick before the `tick` helper advances it (mirroring
+    // sim/core/tick.ts's step()), so the call that processes tick 20 (and fires the dot) is the
+    // 21st call.
+    for (let i = 0; i < 21; i += 1) tick(state, rules, [], (e) => events.push(e));
     expect(state.tick).toBe(21);
     expect(target.health).toBe(90);
     expect(target.effects[0]!.nextPeriodicTick).toBe(40);
