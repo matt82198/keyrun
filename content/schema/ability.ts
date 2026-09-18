@@ -1,59 +1,27 @@
 /**
  * content/schema/ability.ts
- * Local copy of the canonical AbilityDef / EffectOp contract shared with the sim-combat lane
- * (sim/combat/abilities.ts defines the same shapes independently; integration is a re-import).
- * Data-shape only. Never import sim/ from here.
+ * Re-exports the canonical AbilityDef/EffectOp/AbilityShape contract from sim/combat/abilities.ts
+ * (landed on main via PR #10/#13) instead of carrying a local duplicate. `ContentAbilityDef`
+ * layers the two fields the real sim type has no notion of -- a display `name` (sim never renders
+ * anything) and the Chanter stance-variant effect override (see content/CLAUDE.md "Schema
+ * additions") -- onto the real `AbilityDef`. Every content/data/abilities/*.json entry is a
+ * ContentAbilityDef; `content/index.ts`'s `abilities` registry holds these, but any single value
+ * plucked out of it is a structurally valid sim AbilityDef (RulesConfig.abilities /
+ * RunContent.abilities accept it as-is).
  */
+export type { AbilityDef, EffectOp, AbilityShape } from "../../sim/combat/abilities";
+export { validateAbilityDef, abilitySchool } from "../../sim/combat/abilities";
 
-export type ShapeKind = "target" | "self" | "cone" | "circle" | "line";
+import type { AbilityDef, EffectOp } from "../../sim/combat/abilities";
 
-export interface ShapeDef {
-  kind: ShapeKind;
-  radius?: number;
-  angle1024?: number;
-  length?: number;
-  width?: number;
-}
-
-export interface AbilityCost {
-  resource: string;
-  amount: number;
-}
-
-/** Single-slot hard-control tag. ADDED beyond the canonical contract (see effect.ts). */
-export type ControlKind = "stun" | "silence" | "root" | "blind";
-
-export type EffectOp =
-  | { op: "damage"; amount: number; school: string }
-  | { op: "heal"; amount: number }
-  | { op: "applyEffect"; effectId: string; durationTicks: number; stacks?: number }
-  | { op: "removeEffect"; effectId: string }
-  | { op: "interrupt"; lockoutTicks: number }
-  | { op: "resource"; resource: string; delta: number }
-  | { op: "threat"; amount?: number; multiplierBp?: number }
-  | { op: "window"; windowId: string; durationTicks: number; onTarget: boolean }
-  | { op: "combo"; comboTable: string };
-
-export interface AbilityDef {
-  id: string;
+export interface ContentAbilityDef extends AbilityDef {
   name: string;
-  castTicks: number;
-  gcdTicks: number;
-  cooldownTicks: number;
-  charges: number;
-  cost?: AbilityCost;
-  /** millimetres */
-  range: number;
-  shape: ShapeDef;
-  interruptible: boolean;
-  /** e.g. "setup:sundered", "payoff", "interrupt", "control", "dispel", "movement", "defensive" */
-  tags: string[];
-  effects: EffectOp[];
   /**
-   * ADDED (content lane; not in the canonical contract): per-loop-state effect override for
-   * stance classes (Chanter's Mend/Ward), keyed by loop state name ("mend" | "ward" here).
-   * When the class's current stance matches a key, sim should use that list instead of `effects`.
-   * Absent = `effects` always applies. See content/CLAUDE.md "Schema additions".
+   * Per-stance effect override, used only by Chanter (`"mend"` / `"ward"` keys) so one ability
+   * plays two ways without a second ability id. Absent = `effects` always applies. Not part of
+   * the sim contract: sim/combat/casting.ts's completeCast always uses `def.effects` -- a future
+   * stance-selection layer above sim (or content/apply.ts) is expected to pre-resolve the active
+   * variant into a plain AbilityDef.effects before handing it to sim, exactly like a talent patch.
    */
   variants?: Record<string, EffectOp[]>;
 }

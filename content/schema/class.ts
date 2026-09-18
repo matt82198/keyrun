@@ -1,7 +1,9 @@
 /**
  * content/schema/class.ts
- * Local copy of the canonical ClassDef contract shared with the sim-combat lane.
- * Data-shape only. Never import sim/ from here.
+ * ClassDef has no sim equivalent (sim/combat only knows an actor's bare `classId` string; the
+ * loop/ability-slot/talent structure is entirely a content concern), so it stays content-only.
+ * `TalentOption.patch` is `Partial<AbilityDef>` against the real sim contract (imported from
+ * ./ability) so a patch can only ever set fields the sim ability pipeline actually understands.
  */
 
 import type { AbilityDef } from "./ability";

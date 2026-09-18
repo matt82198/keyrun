@@ -7,13 +7,26 @@
     "cooldownTicks": 0,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": true,
     "tags": [],
     "effects": [
-      { "op": "damage", "amount": 90, "school": "fire" },
-      { "op": "resource", "resource": "heat", "delta": 20 }
-    ]
+      {
+        "op": "damage",
+        "amount": 90,
+        "school": "fire"
+      },
+      {
+        "op": "resource",
+        "delta": 20
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "cinder.flare",
@@ -23,14 +36,35 @@
     "cooldownTicks": 0,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": true,
-    "tags": ["setup:kindled"],
+    "tags": [
+      "window:kindled"
+    ],
     "effects": [
-      { "op": "damage", "amount": 110, "school": "fire" },
-      { "op": "resource", "resource": "heat", "delta": 25 },
-      { "op": "window", "windowId": "kindled", "durationTicks": 60, "onTarget": true }
-    ]
+      {
+        "op": "damage",
+        "amount": 110,
+        "school": "fire"
+      },
+      {
+        "op": "resource",
+        "delta": 25
+      },
+      {
+        "op": "window",
+        "windowId": "kindled",
+        "durationTicks": 60,
+        "onTarget": true,
+        "setupClass": "cinder"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "cinder.coldSnap",
@@ -40,16 +74,42 @@
     "cooldownTicks": 120,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["payoff", "control"],
+    "tags": [
+      "payoff",
+      "control"
+    ],
     "effects": [
-      { "op": "damage", "amount": 100, "school": "frost" },
-      { "op": "resource", "resource": "heat", "delta": -100 },
-      { "op": "removeEffect", "effectId": "chill" },
-      { "op": "applyEffect", "effectId": "stunned", "durationTicks": 20, "stacks": 1 },
-      { "op": "combo", "comboTable": "combos" }
-    ]
+      {
+        "op": "damage",
+        "amount": 100,
+        "school": "frost"
+      },
+      {
+        "op": "resource",
+        "delta": -100
+      },
+      {
+        "op": "removeEffect",
+        "effectId": "chill"
+      },
+      {
+        "op": "applyEffect",
+        "effectId": "stunned",
+        "durationTicks": 20,
+        "stacks": 1
+      },
+      {
+        "op": "payoff"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "cinder.detonate",
@@ -58,14 +118,27 @@
     "gcdTicks": 30,
     "cooldownTicks": 60,
     "charges": 1,
-    "cost": { "resource": "heat", "amount": 30 },
+    "cost": {
+      "resource": "heat",
+      "amount": 30
+    },
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["payoff"],
+    "tags": [
+      "payoff"
+    ],
     "effects": [
-      { "op": "damage", "amount": 250, "school": "fire" },
-      { "op": "combo", "comboTable": "combos" }
+      {
+        "op": "damage",
+        "amount": 250,
+        "school": "fire"
+      },
+      {
+        "op": "payoff"
+      }
     ]
   },
   {
@@ -76,13 +149,33 @@
     "cooldownTicks": 200,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "circle", "radius": 2500 },
+    "shape": {
+      "kind": "circle",
+      "radius": 2500
+    },
     "interruptible": true,
-    "tags": ["setup:cinderfield"],
+    "tags": [
+      "window:cinderfield"
+    ],
     "effects": [
-      { "op": "window", "windowId": "cinderfield", "durationTicks": 160, "onTarget": false },
-      { "op": "applyEffect", "effectId": "burning", "durationTicks": 160, "stacks": 1 }
-    ]
+      {
+        "op": "window",
+        "windowId": "cinderfield",
+        "durationTicks": 160,
+        "onTarget": false,
+        "setupClass": "cinder"
+      },
+      {
+        "op": "applyEffect",
+        "effectId": "burning",
+        "durationTicks": 160,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "cinder.quench",
@@ -92,13 +185,26 @@
     "cooldownTicks": 480,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["interrupt"],
+    "tags": [
+      "interrupt"
+    ],
     "effects": [
-      { "op": "interrupt", "lockoutTicks": 80 },
-      { "op": "resource", "resource": "heat", "delta": 20 }
-    ]
+      {
+        "op": "interrupt"
+      },
+      {
+        "op": "resource",
+        "delta": 20
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "cinder.ashenSkin",
@@ -108,12 +214,25 @@
     "cooldownTicks": 300,
     "charges": 1,
     "range": 0,
-    "shape": { "kind": "self" },
+    "shape": {
+      "kind": "self"
+    },
     "interruptible": false,
-    "tags": ["defensive"],
+    "tags": [
+      "defensive"
+    ],
     "effects": [
-      { "op": "applyEffect", "effectId": "ashenSkin", "durationTicks": 60, "stacks": 1 }
-    ]
+      {
+        "op": "applyEffect",
+        "effectId": "ashenSkin",
+        "durationTicks": 60,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "cinder.purge",
@@ -123,12 +242,24 @@
     "cooldownTicks": 160,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["utility", "dispel"],
+    "tags": [
+      "utility",
+      "dispel"
+    ],
     "effects": [
-      { "op": "removeEffect", "effectId": "*" }
-    ]
+      {
+        "op": "removeEffect",
+        "effectId": "*"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "cinder.blink",
@@ -138,9 +269,22 @@
     "cooldownTicks": 200,
     "charges": 2,
     "range": 8000,
-    "shape": { "kind": "self" },
+    "shape": {
+      "kind": "self"
+    },
     "interruptible": false,
-    "tags": ["movement"],
-    "effects": []
+    "tags": [
+      "movement"
+    ],
+    "effects": [
+      {
+        "op": "resource",
+        "delta": 0
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   }
 ]

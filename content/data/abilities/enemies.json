@@ -7,10 +7,22 @@
     "cooldownTicks": 40,
     "charges": 1,
     "range": 3000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
     "tags": [],
-    "effects": [{ "op": "damage", "amount": 70, "school": "physical" }]
+    "effects": [
+      {
+        "op": "damage",
+        "amount": 70,
+        "school": "physical"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "choir.healCast",
@@ -20,10 +32,23 @@
     "cooldownTicks": 200,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": true,
-    "tags": ["healer"],
-    "effects": [{ "op": "heal", "amount": 300 }]
+    "tags": [
+      "healer"
+    ],
+    "effects": [
+      {
+        "op": "heal",
+        "amount": 300
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "pair.meleeSwing",
@@ -33,10 +58,22 @@
     "cooldownTicks": 40,
     "charges": 1,
     "range": 3000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
     "tags": [],
-    "effects": [{ "op": "damage", "amount": 70, "school": "physical" }]
+    "effects": [
+      {
+        "op": "damage",
+        "amount": 70,
+        "school": "physical"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "pair.spreadMark",
@@ -46,10 +83,25 @@
     "cooldownTicks": 400,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["control"],
-    "effects": [{ "op": "applyEffect", "effectId": "spreadMarked", "durationTicks": 200, "stacks": 1 }]
+    "tags": [
+      "control"
+    ],
+    "effects": [
+      {
+        "op": "applyEffect",
+        "effectId": "spreadMarked",
+        "durationTicks": 200,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "pair.stackCall",
@@ -59,10 +111,26 @@
     "cooldownTicks": 400,
     "charges": 1,
     "range": 0,
-    "shape": { "kind": "circle", "radius": 1500 },
+    "shape": {
+      "kind": "circle",
+      "radius": 1500
+    },
     "interruptible": false,
-    "tags": ["control"],
-    "effects": [{ "op": "applyEffect", "effectId": "stackMarked", "durationTicks": 100, "stacks": 1 }]
+    "tags": [
+      "control"
+    ],
+    "effects": [
+      {
+        "op": "applyEffect",
+        "effectId": "stackMarked",
+        "durationTicks": 100,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "seed.slam",
@@ -72,10 +140,23 @@
     "cooldownTicks": 100,
     "charges": 1,
     "range": 0,
-    "shape": { "kind": "circle", "radius": 2000 },
+    "shape": {
+      "kind": "circle",
+      "radius": 2000
+    },
     "interruptible": false,
     "tags": [],
-    "effects": [{ "op": "damage", "amount": 150, "school": "physical" }]
+    "effects": [
+      {
+        "op": "damage",
+        "amount": 150,
+        "school": "physical"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "seed.deathBloom",
@@ -85,10 +166,27 @@
     "cooldownTicks": 0,
     "charges": 1,
     "range": 0,
-    "shape": { "kind": "circle", "radius": 2500 },
+    "shape": {
+      "kind": "circle",
+      "radius": 2500
+    },
     "interruptible": false,
-    "tags": ["setup:seedbloom"],
-    "effects": [{ "op": "window", "windowId": "seedbloom", "durationTicks": 100, "onTarget": false }]
+    "tags": [
+      "window:seedbloom"
+    ],
+    "effects": [
+      {
+        "op": "window",
+        "windowId": "seedbloom",
+        "durationTicks": 100,
+        "onTarget": false,
+        "setupClass": "boss"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "hollowWarden.slam",
@@ -98,10 +196,22 @@
     "cooldownTicks": 60,
     "charges": 1,
     "range": 3000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
     "tags": [],
-    "effects": [{ "op": "damage", "amount": 150, "school": "physical" }]
+    "effects": [
+      {
+        "op": "damage",
+        "amount": 150,
+        "school": "physical"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "hollowWarden.cleave",
@@ -111,10 +221,24 @@
     "cooldownTicks": 160,
     "charges": 1,
     "range": 4000,
-    "shape": { "kind": "cone", "radius": 4000, "angle1024": 200 },
+    "shape": {
+      "kind": "cone",
+      "radius": 4000,
+      "angle1024": 200
+    },
     "interruptible": false,
     "tags": [],
-    "effects": [{ "op": "damage", "amount": 220, "school": "physical" }]
+    "effects": [
+      {
+        "op": "damage",
+        "amount": 220,
+        "school": "physical"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "hollowWarden.lock",
@@ -124,13 +248,34 @@
     "cooldownTicks": 0,
     "charges": 1,
     "range": 0,
-    "shape": { "kind": "self" },
+    "shape": {
+      "kind": "self"
+    },
     "interruptible": false,
-    "tags": ["setup:lock"],
+    "tags": [
+      "window:lock"
+    ],
     "effects": [
-      { "op": "applyEffect", "effectId": "lockShield", "durationTicks": 60, "stacks": 1 },
-      { "op": "window", "windowId": "lock", "durationTicks": 60, "onTarget": false }
-    ]
+      {
+        "op": "applyEffect",
+        "effectId": "lockShield",
+        "durationTicks": 60,
+        "stacks": 1
+      },
+      {
+        "op": "window",
+        "windowId": "lock",
+        "durationTicks": 60,
+        "onTarget": true,
+        "setupClass": "boss",
+        "self": true,
+        "alternate": true
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "twins.slam",
@@ -140,9 +285,21 @@
     "cooldownTicks": 60,
     "charges": 1,
     "range": 3000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
     "tags": [],
-    "effects": [{ "op": "damage", "amount": 90, "school": "physical" }]
+    "effects": [
+      {
+        "op": "damage",
+        "amount": 90,
+        "school": "physical"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   }
 ]
