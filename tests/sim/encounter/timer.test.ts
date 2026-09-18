@@ -7,6 +7,7 @@ import {
   SLACK_BASE_TICKS,
   SLACK_PER_KEY_TICKS,
 } from "../../../sim/encounter/timer";
+import { defaultEncounterRules } from "../../../sim/encounter/clauses";
 import type { EncounterState } from "../../../sim/encounter/telegraphs";
 import type { SimEvent } from "../../../sim/encounter/types";
 
@@ -19,6 +20,7 @@ function encounterAtKey(keyLevel: number): EncounterState {
     parTicks: 10000,
     keyLevel,
     depleted: false,
+    rules: defaultEncounterRules(keyLevel),
   };
 }
 
