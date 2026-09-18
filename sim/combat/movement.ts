@@ -2,13 +2,14 @@
  * Integer movement: velocity in mm/tick from move commands (with a movement-speed modifier in
  * basis points), capsule-vs-cylinder actor-actor collision push-out (treated as circles in the
  * XZ plane, since actors are vertical capsules of equal radius), and arena-bounds AABB clamping.
- * `isqrt` uses a float estimate only as a starting guess, then corrects with integer comparisons
- * until exact; the returned value is always the true integer square root, so results stay
- * platform-deterministic regardless of Math.sqrt's rounding.
+ * `isqrt` is sim/core/fixed.ts's pure integer Newton's-method square root (re-exported here so
+ * existing callers/tests keep importing it from this module); it is always the true integer
+ * square root, so results stay platform-deterministic regardless of Math.sqrt's rounding.
  * Usage: applyMovement(actor, cmd.dir, baseSpeedMm, mods.movementBp, cmd.yaw); clampToBounds(actor, bounds);
  */
 import type { ActorState } from "./types";
 import { BP_DENOM } from "./effects";
+import { isqrt as coreIsqrt } from "../core/fixed";
 
 export interface Bounds {
   minX: number;
@@ -17,12 +18,12 @@ export interface Bounds {
   maxZ: number;
 }
 
+/** n<=0 short-circuits to 0 (core's isqrt throws on negative input; callers here only ever pass
+ * squared distances, which are never negative, so this guard exists purely to preserve the old
+ * n===0 fast path without changing observable behaviour). */
 export function isqrt(n: number): number {
   if (n <= 0) return 0;
-  let x = Math.floor(Math.sqrt(n));
-  while (x > 0 && x * x > n) x -= 1;
-  while ((x + 1) * (x + 1) <= n) x += 1;
-  return x;
+  return coreIsqrt(n);
 }
 
 export function applyMovement(
