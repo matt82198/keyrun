@@ -1,0 +1,74 @@
+{
+  "id": "chanter",
+  "name": "Chanter",
+  "loop": { "resource": "verse", "max": 1, "kind": "stance" },
+  "abilities": {
+    "rot1": "chanter.cadence", "rot2": "chanter.refrain", "rot3": "chanter.chorus",
+    "rot4": "chanter.dissonance", "rot5": "chanter.hymn",
+    "interrupt": "chanter.rebuke", "defensive": "chanter.aegis",
+    "utility": "chanter.cleanse", "movement": "chanter.glide"
+  },
+  "talents": [
+    {
+      "abilityId": "chanter.cadence",
+      "options": [
+        { "id": "resonance", "name": "Resonance", "text": "Attuned lasts longer.",
+          "patch": { "effects": [
+            { "op": "window", "windowId": "attuned", "durationTicks": 100, "onTarget": true }
+          ] } },
+        { "id": "groupSong", "name": "Group Song", "text": "Cadence becomes a party-wide area.",
+          "patch": { "shape": { "kind": "circle", "radius": 5000 }, "tags": ["setup:attuned", "aoe"] } },
+        { "id": "swift", "name": "Swift Verse", "text": "Instant cast; adds a short cooldown.",
+          "patch": { "castTicks": 0, "cooldownTicks": 40 } }
+      ]
+    },
+    {
+      "abilityId": "chanter.refrain",
+      "options": [
+        { "id": "overture", "name": "Overture", "text": "Much shorter cooldown.",
+          "patch": { "cooldownTicks": 20 } },
+        { "id": "crescendo", "name": "Crescendo", "text": "Refrain also closes a Window like a Payoff.",
+          "patch": { "tags": ["payoff-on-swap"], "effects": [
+            { "op": "resource", "resource": "verse", "delta": 1 },
+            { "op": "combo", "comboTable": "combos" }
+          ] } }
+      ]
+    },
+    {
+      "abilityId": "chanter.chorus",
+      "options": [
+        { "id": "roundCall", "name": "Round Call", "text": "Much larger radius.",
+          "patch": { "shape": { "kind": "circle", "radius": 7000 } } },
+        { "id": "discipline", "name": "Discipline", "text": "Longer cooldown; stronger pulse.",
+          "patch": { "cooldownTicks": 160 } },
+        { "id": "encore", "name": "Encore", "text": "Gains a second charge; longer cooldown.",
+          "patch": { "charges": 2, "cooldownTicks": 160 } }
+      ]
+    },
+    {
+      "abilityId": "chanter.dissonance",
+      "options": [
+        { "id": "amplify", "name": "Amplify", "text": "Hits noticeably harder.",
+          "patch": { "tags": ["payoff", "amplified"], "effects": [
+            { "op": "damage", "amount": 170, "school": "radiant" },
+            { "op": "combo", "comboTable": "combos" }
+          ] } },
+        { "id": "discord", "name": "Discord", "text": "Dissonance becomes a frontal cone.",
+          "patch": { "shape": { "kind": "cone", "radius": 4000, "angle1024": 120 } } }
+      ]
+    },
+    {
+      "abilityId": "chanter.hymn",
+      "options": [
+        { "id": "grandHymn", "name": "Grand Hymn", "text": "Bigger patch, lasts longer.",
+          "patch": { "shape": { "kind": "circle", "radius": 3500 }, "effects": [
+            { "op": "window", "windowId": "hymn", "durationTicks": 220, "onTarget": false }
+          ] } },
+        { "id": "staccato", "name": "Staccato", "text": "Instant cast; longer cooldown.",
+          "patch": { "castTicks": 0, "cooldownTicks": 260 } },
+        { "id": "roundRobin", "name": "Round Robin", "text": "Can be placed from much farther away.",
+          "patch": { "range": 20000 } }
+      ]
+    }
+  ]
+}
