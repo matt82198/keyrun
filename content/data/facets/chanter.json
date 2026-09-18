@@ -1,0 +1,312 @@
+[
+  {
+    "id": "chanter.weapon.wideningCadence",
+    "slot": "weapon",
+    "abilityId": "chanter.cadence",
+    "text": "Cadence becomes a party-wide area instead of a single target.",
+    "patch": {
+      "shape": {
+        "kind": "circle",
+        "radius": 5000
+      }
+    }
+  },
+  {
+    "id": "chanter.weapon.reachingRefrain",
+    "slot": "weapon",
+    "abilityId": "chanter.refrain",
+    "text": "Refrain can now be cast from much farther away.",
+    "patch": {
+      "range": 6000,
+      "tagAdd": [
+        "ranged-cast"
+      ]
+    }
+  },
+  {
+    "id": "chanter.weapon.wideningChorus",
+    "slot": "weapon",
+    "abilityId": "chanter.chorus",
+    "text": "Chorus's radius grows substantially.",
+    "patch": {
+      "shape": {
+        "kind": "circle",
+        "radius": 6500
+      }
+    }
+  },
+  {
+    "id": "chanter.weapon.piercingDissonance",
+    "slot": "weapon",
+    "abilityId": "chanter.dissonance",
+    "text": "Dissonance becomes a frontal cone instead of a single target.",
+    "patch": {
+      "shape": {
+        "kind": "cone",
+        "radius": 3500,
+        "angle1024": 110
+      }
+    }
+  },
+  {
+    "id": "chanter.armor.warmingAegis",
+    "slot": "armor",
+    "abilityId": "chanter.aegis",
+    "text": "Aegis also grants a brief Ward Shield.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "wardShield",
+          "durationTicks": 60,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "chanter.armor.hymnalMending",
+    "slot": "armor",
+    "abilityId": "chanter.hymn",
+    "text": "Hymn also applies a Mending HoT to everyone standing in it.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "mendingHot",
+          "durationTicks": 200,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "chanter.armor.rebukingChord",
+    "slot": "armor",
+    "abilityId": "chanter.rebuke",
+    "text": "Rebuke also slows the interrupted target.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "slowed",
+          "durationTicks": 60,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "chanter.armor.cleansingChord",
+    "slot": "armor",
+    "abilityId": "chanter.cleanse",
+    "text": "Cleanse also briefly hastes the ally it cleanses.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "hasted",
+          "durationTicks": 40,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "chanter.charm.refrainsEdge",
+    "slot": "charm",
+    "abilityId": "chanter.refrain",
+    "text": "Refrain now also counts as a Payoff, closing any open Window when it lands.",
+    "patch": {
+      "tagAdd": [
+        "payoff"
+      ],
+      "effectsAppend": [
+        {
+          "op": "combo",
+          "comboTable": "combos"
+        }
+      ]
+    }
+  },
+  {
+    "id": "chanter.charm.glidingVerse",
+    "slot": "charm",
+    "abilityId": "chanter.glide",
+    "text": "Glide leaves an Attuned Window where you land.",
+    "patch": {
+      "tagAdd": [
+        "setup:attuned"
+      ],
+      "effectsAppend": [
+        {
+          "op": "window",
+          "windowId": "attuned",
+          "durationTicks": 80,
+          "onTarget": false
+        }
+      ]
+    }
+  },
+  {
+    "id": "chanter.charm.rebukesChord",
+    "slot": "charm",
+    "abilityId": "chanter.rebuke",
+    "text": "Rebuke becomes a Payoff, closing a Window on a successful interrupt.",
+    "patch": {
+      "tagAdd": [
+        "payoff"
+      ],
+      "effectsAppend": [
+        {
+          "op": "combo",
+          "comboTable": "combos"
+        }
+      ]
+    }
+  },
+  {
+    "id": "chanter.charm.cleansingWindow",
+    "slot": "charm",
+    "abilityId": "chanter.cleanse",
+    "text": "Cleanse also opens the Attuned Window on its target.",
+    "patch": {
+      "tagAdd": [
+        "setup:attuned"
+      ],
+      "effectsAppend": [
+        {
+          "op": "window",
+          "windowId": "attuned",
+          "durationTicks": 80,
+          "onTarget": true
+        }
+      ]
+    }
+  },
+  {
+    "id": "chanter.ring.versedReserves",
+    "slot": "ring",
+    "abilityId": "chanter.chorus",
+    "text": "Chorus grants an extra charge, tagged for Verse synergies.",
+    "patch": {
+      "charges": 2,
+      "tagAdd": [
+        "verse-surge"
+      ]
+    }
+  },
+  {
+    "id": "chanter.ring.swiftVerse",
+    "slot": "ring",
+    "abilityId": "chanter.cadence",
+    "text": "Cadence casts instantly and is tagged Swift Cast.",
+    "patch": {
+      "castTicks": 0,
+      "tagAdd": [
+        "swift-cast"
+      ]
+    }
+  },
+  {
+    "id": "chanter.ring.cheapDissonance",
+    "slot": "ring",
+    "abilityId": "chanter.dissonance",
+    "text": "Dissonance costs much less Verse and is tagged Cheap Cast.",
+    "patch": {
+      "cost": {
+        "resource": "verse",
+        "amount": 0
+      },
+      "tagAdd": [
+        "cheap-cast"
+      ]
+    }
+  },
+  {
+    "id": "chanter.ring.overtureOfPower",
+    "slot": "ring",
+    "abilityId": "chanter.refrain",
+    "text": "Refrain also grants a burst of Verse, tagged for stance synergies.",
+    "patch": {
+      "tagAdd": [
+        "verse-surge"
+      ],
+      "effectsAppend": [
+        {
+          "op": "resource",
+          "resource": "verse",
+          "delta": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "chanter.keystone.eternalHymn",
+    "slot": "keystone",
+    "abilityId": "chanter.hymn",
+    "text": "Hymn's cooldown falls sharply and it becomes a Payoff, closing Windows.",
+    "patch": {
+      "cooldownTicks": 60,
+      "tagAdd": [
+        "payoff"
+      ],
+      "effectsAppend": [
+        {
+          "op": "combo",
+          "comboTable": "combos"
+        }
+      ]
+    }
+  },
+  {
+    "id": "chanter.keystone.grandCadence",
+    "slot": "keystone",
+    "abilityId": "chanter.cadence",
+    "text": "Cadence becomes a much larger party-wide area and opens the Window on cast.",
+    "patch": {
+      "shape": {
+        "kind": "circle",
+        "radius": 7000
+      },
+      "tagAdd": [
+        "aoe"
+      ]
+    }
+  },
+  {
+    "id": "chanter.keystone.lastWard",
+    "slot": "keystone",
+    "abilityId": "chanter.aegis",
+    "text": "Aegis's cooldown falls and it also grants a Ward Pulse.",
+    "patch": {
+      "cooldownTicks": 200,
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "wardPulse",
+          "durationTicks": 40,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "chanter.keystone.dissonantChoir",
+    "slot": "keystone",
+    "abilityId": "chanter.dissonance",
+    "text": "Dissonance gains the Amplified tag and refunds a burst of Verse.",
+    "patch": {
+      "tagAdd": [
+        "amplified"
+      ],
+      "effectsAppend": [
+        {
+          "op": "resource",
+          "resource": "verse",
+          "delta": 1
+        }
+      ]
+    }
+  }
+]

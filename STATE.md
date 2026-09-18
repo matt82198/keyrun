@@ -41,6 +41,9 @@ assets; pure POC.
 - Phase 4: server/ authoritative tick + queue/lobby + character screen → 5 humans.
 - Phase 5: tuning with Matt playing.
 
-## NEXT STEPS
-1. Research lanes write `research/*.md`; a synthesis lane drafts `design/BIBLE.md`; Matt reviews.
-2. Then write `sim/CLAUDE.md` from the bible and open Phase 2.
+## NEXT STEPS (2026-09-18, phase 3 in progress)
+1. Land #14 (progression) and #15 (integrate-sim: `sim/index.ts` createRun/stepRun, client worker on the real sim, golden replay).
+2. Land lanes content-sim-align (P0), bots-v1, apply-talents-facets; then dispatch playable-v1 (client + bots + content, Hollow Vault end to end).
+3. Then clauses, window-radius-field, dedupe-target-resolution, screen panels for talents/facets, tick-rate-measure (D9).
+4. Matt's `[DECIDE]` items in design/BIBLE.md (class names, combo numbers, key range/par time, Ascension visibility) stay parked until he weighs in.
+5. Session end: /refinesystem to zero verified defects.

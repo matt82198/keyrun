@@ -1,0 +1,330 @@
+[
+  {
+    "id": "cinder.weapon.sprayOfEmbers",
+    "slot": "weapon",
+    "abilityId": "cinder.emberBolt",
+    "text": "Ember Bolt becomes a narrow cone instead of a single bolt.",
+    "patch": {
+      "shape": {
+        "kind": "cone",
+        "radius": 2500,
+        "angle1024": 60
+      }
+    }
+  },
+  {
+    "id": "cinder.weapon.wideningFlare",
+    "slot": "weapon",
+    "abilityId": "cinder.flare",
+    "text": "Flare's area grows substantially.",
+    "patch": {
+      "shape": {
+        "kind": "circle",
+        "radius": 2200
+      },
+      "tagAdd": [
+        "aoe"
+      ]
+    }
+  },
+  {
+    "id": "cinder.weapon.crackingIce",
+    "slot": "weapon",
+    "abilityId": "cinder.coldSnap",
+    "text": "Cold Snap becomes a frontal cone instead of a single target.",
+    "patch": {
+      "shape": {
+        "kind": "cone",
+        "radius": 2800,
+        "angle1024": 100
+      }
+    }
+  },
+  {
+    "id": "cinder.weapon.detonationBurst",
+    "slot": "weapon",
+    "abilityId": "cinder.detonate",
+    "text": "Detonate becomes a small area burst.",
+    "patch": {
+      "shape": {
+        "kind": "circle",
+        "radius": 1800
+      }
+    }
+  },
+  {
+    "id": "cinder.armor.chillingField",
+    "slot": "armor",
+    "abilityId": "cinder.cinderfield",
+    "text": "Cinderfield also chills enemies standing in it.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "chill",
+          "durationTicks": 200,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.armor.emberWard",
+    "slot": "armor",
+    "abilityId": "cinder.ashenSkin",
+    "text": "Ashen Skin also grants a brief Aegis Shield.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "aegisShield",
+          "durationTicks": 60,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.armor.frostbitten",
+    "slot": "armor",
+    "abilityId": "cinder.quench",
+    "text": "Quench also slows the interrupted target.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "slowed",
+          "durationTicks": 60,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.armor.cleansingFlame",
+    "slot": "armor",
+    "abilityId": "cinder.purge",
+    "text": "Purge also briefly hastes the target it cleanses.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "hasted",
+          "durationTicks": 40,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.charm.overloadedBolt",
+    "slot": "charm",
+    "abilityId": "cinder.emberBolt",
+    "text": "Ember Bolt now also counts as a Payoff, closing any open Window when it lands.",
+    "patch": {
+      "tagAdd": [
+        "payoff"
+      ],
+      "effectsAppend": [
+        {
+          "op": "combo",
+          "comboTable": "combos"
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.charm.blinkingEmber",
+    "slot": "charm",
+    "abilityId": "cinder.blink",
+    "text": "Blink leaves a trail that opens the Kindled Window at your start point.",
+    "patch": {
+      "tagAdd": [
+        "setup:kindled"
+      ],
+      "effectsAppend": [
+        {
+          "op": "window",
+          "windowId": "kindled",
+          "durationTicks": 100,
+          "onTarget": false
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.charm.quenchingBlow",
+    "slot": "charm",
+    "abilityId": "cinder.quench",
+    "text": "Quench becomes a Payoff, closing a Window on a successful interrupt.",
+    "patch": {
+      "tagAdd": [
+        "payoff"
+      ],
+      "effectsAppend": [
+        {
+          "op": "combo",
+          "comboTable": "combos"
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.charm.purgingFlame",
+    "slot": "charm",
+    "abilityId": "cinder.purge",
+    "text": "Purge also opens the Kindled Window on its target.",
+    "patch": {
+      "tagAdd": [
+        "setup:kindled"
+      ],
+      "effectsAppend": [
+        {
+          "op": "window",
+          "windowId": "kindled",
+          "durationTicks": 100,
+          "onTarget": true
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.ring.heatSink",
+    "slot": "ring",
+    "abilityId": "cinder.emberBolt",
+    "text": "Ember Bolt also banks a small amount of extra Heat.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "resource",
+          "resource": "heat",
+          "delta": 8
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.ring.overflowValve",
+    "slot": "ring",
+    "abilityId": "cinder.coldSnap",
+    "text": "Cold Snap dumps much less Heat and is tagged Partial Dump.",
+    "patch": {
+      "cost": {
+        "resource": "heat",
+        "amount": 0
+      },
+      "tagAdd": [
+        "partial-dump"
+      ],
+      "effectsAppend": [
+        {
+          "op": "resource",
+          "resource": "heat",
+          "delta": -30
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.ring.stokedCoals",
+    "slot": "ring",
+    "abilityId": "cinder.flare",
+    "text": "Flare also banks bonus Heat, tagged for Overheat synergies.",
+    "patch": {
+      "tagAdd": [
+        "heat-surge"
+      ],
+      "effectsAppend": [
+        {
+          "op": "resource",
+          "resource": "heat",
+          "delta": 12
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.ring.cheapDetonation",
+    "slot": "ring",
+    "abilityId": "cinder.detonate",
+    "text": "Detonate costs much less Heat and is tagged Cheap Cast.",
+    "patch": {
+      "cost": {
+        "resource": "heat",
+        "amount": 10
+      },
+      "tagAdd": [
+        "cheap-cast"
+      ]
+    }
+  },
+  {
+    "id": "cinder.keystone.eternalFlare",
+    "slot": "keystone",
+    "abilityId": "cinder.flare",
+    "text": "Flare's cooldown falls sharply and it becomes a Payoff, closing Windows.",
+    "patch": {
+      "cooldownTicks": 20,
+      "tagAdd": [
+        "payoff"
+      ],
+      "effectsAppend": [
+        {
+          "op": "combo",
+          "comboTable": "combos"
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.keystone.infernoBolt",
+    "slot": "keystone",
+    "abilityId": "cinder.emberBolt",
+    "text": "Ember Bolt becomes a piercing line, hitting everything in it.",
+    "patch": {
+      "shape": {
+        "kind": "line",
+        "length": 25000,
+        "width": 1200
+      },
+      "tagAdd": [
+        "piercing"
+      ]
+    }
+  },
+  {
+    "id": "cinder.keystone.absoluteZero",
+    "slot": "keystone",
+    "abilityId": "cinder.coldSnap",
+    "text": "Cold Snap's cooldown falls and it also grants a brief Aegis Shield.",
+    "patch": {
+      "cooldownTicks": 60,
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "aegisShield",
+          "durationTicks": 60,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "cinder.keystone.detonationChain",
+    "slot": "keystone",
+    "abilityId": "cinder.detonate",
+    "text": "Detonate gains the Execute tag and refunds a burst of Heat.",
+    "patch": {
+      "tagAdd": [
+        "execute"
+      ],
+      "effectsAppend": [
+        {
+          "op": "resource",
+          "resource": "heat",
+          "delta": 20
+        }
+      ]
+    }
+  }
+]

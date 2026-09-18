@@ -43,6 +43,7 @@ import {
   type EncounterState,
   type EnemyScript,
 } from "./encounter/index";
+import { defaultEncounterRules, type EncounterRules } from "./encounter/clauses";
 
 /** One party member to spawn as a player actor at run creation. */
 export interface PartyMemberSpec {
@@ -72,6 +73,7 @@ export interface RunContent {
   enemyScripts: Record<ActorId, EnemyScript>;
   keyLevel?: number;
   parTicks?: number;
+  encounterRules?: EncounterRules;
 }
 
 export interface Run {
@@ -136,6 +138,7 @@ export function createRun(seed: number, party: PartyMemberSpec[], dungeon: Dunge
     parTicks: content.parTicks ?? 24000, // 20 minutes at 20Hz, a generous POC default
     keyLevel,
     depleted: false,
+    rules: content.encounterRules ?? defaultEncounterRules(keyLevel),
   };
 
   return { state, encounter, dungeon, content };
