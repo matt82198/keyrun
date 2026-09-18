@@ -1,7 +1,7 @@
 /**
  * Usage: npm test (vitest picks this up via tests/**\/*.test.ts).
  *
- * Covers the store.ts contract: v0->v1 migration, loadout delta flags,
+ * Covers the store.ts contract: legacy -> schemaVersion 2 migration, loadout "new" delta flags,
  * key-stepper clamp/lock, run-history capping, and the Play URL shape.
  */
 import { describe, expect, it } from "vitest";
@@ -11,59 +11,67 @@ import {
   createFixtureCharacter,
   getNewGearSlots,
   isKeyLocked,
+  markLoadoutSeen,
   migrate,
   recordRun,
   type RunRecord,
 } from "../../screen/src/store.js";
 
 describe("migrate", () => {
-  it("upgrades an unversioned (v0) payload to schemaVersion 1, filling gaps from the fixture", () => {
-    const v0 = {
+  it("upgrades a schemaVersion 1 (ilvl-based gear) payload to schemaVersion 2", () => {
+    const v1 = {
+      schemaVersion: 1,
       character: {
         classId: "ranger",
         level: 3,
+        keyLevel: 8,
         gear: { weapon: { id: "w0", name: "Rusty Sword", ilvl: 5, acquiredAt: 1000 } },
+        runHistory: [
+          { id: "r1", dungeon: "Hollow Vault", keyLevel: 8, result: "success", durationSec: 200, completedAt: 900 },
+        ],
       },
     };
-    const result = migrate(v0, 5000);
+    const result = migrate(v1, 5000);
 
-    expect(result.schemaVersion).toBe(1);
+    expect(result.schemaVersion).toBe(2);
     expect(result.character.classId).toBe("ranger");
     expect(result.character.level).toBe(3);
+    expect(result.character.keyLevel).toBe(8);
     expect(result.character.queued).toBe(false);
-    expect(result.character.gear.weapon.name).toBe("Rusty Sword");
-    expect(result.character.gear.armor).toBeDefined();
-    expect(result.character.gear.ring1).toBeDefined();
+    expect(result.character.ash).toBe(0);
+    // legacy gear shape (ilvl) cannot carry forward -- resets to the tiered fixture loadout.
+    expect(result.character.gear.weapon.tier).toBe(1);
+    expect(result.character.gear.keystone).toBeDefined();
+    // legacy "success"/"failure" results map onto the new timed/depleted/abandoned vocabulary.
+    expect(result.character.runHistory[0]!.result).toBe("timed");
+    expect(result.character.runHistory[0]!.rewardPicked).toBeNull();
   });
 
-  it("is a no-op for an already-current v1 payload", () => {
-    const current = { schemaVersion: 1 as const, character: createFixtureCharacter(1000) };
+  it("is a no-op for an already-current v2 payload", () => {
+    const current = { schemaVersion: 2 as const, character: createFixtureCharacter(1000) };
     expect(migrate(current, 2000)).toBe(current);
   });
 
   it("falls back to a fresh fixture for garbage input", () => {
     const result = migrate({ nonsense: true }, 5000);
-    expect(result.schemaVersion).toBe(1);
+    expect(result.schemaVersion).toBe(2);
     expect(result.character.classId).toBe("warden");
+    expect(result.character.gear.weapon.tier).toBe(1);
   });
 });
 
-describe("getNewGearSlots", () => {
-  it("flags only gear acquired after lastSeenAt", () => {
+describe("getNewGearSlots / markLoadoutSeen", () => {
+  it("flags only slots auto-equipped since the loadout was last viewed", () => {
     const character = createFixtureCharacter(10000);
-    character.lastSeenAt = 5000;
-    character.gear.ring1.acquiredAt = 6000;
-    character.gear.weapon.acquiredAt = 4000;
-
-    const newSlots = getNewGearSlots(character);
-    expect(newSlots).toContain("ring1");
-    expect(newSlots).not.toContain("weapon");
+    character.recentlyEquipped = ["ring"];
+    expect(getNewGearSlots(character)).toEqual(["ring"]);
   });
 
-  it("flags nothing once lastSeenAt catches up to every item", () => {
+  it("clears the flags once the loadout has been seen", () => {
     const character = createFixtureCharacter(10000);
-    character.lastSeenAt = 10000;
-    expect(getNewGearSlots(character)).toEqual([]);
+    character.recentlyEquipped = ["ring", "charm"];
+    const seen = markLoadoutSeen(character);
+    expect(getNewGearSlots(seen)).toEqual([]);
   });
 });
 
@@ -89,9 +97,11 @@ describe("recordRun", () => {
         id: `r${i}`,
         dungeon: "Hollow Vault",
         keyLevel: 5,
-        result: "success",
+        result: "timed",
         durationSec: 100,
         completedAt: i,
+        rewardPicked: null,
+        ashGained: 50,
       });
     }
     expect(history.length).toBe(5);
