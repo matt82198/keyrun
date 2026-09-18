@@ -17,7 +17,7 @@ const EXCLUDED_DIR_NAMES = new Set(["node_modules", "dist"]);
 // a file's real line count drops to <=190, the second test below fails, forcing its entry to be
 // removed: the allowlist only ever shrinks, never grows or gets re-padded.
 const ALLOWLIST: Record<string, number> = {
-  "sim/combat/windows.ts": 399,
+  "sim/combat/windows.ts": 379,
   "screen/src/rules.ts": 291,
   "client/src/sim-host/worker.ts": 312,
   "screen/src/panels/run.ts": 235,
