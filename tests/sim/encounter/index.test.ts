@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { stepEncounter } from "../../../sim/encounter/index";
+import { defaultEncounterRules } from "../../../sim/encounter/clauses";
 import type { EnemyScript } from "../../../sim/encounter/scripts";
 import type { EncounterState } from "../../../sim/encounter/telegraphs";
 import type { DungeonDef } from "../../../sim/encounter/pulls";
@@ -35,7 +36,7 @@ const scripts: Record<number, EnemyScript> = {
 };
 
 function baseEncounter(): EncounterState {
-  return { telegraphs: [], breakBars: {}, pullIndex: 0, slackTicks: 100, parTicks: 1000, keyLevel: 1, depleted: false };
+  return { telegraphs: [], breakBars: {}, pullIndex: 0, slackTicks: 100, parTicks: 1000, keyLevel: 1, depleted: false, rules: defaultEncounterRules(1) };
 }
 
 describe("stepEncounter", () => {

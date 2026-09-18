@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spawnPull, checkPullAdvance, type DungeonDef } from "../../../sim/encounter/pulls";
+import { defaultEncounterRules } from "../../../sim/encounter/clauses";
 import type { EncounterState } from "../../../sim/encounter/telegraphs";
 import type { ActorState, SimEvent, SimState } from "../../../sim/encounter/types";
 
@@ -21,7 +22,7 @@ const dungeon: DungeonDef = {
 };
 
 function baseEncounter(): EncounterState {
-  return { telegraphs: [], breakBars: {}, pullIndex: 0, slackTicks: 0, parTicks: 0, keyLevel: 1, depleted: false };
+  return { telegraphs: [], breakBars: {}, pullIndex: 0, slackTicks: 0, parTicks: 0, keyLevel: 1, depleted: false, rules: defaultEncounterRules(1) };
 }
 
 function stateWithActors(actors: Record<number, ActorState>): SimState {

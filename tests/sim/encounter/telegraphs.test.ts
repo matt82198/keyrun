@@ -7,6 +7,7 @@ import {
   type EncounterState,
   type Telegraph,
 } from "../../../sim/encounter/telegraphs";
+import { defaultEncounterRules } from "../../../sim/encounter/clauses";
 import type { ActorState, SimState } from "../../../sim/encounter/types";
 
 function playerActor(id: number, pos: { x: number; y: number; z: number }): ActorState {
@@ -42,6 +43,7 @@ function baseEncounter(telegraphs: Telegraph[]): EncounterState {
     parTicks: 0,
     keyLevel: 1,
     depleted: false,
+    rules: defaultEncounterRules(1),
   };
 }
 
