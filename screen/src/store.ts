@@ -1,8 +1,8 @@
 /**
  * Usage:
  *   import { loadStore, saveStore, markLoadoutSeen, buildPlayUrl, clampKeyLevel,
- *            isKeyLocked, getNewGearSlots, recordRun, migrate, createFixtureCharacter,
- *            type Character, type StoreV1 } from "./store.js";
+ *            isKeyLocked, getNewGearSlots, recordRun, completeRun, pickReward, migrate,
+ *            createFixtureCharacter, type Character, type StoreV2 } from "./store.js";
  *   const store = loadStore();
  *   // ...mutate store.character, then:
  *   saveStore(store);
@@ -20,9 +20,9 @@ export { migrate } from "./migrate.js";
 
 import { createFixtureCharacter } from "./fixture.js";
 import { migrate } from "./migrate.js";
-import { SCHEMA_VERSION, type StoreV1 } from "./types.js";
+import { SCHEMA_VERSION, type StoreV2 } from "./types.js";
 
-export const STORAGE_KEY = "keyrun.screen.store.v1";
+export const STORAGE_KEY = "keyrun.screen.store.v2";
 
 function hasLocalStorage(): boolean {
   try {
@@ -32,7 +32,7 @@ function hasLocalStorage(): boolean {
   }
 }
 
-export function loadStore(now: number = Date.now()): StoreV1 {
+export function loadStore(now: number = Date.now()): StoreV2 {
   if (!hasLocalStorage()) return { schemaVersion: SCHEMA_VERSION, character: createFixtureCharacter(now) };
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
@@ -51,7 +51,7 @@ export function loadStore(now: number = Date.now()): StoreV1 {
   }
 }
 
-export function saveStore(store: StoreV1): void {
+export function saveStore(store: StoreV2): void {
   if (!hasLocalStorage()) return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
 }
