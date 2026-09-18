@@ -1,8 +1,9 @@
 /**
  * content/schema/effect.ts
- * Re-exports the real EffectDef/EffectModifiers/EffectPeriodic contract from
- * sim/combat/effects.ts. `ContentEffectDef` adds only a display `name` (sim never renders
- * anything); every other content-lane addition from the pre-integration draft has been dropped
+ * `SimEffectDef` is the bare real EffectDef/EffectModifiers/EffectPeriodic contract from
+ * sim/combat/effects.ts. `EffectDef` (the name content/index.ts's registries actually hold) adds
+ * only a display `name` (sim never renders anything) on top of it -- every other content-lane
+ * addition from the pre-integration draft has been dropped
  * because the real type already covers it or has no room for it:
  *   - `durationTicks` doesn't exist on the real EffectDef -- duration is supplied at apply time by
  *     whichever AbilityDef/ComboDef `applyEffect` op references this effect id (each already
@@ -17,14 +18,19 @@
  *     expire like any other EffectInstance but do not mechanically prevent a cast or move. Flagged
  *     as a sim gap in this lane's final report; not fixed here (sim/** is out of this lane's scope).
  */
-export type { EffectDef, EffectModifiers } from "../../sim/combat/effects";
+export type { EffectModifiers } from "../../sim/combat/effects";
+export type { EffectDef as SimEffectDef } from "../../sim/combat/effects";
 
-import type { EffectDef } from "../../sim/combat/effects";
+import type { EffectDef as SimEffectDef } from "../../sim/combat/effects";
 
 /** The real EffectDef inlines this shape on `.periodic` rather than naming it; named here purely
  * for convenience when authoring content data. */
-export type EffectPeriodic = NonNullable<EffectDef["periodic"]>;
+export type EffectPeriodic = NonNullable<SimEffectDef["periodic"]>;
 
-export interface ContentEffectDef extends EffectDef {
+export interface EffectDef extends SimEffectDef {
   name: string;
 }
+
+/** @deprecated alias for `EffectDef` from an earlier draft of this lane's rewrite; prefer
+ * `EffectDef` directly (this is the type content/index.ts's registries actually hold). */
+export type ContentEffectDef = EffectDef;

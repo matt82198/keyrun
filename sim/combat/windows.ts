@@ -20,7 +20,7 @@ import type { ActorId, ActorState, SimEvent, SimState, Tick, Vec3 } from "./type
 import type { AbilityDef, EffectOp } from "./abilities";
 import type { EffectDef } from "./effects";
 import { pushRawEffectInstance, removeEffectInstanceWhere } from "./effects";
-import { inCircle } from "./targeting";
+import { inCircle, resolveTargets } from "./targeting";
 import { applyComboEffects, lookupCombo, type ComboTable } from "./combos";
 
 export const PERMANENT_TICK: Tick = Number.MAX_SAFE_INTEGER;
@@ -141,26 +141,6 @@ export function lockFailCount(actor: ActorState): number {
 
 export function lastSetupClassOf(actor: ActorState): string | null {
   return readLastSetupClass(actor);
-}
-
-/** Mirrors casting.ts's private resolveTargets (unexported, so duplicated here) so windows.ts can
- * resolve the same targets an ability's own effects were just applied to. */
-export function resolveAbilityTargets(state: SimState, actor: ActorState, def: AbilityDef): ActorState[] {
-  const all = Object.values(state.actors);
-  if (def.shape.kind === "self") return [actor];
-  if (def.shape.kind === "target") {
-    const t = actor.targetId !== null ? state.actors[actor.targetId] : undefined;
-    return t ? [t] : [];
-  }
-  if (def.shape.kind === "circle") {
-    return inCircle(actor.pos, def.shape.radius ?? 0, all)
-      .map((id) => state.actors[id])
-      .filter((a): a is ActorState => !!a);
-  }
-  // cone/line shapes are not used by any Setup/Payoff ability in the starter kits; treat them as
-  // "no resolved targets" here rather than duplicating inCone/inLine's facing math for a case
-  // Windows and Combos does not need yet.
-  return [];
 }
 
 export function openWindow(
@@ -384,7 +364,7 @@ export function applyWindowsAndCombos(
   const payoff = hasOp(def, "payoff");
   if (windowOps.length === 0 && !payoff) return;
 
-  const targets = windowOps.length > 0 || payoff ? resolveAbilityTargets(state, actor, def) : [];
+  const targets = windowOps.length > 0 || payoff ? resolveTargets(state, actor, def) : [];
   for (const op of windowOps) {
     openWindow(state, actor, op, ctx.floor, emit, targets[0]);
   }

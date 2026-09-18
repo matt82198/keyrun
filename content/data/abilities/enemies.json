@@ -172,7 +172,7 @@
     },
     "interruptible": false,
     "tags": [
-      "window:seedbloom"
+      "setup:seedbloom"
     ],
     "effects": [
       {
@@ -253,7 +253,7 @@
     },
     "interruptible": false,
     "tags": [
-      "window:lock"
+      "setup:lock"
     ],
     "effects": [
       {

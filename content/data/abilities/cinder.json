@@ -41,7 +41,7 @@
     },
     "interruptible": true,
     "tags": [
-      "window:kindled"
+      "setup:kindled"
     ],
     "effects": [
       {
@@ -155,7 +155,7 @@
     },
     "interruptible": true,
     "tags": [
-      "window:cinderfield"
+      "setup:cinderfield"
     ],
     "effects": [
       {

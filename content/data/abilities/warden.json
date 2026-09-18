@@ -12,7 +12,7 @@
     },
     "interruptible": false,
     "tags": [
-      "window:sundered"
+      "setup:sundered"
     ],
     "effects": [
       {
@@ -91,7 +91,7 @@
     },
     "interruptible": true,
     "tags": [
-      "window:bulwark"
+      "setup:bulwark"
     ],
     "effects": [
       {
