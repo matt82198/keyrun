@@ -53,12 +53,32 @@ export interface TelegraphSnapshot {
   danger: boolean;
 }
 
+/** "timed"/"depleted" mirror sim/encounter/timer.ts's RunResult for a completed run (boss dead);
+ * "abandoned" covers both an explicit abandon-key press and worker.ts's own auto-abandon after a
+ * full party wipe (see worker.ts's file docstring -- sim has no respawn/rez mechanic). */
+export type RunOutcome = "timed" | "depleted" | "abandoned";
+
+export interface RunEndInfo {
+  outcome: RunOutcome;
+  tick: number;
+}
+
 export interface Snapshot {
   tick: number;
   actors: ActorSnapshot[];
   telegraphs: TelegraphSnapshot[];
   runTimerTicks: number;
   timerLimitTicks: number;
+  /** design/BIBLE.md Sec 8's Slack bank: ticks remaining, and whether it has hit 0 (the key is
+   * "depleted" -- the run still continues to completion, just downgraded). Optional so existing
+   * Snapshot literals built before this lane (e.g. tests/client/interpolate.test.ts) keep compiling. */
+  slackTicks?: number;
+  maxSlackTicks?: number;
+  depleted?: boolean;
+  parTicks?: number;
+  pullIndex?: number;
+  pullCount?: number;
+  runEnd?: RunEndInfo | null;
 }
 
 export const SIM_HZ = 20;
