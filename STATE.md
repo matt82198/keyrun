@@ -21,6 +21,19 @@ assets; pure POC.
   Fellowship (Chief Rebel, 2025) is the closest precedent — reviewed well while admittedly half-baked — and is studied
   specifically for the gap between what it promised and what it shipped.
 
+- D7 **Bounded progression** (Matt, 2026-09-18: "there is an ending to progression, a technical bis that is hard to
+  achieve... because otherwise characters scale infinitely and break the game"): power has a cap; best-in-slot is
+  reachable but hard; post-cap progression is cosmetic, prestige, and new keys — never more stats. Progression is
+  the most important system in the bible.
+
+- D8 **North star** (Matt, 2026-09-18): "m+ at its core is extremely fun, but it lives in a game where every class is
+  gutted, way too easy, and it is just boring right now. I miss being able to log in during late DF to early TWW and
+  get into high keys instantly and play with people who were chill." Three tests every design decision must pass:
+  (1) classes with real depth and keys that are genuinely hard; (2) from launch to a high key in under a minute,
+  no gatekeeping; (3) the social defaults make strangers chill — mercy, backfill, no score-shaming.
+- D9 **Tick rate**: 20 Hz for the POC as a single `TICK_HZ` constant; research/07 argues 30 Hz; revisit after
+  the first playable with the number measured, not argued.
+
 ## Phase plan
 - Phase 1 (research day): 9 cited briefs (incl. Fellowship) → design/BIBLE.md v1 (Matt reviews the taste calls).
 - Phase 2: sim/ rules engine (deterministic, tested) + content v1 (3 classes, 1 dungeon, 1 boss).
