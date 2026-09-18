@@ -15,13 +15,41 @@
  * returned unchanged (encounter never mutates ActorState) — it is passed through only so the return
  * shape matches the brief and callers can chain `{state, encounter} = stepEncounter(...)`.
  *
+ * BREAK BAR WIRING (BIBLE.md Sec 9 "The Sundered Twins", backlog item break-bar-wiring): an
+ * optional trailing `breakBarWiring` argument (content->sim data + this tick's submitted commands,
+ * see breakbar.ts's `BreakBarSource`/`deriveBreakBarInputs`) is the "spawn/enemy setup" hook that
+ * turns a spawned shared-bar pair into a real `BreakBarState` the first tick both of its `actorIds`
+ * are alive, then drains it off this tick's tagged casts. It is optional (defaults to `undefined`)
+ * purely so sim/index.ts's existing 5-arg call (that file is out of this lane's scope) keeps
+ * compiling unchanged; threading `commands`/`abilityTags` through that call site so break bars
+ * drain inside a real `stepRun`-driven game is the one-line follow-up left for sim/index.ts's
+ * owning lane. `StepEncounterResult.effectPatches` is the onEmpty counterpart to `commands`: this
+ * function never mutates ActorState, so a bar's stagger effects (e.g. `stunned` on both twins)
+ * ride out as data for the caller to apply via sim/combat/effects.ts's real `applyEffectInstance`.
+ *
  * Usage: `const { state, encounter, commands } = stepEncounter(state, encounter, dungeon, scripts, emit);`
  */
 import type { ActorId, Command, SimEvent, SimState } from "./types";
 import { stepEnemyScripts, type EnemyScript } from "./scripts";
 import { resolveTelegraphs, type EncounterState, type Telegraph } from "./telegraphs";
-import { tickBreakBarReset } from "./breakbar";
+import {
+  tickBreakBarReset,
+  createBreakBar,
+  drainBreakBar,
+  deriveBreakBarInputs,
+  breakBarEffectPatches,
+  type BreakBarSource,
+  type BreakBarEffectPatch,
+} from "./breakbar";
 import { checkPullAdvance, type DungeonDef } from "./pulls";
+
+/** Content->sim data this tick needs to drain any active break bars, plus the commands submitted
+ * this tick (players + bots -- sim/index.ts's stepRun already has these; see docstring above). */
+export interface BreakBarWiring {
+  sources: Record<string, BreakBarSource>;
+  commands: Command[];
+  abilityTags: Record<string, string[] | undefined>;
+}
 
 let nextTelegraphId = 1;
 
@@ -46,6 +74,8 @@ export interface StepEncounterResult {
   state: SimState;
   encounter: EncounterState;
   commands: Command[];
+  /** onEmpty effect patches from any break bar that staggered this tick; see file docstring. */
+  effectPatches: BreakBarEffectPatch[];
 }
 
 export function stepEncounter(
@@ -53,7 +83,8 @@ export function stepEncounter(
   encounter: EncounterState,
   dungeon: DungeonDef,
   scripts: Record<ActorId, EnemyScript>,
-  emit: (event: SimEvent) => void
+  emit: (event: SimEvent) => void,
+  breakBarWiring?: BreakBarWiring
 ): StepEncounterResult {
   const tick = state.tick;
 
@@ -75,10 +106,26 @@ export function stepEncounter(
     if (bar) breakBars[key] = tickBreakBarReset(bar, tick);
   }
 
+  const effectPatches: BreakBarEffectPatch[] = [];
+  const sources = breakBarWiring?.sources ?? {};
+  for (const [id, source] of Object.entries(sources)) {
+    // Spawn/enemy setup: lazily create this bar the first tick every one of its actors is alive.
+    if (!breakBars[id] && source.actorIds.every((actorId) => state.actors[actorId]?.alive)) {
+      breakBars[id] = createBreakBar(source.max, source.actorIds);
+    }
+    const bar = breakBars[id];
+    if (!bar) continue;
+    const wasStaggered = bar.current <= 0;
+    const inputs = deriveBreakBarInputs(breakBarWiring!.commands, state.actors, breakBarWiring!.abilityTags, source);
+    const drained = drainBreakBar(bar, id, inputs, tick, emit);
+    breakBars[id] = drained;
+    effectPatches.push(...breakBarEffectPatches(source, !wasStaggered && drained.current <= 0));
+  }
+
   let nextEncounter: EncounterState = { ...encounter, telegraphs, breakBars };
   nextEncounter = checkPullAdvance(state, dungeon, nextEncounter, tick, emit);
 
-  return { state, encounter: nextEncounter, commands };
+  return { state, encounter: nextEncounter, commands, effectPatches };
 }
 
 export * from "./types";
