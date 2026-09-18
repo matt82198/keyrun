@@ -14,6 +14,7 @@ interface AbilitySlot {
 export class Hud {
   private readonly root: HTMLDivElement;
   private readonly timerEl: HTMLDivElement;
+  private readonly slackFillEl: HTMLDivElement;
   private readonly abilityBarEl: HTMLDivElement;
   private readonly slots = new Map<string, AbilitySlot>();
   private readonly cooldownPeaks = new Map<string, number>();
@@ -30,6 +31,15 @@ export class Hud {
     this.timerEl = document.createElement("div");
     this.timerEl.className = "hud-timer";
     this.root.appendChild(this.timerEl);
+
+    // design/BIBLE.md Sec 8's Slack bank: a second bar under the run timer, drained by deaths and
+    // wipes (sim/encounter/timer.ts) rather than a hard fail.
+    const slackTrack = document.createElement("div");
+    slackTrack.className = "hud-slack-track";
+    this.slackFillEl = document.createElement("div");
+    this.slackFillEl.className = "hud-slack-fill";
+    slackTrack.appendChild(this.slackFillEl);
+    this.root.appendChild(slackTrack);
 
     this.abilityBarEl = document.createElement("div");
     this.abilityBarEl.className = "hud-ability-bar";
@@ -65,6 +75,12 @@ export class Hud {
     const limit = formatClock(timerLimitTicks / SIM_HZ);
     this.timerEl.textContent = `${elapsed} / ${limit}`;
     this.timerEl.classList.toggle("hud-timer-over", runTimerTicks > timerLimitTicks);
+  }
+
+  updateSlack(slackTicks: number, maxSlackTicks: number, depleted: boolean): void {
+    const fraction = maxSlackTicks > 0 ? Math.max(0, Math.min(1, slackTicks / maxSlackTicks)) : 0;
+    this.slackFillEl.style.width = `${Math.round(fraction * 100)}%`;
+    this.slackFillEl.classList.toggle("hud-slack-depleted", depleted);
   }
 
   updateAbilityBar(cooldowns: Record<string, number>): void {

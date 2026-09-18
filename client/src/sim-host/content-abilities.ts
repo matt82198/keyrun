@@ -2,7 +2,7 @@
  * client/src/sim-host/content-abilities.ts
  *
  * Converts content's ability/effect data shapes (content/schema/ability.ts, effect.ts -- copied
- * locally as content-registry.ts's C*/ types, see that file's docstring for why) into the real,
+ * locally as content-registry.ts's C-prefixed types, see that file's docstring for why) into the real,
  * merged sim/combat/abilities.ts + effects.ts shapes. content/CLAUDE.md's "KNOWN DRIFT" section
  * documents this gap; PR #15 has since landed sim/combat/windows.ts (window/payoff ops DO exist in
  * the real sim now), narrowing but not closing it. Differences this file bridges:

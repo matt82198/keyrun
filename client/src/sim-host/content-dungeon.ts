@@ -36,7 +36,7 @@ import type { DungeonDef as SimDungeonDef, PullDef as SimPullDef, PullSpawn as S
 import type { EnemyScript, ScriptStep } from "../../../sim/encounter/scripts.js";
 import type { ActorId } from "../../../sim/core/state.js";
 import { scaleCastEvery, scaleHealth, scaleLeadTicks, EVERY_FLOOR_TICKS } from "../../../sim/encounter/tempo.js";
-import type { CEnemyDef, ContentRegistry } from "./content-registry.js";
+import type { CEnemyDef, CEnemyScriptStep, ContentRegistry } from "./content-registry.js";
 
 const SPAWN_SPREAD_MM = 1200;
 const ENEMY_ACTOR_ID_START = 100;
@@ -53,7 +53,7 @@ export interface DungeonBuild {
   parTicks: number;
 }
 
-function expandStep(step: ScriptStep, keyLevel: number, horizon: number): ScriptStep[] {
+function expandStep(step: CEnemyScriptStep, keyLevel: number, horizon: number): ScriptStep[] {
   if (step.at === "loop" || typeof step.at !== "number" || step.every === undefined) {
     return [scaleLoopOrOneShot(step, keyLevel)];
   }
@@ -66,7 +66,8 @@ function expandStep(step: ScriptStep, keyLevel: number, horizon: number): Script
   return out;
 }
 
-function scaleLoopOrOneShot(step: ScriptStep, keyLevel: number): ScriptStep {
+function scaleLoopOrOneShot(step: CEnemyScriptStep, keyLevel: number): ScriptStep {
+  if (step.at === "onDeath") throw new Error("content-dungeon: onDeath steps must be filtered before scaling (see buildEnemyScript)");
   const telegraph = step.telegraph ? { telegraph: scaleTelegraph(step.telegraph, keyLevel) } : {};
   if (step.at === "loop") {
     return { at: "loop", every: scaleCastEvery(step.every ?? EVERY_FLOOR_TICKS, keyLevel), cast: step.cast, ...telegraph };
@@ -74,7 +75,10 @@ function scaleLoopOrOneShot(step: ScriptStep, keyLevel: number): ScriptStep {
   return { at: step.at, cast: step.cast, ...telegraph };
 }
 
-function scaleTelegraph(tg: NonNullable<ScriptStep["telegraph"]>, keyLevel: number): NonNullable<ScriptStep["telegraph"]> {
+function scaleTelegraph(
+  tg: NonNullable<CEnemyScriptStep["telegraph"]>,
+  keyLevel: number,
+): NonNullable<ScriptStep["telegraph"]> {
   return { ...tg, leadTicks: scaleLeadTicks(tg.leadTicks, keyLevel) };
 }
 
