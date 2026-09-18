@@ -8,8 +8,8 @@ const keybindsPath = fileURLToPath(new URL("../../client/keybinds.json", import.
 describe("client/keybinds.json", () => {
   const data = JSON.parse(readFileSync(keybindsPath, "utf8"));
 
-  it("has exactly ten binds", () => {
-    expect(Object.keys(data)).toHaveLength(10);
+  it("binds exactly the known keybind actions, no more no fewer", () => {
+    expect(Object.keys(data)).toHaveLength(KEYBIND_ACTIONS.length);
   });
 
   it("binds every known keybind action to a non-empty string", () => {
