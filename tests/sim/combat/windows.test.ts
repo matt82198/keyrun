@@ -110,6 +110,14 @@ function cast(actorId: number, abilityId: string, targetId: number): Command {
   return { tick: 0, actorId, kind: "cast", abilityId, targetId };
 }
 
+// rules() itself never advances state.tick -- sim/core/tick.ts's step() is the single owner of the
+// tick (per sim/CLAUDE.md). This suite drives rules() directly (not through step()), so it must
+// advance state.tick itself between calls, exactly as step() does.
+function tick(state: SimState, rules: ReturnType<typeof makeRules>, cmds: Command[], emit: (e: SimEvent) => void): void {
+  rules(state, cmds, emit);
+  state.tick += 1;
+}
+
 describe("Window open -> Payoff by another class", () => {
   it("fires the looked-up Combo and applies its effects", () => {
     const warden = createActor({ id: 1, kind: "player", classId: "warden", role: "tank", pos: { x: 0, y: 0, z: 0 }, maxHealth: 100, maxResource: 0 });
@@ -120,11 +128,11 @@ describe("Window open -> Payoff by another class", () => {
     const events: SimEvent[] = [];
     const emit = (e: SimEvent) => events.push(e);
 
-    rules(state, [cast(1, "sundered_strike", 3)], emit);
+    tick(state, rules, [cast(1, "sundered_strike", 3)], emit);
     expect(events.some((e) => e.type === "window_opened" && e.windowId === "sundered")).toBe(true);
     expect(boss.effects.some((e) => e.effectId.startsWith("window:sundered:"))).toBe(true);
 
-    rules(state, [cast(2, "detonate", 3)], emit);
+    tick(state, rules, [cast(2, "detonate", 3)], emit);
 
     const combo = events.find((e) => e.type === "combo");
     expect(combo).toBeDefined();
@@ -147,8 +155,8 @@ describe("same-class Payoff", () => {
     const events: SimEvent[] = [];
     const emit = (e: SimEvent) => events.push(e);
 
-    rules(state, [cast(1, "sundered_strike", 3)], emit);
-    rules(state, [cast(2, "detonate", 3)], emit);
+    tick(state, rules, [cast(1, "sundered_strike", 3)], emit);
+    tick(state, rules, [cast(2, "detonate", 3)], emit);
 
     expect(events.some((e) => e.type === "combo")).toBe(false);
     const denied = events.find((e) => e.type === "combo_denied");
@@ -169,8 +177,8 @@ describe("Window expiry", () => {
     const events: SimEvent[] = [];
     const emit = (e: SimEvent) => events.push(e);
 
-    rules(state, [cast(1, "sundered_strike", 3)], emit);
-    for (let i = 0; i < 61; i += 1) rules(state, [], emit);
+    tick(state, rules, [cast(1, "sundered_strike", 3)], emit);
+    for (let i = 0; i < 61; i += 1) tick(state, rules, [], emit);
 
     const expired = events.find((e) => e.type === "window_expired");
     expect(expired).toBeDefined();
@@ -188,12 +196,12 @@ describe("floor Window field variant", () => {
     const events: SimEvent[] = [];
     const emit = (e: SimEvent) => events.push(e);
 
-    rules(state, [cast(1, "bulwark", 1)], emit);
+    tick(state, rules, [cast(1, "bulwark", 1)], emit);
     expect(events.some((e) => e.type === "window_opened" && e.onTarget === false)).toBe(true);
 
     // cinder's payoff targets itself here (shape: target) but resolution falls back to the floor
     // patch since it carries no target-actor Window of its own.
-    rules(state, [cast(2, "detonate", 2)], emit);
+    tick(state, rules, [cast(2, "detonate", 2)], emit);
 
     const combo = events.find((e) => e.type === "combo");
     expect(combo).toBeDefined();
@@ -209,8 +217,8 @@ describe("floor Window field variant", () => {
     const events: SimEvent[] = [];
     const emit = (e: SimEvent) => events.push(e);
 
-    rules(state, [cast(1, "bulwark", 1)], emit);
-    for (let i = 0; i < 61; i += 1) rules(state, [], emit);
+    tick(state, rules, [cast(1, "bulwark", 1)], emit);
+    for (let i = 0; i < 61; i += 1) tick(state, rules, [], emit);
 
     const expired = events.filter((e) => e.type === "window_expired" && e.onTarget === false);
     expect(expired).toHaveLength(1);

@@ -85,12 +85,6 @@ describe("Windows and Combos through the real composition root (createRun/stepRu
     ];
     const { run } = buildRun(party);
 
-    // Tick values below are even by necessity, not style: sim/combat/rules.ts's makeRules also
-    // advances state.tick (on top of sim/core/tick.ts's own increment), so a real stepRun() call
-    // currently advances state.tick by 2, not 1 -- a separate pre-existing defect outside this
-    // lane's scope (sim/combat/** is out of bounds here; see the PR body). Every existing content
-    // constant (castTicks, cooldowns, window durationTicks) is already a multiple of 10 for
-    // unrelated reasons, which is why this has never surfaced before.
     const commands: Command[] = [
       // warden.strike: castTicks 0, opens "sundered" (durationTicks 60) on ENEMY_1.
       { tick: 20, actorId: WARDEN_A, kind: "cast", abilityId: "warden.strike", targetId: ENEMY_1 },
@@ -117,9 +111,6 @@ describe("Windows and Combos through the real composition root (createRun/stepRu
     ];
     const { run } = buildRun(party);
 
-    // See the tick-value comment in the previous test: even ticks only (state.tick currently
-    // advances by 2 per stepRun() call, a pre-existing sim/combat/** defect out of this lane's
-    // scope).
     const commands: Command[] = [
       // warden.strike: opens "sundered" on ENEMY_1.
       { tick: 20, actorId: WARDEN_A, kind: "cast", abilityId: "warden.strike", targetId: ENEMY_1 },

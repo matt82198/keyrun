@@ -6,7 +6,9 @@
  *      abilities, castTicks === 0, complete immediately within this same step).
  *   3. Resolve actor-actor collisions and clamp to arena bounds.
  *   4. Run due periodic effect ticks, then expire effects whose endsTick <= state.tick.
- *   5. Advance state.tick by 1.
+ * This function never advances state.tick itself -- sim/core/tick.ts's step() is the single owner
+ * of the tick (per sim/CLAUDE.md); a caller that drives this StepRules directly (bypassing step())
+ * must advance state.tick itself between calls, exactly as step() does.
  * This fixed order is what makes an interrupt landing exactly at a target's castEndsTick
  * arrive "too late" (step 1 already completed it), while an interrupt effect that lands on an
  * earlier tick has already cleared the cast before that later tick is ever reached. See
@@ -115,8 +117,6 @@ export function makeRules(cfg: RulesConfig): StepRules {
       expireEffects(actor, state.tick);
     }
     checkFloorExpiries(state, wctx.floor, emit);
-
-    state.tick += 1;
   };
 }
 
