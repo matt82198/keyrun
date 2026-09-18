@@ -20,6 +20,7 @@ import type { AbilityDef, EffectOp } from "./abilities";
 import { abilitySchool } from "./abilities";
 import type { EffectDef } from "./effects";
 import { applyEffectInstance, removeEffectInstances } from "./effects";
+import { removeDispellableEffects } from "./effects-remove";
 import { isAbilityReady, startGcd, consumeCharge } from "./cooldowns";
 import { applyDamage, applyHeal } from "./damage";
 import { addThreat } from "./threat";
@@ -116,7 +117,8 @@ function applyEffects(
       const effDef = ctx.effects[op.effectId];
       if (effDef) applyEffectInstance(target, effDef, source.id, op.durationTicks, op.stacks, state.tick);
     } else if (op.op === "removeEffect") {
-      removeEffectInstances(target, op.effectId);
+      if (op.effectId === "*") removeDispellableEffects(source, target, ctx.effects);
+      else removeEffectInstances(target, op.effectId);
     } else if (op.op === "resource") {
       target.resource = Math.max(0, Math.min(target.maxResource, target.resource + op.delta));
     } else if (op.op === "threat") {

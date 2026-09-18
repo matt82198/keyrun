@@ -5,6 +5,9 @@
  * implement the damage pipeline's absorb stage; see damage.ts.
  * Usage: applyEffectInstance(actor, def, sourceId, durationTicks, stacks, now);
  *        for (const inst of duePeriodicInstances(actor, now)) { ...; advancePeriodic(inst, def, now); }
+ *
+ * The `removeEffect` op's `effectId: "*"` wildcard (Purge/Cleanse) lives in effects-remove.ts,
+ * not here, to stay under this domain's 190-LOC-per-file cap; see that file's docstring.
  */
 import type { ActorId, ActorState, EffectInstance, Tick } from "./types";
 import type { EffectOp } from "./abilities";

@@ -1,12 +1,12 @@
 /**
  * Usage: npm test (vitest picks this up via tests/**\/*.test.ts).
  *
- * Covers the store.ts contract: legacy -> schemaVersion 2 migration, loadout "new" delta flags,
- * key-stepper clamp/lock, run-history capping, and the Play URL shape.
+ * Covers the store.ts contract: legacy -> schemaVersion 3 migration (v1's ilvl gear, v2's
+ * screen-local GearItem/GearSlot gear, and v3 passthrough), loadout "new" delta flags, key-stepper
+ * clamp/lock, and run-history capping. The Clause pick and buildPlayUrl live in clauses.test.ts.
  */
 import { describe, expect, it } from "vitest";
 import {
-  buildPlayUrl,
   clampKeyLevel,
   createFixtureCharacter,
   getNewGearSlots,
@@ -18,7 +18,7 @@ import {
 } from "../../screen/src/store.js";
 
 describe("migrate", () => {
-  it("upgrades a schemaVersion 1 (ilvl-based gear) payload to schemaVersion 2", () => {
+  it("upgrades a schemaVersion 1 (ilvl-based gear) payload to schemaVersion 3", () => {
     const v1 = {
       schemaVersion: 1,
       character: {
@@ -33,13 +33,15 @@ describe("migrate", () => {
     };
     const result = migrate(v1, 5000);
 
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(3);
     expect(result.character.classId).toBe("ranger");
     expect(result.character.level).toBe(3);
     expect(result.character.keyLevel).toBe(8);
     expect(result.character.queued).toBe(false);
     expect(result.character.ash).toBe(0);
-    // legacy gear shape (ilvl) cannot carry forward -- resets to the tiered fixture loadout.
+    expect(result.character.talentChoices).toEqual({});
+    expect(typeof result.character.clauseId).toBe("string");
+    // legacy ilvl gear shape cannot carry forward -- resets to the tiered fixture loadout.
     expect(result.character.gear.weapon.tier).toBe(1);
     expect(result.character.gear.keystone).toBeDefined();
     // legacy "success"/"failure" results map onto the new timed/depleted/abandoned vocabulary.
@@ -47,14 +49,56 @@ describe("migrate", () => {
     expect(result.character.runHistory[0]!.rewardPicked).toBeNull();
   });
 
-  it("is a no-op for an already-current v2 payload", () => {
-    const current = { schemaVersion: 2 as const, character: createFixtureCharacter(1000) };
+  it("upgrades an old-shape schemaVersion 2 localStorage blob (screen-local GearItem gear, no talentChoices/clauseId) to 3", () => {
+    const v2 = {
+      schemaVersion: 2,
+      character: {
+        classId: "warden",
+        level: 10,
+        gear: {
+          weapon: {
+            id: "weapon-fixture",
+            slot: "weapon",
+            tier: 4,
+            facet: { id: "warden.weapon.keenEdge", text: "Strike becomes a narrow frontal cone, catching an extra enemy.", abilityId: "warden.strike" },
+            charges: 1,
+          },
+          armor: { id: "armor-fixture", slot: "armor", tier: 1, facet: { id: "a", text: "t", abilityId: "warden.brace" }, charges: 2 },
+          charm: { id: "charm-fixture", slot: "charm", tier: 1, facet: { id: "b", text: "t", abilityId: "warden.taunt" }, charges: 2 },
+          ring: { id: "ring-fixture", slot: "ring", tier: 1, facet: { id: "c", text: "t", abilityId: "warden.charge" }, charges: 2 },
+          keystone: { id: "keystone-fixture", slot: "keystone", tier: 1, facet: { id: "d", text: "t", abilityId: "warden.vigil" }, charges: 2 },
+        },
+        compareGear: {},
+        recentlyEquipped: [],
+        ash: 120,
+        keyLevel: 9,
+        queued: false,
+        runHistory: [],
+        rewardChoices: null,
+        lastSeenAt: 4000,
+      },
+    };
+    const result = migrate(v2, 5000);
+
+    expect(result.schemaVersion).toBe(3);
+    // v2 gear carries straight through -- it is structurally the same Item shape as v3's.
+    expect(result.character.gear.weapon.id).toBe("weapon-fixture");
+    expect(result.character.gear.weapon.tier).toBe(4);
+    expect(result.character.gear.weapon.facet?.id).toBe("warden.weapon.keenEdge");
+    expect(result.character.ash).toBe(120);
+    // new v3 fields are backfilled with valid defaults.
+    expect(result.character.talentChoices).toEqual({});
+    expect(typeof result.character.clauseId).toBe("string");
+  });
+
+  it("is a no-op for an already-current v3 payload", () => {
+    const current = { schemaVersion: 3 as const, character: createFixtureCharacter(1000) };
     expect(migrate(current, 2000)).toBe(current);
   });
 
   it("falls back to a fresh fixture for garbage input", () => {
     const result = migrate({ nonsense: true }, 5000);
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(3);
     expect(result.character.classId).toBe("warden");
     expect(result.character.gear.weapon.tier).toBe(1);
   });
@@ -107,19 +151,5 @@ describe("recordRun", () => {
     expect(history.length).toBe(5);
     expect(history[0]!.id).toBe("r6");
     expect(history[4]!.id).toBe("r2");
-  });
-});
-
-describe("buildPlayUrl", () => {
-  it("contains a numeric seed and the clamped key level", () => {
-    const character = createFixtureCharacter(1000);
-    const url = buildPlayUrl(character, 12);
-    expect(url).toMatch(/^\.\.\/client\/\?seed=\d+&key=12$/);
-  });
-
-  it("clamps an out-of-range key level before building the url", () => {
-    const character = createFixtureCharacter(1000);
-    const url = buildPlayUrl(character, 99);
-    expect(url).toContain("key=20");
   });
 });
