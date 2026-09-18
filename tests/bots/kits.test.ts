@@ -8,6 +8,7 @@
  * Usage: `npx vitest run tests/bots/kits.test.ts`
  */
 import { describe, expect, it } from "vitest";
+import "./real-content-setup.js";
 import { getClassKit, resolveKit } from "@bots/src/kits.js";
 
 describe("getClassKit", () => {

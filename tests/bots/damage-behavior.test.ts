@@ -11,6 +11,7 @@
  * Usage: `npx vitest run tests/bots/damage-behavior.test.ts`
  */
 import { describe, expect, it } from "vitest";
+import "./real-content-setup.js";
 import { damageDecide, pickResourceAwareRotation } from "@bots/src/roles.js";
 import { WINDOW_EFFECT_PREFIX } from "@bots/src/shared/pings.js";
 import type { EffectiveKit } from "@bots/src/kits.js";

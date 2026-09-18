@@ -9,6 +9,7 @@
  * Usage: `npx vitest run tests/bots/class-specific-roles.test.ts`
  */
 import { describe, expect, it } from "vitest";
+import "./real-content-setup.js";
 import { healerDecide, tankDecide } from "@bots/src/roles.js";
 import type { ActorId, ActorState, BotView, SimState } from "@bots/src/types.js";
 
