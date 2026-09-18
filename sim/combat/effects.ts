@@ -55,6 +55,22 @@ export function removeEffectInstances(actor: ActorState, effectId: string): void
   actor.effects = actor.effects.filter((e) => e.effectId !== effectId);
 }
 
+/**
+ * Pushes a pre-built EffectInstance verbatim, bypassing applyEffectInstance's def-driven
+ * stack/refresh merge. Used by windows.ts to record Windows and Lock bookkeeping (lastSetupClass,
+ * fail counters) as plain EffectInstance entries with synthetic effectIds that carry their own
+ * payload (e.g. "window:<id>:<setupClass>") — they are not looked up in any EffectDef table, so
+ * aggregateModifiers/duePeriodicInstances ignore them safely (no matching def).
+ */
+export function pushRawEffectInstance(actor: ActorState, instance: EffectInstance): void {
+  actor.effects.push(instance);
+}
+
+/** Removes every effect instance matching `pred`. Companion to pushRawEffectInstance. */
+export function removeEffectInstanceWhere(actor: ActorState, pred: (e: EffectInstance) => boolean): void {
+  actor.effects = actor.effects.filter((e) => !pred(e));
+}
+
 export function expireEffects(actor: ActorState, now: Tick): void {
   actor.effects = actor.effects.filter((e) => e.endsTick > now);
 }
