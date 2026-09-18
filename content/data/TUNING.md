@@ -61,6 +61,17 @@ bracedSelf -3000, braceSelf -4000, ashenSkin -3500, aegisShield -3500, wardShiel
 -2000, lockShield -10000 (effectively immune for 3 s). Break bar (Sundered Twins): max 100,
 drains 34/interrupt, 20/control (~3 interrupts to break).
 
+### Floor Window catch radii (mm, `// TUNE`, window-radius-field backlog item)
+
+`sim/combat/windows.ts`'s `FLOOR_WINDOW_RADIUS_MM` (3000mm) is only the fallback default now; each
+floor Window ability sets its own `radiusMm` on the `window` op per BIBLE.md Sec 4/5 ("Bulwark,
+Cinderfield and Hymn... different sizes"). Bible does not name exact numbers (`[DECIDE]`), so these
+are picked here, smaller than the default to keep the field-combo timing a real positional check
+rather than "anywhere near the patch": warden.bulwark (defensive zone, forgiving so allies can
+actually stand in it) 2500; cinder.cinderfield (punishing fire patch, tightest -- the highest-skill
+floor combo) 1800; chanter.hymn (support zone, medium) 2200. Boss `seed.deathBloom`'s `seedbloom`
+floor Window (BIBLE.md Sec 9.3) is out of this backlog item's scope and keeps the 3000mm default.
+
 ## Combos (`// TUNE`)
 
 Shatter dmg 180 + stun 20t; Consecrate dmg 150 + 120t heal-pulse (40/tick@20t); Forge dmg 180 +
