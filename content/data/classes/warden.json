@@ -1,0 +1,91 @@
+{
+  "id": "warden",
+  "name": "Warden",
+  "loop": { "resource": "momentum", "max": 100, "kind": "builder-spender" },
+  "abilities": {
+    "rot1": "warden.strike", "rot2": "warden.guardBreak", "rot3": "warden.bulwark",
+    "rot4": "warden.reckoning", "rot5": "warden.vigil",
+    "interrupt": "warden.shieldBash", "defensive": "warden.brace",
+    "utility": "warden.taunt", "movement": "warden.charge"
+  },
+  "talents": [
+    {
+      "abilityId": "warden.strike",
+      "options": [
+        { "id": "rend", "name": "Rend", "text": "Sundered lasts 5s instead of 3s.",
+          "patch": { "effects": [
+            { "op": "damage", "amount": 80, "school": "physical" },
+            { "op": "resource", "resource": "momentum", "delta": 15 },
+            { "op": "window", "windowId": "sundered", "durationTicks": 100, "onTarget": true }
+          ] } },
+        { "id": "riposte", "name": "Riposte", "text": "Strike costs no GCD when it follows Brace.",
+          "patch": { "gcdTicks": 0, "tags": ["setup:sundered", "riposte:free-after-brace"] } },
+        { "id": "warcry", "name": "Warcry", "text": "Strike also applies Sundered to two adjacent enemies.",
+          "patch": { "shape": { "kind": "cone", "radius": 3000, "angle1024": 170 },
+            "tags": ["setup:sundered", "warcry:multi-target"] } }
+      ]
+    },
+    {
+      "abilityId": "warden.guardBreak",
+      "options": [
+        { "id": "focused", "name": "Focused Break", "text": "Single target, hits much harder.",
+          "patch": { "shape": { "kind": "target" }, "tags": ["payoff", "focused:single-target"],
+            "effects": [
+              { "op": "damage", "amount": 160, "school": "physical" },
+              { "op": "resource", "resource": "momentum", "delta": 15 },
+              { "op": "combo", "comboTable": "combos" }
+            ] } },
+        { "id": "pin", "name": "Pin", "text": "Guard Break also stuns briefly.",
+          "patch": { "tags": ["payoff", "control"], "effects": [
+            { "op": "damage", "amount": 100, "school": "physical" },
+            { "op": "applyEffect", "effectId": "stunned", "durationTicks": 20, "stacks": 1 },
+            { "op": "combo", "comboTable": "combos" }
+          ] } },
+        { "id": "surge", "name": "Surge", "text": "Costs a short cooldown; grants far more Momentum.",
+          "patch": { "cooldownTicks": 40, "effects": [
+            { "op": "damage", "amount": 100, "school": "physical" },
+            { "op": "resource", "resource": "momentum", "delta": 30 },
+            { "op": "combo", "comboTable": "combos" }
+          ] } }
+      ]
+    },
+    {
+      "abilityId": "warden.bulwark",
+      "options": [
+        { "id": "fortress", "name": "Fortress", "text": "Bigger patch, lasts longer.",
+          "patch": { "shape": { "kind": "circle", "radius": 3500 },
+            "effects": [
+              { "op": "window", "windowId": "bulwark", "durationTicks": 240, "onTarget": false },
+              { "op": "applyEffect", "effectId": "braced", "durationTicks": 240, "stacks": 1 }
+            ] } },
+        { "id": "mobile", "name": "Mobile Ward", "text": "Bulwark becomes a self-aura instead of a floor patch.",
+          "patch": { "shape": { "kind": "self" }, "range": 0, "tags": ["setup:bulwark", "mobile-aura"] } }
+      ]
+    },
+    {
+      "abilityId": "warden.reckoning",
+      "options": [
+        { "id": "execute", "name": "Execute", "text": "Cheaper, hits for less.",
+          "patch": { "cost": { "resource": "momentum", "amount": 60 }, "tags": ["payoff", "execute"],
+            "effects": [
+              { "op": "damage", "amount": 260, "school": "physical" },
+              { "op": "threat", "multiplierBp": 20000 },
+              { "op": "combo", "comboTable": "combos" }
+            ] } },
+        { "id": "overwhelm", "name": "Overwhelm", "text": "Reckoning becomes a frontal cone.",
+          "patch": { "shape": { "kind": "cone", "radius": 3000, "angle1024": 120 },
+            "tags": ["payoff", "cleave-finisher"] } }
+      ]
+    },
+    {
+      "abilityId": "warden.vigil",
+      "options": [
+        { "id": "ally", "name": "Guardian", "text": "Vigil targets an ally instead of yourself.",
+          "patch": { "shape": { "kind": "target" }, "range": 5000, "tags": ["ally-shield"] } },
+        { "id": "reserve", "name": "Reserve", "text": "Cheaper, shorter cooldown, smaller shield.",
+          "patch": { "cost": { "resource": "momentum", "amount": 25 }, "cooldownTicks": 60,
+            "effects": [{ "op": "applyEffect", "effectId": "bracedSelf", "durationTicks": 60, "stacks": 1 }] } }
+      ]
+    }
+  ]
+}

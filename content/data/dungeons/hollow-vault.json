@@ -1,0 +1,30 @@
+{
+  "id": "hollow-vault",
+  "name": "Hollow Vault",
+  "parTicks": 14400,
+  "pulls": [
+    {
+      "id": "choir", "name": "The Choir", "teaches": "the kick ledger",
+      "enemies": [
+        { "enemyId": "choir.melee", "count": 2, "spawn": { "x": 0, "z": 1000 } },
+        { "enemyId": "choir.lieutenant", "count": 1, "spawn": { "x": 0, "z": -1000 } }
+      ]
+    },
+    {
+      "id": "pair", "name": "The Pair", "teaches": "reading shape",
+      "enemies": [
+        { "enemyId": "pair.melee", "count": 5, "spawn": { "x": 5000, "z": 0 } }
+      ]
+    },
+    {
+      "id": "seed", "name": "The Seed", "teaches": "the boss's core rule with no stakes",
+      "enemies": [
+        { "enemyId": "seed.elite", "count": 1, "spawn": { "x": 10000, "z": 0 } }
+      ]
+    }
+  ],
+  "boss": {
+    "enemyId": "hollowWarden.boss",
+    "mechanics": ["cleave", "sundered-twins", "the-lock"]
+  }
+}

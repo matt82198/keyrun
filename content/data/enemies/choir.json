@@ -1,0 +1,22 @@
+[
+  {
+    "id": "choir.melee",
+    "name": "Choir Acolyte",
+    "maxHealth": 6000,
+    "role": "melee",
+    "abilities": ["choir.meleeSwing"],
+    "script": [
+      { "at": "loop", "every": 40, "cast": "choir.meleeSwing" }
+    ]
+  },
+  {
+    "id": "choir.lieutenant",
+    "name": "Choir Cantor",
+    "maxHealth": 6000,
+    "role": "lieutenant",
+    "abilities": ["choir.healCast", "choir.meleeSwing"],
+    "script": [
+      { "at": "loop", "every": 200, "cast": "choir.healCast" }
+    ]
+  }
+]
