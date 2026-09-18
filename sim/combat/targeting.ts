@@ -8,7 +8,7 @@
  *        cycleTarget(actors, currentTargetId);
  */
 import type { ActorId, ActorState, Vec3 } from "./types";
-import { isqrt } from "./movement";
+import { isqrt } from "../core/fixed";
 
 const TABLE_N = 128;
 const STEP = 1024 / TABLE_N;

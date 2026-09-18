@@ -1,147 +1,194 @@
-// Fake sim host: produces a moving snapshot stream at 20Hz for the POC
-// (a player capsule driven by local commands, four idle party capsules,
-// six enemy capsules in a pack, a rotating cone telegraph and a circle
-// telegraph). An integration lane swaps this for the real sim later.
+// Real sim host: runs sim/index.ts's createRun/stepRun against a minimal inline content set (two
+// player abilities, one enemy script) and maps the resulting SimState + encounter telegraphs into
+// the existing Snapshot shape. Replaces the earlier fake snapshot generator; no content/ package
+// import (sim never imports content, per sim/CLAUDE.md) -- the ability/dungeon/script definitions
+// below are this file's own minimal POC content, same as tests/sim/integration/fixtures.ts is for
+// the sim test suite (a separate, deliberately duplicated copy -- client code must not depend on
+// anything under tests/).
 //
-// Deviation from the dispatch brief: this runs on the main thread via
-// setInterval rather than inside an actual Worker thread. The shared
-// esbuild config (scripts/build.mjs, owned by the tooling lane) only
-// bundles fixed entry points (client/src/main.ts, screen/src/main.ts) with
-// no worker-splitting support, so a literal `new Worker(...)` would have no
-// buildable script to load. The class below keeps the same push-snapshot
-// interface a real Worker would use (onSnapshot callback), so swapping in
-// an actual Worker/postMessage transport later is a small, local change.
+// Deviation from the dispatch brief: this runs on the main thread via setInterval rather than
+// inside an actual Worker thread. The shared esbuild config (scripts/build.mjs, owned by the
+// tooling lane) only bundles fixed entry points (client/src/main.ts, screen/src/main.ts) with no
+// worker-splitting support, so a literal `new Worker(...)` would have no buildable script to load.
+// The class below keeps the same push-snapshot interface a real Worker would use (onSnapshot
+// callback), so swapping in an actual Worker/postMessage transport later is a small, local change.
+//
+// Deviation: imports below sim/ and bots/ use relative paths with an explicit ".js" specifier
+// (resolving to the sibling ".ts" file, same convention every other client/ file already uses)
+// rather than the tsconfig "@sim/*"/"@bots/*" path aliases the test suite uses. scripts/build.mjs
+// is off-limits to this lane and has no esbuild alias plugin configured, so an "@sim/..." import
+// here would typecheck but fail to bundle; relative ".js" imports work under both tsc and esbuild
+// with no config changes.
 import type { ActorSnapshot, Snapshot, TelegraphSnapshot } from "./snapshot.js";
 import { SIM_TICK_MS } from "./snapshot.js";
 import type { AnyCommand } from "../input/commands.js";
 
-const PLAYER_ID = 1;
-const PARTY_IDS = [2, 3, 4, 5];
-const ENEMY_IDS = [11, 12, 13, 14, 15, 16];
-const ABILITY_IDS = ["1", "2", "3", "4", "5", "Q", "E", "R", "F"];
-const ABILITY_COOLDOWN_TICKS: Record<string, number> = {
-  "1": 20,
-  "2": 60,
-  "3": 40,
-  "4": 30,
-  "5": 100,
-  Q: 30,
-  E: 40,
-  R: 80,
-  F: 24,
-};
-const CAST_DURATION_TICKS: Record<string, number> = { "2": 30, "5": 40 };
-const RESOURCE_MAX = 100;
-const RESOURCE_REGEN_PER_TICK = 0.6;
-const RESOURCE_COST = 15;
-const ENEMY_RESPAWN_DELAY_TICKS = 60;
-const TELEGRAPH_CYCLE_TICKS = 80;
+import { createRun, stepRun, type PartyMemberSpec, type Run, type RunContent } from "../../../sim/index.js";
+import type { ActorState } from "../../../sim/core/state.js";
+import type { Command } from "../../../sim/core/commands.js";
+import { yawFromComponents } from "../../../sim/core/atan.js";
+import { cycleTarget } from "../../../sim/combat/targeting.js";
+import type { AbilityDef } from "../../../sim/combat/abilities.js";
+import type { DungeonDef } from "../../../sim/encounter/pulls.js";
+import type { EncounterState } from "../../../sim/encounter/telegraphs.js";
+import { makeBot, runBots, defaultMemory, type Bot, type BotMemory } from "../../../bots/src/bot.js";
+import { seedPrng, type PrngState } from "../../../bots/src/skill.js";
+import type { BotView, Telegraph as BotTelegraph } from "../../../bots/src/types.js";
 
-function freshCooldowns(): Record<string, number> {
-  return Object.fromEntries(ABILITY_IDS.map((id) => [id, 0]));
+const PLAYER_ID = 1;
+const HEALER_ID = 2;
+const DAMAGE_IDS = [3, 4, 5];
+const BOSS_ID = 11;
+const SEED = 1;
+
+const ATTACK: AbilityDef = {
+  id: "1",
+  castTicks: 0,
+  gcdTicks: 15,
+  cooldownTicks: 0,
+  charges: 1,
+  cost: { resource: "energy", amount: 0 },
+  range: 6000,
+  shape: { kind: "target" },
+  interruptible: false,
+  effects: [{ op: "damage", amount: 8, school: "physical" }],
+};
+
+const HEAL: AbilityDef = {
+  id: "2",
+  castTicks: 0,
+  gcdTicks: 15,
+  cooldownTicks: 20,
+  charges: 1,
+  cost: { resource: "energy", amount: 0 },
+  range: 8000,
+  shape: { kind: "target" },
+  interruptible: false,
+  effects: [{ op: "heal", amount: 20 }],
+};
+
+const CLEAVE: AbilityDef = {
+  id: "cleave",
+  castTicks: 0,
+  gcdTicks: 0,
+  cooldownTicks: 0,
+  charges: 1,
+  cost: { resource: "energy", amount: 0 },
+  range: 0,
+  shape: { kind: "cone", angle1024: 200, radius: 4500 },
+  interruptible: false,
+  effects: [{ op: "damage", amount: 10, school: "physical" }],
+};
+
+// Boss faces +z (yaw 256, sim/combat/targeting.ts's convention: yaw 0 = +x, 256 = +z) toward the
+// party, which spawns around z=7500.
+const DUNGEON: DungeonDef = {
+  id: "poc-pull",
+  pulls: [{ id: "boss-1", spawns: [{ actorId: BOSS_ID, classId: "mob", pos: { x: 0, y: 0, z: -6000 }, yaw: 256, health: 600 }] }],
+};
+
+const CONTENT: RunContent = {
+  abilities: { "1": ATTACK, "2": HEAL, cleave: CLEAVE },
+  effects: {},
+  lockoutTicks: 40,
+  baseSpeedMmPerTick: 180,
+  actorRadiusMm: 400, // matches client/src/render/actors.ts's CAPSULE_RADIUS_M (0.4m)
+  bounds: { minX: -9000, maxX: 9000, minZ: -9000, maxZ: 9000 },
+  enemyScripts: {
+    [BOSS_ID]: [
+      { at: "loop", every: 100, cast: "cleave", telegraph: { shape: "cone", angle1024: 200, radius: 4500, leadTicks: 40 } },
+    ],
+  },
+};
+
+const PARTY: PartyMemberSpec[] = [
+  { id: PLAYER_ID, classId: "warrior", role: "tank", pos: { x: 0, y: 0, z: 6000 }, maxHealth: 100, maxResource: 100 },
+  { id: HEALER_ID, classId: "priest", role: "healer", pos: { x: -2100, y: 0, z: 7500 }, maxHealth: 80, maxResource: 100 },
+  { id: DAMAGE_IDS[0]!, classId: "mage", role: "damage", pos: { x: -700, y: 0, z: 7500 }, maxHealth: 70, maxResource: 100 },
+  { id: DAMAGE_IDS[1]!, classId: "rogue", role: "damage", pos: { x: 700, y: 0, z: 7500 }, maxHealth: 70, maxResource: 100 },
+  { id: DAMAGE_IDS[2]!, classId: "hunter", role: "damage", pos: { x: 2100, y: 0, z: 7500 }, maxHealth: 70, maxResource: 100 },
+];
+
+const HEALER_KIT: BotView["classKit"] = { rotation: [], interruptAbilityId: null, defensiveAbilityId: null, healAbilityId: "2" };
+const DAMAGE_KIT: BotView["classKit"] = { rotation: ["1"], interruptAbilityId: null, defensiveAbilityId: null, healAbilityId: null };
+
+/** sim/encounter's registered Telegraphs (origin/yaw frozen at announce time) mapped onto
+ * bots/src's own Telegraph shape. Every telegraph in this POC content is treated as dangerous. */
+function mapTelegraphsForBots(telegraphs: EncounterState["telegraphs"]): BotTelegraph[] {
+  return telegraphs.map((t) => ({
+    id: String(t.id),
+    shape: t.shape,
+    center: { x: t.origin.x, z: t.origin.z },
+    yaw: t.yaw,
+    resolvesTick: t.resolvesTick,
+    danger: true,
+    ...(t.radius !== undefined ? { radius: t.radius } : {}),
+    ...(t.angle1024 !== undefined ? { angle1024: t.angle1024 } : {}),
+    ...(t.length !== undefined ? { length: t.length } : {}),
+    ...(t.width !== undefined ? { width: t.width } : {}),
+  }));
 }
 
-function makeActor(overrides: Partial<ActorSnapshot> & { id: number }): ActorSnapshot {
+/** Ability cooldowns are stored as absolute ready-ticks (see sim/combat/cooldowns.ts); the HUD
+ * (client/src/render/hud.ts) wants ticks-remaining. */
+function remainingCooldowns(actor: ActorState, tick: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const abilityId of Object.keys(actor.cooldowns)) {
+    out[abilityId] = Math.max(0, (actor.cooldowns[abilityId] ?? 0) - tick);
+  }
+  return out;
+}
+
+function toActorSnapshot(actor: ActorState, tick: number): ActorSnapshot {
   return {
-    kind: "player",
-    role: "damage",
-    classId: "generic",
-    pos: { x: 0, y: 0, z: 0 },
-    yaw: 0,
-    health: 100,
-    maxHealth: 100,
-    resource: 0,
-    maxResource: 0,
-    alive: true,
-    targetId: null,
-    cast: null,
-    cooldowns: {},
-    ...overrides,
+    id: actor.id,
+    kind: actor.kind,
+    role: actor.role,
+    classId: actor.classId,
+    pos: { ...actor.pos },
+    yaw: actor.yaw,
+    health: actor.health,
+    maxHealth: actor.maxHealth,
+    resource: actor.resource,
+    maxResource: actor.maxResource,
+    alive: actor.alive,
+    targetId: actor.targetId,
+    cast:
+      actor.castId !== null && actor.castStartTick !== null && actor.castEndsTick !== null
+        ? { abilityId: actor.castId, startTick: actor.castStartTick, endTick: actor.castEndsTick }
+        : null,
+    cooldowns: remainingCooldowns(actor, tick),
   };
 }
 
 export class SimHost {
-  private tick = 0;
-  private actors = new Map<number, ActorSnapshot>();
-  private telegraphs: TelegraphSnapshot[] = [];
+  private run: Run;
+  private readonly bots: Record<number, Bot> = {};
+  private memories: Record<number, BotMemory> = {};
+  private prng: PrngState;
   private pendingMoves: { dx: number; dz: number }[] = [];
   private pendingCasts: string[] = [];
   private pendingTargetCycles = 0;
-  private enemyWipeTick: number | null = null;
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
   private readonly timerLimitTicks = 20 * 60 * 8; // 8 minute POC timer
 
   constructor() {
-    this.actors.set(
-      PLAYER_ID,
-      makeActor({
-        id: PLAYER_ID,
-        role: "tank",
-        classId: "warrior",
-        pos: { x: 0, y: 0, z: 6000 },
-        resource: RESOURCE_MAX,
-        maxResource: RESOURCE_MAX,
-        cooldowns: freshCooldowns(),
-      }),
-    );
+    this.run = createRun(SEED, PARTY, DUNGEON, CONTENT);
 
-    const partyRoles: Array<{ role: string; classId: string }> = [
-      { role: "healer", classId: "priest" },
-      { role: "damage", classId: "mage" },
-      { role: "damage", classId: "rogue" },
-      { role: "damage", classId: "hunter" },
-    ];
-    PARTY_IDS.forEach((id, i) => {
-      const cfg = partyRoles[i]!;
-      this.actors.set(
-        id,
-        makeActor({
-          id,
-          role: cfg.role,
-          classId: cfg.classId,
-          pos: { x: -2100 + i * 1400, y: 0, z: 7500 },
-          resource: RESOURCE_MAX,
-          maxResource: RESOURCE_MAX,
-        }),
-      );
-    });
+    // Damage bots don't do their own target acquisition (see bots/src/roles.ts); point them at
+    // the boss once, up front, so their rotation ability has a legal target from tick 0.
+    for (const id of DAMAGE_IDS) {
+      const actor = this.run.state.actors[id];
+      if (actor) actor.targetId = BOSS_ID;
+    }
 
-    ENEMY_IDS.forEach((id, i) => {
-      const angle = (i / ENEMY_IDS.length) * Math.PI * 2;
-      this.actors.set(
-        id,
-        makeActor({
-          id,
-          kind: "enemy",
-          role: "enemy",
-          classId: "mob",
-          pos: { x: Math.round(Math.cos(angle) * 2500), y: 0, z: -6000 + Math.round(Math.sin(angle) * 2500) },
-          health: 60,
-          maxHealth: 60,
-        }),
-      );
-    });
-
-    this.telegraphs = [
-      {
-        id: "cone-1",
-        shape: "cone",
-        center: { x: 0, z: -6000 },
-        radius: 4500,
-        angle1024: 170,
-        yaw: 0,
-        resolvesTick: TELEGRAPH_CYCLE_TICKS,
-        danger: true,
-      },
-      {
-        id: "circle-1",
-        shape: "circle",
-        center: { x: 2500, z: -3000 },
-        radius: 1800,
-        resolvesTick: Math.round(TELEGRAPH_CYCLE_TICKS * 1.4),
-        danger: true,
-      },
-    ];
+    this.bots[HEALER_ID] = makeBot();
+    this.memories[HEALER_ID] = defaultMemory(80);
+    for (const id of DAMAGE_IDS) {
+      this.bots[id] = makeBot();
+      this.memories[id] = defaultMemory(80);
+    }
+    this.prng = seedPrng(SEED);
   }
 
   /** Queues a command produced by the input layer; applied on the next tick. */
@@ -168,146 +215,98 @@ export class SimHost {
   }
 
   private step(): Snapshot {
-    this.tick += 1;
-    this.applyPendingMoves();
-    this.applyPendingTargetCycles();
-    this.applyPendingCasts();
-    this.tickCooldownsAndCasts();
-    this.tickResources();
-    this.driftEnemyPack();
-    this.tickTelegraphs();
-    this.maybeRespawnEnemies();
+    const tick = this.run.state.tick;
+    const commands: Command[] = [...this.playerCommands(tick), ...this.botCommands()];
 
-    return {
-      tick: this.tick,
-      actors: [...this.actors.values()].map((a) => ({ ...a, pos: { ...a.pos }, cooldowns: { ...a.cooldowns } })),
-      telegraphs: this.telegraphs.map((t) => ({ ...t })),
-      runTimerTicks: this.tick,
-      timerLimitTicks: this.timerLimitTicks,
-    };
+    const stepped = stepRun(this.run, commands);
+    this.run = stepped.run;
+
+    return this.buildSnapshot();
   }
 
-  private applyPendingMoves(): void {
-    if (this.pendingMoves.length === 0) return;
-    const player = this.actors.get(PLAYER_ID);
-    if (!player) return;
+  private playerCommands(tick: number): Command[] {
+    const commands: Command[] = [];
+    const player = this.run.state.actors[PLAYER_ID];
+
     for (const move of this.pendingMoves) {
-      player.pos.x += move.dx;
-      player.pos.z += move.dz;
-      if (move.dx !== 0 || move.dz !== 0) {
-        player.yaw = Math.round(((Math.atan2(move.dx, move.dz) / (Math.PI * 2)) * 1024 + 1024) % 1024);
-      }
+      if (move.dx === 0 && move.dz === 0) continue;
+      const dir = { x: move.dx, z: move.dz };
+      commands.push({ tick, actorId: PLAYER_ID, kind: "move", dir, yaw: yawFromComponents(dir.x, dir.z) });
     }
     this.pendingMoves = [];
-  }
 
-  private applyPendingTargetCycles(): void {
-    if (this.pendingTargetCycles === 0) return;
-    const player = this.actors.get(PLAYER_ID);
-    if (!player) {
-      this.pendingTargetCycles = 0;
-      return;
-    }
-    const alive = ENEMY_IDS.filter((id) => this.actors.get(id)?.alive);
-    if (alive.length > 0) {
-      for (let i = 0; i < this.pendingTargetCycles; i++) {
-        const currentIndex = player.targetId === null ? -1 : alive.indexOf(player.targetId);
-        player.targetId = alive[(currentIndex + 1) % alive.length]!;
-      }
+    if (this.pendingTargetCycles > 0 && player) {
+      const enemies = Object.values(this.run.state.actors).filter((a) => a.kind === "enemy");
+      let targetId = player.targetId;
+      for (let i = 0; i < this.pendingTargetCycles; i++) targetId = cycleTarget(enemies, targetId);
+      commands.push({ tick, actorId: PLAYER_ID, kind: "target", targetId });
     }
     this.pendingTargetCycles = 0;
-  }
 
-  private applyPendingCasts(): void {
-    if (this.pendingCasts.length === 0) return;
-    const player = this.actors.get(PLAYER_ID);
-    if (!player) {
-      this.pendingCasts = [];
-      return;
-    }
     for (const abilityId of this.pendingCasts) {
-      if ((player.cooldowns[abilityId] ?? 0) > 0) continue;
-      if (player.resource < RESOURCE_COST) continue;
-
-      player.cooldowns[abilityId] = ABILITY_COOLDOWN_TICKS[abilityId] ?? 20;
-      player.resource = Math.max(0, player.resource - RESOURCE_COST);
-
-      const castTicks = CAST_DURATION_TICKS[abilityId];
-      if (castTicks) {
-        player.cast = { abilityId, startTick: this.tick, endTick: this.tick + castTicks };
-      }
-
-      const target = player.targetId !== null ? this.actors.get(player.targetId) : null;
-      if (target?.alive) {
-        target.health = Math.max(0, target.health - (10 + Math.floor(Math.random() * 8)));
-        if (target.health === 0) {
-          target.alive = false;
-          if (player.targetId === target.id) player.targetId = null;
-        }
-      }
+      // Ability shapes in this content are all "target"; fall back to self so a heal with no
+      // explicit target (nothing tab-targeted yet) still has a legal target instead of no-op'ing.
+      const targetId = player?.targetId ?? PLAYER_ID;
+      commands.push({ tick, actorId: PLAYER_ID, kind: "cast", abilityId, targetId });
     }
     this.pendingCasts = [];
+
+    return commands;
   }
 
-  private tickCooldownsAndCasts(): void {
-    for (const actor of this.actors.values()) {
-      for (const id of Object.keys(actor.cooldowns)) {
-        if (actor.cooldowns[id]! > 0) actor.cooldowns[id] = actor.cooldowns[id]! - 1;
-      }
-      if (actor.cast && this.tick >= actor.cast.endTick) actor.cast = null;
+  private botCommands(): Command[] {
+    const telegraphs = mapTelegraphsForBots(this.run.encounter.telegraphs);
+
+    const healerView: BotView = { state: this.run.state, telegraphs, classKit: HEALER_KIT };
+    const healerBots: Record<number, Bot> = {};
+    const healerMemories: Record<number, BotMemory> = {};
+    const healerBot = this.bots[HEALER_ID];
+    if (healerBot) {
+      healerBots[HEALER_ID] = healerBot;
+      healerMemories[HEALER_ID] = this.memories[HEALER_ID] ?? defaultMemory();
     }
+    const healerResult = runBots(healerView, healerBots, healerMemories, this.prng);
+
+    const damageView: BotView = { state: this.run.state, telegraphs, classKit: DAMAGE_KIT };
+    const damageBots: Record<number, Bot> = {};
+    const damageMemories: Record<number, BotMemory> = {};
+    for (const id of DAMAGE_IDS) {
+      const bot = this.bots[id];
+      if (!bot) continue;
+      damageBots[id] = bot;
+      damageMemories[id] = this.memories[id] ?? defaultMemory();
+    }
+    const damageResult = runBots(damageView, damageBots, damageMemories, healerResult.prng);
+
+    this.memories = { ...healerResult.memories, ...damageResult.memories };
+    this.prng = damageResult.prng;
+
+    return [...healerResult.commands, ...damageResult.commands];
   }
 
-  private tickResources(): void {
-    for (const actor of this.actors.values()) {
-      if (actor.maxResource > 0) {
-        actor.resource = Math.min(actor.maxResource, actor.resource + RESOURCE_REGEN_PER_TICK);
-      }
-    }
-  }
+  private buildSnapshot(): Snapshot {
+    const state = this.run.state;
+    const actors: ActorSnapshot[] = Object.values(state.actors).map((actor) => toActorSnapshot(actor, state.tick));
 
-  private driftEnemyPack(): void {
-    const t = this.tick / 200;
-    ENEMY_IDS.forEach((id, i) => {
-      const actor = this.actors.get(id);
-      if (!actor || !actor.alive) return;
-      const angle = (i / ENEMY_IDS.length) * Math.PI * 2 + t;
-      actor.pos.x = Math.round(Math.cos(angle) * 2500);
-      actor.pos.z = -6000 + Math.round(Math.sin(angle) * 2500);
-      actor.yaw = Math.round((((angle + Math.PI / 2) / (Math.PI * 2)) * 1024 + 1024) % 1024);
-    });
-  }
+    const telegraphs: TelegraphSnapshot[] = this.run.encounter.telegraphs.map((t) => ({
+      id: String(t.id),
+      shape: t.shape,
+      center: { x: t.origin.x, z: t.origin.z },
+      yaw: t.yaw,
+      resolvesTick: t.resolvesTick,
+      danger: true,
+      ...(t.radius !== undefined ? { radius: t.radius } : {}),
+      ...(t.angle1024 !== undefined ? { angle1024: t.angle1024 } : {}),
+      ...(t.length !== undefined ? { length: t.length } : {}),
+      ...(t.width !== undefined ? { width: t.width } : {}),
+    }));
 
-  private tickTelegraphs(): void {
-    for (const telegraph of this.telegraphs) {
-      if (telegraph.shape === "cone") {
-        const spinTicks = this.tick % (TELEGRAPH_CYCLE_TICKS * 4);
-        telegraph.yaw = Math.round((spinTicks / (TELEGRAPH_CYCLE_TICKS * 4)) * 1024);
-      }
-      if (this.tick >= telegraph.resolvesTick) {
-        telegraph.resolvesTick = this.tick + TELEGRAPH_CYCLE_TICKS;
-      }
-    }
-  }
-
-  private maybeRespawnEnemies(): void {
-    const anyAlive = ENEMY_IDS.some((id) => this.actors.get(id)?.alive);
-    if (anyAlive) {
-      this.enemyWipeTick = null;
-      return;
-    }
-    if (this.enemyWipeTick === null) {
-      this.enemyWipeTick = this.tick;
-      return;
-    }
-    if (this.tick - this.enemyWipeTick >= ENEMY_RESPAWN_DELAY_TICKS) {
-      for (const id of ENEMY_IDS) {
-        const actor = this.actors.get(id);
-        if (!actor) continue;
-        actor.alive = true;
-        actor.health = actor.maxHealth;
-      }
-      this.enemyWipeTick = null;
-    }
+    return {
+      tick: state.tick,
+      actors,
+      telegraphs,
+      runTimerTicks: state.runTimerTicks,
+      timerLimitTicks: this.timerLimitTicks,
+    };
   }
 }
