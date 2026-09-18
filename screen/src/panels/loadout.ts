@@ -3,13 +3,15 @@
  *        renderLoadoutPanel(container, store, onChange);
  *
  * Renders the loadout band: five auto-equipped gear slots (weapon, armor, charm, ring, keystone),
- * each showing its tier, facet text, and remaining crafting charges with a Reroll button ("Crafting
- * is two charges per item" -- design/BIBLE.md section 7). A slot flagged "NEW" was auto-equipped
- * since the loadout was last viewed. A slot with a parked "compare" item (a tie on tier -- auto-equip
- * never overwrites a chosen facet) shows an Equip / Discard choice. No stash management in the POC.
+ * each showing its tier and Facet text, with a free Facet picker (facet-picker.ts) from the
+ * class's real Facet pool and a charge-gated random Reroll button ("crafting is two charges per
+ * item" -- design/BIBLE.md section 7). A slot flagged "NEW" was auto-equipped since the loadout
+ * was last viewed. A slot with a parked "compare" item (a tie on tier -- auto-equip never
+ * overwrites a chosen facet) shows an Equip / Discard choice. No stash management in the POC.
  */
+import { renderFacetPicker } from "./facet-picker.js";
 import {
-  GEAR_SLOTS,
+  GEAR_SLOT_IDS,
   MAX_ITEM_TIER,
   discardCompare,
   equipCompare,
@@ -17,12 +19,12 @@ import {
   rerollFacet,
   saveStore,
   type Character,
-  type GearItem,
-  type GearSlot,
-  type StoreV2,
+  type GearSlotId,
+  type Item,
+  type StoreV3,
 } from "../store.js";
 
-const SLOT_LABELS: Record<GearSlot, string> = {
+const SLOT_LABELS: Record<GearSlotId, string> = {
   weapon: "Weapon",
   armor: "Armor",
   charm: "Charm",
@@ -30,7 +32,7 @@ const SLOT_LABELS: Record<GearSlot, string> = {
   keystone: "Keystone",
 };
 
-export function renderLoadoutPanel(root: HTMLElement, store: StoreV2, onChange: () => void): void {
+export function renderLoadoutPanel(root: HTMLElement, store: StoreV3, onChange: () => void): void {
   root.innerHTML = "";
   root.className = "band band-loadout";
   const character = store.character;
@@ -43,7 +45,7 @@ export function renderLoadoutPanel(root: HTMLElement, store: StoreV2, onChange: 
 
   const list = document.createElement("ul");
   list.className = "gear-list";
-  for (const slot of GEAR_SLOTS) {
+  for (const slot of GEAR_SLOT_IDS) {
     list.appendChild(renderGearRow(slot, character, newSlots.has(slot), store, onChange));
   }
   root.appendChild(list);
@@ -55,10 +57,10 @@ export function renderLoadoutPanel(root: HTMLElement, store: StoreV2, onChange: 
 }
 
 function renderGearRow(
-  slot: GearSlot,
+  slot: GearSlotId,
   character: Character,
   isNew: boolean,
-  store: StoreV2,
+  store: StoreV3,
   onChange: () => void,
 ): HTMLElement {
   const item = character.gear[slot];
@@ -79,6 +81,8 @@ function renderGearRow(
     row.appendChild(badge);
   }
 
+  row.appendChild(renderFacetPicker(item, store, onChange));
+
   const reroll = document.createElement("button");
   reroll.type = "button";
   reroll.className = "reroll-btn";
@@ -97,20 +101,20 @@ function renderGearRow(
   return row;
 }
 
-function renderItemSummary(item: GearItem): HTMLElement {
+function renderItemSummary(item: Item): HTMLElement {
   const name = document.createElement("span");
   name.className = "gear-item-name";
-  name.textContent = `T${item.tier} — ${item.facet.text}`;
+  name.textContent = `T${item.tier} — ${item.facet?.text ?? "no Facet"}`;
   return name;
 }
 
-function renderCompareRow(pending: GearItem, slot: GearSlot, store: StoreV2, onChange: () => void): HTMLElement {
+function renderCompareRow(pending: Item, slot: GearSlotId, store: StoreV3, onChange: () => void): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "compare-row";
 
   const label = document.createElement("span");
   label.className = "compare-label";
-  label.textContent = `Compare: T${pending.tier} — ${pending.facet.text}`;
+  label.textContent = `Compare: T${pending.tier} — ${pending.facet?.text ?? "no Facet"}`;
   wrap.appendChild(label);
 
   const equip = document.createElement("button");
