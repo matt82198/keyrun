@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadContent } from "@content/index";
-import { buildClassKit, buildParty, resolveHumanClassId } from "../../../client/src/sim-host/content-party.js";
+import { buildParty, resolveHumanClassId } from "../../../client/src/sim-host/content-party.js";
 
 const registry = loadContent();
 
@@ -46,26 +46,10 @@ describe("content-party: buildParty", () => {
     expect(party.find((p) => p.id === tankActorId)?.classId).toBe("warden");
   });
 
-  it("builds a classKit per class with the five rotation slots in order", () => {
-    const { classKits } = buildParty(registry, "warden");
-    const warden = registry.classes.get("warden")!;
-    expect(classKits["warden"]!.rotation).toEqual([
-      warden.abilities.rot1,
-      warden.abilities.rot2,
-      warden.abilities.rot3,
-      warden.abilities.rot4,
-      warden.abilities.rot5,
-    ]);
-    expect(classKits["warden"]!.healAbilityId).toBeNull();
-    expect(classKits["chanter"]!.healAbilityId).toBe("chanter.cadence");
-  });
-});
-
-describe("content-party: buildClassKit", () => {
-  it("wires interrupt/defensive straight from the class's fixed slots", () => {
-    const cinder = registry.classes.get("cinder")!;
-    const kit = buildClassKit(cinder);
-    expect(kit.interruptAbilityId).toBe("cinder.quench");
-    expect(kit.defensiveAbilityId).toBe("cinder.ashenSkin");
+  it("sets each member's maxResource from their class loop (bots/src/kits.ts owns rotation/heal resolution now)", () => {
+    const { party } = buildParty(registry, "warden");
+    const chanter = registry.classes.get("chanter")!;
+    const human = party.find((p) => p.classId === "chanter")!;
+    expect(human.maxResource).toBe(chanter.loop.max);
   });
 });

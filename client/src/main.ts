@@ -107,8 +107,7 @@ async function boot(): Promise<void> {
       const pos = actorPool.worldPositionOf(event.targetId);
       return pos ? { x: pos.x, y: pos.y, z: pos.z } : null;
     }
-    // No ground raycast implemented for this playable-v1 (out of scope) -- a spot ping lands at
-    // the pinging actor's own position instead of the literal point under the reticle.
+    // No ground raycast implemented here -- a spot ping lands at the pinger's own position.
     const pos = actorPool.worldPositionOf(event.actorId);
     return pos ? { x: pos.x, y: 0, z: pos.z } : null;
   }
@@ -151,7 +150,10 @@ async function boot(): Promise<void> {
       const player = rawById.get(setup.humanActorId);
       const groundPoint: PingGroundPoint = player ? { x: player.pos.x, z: player.pos.z } : { x: 0, z: 0 };
       const ping = derivePingEvent(justPressed, keybinds.ping, localTick, setup.humanActorId, player?.targetId ?? null, groundPoint, pingLimiter);
-      if (ping) pingEvents.push(ping);
+      if (ping) {
+        pingEvents.push(ping);
+        simHost.applyCommand({ type: "ping", event: ping });
+      }
 
       return commands;
     },

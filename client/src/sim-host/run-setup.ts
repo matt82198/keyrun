@@ -3,8 +3,9 @@
  *
  * Top-level composer: turns a content-registry.ts `ContentRegistry` plus (keyLevel, dungeonId,
  * humanClassId) into everything sim/index.ts's `createRun` and worker.ts's SimHost need -- a
- * RunContent (abilities/effects/enemyScripts/combos/fieldCombos), the sim DungeonDef, the party
- * roster, and per-class bot classKits. Pure and synchronous (registry-in, setup-out), so it is
+ * RunContent (abilities/effects/enemyScripts/combos/fieldCombos), the sim DungeonDef, and the
+ * party roster (bot class kits are resolved separately, per actor, by bots/src/kits.ts -- see this
+ * function's `setContentRegistry` call below). Pure and synchronous (registry-in, setup-out), so it is
  * exercised the same way whether the registry came from content-registry.ts's browser fetch loader
  * or from content/index.ts's real `loadContent()` under Node (tests use the latter -- see
  * tests/client/sim-host/run-setup.test.ts).
@@ -24,6 +25,12 @@
  * per-ability) and the pre-integration content draft's own interrupt abilities all agreed on 80
  * ticks, which this value reproduces.
  *
+ * Also calls bots/src/kits.ts's `setContentRegistry(registry)`: bots' ClassKit resolution
+ * (rotation priority, Setup/Payoff ids, resource economics) is injected-registry-based rather
+ * than loaded internally (bots/ is bundled into the browser via worker.ts, so it cannot import
+ * content/index.ts's node:fs-based loadContent() itself) -- this is the one call site that wires
+ * it, since every SimHost construction calls buildRunSetup exactly once.
+ *
  * Usage: `const setup = buildRunSetup(registry, {keyLevel: 5, dungeonId: "hollow-vault", humanClassId: "warden"});`
  */
 import type { PartyMemberSpec, RunContent } from "../../../sim/index.js";
@@ -32,9 +39,9 @@ import type { AbilityDef as SimAbilityDef } from "../../../sim/combat/abilities.
 import type { EffectDef as SimEffectDef } from "../../../sim/combat/effects.js";
 import type { ActorId } from "../../../sim/core/state.js";
 import type { Bounds } from "../../../sim/combat/movement.js";
-import type { BotView } from "../../../bots/src/types.js";
 import type { AbilityDef as ContentAbilityDef } from "../../../content/schema/ability.js";
 import type { ContentRegistry } from "../../../content/schema/registry.js";
+import { setContentRegistry } from "../../../bots/src/kits.js";
 import { buildDungeon } from "./content-dungeon.js";
 import { buildParty } from "./content-party.js";
 import { buildComboTables } from "./content-combos.js";
@@ -65,13 +72,13 @@ export interface RunSetup {
   humanActorId: ActorId;
   tankActorId: ActorId;
   bossActorId: ActorId;
-  classKits: Record<string, BotView["classKit"]>;
-  actorClassId: Record<ActorId, string>;
   keyLevel: number;
   parTicks: number;
 }
 
 export function buildRunSetup(registry: ContentRegistry, opts: RunSetupOptions): RunSetup {
+  setContentRegistry(registry);
+
   const abilities: Record<string, SimAbilityDef> = {};
   for (const [id, def] of registry.abilities) abilities[id] = resolveVariant(def);
 
@@ -108,8 +115,6 @@ export function buildRunSetup(registry: ContentRegistry, opts: RunSetupOptions):
     humanActorId: partyBuild.humanActorId,
     tankActorId: partyBuild.tankActorId,
     bossActorId,
-    classKits: partyBuild.classKits,
-    actorClassId: partyBuild.actorClassId,
     keyLevel: opts.keyLevel,
     parTicks: dungeonBuild.parTicks,
   };

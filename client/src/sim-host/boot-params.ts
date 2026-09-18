@@ -9,7 +9,7 @@
  * Usage: `const opts = resolveRunSetupOptions(new URLSearchParams(location.search), registry);`
  */
 import { resolveHumanClassId } from "./content-party.js";
-import type { ContentRegistry } from "./content-registry.js";
+import type { ContentRegistry } from "../../../content/schema/registry.js";
 import type { RunSetupOptions } from "./run-setup.js";
 
 const DEFAULT_KEY_LEVEL = 5;

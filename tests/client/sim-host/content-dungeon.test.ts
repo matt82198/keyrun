@@ -37,19 +37,19 @@ describe("content-dungeon: buildDungeon", () => {
     expect(script.some((s) => s.cast === "seed.deathBloom")).toBe(false);
   });
 
-  it("expands content's numeric-at+every phase offset into explicit one-shot ticks", () => {
-    // pair.melee: spreadMark at:0/every:400, stackCall at:200/every:400 -- two different phases
-    // of the same cycle (see content-dungeon.ts's file docstring).
-    const { dungeon, enemyScripts } = buildDungeon(registry, "hollow-vault", 1);
-    const pairPull = dungeon.pulls.find((p) => p.spawns.some((s) => s.classId === "pair.melee"))!;
-    const anyPairId = pairPull.spawns[0]!.actorId;
-    const script = enemyScripts[anyPairId]!;
-    const spreadTicks = script.filter((s) => s.cast === "pair.spreadMark").map((s) => s.at);
-    const stackTicks = script.filter((s) => s.cast === "pair.stackCall").map((s) => s.at);
-    expect(spreadTicks[0]).toBe(0);
-    expect(spreadTicks[1]).toBe(400);
-    expect(stackTicks[0]).toBe(200);
-    expect(stackTicks[1]).toBe(600);
+  it("scales every enemy script step's cadence (loop `every`) with key level", () => {
+    const low = buildDungeon(registry, "hollow-vault", 1);
+    const high = buildDungeon(registry, "hollow-vault", 20);
+    const pairPullLow = low.dungeon.pulls.find((p) => p.spawns.some((s) => s.classId === "pair.melee"))!;
+    const pairPullHigh = high.dungeon.pulls.find((p) => p.spawns.some((s) => s.classId === "pair.melee"))!;
+    const lowId = pairPullLow.spawns[0]!.actorId;
+    const highId = pairPullHigh.spawns[0]!.actorId;
+    const lowStep = low.enemyScripts[lowId]!.find((s) => s.cast === "pair.spreadMark")!;
+    const highStep = high.enemyScripts[highId]!.find((s) => s.cast === "pair.spreadMark")!;
+    expect(lowStep.at).toBe("loop");
+    expect(highStep.at).toBe("loop");
+    // Higher key level -> shorter `every` (faster cast cadence), never past sim/encounter/tempo.ts's floor.
+    expect(highStep.every!).toBeLessThan(lowStep.every!);
   });
 
   it("throws on an unknown dungeon id", () => {

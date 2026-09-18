@@ -16,6 +16,7 @@
 // dead. A full party wipe would otherwise soft-lock the run forever (nothing left to act), so
 // run-policy.ts's signals feed hud/run-end.ts's auto-abandon-after-a-grace-window policy.
 import type { AnyCommand } from "../input/commands.js";
+import type { PingEvent } from "../input/ping.js";
 import type { HostControlCommand } from "./host-commands.js";
 import type { Snapshot } from "./snapshot.js";
 import { SIM_TICK_MS } from "./snapshot.js";
@@ -28,6 +29,7 @@ import type { Command } from "../../../sim/core/commands.js";
 import { initialSlackTicks } from "../../../sim/encounter/timer.js";
 import { makeBot, defaultMemory, type Bot, type BotMemory } from "../../../bots/src/bot.js";
 import { seedPrng, type PrngState } from "../../../bots/src/skill.js";
+import { PING_REACTION_WINDOW_TICKS } from "../../../bots/src/shared/pings.js";
 import type { RunSetup } from "./run-setup.js";
 import { computeTicksToRun } from "./scheduler.js";
 import { buildSnapshot } from "./snapshot-codec.js";
@@ -37,7 +39,10 @@ import { computeBotCommands } from "./bot-commands.js";
 
 const SEED = 1;
 
-type HostCommand = AnyCommand | HostControlCommand;
+/** Ping is not a sim Command (see client/src/input/ping.ts's own file docstring) -- it only
+ * reaches bots/src/bot.ts's pingReactionCommands via computeBotCommands's `pings` list. */
+type PingHostCommand = { type: "ping"; event: PingEvent };
+type HostCommand = AnyCommand | HostControlCommand | PingHostCommand;
 
 export class SimHost {
   private run: Run;
@@ -47,6 +52,7 @@ export class SimHost {
   private pending: PendingInput = { moves: [], casts: [], targetCycles: 0 };
   private pendingStopcast = false;
   private abandonRequested = false;
+  private recentPings: PingEvent[] = [];
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
   private accumulatedMs = 0;
   private lastNowMs = Date.now();
@@ -73,6 +79,7 @@ export class SimHost {
     else if (cmd.type === "targetCycle") this.pending.targetCycles += 1;
     else if (cmd.type === "stopcast") this.pendingStopcast = true;
     else if (cmd.type === "abandon") this.abandonRequested = true;
+    else if (cmd.type === "ping") this.recentPings.push(cmd.event);
   }
 
   /** Fixed-timestep loop with capped catch-up (scheduler.ts); `pullCommands`, when given, is
@@ -108,7 +115,8 @@ export class SimHost {
    * sim tick-by-tick without going through start()'s real-time scheduler. */
   step(): Snapshot {
     const tick = this.run.state.tick;
-    const botResult = computeBotCommands(this.run, this.setup, this.bots, this.memories, this.prng);
+    this.recentPings = this.recentPings.filter((p) => tick - p.tick <= PING_REACTION_WINDOW_TICKS);
+    const botResult = computeBotCommands(this.run, this.bots, this.memories, this.prng, this.recentPings);
     this.memories = botResult.memories;
     this.prng = botResult.prng;
 
