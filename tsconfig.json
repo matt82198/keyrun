@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": { "@sim/*": ["sim/*"], "@content/*": ["content/*"], "@bots/*": ["bots/*"] }
+  },
+  "include": ["sim", "content", "bots", "client/src", "screen/src", "server", "tests", "scripts"]
+}
