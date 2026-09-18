@@ -1,0 +1,22 @@
+[
+  {
+    "id": "echo", "name": "Echo", "kind": "echo",
+    "params": { "addMaxHealth": 600, "spawnDelayTicks": 40 },
+    "description": "Every interrupted cast spawns a weak add."
+  },
+  {
+    "id": "tide", "name": "Tide", "kind": "tide",
+    "params": { "driftMmPerTick": 50 },
+    "description": "Floor patches (Windows and hazards) drift slowly across the arena."
+  },
+  {
+    "id": "hush", "name": "Hush", "kind": "hush",
+    "params": { "intervalTicks": 900, "silenceDurationTicks": 40 },
+    "description": "A silence pulse hits the party every 45 seconds; save the kicks."
+  },
+  {
+    "id": "pact", "name": "Pact", "kind": "pact",
+    "params": { "comboDamageBp": 2000, "soloDamageBp": -1000 },
+    "description": "Combos deal more damage; hits landed outside a Combo deal less."
+  }
+]

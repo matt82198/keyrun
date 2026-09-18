@@ -1,0 +1,62 @@
+[
+  {
+    "id": "shatter", "name": "Shatter", "setupClass": "warden", "payoffClass": "cinder", "windowId": "sundered",
+    "effects": [
+      { "op": "damage", "amount": 180, "school": "fire" },
+      { "op": "applyEffect", "effectId": "stunned", "durationTicks": 20, "stacks": 1 }
+    ]
+  },
+  {
+    "id": "consecrate", "name": "Consecrate", "setupClass": "warden", "payoffClass": "chanter", "windowId": "sundered",
+    "effects": [
+      { "op": "damage", "amount": 150, "school": "radiant" },
+      { "op": "applyEffect", "effectId": "consecrateHeal", "durationTicks": 120, "stacks": 1 }
+    ]
+  },
+  {
+    "id": "forge", "name": "Forge", "setupClass": "cinder", "payoffClass": "warden", "windowId": "kindled",
+    "effects": [
+      { "op": "damage", "amount": 180, "school": "physical" },
+      { "op": "resource", "resource": "momentum", "delta": 40 }
+    ]
+  },
+  {
+    "id": "steam", "name": "Steam", "setupClass": "cinder", "payoffClass": "chanter", "windowId": "kindled",
+    "effects": [
+      { "op": "damage", "amount": 150, "school": "fire" },
+      { "op": "applyEffect", "effectId": "blinded", "durationTicks": 80, "stacks": 1 }
+    ]
+  },
+  {
+    "id": "anthem", "name": "Anthem", "setupClass": "chanter", "payoffClass": "warden", "windowId": "attuned",
+    "effects": [
+      { "op": "applyEffect", "effectId": "hasted", "durationTicks": 120, "stacks": 1 }
+    ]
+  },
+  {
+    "id": "flashfire", "name": "Flashfire", "setupClass": "chanter", "payoffClass": "cinder", "windowId": "attuned",
+    "effects": [
+      { "op": "damage", "amount": 150, "school": "fire" },
+      { "op": "resource", "resource": "heat", "delta": 30 },
+      { "op": "removeEffect", "effectId": "chill" }
+    ]
+  },
+  {
+    "id": "bulwark-field", "name": "Bulwark (field)", "setupClass": "warden", "payoffClass": "*", "windowId": "bulwark",
+    "effects": [
+      { "op": "applyEffect", "effectId": "braced", "durationTicks": 80, "stacks": 1 }
+    ]
+  },
+  {
+    "id": "cinderfield-field", "name": "Cinderfield (field)", "setupClass": "cinder", "payoffClass": "*", "windowId": "cinderfield",
+    "effects": [
+      { "op": "damage", "amount": 80, "school": "fire" }
+    ]
+  },
+  {
+    "id": "hymn-field", "name": "Hymn (field)", "setupClass": "chanter", "payoffClass": "*", "windowId": "hymn",
+    "effects": [
+      { "op": "heal", "amount": 60 }
+    ]
+  }
+]
