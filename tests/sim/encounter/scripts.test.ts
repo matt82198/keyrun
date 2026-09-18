@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { stepEnemyScripts, type EnemyScript } from "../../../sim/encounter/scripts";
+import type { AbilityDef } from "../../../sim/combat/abilities";
 import type { ActorState, SimState } from "../../../sim/encounter/types";
 
 function enemyActor(id: number): ActorState {
@@ -24,6 +25,10 @@ function enemyActor(id: number): ActorState {
     effects: [],
     threat: {},
   };
+}
+
+function playerActor(id: number, pos: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 }): ActorState {
+  return { ...enemyActor(id), kind: "player", classId: "warden", role: "tank", pos };
 }
 
 function stateAt(tick: number): SimState {
@@ -167,6 +172,58 @@ describe("stepEnemyScripts", () => {
       if (actor) actor.alive = false;
       const result = stepEnemyScripts(dead, { 1: mixed });
       expect(result.commands).toEqual([{ tick: 500, actorId: 1, kind: "cast", abilityId: "seed.deathBloom" }]);
+    });
+  });
+
+  describe("targeting (P0 fix, sim/encounter/script-target.ts)", () => {
+    const meleeScript: EnemyScript = [{ at: "loop", every: 40, cast: "melee" }];
+    const MELEE: AbilityDef = {
+      id: "melee",
+      castTicks: 0,
+      gcdTicks: 0,
+      cooldownTicks: 0,
+      charges: 1,
+      cost: { resource: "none", amount: 0 },
+      range: 3000,
+      shape: { kind: "target" },
+      interruptible: false,
+      effects: [{ op: "damage", amount: 10, school: "physical" }],
+    };
+
+    it("with no abilities registry passed (the real, unwired call path), still resolves a hostile default target when a player is present", () => {
+      const state = stateAt(40);
+      state.actors[2] = playerActor(2, { x: 0, y: 0, z: 500 });
+      const result = stepEnemyScripts(state, { 1: meleeScript });
+      expect(result.commands).toEqual([{ tick: 40, actorId: 1, kind: "cast", abilityId: "melee", targetId: 2 }]);
+    });
+
+    it("with an abilities registry: a nothing-in-range target-shaped cast is skipped entirely (no spam)", () => {
+      const state = stateAt(40);
+      state.actors[2] = playerActor(2, { x: 0, y: 0, z: 9000 }); // outside MELEE's 3000mm range
+      const result = stepEnemyScripts(state, { 1: meleeScript }, {}, { melee: MELEE });
+      expect(result.commands).toHaveLength(0);
+    });
+
+    it("a blocked onDeath step emits neither the cast command nor its telegraph", () => {
+      const withTelegraph: EnemyScript = [
+        { at: "onDeath", cast: "melee", telegraph: { shape: "circle", radius: 2000, leadTicks: 20 } },
+      ];
+      const state = stateAt(500);
+      const actor = state.actors[1];
+      if (actor) actor.alive = false;
+      state.actors[2] = playerActor(2, { x: 0, y: 0, z: 9000 }); // outside MELEE's range
+      const result = stepEnemyScripts(state, { 1: withTelegraph }, {}, { melee: MELEE });
+      expect(result.commands).toHaveLength(0);
+      expect(result.telegraphEvents).toHaveLength(0);
+      expect(result.firedOnDeath[1]).toEqual(["melee"]); // still counted as fired -- the fire-once contract
+    });
+
+    it("a step's `target: \"self\"` override reaches the emitted command via stepEnemyScripts", () => {
+      const selfScript: EnemyScript = [{ at: "loop", every: 40, cast: "melee", target: "self" }];
+      const state = stateAt(40);
+      state.actors[2] = playerActor(2, { x: 0, y: 0, z: 500 });
+      const result = stepEnemyScripts(state, { 1: selfScript });
+      expect(result.commands).toEqual([{ tick: 40, actorId: 1, kind: "cast", abilityId: "melee", targetId: 1 }]);
     });
   });
 });
