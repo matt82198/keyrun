@@ -1,0 +1,1057 @@
+{
+  "seed": 24681357,
+  "ticks": 400,
+  "contentHash": "69a2a487",
+  "commands": [
+    {
+      "tick": 0,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 0,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 0,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 0,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 0,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 1,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 1,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 1,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 1,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 1,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 2,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 2,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 2,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 2,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 2,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 3,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 3,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 3,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 3,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 3,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 4,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 4,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 4,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 4,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 4,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 5,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 5,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 5,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 5,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 5,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 6,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 6,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 6,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 6,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 6,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 7,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 7,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 7,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 7,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 7,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 8,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 8,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 8,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 8,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 8,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 9,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 9,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 9,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 9,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 9,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 10,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 10,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 10,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 10,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 10,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 11,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 11,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 11,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 11,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 11,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 12,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 12,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 12,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 12,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 12,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 13,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 13,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 13,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 13,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 13,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 14,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 14,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 14,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 14,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 14,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 15,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 15,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 15,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 15,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 15,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 16,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 16,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 16,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 16,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 16,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 17,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 17,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 17,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 17,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 17,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 18,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 18,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 18,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 18,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 18,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 19,
+      "actorId": 301,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 19,
+      "actorId": 302,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 19,
+      "actorId": 303,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 19,
+      "actorId": 304,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 19,
+      "actorId": 305,
+      "kind": "move",
+      "dir": {
+        "x": 0,
+        "z": 1000
+      },
+      "yaw": 256
+    },
+    {
+      "tick": 20,
+      "actorId": 301,
+      "kind": "cast",
+      "abilityId": "warden.strike",
+      "targetId": 1000
+    },
+    {
+      "tick": 20,
+      "actorId": 303,
+      "kind": "cast",
+      "abilityId": "cinder.flare",
+      "targetId": 1001
+    },
+    {
+      "tick": 20,
+      "actorId": 305,
+      "kind": "cast",
+      "abilityId": "chanter.cadence",
+      "targetId": 1000
+    },
+    {
+      "tick": 40,
+      "actorId": 302,
+      "kind": "cast",
+      "abilityId": "cinder.detonate",
+      "targetId": 1000
+    },
+    {
+      "tick": 60,
+      "actorId": 304,
+      "kind": "cast",
+      "abilityId": "warden.reckoning",
+      "targetId": 1001
+    },
+    {
+      "tick": 90,
+      "actorId": 301,
+      "kind": "cast",
+      "abilityId": "warden.reckoning",
+      "targetId": 1000
+    }
+  ],
+  "expectedHash": "3844f376",
+  "eventCounts": {
+    "damage": 7,
+    "cast_complete": 6,
+    "window_opened": 3,
+    "combo": 3
+  },
+  "why": "Any change to this hash is either a deliberate content/sim behaviour change (explain it in the PR body) or a regression (fix the code -- never retune this fixture to match, see sim/CLAUDE.md's 'Replays are golden tests'). eventCounts exists for the same reason: a silent behaviour change should fail with a readable diff, not just a hash mismatch. NOTE (authoring time): sim/encounter/scripts.ts's stepEnemyScripts emits enemy cast commands with no targetId, and sim/combat/casting.ts's startCast requires one for a target-shape ability (returns target_required otherwise), so choir.meleeSwing/choir.healCast never execute today -- eventCounts carries zero enemy-sourced damage/cast_complete. fix/enemy-targeting (a separate lane) is expected to fix this; once it merges, re-record (npx tsx tests/sim/golden/build-content-pull.ts) and explain the change in that PR body."
+}
