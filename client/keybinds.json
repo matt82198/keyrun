@@ -8,5 +8,6 @@
   "abilityE": "KeyE",
   "abilityR": "KeyR",
   "abilityF": "KeyF",
-  "targetCycle": "Tab"
+  "targetCycle": "Tab",
+  "ping": "KeyG"
 }
