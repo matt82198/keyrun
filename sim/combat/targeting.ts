@@ -1,13 +1,17 @@
 /**
  * Tab-target cycling and integer shape queries (circle/cone/line) over actor positions in the
- * XZ plane. Facing direction comes from a fixed 128-entry Q12 (x4096) cos/sin lookup table,
- * generated once offline and embedded as literal constants below, indexed by yaw in angle1024
- * units (0..1023 = one full turn, matching AbilityDef.shape.angle1024). This keeps facing math
- * integer-only at runtime and platform-deterministic (no Math.sin/cos call during simulation).
+ * XZ plane, plus resolveTargets: the single ability-shape-to-actor-list resolver shared by
+ * casting.ts (completeCast) and windows.ts (applyWindowsAndCombos) so both apply an ability's
+ * "self"/"target"/"circle"/"cone"/"line" shape identically. Facing direction comes from a fixed
+ * 128-entry Q12 (x4096) cos/sin lookup table, generated once offline and embedded as literal
+ * constants below, indexed by yaw in angle1024 units (0..1023 = one full turn, matching
+ * AbilityDef.shape.angle1024). This keeps facing math integer-only at runtime and
+ * platform-deterministic (no Math.sin/cos call during simulation).
  * Usage: inCircle(origin, radiusMm, actors); inCone(caster, angle1024, radiusMm, actors);
- *        cycleTarget(actors, currentTargetId);
+ *        cycleTarget(actors, currentTargetId); resolveTargets(state, actor, abilityDef).
  */
-import type { ActorId, ActorState, Vec3 } from "./types";
+import type { ActorId, ActorState, SimState, Vec3 } from "./types";
+import type { AbilityDef } from "./abilities";
 import { isqrt } from "./movement";
 
 const TABLE_N = 128;
@@ -88,6 +92,35 @@ export function inLine(caster: ActorState, length: number, radiusMm: number, act
       return forward >= 0 && forward <= length && Math.abs(perp) <= radiusMm;
     })
     .map((a) => a.id);
+}
+
+/**
+ * Resolves an ability's shape (self/target/circle/cone/line) against `state` to the concrete
+ * ActorState list it applies to. "target" reads `actor.targetId` (set by startCast from its
+ * explicit targetId argument, or left over from a prior cast/tab-target). Shared by casting.ts's
+ * completeCast (an ability's own effects) and windows.ts's applyWindowsAndCombos (Window/Payoff
+ * ops on that same ability) so both resolve identical target sets for the same input.
+ */
+export function resolveTargets(state: SimState, actor: ActorState, def: AbilityDef): ActorState[] {
+  if (def.shape.kind === "self") return [actor];
+  if (def.shape.kind === "target") {
+    const t = actor.targetId !== null ? state.actors[actor.targetId] : undefined;
+    return t ? [t] : [];
+  }
+  const all = Object.values(state.actors);
+  if (def.shape.kind === "circle") {
+    return inCircle(actor.pos, def.shape.radius ?? 0, all)
+      .map((id) => state.actors[id])
+      .filter((a): a is ActorState => !!a);
+  }
+  if (def.shape.kind === "cone") {
+    return inCone(actor, def.shape.angle1024 ?? 0, def.shape.radius ?? 0, all)
+      .map((id) => state.actors[id])
+      .filter((a): a is ActorState => !!a);
+  }
+  return inLine(actor, def.shape.length ?? 0, def.shape.radius ?? 0, all)
+    .map((id) => state.actors[id])
+    .filter((a): a is ActorState => !!a);
 }
 
 /** Cycles to the next living actor id after `fromId` in ascending id order (wraps around). */
