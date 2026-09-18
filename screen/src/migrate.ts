@@ -1,16 +1,18 @@
 /**
  * Usage: import { migrate } from "./migrate.js";
- *        const storeV1 = migrate(JSON.parse(rawFromLocalStorage));
+ *        const storeV2 = migrate(JSON.parse(rawFromLocalStorage));
  *
- * Upgrades any stored payload -- current (schemaVersion 1) or legacy/
- * unversioned ("v0") -- to StoreV1, filling gaps from a fresh fixture
- * character rather than crashing on missing fields.
+ * Upgrades any stored payload -- current (schemaVersion 2) or legacy (schemaVersion 1's ilvl-based
+ * gear, or unversioned "v0") -- to StoreV2. Pre-v2 gear used a wholly different item shape (ilvl, no
+ * tier/facet/charges) so it cannot be carried forward meaningfully; a legacy character's classId,
+ * level, keyLevel and run history are preserved, gear resets to the fixture's tier-1 loadout, and Ash
+ * starts at zero (a real player never existed before schemaVersion 2, this repo has none).
  */
 import { createFixtureCharacter } from "./fixture.js";
 import { clampKeyLevel } from "./rules.js";
-import { GEAR_SLOTS, SCHEMA_VERSION, type Character, type GearItem, type GearSlot, type StoreV1 } from "./types.js";
+import { SCHEMA_VERSION, type Character, type RunRecord, type RunResult, type StoreV2 } from "./types.js";
 
-function isStoreV1(raw: unknown): raw is StoreV1 {
+function isStoreV2(raw: unknown): raw is StoreV2 {
   return (
     typeof raw === "object" &&
     raw !== null &&
@@ -20,41 +22,56 @@ function isStoreV1(raw: unknown): raw is StoreV1 {
   );
 }
 
-function extractLegacyCharacter(raw: unknown): Partial<Character> | undefined {
+function extractLegacyCharacter(raw: unknown): Record<string, unknown> | undefined {
   if (typeof raw !== "object" || raw === null || !("character" in raw)) return undefined;
   const character = (raw as { character?: unknown }).character;
   if (typeof character !== "object" || character === null) return undefined;
-  return character as Partial<Character>;
+  return character as Record<string, unknown>;
 }
 
-function mergeGear(
-  fixtureGear: Record<GearSlot, GearItem>,
-  legacyGear: Partial<Record<GearSlot, GearItem>> | undefined,
-): Record<GearSlot, GearItem> {
-  const merged = { ...fixtureGear };
-  if (legacyGear) {
-    for (const slot of GEAR_SLOTS) {
-      const item = legacyGear[slot];
-      if (item) merged[slot] = item;
-    }
-  }
-  return merged;
+function mapLegacyResult(result: unknown): RunResult {
+  if (result === "success" || result === "timed") return "timed";
+  if (result === "abandoned") return "abandoned";
+  return "depleted";
 }
 
-export function migrate(raw: unknown, now: number = Date.now()): StoreV1 {
-  if (isStoreV1(raw)) return raw;
+function extractLegacyRunHistory(raw: unknown): RunRecord[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((entry: unknown, index: number): RunRecord => {
+    const e = (typeof entry === "object" && entry !== null ? entry : {}) as Record<string, unknown>;
+    return {
+      id: typeof e.id === "string" ? e.id : `legacy-run-${index}`,
+      dungeon: typeof e.dungeon === "string" ? e.dungeon : "Hollow Vault",
+      keyLevel: typeof e.keyLevel === "number" ? clampKeyLevel(e.keyLevel) : 2,
+      result: mapLegacyResult(e.result),
+      durationSec: typeof e.durationSec === "number" ? e.durationSec : 0,
+      completedAt: typeof e.completedAt === "number" ? e.completedAt : 0,
+      rewardPicked: null,
+      ashGained: 0,
+    };
+  });
+}
+
+export function migrate(raw: unknown, now: number = Date.now()): StoreV2 {
+  if (isStoreV2(raw)) return raw;
+
   const fixture = createFixtureCharacter(now);
   const legacy = extractLegacyCharacter(raw);
   if (!legacy) return { schemaVersion: SCHEMA_VERSION, character: fixture };
+
   const character: Character = {
-    classId: legacy.classId ?? fixture.classId,
-    level: legacy.level ?? fixture.level,
-    abilities: legacy.abilities ?? fixture.abilities,
-    gear: mergeGear(fixture.gear, legacy.gear),
-    keyLevel: clampKeyLevel(legacy.keyLevel ?? fixture.keyLevel),
+    classId: typeof legacy.classId === "string" ? legacy.classId : fixture.classId,
+    level: typeof legacy.level === "number" ? legacy.level : fixture.level,
+    abilities: fixture.abilities,
+    gear: fixture.gear,
+    compareGear: {},
+    recentlyEquipped: [],
+    ash: 0,
+    keyLevel: clampKeyLevel(typeof legacy.keyLevel === "number" ? legacy.keyLevel : fixture.keyLevel),
     queued: false,
-    runHistory: legacy.runHistory ?? fixture.runHistory,
-    lastSeenAt: legacy.lastSeenAt ?? fixture.lastSeenAt,
+    runHistory: extractLegacyRunHistory(legacy.runHistory) ?? fixture.runHistory,
+    rewardChoices: null,
+    lastSeenAt: typeof legacy.lastSeenAt === "number" ? legacy.lastSeenAt : fixture.lastSeenAt,
   };
   return { schemaVersion: SCHEMA_VERSION, character };
 }
