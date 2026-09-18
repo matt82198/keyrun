@@ -1,28 +1,36 @@
 /**
  * content/index.ts
  * Usage: `import { loadContent } from "@content/index"` to get validated, typed registries for
- * every class/ability/effect/combo/enemy/dungeon/clause. loadContent() throws loudly (never
- * returns partial data) on: an unknown id reference anywhere, a duplicate id within any
- * registry, a class without exactly 5 rotational slots, a talent patch that adds/renames an
- * ability (sets `id` on its patch), or a combo whose setupClass equals its payoffClass
- * (payoffClass "*"  -  "any other class", see schema/combo.ts  -  is exempt). Content is data: this
- * file never imports sim/ internals, only the local schema/*.ts copies of the sim-combat
- * contract. The registry-wide checks themselves live in content/validate.ts (re-exported here as
- * `validate`), split out to keep both files under the sim/CLAUDE.md 190 LOC cap.
+ * every class/ability/effect/combo/enemy/dungeon/clause/facet. loadContent() throws loudly (never
+ * returns partial data) on any invariant content/validate.ts checks -- see that file for the full
+ * list (unknown id references, duplicate ids, the 5-rotational-slot / 2-setup-2-payoff shape, an
+ * id-changing talent or facet patch, a combo whose setupClass equals its payoffClass, and any
+ * ability that fails the REAL sim validator, sim/combat/abilities.ts's `validateAbilityDef`, not a
+ * local copy). Content is data: this file never imports sim/ *internals* (no casting/damage/
+ * effects runtime code), only the type-and-validator surface sim/combat/*.ts exports for exactly
+ * this purpose.
+ *
+ * `toComboTables`/`toSimDungeon` (content/sim-adapt.ts, re-exported below) are the two converters
+ * that turn loaded content into the plain data sim/index.ts's `createRun`/`RunContent` and
+ * sim/combat/rules.ts's `RulesConfig` actually consume -- see
+ * tests/sim/integration/content.test.ts for the full wiring.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AbilityDef } from "./schema/ability";
 import type { EffectDef } from "./schema/effect";
 import type { ClassDef } from "./schema/class";
-import type { ComboDef } from "./schema/combo";
+import type { ComboEntry } from "./schema/combo";
 import type { EnemyDef } from "./schema/enemy";
 import type { DungeonDef } from "./schema/dungeon";
 import type { ClauseDef } from "./schema/clause";
 import type { FacetDef } from "./schema/facet";
-import { validate } from "./validate";
+import type { ContentRegistry } from "./schema/registry";
+import { validateRegistry } from "./validate";
 
-export { validate } from "./validate";
+export type { ContentRegistry } from "./schema/registry";
+export { canPayoffCloseWindow } from "./schema/enemy";
+export { toComboTables, toSimDungeon, type ExpandedDungeon } from "./sim-adapt";
 
 function readJson<T>(rel: string): T {
   return JSON.parse(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8")) as T;
@@ -35,18 +43,6 @@ export function byId<T extends { id: string }>(items: T[], kind: string): Map<st
     map.set(item.id, item);
   }
   return map;
-}
-
-export interface ContentRegistry {
-  abilities: Map<string, AbilityDef>;
-  effects: Map<string, EffectDef>;
-  classes: Map<string, ClassDef>;
-  combos: Map<string, ComboDef>;
-  enemies: Map<string, EnemyDef>;
-  dungeons: Map<string, DungeonDef>;
-  clauses: Map<string, ClauseDef>;
-  /** BIBLE.md Sec 7 "Gear and progression": every Facet a class's five gear slots can roll. */
-  facets: Map<string, FacetDef>;
 }
 
 export function loadContent(): ContentRegistry {
@@ -71,7 +67,7 @@ export function loadContent(): ContentRegistry {
     ],
     "class",
   );
-  const combos = byId<ComboDef>(readJson<ComboDef[]>("./data/combos.json"), "combo");
+  const combos = byId<ComboEntry>(readJson<ComboEntry[]>("./data/combos.json"), "combo");
   const enemies = byId<EnemyDef>(
     [
       ...readJson<EnemyDef[]>("./data/enemies/choir.json"),
@@ -97,10 +93,6 @@ export function loadContent(): ContentRegistry {
   return registry;
 }
 
-/**
- * BIBLE.md Sec 9 "The Lock": a Payoff may close a windowRule-governed window only if its class
- * differs from the class that last Setup-tagged that window. Exported for sim reuse and tests.
- */
-export function canPayoffCloseWindow(payoffClass: string, lastSetupClass: string | null): boolean {
-  return lastSetupClass === null || payoffClass !== lastSetupClass;
+export function validate(reg: ContentRegistry): void {
+  validateRegistry(reg);
 }

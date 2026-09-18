@@ -26,6 +26,7 @@ function ability(over: Partial<AbilityDef> & { id: string }): AbilityDef {
     gcdTicks: 30,
     cooldownTicks: 0,
     charges: 1,
+    cost: { resource: "energy", amount: 0 },
     range: 3000,
     shape: { kind: "target" },
     interruptible: false,
@@ -61,7 +62,7 @@ function makeFixture() {
         abilityId: "a.setup1",
         options: [
           { id: "longer", name: "Longer", text: "Window lasts longer.",
-            patch: { effects: [{ op: "window", windowId: "foo", durationTicks: 200, onTarget: true }] } },
+            patch: { effects: [{ op: "window", windowId: "foo", durationTicks: 200, onTarget: true, setupClass: "fixture" }] } },
           { id: "retag", name: "Retag", text: "Setup1 becomes a Payoff instead.",
             patch: { tags: ["payoff"] } },
         ],
@@ -85,7 +86,7 @@ function makeFixture() {
     ["f.charm.retagNeutral", {
       id: "f.charm.retagNeutral", slot: "charm", abilityId: "a.neutral",
       text: "Neutral also counts as a Payoff.",
-      patch: { tagAdd: ["payoff"], effectsAppend: [{ op: "combo", comboTable: "combos" }] },
+      patch: { tagAdd: ["payoff"], effectsAppend: [{ op: "payoff" }] },
     }],
     ["f.ring.untag", {
       id: "f.ring.untag", slot: "ring", abilityId: "a.payoff2",
@@ -134,7 +135,7 @@ describe("applyLoadout: talent forks", () => {
     const result = applyLoadout(classDef, abilities, facets, { "a.setup1": "longer" }, []);
     expect(result.abilities["a.setup1"]!.tags).toEqual(["setup:foo"]);
     expect(result.abilities["a.setup1"]!.effects).toEqual([
-      { op: "window", windowId: "foo", durationTicks: 200, onTarget: true },
+      { op: "window", windowId: "foo", durationTicks: 200, onTarget: true, setupClass: "fixture" },
     ]);
     // base ability object itself must not have been mutated
     expect(abilities.get("a.setup1")!.effects).toEqual([{ op: "damage", amount: 100, school: "physical" }]);

@@ -9,8 +9,7 @@
       { "at": "loop", "every": 60, "cast": "hollowWarden.slam" },
       { "at": "loop", "every": 160, "cast": "hollowWarden.cleave",
         "telegraph": { "shape": "cone", "radius": 4000, "angle1024": 200, "leadTicks": 40 } },
-      { "at": 600, "every": 600, "cast": "hollowWarden.lock",
-        "windowRule": { "windowId": "lock", "kind": "alternate-setup-class" } }
+      { "at": "loop", "every": 600, "cast": "hollowWarden.lock" }
     ],
     "breakBars": [
       { "id": "twinsBreak", "max": 100, "drainPerInterrupt": 34, "drainPerControl": 20,
