@@ -1,95 +1,298 @@
 {
   "id": "cinder",
   "name": "Cinder",
-  "loop": { "resource": "heat", "max": 100, "kind": "heat-overheat" },
+  "loop": {
+    "resource": "heat",
+    "max": 100,
+    "kind": "heat-overheat"
+  },
   "abilities": {
-    "rot1": "cinder.emberBolt", "rot2": "cinder.flare", "rot3": "cinder.coldSnap",
-    "rot4": "cinder.detonate", "rot5": "cinder.cinderfield",
-    "interrupt": "cinder.quench", "defensive": "cinder.ashenSkin",
-    "utility": "cinder.purge", "movement": "cinder.blink"
+    "rot1": "cinder.emberBolt",
+    "rot2": "cinder.flare",
+    "rot3": "cinder.coldSnap",
+    "rot4": "cinder.detonate",
+    "rot5": "cinder.cinderfield",
+    "interrupt": "cinder.quench",
+    "defensive": "cinder.ashenSkin",
+    "utility": "cinder.purge",
+    "movement": "cinder.blink"
   },
   "talents": [
     {
       "abilityId": "cinder.emberBolt",
       "options": [
-        { "id": "instant", "name": "Snap Cast", "text": "Instant cast, less Heat gained.",
-          "patch": { "castTicks": 0, "effects": [
-            { "op": "damage", "amount": 70, "school": "fire" },
-            { "op": "resource", "resource": "heat", "delta": 15 }
-          ] } },
-        { "id": "piercing", "name": "Piercing Bolt", "text": "Ember Bolt becomes a line, hitting everything in it.",
-          "patch": { "shape": { "kind": "line", "length": 25000, "width": 1000 }, "tags": ["piercing"] } },
-        { "id": "overcharge", "name": "Overcharge", "text": "Short cooldown; hits harder, builds more Heat.",
-          "patch": { "cooldownTicks": 20, "effects": [
-            { "op": "damage", "amount": 130, "school": "fire" },
-            { "op": "resource", "resource": "heat", "delta": 30 }
-          ] } }
+        {
+          "id": "instant",
+          "name": "Snap Cast",
+          "text": "Instant cast, less Heat gained.",
+          "patch": {
+            "castTicks": 0,
+            "effects": [
+              {
+                "op": "damage",
+                "amount": 70,
+                "school": "fire"
+              },
+              {
+                "op": "resource",
+                "delta": 15
+              }
+            ]
+          }
+        },
+        {
+          "id": "piercing",
+          "name": "Piercing Bolt",
+          "text": "Ember Bolt becomes a line, hitting everything in it.",
+          "patch": {
+            "shape": {
+              "kind": "line",
+              "length": 25000,
+              "radius": 1000
+            },
+            "tags": [
+              "piercing"
+            ]
+          }
+        },
+        {
+          "id": "overcharge",
+          "name": "Overcharge",
+          "text": "Short cooldown; hits harder, builds more Heat.",
+          "patch": {
+            "cooldownTicks": 20,
+            "effects": [
+              {
+                "op": "damage",
+                "amount": 130,
+                "school": "fire"
+              },
+              {
+                "op": "resource",
+                "delta": 30
+              }
+            ]
+          }
+        }
       ]
     },
     {
       "abilityId": "cinder.flare",
       "options": [
-        { "id": "wildfire", "name": "Wildfire", "text": "Flare becomes a small area instead of single target.",
-          "patch": { "shape": { "kind": "circle", "radius": 1500 }, "tags": ["setup:kindled", "aoe"] } },
-        { "id": "lingering", "name": "Lingering Kindle", "text": "Kindled lasts longer.",
-          "patch": { "effects": [
-            { "op": "damage", "amount": 110, "school": "fire" },
-            { "op": "resource", "resource": "heat", "delta": 25 },
-            { "op": "window", "windowId": "kindled", "durationTicks": 100, "onTarget": true }
-          ] } },
-        { "id": "efficient", "name": "Efficient", "text": "Much faster cast; adds a short cooldown.",
-          "patch": { "castTicks": 10, "cooldownTicks": 40 } }
+        {
+          "id": "wildfire",
+          "name": "Wildfire",
+          "text": "Flare becomes a small area instead of single target.",
+          "patch": {
+            "shape": {
+              "kind": "circle",
+              "radius": 1500
+            },
+            "tags": [
+              "setup:kindled",
+              "aoe"
+            ]
+          }
+        },
+        {
+          "id": "lingering",
+          "name": "Lingering Kindle",
+          "text": "Kindled lasts longer.",
+          "patch": {
+            "effects": [
+              {
+                "op": "damage",
+                "amount": 110,
+                "school": "fire"
+              },
+              {
+                "op": "resource",
+                "delta": 25
+              },
+              {
+                "op": "window",
+                "windowId": "kindled",
+                "durationTicks": 100,
+                "onTarget": true,
+                "setupClass": "cinder"
+              }
+            ]
+          }
+        },
+        {
+          "id": "efficient",
+          "name": "Efficient",
+          "text": "Much faster cast; adds a short cooldown.",
+          "patch": {
+            "castTicks": 10,
+            "cooldownTicks": 40
+          }
+        }
       ]
     },
     {
       "abilityId": "cinder.coldSnap",
       "options": [
-        { "id": "deepFreeze", "name": "Deep Freeze", "text": "Freeze lasts twice as long.",
-          "patch": { "effects": [
-            { "op": "damage", "amount": 100, "school": "frost" },
-            { "op": "resource", "resource": "heat", "delta": -100 },
-            { "op": "removeEffect", "effectId": "chill" },
-            { "op": "applyEffect", "effectId": "stunned", "durationTicks": 40, "stacks": 1 },
-            { "op": "combo", "comboTable": "combos" }
-          ] } },
-        { "id": "overflow", "name": "Overflow", "text": "Only dumps part of your Heat, keeping some banked.",
-          "patch": { "tags": ["payoff", "control", "partial-dump"], "effects": [
-            { "op": "damage", "amount": 100, "school": "frost" },
-            { "op": "resource", "resource": "heat", "delta": -60 },
-            { "op": "removeEffect", "effectId": "chill" },
-            { "op": "combo", "comboTable": "combos" }
-          ] } }
+        {
+          "id": "deepFreeze",
+          "name": "Deep Freeze",
+          "text": "Freeze lasts twice as long.",
+          "patch": {
+            "effects": [
+              {
+                "op": "damage",
+                "amount": 100,
+                "school": "frost"
+              },
+              {
+                "op": "resource",
+                "delta": -100
+              },
+              {
+                "op": "removeEffect",
+                "effectId": "chill"
+              },
+              {
+                "op": "applyEffect",
+                "effectId": "stunned",
+                "durationTicks": 40,
+                "stacks": 1
+              },
+              {
+                "op": "payoff"
+              }
+            ]
+          }
+        },
+        {
+          "id": "overflow",
+          "name": "Overflow",
+          "text": "Only dumps part of your Heat, keeping some banked.",
+          "patch": {
+            "tags": [
+              "payoff",
+              "control",
+              "partial-dump"
+            ],
+            "effects": [
+              {
+                "op": "damage",
+                "amount": 100,
+                "school": "frost"
+              },
+              {
+                "op": "resource",
+                "delta": -60
+              },
+              {
+                "op": "removeEffect",
+                "effectId": "chill"
+              },
+              {
+                "op": "payoff"
+              }
+            ]
+          }
+        }
       ]
     },
     {
       "abilityId": "cinder.detonate",
       "options": [
-        { "id": "chainReaction", "name": "Chain Reaction", "text": "Detonate becomes an area burst.",
-          "patch": { "shape": { "kind": "circle", "radius": 2000 },
-            "cost": { "resource": "heat", "amount": 40 } } },
-        { "id": "cheapShot", "name": "Cheap Shot", "text": "Costs less Heat, hits for less.",
-          "patch": { "cost": { "resource": "heat", "amount": 15 },
+        {
+          "id": "chainReaction",
+          "name": "Chain Reaction",
+          "text": "Detonate becomes an area burst.",
+          "patch": {
+            "shape": {
+              "kind": "circle",
+              "radius": 2000
+            },
+            "cost": {
+              "resource": "heat",
+              "amount": 40
+            }
+          }
+        },
+        {
+          "id": "cheapShot",
+          "name": "Cheap Shot",
+          "text": "Costs less Heat, hits for less.",
+          "patch": {
+            "cost": {
+              "resource": "heat",
+              "amount": 15
+            },
             "effects": [
-              { "op": "damage", "amount": 180, "school": "fire" },
-              { "op": "combo", "comboTable": "combos" }
-            ] } },
-        { "id": "overkill", "name": "Overkill", "text": "Adds a cooldown; hits far harder.",
-          "patch": { "cooldownTicks": 100, "effects": [
-            { "op": "damage", "amount": 320, "school": "fire" },
-            { "op": "combo", "comboTable": "combos" }
-          ] } }
+              {
+                "op": "damage",
+                "amount": 180,
+                "school": "fire"
+              },
+              {
+                "op": "payoff"
+              }
+            ]
+          }
+        },
+        {
+          "id": "overkill",
+          "name": "Overkill",
+          "text": "Adds a cooldown; hits far harder.",
+          "patch": {
+            "cooldownTicks": 100,
+            "effects": [
+              {
+                "op": "damage",
+                "amount": 320,
+                "school": "fire"
+              },
+              {
+                "op": "payoff"
+              }
+            ]
+          }
+        }
       ]
     },
     {
       "abilityId": "cinder.cinderfield",
       "options": [
-        { "id": "spreading", "name": "Spreading Flame", "text": "Bigger patch, lasts longer.",
-          "patch": { "shape": { "kind": "circle", "radius": 3500 }, "effects": [
-            { "op": "window", "windowId": "cinderfield", "durationTicks": 200, "onTarget": false },
-            { "op": "applyEffect", "effectId": "burning", "durationTicks": 200, "stacks": 1 }
-          ] } },
-        { "id": "flashpoint", "name": "Flashpoint", "text": "Instant cast; longer cooldown.",
-          "patch": { "castTicks": 0, "cooldownTicks": 280 } }
+        {
+          "id": "spreading",
+          "name": "Spreading Flame",
+          "text": "Bigger patch, lasts longer.",
+          "patch": {
+            "shape": {
+              "kind": "circle",
+              "radius": 3500
+            },
+            "effects": [
+              {
+                "op": "window",
+                "windowId": "cinderfield",
+                "durationTicks": 200,
+                "onTarget": false,
+                "setupClass": "cinder"
+              },
+              {
+                "op": "applyEffect",
+                "effectId": "burning",
+                "durationTicks": 200,
+                "stacks": 1
+              }
+            ]
+          }
+        },
+        {
+          "id": "flashpoint",
+          "name": "Flashpoint",
+          "text": "Instant cast; longer cooldown.",
+          "patch": {
+            "castTicks": 0,
+            "cooldownTicks": 280
+          }
+        }
       ]
     }
   ]

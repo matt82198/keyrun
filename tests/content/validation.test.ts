@@ -2,19 +2,27 @@
  * tests/content/validation.test.ts
  * Usage: `npm test` (vitest). Proves content/index.ts fails loudly on bad data: unknown ids,
  * duplicate ids, a class without exactly 5 rotational abilities, a talent patch that adds an
- * ability, an unknown effect reference, and a combo whose setupClass/payoffClass match.
+ * ability, an unknown effect reference, a combo whose setupClass/payoffClass match, and an
+ * ability the REAL sim validator (sim/combat/abilities.ts's validateAbilityDef) rejects.
  */
 import { describe, expect, it } from "vitest";
 import { byId, loadContent, validate } from "../../content/index";
-import type { AbilityDef } from "../../content/schema/ability";
+import type { ContentAbilityDef } from "../../content/schema/ability";
 
 describe("content validation: bad fixtures", () => {
   it("throws on a duplicate id within a registry", () => {
-    const dupe: AbilityDef = {
+    const dupe: ContentAbilityDef = {
       id: "dup", name: "Dup", castTicks: 0, gcdTicks: 0, cooldownTicks: 0, charges: 1,
-      range: 0, shape: { kind: "self" }, interruptible: false, tags: [], effects: [],
+      cost: { resource: "none", amount: 0 }, range: 0, shape: { kind: "self" },
+      interruptible: false, tags: [], effects: [{ op: "resource", delta: 0 }],
     };
     expect(() => byId([dupe, { ...dupe }], "ability")).toThrow(/duplicate ability id "dup"/);
+  });
+
+  it("throws when an ability fails the real sim validator (empty effects)", () => {
+    const reg = loadContent();
+    reg.abilities.get("warden.vigil")!.effects = [];
+    expect(() => validate(reg)).toThrow(/fails sim validation/);
   });
 
   it("throws on an unknown ability id referenced by a class slot", () => {
@@ -45,7 +53,7 @@ describe("content validation: bad fixtures", () => {
   it("throws on an unknown effect id referenced by an ability", () => {
     const reg = loadContent();
     reg.abilities.get("warden.vigil")!.effects.push({
-      op: "applyEffect", effectId: "no-such-effect", durationTicks: 20,
+      op: "applyEffect", effectId: "no-such-effect", durationTicks: 20, stacks: 1,
     });
     expect(() => validate(reg)).toThrow(/unknown effect/);
   });

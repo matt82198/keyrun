@@ -7,8 +7,7 @@
     "abilities": ["seed.slam", "seed.deathBloom"],
     "script": [
       { "at": "loop", "every": 100, "cast": "seed.slam",
-        "telegraph": { "shape": "circle", "radius": 2000, "leadTicks": 20 } },
-      { "at": "onDeath", "cast": "seed.deathBloom" }
+        "telegraph": { "shape": "circle", "radius": 2000, "leadTicks": 20 } }
     ]
   }
 ]

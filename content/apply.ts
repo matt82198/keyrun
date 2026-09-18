@@ -19,7 +19,7 @@
  * deterministically regardless of how the caller ordered the `gear` array.
  *
  * Deep-merge semantics for a patch (`Partial<AbilityDef>` field, or a `FacetStructuredPatch`
- * field -- see content/schema/facet.ts):
+ * field -- see content/schema/facet.ts) -- implemented in content/apply-patch.ts:
  *   - Every field is a full replacement of the base ability's field EXCEPT:
  *     - `tagAdd`   -- merged into `tags` (added if not already present).
  *     - `tagRemove`-- removed from `tags`.
@@ -37,136 +37,24 @@
  * registries are explicit parameters. This keeps applyLoadout a pure function of its arguments
  * and keeps it trivially unit-testable against small fixtures instead of the full, 3-class
  * dataset. See this lane's final report for the full rationale.
+ *
+ * This file holds only the top-level orchestration (`applyLoadout`); the patch-merge engine
+ * lives in content/apply-patch.ts, the shared slot/type helpers in content/apply-types.ts, and
+ * the build-summary renderer in content/apply-describe.ts (re-exported here so importers keep
+ * using a single `@content/apply` entry point).
  */
 
-import type { AbilityCost, AbilityDef, EffectOp, ShapeDef } from "./schema/ability";
+import type { AbilityDef } from "./schema/ability";
 import type { ClassDef, TalentOption } from "./schema/class";
-import type { FacetDef, FacetPatch, GearSlotId, Item } from "./schema/facet";
+import type { FacetDef, GearSlotId, Item } from "./schema/facet";
 import { GEAR_SLOT_IDS } from "./schema/facet";
+import { applyPatch } from "./apply-patch";
+import { describeLoadout } from "./apply-describe";
+import { ALL_SLOTS, ROTATIONAL_SLOTS, isPayoffTag, isSetupTag, slotAbilityMap } from "./apply-types";
+import type { LoadoutResult, TalentChoices } from "./apply-types";
 
-const ROTATIONAL_SLOTS = ["rot1", "rot2", "rot3", "rot4", "rot5"] as const;
-const ALL_SLOTS = [...ROTATIONAL_SLOTS, "interrupt", "defensive", "utility", "movement"] as const;
-
-/** `talentChoices` maps a forked ability's id to the chosen `TalentOption.id`. One per ability. */
-export type TalentChoices = Record<string, string>;
-
-export interface LoadoutResult {
-  /** Every ability id the class uses (rotational + interrupt/defensive/utility/movement). */
-  abilities: Record<string, AbilityDef>;
-  /** One line per ability that ended up different from its base definition. */
-  log: string[];
-}
-
-const STRUCTURED_MERGE_KEYS = new Set(["tagAdd", "tagRemove", "effectsAppend"]);
-const DIRECT_PATCH_KEYS = new Set([
-  "name", "castTicks", "gcdTicks", "cooldownTicks", "charges", "cost",
-  "range", "shape", "interruptible", "tags", "effects", "variants",
-]);
-
-/**
- * Applies one patch (a talent option's or a facet's) to a base AbilityDef and returns a new,
- * deep-merged AbilityDef. Never mutates `base`. Throws on an `id`-changing patch or an
- * unrecognised patch field.
- */
-function applyPatch(base: AbilityDef, patch: FacetPatch, patchLabel: string): AbilityDef {
-  const raw = patch as Record<string, unknown>;
-  if (Object.prototype.hasOwnProperty.call(raw, "id") && raw.id !== base.id) {
-    throw new Error(
-      `applyLoadout: ${patchLabel} may not change ability id (base "${base.id}" -> patch "${String(raw.id)}")`,
-    );
-  }
-
-  const next: AbilityDef = structuredClone(base);
-  for (const key of Object.keys(raw)) {
-    if (key === "id") continue; // already verified equal to base.id above
-    if (STRUCTURED_MERGE_KEYS.has(key)) {
-      switch (key) {
-        case "tagAdd": {
-          const toAdd = raw.tagAdd as string[];
-          next.tags = Array.from(new Set([...next.tags, ...toAdd]));
-          break;
-        }
-        case "tagRemove": {
-          const toRemove = new Set(raw.tagRemove as string[]);
-          next.tags = next.tags.filter((t) => !toRemove.has(t));
-          break;
-        }
-        case "effectsAppend": {
-          next.effects = [...next.effects, ...(raw.effectsAppend as EffectOp[])];
-          break;
-        }
-      }
-      continue;
-    }
-    if (!DIRECT_PATCH_KEYS.has(key)) {
-      throw new Error(`applyLoadout: ${patchLabel} has unrecognised patch field "${key}"`);
-    }
-    switch (key) {
-      case "name": next.name = raw.name as string; break;
-      case "castTicks": next.castTicks = raw.castTicks as number; break;
-      case "gcdTicks": next.gcdTicks = raw.gcdTicks as number; break;
-      case "cooldownTicks": next.cooldownTicks = raw.cooldownTicks as number; break;
-      case "charges": next.charges = raw.charges as number; break;
-      case "cost": next.cost = raw.cost as AbilityCost; break;
-      case "range": next.range = raw.range as number; break;
-      case "shape": next.shape = raw.shape as ShapeDef; break;
-      case "interruptible": next.interruptible = raw.interruptible as boolean; break;
-      case "tags": next.tags = raw.tags as string[]; break;
-      case "effects": next.effects = raw.effects as EffectOp[]; break;
-      case "variants": next.variants = raw.variants as Record<string, EffectOp[]>; break;
-    }
-  }
-  return next;
-}
-
-function slotAbilityMap(classDef: ClassDef): Record<string, string> {
-  return classDef.abilities as unknown as Record<string, string>;
-}
-
-/**
- * Renders one line per ability whose final definition differs from its base definition -- for
- * the character screen's build summary. Independent of `applyLoadout` so it can be re-run later
- * against a stored/serialized result without redoing the merge.
- */
-export function describeLoadout(
-  classDef: ClassDef,
-  base: ReadonlyMap<string, AbilityDef>,
-  abilities: Record<string, AbilityDef>,
-): string[] {
-  const slots = slotAbilityMap(classDef);
-  const lines: string[] = [];
-  for (const slot of ALL_SLOTS) {
-    const id = slots[slot];
-    if (!id) continue;
-    const before = base.get(id);
-    const after = abilities[id];
-    if (!before || !after) continue;
-    if (JSON.stringify(before) === JSON.stringify(after)) continue;
-    lines.push(`${after.name} (${id}): ${summarizeChange(before, after)}`);
-  }
-  return lines;
-}
-
-const DESCRIBABLE_FIELDS = [
-  "tags", "effects", "shape", "cooldownTicks", "cost", "castTicks",
-  "gcdTicks", "charges", "range", "interruptible", "variants",
-] as const satisfies readonly (keyof AbilityDef)[];
-
-function summarizeChange(before: AbilityDef, after: AbilityDef): string {
-  const changed: string[] = [];
-  for (const field of DESCRIBABLE_FIELDS) {
-    if (JSON.stringify(before[field]) !== JSON.stringify(after[field])) changed.push(field);
-  }
-  return changed.length > 0 ? `changed ${changed.join(", ")}` : "changed";
-}
-
-function isSetupTag(tag: string): boolean {
-  return tag.startsWith("setup:");
-}
-
-function isPayoffTag(tag: string): boolean {
-  return tag === "payoff";
-}
+export type { TalentChoices, LoadoutResult } from "./apply-types";
+export { describeLoadout } from "./apply-describe";
 
 /**
  * Applies talent forks then gear facets to a class's ability definitions, in that order, and
