@@ -7,16 +7,14 @@
  * bots/src bots, then steps 200 ticks without throwing. No DOM/Three.js touched anywhere in this
  * path (SimHost.step() is pure state advancement), so this needs no jsdom.
  *
- * KNOWN SIM DEFECT (outside this lane's sim/** ownership, verified by instrumenting a raw
- * createRun/stepRun loop): sim/core/tick.ts:51 (`next.tick = next.tick + 1`) and
- * sim/combat/rules.ts:119 (`state.tick += 1`) both advance `state.tick` on every `stepRun` call --
- * tick.ts's own unit tests only ever pass a no-op StepRules stub, so this double-increment is
- * never exercised there. One `SimHost.step()` call therefore advances the sim's internal tick
- * counter by 2, not 1, even though this lane calls it at exactly the correct real-time cadence
- * (SIM_TICK_MS via scheduler.ts). Effect: everything keyed to ticks (cooldowns, telegraph lead
- * times, the run timer, Slack) resolves at roughly 2x the design's intended real-time pace. Not
- * fixed here (sim/** is off-limits to this lane) -- filed as a backlog item; this test asserts
- * only that `tick` strictly increases each call, not that it increases by exactly 1.
+ * KNOWN SIM DEFECT still open at time of writing (outside this lane's sim/** ownership, not
+ * worked around here per the coordinator's instruction): sim/encounter/scripts.ts's
+ * stepEnemyScripts() emits enemy "cast" Commands with no `targetId` at all, so any enemy ability
+ * with a "target" shape (e.g. choir.meleeSwing, pair.meleeSwing, hollowWarden.slam) fails
+ * sim/combat/casting.ts's startCast ("target_required") and never actually casts -- only
+ * cone/circle/self-shaped enemy abilities (hollowWarden.cleave, seed.slam, pair.stackCall, The
+ * Lock) resolve. Telegraphs and AoE damage still work; single-target enemy melee is silently
+ * inert until this lands (tracked as fix/enemy-targeting upstream).
  */
 import { describe, expect, it } from "vitest";
 import { loadContent } from "@content/index";
@@ -34,10 +32,11 @@ describe("worker-smoke: SimHost steps 200 ticks without throwing", () => {
   for (const humanClassId of ["warden", "cinder", "chanter"]) {
     it(`survives 200 ticks with the human playing ${humanClassId}`, () => {
       const host = freshHost(humanClassId);
-      let lastTick = -1;
+      // createRun starts state.tick at 0; the first step() call advances it to 1.
+      let lastTick = 0;
       for (let i = 0; i < 200; i++) {
         const snapshot = host.step();
-        expect(snapshot.tick).toBeGreaterThan(lastTick);
+        expect(snapshot.tick).toBe(lastTick + 1);
         lastTick = snapshot.tick;
         for (const actor of snapshot.actors) {
           expect(Number.isFinite(actor.pos.x)).toBe(true);
@@ -46,7 +45,7 @@ describe("worker-smoke: SimHost steps 200 ticks without throwing", () => {
           expect(actor.health).toBeGreaterThanOrEqual(0);
         }
       }
-      expect(lastTick).toBeGreaterThanOrEqual(199);
+      expect(lastTick).toBe(200);
     });
   }
 
