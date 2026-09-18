@@ -1,0 +1,323 @@
+[
+  {
+    "id": "warden.weapon.keenEdge",
+    "slot": "weapon",
+    "abilityId": "warden.strike",
+    "text": "Strike becomes a narrow frontal cone, catching an extra enemy.",
+    "patch": {
+      "shape": {
+        "kind": "cone",
+        "radius": 3000,
+        "angle1024": 90
+      }
+    }
+  },
+  {
+    "id": "warden.weapon.wideningBreak",
+    "slot": "weapon",
+    "abilityId": "warden.guardBreak",
+    "text": "Guard Break trades range for a much wider cone.",
+    "patch": {
+      "shape": {
+        "kind": "cone",
+        "radius": 3000,
+        "angle1024": 200
+      },
+      "cooldownTicks": 20
+    }
+  },
+  {
+    "id": "warden.weapon.twinStrike",
+    "slot": "weapon",
+    "abilityId": "warden.reckoning",
+    "text": "Reckoning becomes a piercing line instead of a single-target strike.",
+    "patch": {
+      "shape": {
+        "kind": "line",
+        "length": 6000,
+        "width": 1200
+      }
+    }
+  },
+  {
+    "id": "warden.weapon.mobileWard",
+    "slot": "weapon",
+    "abilityId": "warden.bulwark",
+    "text": "Bulwark becomes a self-aura, following you instead of anchoring to the floor.",
+    "patch": {
+      "shape": {
+        "kind": "self"
+      },
+      "range": 0,
+      "tagAdd": [
+        "mobile-aura"
+      ]
+    }
+  },
+  {
+    "id": "warden.armor.chillingBash",
+    "slot": "armor",
+    "abilityId": "warden.shieldBash",
+    "text": "Shield Bash also slows its target.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "slowed",
+          "durationTicks": 60,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.armor.miredGround",
+    "slot": "armor",
+    "abilityId": "warden.bulwark",
+    "text": "Bulwark also slows enemies standing in it.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "slowed",
+          "durationTicks": 160,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.armor.layeredPlate",
+    "slot": "armor",
+    "abilityId": "warden.vigil",
+    "text": "Vigil also grants Braced, stacking with its shield.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "braced",
+          "durationTicks": 100,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.armor.retribution",
+    "slot": "armor",
+    "abilityId": "warden.taunt",
+    "text": "Taunt also deals a small retaliatory hit.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "damage",
+          "amount": 60,
+          "school": "physical"
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.charm.vigilantsMark",
+    "slot": "charm",
+    "abilityId": "warden.vigil",
+    "text": "Vigil now also counts as a Payoff, closing any open Window when it lands.",
+    "patch": {
+      "tagAdd": [
+        "payoff"
+      ],
+      "effectsAppend": [
+        {
+          "op": "combo",
+          "comboTable": "combos"
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.charm.opportunist",
+    "slot": "charm",
+    "abilityId": "warden.taunt",
+    "text": "Taunt also opens the Sundered Window on its target.",
+    "patch": {
+      "tagAdd": [
+        "setup:sundered"
+      ],
+      "effectsAppend": [
+        {
+          "op": "window",
+          "windowId": "sundered",
+          "durationTicks": 60,
+          "onTarget": true
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.charm.chargingBlow",
+    "slot": "charm",
+    "abilityId": "warden.charge",
+    "text": "Charge also opens the Sundered Window on impact.",
+    "patch": {
+      "tagAdd": [
+        "setup:sundered"
+      ],
+      "effectsAppend": [
+        {
+          "op": "window",
+          "windowId": "sundered",
+          "durationTicks": 60,
+          "onTarget": true
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.charm.releaseTheGuard",
+    "slot": "charm",
+    "abilityId": "warden.brace",
+    "text": "Brace becomes a Payoff: releasing it early closes a Window.",
+    "patch": {
+      "tagAdd": [
+        "payoff"
+      ],
+      "effectsAppend": [
+        {
+          "op": "combo",
+          "comboTable": "combos"
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.ring.momentumEngine",
+    "slot": "ring",
+    "abilityId": "warden.strike",
+    "text": "Strike also generates a burst of bonus Momentum on top of its usual gain.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "resource",
+          "resource": "momentum",
+          "delta": 10
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.ring.bracedReserves",
+    "slot": "ring",
+    "abilityId": "warden.bulwark",
+    "text": "Bulwark also grants a burst of Momentum when cast.",
+    "patch": {
+      "effectsAppend": [
+        {
+          "op": "resource",
+          "resource": "momentum",
+          "delta": 20
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.ring.momentumSurge",
+    "slot": "ring",
+    "abilityId": "warden.guardBreak",
+    "text": "Guard Break refunds bonus Momentum, tagged for other Momentum synergies.",
+    "patch": {
+      "tagAdd": [
+        "momentum-surge"
+      ],
+      "effectsAppend": [
+        {
+          "op": "resource",
+          "resource": "momentum",
+          "delta": 10
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.ring.cheapVigil",
+    "slot": "ring",
+    "abilityId": "warden.vigil",
+    "text": "Vigil costs much less Momentum and is tagged Cheap Cast.",
+    "patch": {
+      "cost": {
+        "resource": "momentum",
+        "amount": 25
+      },
+      "tagAdd": [
+        "cheap-cast"
+      ]
+    }
+  },
+  {
+    "id": "warden.keystone.eternalVigil",
+    "slot": "keystone",
+    "abilityId": "warden.vigil",
+    "text": "Vigil's cooldown falls sharply and it becomes a Payoff, closing Windows.",
+    "patch": {
+      "cooldownTicks": 40,
+      "tagAdd": [
+        "payoff"
+      ],
+      "effectsAppend": [
+        {
+          "op": "combo",
+          "comboTable": "combos"
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.keystone.sunderedStorm",
+    "slot": "keystone",
+    "abilityId": "warden.strike",
+    "text": "Strike becomes a wide cone, applying Sundered across the whole arc.",
+    "patch": {
+      "shape": {
+        "kind": "cone",
+        "radius": 3500,
+        "angle1024": 200
+      },
+      "tagAdd": [
+        "warcry:multi-target"
+      ]
+    }
+  },
+  {
+    "id": "warden.keystone.lastStand",
+    "slot": "keystone",
+    "abilityId": "warden.brace",
+    "text": "Brace's cooldown falls and it also grants Aegis Shield.",
+    "patch": {
+      "cooldownTicks": 200,
+      "effectsAppend": [
+        {
+          "op": "applyEffect",
+          "effectId": "aegisShield",
+          "durationTicks": 80,
+          "stacks": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "warden.keystone.warlordsMark",
+    "slot": "keystone",
+    "abilityId": "warden.guardBreak",
+    "text": "Guard Break gains the Execute tag and generates extra threat.",
+    "patch": {
+      "tagAdd": [
+        "execute"
+      ],
+      "effectsAppend": [
+        {
+          "op": "threat",
+          "multiplierBp": 5000
+        }
+      ]
+    }
+  }
+]
