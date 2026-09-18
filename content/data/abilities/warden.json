@@ -99,7 +99,8 @@
         "windowId": "bulwark",
         "durationTicks": 160,
         "onTarget": false,
-        "setupClass": "warden"
+        "setupClass": "warden",
+        "radiusMm": 2500
       },
       {
         "op": "applyEffect",

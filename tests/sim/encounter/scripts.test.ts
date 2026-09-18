@@ -95,4 +95,78 @@ describe("stepEnemyScripts", () => {
     expect(stepEnemyScripts(stateAt(250), scripts2).commands).toHaveLength(1);
     expect(stepEnemyScripts(stateAt(251), scripts2).commands).toHaveLength(0);
   });
+
+  it("fires a numeric `at` + `every` step at at, at+every, at+2*every, ...", () => {
+    const offsetLoop: EnemyScript = [{ at: 600, every: 400, cast: "pair.stackCall" }];
+    const scripts3 = { 1: offsetLoop };
+    expect(stepEnemyScripts(stateAt(200), scripts3).commands).toHaveLength(0);
+    expect(stepEnemyScripts(stateAt(400), scripts3).commands).toHaveLength(0); // every alone would fire here; offset must suppress it
+    expect(stepEnemyScripts(stateAt(600), scripts3).commands).toEqual([
+      { tick: 600, actorId: 1, kind: "cast", abilityId: "pair.stackCall" },
+    ]);
+    expect(stepEnemyScripts(stateAt(1000), scripts3).commands).toHaveLength(1);
+    expect(stepEnemyScripts(stateAt(1400), scripts3).commands).toHaveLength(1);
+    expect(stepEnemyScripts(stateAt(800), scripts3).commands).toHaveLength(0);
+  });
+
+  describe("onDeath", () => {
+    const deathScript: EnemyScript = [{ at: "onDeath", cast: "seed.deathBloom" }];
+    const deathScripts = { 1: deathScript };
+
+    it("never fires while the actor is alive", () => {
+      const alive = stateAt(500);
+      expect(stepEnemyScripts(alive, deathScripts).commands).toHaveLength(0);
+    });
+
+    it("fires once the actor is dead", () => {
+      const dead = stateAt(500);
+      const actor = dead.actors[1];
+      if (actor) actor.alive = false;
+      const result = stepEnemyScripts(dead, deathScripts);
+      expect(result.commands).toEqual([{ tick: 500, actorId: 1, kind: "cast", abilityId: "seed.deathBloom" }]);
+      expect(result.firedOnDeath[1]).toEqual(["seed.deathBloom"]);
+    });
+
+    it("does not re-fire once `firedOnDeath` records it (the caller's fire-once contract)", () => {
+      const dead = stateAt(600);
+      const actor = dead.actors[1];
+      if (actor) actor.alive = false;
+      const result = stepEnemyScripts(dead, deathScripts, { 1: ["seed.deathBloom"] });
+      expect(result.commands).toHaveLength(0);
+      expect(result.firedOnDeath[1]).toEqual(["seed.deathBloom"]);
+    });
+
+    it("emits the telegraph on the same tick the onDeath cast fires, resolving leadTicks later", () => {
+      const withTelegraph: EnemyScript = [
+        {
+          at: "onDeath",
+          cast: "seed.deathBloom",
+          telegraph: { shape: "circle", radius: 2000, leadTicks: 20 },
+        },
+      ];
+      const dead = stateAt(700);
+      const actor = dead.actors[1];
+      if (actor) actor.alive = false;
+      const result = stepEnemyScripts(dead, { 1: withTelegraph });
+      expect(result.telegraphEvents).toHaveLength(1);
+      expect(result.telegraphEvents[0]).toMatchObject({
+        tick: 700,
+        type: "telegraph",
+        cast: "seed.deathBloom",
+        resolvesTick: 720,
+      });
+    });
+
+    it("leaves loop/numeric steps for the same actor unaffected by a dead actor's onDeath step", () => {
+      const mixed: EnemyScript = [
+        { at: "loop", every: 100, cast: "seed.slam" },
+        { at: "onDeath", cast: "seed.deathBloom" },
+      ];
+      const dead = stateAt(500);
+      const actor = dead.actors[1];
+      if (actor) actor.alive = false;
+      const result = stepEnemyScripts(dead, { 1: mixed });
+      expect(result.commands).toEqual([{ tick: 500, actorId: 1, kind: "cast", abilityId: "seed.deathBloom" }]);
+    });
+  });
 });

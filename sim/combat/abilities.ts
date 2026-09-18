@@ -23,9 +23,12 @@ export type EffectOp =
    * Payoff from `setupClass` (which a boss's own class never matches anyway), it forbids a
    * Payoff from whichever class most recently *closed* this actor's last alternate Window —
    * windows.ts persists that as `lastSetupClass` on the actor — forcing the party to alternate
-   * who closes it between consecutive Locks.
+   * who closes it between consecutive Locks. `radiusMm` (floor Windows only, `onTarget: false`)
+   * overrides windows.ts's `FLOOR_WINDOW_RADIUS_MM` default so content can size a floor Window
+   * per ability (design/BIBLE.md §4/§5: Bulwark, Cinderfield and Hymn are different sizes);
+   * omitted, the default applies.
    */
-  | { op: "window"; windowId: string; durationTicks: Tick; onTarget: boolean; setupClass: string; self?: boolean; alternate?: boolean }
+  | { op: "window"; windowId: string; durationTicks: Tick; onTarget: boolean; setupClass: string; self?: boolean; alternate?: boolean; radiusMm?: number }
   /**
    * Marks this ability as a Payoff: on cast completion, windows.ts attempts to close an open
    * Window on the resolved target (falling back to any floor-patch Window in range when the
@@ -86,6 +89,9 @@ export function validateAbilityDef(def: AbilityDef): string[] {
       if (!op.windowId) errs.push("window op requires windowId");
       if (!Number.isInteger(op.durationTicks) || op.durationTicks < 0) errs.push(`window ${op.windowId} durationTicks must be an integer >= 0`);
       if (!op.setupClass) errs.push(`window ${op.windowId} requires setupClass`);
+      if (op.radiusMm !== undefined && (!Number.isInteger(op.radiusMm) || op.radiusMm <= 0)) {
+        errs.push(`window ${op.windowId} radiusMm must be a positive integer`);
+      }
     }
   }
   return errs;

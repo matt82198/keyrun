@@ -163,7 +163,8 @@
         "windowId": "cinderfield",
         "durationTicks": 160,
         "onTarget": false,
-        "setupClass": "cinder"
+        "setupClass": "cinder",
+        "radiusMm": 1800
       },
       {
         "op": "applyEffect",

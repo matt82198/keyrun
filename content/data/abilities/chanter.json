@@ -242,7 +242,8 @@
         "windowId": "hymn",
         "durationTicks": 160,
         "onTarget": false,
-        "setupClass": "chanter"
+        "setupClass": "chanter",
+        "radiusMm": 2200
       }
     ],
     "variants": {
@@ -252,7 +253,8 @@
           "windowId": "hymn",
           "durationTicks": 160,
           "onTarget": false,
-          "setupClass": "chanter"
+          "setupClass": "chanter",
+          "radiusMm": 2200
         },
         {
           "op": "applyEffect",
@@ -267,7 +269,8 @@
           "windowId": "hymn",
           "durationTicks": 160,
           "onTarget": false,
-          "setupClass": "chanter"
+          "setupClass": "chanter",
+          "radiusMm": 2200
         },
         {
           "op": "applyEffect",
