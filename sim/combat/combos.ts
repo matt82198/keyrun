@@ -13,6 +13,7 @@ import type { ActorState, SimEvent, SimState } from "./types";
 import type { EffectOp } from "./abilities";
 import type { EffectDef } from "./effects";
 import { applyEffectInstance, removeEffectInstances } from "./effects";
+import { removeDispellableEffects } from "./effects-remove";
 import { applyDamage, applyHeal } from "./damage";
 import { addThreat } from "./threat";
 
@@ -59,7 +60,8 @@ export function applyComboEffects(
       const def = effectDefs[op.effectId];
       if (def) applyEffectInstance(target, def, source.id, op.durationTicks, op.stacks, state.tick);
     } else if (op.op === "removeEffect") {
-      removeEffectInstances(target, op.effectId);
+      if (op.effectId === "*") removeDispellableEffects(source, target, effectDefs);
+      else removeEffectInstances(target, op.effectId);
     } else if (op.op === "resource") {
       target.resource = Math.max(0, Math.min(target.maxResource, target.resource + op.delta));
     } else if (op.op === "threat") {
