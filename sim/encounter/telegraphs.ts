@@ -16,6 +16,7 @@
  */
 import type { ActorId, SimState, Tick, Vec3 } from "./types";
 import type { BreakBarState } from "./breakbar";
+import type { EncounterRules } from "./clauses";
 
 export interface Telegraph {
   id: number;
@@ -39,6 +40,7 @@ export interface EncounterState {
   parTicks: number;
   keyLevel: number;
   depleted: boolean;
+  rules: EncounterRules;
 }
 
 const SCALE = 4096;
