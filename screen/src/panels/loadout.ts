@@ -1,24 +1,39 @@
 /**
  * Usage: import { renderLoadoutPanel } from "./panels/loadout.js";
- *        renderLoadoutPanel(container, character);
+ *        renderLoadoutPanel(container, store, onChange);
  *
- * Renders the loadout band: five auto-equipped gear slots (weapon, armor,
- * trinket, two rings), each flagged "NEW" when acquired after the
- * character's lastSeenAt. No stash management in the POC.
+ * Renders the loadout band: five auto-equipped gear slots (weapon, armor, charm, ring, keystone),
+ * each showing its tier, facet text, and remaining crafting charges with a Reroll button ("Crafting
+ * is two charges per item" -- design/BIBLE.md section 7). A slot flagged "NEW" was auto-equipped
+ * since the loadout was last viewed. A slot with a parked "compare" item (a tie on tier -- auto-equip
+ * never overwrites a chosen facet) shows an Equip / Discard choice. No stash management in the POC.
  */
-import { GEAR_SLOTS, getNewGearSlots, type Character, type GearSlot } from "../store.js";
+import {
+  GEAR_SLOTS,
+  MAX_ITEM_TIER,
+  discardCompare,
+  equipCompare,
+  getNewGearSlots,
+  rerollFacet,
+  saveStore,
+  type Character,
+  type GearItem,
+  type GearSlot,
+  type StoreV2,
+} from "../store.js";
 
 const SLOT_LABELS: Record<GearSlot, string> = {
   weapon: "Weapon",
   armor: "Armor",
-  trinket: "Trinket",
-  ring1: "Ring 1",
-  ring2: "Ring 2",
+  charm: "Charm",
+  ring: "Ring",
+  keystone: "Keystone",
 };
 
-export function renderLoadoutPanel(root: HTMLElement, character: Character): void {
+export function renderLoadoutPanel(root: HTMLElement, store: StoreV2, onChange: () => void): void {
   root.innerHTML = "";
   root.className = "band band-loadout";
+  const character = store.character;
 
   const heading = document.createElement("h2");
   heading.textContent = "Loadout";
@@ -29,17 +44,24 @@ export function renderLoadoutPanel(root: HTMLElement, character: Character): voi
   const list = document.createElement("ul");
   list.className = "gear-list";
   for (const slot of GEAR_SLOTS) {
-    list.appendChild(renderGearRow(slot, character.gear[slot], newSlots.has(slot)));
+    list.appendChild(renderGearRow(slot, character, newSlots.has(slot), store, onChange));
   }
   root.appendChild(list);
 
   const note = document.createElement("p");
   note.className = "loadout-note";
-  note.textContent = "Auto-equipped by item level. No stash.";
+  note.textContent = `Auto-equipped by tier (cap ${MAX_ITEM_TIER}). No stash.`;
   root.appendChild(note);
 }
 
-function renderGearRow(slot: GearSlot, item: Character["gear"][GearSlot], isNew: boolean): HTMLElement {
+function renderGearRow(
+  slot: GearSlot,
+  character: Character,
+  isNew: boolean,
+  store: StoreV2,
+  onChange: () => void,
+): HTMLElement {
+  const item = character.gear[slot];
   const row = document.createElement("li");
   row.className = "gear-row";
 
@@ -48,10 +70,7 @@ function renderGearRow(slot: GearSlot, item: Character["gear"][GearSlot], isNew:
   label.textContent = SLOT_LABELS[slot];
   row.appendChild(label);
 
-  const name = document.createElement("span");
-  name.className = "gear-item-name";
-  name.textContent = `${item.name} (ilvl ${item.ilvl})`;
-  row.appendChild(name);
+  row.appendChild(renderItemSummary(item));
 
   if (isNew) {
     const badge = document.createElement("span");
@@ -60,5 +79,61 @@ function renderGearRow(slot: GearSlot, item: Character["gear"][GearSlot], isNew:
     row.appendChild(badge);
   }
 
+  const reroll = document.createElement("button");
+  reroll.type = "button";
+  reroll.className = "reroll-btn";
+  reroll.textContent = `Reroll (${item.charges} left)`;
+  reroll.disabled = item.charges <= 0;
+  reroll.addEventListener("click", () => {
+    store.character = rerollFacet(store.character, item.id);
+    saveStore(store);
+    onChange();
+  });
+  row.appendChild(reroll);
+
+  const pending = character.compareGear[slot];
+  if (pending) row.appendChild(renderCompareRow(pending, slot, store, onChange));
+
   return row;
+}
+
+function renderItemSummary(item: GearItem): HTMLElement {
+  const name = document.createElement("span");
+  name.className = "gear-item-name";
+  name.textContent = `T${item.tier} — ${item.facet.text}`;
+  return name;
+}
+
+function renderCompareRow(pending: GearItem, slot: GearSlot, store: StoreV2, onChange: () => void): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "compare-row";
+
+  const label = document.createElement("span");
+  label.className = "compare-label";
+  label.textContent = `Compare: T${pending.tier} — ${pending.facet.text}`;
+  wrap.appendChild(label);
+
+  const equip = document.createElement("button");
+  equip.type = "button";
+  equip.className = "compare-equip-btn";
+  equip.textContent = "Equip";
+  equip.addEventListener("click", () => {
+    store.character = equipCompare(store.character, slot);
+    saveStore(store);
+    onChange();
+  });
+  wrap.appendChild(equip);
+
+  const discard = document.createElement("button");
+  discard.type = "button";
+  discard.className = "compare-discard-btn";
+  discard.textContent = "Discard";
+  discard.addEventListener("click", () => {
+    store.character = discardCompare(store.character, slot);
+    saveStore(store);
+    onChange();
+  });
+  wrap.appendChild(discard);
+
+  return wrap;
 }
