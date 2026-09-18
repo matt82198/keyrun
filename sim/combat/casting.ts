@@ -23,7 +23,7 @@ import { applyEffectInstance, removeEffectInstances } from "./effects";
 import { isAbilityReady, startGcd, consumeCharge } from "./cooldowns";
 import { applyDamage, applyHeal } from "./damage";
 import { addThreat } from "./threat";
-import { inCircle, inCone, inLine } from "./targeting";
+import { resolveTargets } from "./targeting";
 import { isqrt } from "./movement";
 
 export interface CastContext {
@@ -84,28 +84,6 @@ export function stopcast(actor: ActorState, emit: (e: SimEvent) => void, tick: T
   if (actor.castId === null) return;
   emit({ tick, type: "cast_stopped", actorId: actor.id, abilityId: actor.castId });
   clearCast(actor);
-}
-
-function resolveTargets(state: SimState, actor: ActorState, def: AbilityDef): ActorState[] {
-  const all = Object.values(state.actors);
-  if (def.shape.kind === "self") return [actor];
-  if (def.shape.kind === "target") {
-    const t = actor.targetId !== null ? state.actors[actor.targetId] : undefined;
-    return t ? [t] : [];
-  }
-  if (def.shape.kind === "circle") {
-    return inCircle(actor.pos, def.shape.radius ?? 0, all)
-      .map((id) => state.actors[id])
-      .filter((a): a is ActorState => !!a);
-  }
-  if (def.shape.kind === "cone") {
-    return inCone(actor, def.shape.angle1024 ?? 0, def.shape.radius ?? 0, all)
-      .map((id) => state.actors[id])
-      .filter((a): a is ActorState => !!a);
-  }
-  return inLine(actor, def.shape.length ?? 0, def.shape.radius ?? 0, all)
-    .map((id) => state.actors[id])
-    .filter((a): a is ActorState => !!a);
 }
 
 export function completeCast(state: SimState, actor: ActorState, ctx: CastContext, emit: (e: SimEvent) => void): void {
