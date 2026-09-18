@@ -1,0 +1,146 @@
+[
+  {
+    "id": "cinder.emberBolt",
+    "name": "Ember Bolt",
+    "castTicks": 20,
+    "gcdTicks": 30,
+    "cooldownTicks": 0,
+    "charges": 1,
+    "range": 25000,
+    "shape": { "kind": "target" },
+    "interruptible": true,
+    "tags": [],
+    "effects": [
+      { "op": "damage", "amount": 90, "school": "fire" },
+      { "op": "resource", "resource": "heat", "delta": 20 }
+    ]
+  },
+  {
+    "id": "cinder.flare",
+    "name": "Flare",
+    "castTicks": 30,
+    "gcdTicks": 30,
+    "cooldownTicks": 0,
+    "charges": 1,
+    "range": 25000,
+    "shape": { "kind": "target" },
+    "interruptible": true,
+    "tags": ["setup:kindled"],
+    "effects": [
+      { "op": "damage", "amount": 110, "school": "fire" },
+      { "op": "resource", "resource": "heat", "delta": 25 },
+      { "op": "window", "windowId": "kindled", "durationTicks": 60, "onTarget": true }
+    ]
+  },
+  {
+    "id": "cinder.coldSnap",
+    "name": "Cold Snap",
+    "castTicks": 0,
+    "gcdTicks": 30,
+    "cooldownTicks": 120,
+    "charges": 1,
+    "range": 25000,
+    "shape": { "kind": "target" },
+    "interruptible": false,
+    "tags": ["payoff", "control"],
+    "effects": [
+      { "op": "damage", "amount": 100, "school": "frost" },
+      { "op": "resource", "resource": "heat", "delta": -100 },
+      { "op": "removeEffect", "effectId": "chill" },
+      { "op": "applyEffect", "effectId": "stunned", "durationTicks": 20, "stacks": 1 },
+      { "op": "combo", "comboTable": "combos" }
+    ]
+  },
+  {
+    "id": "cinder.detonate",
+    "name": "Detonate",
+    "castTicks": 0,
+    "gcdTicks": 30,
+    "cooldownTicks": 60,
+    "charges": 1,
+    "cost": { "resource": "heat", "amount": 30 },
+    "range": 25000,
+    "shape": { "kind": "target" },
+    "interruptible": false,
+    "tags": ["payoff"],
+    "effects": [
+      { "op": "damage", "amount": 250, "school": "fire" },
+      { "op": "combo", "comboTable": "combos" }
+    ]
+  },
+  {
+    "id": "cinder.cinderfield",
+    "name": "Cinderfield",
+    "castTicks": 20,
+    "gcdTicks": 30,
+    "cooldownTicks": 200,
+    "charges": 1,
+    "range": 25000,
+    "shape": { "kind": "circle", "radius": 2500 },
+    "interruptible": true,
+    "tags": ["setup:cinderfield"],
+    "effects": [
+      { "op": "window", "windowId": "cinderfield", "durationTicks": 160, "onTarget": false },
+      { "op": "applyEffect", "effectId": "burning", "durationTicks": 160, "stacks": 1 }
+    ]
+  },
+  {
+    "id": "cinder.quench",
+    "name": "Quench",
+    "castTicks": 0,
+    "gcdTicks": 0,
+    "cooldownTicks": 480,
+    "charges": 1,
+    "range": 25000,
+    "shape": { "kind": "target" },
+    "interruptible": false,
+    "tags": ["interrupt"],
+    "effects": [
+      { "op": "interrupt", "lockoutTicks": 80 },
+      { "op": "resource", "resource": "heat", "delta": 20 }
+    ]
+  },
+  {
+    "id": "cinder.ashenSkin",
+    "name": "Ashen Skin",
+    "castTicks": 0,
+    "gcdTicks": 0,
+    "cooldownTicks": 300,
+    "charges": 1,
+    "range": 0,
+    "shape": { "kind": "self" },
+    "interruptible": false,
+    "tags": ["defensive"],
+    "effects": [
+      { "op": "applyEffect", "effectId": "ashenSkin", "durationTicks": 60, "stacks": 1 }
+    ]
+  },
+  {
+    "id": "cinder.purge",
+    "name": "Purge",
+    "castTicks": 0,
+    "gcdTicks": 0,
+    "cooldownTicks": 160,
+    "charges": 1,
+    "range": 25000,
+    "shape": { "kind": "target" },
+    "interruptible": false,
+    "tags": ["utility", "dispel"],
+    "effects": [
+      { "op": "removeEffect", "effectId": "*" }
+    ]
+  },
+  {
+    "id": "cinder.blink",
+    "name": "Blink",
+    "castTicks": 0,
+    "gcdTicks": 0,
+    "cooldownTicks": 200,
+    "charges": 2,
+    "range": 8000,
+    "shape": { "kind": "self" },
+    "interruptible": false,
+    "tags": ["movement"],
+    "effects": []
+  }
+]
