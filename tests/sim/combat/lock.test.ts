@@ -78,6 +78,14 @@ function cast(actorId: number, abilityId: string, targetId?: number): Command {
     : { tick: 0, actorId, kind: "cast", abilityId, targetId };
 }
 
+// rules() itself never advances state.tick -- sim/core/tick.ts's step() is the single owner of the
+// tick (per sim/CLAUDE.md). This suite drives rules() directly (not through step()), so it must
+// advance state.tick itself between calls, exactly as step() does.
+function tick(state: SimState, rules: ReturnType<typeof makeRules>, cmds: Command[], emit: (e: SimEvent) => void): void {
+  rules(state, cmds, emit);
+  state.tick += 1;
+}
+
 describe("Lock alternation across two consecutive Locks", () => {
   it("lets warden close the first Lock, then denies warden and requires cinder on the second", () => {
     const { state, boss } = freshState();
@@ -85,22 +93,22 @@ describe("Lock alternation across two consecutive Locks", () => {
     const events: SimEvent[] = [];
     const emit = (e: SimEvent) => events.push(e);
 
-    rules(state, [cast(1, "the_lock")], emit); // first Lock opens
-    rules(state, [cast(2, "detonate", 1)], emit); // warden closes it
+    tick(state, rules, [cast(1, "the_lock")], emit); // first Lock opens
+    tick(state, rules, [cast(2, "detonate", 1)], emit); // warden closes it
 
     const firstCombo = events.find((e) => e.type === "combo");
     expect(firstCombo?.payoffActorId).toBe(2);
     expect(boss.health).toBe(9975);
 
-    rules(state, [cast(1, "the_lock")], emit); // second Lock opens
-    rules(state, [cast(2, "detonate", 1)], emit); // warden tries again -> denied
+    tick(state, rules, [cast(1, "the_lock")], emit); // second Lock opens
+    tick(state, rules, [cast(2, "detonate", 1)], emit); // warden tries again -> denied
 
     const denied = events.filter((e) => e.type === "combo_denied");
     expect(denied).toHaveLength(1);
     expect(denied[0]?.reason).toBe("lock_alternate");
     expect(boss.health).toBe(9975); // unchanged, denial did no damage
 
-    rules(state, [cast(3, "detonate", 1)], emit); // cinder closes the second Lock
+    tick(state, rules, [cast(3, "detonate", 1)], emit); // cinder closes the second Lock
 
     const combos = events.filter((e) => e.type === "combo");
     expect(combos).toHaveLength(2);
@@ -117,8 +125,8 @@ describe("three failed Locks", () => {
     const emit = (e: SimEvent) => events.push(e);
 
     for (let cycle = 0; cycle < 3; cycle += 1) {
-      rules(state, [cast(1, "the_lock")], emit);
-      for (let i = 0; i < 61; i += 1) rules(state, [], emit);
+      tick(state, rules, [cast(1, "the_lock")], emit);
+      for (let i = 0; i < 61; i += 1) tick(state, rules, [], emit);
     }
 
     const enrages = events.filter((e) => e.type === "lock_enrage");
@@ -165,13 +173,13 @@ function runFullSequence(): { finalHash: string; eventTypes: string[] } {
   const events: SimEvent[] = [];
   const emit = (e: SimEvent) => events.push(e);
 
-  rules(state, [cast(1, "the_lock")], emit); // Lock #1 opens
-  rules(state, [cast(2, "detonate", 1)], emit); // warden closes it
-  rules(state, [cast(1, "the_lock")], emit); // Lock #2 opens
-  rules(state, [cast(2, "detonate", 1)], emit); // warden denied (alternation)
-  rules(state, [cast(3, "detonate", 1)], emit); // cinder closes it
-  rules(state, [cast(1, "the_lock")], emit); // Lock #3 opens, left unpaid
-  for (let i = 0; i < 61; i += 1) rules(state, [], emit); // ...and expires unpaid
+  tick(state, rules, [cast(1, "the_lock")], emit); // Lock #1 opens
+  tick(state, rules, [cast(2, "detonate", 1)], emit); // warden closes it
+  tick(state, rules, [cast(1, "the_lock")], emit); // Lock #2 opens
+  tick(state, rules, [cast(2, "detonate", 1)], emit); // warden denied (alternation)
+  tick(state, rules, [cast(3, "detonate", 1)], emit); // cinder closes it
+  tick(state, rules, [cast(1, "the_lock")], emit); // Lock #3 opens, left unpaid
+  for (let i = 0; i < 61; i += 1) tick(state, rules, [], emit); // ...and expires unpaid
 
   return { finalHash: localHashState(state), eventTypes: events.map((e) => e.type) };
 }

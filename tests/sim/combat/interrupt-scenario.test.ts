@@ -64,10 +64,14 @@ function setup(): { state: SimState; rules: ReturnType<typeof makeRules>; events
   return { state, rules, events };
 }
 
+// rules() itself never advances state.tick -- sim/core/tick.ts's step() is the single owner of the
+// tick (per sim/CLAUDE.md). Driving rules() directly here (rather than through step()) means this
+// harness must advance state.tick itself between calls, exactly as step() does.
 function runUntil(state: SimState, rules: ReturnType<typeof makeRules>, events: SimEvent[], commandsByTick: Map<number, Command[]>, lastTick: number): void {
   while (state.tick <= lastTick) {
     const cmds = commandsByTick.get(state.tick) ?? [];
     rules(state, cmds, (e) => events.push(e));
+    state.tick += 1;
   }
 }
 
