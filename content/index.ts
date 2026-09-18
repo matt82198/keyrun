@@ -18,6 +18,7 @@ import type { ComboDef } from "./schema/combo";
 import type { EnemyDef } from "./schema/enemy";
 import type { DungeonDef } from "./schema/dungeon";
 import type { ClauseDef } from "./schema/clause";
+import type { FacetDef } from "./schema/facet";
 
 function readJson<T>(rel: string): T {
   return JSON.parse(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8")) as T;
@@ -43,6 +44,8 @@ export interface ContentRegistry {
   enemies: Map<string, EnemyDef>;
   dungeons: Map<string, DungeonDef>;
   clauses: Map<string, ClauseDef>;
+  /** BIBLE.md Sec 7 "Gear and progression": every Facet a class's five gear slots can roll. */
+  facets: Map<string, FacetDef>;
 }
 
 export function loadContent(): ContentRegistry {
@@ -79,8 +82,16 @@ export function loadContent(): ContentRegistry {
   );
   const dungeons = byId<DungeonDef>([readJson<DungeonDef>("./data/dungeons/hollow-vault.json")], "dungeon");
   const clauses = byId<ClauseDef>(readJson<ClauseDef[]>("./data/clauses.json"), "clause");
+  const facets = byId<FacetDef>(
+    [
+      ...readJson<FacetDef[]>("./data/facets/warden.json"),
+      ...readJson<FacetDef[]>("./data/facets/cinder.json"),
+      ...readJson<FacetDef[]>("./data/facets/chanter.json"),
+    ],
+    "facet",
+  );
 
-  const registry: ContentRegistry = { abilities, effects, classes, combos, enemies, dungeons, clauses };
+  const registry: ContentRegistry = { abilities, effects, classes, combos, enemies, dungeons, clauses, facets };
   validate(registry);
   return registry;
 }
@@ -91,6 +102,7 @@ export function validate(reg: ContentRegistry): void {
   validateCombos(reg);
   validateEnemies(reg);
   validateDungeons(reg);
+  validateFacets(reg);
 }
 
 function checkEffectOps(ops: EffectOp[], reg: ContentRegistry, where: string): void {
@@ -134,6 +146,17 @@ function validateClasses(reg: ContentRegistry): void {
           throw new Error(`content: class "${cls.id}" talent "${opt.id}" patch adds/renames an ability id`);
         }
       }
+    }
+  }
+}
+
+function validateFacets(reg: ContentRegistry): void {
+  for (const facet of reg.facets.values()) {
+    if (!reg.abilities.has(facet.abilityId)) {
+      throw new Error(`content: facet "${facet.id}" references unknown ability "${facet.abilityId}"`);
+    }
+    if ("id" in facet.patch) {
+      throw new Error(`content: facet "${facet.id}" patch adds/renames an ability id`);
     }
   }
 }
