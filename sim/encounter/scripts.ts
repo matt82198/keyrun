@@ -47,10 +47,18 @@
  * cast command as-is — a sim/combat change, also out of scope here, is needed before an `"onDeath"`
  * ability's effects (e.g. `seed.deathBloom` spawning a Window) actually resolve.
  *
+ * TARGETING (the P0 fix; full rules + WIRING NOTE in sim/encounter/script-target.ts): every cast
+ * now carries a `targetId` from `resolveScriptTarget` (default: threat/nearest living player, or
+ * lowest-health living ally for a heal; overridable per-step via `ScriptStep.target`). The optional
+ * 4th parameter (`abilities`) unlocks its full range/shape-aware ruleset; real call sites don't
+ * pass it yet, which is deliberately safe. A `blocked` resolution skips the command that tick.
+ *
  * Usage: `const { commands, telegraphEvents, firedOnDeath } =
- *   stepEnemyScripts(state, scripts, encounter.firedOnDeath);`
+ *   stepEnemyScripts(state, scripts, encounter.firedOnDeath, content.abilities);`
  */
 import type { ActorId, ActorState, Command, SimEvent, SimState, Tick } from "./types";
+import type { AbilityDef } from "../combat/abilities";
+import { resolveScriptTarget, type ScriptTargetOverride } from "./script-target";
 
 export interface TelegraphSpec {
   shape: "circle" | "cone" | "line";
@@ -66,6 +74,8 @@ export interface ScriptStep {
   every?: number;
   cast: string;
   telegraph?: TelegraphSpec;
+  /** Overrides the default target-selection rule for this step's cast. See script-target.ts. */
+  target?: ScriptTargetOverride;
 }
 
 export type EnemyScript = ScriptStep[];
@@ -110,10 +120,24 @@ export interface StepEnemyScriptsResult {
   firedOnDeath: Record<ActorId, string[]>;
 }
 
+function castCommand(
+  state: SimState, actorId: ActorId, actor: ActorState, step: ScriptStep, abilities: Record<string, AbilityDef>,
+): Command | null {
+  const ability = abilities[step.cast];
+  const { targetId, blocked } = resolveScriptTarget({
+    state, caster: actor,
+    ...(step.target !== undefined ? { override: step.target } : {}),
+    ...(ability !== undefined ? { ability } : {}),
+  });
+  if (blocked) return null;
+  return { tick: state.tick, actorId, kind: "cast", abilityId: step.cast, ...(targetId !== undefined ? { targetId } : {}) };
+}
+
 export function stepEnemyScripts(
   state: SimState,
   scripts: Record<ActorId, EnemyScript>,
-  firedOnDeath: Record<ActorId, readonly string[]> = {}
+  firedOnDeath: Record<ActorId, readonly string[]> = {},
+  abilities: Record<string, AbilityDef> = {},
 ): StepEnemyScriptsResult {
   const tick = state.tick;
   const commands: Command[] = [];
@@ -135,14 +159,18 @@ export function stepEnemyScripts(
         const fired = nextFired[actorId] ?? (nextFired[actorId] = []);
         if (fired.includes(step.cast)) continue;
         fired.push(step.cast);
-        commands.push({ tick, actorId, kind: "cast", abilityId: step.cast });
-        if (step.telegraph) telegraphEvents.push(telegraphEventAt(tick, actorId, actor, step.cast, step.telegraph));
+        const cmd = castCommand(state, actorId, actor, step, abilities);
+        if (cmd) {
+          commands.push(cmd);
+          if (step.telegraph) telegraphEvents.push(telegraphEventAt(tick, actorId, actor, step.cast, step.telegraph));
+        }
         continue;
       }
 
       if (!actor.alive) continue;
       if (firesAt(step, tick)) {
-        commands.push({ tick, actorId, kind: "cast", abilityId: step.cast });
+        const cmd = castCommand(state, actorId, actor, step, abilities);
+        if (cmd) commands.push(cmd);
       }
       const tg = step.telegraph;
       if (tg && firesAt(step, tick + tg.leadTicks)) {
