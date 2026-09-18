@@ -1,24 +1,45 @@
 /**
  * content/validate.ts
- * The registry-wide integrity checks loadContent() runs before handing back a ContentRegistry:
- * unknown id references, a class without exactly 5 rotational slots, a talent/facet patch that
- * adds/renames an ability id, or a combo whose setupClass equals its payoffClass. Split out of
- * content/index.ts so both files stay under the sim/CLAUDE.md 190 LOC cap; content/index.ts
- * re-exports `validate` so importers keep using a single `@content/index` entry point.
+ * Every content-loading invariant check content/index.ts's `validate()` runs, pulled into its own
+ * file purely to keep content/index.ts under sim/CLAUDE.md's <=190 LOC-per-file cap. Not meant to
+ * be imported directly by anything other than content/index.ts -- `import { validate } from
+ * "@content/index"` is still the public entry point.
  */
 import type { EffectOp } from "./schema/ability";
-import type { ContentRegistry } from "./index";
+import type { ContentRegistry } from "./schema/registry";
+import { validateAbilityDef } from "../sim/combat/abilities";
 
 const ROTATIONAL_SLOTS = ["rot1", "rot2", "rot3", "rot4", "rot5"] as const;
 const ALL_SLOTS = [...ROTATIONAL_SLOTS, "interrupt", "defensive", "utility", "movement"] as const;
 
-export function validate(reg: ContentRegistry): void {
+/** Enemy-side pseudo-class (sim/combat/combos.ts's own docstring convention) for a boss/enemy
+ * Window's row in the ComboTable -- never a real ClassDef, exempt from the "setupClass must be a
+ * known class" check below. */
+const BOSS_PSEUDO_CLASS = "boss";
+
+export function validateRegistry(reg: ContentRegistry): void {
+  validateAbilitiesAgainstSim(reg);
   checkEffectRefs(reg);
   validateClasses(reg);
   validateCombos(reg);
   validateEnemies(reg);
   validateDungeons(reg);
   validateFacets(reg);
+}
+
+/** Runs every ability through the REAL sim validator (sim/combat/abilities.ts's
+ * `validateAbilityDef`), not a local copy -- catches anything this content-authoring layer could
+ * produce that the sim ability pipeline would actually reject at runtime (missing cost, empty
+ * effects, a line shape needing `radius`, etc). Content's `AbilityDef`'s extra `name`/`variants`
+ * fields are structurally irrelevant to the check (validateAbilityDef only reads the real
+ * AbilityDef fields), so passing one straight through is safe. */
+function validateAbilitiesAgainstSim(reg: ContentRegistry): void {
+  for (const ability of reg.abilities.values()) {
+    const errs = validateAbilityDef(ability);
+    if (errs.length > 0) {
+      throw new Error(`content: ability "${ability.id}" fails sim validation: ${errs.join("; ")}`);
+    }
+  }
 }
 
 function checkEffectOps(ops: EffectOp[], reg: ContentRegistry, where: string): void {
@@ -79,7 +100,8 @@ function validateFacets(reg: ContentRegistry): void {
 
 function validateCombos(reg: ContentRegistry): void {
   for (const combo of reg.combos.values()) {
-    if (!reg.classes.has(combo.setupClass)) {
+    const setupIsKnown = combo.setupClass === BOSS_PSEUDO_CLASS || reg.classes.has(combo.setupClass);
+    if (!setupIsKnown) {
       throw new Error(`content: combo "${combo.id}" references unknown setupClass "${combo.setupClass}"`);
     }
     if (combo.payoffClass !== "*" && !reg.classes.has(combo.payoffClass)) {

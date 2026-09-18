@@ -1,8 +1,8 @@
 [
-  { "id": "lockShield", "name": "The Lock", "maxStacks": 1, "durationTicks": 60,
-    "modifiers": { "damageTakenBp": -10000 }, "dispellable": null },
-  { "id": "spreadMarked", "name": "Marked: Spread", "maxStacks": 1, "durationTicks": 200,
-    "modifiers": {}, "dispellable": null },
-  { "id": "stackMarked", "name": "Marked: Stack", "maxStacks": 1, "durationTicks": 100,
-    "modifiers": {}, "dispellable": null }
+  { "id": "lockShield", "name": "The Lock", "maxStacks": 1,
+    "modifiers": { "damageTakenBp": -10000 }, "dispellableTag": null },
+  { "id": "spreadMarked", "name": "Marked: Spread", "maxStacks": 1,
+    "modifiers": {}, "dispellableTag": null },
+  { "id": "stackMarked", "name": "Marked: Stack", "maxStacks": 1,
+    "modifiers": {}, "dispellableTag": null }
 ]

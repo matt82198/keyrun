@@ -7,21 +7,57 @@
     "cooldownTicks": 0,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": true,
-    "tags": ["setup:attuned"],
+    "tags": [
+      "setup:attuned"
+    ],
     "effects": [
-      { "op": "window", "windowId": "attuned", "durationTicks": 60, "onTarget": true }
+      {
+        "op": "window",
+        "windowId": "attuned",
+        "durationTicks": 60,
+        "onTarget": true,
+        "setupClass": "chanter"
+      }
     ],
     "variants": {
       "mend": [
-        { "op": "applyEffect", "effectId": "mendingHot", "durationTicks": 60, "stacks": 1 },
-        { "op": "window", "windowId": "attuned", "durationTicks": 60, "onTarget": true }
+        {
+          "op": "applyEffect",
+          "effectId": "mendingHot",
+          "durationTicks": 60,
+          "stacks": 1
+        },
+        {
+          "op": "window",
+          "windowId": "attuned",
+          "durationTicks": 60,
+          "onTarget": true,
+          "setupClass": "chanter"
+        }
       ],
       "ward": [
-        { "op": "applyEffect", "effectId": "wardShield", "durationTicks": 60, "stacks": 1 },
-        { "op": "window", "windowId": "attuned", "durationTicks": 60, "onTarget": true }
+        {
+          "op": "applyEffect",
+          "effectId": "wardShield",
+          "durationTicks": 60,
+          "stacks": 1
+        },
+        {
+          "op": "window",
+          "windowId": "attuned",
+          "durationTicks": 60,
+          "onTarget": true,
+          "setupClass": "chanter"
+        }
       ]
+    },
+    "cost": {
+      "resource": "none",
+      "amount": 0
     }
   },
   {
@@ -32,21 +68,44 @@
     "cooldownTicks": 40,
     "charges": 1,
     "range": 0,
-    "shape": { "kind": "self" },
+    "shape": {
+      "kind": "self"
+    },
     "interruptible": false,
     "tags": [],
     "effects": [
-      { "op": "resource", "resource": "verse", "delta": 1 }
+      {
+        "op": "resource",
+        "delta": 1
+      }
     ],
     "variants": {
       "mend": [
-        { "op": "heal", "amount": 150 },
-        { "op": "resource", "resource": "verse", "delta": 1 }
+        {
+          "op": "heal",
+          "amount": 150
+        },
+        {
+          "op": "resource",
+          "delta": 1
+        }
       ],
       "ward": [
-        { "op": "applyEffect", "effectId": "wardShield", "durationTicks": 80, "stacks": 1 },
-        { "op": "resource", "resource": "verse", "delta": 1 }
+        {
+          "op": "applyEffect",
+          "effectId": "wardShield",
+          "durationTicks": 80,
+          "stacks": 1
+        },
+        {
+          "op": "resource",
+          "delta": 1
+        }
       ]
+    },
+    "cost": {
+      "resource": "none",
+      "amount": 0
     }
   },
   {
@@ -57,21 +116,44 @@
     "cooldownTicks": 120,
     "charges": 1,
     "range": 15000,
-    "shape": { "kind": "circle", "radius": 5000 },
+    "shape": {
+      "kind": "circle",
+      "radius": 5000
+    },
     "interruptible": false,
-    "tags": ["payoff"],
+    "tags": [
+      "payoff"
+    ],
     "effects": [
-      { "op": "combo", "comboTable": "combos" }
+      {
+        "op": "payoff"
+      }
     ],
     "variants": {
       "mend": [
-        { "op": "heal", "amount": 120 },
-        { "op": "combo", "comboTable": "combos" }
+        {
+          "op": "heal",
+          "amount": 120
+        },
+        {
+          "op": "payoff"
+        }
       ],
       "ward": [
-        { "op": "applyEffect", "effectId": "wardPulse", "durationTicks": 60, "stacks": 1 },
-        { "op": "combo", "comboTable": "combos" }
+        {
+          "op": "applyEffect",
+          "effectId": "wardPulse",
+          "durationTicks": 60,
+          "stacks": 1
+        },
+        {
+          "op": "payoff"
+        }
       ]
+    },
+    "cost": {
+      "resource": "none",
+      "amount": 0
     }
   },
   {
@@ -82,24 +164,60 @@
     "cooldownTicks": 60,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["payoff"],
+    "tags": [
+      "payoff"
+    ],
     "effects": [
-      { "op": "damage", "amount": 130, "school": "radiant" },
-      { "op": "combo", "comboTable": "combos" }
+      {
+        "op": "damage",
+        "amount": 130,
+        "school": "radiant"
+      },
+      {
+        "op": "payoff"
+      }
     ],
     "variants": {
       "mend": [
-        { "op": "damage", "amount": 130, "school": "radiant" },
-        { "op": "applyEffect", "effectId": "slowed", "durationTicks": 60, "stacks": 1 },
-        { "op": "combo", "comboTable": "combos" }
+        {
+          "op": "damage",
+          "amount": 130,
+          "school": "radiant"
+        },
+        {
+          "op": "applyEffect",
+          "effectId": "slowed",
+          "durationTicks": 60,
+          "stacks": 1
+        },
+        {
+          "op": "payoff"
+        }
       ],
       "ward": [
-        { "op": "damage", "amount": 130, "school": "radiant" },
-        { "op": "applyEffect", "effectId": "silenced", "durationTicks": 40, "stacks": 1 },
-        { "op": "combo", "comboTable": "combos" }
+        {
+          "op": "damage",
+          "amount": 130,
+          "school": "radiant"
+        },
+        {
+          "op": "applyEffect",
+          "effectId": "silenced",
+          "durationTicks": 40,
+          "stacks": 1
+        },
+        {
+          "op": "payoff"
+        }
       ]
+    },
+    "cost": {
+      "resource": "none",
+      "amount": 0
     }
   },
   {
@@ -110,21 +228,58 @@
     "cooldownTicks": 200,
     "charges": 1,
     "range": 15000,
-    "shape": { "kind": "circle", "radius": 2500 },
+    "shape": {
+      "kind": "circle",
+      "radius": 2500
+    },
     "interruptible": true,
-    "tags": ["setup:hymn"],
+    "tags": [
+      "setup:hymn"
+    ],
     "effects": [
-      { "op": "window", "windowId": "hymn", "durationTicks": 160, "onTarget": false }
+      {
+        "op": "window",
+        "windowId": "hymn",
+        "durationTicks": 160,
+        "onTarget": false,
+        "setupClass": "chanter"
+      }
     ],
     "variants": {
       "mend": [
-        { "op": "window", "windowId": "hymn", "durationTicks": 160, "onTarget": false },
-        { "op": "applyEffect", "effectId": "hymnHeal", "durationTicks": 160, "stacks": 1 }
+        {
+          "op": "window",
+          "windowId": "hymn",
+          "durationTicks": 160,
+          "onTarget": false,
+          "setupClass": "chanter"
+        },
+        {
+          "op": "applyEffect",
+          "effectId": "hymnHeal",
+          "durationTicks": 160,
+          "stacks": 1
+        }
       ],
       "ward": [
-        { "op": "window", "windowId": "hymn", "durationTicks": 160, "onTarget": false },
-        { "op": "applyEffect", "effectId": "hymnSpeed", "durationTicks": 160, "stacks": 1 }
+        {
+          "op": "window",
+          "windowId": "hymn",
+          "durationTicks": 160,
+          "onTarget": false,
+          "setupClass": "chanter"
+        },
+        {
+          "op": "applyEffect",
+          "effectId": "hymnSpeed",
+          "durationTicks": 160,
+          "stacks": 1
+        }
       ]
+    },
+    "cost": {
+      "resource": "none",
+      "amount": 0
     }
   },
   {
@@ -135,12 +290,22 @@
     "cooldownTicks": 480,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["interrupt"],
+    "tags": [
+      "interrupt"
+    ],
     "effects": [
-      { "op": "interrupt", "lockoutTicks": 80 }
-    ]
+      {
+        "op": "interrupt"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "chanter.aegis",
@@ -150,12 +315,25 @@
     "cooldownTicks": 300,
     "charges": 1,
     "range": 0,
-    "shape": { "kind": "self" },
+    "shape": {
+      "kind": "self"
+    },
     "interruptible": false,
-    "tags": ["defensive"],
+    "tags": [
+      "defensive"
+    ],
     "effects": [
-      { "op": "applyEffect", "effectId": "aegisShield", "durationTicks": 60, "stacks": 1 }
-    ]
+      {
+        "op": "applyEffect",
+        "effectId": "aegisShield",
+        "durationTicks": 60,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "chanter.cleanse",
@@ -165,12 +343,24 @@
     "cooldownTicks": 160,
     "charges": 1,
     "range": 25000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["utility", "dispel"],
+    "tags": [
+      "utility",
+      "dispel"
+    ],
     "effects": [
-      { "op": "removeEffect", "effectId": "*" }
-    ]
+      {
+        "op": "removeEffect",
+        "effectId": "*"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "chanter.glide",
@@ -180,11 +370,24 @@
     "cooldownTicks": 200,
     "charges": 2,
     "range": 0,
-    "shape": { "kind": "self" },
+    "shape": {
+      "kind": "self"
+    },
     "interruptible": false,
-    "tags": ["movement"],
+    "tags": [
+      "movement"
+    ],
     "effects": [
-      { "op": "applyEffect", "effectId": "gliding", "durationTicks": 60, "stacks": 1 }
-    ]
+      {
+        "op": "applyEffect",
+        "effectId": "gliding",
+        "durationTicks": 60,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   }
 ]

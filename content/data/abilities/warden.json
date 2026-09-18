@@ -7,14 +7,35 @@
     "cooldownTicks": 0,
     "charges": 1,
     "range": 3000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["setup:sundered"],
+    "tags": [
+      "setup:sundered"
+    ],
     "effects": [
-      { "op": "damage", "amount": 80, "school": "physical" },
-      { "op": "resource", "resource": "momentum", "delta": 15 },
-      { "op": "window", "windowId": "sundered", "durationTicks": 60, "onTarget": true }
-    ]
+      {
+        "op": "damage",
+        "amount": 80,
+        "school": "physical"
+      },
+      {
+        "op": "resource",
+        "delta": 15
+      },
+      {
+        "op": "window",
+        "windowId": "sundered",
+        "durationTicks": 60,
+        "onTarget": true,
+        "setupClass": "warden"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "warden.guardBreak",
@@ -24,15 +45,37 @@
     "cooldownTicks": 0,
     "charges": 1,
     "range": 3000,
-    "shape": { "kind": "cone", "radius": 3000, "angle1024": 140 },
+    "shape": {
+      "kind": "cone",
+      "radius": 3000,
+      "angle1024": 140
+    },
     "interruptible": false,
-    "tags": ["payoff"],
+    "tags": [
+      "payoff"
+    ],
     "effects": [
-      { "op": "damage", "amount": 100, "school": "physical" },
-      { "op": "resource", "resource": "momentum", "delta": 15 },
-      { "op": "threat", "multiplierBp": 15000 },
-      { "op": "combo", "comboTable": "combos" }
-    ]
+      {
+        "op": "damage",
+        "amount": 100,
+        "school": "physical"
+      },
+      {
+        "op": "resource",
+        "delta": 15
+      },
+      {
+        "op": "threat",
+        "multiplierBp": 15000
+      },
+      {
+        "op": "payoff"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "warden.bulwark",
@@ -42,13 +85,33 @@
     "cooldownTicks": 200,
     "charges": 1,
     "range": 3000,
-    "shape": { "kind": "circle", "radius": 2500 },
+    "shape": {
+      "kind": "circle",
+      "radius": 2500
+    },
     "interruptible": true,
-    "tags": ["setup:bulwark"],
+    "tags": [
+      "setup:bulwark"
+    ],
     "effects": [
-      { "op": "window", "windowId": "bulwark", "durationTicks": 160, "onTarget": false },
-      { "op": "applyEffect", "effectId": "braced", "durationTicks": 160, "stacks": 1 }
-    ]
+      {
+        "op": "window",
+        "windowId": "bulwark",
+        "durationTicks": 160,
+        "onTarget": false,
+        "setupClass": "warden"
+      },
+      {
+        "op": "applyEffect",
+        "effectId": "braced",
+        "durationTicks": 160,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "warden.reckoning",
@@ -57,15 +120,31 @@
     "gcdTicks": 30,
     "cooldownTicks": 0,
     "charges": 1,
-    "cost": { "resource": "momentum", "amount": 100 },
+    "cost": {
+      "resource": "momentum",
+      "amount": 100
+    },
     "range": 3000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["payoff"],
+    "tags": [
+      "payoff"
+    ],
     "effects": [
-      { "op": "damage", "amount": 400, "school": "physical" },
-      { "op": "threat", "multiplierBp": 20000 },
-      { "op": "combo", "comboTable": "combos" }
+      {
+        "op": "damage",
+        "amount": 400,
+        "school": "physical"
+      },
+      {
+        "op": "threat",
+        "multiplierBp": 20000
+      },
+      {
+        "op": "payoff"
+      }
     ]
   },
   {
@@ -75,13 +154,23 @@
     "gcdTicks": 30,
     "cooldownTicks": 120,
     "charges": 1,
-    "cost": { "resource": "momentum", "amount": 50 },
+    "cost": {
+      "resource": "momentum",
+      "amount": 50
+    },
     "range": 0,
-    "shape": { "kind": "self" },
+    "shape": {
+      "kind": "self"
+    },
     "interruptible": false,
     "tags": [],
     "effects": [
-      { "op": "applyEffect", "effectId": "bracedSelf", "durationTicks": 100, "stacks": 1 }
+      {
+        "op": "applyEffect",
+        "effectId": "bracedSelf",
+        "durationTicks": 100,
+        "stacks": 1
+      }
     ]
   },
   {
@@ -92,13 +181,27 @@
     "cooldownTicks": 480,
     "charges": 1,
     "range": 3000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["interrupt", "control"],
+    "tags": [
+      "interrupt",
+      "control"
+    ],
     "effects": [
-      { "op": "interrupt", "lockoutTicks": 80 },
-      { "op": "threat", "amount": 50 }
-    ]
+      {
+        "op": "interrupt"
+      },
+      {
+        "op": "threat",
+        "amount": 50
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "warden.brace",
@@ -108,12 +211,25 @@
     "cooldownTicks": 300,
     "charges": 1,
     "range": 0,
-    "shape": { "kind": "self" },
+    "shape": {
+      "kind": "self"
+    },
     "interruptible": false,
-    "tags": ["defensive"],
+    "tags": [
+      "defensive"
+    ],
     "effects": [
-      { "op": "applyEffect", "effectId": "braceSelf", "durationTicks": 60, "stacks": 1 }
-    ]
+      {
+        "op": "applyEffect",
+        "effectId": "braceSelf",
+        "durationTicks": 60,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "warden.taunt",
@@ -123,12 +239,24 @@
     "cooldownTicks": 160,
     "charges": 1,
     "range": 3000,
-    "shape": { "kind": "target" },
+    "shape": {
+      "kind": "target"
+    },
     "interruptible": false,
-    "tags": ["utility"],
+    "tags": [
+      "utility"
+    ],
     "effects": [
-      { "op": "threat", "amount": 1, "multiplierBp": 100000 }
-    ]
+      {
+        "op": "threat",
+        "amount": 1,
+        "multiplierBp": 100000
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   },
   {
     "id": "warden.charge",
@@ -138,12 +266,31 @@
     "cooldownTicks": 200,
     "charges": 2,
     "range": 8000,
-    "shape": { "kind": "line", "length": 8000, "width": 1000 },
+    "shape": {
+      "kind": "line",
+      "length": 8000,
+      "radius": 1000
+    },
     "interruptible": false,
-    "tags": ["movement"],
+    "tags": [
+      "movement"
+    ],
     "effects": [
-      { "op": "damage", "amount": 80, "school": "physical" },
-      { "op": "applyEffect", "effectId": "stunned", "durationTicks": 20, "stacks": 1 }
-    ]
+      {
+        "op": "damage",
+        "amount": 80,
+        "school": "physical"
+      },
+      {
+        "op": "applyEffect",
+        "effectId": "stunned",
+        "durationTicks": 20,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   }
 ]

@@ -17,7 +17,7 @@
     "id": "forge", "name": "Forge", "setupClass": "cinder", "payoffClass": "warden", "windowId": "kindled",
     "effects": [
       { "op": "damage", "amount": 180, "school": "physical" },
-      { "op": "resource", "resource": "momentum", "delta": 40 }
+      { "op": "resource", "delta": 40 }
     ]
   },
   {
@@ -37,7 +37,7 @@
     "id": "flashfire", "name": "Flashfire", "setupClass": "chanter", "payoffClass": "cinder", "windowId": "attuned",
     "effects": [
       { "op": "damage", "amount": 150, "school": "fire" },
-      { "op": "resource", "resource": "heat", "delta": 30 },
+      { "op": "resource", "delta": 30 },
       { "op": "removeEffect", "effectId": "chill" }
     ]
   },
@@ -57,6 +57,31 @@
     "id": "hymn-field", "name": "Hymn (field)", "setupClass": "chanter", "payoffClass": "*", "windowId": "hymn",
     "effects": [
       { "op": "heal", "amount": 60 }
+    ]
+  },
+  {
+    "id": "lock-warden", "name": "Lock (Warden)", "setupClass": "boss", "payoffClass": "warden", "windowId": "lock",
+    "effects": [
+      { "op": "damage", "amount": 200, "school": "physical" },
+      { "op": "threat", "multiplierBp": 20000 }
+    ]
+  },
+  {
+    "id": "lock-cinder", "name": "Lock (Cinder)", "setupClass": "boss", "payoffClass": "cinder", "windowId": "lock",
+    "effects": [
+      { "op": "damage", "amount": 200, "school": "fire" }
+    ]
+  },
+  {
+    "id": "lock-chanter", "name": "Lock (Chanter)", "setupClass": "boss", "payoffClass": "chanter", "windowId": "lock",
+    "effects": [
+      { "op": "damage", "amount": 170, "school": "radiant" }
+    ]
+  },
+  {
+    "id": "seedbloom-field", "name": "Death Bloom (field)", "setupClass": "boss", "payoffClass": "*", "windowId": "seedbloom",
+    "effects": [
+      { "op": "damage", "amount": 120, "school": "physical" }
     ]
   }
 ]
