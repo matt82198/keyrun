@@ -3,15 +3,26 @@
  *
  * Top-level composer: turns a content-registry.ts `ContentRegistry` plus (keyLevel, dungeonId,
  * humanClassId) into everything sim/index.ts's `createRun` and worker.ts's SimHost need -- a
- * RunContent, the sim DungeonDef, the party roster, and per-class bot classKits. Pure and
- * synchronous (registry-in, setup-out), so it is exercised the same way whether the registry came
- * from content-registry.ts's browser fetch loader or from content/index.ts's real `loadContent()`
- * under Node (tests use the latter -- see tests/client/sim-host/run-setup.test.ts).
+ * RunContent (abilities/effects/enemyScripts/combos/fieldCombos), the sim DungeonDef, the party
+ * roster, and per-class bot classKits. Pure and synchronous (registry-in, setup-out), so it is
+ * exercised the same way whether the registry came from content-registry.ts's browser fetch loader
+ * or from content/index.ts's real `loadContent()` under Node (tests use the latter -- see
+ * tests/client/sim-host/run-setup.test.ts).
+ *
+ * content's `AbilityDef`/`EffectDef` (content/schema/ability.ts, effect.ts) are now the REAL
+ * sim/combat AbilityDef/EffectDef plus a couple of harmless display/authoring extras (`name`,
+ * `tags`, Chanter's `variants`) -- see those files' own docstrings -- so no field-by-field
+ * conversion is needed here at all, unlike the pre-integration draft this file replaces. The one
+ * real piece of work left: `variants` (Chanter's Mend/Ward stance override) has no sim-side
+ * resolution mechanism (sim/combat/casting.ts's completeCast always uses `def.effects` verbatim),
+ * so `resolveVariant` always substitutes the "mend" variant when present. DEVIATION: Chanter
+ * therefore always plays as if permanently in Mend (heals); Refrain's own stance-swap burst and
+ * every Ward-only behaviour never fire in this playable-v1.
  *
  * `lockoutTicks` is set to 80 (4s at 20Hz): every interrupt ability in content/data carries
- * `{op:"interrupt", lockoutTicks:80}` identically, so this single RunContent-wide value (sim's
- * cast lockout is global, not per-ability -- see content-abilities.ts's docstring) reproduces
- * content's own intent exactly rather than picking an arbitrary number.
+ * `{op:"interrupt"}` with no lockout of its own (sim's cast lockout is RunContent-global, not
+ * per-ability) and the pre-integration content draft's own interrupt abilities all agreed on 80
+ * ticks, which this value reproduces.
  *
  * Usage: `const setup = buildRunSetup(registry, {keyLevel: 5, dungeonId: "hollow-vault", humanClassId: "warden"});`
  */
@@ -22,10 +33,11 @@ import type { EffectDef as SimEffectDef } from "../../../sim/combat/effects.js";
 import type { ActorId } from "../../../sim/core/state.js";
 import type { Bounds } from "../../../sim/combat/movement.js";
 import type { BotView } from "../../../bots/src/types.js";
-import type { ContentRegistry } from "./content-registry.js";
-import { toSimAbility, toSimEffectDef } from "./content-abilities.js";
+import type { AbilityDef as ContentAbilityDef } from "../../../content/schema/ability.js";
+import type { ContentRegistry } from "../../../content/schema/registry.js";
 import { buildDungeon } from "./content-dungeon.js";
 import { buildParty } from "./content-party.js";
+import { buildComboTables } from "./content-combos.js";
 
 const INTERRUPT_LOCKOUT_TICKS = 80;
 const BASE_SPEED_MM_PER_TICK = 180; // ~3.6 m/s at 20Hz
@@ -34,22 +46,10 @@ const ACTOR_RADIUS_MM = 400; // matches client/src/render/actors.ts's CAPSULE_RA
 // BOSS_SPAWN) with margin -- content's dungeon data has no arena-size field of its own.
 const DUNGEON_BOUNDS: Bounds = { minX: -4000, maxX: 18000, minZ: -6000, maxZ: 9000 };
 
-const ABILITY_SLOTS = ["rot1", "rot2", "rot3", "rot4", "rot5", "interrupt", "defensive", "utility", "movement"] as const;
-
-/** abilityId -> owning class id (for player abilities) or enemy id (pseudo-class, for enemy
- * "window" ops -- see content-abilities.ts; no content/data combo ever keys off an enemy pseudo-
- * class, so its exact value only matters for readability/debugging). */
-function buildAbilityOwnerMap(registry: ContentRegistry): Map<string, string> {
-  const owner = new Map<string, string>();
-  for (const cls of registry.classes.values()) {
-    for (const slot of ABILITY_SLOTS) owner.set(cls.abilities[slot], cls.id);
-  }
-  for (const enemy of registry.enemies.values()) {
-    for (const abilityId of enemy.abilities) {
-      if (!owner.has(abilityId)) owner.set(abilityId, enemy.id);
-    }
-  }
-  return owner;
+/** See file docstring: Chanter's stance-differentiated abilities always resolve to their "mend"
+ * variant. Every other ability (no `variants`) passes through unchanged. */
+function resolveVariant(a: ContentAbilityDef): SimAbilityDef {
+  return { ...a, effects: a.variants?.mend ?? a.effects };
 }
 
 export interface RunSetupOptions {
@@ -72,13 +72,14 @@ export interface RunSetup {
 }
 
 export function buildRunSetup(registry: ContentRegistry, opts: RunSetupOptions): RunSetup {
-  const ownerOf = buildAbilityOwnerMap(registry);
-
   const abilities: Record<string, SimAbilityDef> = {};
-  for (const [id, def] of registry.abilities) abilities[id] = toSimAbility(def, ownerOf.get(id) ?? "none");
+  for (const [id, def] of registry.abilities) abilities[id] = resolveVariant(def);
 
   const effects: Record<string, SimEffectDef> = {};
-  for (const [id, def] of registry.effects) effects[id] = toSimEffectDef(def);
+  for (const [id, def] of registry.effects) effects[id] = def;
+
+  const classIds = [...registry.classes.keys()];
+  const { combos, fieldCombos } = buildComboTables(registry, classIds);
 
   const dungeonBuild = buildDungeon(registry, opts.dungeonId, opts.keyLevel);
   const partyBuild = buildParty(registry, opts.humanClassId);
@@ -96,6 +97,8 @@ export function buildRunSetup(registry: ContentRegistry, opts: RunSetupOptions):
     enemyScripts: dungeonBuild.enemyScripts,
     keyLevel: opts.keyLevel,
     parTicks: dungeonBuild.parTicks,
+    combos,
+    fieldCombos,
   };
 
   return {

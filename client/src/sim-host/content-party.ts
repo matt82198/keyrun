@@ -19,7 +19,8 @@
 import type { PartyMemberSpec } from "../../../sim/index.js";
 import type { ActorId } from "../../../sim/core/state.js";
 import type { BotView } from "../../../bots/src/types.js";
-import type { CClassDef, ContentRegistry } from "./content-registry.js";
+import type { ClassDef } from "../../../content/schema/class.js";
+import type { ContentRegistry } from "../../../content/schema/registry.js";
 
 export type PartyRole = "tank" | "healer" | "damage";
 
@@ -41,9 +42,10 @@ const SPAWN_X = [0, -2100, -700, 700, 2100];
 const HUMAN_MAX_HEALTH: Record<PartyRole, number> = { tank: 400, healer: 250, damage: 250 };
 const FACE_MINUS_Z = 512;
 
-/** Only Chanter heals a single ally directly (see content-abilities.ts's Mend-only deviation);
- * Cadence's Mend variant is a targeted HoT, unlike Refrain (self-only) or Chorus (caster-centred
- * area) -- the only base-kit ability that fits classKit's single `healAbilityId` slot contract. */
+/** Only Chanter heals a single ally directly (see run-setup.ts's Mend-only variant-resolution
+ * deviation); Cadence's Mend variant is a targeted HoT, unlike Refrain (self-only) or Chorus
+ * (caster-centred area) -- the only base-kit ability that fits classKit's single `healAbilityId`
+ * slot contract. */
 const HEAL_ABILITY_BY_CLASS: Record<string, string> = { chanter: "chanter.cadence" };
 
 export function resolveHumanClassId(param: string | null): string {
@@ -52,7 +54,7 @@ export function resolveHumanClassId(param: string | null): string {
   return "warden";
 }
 
-export function buildClassKit(cls: CClassDef): BotView["classKit"] {
+export function buildClassKit(cls: ClassDef): BotView["classKit"] {
   return {
     rotation: [cls.abilities.rot1, cls.abilities.rot2, cls.abilities.rot3, cls.abilities.rot4, cls.abilities.rot5],
     interruptAbilityId: cls.abilities.interrupt,

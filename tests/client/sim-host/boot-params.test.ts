@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { loadContent } from "@content/index";
 import { parseKeyLevel, resolveRunSetupOptions } from "../../../client/src/sim-host/boot-params.js";
-import type { ContentRegistry } from "../../../client/src/sim-host/content-registry.js";
 
-const registry = loadContent() as unknown as ContentRegistry;
+const registry = loadContent();
 
 describe("boot-params: parseKeyLevel", () => {
   it("clamps to the 2-20 range", () => {
