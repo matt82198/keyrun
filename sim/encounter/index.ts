@@ -88,3 +88,7 @@ export * from "./breakbar";
 export * from "./pulls";
 export * from "./timer";
 export * from "./tempo";
+// Clauses (design/BIBLE.md §8, run modifiers, sim side only): appended, not wired into
+// stepEncounter/stepRun here -- see sim/encounter/clauses.ts's WIRING NOTE for the one-line hook
+// the integration lane (sim/index.ts, PR #15) needs to thread an EncounterRules into EncounterState.
+export * from "./clauses";
