@@ -1046,12 +1046,13 @@
       "targetId": 1000
     }
   ],
-  "expectedHash": "3844f376",
+  "expectedHash": "5c9d92a2",
   "eventCounts": {
-    "damage": 7,
-    "cast_complete": 6,
+    "damage": 25,
+    "cast_complete": 25,
     "window_opened": 3,
-    "combo": 3
+    "combo": 3,
+    "heal": 1
   },
   "why": "Any change to this hash is either a deliberate content/sim behaviour change (explain it in the PR body) or a regression (fix the code -- never retune this fixture to match, see sim/CLAUDE.md's 'Replays are golden tests'). eventCounts exists for the same reason: a silent behaviour change should fail with a readable diff, not just a hash mismatch. NOTE (authoring time): sim/encounter/scripts.ts's stepEnemyScripts emits enemy cast commands with no targetId, and sim/combat/casting.ts's startCast requires one for a target-shape ability (returns target_required otherwise), so choir.meleeSwing/choir.healCast never execute today -- eventCounts carries zero enemy-sourced damage/cast_complete. fix/enemy-targeting (a separate lane) is expected to fix this; once it merges, re-record (npx tsx tests/sim/golden/build-content-pull.ts) and explain the change in that PR body."
 }
