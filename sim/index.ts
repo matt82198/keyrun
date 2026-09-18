@@ -32,6 +32,7 @@ import type { Command } from "./core/commands";
 import type { SimEvent } from "./core/events";
 import { createActor } from "./combat/actors";
 import { makeRules, type RulesConfig } from "./combat/rules";
+import type { ComboTable } from "./combat/combos";
 import type { AbilityDef } from "./combat/abilities";
 import type { EffectDef } from "./combat/effects";
 import type { Bounds } from "./combat/movement";
@@ -74,6 +75,13 @@ export interface RunContent {
   keyLevel?: number;
   parTicks?: number;
   encounterRules?: EncounterRules;
+  /** [setupClass][payoffClass] -> ComboDef for target/self ("burst") Windows and Combos
+   * (design/BIBLE.md §4, §5); passed straight through to `sim/combat/rules.ts`'s `RulesConfig`.
+   * Omit for content that does not use Windows and Combos yet -- window/payoff ops then simply
+   * find no combo and no-op (see RulesConfig's own docstring). */
+  combos?: ComboTable;
+  /** Same shape as `combos`, for the smaller "field" combos floor-patch Windows fire. */
+  fieldCombos?: ComboTable;
 }
 
 export interface Run {
@@ -91,6 +99,8 @@ function rulesConfigOf(content: RunContent): RulesConfig {
     baseSpeedMmPerTick: content.baseSpeedMmPerTick,
     actorRadiusMm: content.actorRadiusMm,
     bounds: content.bounds,
+    ...(content.combos !== undefined ? { combos: content.combos } : {}),
+    ...(content.fieldCombos !== undefined ? { fieldCombos: content.fieldCombos } : {}),
   };
 }
 

@@ -36,6 +36,10 @@ export interface FloorWindow {
   setupActorId: ActorId;
   pos: Vec3;
   endsTick: Tick;
+  /** Catch radius (mm) a Payoff must stand within to close this patch; content-set per ability via
+   * the "window" op's `radiusMm`, falling back to `FLOOR_WINDOW_RADIUS_MM` when omitted. Always
+   * populated by windows.ts's `openWindow`. */
+  radiusMm: number;
 }
 
 export interface FloorWindowRegistry {
@@ -44,6 +48,19 @@ export interface FloorWindowRegistry {
 
 export function createFloorRegistry(): FloorWindowRegistry {
   return { patches: {} };
+}
+
+/** Builds a FloorWindow patch, resolving `radiusMm` against the default. Split out of windows.ts's
+ * openWindow for the LOC cap. */
+export function makeFloorWindow(
+  windowId: string,
+  setupClass: string,
+  setupActorId: ActorId,
+  pos: Vec3,
+  endsTick: Tick,
+  radiusMm: number | undefined,
+): FloorWindow {
+  return { windowId, setupClass, setupActorId, pos, endsTick, radiusMm: radiusMm ?? FLOOR_WINDOW_RADIUS_MM };
 }
 
 export function windowEffectId(windowId: string, setupClass: string, alternate: boolean): string {

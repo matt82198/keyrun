@@ -52,6 +52,22 @@ const floorSetupAbility: AbilityDef = {
   effects: [{ op: "window", windowId: "bulwark-patch", durationTicks: 60, onTarget: false, setupClass: "warden" }],
 };
 
+const narrowFloorSetupAbility: AbilityDef = {
+  id: "bulwark-narrow",
+  castTicks: 0,
+  gcdTicks: 0,
+  cooldownTicks: 0,
+  charges: 1,
+  cost: { resource: "energy", amount: 0 },
+  range: 0,
+  shape: { kind: "self" },
+  interruptible: false,
+  tags: ["setup"],
+  effects: [
+    { op: "window", windowId: "bulwark-patch", durationTicks: 60, onTarget: false, setupClass: "warden", radiusMm: 1500 },
+  ],
+};
+
 const combos: ComboTable = {
   warden: {
     cinder: { id: "shatter", effects: [{ op: "damage", amount: 50, school: "physical" }] },
@@ -67,7 +83,12 @@ const fieldCombos: ComboTable = {
 
 function baseCfg(overrides: Partial<RulesConfig> = {}): RulesConfig {
   return {
-    abilities: { sundered_strike: setupAbility, detonate: payoffAbility, bulwark: floorSetupAbility },
+    abilities: {
+      sundered_strike: setupAbility,
+      detonate: payoffAbility,
+      bulwark: floorSetupAbility,
+      "bulwark-narrow": narrowFloorSetupAbility,
+    },
     effects: {},
     lockoutTicks: 60,
     baseSpeedMmPerTick: 300,
@@ -201,5 +222,39 @@ describe("floor Window field variant", () => {
 
     const expired = events.filter((e) => e.type === "window_expired" && e.onTarget === false);
     expect(expired).toHaveLength(1);
+  });
+});
+
+describe("floor Window radiusMm (per-ability content override)", () => {
+  it("a radiusMm: 1500 window does NOT catch a payoff 2000mm away", () => {
+    const warden = createActor({ id: 1, kind: "player", classId: "warden", role: "tank", pos: { x: 0, y: 0, z: 0 }, maxHealth: 100, maxResource: 0 });
+    const cinder = createActor({ id: 2, kind: "player", classId: "cinder", role: "damage", pos: { x: 2000, y: 0, z: 0 }, maxHealth: 100, maxResource: 0 });
+    const state = stateWith([warden, cinder]);
+    const rules = makeRules(baseCfg());
+    const events: SimEvent[] = [];
+    const emit = (e: SimEvent) => events.push(e);
+
+    rules(state, [cast(1, "bulwark-narrow", 1)], emit);
+    rules(state, [cast(2, "detonate", 2)], emit);
+
+    expect(events.some((e) => e.type === "combo")).toBe(false);
+    expect(cinder.health).toBe(100); // no field damage applied -- out of the narrowed radius
+  });
+
+  it("the default (no radiusMm) window still catches a payoff 2000mm away", () => {
+    const warden = createActor({ id: 1, kind: "player", classId: "warden", role: "tank", pos: { x: 0, y: 0, z: 0 }, maxHealth: 100, maxResource: 0 });
+    const cinder = createActor({ id: 2, kind: "player", classId: "cinder", role: "damage", pos: { x: 2000, y: 0, z: 0 }, maxHealth: 100, maxResource: 0 });
+    const state = stateWith([warden, cinder]);
+    const rules = makeRules(baseCfg());
+    const events: SimEvent[] = [];
+    const emit = (e: SimEvent) => events.push(e);
+
+    rules(state, [cast(1, "bulwark", 1)], emit);
+    rules(state, [cast(2, "detonate", 2)], emit);
+
+    const combo = events.find((e) => e.type === "combo");
+    expect(combo).toBeDefined();
+    expect(combo?.comboId).toBe("shatter-field");
+    expect(cinder.health).toBe(90); // 100 - 10 field damage -- default 3000mm radius still reaches
   });
 });
