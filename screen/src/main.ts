@@ -4,9 +4,10 @@
  * Wires the four bands (character, loadout, run, reward) onto the page in that order, backed by the
  * versioned localStorage store in store.ts. The loadout's "new" delta flags are computed against
  * recentlyEquipped on the first render, then cleared so a reload starts clean. The reward band
- * renders whatever choice-of-three is pending on the character (set by run.ts's completeRun, cleared
- * by reward.ts's Pick button) -- loadout and run now take the whole store since their gear/craft/run
- * actions need to saveStore, not just read the character.
+ * renders whatever choice-of-three is pending on the character (set by progression.ts's completeRun,
+ * cleared by reward.ts's Pick button) -- every band now takes the whole store, since talent picks,
+ * gear/craft actions, the Clause pick, and run actions all need to saveStore, not just read the
+ * character.
  */
 import { loadStore, markLoadoutSeen, saveStore } from "./store.js";
 import { renderCharacterPanel } from "./panels/character.js";
@@ -22,7 +23,7 @@ const runRoot = document.getElementById("run-band");
 const rewardRoot = document.getElementById("reward");
 
 function renderAll(): void {
-  if (characterRoot) renderCharacterPanel(characterRoot, store.character);
+  if (characterRoot) renderCharacterPanel(characterRoot, store, renderAll);
   if (loadoutRoot) renderLoadoutPanel(loadoutRoot, store, renderAll);
   if (runRoot) renderRunPanel(runRoot, store, renderAll);
   if (rewardRoot) renderRewardPanel(rewardRoot, store, renderAll);

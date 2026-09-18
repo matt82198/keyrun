@@ -23,6 +23,7 @@ import {
   createFloorRegistry,
   incrementLockFailCount,
   LOCK_ENRAGE_THRESHOLD,
+  makeFloorWindow,
   parseWindowEffectId,
   resetLockFailCount,
   windowEffectId,
@@ -89,13 +90,8 @@ export function openWindow(
     });
     return;
   }
-  floor.patches[op.windowId] = {
-    windowId: op.windowId,
-    setupClass: op.setupClass,
-    setupActorId: setupActor.id,
-    pos: { x: setupActor.pos.x, y: setupActor.pos.y, z: setupActor.pos.z },
-    endsTick,
-  };
+  const pos = { x: setupActor.pos.x, y: setupActor.pos.y, z: setupActor.pos.z };
+  floor.patches[op.windowId] = makeFloorWindow(op.windowId, op.setupClass, setupActor.id, pos, endsTick, op.radiusMm);
   emit({
     tick: state.tick,
     type: "window_opened",

@@ -1,51 +1,45 @@
 /**
  * content/schema/enemy.ts
- * Local copy of the canonical EnemyDef contract shared with the sim-combat lane, plus content-
- * lane additions needed for Hollow Vault's boss (documented inline and in content/CLAUDE.md).
- * Data-shape only. Never import sim/ from here.
+ * `EnemyDef` has no sim equivalent -- sim/encounter's PullSpawn only carries {actorId, classId,
+ * pos, yaw, health} at spawn time, and AI behaviour lives in a separate `EnemyScript` (a plain
+ * `ScriptStep[]` keyed by actorId, sim/encounter/scripts.ts) that content builds from this def's
+ * `script` field. EnemyDef therefore stays content-only, but `script` now holds the REAL
+ * `ScriptStep`/`EnemyScript` type re-exported below instead of a local duplicate.
+ *
+ * Two pre-integration content-only additions have been dropped since the real Windows/Combos and
+ * sim/encounter landed with a different (better) mechanism for the same rule:
+ *   - `WindowRuleDef`/`ScriptStep.windowRule` (The Lock's alternation rule, BIBLE.md Sec 9) is now
+ *     expressed on the ability itself: sim/combat/abilities.ts's "window" EffectOp carries its own
+ *     `alternate?: boolean`, and sim/combat/windows.ts fully implements the alternation-denial and
+ *     3-fail enrage counter from that flag alone. `hollowWarden.lock`
+ *     (content/data/abilities/enemies.json) sets `alternate: true` directly; no script-level rule
+ *     needed. `canPayoffCloseWindow` below is kept as the same pure function content's tests
+ *     already exercised against real inputs, now documented as *not* sim's actual enforcement path
+ *     (that's windows.ts's `tryClosePayoff`) but a content-side restatement for design review.
+ *   - `ScriptAt` no longer accepts `"onDeath"`: the real `sim/encounter/scripts.ts` ScriptStep.at
+ *     is `"loop" | number` only, with no death-triggered trigger kind. The Seed's "cast
+ *     seed.deathBloom on death" mechanic (content/data/enemies/seed.json) cannot be expressed
+ *     today -- the `seed.deathBloom` AbilityDef is kept as valid, unscripted data, and the gap is
+ *     flagged as a BACKLOG item in this lane's final report (sim/encounter would need an
+ *     onDeath/onSpawnDead trigger kind, or a caller-side hook in sim/index.ts's stepRun).
+ *
+ * `breakBarId`/`breakBars` (Sundered Twins, BIBLE.md Sec 9) are kept content-only: the *type* they
+ * need already exists (sim/encounter/breakbar.ts's BreakBarState/BreakBarInput/drainBreakBar), but
+ * nothing in sim/index.ts's stepRun or sim/encounter/index.ts's stepEncounter yet builds a
+ * BreakBarState from content data or feeds interrupt/control-tagged commands into drainBreakBar
+ * per tick -- also flagged as a BACKLOG item, not fixed here.
  */
+export type { ScriptStep, EnemyScript, TelegraphSpec } from "../../sim/encounter/scripts";
 
 import type { EffectOp } from "./ability";
+import type { EnemyScript } from "../../sim/encounter/scripts";
 
 export type EnemyRole = "melee" | "caster" | "lieutenant" | "elite" | "boss";
 
-export interface TelegraphDef {
-  shape: "cone" | "circle" | "line";
-  radius?: number;
-  angle1024?: number;
-  length?: number;
-  width?: number;
-  leadTicks: number;
-}
-
-/**
- * ADDED: "onDeath" beyond the canonical "loop" | number, so The Seed (elite) can script a
- * death-triggered mechanic (dropping a Window on the floor) instead of only loop/tick casts.
- */
-export type ScriptAt = "loop" | "onDeath" | number;
-
-/**
- * ADDED: encodes BIBLE.md Sec 9 "The Lock"  -  the boss's self-Window accepts a Payoff only from a
- * class other than whichever class's Setup last tagged it. sim enforces this; content only
- * records the rule as data (tested in tests/content).
- */
-export interface WindowRuleDef {
-  windowId: string;
-  kind: "alternate-setup-class";
-}
-
-export interface ScriptStep {
-  at: ScriptAt;
-  every?: number;
-  cast: string;
-  telegraph?: TelegraphDef;
-  windowRule?: WindowRuleDef;
-}
-
-/**
- * ADDED: a Break bar shared by two or more enemies (Sundered Twins, BIBLE.md Sec 9). Any
- * interrupt- or control-tagged ability drains it; at 0, `onEmpty` effects fire on both adds.
- */
+/** ADDED: a Break bar shared by two or more enemies (Sundered Twins, BIBLE.md Sec 9). Any
+ * interrupt- or control-tagged ability drains it; at 0, `onEmpty` effects fire on both adds. See
+ * the file docstring -- sim has the mechanism (sim/encounter/breakbar.ts) but no content wiring
+ * yet. */
 export interface BreakBarDef {
   id: string;
   max: number;
@@ -60,9 +54,19 @@ export interface EnemyDef {
   maxHealth: number;
   role: EnemyRole;
   abilities: string[];
-  script: ScriptStep[];
+  script: EnemyScript;
   /** ADDED: id of a BreakBarDef (declared on the encounter's boss entry) this enemy shares. */
   breakBarId?: string;
   /** ADDED: only populated on the encounter's primary boss entry; adds reference it by id. */
   breakBars?: BreakBarDef[];
+}
+
+/**
+ * BIBLE.md Sec 9 "The Lock" restated as a content-side pure function for tests/design review. The
+ * actual runtime enforcement is sim/combat/windows.ts's `tryClosePayoff`, driven entirely by the
+ * `alternate: true` flag on the boss's own "window" EffectOp (see file docstring) -- this function
+ * is not called from sim.
+ */
+export function canPayoffCloseWindow(payoffClass: string, lastSetupClass: string | null): boolean {
+  return lastSetupClass === null || payoffClass !== lastSetupClass;
 }

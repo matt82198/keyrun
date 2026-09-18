@@ -12,9 +12,10 @@ import {
   removeEffectInstances,
   type EffectDef,
 } from "../../../sim/combat/effects";
+import { removeDispellableEffects } from "../../../sim/combat/effects-remove";
 
-function actor() {
-  return createActor({ id: 1, kind: "player", classId: "x", role: "damage", pos: { x: 0, y: 0, z: 0 }, maxHealth: 1000, maxResource: 100 });
+function actor(id = 1, kind: "player" | "enemy" = "player") {
+  return createActor({ id, kind, classId: "x", role: "damage", pos: { x: 0, y: 0, z: 0 }, maxHealth: 1000, maxResource: 100 });
 }
 
 describe("applyEffectInstance", () => {
@@ -93,6 +94,63 @@ describe("aggregateModifiers", () => {
     expect(totals.hasteBp).toBe(1000);
     expect(totals.movementBp).toBe(-3000);
     expect(totals.damageDoneBp).toBe(0);
+  });
+});
+
+describe("removeDispellableEffects (wildcard removeEffect, effectId: \"*\")", () => {
+  const slow: EffectDef = { id: "slow", maxStacks: 1, dispellableTag: "magic", modifiers: { movementBp: -4000 }, periodic: null };
+  const chillDeharste: EffectDef = { id: "chillx", maxStacks: 1, dispellableTag: "physical", modifiers: { hasteBp: -3000 }, periodic: null };
+  const haste: EffectDef = { id: "haste", maxStacks: 1, dispellableTag: "magic", modifiers: { hasteBp: 1500 }, periodic: null };
+  const stunNotDispellable: EffectDef = { id: "stun", maxStacks: 1, dispellableTag: null, modifiers: {}, periodic: null };
+  const defs: Record<string, EffectDef> = { slow, chillx: chillDeharste, haste, stun: stunNotDispellable };
+
+  it("Cleanse-style: an ally caster strips hostile dispellable effects, leaves buffs and non-dispellable effects", () => {
+    const caster = actor(2, "player");
+    const target = actor(1, "player");
+    applyEffectInstance(target, slow, caster.id, 100, 1, 0);
+    applyEffectInstance(target, chillDeharste, caster.id, 100, 1, 0);
+    applyEffectInstance(target, haste, caster.id, 100, 1, 0);
+    applyEffectInstance(target, stunNotDispellable, caster.id, 100, 1, 0);
+
+    removeDispellableEffects(caster, target, defs);
+
+    expect(target.effects.map((e) => e.effectId)).toEqual(["haste", "stun"]);
+  });
+
+  it("Purge-style: an enemy caster strips beneficial dispellable effects, leaves hostile effects", () => {
+    const caster = actor(2, "player");
+    const target = actor(3, "enemy");
+    applyEffectInstance(target, haste, caster.id, 100, 1, 0);
+    applyEffectInstance(target, slow, caster.id, 100, 1, 0);
+
+    removeDispellableEffects(caster, target, defs);
+
+    expect(target.effects.map((e) => e.effectId)).toEqual(["slow"]);
+  });
+
+  it("removes in the actor's existing instance (insertion) order, deterministically, preserving the order of survivors", () => {
+    const caster = actor(2, "player");
+    const target = actor(1, "player");
+    applyEffectInstance(target, haste, caster.id, 100, 1, 0); // survives (buff)
+    applyEffectInstance(target, slow, caster.id, 100, 1, 0); // removed (hostile)
+    applyEffectInstance(target, stunNotDispellable, caster.id, 100, 1, 0); // survives (not dispellable)
+    applyEffectInstance(target, chillDeharste, caster.id, 100, 1, 0); // removed (hostile)
+
+    removeDispellableEffects(caster, target, defs);
+    removeDispellableEffects(caster, target, defs); // idempotent: a second cast is a no-op
+
+    expect(target.effects.map((e) => e.effectId)).toEqual(["haste", "stun"]);
+  });
+
+  it("a literal effectId still removes only that one effect, leaving other dispellable effects untouched", () => {
+    const caster = actor(2, "player");
+    const target = actor(1, "player");
+    applyEffectInstance(target, slow, caster.id, 100, 1, 0);
+    applyEffectInstance(target, chillDeharste, caster.id, 100, 1, 0);
+
+    removeEffectInstances(target, "slow");
+
+    expect(target.effects.map((e) => e.effectId)).toEqual(["chillx"]);
   });
 });
 

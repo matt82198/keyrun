@@ -11,12 +11,15 @@ describe("content registries", () => {
     expect(() => loadContent()).not.toThrow();
   });
 
-  it("has 3 classes, 38 abilities, 22 effects, 9 combos, 7 enemies, 1 dungeon, 4 clauses", () => {
+  it("has 3 classes, 38 abilities, 22 effects, 13 combos, 7 enemies, 1 dungeon, 4 clauses", () => {
     const reg = loadContent();
     expect(reg.classes.size).toBe(3);
     expect(reg.abilities.size).toBe(38);
     expect(reg.effects.size).toBe(22);
-    expect(reg.combos.size).toBe(9);
+    // 9 pair-class combos + 4 added aligning to the real sim: lock-warden/lock-cinder/lock-chanter
+    // (The Lock's boss pseudo-class row, sim/combat/combos.ts) and seedbloom-field (The Seed's
+    // floor Window, previously unwired to any combo table row).
+    expect(reg.combos.size).toBe(13);
     expect(reg.enemies.size).toBe(7);
     expect(reg.dungeons.size).toBe(1);
     expect(reg.clauses.size).toBe(4);
