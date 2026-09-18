@@ -11,7 +11,27 @@ export type EffectOp =
   | { op: "removeEffect"; effectId: string }
   | { op: "interrupt" }
   | { op: "resource"; delta: number }
-  | { op: "threat"; amount?: number; multiplierBp?: number };
+  | { op: "threat"; amount?: number; multiplierBp?: number }
+  /**
+   * Opens a Window (design/BIBLE.md §4): a timed tag that a Payoff ability from another class
+   * can close for a Combo. `onTarget: true` puts the Window on the resolved target (or the
+   * caster itself when `self: true`, e.g. a boss's own Window); `onTarget: false` plants a
+   * floor-patch Window instead (Bulwark/Cinderfield/Hymn), tracked by windows.ts, not on any
+   * actor. `setupClass` is the key this Window's Combo is looked up under in the content-supplied
+   * ComboTable (combos.ts) — normally the opening actor's own classId, or a boss pseudo-class
+   * (e.g. "boss") for a self Window. `alternate: true` is the Lock (§9): instead of forbidding a
+   * Payoff from `setupClass` (which a boss's own class never matches anyway), it forbids a
+   * Payoff from whichever class most recently *closed* this actor's last alternate Window —
+   * windows.ts persists that as `lastSetupClass` on the actor — forcing the party to alternate
+   * who closes it between consecutive Locks.
+   */
+  | { op: "window"; windowId: string; durationTicks: Tick; onTarget: boolean; setupClass: string; self?: boolean; alternate?: boolean }
+  /**
+   * Marks this ability as a Payoff: on cast completion, windows.ts attempts to close an open
+   * Window on the resolved target (falling back to any floor-patch Window in range when the
+   * target carries none), firing the looked-up Combo through combos.ts's effect pipeline.
+   */
+  | { op: "payoff" };
 
 export interface AbilityShape {
   kind: "target" | "self" | "cone" | "circle" | "line";
@@ -31,6 +51,9 @@ export interface AbilityDef {
   shape: AbilityShape;
   interruptible: boolean;
   effects: EffectOp[];
+  /** Free-form classification tags (e.g. "setup", "payoff", "interrupt"); optional so existing
+   * content and fixtures that predate Windows and Combos keep compiling untouched. */
+  tags?: string[];
 }
 
 export function validateAbilityDef(def: AbilityDef): string[] {
@@ -59,6 +82,11 @@ export function validateAbilityDef(def: AbilityDef): string[] {
     }
     if (op.op === "damage" && (!Number.isInteger(op.amount) || op.amount < 0)) errs.push("damage amount must be an integer >= 0");
     if (op.op === "heal" && (!Number.isInteger(op.amount) || op.amount < 0)) errs.push("heal amount must be an integer >= 0");
+    if (op.op === "window") {
+      if (!op.windowId) errs.push("window op requires windowId");
+      if (!Number.isInteger(op.durationTicks) || op.durationTicks < 0) errs.push(`window ${op.windowId} durationTicks must be an integer >= 0`);
+      if (!op.setupClass) errs.push(`window ${op.windowId} requires setupClass`);
+    }
   }
   return errs;
 }
