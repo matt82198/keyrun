@@ -8,9 +8,9 @@
  * parks it as a "compare" on a tier tie) and attaches it to the latest run history entry. When
  * nothing is pending it renders a quiet placeholder instead of an empty band.
  */
-import { pickReward, saveStore, type GearItem, type GearSlot, type StoreV2 } from "../store.js";
+import { pickReward, saveStore, type GearSlotId, type Item, type StoreV3 } from "../store.js";
 
-const SLOT_LABELS: Record<GearSlot, string> = {
+const SLOT_LABELS: Record<GearSlotId, string> = {
   weapon: "Weapon",
   armor: "Armor",
   charm: "Charm",
@@ -18,7 +18,7 @@ const SLOT_LABELS: Record<GearSlot, string> = {
   keystone: "Keystone",
 };
 
-export function renderRewardPanel(root: HTMLElement, store: StoreV2, onChange: () => void): void {
+export function renderRewardPanel(root: HTMLElement, store: StoreV3, onChange: () => void): void {
   root.innerHTML = "";
   root.className = "band band-reward";
 
@@ -43,7 +43,7 @@ export function renderRewardPanel(root: HTMLElement, store: StoreV2, onChange: (
   root.appendChild(list);
 }
 
-function renderRewardRow(item: GearItem, store: StoreV2, onChange: () => void): HTMLElement {
+function renderRewardRow(item: Item, store: StoreV3, onChange: () => void): HTMLElement {
   const row = document.createElement("li");
   row.className = "reward-row";
 
@@ -54,7 +54,7 @@ function renderRewardRow(item: GearItem, store: StoreV2, onChange: () => void): 
 
   const detail = document.createElement("span");
   detail.className = "reward-item-detail";
-  detail.textContent = `T${item.tier} — ${item.facet.text}`;
+  detail.textContent = `T${item.tier} — ${item.facet?.text ?? "no Facet"}`;
   row.appendChild(detail);
 
   const pick = document.createElement("button");
