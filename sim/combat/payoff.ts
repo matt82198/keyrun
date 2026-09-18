@@ -95,7 +95,7 @@ export function tryClosePayoffOnFloor(
   const now = state.tick;
   for (const patch of Object.values(floor.patches)) {
     if (patch.endsTick <= now) continue;
-    const inRange = inCircle(patch.pos, FLOOR_WINDOW_RADIUS_MM, [payoffActor]).length > 0;
+    const inRange = inCircle(patch.pos, patch.radiusMm ?? FLOOR_WINDOW_RADIUS_MM, [payoffActor]).length > 0;
     if (!inRange) continue;
     if (payoffActor.classId === patch.setupClass) {
       emit({
