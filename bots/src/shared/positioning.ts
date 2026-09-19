@@ -86,17 +86,21 @@ export function isInAnyDanger(p: PointMM, telegraphs: Telegraph[]): boolean {
 
 /**
  * Search an outward-expanding square grid (step `gridStepMM`) around `from`
- * for the nearest point that lands in none of the dangerous telegraphs.
- * Returns `from` unchanged if it is already safe; null if no safe point is
- * found within `maxRingsSearched` rings.
+ * for the nearest point that lands in none of the dangerous telegraphs and
+ * satisfies `extraCheck` (default: always true -- e.g. shared/floor.ts's
+ * healer range-keeping passes a "stays within heal range" predicate here so
+ * the same grid search serves both callers without duplicating it).
+ * Returns `from` unchanged if it already qualifies; null if no qualifying
+ * point is found within `maxRingsSearched` rings.
  */
 export function nearestSafePoint(
   from: PointMM,
   telegraphs: Telegraph[],
   gridStepMM = 500,
-  maxRingsSearched = 20
+  maxRingsSearched = 20,
+  extraCheck: (p: PointMM) => boolean = () => true
 ): PointMM | null {
-  if (!isInAnyDanger(from, telegraphs)) return from;
+  if (!isInAnyDanger(from, telegraphs) && extraCheck(from)) return from;
   for (let ring = 1; ring <= maxRingsSearched; ring++) {
     const candidates: PointMM[] = [];
     for (let i = -ring; i <= ring; i++) {
@@ -111,7 +115,7 @@ export function nearestSafePoint(
       return da - db;
     });
     for (const c of candidates) {
-      if (!isInAnyDanger(c, telegraphs)) return c;
+      if (!isInAnyDanger(c, telegraphs) && extraCheck(c)) return c;
     }
   }
   return null;

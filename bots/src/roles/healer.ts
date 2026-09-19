@@ -10,11 +10,17 @@
  * is prefixed "dispellable:" -- the shared ActorState/Telegraph contract carries no explicit
  * dispel flag.
  *
+ * Also flees a hostile floor patch (shared/floor.ts) before any of the above, keeping the escape
+ * point within HEAL_RANGE_M of the party centroid whenever one exists (bots/CLAUDE.md: "stay in
+ * range") rather than just fleeing to the nearest safe ground.
+ *
  * Usage: `import { healerDecide } from "./healer.js"`
  */
 import type { ActorId, ActorState, BotView, Command } from "../types.js";
 import { pickHealTarget, pickDispelTarget } from "../shared/priority.js";
 import { resolveKit } from "../kits.js";
+import { floorEscapeCommand } from "../shared/floor.js";
+import { toMM } from "../shared/positioning.js";
 import { readyAndAffordable, ledgerKickCommand } from "./shared.js";
 
 const DISPELLABLE_PREFIX = "dispellable:";
@@ -46,6 +52,22 @@ export function healerDecide(view: BotView, self: ActorState): Command[] {
 
   const kick = ledgerKickCommand(view, self, kit);
   if (kick) return [kick];
+
+  const party = Object.values(view.state.actors).filter((a) => a.kind === "player" && a.alive && a.id !== self.id);
+  const escapeOpts =
+    party.length > 0
+      ? {
+          keepNear: {
+            anchor: {
+              x: toMM(party.reduce((s, a) => s + a.pos.x, 0) / party.length),
+              z: toMM(party.reduce((s, a) => s + a.pos.z, 0) / party.length),
+            },
+            maxDistMM: toMM(HEAL_RANGE_M),
+          },
+        }
+      : {};
+  const escape = floorEscapeCommand(view, self, escapeOpts);
+  if (escape) return [escape];
 
   if (
     kit.loopKind === "stance" &&
