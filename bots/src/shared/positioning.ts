@@ -3,10 +3,15 @@
  *
  * Integer-millimetre geometry for telegraph avoidance: point-in-shape tests
  * for circle/cone/line telegraphs, plus a small-grid nearest-safe-point
- * search. All math here is integer mm to stay deterministic across
- * platforms (no float drift in replay comparisons).
+ * search. Every coordinate here -- actor positions and Telegraph
+ * center/radius/length/width alike -- is already sim-space integer
+ * millimetres (sim/CLAUDE.md: "Positions in millimetres (int)"), passed
+ * straight from the sim with no unit conversion; there used to be a
+ * `toMM()` here that re-multiplied those already-mm values by 1000 (a
+ * leftover from when this module assumed float-metre input), silently
+ * putting every escape distance 1000x off. Deleted -- see bots/CLAUDE.md.
  *
- * Usage: `import { toMM, inTelegraph, nearestSafePoint } from "./positioning.js"`
+ * Usage: `import { inTelegraph, nearestSafePoint } from "./positioning.js"`
  */
 import type { Telegraph } from "../types.js";
 
@@ -14,11 +19,6 @@ export type MM = number;
 export interface PointMM {
   x: MM;
   z: MM;
-}
-
-/** Convert a sim-space (metres, float) coordinate to integer millimetres. */
-export function toMM(metres: number): MM {
-  return Math.round(metres * 1000);
 }
 
 /** Convert an angle1024 unit (0..1024 = one full turn) to radians. */
@@ -68,16 +68,31 @@ export function pointInLine(
   return forward >= 0 && forward <= lengthMM && Math.abs(side) <= widthMM / 2;
 }
 
-/** True if `p` (mm) falls inside the telegraph's danger shape. */
+/**
+ * True if `p` (mm) falls inside the telegraph's danger shape.
+ *
+ * Two independent pre-existing bugs fixed here alongside the unit fix, both load-bearing for
+ * DELIVER(1)'s cone/line escape behaviour:
+ *  - `tg.yaw` is an angle1024 unit (0..1023, same convention as ActorState.yaw); pointInCone and
+ *    pointInLine's `yawRad` parameter is radians. Passing the raw angle1024 integer straight
+ *    through (no angle1024ToRad) read a real yaw like 200 as ~200 radians -- over 31 full turns
+ *    off -- rather than ~70 degrees.
+ *  - A cone's reach is `tg.radius` (matching sim/encounter/telegraphs.ts's own
+ *    resolveTelegraphs: both "circle" and "cone" read `tg.radius`, only "line" reads
+ *    `tg.length`/`tg.width`). Reading `tg.length` for cones read `undefined ?? 0` on every real
+ *    cone telegraph (telegraph-map.ts never sets `length` on a cone), so a cone's danger zone was
+ *    always radius 0 -- never actually dangerous.
+ */
 export function inTelegraph(p: PointMM, tg: Telegraph): boolean {
-  const center = { x: toMM(tg.center.x), z: toMM(tg.center.z) };
+  const center = { x: tg.center.x, z: tg.center.z };
+  const yawRad = angle1024ToRad(tg.yaw ?? 0);
   if (tg.shape === "circle") {
-    return pointInCircle(p, center, toMM(tg.radius ?? 0));
+    return pointInCircle(p, center, tg.radius ?? 0);
   }
   if (tg.shape === "cone") {
-    return pointInCone(p, center, tg.yaw ?? 0, tg.angle1024 ?? 0, toMM(tg.length ?? 0));
+    return pointInCone(p, center, yawRad, tg.angle1024 ?? 0, tg.radius ?? 0);
   }
-  return pointInLine(p, center, tg.yaw ?? 0, toMM(tg.length ?? 0), toMM(tg.width ?? 0));
+  return pointInLine(p, center, yawRad, tg.length ?? 0, tg.width ?? 0);
 }
 
 export function isInAnyDanger(p: PointMM, telegraphs: Telegraph[]): boolean {

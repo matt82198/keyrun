@@ -104,7 +104,9 @@ describe("Setup play: only opens a Window when a Payoff-capable ally is close en
   });
 
   it("does not Setup when no Payoff-capable ally is in range (falls back to its own rotation)", () => {
-    const farCinderAlly = makeActor({ id: 5, classId: "cinder", pos: { x: 10000, y: 0, z: 0 } });
+    // Out of PAYOFF_ALLY_RANGE_MM's 30m (damage.ts): ActorState.pos is integer mm, so this must be
+    // a real mm distance, not a small hand-picked number.
+    const farCinderAlly = makeActor({ id: 5, classId: "cinder", pos: { x: 40000, y: 0, z: 0 } });
     const enemy = makeActor({ id: 100, kind: "enemy" });
     const warden = makeActor({ id: 2, classId: "warden", resource: 50, pos: { x: 0, y: 0, z: 0 } });
     const view = makeView([farCinderAlly, enemy, warden]);

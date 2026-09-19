@@ -19,7 +19,7 @@ import {
   PAYOFF_ABILITY_PREFIX,
 } from "@bots/src/pings-policy.js";
 import { isPingLive, latestLivePing, WINDOW_EFFECT_PREFIX, type PingEvent } from "@bots/src/shared/pings.js";
-import { toMM } from "@bots/src/shared/positioning.js";
+import { applyMove } from "./apply-move.js";
 import type { ActorState, BotView, SimState } from "@bots/src/types.js";
 
 function makeActor(overrides: Partial<ActorState>): ActorState {
@@ -210,9 +210,9 @@ describe("spotPingMoveCommands", () => {
   });
 
   it("moves a healer/damage bot to a spot ping within PING_MOVE_TICKS, simulated tick by tick", () => {
-    const STEP_METRES = 1.5;
+    const STEP_MM = 1500; // 1.5m/tick, matching a real baseSpeedMmPerTick-ish pace
     const self = makeActor({ id: 2, role: "healer", pos: { x: 0, y: 0, z: 0 } });
-    const spotPoint = { x: 10, z: 0 };
+    const spotPoint = { x: 10000, z: 0 }; // 10m, integer mm -- ping points are sim-space mm
 
     let ticks = 0;
     for (; ticks < PING_MOVE_TICKS; ticks++) {
@@ -221,13 +221,11 @@ describe("spotPingMoveCommands", () => {
       const commands = spotPingMoveCommands(view, self, [ping]);
       const move = commands.find((c) => c.kind === "move");
       if (!move) break;
-      if (move.kind === "move") {
-        self.pos = { x: self.pos.x + move.dir.x * STEP_METRES, y: 0, z: self.pos.z + move.dir.z * STEP_METRES };
-      }
+      self.pos = { ...self.pos, ...applyMove(self.pos, move, STEP_MM) };
     }
 
     expect(ticks).toBeLessThan(PING_MOVE_TICKS);
-    const distMM = Math.hypot(toMM(spotPoint.x - self.pos.x), toMM(spotPoint.z - self.pos.z));
+    const distMM = Math.hypot(spotPoint.x - self.pos.x, spotPoint.z - self.pos.z);
     expect(distMM).toBeLessThanOrEqual(500);
   });
 
@@ -272,7 +270,9 @@ describe("pingReactionCommands priority", () => {
     const self = makeActor({ id: 2, role: "damage", pos: { x: 0, y: 0, z: 0 } });
     const state = makeState([self]);
     const view: BotView = { state, telegraphs: [], classKit: NO_CLASS_KIT };
-    const spotPing: PingEvent = { tick: 10, actorId: 3, kind: "spot", point: { x: 5, z: 0 } };
+    // Past SPOT_ARRIVE_MM's 500mm (pings-policy.ts): a ping point is sim-space mm, so this must be
+    // a real mm distance, not a small hand-picked number.
+    const spotPing: PingEvent = { tick: 10, actorId: 3, kind: "spot", point: { x: 5000, z: 0 } };
 
     const commands = pingReactionCommands(view, self, [spotPing]);
 
