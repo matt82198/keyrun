@@ -4,10 +4,10 @@
 // "three" is CDN-loaded (esbuild external, per client/CLAUDE.md) and not an
 // installed package -- any module that imports it cannot be loaded by Vitest.
 import type { PingEvent } from "../input/ping.js";
-import { SIM_HZ } from "../sim-host/snapshot.js";
+import { TICK_HZ } from "../sim-host/snapshot.js";
 
 /** How long a ping's floor marker + label stay visible: 3 seconds at 20Hz. */
-export const PING_LABEL_LIFETIME_TICKS = 3 * SIM_HZ;
+export const PING_LABEL_LIFETIME_TICKS = 3 * TICK_HZ;
 
 export interface PingLabelContext {
   /** The pinged target is mid-cast on an ability the party can interrupt. */

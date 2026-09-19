@@ -3,7 +3,10 @@
 import { build, context } from "esbuild";
 import { existsSync } from "node:fs";
 
-const entries = ["client/src/main.ts", "screen/src/main.ts"].filter((p) => existsSync(p));
+// research/11-tick-rate-measurement.md (D9) follow-up: client/src/sim-host/worker.ts is now a real
+// Worker entry point (loaded at runtime via `new Worker(...)` from sim-host-client.ts), so it needs
+// its own bundled output alongside main.ts's, same as screen/src/main.ts already gets.
+const entries = ["client/src/main.ts", "client/src/sim-host/worker.ts", "screen/src/main.ts"].filter((p) => existsSync(p));
 const options = {
   entryPoints: entries,
   bundle: true,
