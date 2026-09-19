@@ -2,22 +2,24 @@
 // the command stream is fully test-controlled), each sends one `move` command scheduled comfortably
 // in the future (well clear of any late re-stamping), and after N ticks the server's reported
 // `stateHash` (server/src/snapshot.ts) must equal a LOCAL createRun/stepRun replay of the exact
-// same command stream, run through the same fixupTargeting/applyDeathsAndWipe policy layer
-// room.ts applies -- proof that what the wire reports is exactly what sim/index.ts alone would
-// have produced for that seed, content, and command stream.
+// same command stream, run through the SAME sim-exported fixupTargeting/applyDeathsAndWipe policy
+// (sim/run-wiring.ts) room.ts calls -- no server-only duplicate of that policy exists any more
+// (server-policy-in-sim, P1) -- proof that what the wire reports is exactly what sim/index.ts plus
+// its own public policy exports would have produced for that seed, content, and command stream.
 import { describe, expect, it } from "vitest";
 import { createRun, stepRun } from "../../sim/index";
 import { hashState } from "../../sim/core/state";
 import type { Command } from "../../sim/core/commands";
 import { ROLE_ROSTER, actorIdForSlot, buildPartySpec, type PartyRole } from "../../server/src/roster.js";
-import { loadServerContent } from "../../server/src/content-setup.js";
-import { fixupTargeting, applyDeathsAndWipe } from "../../server/src/targeting-policy.js";
+import { buildServerContent, DUNGEON_ID } from "../../server/src/content-setup.js";
+import { fixupTargeting, applyDeathsAndWipe } from "../../sim/run-wiring";
 import { SEED } from "../../server/src/room.js";
 import type { Snapshot } from "../../server/src/snapshot.js";
 import { startTestServer, type TestServer } from "./harness.js";
 import { TestClient } from "./ws-client.js";
 
 const SETTLE_MARGIN_TICKS = 10;
+const TEST_KEY_LEVEL = 3;
 
 describe("server: wire determinism vs. local sim replay", () => {
   it("server stateHash after N ticks equals a local createRun/stepRun replay", async () => {
@@ -31,7 +33,7 @@ describe("server: wire determinism vs. local sim replay", () => {
       for (const role of roles) {
         const c = await TestClient.connect(server.port);
         clients.push(c);
-        c.send({ v: 1, type: "queue", role });
+        c.send({ v: 2, type: "queue", role, keyLevel: TEST_KEY_LEVEL });
         const joined = await c.waitForType("joined");
         if (joined.type !== "joined") throw new Error("expected joined");
         actorIds.push(joined.actorId);
@@ -51,7 +53,7 @@ describe("server: wire determinism vs. local sim replay", () => {
         const actorId = actorIds[i];
         if (actorId === undefined) return;
         const dir = { x: ((i % 2 === 0 ? 1 : -1) * 500) | 0, z: 500 };
-        c.send({ v: 1, type: "cmd", cmd: { tick: scheduledTick, kind: "move", dir, yaw: 0 } });
+        c.send({ v: 2, type: "cmd", cmd: { tick: scheduledTick, kind: "move", dir, yaw: 0 } });
         sentCommands.push({ tick: scheduledTick, actorId, kind: "move", dir, yaw: 0 });
       });
       // The margin above is generous for a localhost round trip, so none of these should be late
@@ -67,7 +69,7 @@ describe("server: wire determinism vs. local sim replay", () => {
       const serverTick = settled.tick;
 
       // Local replay: identical seed/content/party/policy layer, driven only by sentCommands.
-      const content = loadServerContent();
+      const content = buildServerContent(server.registry, DUNGEON_ID, TEST_KEY_LEVEL);
       const party = buildPartySpec(content.registry);
       const tankIndex = ROLE_ROSTER.findIndex((s: { role: PartyRole }) => s.role === "tank");
       const tankActorId = actorIdForSlot(tankIndex);

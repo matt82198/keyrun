@@ -16,15 +16,15 @@ describe("server: join/queue/snapshot roundtrip", () => {
   it("acks join with a versioned welcome", async () => {
     server = await startTestServer();
     client = await TestClient.connect(server.port);
-    client.send({ v: 1, type: "join" });
+    client.send({ v: 2, type: "join" });
     const welcome = await client.waitForType("welcome");
-    expect(welcome).toEqual({ v: 1, type: "welcome", protocolVersion: 1 });
+    expect(welcome).toEqual({ v: 2, type: "welcome", protocolVersion: 2 });
   });
 
   it("instantly forms a bot-filled room on the first queue (D8: no waiting for humans)", async () => {
     server = await startTestServer();
     client = await TestClient.connect(server.port);
-    client.send({ v: 1, type: "queue", role: "tank" });
+    client.send({ v: 2, type: "queue", role: "tank" });
 
     const joined = await client.waitForType("joined");
     expect(joined).toMatchObject({ type: "joined", actorId: 1, role: "tank", classId: "warden" });
@@ -40,21 +40,25 @@ describe("server: join/queue/snapshot roundtrip", () => {
     expect(others.every((a) => a.controlledBy === "bot")).toBe(true);
   });
 
-  it("rejects a role with no open slot", async () => {
+  it("opens a new room (v2: no more role_full) once every matching slot is human-controlled", async () => {
     server = await startTestServer();
     client = await TestClient.connect(server.port);
     // Fill every damage slot (3) as humans first -- kept connected, since a disconnect would
     // hand the slot back to a bot (backfill.test.ts covers that path) and defeat this test.
     const fillers: TestClient[] = [];
+    let firstRoomId: string | undefined;
     for (let i = 0; i < 3; i++) {
       const c = await TestClient.connect(server.port);
-      c.send({ v: 1, type: "queue", role: "damage" });
-      await c.waitForType("joined");
+      c.send({ v: 2, type: "queue", role: "damage" });
+      const joined = await c.waitForType("joined");
+      if (joined.type !== "joined") throw new Error("expected joined");
+      firstRoomId = joined.roomId;
       fillers.push(c);
     }
-    client.send({ v: 1, type: "queue", role: "damage" });
-    const err = await client.waitForType("error");
-    expect(err).toMatchObject({ type: "error", reason: "role_full" });
+    client.send({ v: 2, type: "queue", role: "damage" });
+    const joined = await client.waitForType("joined");
+    if (joined.type !== "joined") throw new Error("expected joined");
+    expect(joined.roomId).not.toBe(firstRoomId); // routed to a fresh, second room instead of erroring
     for (const c of fillers) c.close();
   });
 });
