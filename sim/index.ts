@@ -52,8 +52,9 @@ import {
   mergeActors,
   rulesConfigOf,
 } from "./run-wiring";
-import { stepEncounter, spawnPull, initialSlackTicks, type BreakBarWiring, type DungeonDef, type EncounterState } from "./encounter/index";
+import { stepEncounter, stepEchoSpawns, spawnPull, initialSlackTicks, type BreakBarWiring, type DungeonDef, type EncounterState } from "./encounter/index";
 import { resolveEncounterRules, mergeLoadoutAbilities, type RunOptions } from "./run-options";
+import { setActiveEncounterRules } from "./combat/clause-hooks";
 import type { PartyMemberSpec, Run, RunContent, StepRunOpts } from "./run-types";
 
 export type { PartyMemberSpec, Run, RunContent, StepRunOpts } from "./run-types";
@@ -153,6 +154,7 @@ export function stepRun(run: Run, commands: Command[], opts?: StepRunOpts): { ru
     run.content.abilities
   );
 
+  setActiveEncounterRules(run.encounter.rules); // clause-mechanics: Hush/Pact hooks read this during coreStep
   const rules = makeRules(rulesConfigOf(run.content));
   const merged = [...commands, ...encResult.commands];
   const stepped = coreStep(run.state, merged, rules);
@@ -164,6 +166,9 @@ export function stepRun(run: Run, commands: Command[], opts?: StepRunOpts): { ru
     const spawned = spawnPull(run.dungeon, nextEncounter.pullIndex, nextState.tick, emit);
     nextState = mergeActors(nextState, spawned);
   }
+  const echo = stepEchoSpawns(nextEncounter, nextState, events, nextState.tick, emit); // clause-mechanics: Echo
+  nextEncounter = echo.encounter;
+  if (echo.spawned.length > 0) nextState = mergeActors(nextState, echo.spawned);
 
   fixupTargeting(nextState);
   nextEncounter = applyDeathsAndWipe(nextState, nextEncounter, events, nextState.tick, emit);

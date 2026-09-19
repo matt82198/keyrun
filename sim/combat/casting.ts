@@ -26,6 +26,8 @@ import { applyDamage, applyHeal } from "./damage";
 import { addThreat } from "./threat";
 import { resolveTargets } from "./targeting";
 import { isqrt } from "./movement";
+import { shouldSilence } from "../encounter/clauses";
+import { getActiveEncounterRules } from "./clause-hooks";
 
 export interface CastContext {
   abilities: Record<string, AbilityDef>;
@@ -56,6 +58,8 @@ export function startCast(
   _point: Vec3 | undefined,
   now: Tick,
 ): string | null {
+  const rules = getActiveEncounterRules();
+  if (rules && shouldSilence(now, rules)) return "silenced";
   if (!isAbilityReady(actor, def, now)) return "not_ready";
   if (actor.resource < def.cost.amount) return "insufficient_resource";
   if (isSchoolLocked(actor, abilitySchool(def), now)) return "school_locked";
