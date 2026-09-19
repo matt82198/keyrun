@@ -4,13 +4,17 @@
  * The tank state machine (bots/CLAUDE.md: "hold threat, face away, use defensives at health
  * thresholds"): kick the priority cast, acquire the highest-threat-deficit enemy, face away from
  * the party centroid, and pop a self-sustain spender (Warden's Vigil) under a higher health floor
- * than its harder defensive (Brace). Pure: (view, self) -> Command[].
+ * than its harder defensive (Brace). Also the tank's floor-patch avoidance/re-approach
+ * (shared/floor.ts): a hostile floor patch under the tank preempts everything below it here, and
+ * once clear, a tank out of melee range of its target walks back in before resuming its usual
+ * facing/defensive logic. Pure: (view, self) -> Command[].
  *
  * Usage: `import { tankDecide } from "./tank.js"`
  */
 import type { ActorState, BotView, Command } from "../types.js";
 import { pickTankTarget } from "../shared/priority.js";
 import { resolveKit } from "../kits.js";
+import { floorEscapeCommand, meleeReapproachCommand } from "../shared/floor.js";
 import { abilityReady, readyAndAffordable, ledgerKickCommand } from "./shared.js";
 
 const TANK_DEFENSIVE_THRESHOLD_PCT = 0.35;
@@ -23,6 +27,11 @@ export function tankDecide(view: BotView, self: ActorState): Command[] {
 
   const kick = ledgerKickCommand(view, self, kit);
   if (kick) return [kick];
+
+  const escape = floorEscapeCommand(view, self);
+  if (escape) return [escape];
+  const reapproach = meleeReapproachCommand(view, self);
+  if (reapproach) return [reapproach];
 
   const out: Command[] = [];
   const targetId = pickTankTarget(view.state.actors, self.id);
