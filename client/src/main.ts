@@ -23,15 +23,14 @@ import { PingMarkerPool, pingLabelText, type PingWorldPlacement } from "./render
 import { SimHost } from "./sim-host/worker.js";
 import { interpolateSnapshots } from "./sim-host/interpolate.js";
 import type { ActorSnapshot, Snapshot } from "./sim-host/snapshot.js";
-import { SIM_TICK_MS } from "./sim-host/snapshot.js";
+import { metrics, attachMetricsHud } from "./sim-host/metrics.js"; // research/11 (D9): ?metrics=1 HUD + window.__keyrunMetrics
 import { fetchContentRegistry } from "./sim-host/content-registry.js";
 import { buildRunSetup } from "./sim-host/run-setup.js";
-import { resolveRunSetupOptions } from "./sim-host/boot-params.js";
+import { resolveRunSetupOptions, parseHz } from "./sim-host/boot-params.js";
 import { deriveHostControlCommands } from "./sim-host/host-commands.js";
 import { RunEndView } from "./hud/run-end.js";
 
 const MOVE_SPEED_MM_PER_TICK = 180; // ~3.6 m/s at 20Hz
-
 const MOVE_CODES: Record<string, keyof MoveKeyState> = {
   KeyW: "forward",
   KeyS: "back",
@@ -53,7 +52,6 @@ async function boot(): Promise<void> {
   } catch {
     keybinds = DEFAULT_KEYBINDS;
   }
-
   const { scene, renderer } = createScene(canvas);
   const orbitCamera = new OrbitCamera(canvas, window.innerWidth / window.innerHeight);
   const actorPool = new ActorPool(scene);
@@ -68,10 +66,10 @@ async function boot(): Promise<void> {
   const moveKeys: MoveKeyState = { forward: false, back: false, left: false, right: false };
   const pingLimiter = new PingRateLimiter();
   const pingEvents: PingEvent[] = [];
-
   window.addEventListener("keydown", (ev) => {
     if (ev.repeat) return;
     keyState.onKeyDown(ev.code);
+    metrics.noteKeyDown(ev.code, performance.now()); // research/11 (D9): input->visible-tick latency
     const moveField = MOVE_CODES[ev.code];
     if (moveField) moveKeys[moveField] = true;
   });
@@ -89,19 +87,19 @@ async function boot(): Promise<void> {
   }
   window.addEventListener("resize", resize);
   resize();
-
+  const searchParams = new URLSearchParams(window.location.search); // shared by opts + ?hz= below
   const registry = await fetchContentRegistry();
-  const opts = resolveRunSetupOptions(new URLSearchParams(window.location.search), registry);
+  const opts = resolveRunSetupOptions(searchParams, registry);
   const setup = buildRunSetup(registry, opts);
-
   let localTick = 0;
-  const simHost = new SimHost(setup);
+  const hz = parseHz(searchParams.get("hz")); // research/11 (D9); undefined => SimHost's default
+  const simHost = new SimHost(setup, hz ? 1000 / hz : undefined);
+  attachMetricsHud();
   let prevSnapshot: Snapshot | null = null;
   let nextSnapshot: Snapshot | null = null;
   let lastSnapshotAt = performance.now();
   let rawById = new Map<number, ActorSnapshot>();
   let prevHealthById = new Map<number, number>();
-
   function placementForPing(event: PingEvent): PingWorldPlacement | null {
     if (event.targetId !== undefined) {
       const pos = actorPool.worldPositionOf(event.targetId);
@@ -144,6 +142,7 @@ async function boot(): Promise<void> {
       }
 
       const justPressed = keyState.sampleAndClearJustPressed();
+      metrics.noteInputSample([...justPressed], performance.now()); // research/11 (D9)
       commands.push(...deriveAbilityCommands(justPressed, keybinds, localTick));
       for (const control of deriveHostControlCommands(justPressed, localTick)) simHost.applyCommand(control);
 
@@ -164,7 +163,8 @@ async function boot(): Promise<void> {
     requestAnimationFrame(frame);
 
     if (prevSnapshot && nextSnapshot) {
-      const alpha = (performance.now() - lastSnapshotAt) / SIM_TICK_MS;
+      const alpha = (performance.now() - lastSnapshotAt) / simHost.tickMs;
+      metrics.recordRenderAlpha(alpha, simHost.tickMs); // research/11 (D9): render staleness
       const interpolated = interpolateSnapshots(prevSnapshot, nextSnapshot, alpha);
       actorPool.sync(interpolated, rawById, nextSnapshot.tick);
       telegraphPool.sync(nextSnapshot.telegraphs, nextSnapshot.tick);

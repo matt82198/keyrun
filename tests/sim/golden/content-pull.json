@@ -1,7 +1,7 @@
 {
   "seed": 24681357,
   "ticks": 400,
-  "contentHash": "69a2a487",
+  "contentHash": "ca325514",
   "commands": [
     {
       "tick": 0,
@@ -1046,7 +1046,7 @@
       "targetId": 1000
     }
   ],
-  "expectedHash": "5c9d92a2",
+  "expectedHash": "58420f4f",
   "eventCounts": {
     "damage": 25,
     "cast_complete": 25,
