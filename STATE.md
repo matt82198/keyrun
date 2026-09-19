@@ -44,9 +44,10 @@ assets; pure POC.
 - Phase 4: server/ authoritative tick + queue/lobby + character screen → 5 humans.
 - Phase 5: tuning with Matt playing.
 
-## NEXT STEPS (2026-09-18 evening — phase 3 reached)
-Playable: `npm run dev` → `http://127.0.0.1:8791/client/index.html?key=5&dungeon=hollow-vault&class=warden` (or cinder/chanter). Main a8d5e76, 534 tests, `test` check required on main (strict).
-1. Land in-flight lanes: fix/aoe-faction (P0: area shapes hit own side), fix/encounter-run-wiring (break bar + onDeath + enemy range through stepRun), feat/bots-floor-avoid, research/tick-rate-measure (decides D9 with numbers).
-2. Then: chanter-stance needs Matt — `[DECIDE]` verse semantics (BIBLE §3/§5) before the sim gets a stance system; other BIBLE `[DECIDE]` items still parked (class names, combo numbers, key range/par time, Ascension visibility).
-3. Phase 4 (server: authoritative tick, WebSocket, queue/lobby, backfill) is next once the sim seams above are closed; the client worker host is the contract the server replaces.
-4. Session end: /refinesystem to zero verified defects — the day's pattern is layer-wiring defects that only public-path (`createRun`+`stepRun`) repros catch; every convergence audit must use that path.
+## NEXT STEPS (2026-09-18 night — phase 4 reached)
+Playable locally (`npm run dev` → `/client/index.html?key=5&dungeon=hollow-vault&class=warden`) and over the network (`npm run server` + `?net=1`). Main 0b63c85, 668 tests. All run policy lives in `stepRun` (one authority, one call site); servers and clients only call createRun/stepRun.
+1. Land fix/run-options-wiring (P0: clause + loadout never reached a run through any host).
+2. Then a convergence audit under the repro-not-citation rule; zero verified defects before any release talk.
+3. Matt decisions parked: chanter-stance (verse semantics), server-account-store (accounts/auth model for Ash over the wire), BIBLE `[DECIDE]` items (class names, combo numbers, key range/par time, Ascension visibility).
+4. Phase 5 is Matt playing: tuning from play, not from tests.
+Standing rule: every audit and integration test reproduces through the public path (createRun/stepRun, the bot loop, the server room over ws, the client worker host); a mechanic that is not wired into the composition root in the same PR is a P0, not a note.
