@@ -7,16 +7,17 @@
  * Usage: `const srv = await startTestServer(); ...; await srv.handle.close();`
  */
 import { startServer, type ServerHandle } from "../../server/src/main.js";
-import { loadServerContent, type ServerContent } from "../../server/src/content-setup.js";
+import { loadServerRegistry } from "../../server/src/content-setup.js";
+import type { ContentRegistry } from "../../content/schema/registry";
 
 export interface TestServer {
   handle: ServerHandle;
   port: number;
-  content: ServerContent;
+  registry: ContentRegistry;
 }
 
 export async function startTestServer(): Promise<TestServer> {
-  const content = loadServerContent();
-  const handle = await startServer(0, content);
-  return { handle, port: handle.port, content };
+  const registry = loadServerRegistry();
+  const handle = await startServer(0, registry);
+  return { handle, port: handle.port, registry };
 }
