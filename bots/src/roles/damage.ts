@@ -5,13 +5,17 @@
  * kick the priority cast, move out of telegraphs"): kick the priority cast, prefer a Payoff on
  * another class's open Window (bots/src/shared/windows.ts, design/BIBLE.md Sec 4/9), prefer a
  * Setup when no Window is open and a Payoff-capable ally is in range, otherwise cycle the
- * cooldown- and resource-aware base rotation (bots/src/kits.ts). Pure: (view, self) -> Command[].
+ * cooldown- and resource-aware base rotation (bots/src/kits.ts). Flees a hostile floor patch
+ * (shared/floor.ts) ahead of all of the above; when the rotation itself has nothing ready, falls
+ * back to a melee bot re-approaching its target, then to walking into a friendly floor Window this
+ * class can close. Pure: (view, self) -> Command[].
  *
  * Usage: `import { damageDecide, pickResourceAwareRotation } from "./damage.js"`
  */
 import type { ActorId, ActorState, BotView, Command, Tick } from "../types.js";
 import { pickRotationAbility } from "../shared/priority.js";
 import { findClosableWindow, openWindowsOn } from "../shared/windows.js";
+import { floorEscapeCommand, meleeReapproachCommand, friendlyWindowApproachCommand } from "../shared/floor.js";
 import { resolveKit, type EffectiveKit } from "../kits.js";
 import { readyAndAffordable, ledgerKickCommand } from "./shared.js";
 
@@ -103,6 +107,9 @@ export function damageDecide(view: BotView, self: ActorState): Command[] {
   const kick = ledgerKickCommand(view, self, kit);
   if (kick) return [kick];
 
+  const escape = floorEscapeCommand(view, self);
+  if (escape) return [escape];
+
   const payoff = payoffOnWindowCommand(view, self, kit);
   if (payoff.length > 0) return payoff;
 
@@ -115,5 +122,10 @@ export function damageDecide(view: BotView, self: ActorState): Command[] {
     if (self.targetId !== null) cmd.targetId = self.targetId;
     return [cmd];
   }
+
+  const reapproach = meleeReapproachCommand(view, self);
+  if (reapproach) return [reapproach];
+  const approach = friendlyWindowApproachCommand(view, self);
+  if (approach) return [approach];
   return [];
 }
