@@ -31,8 +31,11 @@ assets; pure POC.
   get into high keys instantly and play with people who were chill." Three tests every design decision must pass:
   (1) classes with real depth and keys that are genuinely hard; (2) from launch to a high key in under a minute,
   no gatekeeping; (3) the social defaults make strangers chill — mercy, backfill, no score-shaming.
-- D9 **Tick rate**: 20 Hz for the POC as a single `TICK_HZ` constant; research/07 argues 30 Hz; revisit after
-  the first playable with the number measured, not argued.
+- D9 **Tick rate — DECIDED 2026-09-18 (orchestrator, unattended; research/11):** stay at 20 Hz. Measured on the
+  playable (65 s/arm, same seed): 30 Hz cut input→tick p95 from 51 ms to 34 ms but cost +43% CPU, +50% bytes/s,
+  +31% render stalls, and content is authored in raw ticks so the flip alone runs the game 1.5x fast. Reverses if:
+  a real Web Worker removes the scheduler-shaped stalls AND content constants are rescaled in lockstep AND the
+  latency gain still shows in play tests.
 
 ## Phase plan
 - Phase 1 (research day): 9 cited briefs (incl. Fellowship) → design/BIBLE.md v1 (Matt reviews the taste calls).
