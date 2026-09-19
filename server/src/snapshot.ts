@@ -80,6 +80,7 @@ export interface Snapshot {
   parTicks: number;
   pullIndex: number;
   pullCount: number;
+  keyLevel: number;
   /** FNV-1a hash of the authoritative SimState this tick (sim/core/state.ts's hashState) -- the
    * wire-determinism proof; not part of the client's mirrored shape. */
   stateHash: string;
@@ -135,6 +136,7 @@ export function buildSnapshot(run: Run, parTicks: number, maxSlackTicks: number,
     parTicks: run.encounter.parTicks,
     pullIndex: run.encounter.pullIndex,
     pullCount,
+    keyLevel: run.encounter.keyLevel,
     stateHash: hashState(state),
   };
 }
