@@ -1,11 +1,15 @@
 /**
- * tests/client/sim-host/worker-smoke.test.ts
+ * tests/client/sim-host/sim-runtime.test.ts
  *
- * The dispatch brief's headless smoke test: constructs SimHost with the REAL content registry
- * (content/index.ts's loadContent(), which works fine under Node/Vitest -- see run-setup.ts's
- * docstring for why the browser path is a separate fetch-based loader), the real sim, and real
- * bots/src bots, then steps 200 ticks without throwing. No DOM/Three.js touched anywhere in this
- * path (SimHost.step() is pure state advancement), so this needs no jsdom.
+ * The dispatch brief's headless smoke test (renamed from worker-smoke.test.ts: research/11 D9's
+ * real-Worker follow-up moved this class out of worker.ts -- now the actual Worker bootstrap --
+ * into sim-runtime.ts; see that file's docstring): constructs SimRuntime with the REAL content
+ * registry (content/index.ts's loadContent(), which works fine under Node/Vitest -- see
+ * run-setup.ts's docstring for why the browser path is a separate fetch-based loader), the real
+ * sim, and real bots/src bots, then steps 200 ticks without throwing. No DOM/Worker/postMessage
+ * touched anywhere in this path (SimRuntime.step() is pure state advancement), so this needs no
+ * jsdom and no self/postMessage faking -- see worker-entry.test.ts for the test that exercises the
+ * real worker.ts bootstrap instead.
  *
  * KNOWN SIM DEFECT still open at time of writing (outside this lane's sim/** ownership, not
  * worked around here per the coordinator's instruction): sim/encounter/scripts.ts's
@@ -19,16 +23,17 @@
 import { describe, expect, it } from "vitest";
 import { loadContent } from "@content/index";
 import { buildRunSetup } from "../../../client/src/sim-host/run-setup.js";
-import { SimHost } from "../../../client/src/sim-host/worker.js";
+import { SimRuntime } from "../../../client/src/sim-host/sim-runtime.js";
+import type { ActorSnapshot } from "../../../client/src/sim-host/snapshot.js";
 
 const registry = loadContent();
 
-function freshHost(humanClassId: string, keyLevel = 5): SimHost {
+function freshHost(humanClassId: string, keyLevel = 5): SimRuntime {
   const setup = buildRunSetup(registry, { keyLevel, dungeonId: "hollow-vault", humanClassId });
-  return new SimHost(setup);
+  return new SimRuntime(setup);
 }
 
-describe("worker-smoke: SimHost steps 200 ticks without throwing", () => {
+describe("sim-runtime: SimRuntime steps 200 ticks without throwing", () => {
   for (const humanClassId of ["warden", "cinder", "chanter"]) {
     it(`survives 200 ticks with the human playing ${humanClassId}`, () => {
       const host = freshHost(humanClassId);
@@ -52,7 +57,7 @@ describe("worker-smoke: SimHost steps 200 ticks without throwing", () => {
   it("spawns five actors (the human + four bots) at the first stepped snapshot", () => {
     const host = freshHost("warden");
     const snapshot = host.step();
-    const players = snapshot.actors.filter((a) => a.kind === "player");
+    const players = snapshot.actors.filter((a: ActorSnapshot) => a.kind === "player");
     expect(players).toHaveLength(5);
   });
 
@@ -60,9 +65,9 @@ describe("worker-smoke: SimHost steps 200 ticks without throwing", () => {
     const host = freshHost("warden");
     let snapshot = host.step();
     for (let i = 0; i < 199; i++) snapshot = host.step();
-    const enemies = snapshot.actors.filter((a) => a.kind === "enemy");
+    const enemies = snapshot.actors.filter((a: ActorSnapshot) => a.kind === "enemy");
     expect(enemies.length).toBeGreaterThan(0);
-    const anyDamaged = enemies.some((e) => e.health < e.maxHealth) || snapshot.pullIndex! > 0;
+    const anyDamaged = enemies.some((e: ActorSnapshot) => e.health < e.maxHealth) || snapshot.pullIndex! > 0;
     expect(anyDamaged).toBe(true);
   });
 
@@ -71,8 +76,8 @@ describe("worker-smoke: SimHost steps 200 ticks without throwing", () => {
     const high = freshHost("warden", 20);
     const lowSnap = low.step();
     const highSnap = high.step();
-    const lowEnemy = lowSnap.actors.find((a) => a.kind === "enemy")!;
-    const highEnemy = highSnap.actors.find((a) => a.kind === "enemy")!;
+    const lowEnemy = lowSnap.actors.find((a: ActorSnapshot) => a.kind === "enemy")!;
+    const highEnemy = highSnap.actors.find((a: ActorSnapshot) => a.kind === "enemy")!;
     expect(highEnemy.maxHealth).toBeGreaterThan(lowEnemy.maxHealth);
   });
 

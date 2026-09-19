@@ -1,6 +1,16 @@
 // Locally-defined snapshot shape consumed by the client for this POC.
 // An integration lane wires the real sim later; this type is the contract
 // this lane builds against until then (see keyrun-wt/client dispatch brief).
+//
+// research/11-tick-rate-measurement.md (D9) found that this file used to define its own
+// `SIM_HZ = 20` literal, wired independently from sim/core/tick.ts's real `TICK_HZ` -- a latent
+// footgun (the two constants agreed by coincidence, nothing enforced it). `SIM_HZ` is deleted;
+// this is now the one client module that re-exports the sim's own tick-rate constant, so every
+// other client file (render/hud.ts, render/pingLabel.ts) that needs to convert ticks to seconds
+// imports `TICK_HZ` from here (or straight from sim/core/tick.ts) instead of a client-local copy.
+// See tests/client/sim-host/snapshot.test.ts for the coupling assertion.
+import { TICK_HZ } from "../../../sim/core/tick.js";
+export { TICK_HZ };
 
 export type ActorKind = "player" | "enemy";
 
@@ -81,5 +91,7 @@ export interface Snapshot {
   runEnd?: RunEndInfo | null;
 }
 
-export const SIM_HZ = 20;
-export const SIM_TICK_MS = 1000 / SIM_HZ;
+/** Real ms per simulated tick, derived from the sim's own TICK_HZ -- never a separate literal.
+ * worker.ts's default real-time pacing; research/11 (D9)'s `?hz=` override (boot-params.ts's
+ * parseHz) is the only thing allowed to diverge from this, and only when explicitly requested. */
+export const SIM_TICK_MS = 1000 / TICK_HZ;

@@ -205,3 +205,63 @@ outweigh a pacing change nobody decided to make.
 - `renderStalenessMs`/`inputToTickMs` are both shaped by `worker.ts`'s documented main-thread-timer
   deviation (§4); neither number should be read as "what a shipped server-authoritative build would
   show," only as "what this playable shows today."
+
+## 7. Follow-up: real Worker
+
+§4/§5 flagged the render-staleness regression at 30Hz as "very likely a property of this
+scaffold's scheduler, not of 30Hz simulation in general," pointing at `worker.ts`'s own documented
+deviation: `SimHost` ran on the main thread via `setInterval`, not a real Worker, so ticking
+competed with rendering and input handling for the same thread. This lane (`refactor/client-sim-host`,
+PR: client `sim-hz-single-source` / `real-web-worker` / `split-client-main` backlog items) moved the
+fixed-timestep sim loop onto an actual `Worker` (bundled as its own esbuild entry,
+`client/src/sim-host/worker.ts`; main thread <-> worker talk only through `wire.ts`'s postMessage
+shapes) and re-measured render staleness with the exact same method as §2.3-2.4: `scripts/measure-tick-rate.mjs`'s
+own scripted-input choreography (WASD chords + round-robin ability presses), 65s measured window
+after a 5s warmup, same seed (`SimRuntime`'s hardcoded `SEED = 1`), same dungeon/key/class
+(Hollow Vault, key 5, warden), hz=20 (the locked default — this follow-up does not revisit D9's
+20Hz-vs-30Hz decision, only whether moving off the main-thread-timer scaffold fixes the jitter
+source §4 blamed for the 30Hz regression).
+
+| Metric (hz=20, 65s window) | Before (main-thread timer, §3) | After (real Worker) | Change |
+|---|---|---|---|
+| Render-staleness event count | 296 | 107 | -63.9% |
+| Render staleness p50 (ms) | 3.30 | 3.90 | +18.2% |
+| Render staleness p95 (ms) | 19.70 | 18.70 | -5.1% |
+| Render staleness p99 (ms) | 35.70 | 21.60 | -39.5% |
+| Tick count (of ~65s) | 1317 | 1319 | matches (19.99-20.00 ticks/s both arms) |
+| Sim step p50/p95 (ms) | 0.10 / 0.30 | 0.10 / 0.30 | unchanged |
+| CPU time per sim-second (mean step x hz) | 2.867 ms/s | 2.908 ms/s | +1.4%, noise-level |
+
+**Stalls dropped, substantially, on the count that matters most.** The render-staleness *event
+count* -- how often a render frame lands before the next snapshot has arrived at all -- fell from
+296 to 107 (-63.9%) at the same 20Hz tick rate, with the same scripted input, the same content. This
+is the number §4 predicted moving off the main-thread-timer scaffold should improve, since it
+removes ticking as a source of main-thread contention with rendering/input handling, and it did.
+
+**The per-event size (p50/p95/p99 ms) did not move as cleanly, and honestly should be read as a
+wash, not a further win.** p99 dropped a real amount (35.70ms -> 21.60ms, -39.5%) and p95 dropped
+slightly (19.70ms -> 18.70ms, -5.1%), but p50 went *up* (3.30ms -> 3.90ms, +18.2%) -- the real
+Worker has fewer stall events, but a "typical" stall among the ones that still happen is not
+smaller. Sim step cost and CPU/s are unchanged (both arms ran the identical `SimRuntime.step()`
+logic; only where it runs changed), which is the expected result and a useful sanity check that
+this migration did not silently change simulation behavior.
+
+Screenshots: `research/img/hz-20-hud.png` (before, from §3) vs `research/img/hz-20-real-worker-hud.png`
+(after, this follow-up) -- both are the live `?metrics=1` HUD after a 65s scripted run at hz=20.
+
+**Reading this against §5's "what would reverse this recommendation" list:** item (2) there --
+"`worker.ts` moving off the main-thread-timer deviation onto a real `Worker`... should remove
+render-staleness as an argument against 30Hz... that regression looks scheduler-shaped, not
+tick-rate-shaped, and should be re-measured once it's gone" -- is now done. This follow-up only
+re-measured the 20Hz arm (the locked default); it does NOT re-run the 30Hz arm, so it does not by
+itself flip D9. A future lane re-measuring 30Hz against this real-Worker build, alongside item (1)
+(a `content/` pass rescaling tick constants by 1.5x), is what would actually revisit D9 -- this
+entry only closes out the scheduler half of §5's list and records that the fix worked at the
+rate D9 already locked.
+
+**Caveat, same shape as §6:** one 65s run, not a distribution; this is directional, not
+statistically powered. Input-sampling now runs on its own main-thread scheduler
+(`sim-host-client.ts`) decoupled from the worker's stepping scheduler (`worker.ts`) -- there is no
+synchronous round-trip across the postMessage boundary, which is architecturally closer to what a
+real client/server split will look like, but is a real behavioral difference from the pre-Worker
+scaffold's single combined loop, not just an implementation detail.
