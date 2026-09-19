@@ -26,15 +26,22 @@ describe("content-dungeon: buildDungeon", () => {
     expect(highHealth).toBeGreaterThan(lowHealth);
   });
 
-  it("drops onDeath script triggers (seed.elite) but keeps the loop step", () => {
+  it("keeps both the loop step and the onDeath trigger (seed.elite)", () => {
+    // STALE COMMENT FIX (death-trigger-wiring, backlog P1): this test used to assert the opposite
+    // -- that "onDeath" was dropped -- on the claim that sim's ScriptStep type had no "onDeath"
+    // variant. That was already false when written (sim/encounter/scripts.ts's ScriptStep.at is
+    // "loop" | "onDeath" | number, landed by PR #28); `content/data/enemies/seed.json` simply had
+    // no onDeath step yet, so buildDungeon's straight pass-through (scaleStep's non-"loop" branch)
+    // never had one to carry. Now that seed.json declares `{"at":"onDeath","cast":
+    // "seed.deathBloom"}` and sim/index.ts's real stepRun resolves it (see
+    // tests/sim/integration/death.test.ts), buildDungeon correctly keeps it: worker.ts drives the
+    // playable client through that same real stepRun, so this is what makes deathBloom fire there.
     const { dungeon, enemyScripts } = buildDungeon(registry, "hollow-vault", 5);
     const seedPull = dungeon.pulls.find((p) => p.spawns.some((s) => s.classId === "seed.elite"))!;
     const seedId = seedPull.spawns[0]!.actorId;
     const script = enemyScripts[seedId]!;
-    // sim's own ScriptStep type is "loop" | number (no "onDeath" variant at all), so a
-    // successful conversion here is a compile-time guarantee, not just a runtime one.
     expect(script.some((s) => s.cast === "seed.slam")).toBe(true);
-    expect(script.some((s) => s.cast === "seed.deathBloom")).toBe(false);
+    expect(script.some((s) => s.cast === "seed.deathBloom" && s.at === "onDeath")).toBe(true);
   });
 
   it("scales every enemy script step's cadence (loop `every`) with key level", () => {
