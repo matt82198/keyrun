@@ -7,7 +7,7 @@ import { join } from "node:path";
 const LOC_LIMIT = 190;
 
 // Roots scanned for the LOC gate, relative to the repo root.
-const ROOTS = ["sim", "bots", "client/src", "content", "screen/src"];
+const ROOTS = ["sim", "bots", "client/src", "content", "screen/src", "server"];
 
 // Directories never descended into, regardless of root.
 const EXCLUDED_DIR_NAMES = new Set(["node_modules", "dist"]);
