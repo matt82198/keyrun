@@ -46,6 +46,7 @@
 import type { ActorId, Command, SimEvent, SimState } from "./types";
 import { stepEnemyScripts, type EnemyScript } from "./scripts";
 import { resolveTelegraphs, type EncounterState, type Telegraph } from "./telegraphs";
+import { driftTelegraphs } from "./clauses";
 import type { AbilityDef } from "../combat/abilities";
 import {
   tickBreakBarReset,
@@ -108,7 +109,11 @@ export function stepEncounter(
   telegraphEvents.forEach(emit);
   const registered = telegraphEvents.map(registerTelegraph);
 
-  let telegraphs = [...encounter.telegraphs, ...registered];
+  // Tide (design/BIBLE.md sec 8): drifts every tracked telegraph's origin by
+  // `encounter.rules.driftMmPerTick` this tick (a no-op unless Tide is the active Clause) BEFORE
+  // resolving hits, so a telegraph's final, fully-drifted position is what actually gets hit-
+  // tested on its resolution tick.
+  let telegraphs = driftTelegraphs([...encounter.telegraphs, ...registered], encounter.rules);
   const hits = resolveTelegraphs(state, { ...encounter, telegraphs });
   for (const hit of hits) {
     emit({ tick, type: "telegraph_hit", telegraphId: hit.telegraphId, actorIds: hit.hitActorIds });
@@ -151,7 +156,9 @@ export * from "./breakbar";
 export * from "./pulls";
 export * from "./timer";
 export * from "./tempo";
-// Clauses (design/BIBLE.md §8, run modifiers, sim side only): appended, not wired into
-// stepEncounter/stepRun here -- see sim/encounter/clauses.ts's WIRING NOTE for the one-line hook
-// the integration lane (sim/index.ts, PR #15) needs to thread an EncounterRules into EncounterState.
+// Clauses (design/BIBLE.md §8, run modifiers): wired into the tick path here (Tide's drift above)
+// and in echo-spawns.ts (Echo), sim/combat/casting.ts (Hush) and damage.ts (Pact) via
+// sim/combat/clause-hooks.ts's module-scoped active-rules channel, set once per tick by
+// sim/index.ts's stepRun.
 export * from "./clauses";
+export * from "./echo-spawns";

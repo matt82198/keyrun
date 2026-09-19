@@ -14,6 +14,7 @@ import type { EffectDef } from "./effects";
 import { removeEffectInstanceWhere } from "./effects";
 import { inCircle } from "./targeting";
 import { applyComboEffects, lookupCombo, type ComboTable } from "./combos";
+import { runAsCombo } from "./clause-hooks";
 import {
   FLOOR_WINDOW_RADIUS_MM,
   findOpenWindow,
@@ -66,7 +67,9 @@ export function tryClosePayoff(
     setLastSetupClass(target, payoffActor.classId);
     resetLockFailCount(target);
   }
-  applyComboEffects(state, payoffActor, target, combo.effects, effectDefs, emit);
+  // Pact (design/BIBLE.md sec 8): brackets this call so damage.ts's applyDamage sees a combo hit,
+  // not a solo one -- see clause-hooks.ts's file docstring.
+  runAsCombo(() => applyComboEffects(state, payoffActor, target, combo.effects, effectDefs, emit));
   emit({
     tick: now,
     type: "combo",
@@ -111,7 +114,7 @@ export function tryClosePayoffOnFloor(
     const combo = lookupCombo(fieldTable, patch.setupClass, payoffActor.classId);
     if (!combo) continue;
     delete floor.patches[patch.windowId];
-    applyComboEffects(state, payoffActor, payoffActor, combo.effects, effectDefs, emit);
+    runAsCombo(() => applyComboEffects(state, payoffActor, payoffActor, combo.effects, effectDefs, emit));
     emit({
       tick: now,
       type: "combo",
