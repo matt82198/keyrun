@@ -36,6 +36,7 @@ import { buildSnapshot } from "./snapshot-codec.js";
 import { applyDeathsAndWipe, computeRunEndSignals, fixupTargeting } from "./run-policy.js";
 import { computePlayerCommands, type PendingInput } from "./player-commands.js";
 import { computeBotCommands } from "./bot-commands.js";
+import { metrics } from "./metrics.js";
 
 const SEED = 1;
 
@@ -58,8 +59,19 @@ export class SimHost {
   private lastNowMs = Date.now();
   private runEndState: RunEndState = initialRunEndState();
   private readonly maxSlackTicks: number;
+  /** research/11-tick-rate-measurement.md (D9): real ms per simulated tick. Defaults to the
+   * client's SIM_TICK_MS; a caller (main.ts's `?hz=` param) may override it so the measurement
+   * lane can drive the same playable at a different real-time tick rate without editing sim/ --
+   * see metrics.ts's file docstring for why this is the tick-rate knob, not sim/core/tick.ts's
+   * TICK_HZ (that constant is never imported outside sim/; it counts ticks, not wall-clock ms). */
+  readonly tickMs: number;
 
-  constructor(private readonly setup: RunSetup) {
+  constructor(
+    private readonly setup: RunSetup,
+    tickMsOverride?: number,
+  ) {
+    this.tickMs = tickMsOverride ?? SIM_TICK_MS;
+    metrics.hz = Math.round(1000 / this.tickMs);
     this.run = createRun(SEED, setup.party, setup.dungeon, setup.content);
     fixupTargeting(this.run, this.setup);
 
@@ -90,18 +102,21 @@ export class SimHost {
     this.intervalHandle = setInterval(() => {
       const now = Date.now();
       const elapsed = now - this.lastNowMs;
+      metrics.recordTickInterval(elapsed, this.tickMs);
       this.lastNowMs = now;
-      const plan = computeTicksToRun(this.accumulatedMs, elapsed, SIM_TICK_MS);
+      const plan = computeTicksToRun(this.accumulatedMs, elapsed, this.tickMs);
       this.accumulatedMs = plan.nextAccumulatedMs;
       for (let i = 0; i < plan.ticks; i++) {
         if (pullCommands) for (const cmd of pullCommands()) this.applyCommand(cmd);
-        onSnapshot(this.step());
+        const snapshot = this.step();
+        metrics.recordSnapshotBytes(JSON.stringify(snapshot).length);
+        onSnapshot(snapshot);
         if (this.runEndState.info) {
           this.stop();
           return;
         }
       }
-    }, SIM_TICK_MS);
+    }, this.tickMs);
     return () => this.stop();
   }
 
@@ -114,6 +129,13 @@ export class SimHost {
    * headless caller (tests/client/sim-host/worker-smoke.test.ts, a future server) can drive the
    * sim tick-by-tick without going through start()'s real-time scheduler. */
   step(): Snapshot {
+    const stepStartedAtMs = performance.now();
+    const snapshot = this.stepUninstrumented();
+    metrics.recordSimStep(performance.now() - stepStartedAtMs);
+    return snapshot;
+  }
+
+  private stepUninstrumented(): Snapshot {
     const tick = this.run.state.tick;
     this.recentPings = this.recentPings.filter((p) => tick - p.tick <= PING_REACTION_WINDOW_TICKS);
     const botResult = computeBotCommands(this.run, this.bots, this.memories, this.prng, this.recentPings);
