@@ -5,15 +5,16 @@
  * room.ts. The only file allowed to touch `ws`/`node:http` directly (server/CLAUDE.md) -- every
  * other file talks in plain messages and lets this one move bytes.
  *
- * Usage (tests): `const handle = startServer(0, loadServerContent()); ... await handle.close();`
+ * Usage (tests): `const handle = startServer(0, loadServerRegistry()); ... await handle.close();`
  * (port 0 asks the OS for an ephemeral free port -- `handle.port` reports which one it got.)
  */
 import { WebSocketServer, type WebSocket } from "ws";
 import { Lobby } from "./lobby.js";
-import { loadServerContent, type ServerContent } from "./content-setup.js";
+import { loadServerRegistry } from "./content-setup.js";
 import { parseClientFrame, errorMessage, PROTOCOL_VERSION, type ClientMessage, type ServerMessage } from "./protocol.js";
 import type { Room } from "./room.js";
 import type { ActorId } from "../../sim/core/state";
+import type { ContentRegistry } from "../../content/schema/registry";
 
 export const DEFAULT_PORT = 8792;
 const OPEN = 1;
@@ -34,11 +35,7 @@ function handleMessage(lobby: Lobby, session: Session, msg: ClientMessage): void
       send(session.ws, { v: PROTOCOL_VERSION, type: "welcome", protocolVersion: PROTOCOL_VERSION });
       return;
     case "queue": {
-      const hit = lobby.handleQueue(msg.role);
-      if (!hit) {
-        send(session.ws, errorMessage("role_full"));
-        return;
-      }
+      const hit = lobby.handleQueue(msg.role, msg.keyLevel);
       hit.room.attachHuman(hit.actorId, session.ws);
       session.actorId = hit.actorId;
       session.room = hit.room;
@@ -57,6 +54,10 @@ function handleMessage(lobby: Lobby, session: Session, msg: ClientMessage): void
         return;
       }
       if (result.late) send(session.ws, { v: PROTOCOL_VERSION, type: "late", kind: "cmd", originalTick: result.late.originalTick, newTick: result.late.newTick });
+      return;
+    }
+    case "abandon": {
+      session.room?.requestAbandon();
       return;
     }
     case "leave": {
@@ -78,8 +79,8 @@ export interface ServerHandle {
 
 /** Resolves once the WebSocketServer is actually bound and listening -- `port: 0` asks the OS for
  * an ephemeral free port, so `handle.port` is the only reliable way to learn which one it got. */
-export function startServer(port: number, content: ServerContent): Promise<ServerHandle> {
-  const lobby = new Lobby(content);
+export function startServer(port: number, registry: ContentRegistry): Promise<ServerHandle> {
+  const lobby = new Lobby(registry);
   const sessions = new Map<WebSocket, Session>();
 
   return new Promise((resolve) => {
@@ -124,7 +125,7 @@ export function startServer(port: number, content: ServerContent): Promise<Serve
  * file, under which `import.meta.url` never equals `process.argv[1]` no matter how the process was
  * invoked. */
 export function boot(): void {
-  startServer(DEFAULT_PORT, loadServerContent()).then((handle) => {
+  startServer(DEFAULT_PORT, loadServerRegistry()).then((handle) => {
     console.log(`keyrun server listening on :${handle.port}`);
   });
 }

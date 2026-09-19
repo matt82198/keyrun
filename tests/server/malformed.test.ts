@@ -22,7 +22,7 @@ describe("server: malformed input never crashes", () => {
     expect(err).toMatchObject({ type: "error", reason: "malformed_message" });
 
     // The process and this connection are still alive: a well-formed message still works.
-    client.send({ v: 1, type: "join" });
+    client.send({ v: 2, type: "join" });
     const welcome = await client.waitForType("welcome");
     expect(welcome).toMatchObject({ type: "welcome" });
   });
@@ -38,10 +38,10 @@ describe("server: malformed input never crashes", () => {
   it("rejects an invalid sim Command payload without crashing the room", async () => {
     server = await startTestServer();
     client = await TestClient.connect(server.port);
-    client.send({ v: 1, type: "queue", role: "tank" });
+    client.send({ v: 2, type: "queue", role: "tank" });
     await client.waitForType("joined");
 
-    client.send({ v: 1, type: "cmd", cmd: { tick: 0, kind: "teleport-to-victory" } });
+    client.send({ v: 2, type: "cmd", cmd: { tick: 0, kind: "teleport-to-victory" } });
     const err = await client.waitForType("error");
     expect(err).toMatchObject({ type: "error", reason: "malformed_command" });
 

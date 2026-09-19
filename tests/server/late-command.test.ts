@@ -17,7 +17,7 @@ describe("server: late command re-stamping", () => {
   it("re-stamps a stale-tick command to the current tick and reports `late`", async () => {
     server = await startTestServer();
     client = await TestClient.connect(server.port);
-    client.send({ v: 1, type: "queue", role: "tank" });
+    client.send({ v: 2, type: "queue", role: "tank" });
     const joined = await client.waitForType("joined");
     if (joined.type !== "joined") throw new Error("expected joined");
 
@@ -30,7 +30,7 @@ describe("server: late command re-stamping", () => {
     }
     expect(lastTick).toBeGreaterThan(0);
 
-    client.send({ v: 1, type: "cmd", cmd: { tick: 0, kind: "move", dir: { x: 1, z: 0 }, yaw: 0 } });
+    client.send({ v: 2, type: "cmd", cmd: { tick: 0, kind: "move", dir: { x: 1, z: 0 }, yaw: 0 } });
     const late = await client.waitForType("late");
     if (late.type !== "late") throw new Error("expected late");
     expect(late.originalTick).toBe(0);
