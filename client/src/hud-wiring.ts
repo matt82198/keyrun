@@ -1,13 +1,12 @@
 /**
  * client/src/hud-wiring.ts
  *
- * The running game loop: split out of main.ts (research/11 D9 follow-up's real-Worker migration
- * needed room for sim-host-client.ts's whenReady() plumbing, pushing main.ts past the repo's
- * 190-LOC-per-file gate) so every client file stays comfortably under it. boot.ts constructs every
- * DOM/scene/pool/hud object and the SimHostClient, then hands them here once; this file owns the
- * snapshot stream (interpolation state), the per-tick input-sampling closure, and the
- * requestAnimationFrame render loop -- the parts that must share mutable closure state across ticks
- * and frames, so they stay together in one module rather than passed back and forth.
+ * The running game loop: split out of main.ts (research/11 D9's real-Worker migration pushed
+ * main.ts past the repo's 190-LOC-per-file gate). boot.ts constructs every DOM/scene/pool/hud
+ * object and the host (local Worker or net/net-client.ts's NetHostClient -- both satisfy
+ * net/host-handle.ts's `HostHandle`), then hands them here once; this file owns the snapshot
+ * stream (interpolation state), the per-tick input-sampling closure, and the requestAnimationFrame
+ * render loop -- state shared across ticks and frames, so it all stays in one module.
  *
  * Usage: `runGameLoop(deps)` (called once, from boot.ts, after `simHost.whenReady()` resolves).
  */
@@ -24,18 +23,27 @@ import type { KeyState } from "./input/keyState.js";
 import { deriveAbilityCommands, type AnyCommand } from "./input/commands.js";
 import { derivePingEvent, type PingEvent, type PingGroundPoint, type PingRateLimiter } from "./input/ping.js";
 import type { Keybinds } from "./input/keybinds.js";
-import type { SimHostClient } from "./sim-host/sim-host-client.js";
 import { interpolateSnapshots } from "./sim-host/interpolate.js";
 import type { ActorSnapshot, Snapshot } from "./sim-host/snapshot.js";
 import { metrics } from "./sim-host/metrics.js";
 import { deriveHostControlCommands } from "./sim-host/host-commands.js";
 import { RunEndView } from "./hud/run-end.js";
+import type { ConnectionState, HostHandle, NetNotice } from "./net/host-handle.js";
 
 const MOVE_SPEED_MM_PER_TICK = 180; // ~3.6 m/s at 20Hz
 const MOVE_CODES: Record<string, keyof MoveKeyState> = { KeyW: "forward", KeyS: "back", KeyA: "left", KeyD: "right" };
 
+// Only NetHostClient (net/net-client.ts) reports connection state; render/hud.ts is off-limits.
+const CONNECTION_STATE_LABEL: Record<ConnectionState, string> = {
+  connecting: "connecting…",
+  connected: "connected",
+  reconnecting: "reconnecting…",
+  error: "connection error",
+  run_end: "run ended",
+};
+
 export interface GameLoopDeps {
-  simHost: SimHostClient;
+  simHost: HostHandle;
   humanActorId: number;
   keyState: KeyState;
   moveKeys: MoveKeyState;
@@ -51,12 +59,27 @@ export interface GameLoopDeps {
   runEndView: RunEndView;
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
+  connectionStateEl?: HTMLDivElement; // shown/updated only for a host implementing onConnectionState
 }
 
 export { MOVE_CODES };
 
+// Wires the net host's connection-state line + notices into `el`; a no-op for the local host.
+function wireConnectionState(simHost: HostHandle, el: HTMLDivElement | undefined): void {
+  if (!el || !simHost.onConnectionState) return;
+  el.hidden = false;
+  simHost.onConnectionState((state, detail) => {
+    el.textContent = detail ? `${CONNECTION_STATE_LABEL[state]} -- ${detail}` : CONNECTION_STATE_LABEL[state];
+    el.dataset.state = state;
+  });
+  simHost.onNotice?.((notice: NetNotice) => {
+    el.title = notice.kind === "late" ? `late cmd tick ${notice.originalTick}->${notice.newTick}` : `backfilled ticks ${notice.fromTick}->${notice.toTick}`;
+  });
+}
+
 export function runGameLoop(deps: GameLoopDeps): void {
-  const { simHost, humanActorId, actorPool, telegraphPool, damageNumbers, reticle, pingPool, hud, runEndView, orbitCamera, renderer, scene } = deps;
+  const { simHost, humanActorId, actorPool, telegraphPool, damageNumbers, reticle, pingPool, hud, runEndView, orbitCamera, renderer, scene, connectionStateEl } = deps;
+  wireConnectionState(simHost, connectionStateEl);
   let localTick = 0;
   let prevSnapshot: Snapshot | null = null;
   let nextSnapshot: Snapshot | null = null;

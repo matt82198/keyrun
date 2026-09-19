@@ -12,6 +12,12 @@
  * Worker now (see sim-host/worker.ts, sim-host/boot-params.ts), not here; this file only reads
  * `?hz=` (research/11 D9's measurement-only real-time pacing override) to size the Worker's tick
  * interval and to show the "?hz= override active" warning below.
+ *
+ * Host selection: `?net=1` or `?server=<ws url>` picks net/net-client.ts's NetHostClient (speaks
+ * server/src/protocol.ts over WebSocket); anything else keeps the default local Worker host
+ * (client/CLAUDE.md: "the same client later swaps the local sim for a server connection without
+ * changing the render code"). Both hosts satisfy net/host-handle.ts's `HostHandle`, so nothing
+ * below this needs to know which one it got.
  */
 import { loadKeybinds, DEFAULT_KEYBINDS, type Keybinds } from "./input/keybinds.js";
 import { KeyState } from "./input/keyState.js";
@@ -29,7 +35,14 @@ import { SimHostClient } from "./sim-host/sim-host-client.js";
 import { metrics, attachMetricsHud } from "./sim-host/metrics.js"; // research/11 (D9): ?metrics=1 HUD + window.__keyrunMetrics
 import { parseHz } from "./sim-host/boot-params.js";
 import { RunEndView } from "./hud/run-end.js";
+import { NetHostClient } from "./net/net-client.js";
+import type { HostHandle } from "./net/host-handle.js";
 import { runGameLoop, MOVE_CODES } from "./hud-wiring.js";
+
+/** `?net=1` or a `?server=` override selects the net host; anything else keeps the local one. */
+function wantsNetHost(searchParams: URLSearchParams): boolean {
+  return searchParams.get("net") === "1" || searchParams.has("server");
+}
 
 /** research/11 (D9): `?hz=` is a dev-only measurement knob, off by default (parseHz returns
  * undefined for an absent/invalid param, leaving SimHostClient on its sim-derived default tick
@@ -72,6 +85,15 @@ export async function boot(): Promise<void> {
   const pingPool = new PingMarkerPool(scene);
   const hud = new Hud(app, keybinds);
   const runEndView = new RunEndView(app);
+  const connectionStateEl = document.createElement("div");
+  connectionStateEl.className = "net-connection-state";
+  connectionStateEl.hidden = true;
+  connectionStateEl.setAttribute(
+    "style",
+    "position:absolute;top:8px;right:8px;padding:4px 8px;background:rgba(12,16,22,0.8);" +
+      "color:#eef2f6;font:11px/1.3 monospace;border-radius:4px;pointer-events:none;z-index:9999;",
+  );
+  app.appendChild(connectionStateEl);
 
   const keyState = new KeyState();
   const moveKeys: MoveKeyState = { forward: false, back: false, left: false, right: false };
@@ -101,7 +123,10 @@ export async function boot(): Promise<void> {
   const searchParams = new URLSearchParams(window.location.search);
   const hz = parseHz(searchParams.get("hz")); // research/11 (D9); undefined => sim-derived default
   warnIfHzOverridden(hz);
-  const simHost = new SimHostClient(window.location.search, hz ? 1000 / hz : undefined);
+  const tickMsOverride = hz ? 1000 / hz : undefined;
+  const simHost: HostHandle = wantsNetHost(searchParams)
+    ? new NetHostClient(window.location.search, tickMsOverride)
+    : new SimHostClient(window.location.search, tickMsOverride);
   const { humanActorId } = await simHost.whenReady();
   attachMetricsHud();
 
@@ -117,6 +142,7 @@ export async function boot(): Promise<void> {
     telegraphPool,
     damageNumbers,
     reticle,
+    connectionStateEl,
     pingPool,
     hud,
     runEndView,
