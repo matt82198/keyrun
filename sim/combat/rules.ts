@@ -40,6 +40,7 @@ import {
   createFloorRegistry,
   type WindowsContext,
 } from "./windows";
+import { configureAffinityEffects } from "./affinity";
 
 export interface RulesConfig {
   abilities: Record<string, AbilityDef>;
@@ -57,6 +58,13 @@ export interface RulesConfig {
 }
 
 export function makeRules(cfg: RulesConfig): StepRules {
+  // Faction-filter fix (targeting.ts's resolveTargets, sim/combat/affinity.ts): resolveTargets is
+  // called from casting.ts and windows.ts with no effects map in scope, and SimState carries none
+  // either (content is passed in, never stored in state -- sim/CLAUDE.md). This registers the
+  // run's effect definitions once so resolveTargets can classify a circle/cone/line ability whose
+  // only per-actor op is "applyEffect" (Bulwark/Hymn's floor buffs) without duplicating
+  // effects-remove.ts's effectPolarity. See affinity.ts's file docstring for the full rationale.
+  configureAffinityEffects(cfg.effects);
   const ctx: CastContext = { abilities: cfg.abilities, effects: cfg.effects, lockoutTicks: cfg.lockoutTicks };
   const wctx: WindowsContext = {
     effects: cfg.effects,
