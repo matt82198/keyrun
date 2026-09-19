@@ -26,7 +26,7 @@ describe("protocol-guard: parseServerMessage", () => {
   });
 
   it("rejects an unrecognized type", () => {
-    expect(parseServerMessage({ v: 1, type: "teleport-to-victory" })).toBeNull();
+    expect(parseServerMessage({ v: 2, type: "teleport-to-victory" })).toBeNull();
   });
 
   it.each([
@@ -40,7 +40,7 @@ describe("protocol-guard: parseServerMessage", () => {
     ["late", { kind: "cmd", originalTick: 0 }], // missing newTick
     ["left", { actorId: "1" }],
   ])("rejects a malformed %s payload", (type, payload) => {
-    expect(parseServerMessage({ v: 1, type, ...payload })).toBeNull();
+    expect(parseServerMessage({ v: 2, type, ...payload })).toBeNull();
   });
 
   it("parses a well-formed snapshot, keeping the full shape", () => {
@@ -75,8 +75,8 @@ describe("protocol-guard: parseServerMessage", () => {
       pullCount: 2,
       stateHash: "abc123",
     };
-    const msg = parseServerMessage({ v: 1, type: "snapshot", snapshot });
-    expect(msg).toEqual({ v: 1, type: "snapshot", snapshot });
+    const msg = parseServerMessage({ v: 2, type: "snapshot", snapshot });
+    expect(msg).toEqual({ v: 2, type: "snapshot", snapshot });
   });
 
   it("rejects a snapshot whose actor array contains a malformed entry", () => {
@@ -94,6 +94,6 @@ describe("protocol-guard: parseServerMessage", () => {
       pullCount: 2,
       stateHash: "abc123",
     };
-    expect(parseServerMessage({ v: 1, type: "snapshot", snapshot })).toBeNull();
+    expect(parseServerMessage({ v: 2, type: "snapshot", snapshot })).toBeNull();
   });
 });

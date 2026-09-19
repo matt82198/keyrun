@@ -10,7 +10,7 @@
  * Usage: `import type { ServerMessage, ClientMessage } from "./wire-types.js";`
  */
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export type PartyRole = "tank" | "healer" | "damage";
 

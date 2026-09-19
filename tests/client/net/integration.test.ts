@@ -11,7 +11,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { WebSocket as NodeWebSocket } from "ws";
 import { startServer, type ServerHandle } from "../../../server/src/main.js";
-import { loadServerContent } from "../../../server/src/content-setup.js";
+import { loadServerRegistry } from "../../../server/src/content-setup.js";
 import { NetHostClient } from "../../../client/src/net/net-client.js";
 import type { WebSocketLike } from "../../../client/src/net/host-handle.js";
 import type { Snapshot } from "../../../client/src/sim-host/snapshot.js";
@@ -38,7 +38,7 @@ describe("net-client: integration against the real in-process server", () => {
   it(
     "joins/queues as warden, streams >=20 real snapshots, and a move command moves the actor",
     async () => {
-      handle = await startServer(0, loadServerContent());
+      handle = await startServer(0, loadServerRegistry());
       const port = handle.port;
       const factory = (url: string): WebSocketLike => new NodeWebSocket(url) as unknown as WebSocketLike;
 
