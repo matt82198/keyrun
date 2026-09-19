@@ -16,7 +16,7 @@
  */
 import type { ActorId, SimState, Tick, Vec3 } from "./types";
 import type { BreakBarState } from "./breakbar";
-import type { EncounterRules } from "./clauses";
+import type { EchoSpawnRequest, EncounterRules } from "./clauses";
 
 export interface Telegraph {
   id: number;
@@ -49,6 +49,15 @@ export interface EncounterState {
    * this codebase predating this field keeps compiling unchanged; `createRun` sets it explicitly
    * on every real run. */
   firedOnDeath?: Record<ActorId, string[]>;
+  /** Echo (design/BIBLE.md sec 8): weak-add spawn requests queued from this run's interrupted
+   * casts, not yet realized as an actor -- sim/encounter/index.ts's `stepEchoSpawns` reads and
+   * writes this every tick. Optional, defaults to `[]` wherever read, same convention as
+   * `firedOnDeath` above. */
+  pendingEchoSpawns?: EchoSpawnRequest[];
+  /** Next actor id `stepEchoSpawns` will assign to a realized Echo add -- starts at
+   * sim/encounter/index.ts's `ECHO_ACTOR_ID_BASE`, far above any dungeon/party id, so a spawned
+   * add never collides with one. */
+  nextEchoActorId?: number;
 }
 
 const SCALE = 4096;
