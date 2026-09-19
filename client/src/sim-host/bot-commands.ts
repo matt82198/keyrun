@@ -21,6 +21,7 @@ import type { Command } from "../../../sim/core/commands.js";
 import type { Bot, BotMemory } from "../../../bots/src/bot.js";
 import { runBots } from "../../../bots/src/bot.js";
 import type { BotView } from "../../../bots/src/types.js";
+import { buildBotView } from "../../../bots/src/view.js";
 import type { PrngState } from "../../../bots/src/skill.js";
 import type { PingEvent } from "../../../bots/src/shared/pings.js";
 import { toBotTelegraph } from "./telegraph-map.js";
@@ -40,8 +41,7 @@ export function computeBotCommands(
   prng: PrngState,
   pings: readonly PingEvent[],
 ): BotCommandsResult {
-  const telegraphs = run.encounter.telegraphs.map(toBotTelegraph);
-  const view: BotView = { state: run.state, telegraphs, classKit: EMPTY_CLASS_KIT };
+  const view = buildBotView(run.state, run.encounter.telegraphs.map(toBotTelegraph), EMPTY_CLASS_KIT);
   const result = runBots(view, bots, memories, prng, pings);
   return { commands: result.commands, memories: result.memories, prng: result.prng };
 }
