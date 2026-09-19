@@ -26,77 +26,27 @@
  *   const run = createRun(seed, party, dungeonDef, content);
  *   const { run: run2, events } = stepRun(run, commandsForThisTick);
  */
-import { createState, type ActorId, type SimState, type Tick, type Vec3 } from "./core/state";
+import { createState, type SimState } from "./core/state";
 import { step as coreStep } from "./core/tick";
 import type { Command } from "./core/commands";
 import type { SimEvent } from "./core/events";
 import { createActor } from "./combat/actors";
 import { makeRules } from "./combat/rules";
-import type { ComboTable } from "./combat/combos";
-import type { AbilityDef } from "./combat/abilities";
-import type { EffectDef } from "./combat/effects";
-import type { Bounds } from "./combat/movement";
-import { abilityTagsOf, applyBreakBarPatches, mergeActors, rulesConfigOf } from "./run-wiring";
 import {
-  stepEncounter,
-  spawnPull,
-  initialSlackTicks,
-  type BreakBarSource,
-  type BreakBarWiring,
-  type DungeonDef,
-  type EncounterState,
-  type EnemyScript,
-} from "./encounter/index";
-import { defaultEncounterRules, type EncounterRules } from "./encounter/clauses";
+  abilityTagsOf,
+  applyBreakBarPatches,
+  applyDeathsAndWipe,
+  checkRunEnd,
+  fixupTargeting,
+  initialRunEndState,
+  mergeActors,
+  rulesConfigOf,
+} from "./run-wiring";
+import { stepEncounter, spawnPull, initialSlackTicks, type BreakBarWiring, type DungeonDef, type EncounterState } from "./encounter/index";
+import { defaultEncounterRules } from "./encounter/clauses";
+import type { PartyMemberSpec, Run, RunContent, StepRunOpts } from "./run-types";
 
-/** One party member to spawn as a player actor at run creation. */
-export interface PartyMemberSpec {
-  id: ActorId;
-  classId: string;
-  role: "tank" | "healer" | "damage" | "none";
-  pos: Vec3;
-  yaw?: number;
-  maxHealth: number;
-  maxResource: number;
-}
-
-/**
- * The data a run needs beyond the party and dungeon: ability/effect definitions for
- * `sim/combat/rules.ts` (see RulesConfig), the enemy AI scripts for `sim/encounter`, and the
- * encounter pacing knobs (`keyLevel`/`parTicks`) that seed the initial EncounterState. `content`
- * never comes from a `content/` package import -- per sim/CLAUDE.md, sim never imports content;
- * callers (client, tests) pass their own definitions in.
- */
-export interface RunContent {
-  abilities: Record<string, AbilityDef>;
-  effects: Record<string, EffectDef>;
-  lockoutTicks: Tick;
-  baseSpeedMmPerTick: number;
-  actorRadiusMm: number;
-  bounds: Bounds;
-  enemyScripts: Record<ActorId, EnemyScript>;
-  keyLevel?: number;
-  parTicks?: number;
-  encounterRules?: EncounterRules;
-  /** [setupClass][payoffClass] -> ComboDef for target/self ("burst") Windows and Combos
-   * (design/BIBLE.md §4, §5); passed straight through to `sim/combat/rules.ts`'s `RulesConfig`.
-   * Omit for content that does not use Windows and Combos yet -- window/payoff ops then simply
-   * find no combo and no-op (see RulesConfig's own docstring). */
-  combos?: ComboTable;
-  /** Same shape as `combos`, for the smaller "field" combos floor-patch Windows fire. */
-  fieldCombos?: ComboTable;
-  /** [barId] -> break-bar source data (break-bar-wiring, BIBLE.md Sec 9 "The Sundered Twins"),
-   * passed to `stepEncounter` as `BreakBarWiring.sources` on every tick. Omit for content with no
-   * break bars -- `stepRun` then drains none. */
-  breakBarSources?: Record<string, BreakBarSource>;
-}
-
-export interface Run {
-  state: SimState;
-  encounter: EncounterState;
-  dungeon: DungeonDef;
-  content: RunContent;
-}
+export type { PartyMemberSpec, Run, RunContent, StepRunOpts } from "./run-types";
 
 /**
  * Builds a fresh run: a `createState(seed)` with every party member spawned as a player actor,
@@ -139,15 +89,25 @@ export function createRun(seed: number, party: PartyMemberSpec[], dungeon: Dunge
     firedOnDeath: {},
   };
 
-  return { state, encounter, dungeon, content };
+  // P2 policy-inside-stepRun: targeting resolves immediately at creation too, not just on the
+  // first stepRun tick -- a host (or a bot's first-tick decision) never sees an untargeted party.
+  fixupTargeting(state);
+
+  return { state, encounter, dungeon, content, runEnd: initialRunEndState() };
 }
 
 /**
  * Advances `run` by exactly one tick. `commands` must be addressed to `run.state.tick` (the same
  * contract sim/core/tick.step enforces -- anything else is silently dropped). Returns the advanced
- * run and every event emitted this tick (encounter's telegraph/pull events first, then combat's).
+ * run and every event emitted this tick (encounter's telegraph/pull events first, then combat's,
+ * then this tick's targeting-fixup/Slack/run-end policy -- see run-wiring.ts).
+ *
+ * P2 policy-inside-stepRun: this is the one call site every host (server/src/room.ts, client/src/
+ * sim-host/sim-runtime.ts) drives -- targeting fixup, Slack spend on death/wipe, and run-end
+ * detection all happen here, unconditionally, every tick. No host calls run-wiring.ts's helpers
+ * directly any more, so none can forget one, call them out of order, or drift its own copy.
  */
-export function stepRun(run: Run, commands: Command[]): { run: Run; events: SimEvent[] } {
+export function stepRun(run: Run, commands: Command[], opts?: StepRunOpts): { run: Run; events: SimEvent[] } {
   const events: SimEvent[] = [];
   const emit = (e: SimEvent): void => {
     events.push(e);
@@ -180,8 +140,20 @@ export function stepRun(run: Run, commands: Command[]): { run: Run; events: SimE
     nextState = mergeActors(nextState, spawned);
   }
 
+  fixupTargeting(nextState);
+  nextEncounter = applyDeathsAndWipe(nextState, nextEncounter, events, nextState.tick, emit);
+
+  const runEnd = checkRunEnd(run.runEnd, nextState, nextEncounter, run.dungeon, nextState.tick, opts?.abandonRequested ?? false, emit);
+  if (runEnd.result !== null && run.runEnd.result === null) {
+    // A "depleted" result is always true by definition (run-wiring.ts's checkRunEnd) even when
+    // applyDeathsAndWipe's own Slack spend didn't happen to reach 0 -- keep the Snapshot-facing
+    // flag consistent with the result being reported.
+    if (runEnd.result === "depleted") nextEncounter = { ...nextEncounter, depleted: true };
+    emit({ tick: nextState.tick, type: "run_end", result: runEnd.result });
+  }
+
   return {
-    run: { state: nextState, encounter: nextEncounter, dungeon: run.dungeon, content: run.content },
+    run: { state: nextState, encounter: nextEncounter, dungeon: run.dungeon, content: run.content, runEnd },
     events,
   };
 }

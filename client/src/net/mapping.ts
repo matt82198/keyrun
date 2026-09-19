@@ -9,12 +9,18 @@
  * sim-host/player-commands.ts derives for the local path (same yawFromComponents call, same
  * targetId-defaults-to-current-target-or-self rule).
  *
+ * P2 (policy-inside-stepRun): `toClientSnapshot` no longer derives a `runEnd` signal from wire
+ * snapshot data (the old `isRunEnded`/`runOutcome`, deleted) -- the server now sends an explicit,
+ * authoritative `run_end` message (server/src/protocol.ts) the moment sim/index.ts's stepRun
+ * decides the run is over; net-client.ts consumes that directly and overlays it onto the mapped
+ * Snapshot, the same one-authority contract sim-runtime.ts's local path now follows.
+ *
  * Usage: `const snapshot = toClientSnapshot(serverSnapshot);`
  *        `const payload = translateHostCommand(cmd, { targetId, enemies });`
  */
 import { yawFromComponents } from "../../../sim/core/atan.js";
 import type { HostCommand } from "../sim-host/wire.js";
-import type { ActorSnapshot as ClientActorSnapshot, RunOutcome, Snapshot as ClientSnapshot } from "../sim-host/snapshot.js";
+import type { ActorSnapshot as ClientActorSnapshot, Snapshot as ClientSnapshot } from "../sim-host/snapshot.js";
 import type { ClientCommandPayload, PartyRole, ServerActorSnapshot, ServerSnapshot } from "./wire-types.js";
 
 /** Mirrors server/src/roster.ts's ROLE_ROSTER class -> role binding (read-only, not imported --
@@ -37,26 +43,9 @@ function toClientActor(a: ServerActorSnapshot): ClientActorSnapshot {
   return { id: a.id, kind: a.kind, role: a.role, classId: a.classId, pos: a.pos, yaw: a.yaw, health: a.health, maxHealth: a.maxHealth, resource: a.resource, maxResource: a.maxResource, alive: a.alive, targetId: a.targetId, cast: a.cast, cooldowns: a.cooldowns };
 }
 
-function runOutcome(s: ServerSnapshot): RunOutcome {
-  const players = s.actors.filter((a) => a.kind === "player");
-  if (players.length > 0 && players.every((a) => !a.alive)) return "abandoned";
-  return s.depleted ? "depleted" : "timed";
-}
-
-/** No server `run_end` message exists yet (server/CLAUDE.md room.ts DEVIATION: "a room ticks until
- * externally stopped") -- derives the same terminal signal client/src/hud/run-end.ts's local path
- * reads straight off the sim, from wire data alone: every player actor is dead, or the final
- * pull's enemies are all down. Content-agnostic (no hardcoded boss actor id). */
-function isRunEnded(s: ServerSnapshot): boolean {
-  const players = s.actors.filter((a) => a.kind === "player");
-  const enemies = s.actors.filter((a) => a.kind === "enemy");
-  const allPlayersDead = players.length > 0 && players.every((a) => !a.alive);
-  const finalPullCleared = s.pullIndex >= s.pullCount - 1 && enemies.length > 0 && enemies.every((a) => !a.alive);
-  return allPlayersDead || finalPullCleared;
-}
-
-/** Strips server-only fields (stateHash, per-actor controlledBy) and adds the client-only `runEnd`
- * signal -- the exact Snapshot shape hud-wiring.ts already consumes from the local Worker host. */
+/** Strips server-only fields (stateHash, per-actor controlledBy) -- the exact Snapshot shape
+ * hud-wiring.ts already consumes from the local Worker host, minus `runEnd`: net-client.ts overlays
+ * that itself from the server's own `run_end` message (see file docstring), never derived here. */
 export function toClientSnapshot(s: ServerSnapshot): ClientSnapshot {
   return {
     tick: s.tick,
@@ -70,7 +59,7 @@ export function toClientSnapshot(s: ServerSnapshot): ClientSnapshot {
     parTicks: s.parTicks,
     pullIndex: s.pullIndex,
     pullCount: s.pullCount,
-    runEnd: isRunEnded(s) ? { outcome: runOutcome(s), tick: s.tick } : null,
+    runEnd: null,
   };
 }
 

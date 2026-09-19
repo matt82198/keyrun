@@ -41,15 +41,17 @@ worker host for a thin network client with minimal shape changes.
 - `roster.ts` — `ROLE_ROSTER` (tank=warden, healer=chanter, damage×3=cinder — the only role/class
   binding `content/data/classes` currently supports), fixed actorId-by-slot-index assignment, and
   `buildPartySpec` (positions/health/resource per slot, same numbers as `content-party.ts`).
-- `targeting-policy.ts` — `fixupTargeting`/`applyDeathsAndWipe`, mirrors `client/src/sim-host/
-  run-policy.ts`'s enemy-auto-target and Slack-spend-on-death/wipe policy (sim has no enemy AI
-  target acquisition of its own — see that file's docstring).
+- `run-end.ts` — `buildRunEndPayload`: the `run_end` wire payload (reward roll) once a run has
+  ended. Targeting fixup, Slack spend on death/wipe, and run-end DETECTION (timed/depleted/abandoned,
+  WHEN it happens) live inside `sim/index.ts`'s `stepRun` itself now (policy-inside-stepRun, P2) —
+  no server-side file decides or duplicates any of that; `room.ts` reads `run.runEnd` and forwards
+  an explicit human abandon in as `stepRun`'s `abandonRequested` option.
 - `lobby.ts` — role queue; instantly forms a room on the first queue (bot-fills every other slot) or
   hands a queued human a room's existing bot-controlled slot of the right role (the same mechanism
   serves initial fill and mid-run backfill).
 - `room.ts` — one authoritative `Run`: the fixed-timestep tick loop, per-tick command buffering with
   late re-stamping, bot decision-making for bot-controlled slots, disconnect → bot-takeover-next-tick,
-  and per-tick broadcast (`snapshot` + `event`).
+  per-tick broadcast (`snapshot` + `event`), and — once `run.runEnd` is set — `run_end`.
 - `main.ts` — `npm run server`: starts the `ws` `WebSocketServer` on `:8792`, wires connections to
   `lobby.ts`/`room.ts`, and is the only file allowed to touch `node:http`/`ws` directly.
 

@@ -185,6 +185,52 @@ describe("NetHostClient: snapshot -> host interface mapping", () => {
   });
 });
 
+describe("NetHostClient: run_end (P2 policy-inside-stepRun -- consumes the server's message)", () => {
+  it("overlays the server's authoritative run_end onto the last snapshot and moves to the run_end state", async () => {
+    const { factory, sockets } = makeFactory();
+    const client = new NetHostClient("", 10, factory);
+    const states: ConnectionState[] = [];
+    client.onConnectionState((s) => states.push(s));
+    await joinAndQueue(sockets[0]!);
+    await client.whenReady();
+
+    const received: Snapshot[] = [];
+    stops.push(client.start((s) => received.push(s)));
+
+    sockets[0]!.receive({ v: 2, type: "snapshot", snapshot: server({ tick: 40 }) });
+    expect(received.at(-1)!.runEnd).toBeNull();
+
+    sockets[0]!.receive({
+      v: 2,
+      type: "run_end",
+      roomId: "room-1",
+      result: "depleted",
+      keyLevel: 5,
+      tick: 41,
+      rewardChoices: [],
+    });
+
+    // No further "snapshot" message ever arrives once run_end fires (room.ts stops ticking) --
+    // the HUD-facing result still reaches onSnapshot, re-emitted against the last snapshot.
+    expect(received.at(-1)!.runEnd).toEqual({ outcome: "depleted", tick: 41 });
+    expect(states.at(-1)).toBe("run_end");
+
+    // A subsequent snapshot (e.g. one already in flight) keeps carrying the same result.
+    sockets[0]!.receive({ v: 2, type: "snapshot", snapshot: server({ tick: 41 }) });
+    expect(received.at(-1)!.runEnd).toEqual({ outcome: "depleted", tick: 41 });
+  });
+
+  it("sends the server a real abandon message instead of only flipping local state", async () => {
+    const { factory, sockets } = makeFactory();
+    const client = new NetHostClient("", 10, factory);
+    await joinAndQueue(sockets[0]!);
+    await client.whenReady();
+
+    client.applyCommand({ type: "abandon", tick: 0 });
+    expect(sockets[0]!.sent).toContainEqual({ v: 2, type: "abandon" });
+  });
+});
+
 describe("NetHostClient: reconnect", () => {
   it("retries an unexpected close with reconnect.ts's deterministic capped-exponential backoff", () => {
     vi.useFakeTimers();

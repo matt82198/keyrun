@@ -13,7 +13,7 @@
  *
  * Usage: `const msg = parseServerFrame(rawText); if (!msg) return; // ignore, fail closed`
  */
-import { PROTOCOL_VERSION, type ServerActorSnapshot, type ServerMessage, type ServerSnapshot } from "./wire-types.js";
+import { PROTOCOL_VERSION, type ServerActorSnapshot, type ServerMessage, type ServerRunResult, type ServerSnapshot } from "./wire-types.js";
 
 export { PROTOCOL_VERSION };
 
@@ -23,6 +23,10 @@ function isObject(v: unknown): v is Record<string, unknown> {
 
 function isRole(v: unknown): v is "tank" | "healer" | "damage" {
   return v === "tank" || v === "healer" || v === "damage";
+}
+
+function isRunResult(v: unknown): v is ServerRunResult {
+  return v === "timed" || v === "depleted" || v === "abandoned";
 }
 
 function isActorSnapshot(v: unknown): v is ServerActorSnapshot {
@@ -82,6 +86,10 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
     case "late":
       return typeof raw.kind === "string" && typeof raw.originalTick === "number" && typeof raw.newTick === "number"
         ? { v, type: "late", kind: raw.kind, originalTick: raw.originalTick, newTick: raw.newTick }
+        : null;
+    case "run_end":
+      return typeof raw.roomId === "string" && isRunResult(raw.result) && typeof raw.keyLevel === "number" && typeof raw.tick === "number"
+        ? { v, type: "run_end", roomId: raw.roomId, result: raw.result, keyLevel: raw.keyLevel, tick: raw.tick, rewardChoices: raw.rewardChoices }
         : null;
     case "left":
       return typeof raw.actorId === "number" ? { v, type: "left", actorId: raw.actorId } : null;

@@ -26,6 +26,7 @@ export type ClientMessage =
   | { v: number; type: "join" }
   | { v: number; type: "queue"; role: PartyRole }
   | { v: number; type: "cmd"; cmd: ClientCommandPayload }
+  | { v: number; type: "abandon" }
   | { v: number; type: "leave" };
 
 export type ServerActorKind = "player" | "enemy";
@@ -78,6 +79,10 @@ export interface ServerSnapshot {
   stateHash: string;
 }
 
+/** Mirrors sim/encounter/timer.ts's RunResult (server/src/protocol.ts, not imported -- server/**
+ * is off-limits to this lane). Structurally identical to sim-host/snapshot.ts's own RunOutcome. */
+export type ServerRunResult = "timed" | "depleted" | "abandoned";
+
 export type ServerMessage =
   | { v: number; type: "welcome"; protocolVersion: number }
   | { v: number; type: "queued"; role: PartyRole }
@@ -86,4 +91,7 @@ export type ServerMessage =
   | { v: number; type: "snapshot"; snapshot: ServerSnapshot }
   | { v: number; type: "event"; events: unknown[] }
   | { v: number; type: "late"; kind: string; originalTick: number; newTick: number }
+  /** roomId/keyLevel/rewardChoices ride along for a later lane (screen/**, off-limits here) --
+   * this lane only reads `result`/`tick`. */
+  | { v: number; type: "run_end"; roomId: string; result: ServerRunResult; keyLevel: number; tick: number; rewardChoices: unknown }
   | { v: number; type: "left"; actorId: number };

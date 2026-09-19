@@ -12,16 +12,25 @@
  * `whenReady()` resolves on the connection's first `joined`. Every `snapshot` after that is
  * translated (mapping.ts's `toClientSnapshot`) and handed to the `onSnapshot` callback `start()`
  * was given, identically to the local Worker host. A `late` server message and a post-reconnect
- * tick gap are surfaced via `onNotice`; connection state (connecting/connected/reconnecting/error)
- * plus this file's own `run_end` (derived from wire data -- see mapping.ts's `toClientSnapshot`,
- * or an explicit local "abandon" host control) are surfaced via `onConnectionState`.
+ * tick gap are surfaced via `onNotice`.
+ *
+ * P2 (policy-inside-stepRun): the run's end is now the server's own, authoritative `run_end`
+ * message (server/src/protocol.ts, built from sim/index.ts's stepRun via server/src/room.ts) --
+ * `handleRunEnd` stores it and overlays it onto the next Snapshot handed to `onSnapshot` (or
+ * immediately, against the last snapshot received, since the server stops broadcasting `snapshot`
+ * the instant it sends `run_end` -- room.ts's `start()` stops its own tick loop right after). The
+ * old client-side derivation (mapping.ts's `isRunEnded`/`runOutcome`, reading wipe/pull-clear
+ * straight off wire snapshot data) is deleted. An explicit human abandon now genuinely reaches the
+ * server too (`{type:"abandon"}`, server/src/protocol.ts) instead of only flipping this client's own
+ * local connection state -- that local flip never told the server anything, so the room never
+ * actually ended (a real defect this lane's ownership of net/** run_end consumption also fixes).
  *
  * Usage: `const client = new NetHostClient(location.search, tickMsOverride);
  * const { humanActorId } = await client.whenReady();
  * const stop = client.start(onSnapshot, pullCommands);`
  */
 import type { AnyCommand } from "../input/commands.js";
-import type { Snapshot } from "../sim-host/snapshot.js";
+import type { RunEndInfo, Snapshot } from "../sim-host/snapshot.js";
 import { SIM_TICK_MS } from "../sim-host/snapshot.js";
 import type { SimHostReady } from "../sim-host/sim-host-client.js";
 import { computeTicksToRun } from "../sim-host/scheduler.js";
@@ -30,7 +39,7 @@ import { PROTOCOL_VERSION } from "./protocol-guard.js";
 import { resolveClassId, roleForClassId, toClientSnapshot, translateHostCommand } from "./mapping.js";
 import { detectBackfill } from "./reconnect.js";
 import { NetConnection } from "./connection.js";
-import type { ServerSnapshot } from "./wire-types.js";
+import type { ServerRunResult, ServerSnapshot } from "./wire-types.js";
 import { DEFAULT_SERVER_URL, defaultWebSocketFactory, type ConnectionState, type HostHandle, type NetNotice, type WebSocketFactory } from "./host-handle.js";
 
 export { DEFAULT_SERVER_URL };
@@ -54,6 +63,8 @@ export class NetHostClient implements HostHandle {
   private lastSnapshotTick: number | null = null;
   private lastTargetId: number | null = null;
   private lastEnemies: { id: number; alive: boolean }[] = [];
+  private lastSnapshot: Snapshot | null = null;
+  private runEndInfo: RunEndInfo | null = null;
   private runEndedAlready = false;
 
   constructor(search: string, tickMsOverride?: number, wsFactory: WebSocketFactory = defaultWebSocketFactory) {
@@ -69,6 +80,7 @@ export class NetHostClient implements HostHandle {
       onJoined: (actorId) => this.handleJoined(actorId),
       onSnapshot: (s) => this.handleSnapshot(s),
       onLate: (originalTick, newTick) => this.onNoticeCb?.({ kind: "late", originalTick, newTick }),
+      onRunEnd: (result, tick) => this.handleRunEnd(result, tick),
     });
   }
 
@@ -88,10 +100,10 @@ export class NetHostClient implements HostHandle {
   applyCommand(cmd: HostCommand): void {
     const kind = (cmd as { type: string }).type;
     if (kind === "abandon") {
-      if (!this.runEndedAlready) {
-        this.runEndedAlready = true;
-        this.setState("run_end");
-      }
+      // Tells the SERVER to end the run (server/src/protocol.ts's `{type:"abandon"}`) -- the
+      // authoritative `run_end` message that follows (handleRunEnd) is what actually moves this
+      // client to the "run_end" connection state, not this call itself.
+      this.conn.send({ v: PROTOCOL_VERSION, type: "abandon" });
       return;
     }
     if (kind === "ping") return; // no sim-side wire equivalent (sim-host/wire.ts)
@@ -133,12 +145,22 @@ export class NetHostClient implements HostHandle {
     const self = this.humanActorId !== null ? s.actors.find((a) => a.id === this.humanActorId) : undefined;
     this.lastTargetId = self?.targetId ?? null;
 
-    const snapshot = toClientSnapshot(s);
-    if (snapshot.runEnd && !this.runEndedAlready) {
+    const snapshot = { ...toClientSnapshot(s), runEnd: this.runEndInfo };
+    this.lastSnapshot = snapshot;
+    this.onSnapshot?.(snapshot);
+  }
+
+  /** The server's own authoritative run-end signal (server/src/protocol.ts's `run_end` message) --
+   * see file docstring. No further `snapshot` message will ever arrive once this fires (room.ts
+   * stops its own tick loop right after sending it), so this re-emits the last snapshot received,
+   * with `runEnd` now populated, rather than waiting for one that will never come. */
+  private handleRunEnd(result: ServerRunResult, tick: number): void {
+    this.runEndInfo = { outcome: result, tick };
+    if (!this.runEndedAlready) {
       this.runEndedAlready = true;
       this.setState("run_end");
     }
-    this.onSnapshot?.(snapshot);
+    if (this.lastSnapshot) this.onSnapshot?.({ ...this.lastSnapshot, runEnd: this.runEndInfo });
   }
 
   private setState(s: ConnectionState, detail?: string): void {

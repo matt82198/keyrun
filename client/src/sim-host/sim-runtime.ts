@@ -3,10 +3,19 @@
  *
  * Pure sim-stepping runtime: runs sim/index.ts's createRun/stepRun against a real content/data
  * registry (run-setup.ts) -- the human plus four bots/src bots in Hollow Vault -- and maps the
- * resulting SimState + encounter telegraphs into Snapshot (snapshot-codec.ts). Targeting fixups,
- * Slack spending and run-end detection live in run-policy.ts / hud/run-end.ts; command derivation
+ * resulting SimState + encounter telegraphs into Snapshot (snapshot-codec.ts). Command derivation
  * lives in player-commands.ts / bot-commands.ts. This file is the orchestrator only, kept under
  * the repo's 190-LOC-per-file gate (tests/repo/loc.test.ts) by that split.
+ *
+ * P2 (policy-inside-stepRun): targeting fixup, Slack spend on death/wipe, and run-end detection
+ * used to be a separate call this file made every tick (run-policy.ts, now deleted) into
+ * hud/run-end.ts's own state machine (also deleted -- see that file's docstring). All of it lives
+ * inside sim/index.ts's stepRun now; this file just forwards an explicit human abandon in as
+ * `stepRun`'s `abandonRequested` option (the one signal sim cannot derive on its own) and reads
+ * `this.run.runEnd` back out. DEVIATION note this replaces: no respawn/rez mechanic exists anywhere
+ * in sim -- a dead player actor simply stays dead. A full party wipe would otherwise soft-lock the
+ * run forever (nothing left to act), so sim/run-wiring.ts's checkRunEnd auto-ends it "depleted"
+ * after a grace window.
  *
  * Extracted out of worker.ts (research/11 D9 follow-up: that file is now the real Worker's own
  * bootstrap/message-loop, not this class) so `step()` stays exactly what it always was -- pure
@@ -15,15 +24,9 @@
  * the only caller in production; it measures its own wall-clock cost around each `step()` call
  * (see that file's docstring for why: metrics.ts's singleton only exists on the main thread,
  * unreachable from inside a real Worker's separate global scope).
- *
- * DEVIATION: no respawn/rez mechanic exists anywhere in sim -- a dead player actor simply stays
- * dead. A full party wipe would otherwise soft-lock the run forever (nothing left to act), so
- * run-policy.ts's signals feed hud/run-end.ts's auto-abandon-after-a-grace-window policy.
  */
 import type { PingEvent } from "../input/ping.js";
-import type { Snapshot } from "./snapshot.js";
-import type { RunEndState } from "../hud/run-end.js";
-import { initialRunEndState, stepRunEnd } from "../hud/run-end.js";
+import type { RunEndInfo, Snapshot } from "./snapshot.js";
 
 import { createRun, stepRun, type Run } from "../../../sim/index.js";
 import type { ActorId } from "../../../sim/core/state.js";
@@ -34,7 +37,6 @@ import { seedPrng, type PrngState } from "../../../bots/src/skill.js";
 import { PING_REACTION_WINDOW_TICKS } from "../../../bots/src/shared/pings.js";
 import type { RunSetup } from "./run-setup.js";
 import { buildSnapshot } from "./snapshot-codec.js";
-import { applyDeathsAndWipe, computeRunEndSignals, fixupTargeting } from "./run-policy.js";
 import { computePlayerCommands, type PendingInput } from "./player-commands.js";
 import { computeBotCommands } from "./bot-commands.js";
 import type { HostCommand } from "./wire.js";
@@ -50,12 +52,10 @@ export class SimRuntime {
   private pendingStopcast = false;
   private abandonRequested = false;
   private recentPings: PingEvent[] = [];
-  private runEndState: RunEndState = initialRunEndState();
   private readonly maxSlackTicks: number;
 
   constructor(private readonly setup: RunSetup) {
-    this.run = createRun(SEED, setup.party, setup.dungeon, setup.content);
-    fixupTargeting(this.run, this.setup);
+    this.run = createRun(SEED, setup.party, setup.dungeon, setup.content); // targeting already resolved: see sim/index.ts's createRun
 
     for (const member of setup.party) {
       if (member.id === setup.humanActorId) continue;
@@ -91,15 +91,15 @@ export class SimRuntime {
       this.pendingStopcast = false;
     }
 
-    const stepped = stepRun(this.run, commands);
+    const stepped = stepRun(this.run, commands, { abandonRequested: this.abandonRequested });
     this.run = stepped.run;
-    fixupTargeting(this.run, this.setup);
-    this.run = applyDeathsAndWipe(this.run, stepped.events, tick);
-
-    const signals = computeRunEndSignals(this.run, this.setup, this.abandonRequested, tick);
     this.abandonRequested = false;
-    this.runEndState = stepRunEnd(this.runEndState, signals);
 
-    return buildSnapshot(this.run, this.setup, this.maxSlackTicks, this.runEndState.info);
+    const runEnd: RunEndInfo | null =
+      this.run.runEnd.result !== null && this.run.runEnd.resultTick !== null
+        ? { outcome: this.run.runEnd.result, tick: this.run.runEnd.resultTick }
+        : null;
+
+    return buildSnapshot(this.run, this.setup, this.maxSlackTicks, runEnd);
   }
 }

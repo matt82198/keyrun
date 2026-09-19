@@ -1,41 +1,48 @@
 /**
  * sim/run-wiring.ts — small helpers split out of sim/index.ts to keep it under sim/CLAUDE.md's
- * <=190-LOC-per-file cap (break-bar-wiring / death-trigger-wiring follow-up to PR #33): building a
- * `RulesConfig` and merging spawned actors (both pre-existing sim/index.ts private helpers, moved
- * here verbatim), turning `RunContent.abilities` into the `abilityTags` map
- * sim/encounter/breakbar.ts's `deriveBreakBarInputs` wants, and applying a tick's
- * `BreakBarEffectPatch[]` (sim/encounter/index.ts's `StepEncounterResult.effectPatches`) to
- * `SimState` via sim/combat/effects.ts's real `applyEffectInstance` -- exactly what
- * tests/sim/integration/break-bar.test.ts's own local `advanceTick` did by hand before `stepRun`
- * did this itself. `RunContent` is imported type-only (erased at compile time, per esbuild/tsc's
- * handling of `import type`), so this file and sim/index.ts's mutual reference is not a runtime
- * circular dependency.
+ * <=190-LOC-per-file cap: building a `RulesConfig`, merging spawned actors, the `abilityTags` map
+ * sim/encounter/breakbar.ts's `deriveBreakBarInputs` wants, applying a tick's break-bar effect
+ * patches, and (P2, policy-inside-stepRun) the run's own host policy: enemy/damage-role
+ * auto-targeting, Slack spend on death/wipe, and run-end detection.
  *
- * Usage: `const cfg = rulesConfigOf(content); const tags = abilityTagsOf(content.abilities);`
- *        `state = mergeActors(state, spawned); state = applyBreakBarPatches(state, patches, content.effects);`
- *        `fixupTargeting(run, tankActorId); run = applyDeathsAndWipe(run, events, tick);`
+ * POLICY-INSIDE-STEPRUN (P2, follow-up to server-policy-in-sim P1): `fixupTargeting`/
+ * `applyDeathsAndWipe`/`checkRunEnd` used to be exported host-callable helpers every host
+ * (server/src/room.ts, client/src/sim-host/run-policy.ts + hud/run-end.ts) had to remember to call,
+ * in the right order, every tick -- the exact drift P1 already found once. They are sim-internal
+ * now: `createRun`/`stepRun` (sim/index.ts) are the ONLY callers, so no host can forget or drift a
+ * copy of its own. A host that wants to end the run early (an explicit human "abandon") passes
+ * `{abandonRequested: true}` to `stepRun` -- the one signal sim cannot derive on its own -- and
+ * reads the result off `run.runEnd` or the `run_end` SimEvent `stepRun` emits.
  *
- * ABSORBED HOST POLICY (server-policy-in-sim, P1): `fixupTargeting`/`applyDeathsAndWipe` used to be
- * hand-duplicated, byte-for-byte, in both client/src/sim-host/run-policy.ts and the old
- * server/src/targeting-policy.ts -- sim itself has no enemy target-acquisition (only
- * sim/combat/targeting.ts's manual `cycleTarget` tab-cycle) and nothing calls sim/encounter/
- * timer.ts's spendSlackOnDeath/spendSlackOnWipe automatically. That was genuinely missing from sim,
- * so it now lives here as the one canonical copy (tests/sim/integration/run-end.test.ts exercises
- * it through the public createRun/stepRun path) and both hosts call it from here. DEVIATION:
- * client/src/sim-host/run-policy.ts still carries its own copy (client/** is out of this lane's
- * ownership) -- a follow-up lane should delete it and import from here instead, same as this PR
- * does for server/src/room.ts.
+ * `fixupTargeting` no longer takes a `tankActorId` -- it derives the tank from `state.actors`
+ * (the one player actor with `role: "tank"`). `checkRunEnd` treats "dungeon complete" as
+ * `encounter.pullIndex` having advanced past the dungeon's last pull -- content-agnostically true
+ * the moment the final pull (the boss, by every current DungeonDef builder's convention) clears,
+ * with no separate "bossActorId" concept needed in sim at all.
+ *
+ * An unrecoverable full wipe (sim has no rez mechanic) auto-ends the run after `WIPE_GRACE_TICKS`
+ * with result "depleted", not "abandoned": WIPE_SLACK_COST_TICKS(500) + at least one
+ * DEATH_SLACK_COST_TICKS(300) always exceeds SLACK_BASE_TICKS(600), so "depleted" is the honest
+ * label for a key that ran out of bank -- "abandoned" is reserved for an explicit, still-recoverable
+ * human quit (this corrects both hosts' prior duplicated behaviour, which mislabeled an
+ * auto-timed-out wipe as "abandoned").
+ *
+ * Usage: internal to sim/index.ts's stepRun; a host never calls these directly any more.
  */
-import type { ActorState, SimState } from "./core/state";
-import type { ActorId, Tick } from "./core/state";
+import type { ActorState, SimState, ActorId, Tick } from "./core/state";
 import type { AbilityDef } from "./combat/abilities";
 import type { EffectDef } from "./combat/effects";
 import { applyEffectInstance } from "./combat/effects";
 import type { RulesConfig } from "./combat/rules";
 import type { BreakBarEffectPatch } from "./encounter/breakbar";
 import type { SimEvent } from "./core/events";
-import { spendSlackOnDeath, spendSlackOnWipe } from "./encounter/timer";
-import type { RunContent, Run } from "./index";
+import type { DungeonDef, EncounterState } from "./encounter/index";
+import { spendSlackOnDeath, spendSlackOnWipe, finishRun, type RunResult } from "./encounter/timer";
+import type { RunContent } from "./run-types";
+
+// 5s at 20Hz -- sim's own auto-end policy for a full wipe with no rez mechanic (design/BIBLE.md
+// Sec 8's Slack model assumes deaths get recovered; this five-actor POC has no mechanic for that).
+export const WIPE_GRACE_TICKS = 100;
 
 export function rulesConfigOf(content: RunContent): RulesConfig {
   return {
@@ -65,14 +72,9 @@ export function abilityTagsOf(abilities: Record<string, AbilityDef>): Record<str
   return tags;
 }
 
-/**
- * Applies a tick's break-bar onEmpty effect patches (stagger stuns etc.) to `state.actors` after
- * combat has resolved that same tick -- see sim/encounter/index.ts's file docstring for why these
- * ride out as data instead of being applied inside stepEncounter itself. There is no canonical
- * "source" for a bar's onEmpty effect (BreakBarEffectPatch carries no sourceId), so each patch is
- * applied with the staggered actor itself as the effect's sourceId -- a deliberate, documented
- * simplification; nothing today reads a stun's sourceId.
- */
+/** Applies a tick's break-bar onEmpty effect patches (stagger stuns etc.) to `state.actors` --
+ * there is no canonical "source" for a bar's onEmpty effect, so each patch is applied with the
+ * staggered actor itself as the effect's sourceId (nothing today reads a stun's sourceId). */
 export function applyBreakBarPatches(
   state: SimState,
   patches: BreakBarEffectPatch[],
@@ -92,21 +94,19 @@ export function applyBreakBarPatches(
   return actors === state.actors ? state : { ...state, actors };
 }
 
-/**
- * Enemy auto-target + damage-role auto-target fallback (see file docstring's ABSORBED HOST POLICY
- * note). Every untargeted living enemy points at `tankActorId` (or the tank's own id if the tank
- * has since died -- self-referential on purpose, matching the pre-absorption server behaviour);
+/** Enemy auto-target + damage-role auto-target fallback (sim has no enemy AI target acquisition of
+ * its own -- see sim/combat/targeting.ts's manual `cycleTarget` tab-cycle). Every untargeted living
+ * enemy points at the party's tank (the one living-or-not player actor with `role: "tank"`, if any);
  * every living damage-role player without a living-enemy target points at the current pull's first
- * living enemy. Mutates `run.state.actors` in place -- same as the pre-absorption copies, and safe
- * to call every tick (already-resolved targets are left alone).
- */
-export function fixupTargeting(run: Run, tankActorId: ActorId): void {
-  const state = run.state;
-  const tank = state.actors[tankActorId];
-  const fallbackTargetId = tank && tank.alive ? tank.id : tankActorId;
+ * living enemy. Mutates `state.actors` in place; safe to call every tick (already-resolved targets
+ * are left alone) and at run creation. */
+export function fixupTargeting(state: SimState): void {
+  const tank = Object.values(state.actors).find((a) => a.kind === "player" && a.role === "tank");
   const enemies = Object.values(state.actors).filter((a) => a.kind === "enemy" && a.alive);
-  for (const enemy of enemies) {
-    if (enemy.targetId === null) enemy.targetId = fallbackTargetId;
+  if (tank) {
+    for (const enemy of enemies) {
+      if (enemy.targetId === null) enemy.targetId = tank.id;
+    }
   }
   const firstEnemy = enemies[0];
   if (!firstEnemy) return;
@@ -118,19 +118,71 @@ export function fixupTargeting(run: Run, tankActorId: ActorId): void {
   }
 }
 
-/**
- * Spends the run's Slack bank (sim/encounter/timer.ts) on this tick's player deaths/wipe -- see
- * file docstring's ABSORBED HOST POLICY note. No-ops (returns `run` unchanged) when this tick's
- * `events` carry no player "death".
- */
-export function applyDeathsAndWipe(run: Run, events: SimEvent[], tick: Tick): Run {
-  const anyPlayerDeath = events.some((e) => e.type === "death" && run.state.actors[e.actorId as ActorId]?.kind === "player");
-  if (!anyPlayerDeath) return run;
-  const noop = (): void => {};
-  let next = { ...run, encounter: spendSlackOnDeath(run.encounter, tick, noop) };
-  const players = Object.values(next.state.actors).filter((a) => a.kind === "player");
+/** Spends the run's Slack bank (sim/encounter/timer.ts) on this tick's player deaths/wipe. No-ops
+ * (returns `encounter` unchanged) when this tick's `events` carry no player "death"; forwards
+ * timer.ts's "depleted" event through `emit` (previously silently dropped by every host). */
+export function applyDeathsAndWipe(
+  state: SimState,
+  encounter: EncounterState,
+  events: SimEvent[],
+  tick: Tick,
+  emit: (e: SimEvent) => void
+): EncounterState {
+  const anyPlayerDeath = events.some((e) => e.type === "death" && state.actors[e.actorId as ActorId]?.kind === "player");
+  if (!anyPlayerDeath) return encounter;
+  let next = spendSlackOnDeath(encounter, tick, emit);
+  const players = Object.values(state.actors).filter((a) => a.kind === "player");
   if (players.length > 0 && players.every((a) => !a.alive)) {
-    next = { ...next, encounter: spendSlackOnWipe(next.encounter, tick, noop) };
+    next = spendSlackOnWipe(next, tick, emit);
   }
   return next;
+}
+
+export interface RunEndState {
+  result: RunResult | null;
+  resultTick: Tick | null;
+  wipeStartTick: Tick | null;
+}
+
+export function initialRunEndState(): RunEndState {
+  return { result: null, resultTick: null, wipeStartTick: null };
+}
+
+/** Decides WHEN the run is over -- see file docstring. Idempotent once `result` is set (further
+ * calls are no-ops), so `stepRun` can call this unconditionally every tick. */
+export function checkRunEnd(
+  prev: RunEndState,
+  state: SimState,
+  encounter: EncounterState,
+  dungeon: DungeonDef,
+  tick: Tick,
+  abandonRequested: boolean,
+  emit: (e: SimEvent) => void
+): RunEndState {
+  if (prev.result !== null) return prev;
+
+  const dungeonComplete = encounter.pullIndex >= dungeon.pulls.length;
+  if (dungeonComplete) {
+    return { result: finishRun(encounter, tick, true, emit), resultTick: tick, wipeStartTick: prev.wipeStartTick };
+  }
+  if (abandonRequested) {
+    return { result: finishRun(encounter, tick, false, emit), resultTick: tick, wipeStartTick: prev.wipeStartTick };
+  }
+
+  const players = Object.values(state.actors).filter((a) => a.kind === "player");
+  const allPlayersDead = players.length > 0 && players.every((a) => !a.alive);
+  if (allPlayersDead) {
+    const wipeStart = prev.wipeStartTick ?? tick;
+    if (tick - wipeStart >= WIPE_GRACE_TICKS) {
+      // completed=true, depleted forced true: an unrecoverable full wipe is always a failure to
+      // finish within the Slack-tracked budget, reported "depleted" unconditionally -- not
+      // contingent on this run's deaths having routed through applyDeathsAndWipe's own per-death
+      // cost (e.g. actors killed directly rather than via combat's "death" event) already having
+      // zeroed the bank by coincidence. stepRun patches `nextEncounter.depleted` to match (see its
+      // own docstring) so the Snapshot's Slack display stays consistent with this result.
+      return { result: finishRun({ ...encounter, depleted: true }, tick, true, emit), resultTick: tick, wipeStartTick: wipeStart };
+    }
+    return { result: null, resultTick: null, wipeStartTick: wipeStart };
+  }
+  return { result: null, resultTick: null, wipeStartTick: null };
 }

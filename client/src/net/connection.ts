@@ -11,7 +11,7 @@
  */
 import { PROTOCOL_VERSION, parseServerFrame } from "./protocol-guard.js";
 import { ReconnectPolicy } from "./reconnect.js";
-import type { ClientMessage, PartyRole, ServerSnapshot } from "./wire-types.js";
+import type { ClientMessage, PartyRole, ServerRunResult, ServerSnapshot } from "./wire-types.js";
 import { WS_OPEN, type ConnectionState, type WebSocketFactory, type WebSocketLike } from "./host-handle.js";
 
 export interface ConnectionHooks {
@@ -19,6 +19,9 @@ export interface ConnectionHooks {
   onJoined(actorId: number): void;
   onSnapshot(snapshot: ServerSnapshot): void;
   onLate(originalTick: number, newTick: number): void;
+  /** The server's own, authoritative run-end signal (server/src/protocol.ts's `run_end` message) --
+   * see net-client.ts's docstring: no client-side derivation of this exists any more. */
+  onRunEnd(result: ServerRunResult, tick: number): void;
 }
 
 export class NetConnection {
@@ -93,6 +96,9 @@ export class NetConnection {
         return;
       case "late":
         this.hooks.onLate(msg.originalTick, msg.newTick);
+        return;
+      case "run_end":
+        this.hooks.onRunEnd(msg.result, msg.tick);
         return;
       case "error":
         this.hooks.onState("error", msg.reason);
