@@ -75,13 +75,24 @@ describe("resolveTargets shapes", () => {
     expect(resolveTargets(state, caster, def)).toEqual([ahead]);
   });
 
-  it("circle resolves around the caster's own position (a floor point) and includes the caster", () => {
+  it("circle resolves around the caster's own position (a floor point) and, for a hostile (damage) ability, excludes the caster and allies", () => {
     const caster = createActor({ id: 1, kind: "player", classId: "warden", role: "tank", pos: { x: 500, y: 0, z: 500 }, maxHealth: 100, maxResource: 100 });
     const inRange = createActor({ id: 2, kind: "enemy", classId: "x", role: "none", pos: { x: 550, y: 0, z: 500 }, maxHealth: 100, maxResource: 0 });
+    const allyInRange = createActor({ id: 4, kind: "player", classId: "y", role: "none", pos: { x: 540, y: 0, z: 500 }, maxHealth: 100, maxResource: 0 });
     const outOfRange = createActor({ id: 3, kind: "enemy", classId: "x", role: "none", pos: { x: 5000, y: 0, z: 5000 }, maxHealth: 100, maxResource: 0 });
     const def = defWithShape({ kind: "circle", radius: 100 }, [dmgOp]);
-    const state = makeState([caster, inRange, outOfRange]);
-    expect(resolveTargets(state, caster, def)).toEqual([caster, inRange]);
+    const state = makeState([caster, inRange, allyInRange, outOfRange]);
+    expect(resolveTargets(state, caster, def)).toEqual([inRange]);
+  });
+
+  it("circle resolves a friendly (heal) ability to the caster's own kind, including the caster, excluding enemies", () => {
+    const caster = createActor({ id: 1, kind: "player", classId: "chanter", role: "healer", pos: { x: 500, y: 0, z: 500 }, maxHealth: 100, maxResource: 100 });
+    const allyInRange = createActor({ id: 2, kind: "player", classId: "y", role: "none", pos: { x: 550, y: 0, z: 500 }, maxHealth: 100, maxResource: 0 });
+    const enemyInRange = createActor({ id: 3, kind: "enemy", classId: "x", role: "none", pos: { x: 540, y: 0, z: 500 }, maxHealth: 100, maxResource: 0 });
+    const healOp: EffectOp = { op: "heal", amount: 10 };
+    const def = defWithShape({ kind: "circle", radius: 100 }, [healOp]);
+    const state = makeState([caster, allyInRange, enemyInRange]);
+    expect(resolveTargets(state, caster, def)).toEqual([caster, allyInRange]);
   });
 });
 
