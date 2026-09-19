@@ -9,23 +9,13 @@
  * enemy actor) -- and the REAL bots/src/bot.ts makeBot().decide() loop, proving a damage bot
  * standing in the patch decides to walk itself clear within a bounded number of ticks.
  *
- * Position/radius scale note: bots/src/shared/positioning.ts's toMM() and its callers'
- * hard-coded absolute constants (floor.ts's DEFAULT_MARGIN_MM, positioning.ts's
- * nearestSafePoint gridStepMM/maxRingsSearched search budget) are written against small,
- * metres-scale numbers -- exactly what every existing bots telegraph test already uses (e.g.
- * tests/bots/floor-escape.test.ts's `radius: 5`), not sim's real millimetre-integer ActorState.pos
- * scale (sim/CLAUDE.md). That mismatch is a pre-existing, cross-domain contract gap between sim/
- * and bots/ (affecting every bot move command, not just floor patches) that is out of this lane's
- * scope to fix -- tests/sim/combat/floor-telegraphs.test.ts and
- * tests/sim/integration/floor-telegraph.test.ts already prove this producer's id/shape/geometry
- * are correct at REAL content mm-scale (radius 1800-2500mm etc); this test instead matches bots'
- * OWN established test scale so nearestSafePoint's hard-coded search budget can actually converge,
- * exactly like every other bots telegraph-escape test already does. Escape movement is applied the
- * same way tests/bots/floor-escape.test.ts and tests/bots/telegraph-escape.test.ts already do
- * (self.pos += dir * a fixed step), not through sim/combat/movement.ts's applyMovement: a bot's
- * emitted `dir` is a raw unit-vector float, while sim/core/commands.ts's validated Command schema
- * and applyMovement's integer isqrt both expect an integer dir scaled to +-1000 -- another
- * pre-existing, out-of-scope bots<->sim wire-format gap, also unrelated to floor-patch emission.
+ * Position/radius scale: real content mm-scale throughout (e.g. tests/sim/combat/floor-telegraphs.
+ * test.ts and tests/sim/integration/floor-telegraph.test.ts's radius 1800-2500mm), now that
+ * bots/src/shared/positioning.ts's toMM() -- which used to re-multiply already-mm positions and
+ * Telegraph fields by 1000 -- is deleted (bots/CLAUDE.md). Escape movement is applied via
+ * tests/bots/apply-move.ts, the same integer `dir`-to-mm-step math sim/combat/movement.ts's real
+ * applyMovement performs, since a bot's emitted `dir` is now an integer unit vector scaled to
+ * +-1000 (sim/core/commands.ts's validated Command schema), not a raw float.
  */
 import { describe, expect, it } from "vitest";
 import { createActor } from "@sim/combat/actors";
@@ -35,14 +25,15 @@ import type { Command, SimEvent, SimState } from "@sim/combat/types";
 import { deriveFloorTelegraphs, FLOOR_PATCH_PREFIX } from "@sim/combat/floor-telegraphs";
 import { makeBot, defaultMemory } from "@bots/src/bot.js";
 import { seedPrng } from "@bots/src/skill.js";
-import { toMM, isInAnyDanger } from "@bots/src/shared/positioning.js";
+import { isInAnyDanger } from "@bots/src/shared/positioning.js";
+import { applyMove } from "./apply-move.js";
 import type { BotView } from "@bots/src/types.js";
 
 const BOSS_ID = 9;
 const DAMAGE_BOT_ID = 1;
 const MAX_ESCAPE_TICKS = 15;
-const STEP = 2;
-const PATCH_RADIUS = 5; // bots-test scale, matching tests/bots/floor-escape.test.ts's `radius: 5`.
+const STEP_MM = 2000; // sim-space mm/tick
+const PATCH_RADIUS = 2000; // real content mm-scale (see tests/sim/combat/floor-telegraphs.test.ts)
 
 // Mirrors content/data/abilities/enemies.json's real seed.deathBloom: instant, circle shape, a
 // single "window" op with onTarget:false and setupClass "boss" -- a hostile floor patch.
@@ -115,8 +106,7 @@ describe("hostile floor patch, real producer + real StepRules + real bot decide 
     for (; ticks < MAX_ESCAPE_TICKS; ticks++) {
       telegraphs = deriveFloorTelegraphs(state);
       const self = state.actors[DAMAGE_BOT_ID]!;
-      const posMM = { x: toMM(self.pos.x), z: toMM(self.pos.z) };
-      if (!isInAnyDanger(posMM, telegraphs.map((t) => ({ ...t, danger: true })))) break;
+      if (!isInAnyDanger(self.pos, telegraphs.map((t) => ({ ...t, danger: true })))) break;
 
       const view: BotView = { state, telegraphs, classKit };
       const result = bot.decide(view, memory, DAMAGE_BOT_ID, prng);
@@ -125,15 +115,12 @@ describe("hostile floor patch, real producer + real StepRules + real bot decide 
 
       const move = result.commands.find((c) => c.kind === "move");
       expect(move).toBeDefined();
-      if (move && move.kind === "move") {
-        self.pos = { x: self.pos.x + move.dir.x * STEP, y: 0, z: self.pos.z + move.dir.z * STEP };
-      }
+      self.pos = { ...self.pos, ...applyMove(self.pos, move, STEP_MM) };
       state.tick += 1;
     }
 
     expect(ticks).toBeLessThan(MAX_ESCAPE_TICKS);
     const finalSelf = state.actors[DAMAGE_BOT_ID]!;
-    const finalMM = { x: toMM(finalSelf.pos.x), z: toMM(finalSelf.pos.z) };
-    expect(isInAnyDanger(finalMM, deriveFloorTelegraphs(state).map((t) => ({ ...t, danger: true })))).toBe(false);
+    expect(isInAnyDanger(finalSelf.pos, deriveFloorTelegraphs(state).map((t) => ({ ...t, danger: true })))).toBe(false);
   });
 });

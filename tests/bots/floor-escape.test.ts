@@ -16,12 +16,13 @@ import { makeBot, defaultMemory } from "@bots/src/bot.js";
 import { damageDecide } from "@bots/src/roles.js";
 import { FLOOR_PATCH_PREFIX } from "@bots/src/shared/floor.js";
 import { WINDOW_EFFECT_PREFIX } from "@bots/src/shared/pings.js";
-import { isInAnyDanger, toMM } from "@bots/src/shared/positioning.js";
+import { isInAnyDanger } from "@bots/src/shared/positioning.js";
 import { seedPrng } from "@bots/src/skill.js";
+import { applyMove } from "./apply-move.js";
 import type { ActorId, ActorState, BotView, SimState, Telegraph } from "@bots/src/types.js";
 
 const MAX_ESCAPE_TICKS = 15;
-const STEP_METRES = 2;
+const STEP_MM = 2000; // sim-space mm/tick
 const NO_CLASS_KIT = { rotation: [], interruptAbilityId: null, defensiveAbilityId: null, healAbilityId: null };
 
 function makeActor(overrides: Partial<ActorState>): ActorState {
@@ -70,7 +71,7 @@ describe("hostile floor patch avoidance", () => {
       id: `${FLOOR_PATCH_PREFIX}enemy-fire`,
       shape: "circle",
       center: { x: 0, z: 0 },
-      radius: 5,
+      radius: 5000,
       resolvesTick: 1000,
       danger: false,
     };
@@ -78,30 +79,27 @@ describe("hostile floor patch avoidance", () => {
     let ticks = 0;
     for (; ticks < MAX_ESCAPE_TICKS; ticks++) {
       const view = makeView([self], [patch], ticks);
-      const posMM = { x: toMM(self.pos.x), z: toMM(self.pos.z) };
-      if (!isInAnyDanger(posMM, [{ ...patch, radius: 5.5 }])) break;
+      if (!isInAnyDanger(self.pos, [{ ...patch, radius: 5500 }])) break;
 
       const result = bot.decide(view, memory, self.id, prng);
       memory = result.memory;
       prng = result.prng;
       const move = result.commands.find((c) => c.kind === "move");
       expect(move).toBeDefined();
-      if (move && move.kind === "move") {
-        self.pos = { x: self.pos.x + move.dir.x * STEP_METRES, y: 0, z: self.pos.z + move.dir.z * STEP_METRES };
-      }
+      self.pos = { ...self.pos, ...applyMove(self.pos, move, STEP_MM) };
     }
 
     expect(ticks).toBeLessThan(MAX_ESCAPE_TICKS);
-    expect(isInAnyDanger({ x: toMM(self.pos.x), z: toMM(self.pos.z) }, [patch])).toBe(false);
+    expect(isInAnyDanger(self.pos, [patch])).toBe(false);
   });
 
   it("issues no escape move for a patch the bot never stands in", () => {
-    const self = makeActor({ id: 1, pos: { x: 100, y: 0, z: 100 } });
+    const self = makeActor({ id: 1, pos: { x: 100000, y: 0, z: 100000 } });
     const patch: Telegraph = {
       id: `${FLOOR_PATCH_PREFIX}far-fire`,
       shape: "circle",
       center: { x: 0, z: 0 },
-      radius: 5,
+      radius: 5000,
       resolvesTick: 1000,
       danger: false,
     };

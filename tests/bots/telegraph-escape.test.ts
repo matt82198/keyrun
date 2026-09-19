@@ -9,12 +9,13 @@
  */
 import { describe, expect, it } from "vitest";
 import { makeBot, defaultMemory } from "@bots/src/bot.js";
-import { isInAnyDanger, toMM } from "@bots/src/shared/positioning.js";
+import { isInAnyDanger } from "@bots/src/shared/positioning.js";
 import { seedPrng } from "@bots/src/skill.js";
+import { applyMove } from "./apply-move.js";
 import type { ActorState, BotView, SimState, Telegraph } from "@bots/src/types.js";
 
 const MAX_ESCAPE_TICKS = 10;
-const STEP_METRES = 2;
+const STEP_MM = 2000; // sim-space mm/tick
 
 function makeActor(overrides: Partial<ActorState>): ActorState {
   return {
@@ -51,7 +52,7 @@ describe("telegraph avoidance", () => {
       id: "boss-puddle",
       shape: "circle",
       center: { x: 0, z: 0 },
-      radius: 5,
+      radius: 5000, // 5m, integer mm -- Telegraph.center/radius are sim-space mm (sim/CLAUDE.md)
       resolvesTick: 1000,
       danger: true,
     };
@@ -72,20 +73,17 @@ describe("telegraph avoidance", () => {
         telegraphs: [telegraph],
         classKit: { rotation: [], interruptAbilityId: null, defensiveAbilityId: null, healAbilityId: null },
       };
-      const posMM = { x: toMM(self.pos.x), z: toMM(self.pos.z) };
-      if (!isInAnyDanger(posMM, [telegraph])) break;
+      if (!isInAnyDanger(self.pos, [telegraph])) break;
 
       const result = bot.decide(view, memory, self.id, prng);
       memory = result.memory;
       prng = result.prng;
       const move = result.commands.find((c) => c.kind === "move");
       expect(move).toBeDefined();
-      if (move && move.kind === "move") {
-        self.pos = { x: self.pos.x + move.dir.x * STEP_METRES, y: 0, z: self.pos.z + move.dir.z * STEP_METRES };
-      }
+      self.pos = { ...self.pos, ...applyMove(self.pos, move, STEP_MM) };
     }
 
     expect(ticks).toBeLessThan(MAX_ESCAPE_TICKS);
-    expect(isInAnyDanger({ x: toMM(self.pos.x), z: toMM(self.pos.z) }, [telegraph])).toBe(false);
+    expect(isInAnyDanger(self.pos, [telegraph])).toBe(false);
   });
 });

@@ -20,11 +20,14 @@ import type { ActorId, ActorState, BotView, Command } from "../types.js";
 import { pickHealTarget, pickDispelTarget } from "../shared/priority.js";
 import { resolveKit } from "../kits.js";
 import { floorEscapeCommand } from "../shared/floor.js";
-import { toMM } from "../shared/positioning.js";
+import { moveToward } from "../shared/command.js";
 import { readyAndAffordable, ledgerKickCommand } from "./shared.js";
 
 const DISPELLABLE_PREFIX = "dispellable:";
-const HEAL_RANGE_M = 30;
+/** ActorState.pos is already integer millimetres (sim/CLAUDE.md), so this 30m design constant is
+ * converted to mm once, here, at definition -- never by re-scaling an already-mm position (that
+ * was bots/src/shared/positioning.ts's toMM() bug). */
+const HEAL_RANGE_MM = 30 * 1000;
 const HEAL_THRESHOLD_PCT = 0.7;
 /**
  * The party's missing-health ratio (design/BIBLE.md Sec 5 Chanter: "swaps verse when the party's
@@ -59,10 +62,10 @@ export function healerDecide(view: BotView, self: ActorState): Command[] {
       ? {
           keepNear: {
             anchor: {
-              x: toMM(party.reduce((s, a) => s + a.pos.x, 0) / party.length),
-              z: toMM(party.reduce((s, a) => s + a.pos.z, 0) / party.length),
+              x: Math.round(party.reduce((s, a) => s + a.pos.x, 0) / party.length),
+              z: Math.round(party.reduce((s, a) => s + a.pos.z, 0) / party.length),
             },
-            maxDistMM: toMM(HEAL_RANGE_M),
+            maxDistMM: HEAL_RANGE_MM,
           },
         }
       : {};
@@ -97,9 +100,9 @@ export function healerDecide(view: BotView, self: ActorState): Command[] {
   const dx = target.pos.x - self.pos.x;
   const dz = target.pos.z - self.pos.z;
   const dist = Math.hypot(dx, dz);
-  if (dist > HEAL_RANGE_M) {
-    const len = dist || 1;
-    return [{ tick, actorId: self.id, kind: "move", dir: { x: dx / len, z: dz / len }, yaw: Math.atan2(dz, dx) }];
+  if (dist > HEAL_RANGE_MM) {
+    const move = moveToward(tick, self.id, self.pos, target.pos);
+    return move ? [move] : [];
   }
   if (readyAndAffordable(self, abilityId, tick, kit)) {
     return [{ tick, actorId: self.id, kind: "cast", abilityId, targetId }];

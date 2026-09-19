@@ -34,7 +34,7 @@
 import type { ActorId, ActorState, BotView, Command, Tick } from "./types.js";
 import { abilityReady } from "./roles.js";
 import { isInterruptResponsible } from "./shared/priority.js";
-import { toMM } from "./shared/positioning.js";
+import { moveToward } from "./shared/command.js";
 import { isPingLive, latestLivePing, WINDOW_EFFECT_PREFIX, type PingEvent } from "./shared/pings.js";
 
 /** Local convention: a class's Payoff ability id is prefixed this way in classKit.rotation. See file header. */
@@ -117,12 +117,11 @@ export function spotPingMoveCommands(view: BotView, self: ActorState, pings: rea
 
   const dx = ping.point.x - self.pos.x;
   const dz = ping.point.z - self.pos.z;
-  const distMM = Math.hypot(toMM(dx), toMM(dz));
+  const distMM = Math.hypot(dx, dz);
   if (distMM <= SPOT_ARRIVE_MM) return [];
 
-  const len = Math.hypot(dx, dz) || 1;
-  const yaw = Math.atan2(dz, dx);
-  return [{ tick, actorId: self.id, kind: "move", dir: { x: dx / len, z: dz / len }, yaw }];
+  const move = moveToward(tick, self.id, self.pos, ping.point);
+  return move ? [move] : [];
 }
 
 /** Combines the three reactions above in priority order: interrupt > Window payoff > spot move. */

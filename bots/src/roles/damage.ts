@@ -19,8 +19,10 @@ import { floorEscapeCommand, meleeReapproachCommand, friendlyWindowApproachComma
 import { resolveKit, type EffectiveKit } from "../kits.js";
 import { readyAndAffordable, ledgerKickCommand } from "./shared.js";
 
-/** How close a Payoff-capable ally must be for a Setup to be worth opening (design/BIBLE.md Sec 4: "a timing game between two people"). */
-const PAYOFF_ALLY_RANGE_M = 30;
+/** How close a Payoff-capable ally must be for a Setup to be worth opening (design/BIBLE.md Sec 4:
+ * "a timing game between two people"). ActorState.pos is integer mm (sim/CLAUDE.md), so this 30m
+ * design constant is converted to mm once, here, never by re-scaling an already-mm position. */
+const PAYOFF_ALLY_RANGE_MM = 30 * 1000;
 
 function aliveEnemies(actors: Record<ActorId, ActorState>): ActorState[] {
   return Object.values(actors).filter((a) => a.kind === "enemy" && a.alive);
@@ -57,7 +59,7 @@ function payoffAllyInRange(view: BotView, self: ActorState): boolean {
     const theirKit = resolveKit(a.classId, view.classKit);
     if (theirKit.payoffAbilityIds.length === 0) return false;
     const dist = Math.hypot(a.pos.x - self.pos.x, a.pos.z - self.pos.z);
-    return dist <= PAYOFF_ALLY_RANGE_M;
+    return dist <= PAYOFF_ALLY_RANGE_MM;
   });
 }
 

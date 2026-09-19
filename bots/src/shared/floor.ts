@@ -29,13 +29,17 @@
  * Usage: `import { floorEscapeCommand, meleeReapproachCommand, friendlyWindowApproachCommand } from "./floor.js"`
  */
 import type { ActorState, BotView, Command, Telegraph } from "../types.js";
-import { toMM, isInAnyDanger, nearestSafePoint, type PointMM } from "./positioning.js";
+import { isInAnyDanger, nearestSafePoint, type PointMM } from "./positioning.js";
+import { moveToward } from "./command.js";
 import { WINDOW_EFFECT_PREFIX } from "./pings.js";
 import { canClose } from "./windows.js";
 
 export const FLOOR_PATCH_PREFIX = "floor:";
 const DEFAULT_MARGIN_MM = 500;
-const MELEE_RANGE_M = 5;
+/** ActorState.pos is already integer mm (sim/CLAUDE.md), so this 5m design constant is converted
+ * to mm once, here, never by re-scaling an already-mm position (that was positioning.ts's toMM()
+ * bug, since deleted). */
+const MELEE_RANGE_MM = 5 * 1000;
 /** design/BIBLE.md Sec 5: Warden is the only starter melee-flavoured class; every tank is melee. */
 const MELEE_CLASS_IDS = new Set(["warden"]);
 
@@ -55,9 +59,12 @@ function hostileFloorPatches(telegraphs: readonly Telegraph[], tick: number): Te
   );
 }
 
-/** `telegraphs` with each radius inflated by `marginMM`, so the escape point clears with room to spare. */
+/** `telegraphs` with each radius inflated by `marginMM`, so the escape point clears with room to
+ * spare. `tg.radius` is already integer mm (sim/CLAUDE.md), so the margin is added directly --
+ * dividing it by 1000 here (a leftover from when `radius` was wrongly assumed to be metres) used
+ * to shrink a 500mm margin down to ~0.5mm. */
 function inflated(telegraphs: Telegraph[], marginMM: number): Telegraph[] {
-  return telegraphs.map((tg) => ({ ...tg, danger: true, radius: (tg.radius ?? 0) + marginMM / 1000 }));
+  return telegraphs.map((tg) => ({ ...tg, danger: true, radius: (tg.radius ?? 0) + marginMM }));
 }
 
 /** True if `self` is inside an active *ordinary* (non-floor) danger telegraph -- bot.ts's own
@@ -65,7 +72,7 @@ function inflated(telegraphs: Telegraph[], marginMM: number): Telegraph[] {
  * emitting a second, possibly conflicting move (priority: telegraph escape > floor escape). */
 function ordinaryTelegraphDangerActive(view: BotView, self: ActorState): boolean {
   const tick = view.state.tick;
-  const selfMM = { x: toMM(self.pos.x), z: toMM(self.pos.z) };
+  const selfMM = { x: self.pos.x, z: self.pos.z };
   const ordinary = view.telegraphs.filter((t) => t.danger && t.resolvesTick > tick && !isFloorPatchTelegraph(t));
   return isInAnyDanger(selfMM, ordinary);
 }
@@ -88,7 +95,7 @@ export function floorEscapeCommand(view: BotView, self: ActorState, opts: FloorE
   const tick = view.state.tick;
   const patches = hostileFloorPatches(view.telegraphs, tick);
   if (patches.length === 0) return null;
-  const selfMM = { x: toMM(self.pos.x), z: toMM(self.pos.z) };
+  const selfMM = { x: self.pos.x, z: self.pos.z };
   const danger = inflated(patches, opts.marginMM ?? DEFAULT_MARGIN_MM);
   if (!isInAnyDanger(selfMM, danger)) return null;
 
@@ -102,12 +109,9 @@ export function floorEscapeCommand(view: BotView, self: ActorState, opts: FloorE
     });
   }
   if (!safe) safe = nearestSafePoint(selfMM, danger);
-  if (!safe || (safe.x === selfMM.x && safe.z === selfMM.z)) return null;
+  if (!safe) return null;
 
-  const dx = safe.x - selfMM.x;
-  const dz = safe.z - selfMM.z;
-  const len = Math.hypot(dx, dz) || 1;
-  return { tick, actorId: self.id, kind: "move", dir: { x: dx / len, z: dz / len }, yaw: Math.atan2(dz, dx) };
+  return moveToward(tick, self.id, selfMM, safe);
 }
 
 function isMelee(self: ActorState): boolean {
@@ -128,9 +132,8 @@ export function meleeReapproachCommand(view: BotView, self: ActorState): Command
   const dx = target.pos.x - self.pos.x;
   const dz = target.pos.z - self.pos.z;
   const dist = Math.hypot(dx, dz);
-  if (dist <= MELEE_RANGE_M) return null;
-  const len = dist || 1;
-  return { tick: view.state.tick, actorId: self.id, kind: "move", dir: { x: dx / len, z: dz / len }, yaw: Math.atan2(dz, dx) };
+  if (dist <= MELEE_RANGE_MM) return null;
+  return moveToward(view.state.tick, self.id, self.pos, target.pos);
 }
 
 interface FriendlyWindow {
@@ -144,7 +147,7 @@ function parseFriendlyWindow(tg: Telegraph): FriendlyWindow | null {
   const rest = tg.id.slice(FLOOR_PATCH_PREFIX.length + WINDOW_EFFECT_PREFIX.length);
   const setupClass = rest.split(":").pop();
   if (!setupClass) return null;
-  return { center: { x: toMM(tg.center.x), z: toMM(tg.center.z) }, radiusMM: toMM(tg.radius ?? 0), setupClass };
+  return { center: { x: tg.center.x, z: tg.center.z }, radiusMM: tg.radius ?? 0, setupClass };
 }
 
 /**
@@ -155,7 +158,7 @@ function parseFriendlyWindow(tg: Telegraph): FriendlyWindow | null {
  */
 export function friendlyWindowApproachCommand(view: BotView, self: ActorState): Command | null {
   const tick = view.state.tick;
-  const selfMM = { x: toMM(self.pos.x), z: toMM(self.pos.z) };
+  const selfMM = { x: self.pos.x, z: self.pos.z };
   for (const tg of view.telegraphs) {
     if (tg.resolvesTick <= tick) continue;
     const win = parseFriendlyWindow(tg);
@@ -163,8 +166,7 @@ export function friendlyWindowApproachCommand(view: BotView, self: ActorState): 
     const dx = win.center.x - selfMM.x;
     const dz = win.center.z - selfMM.z;
     if (dx * dx + dz * dz <= win.radiusMM * win.radiusMM) return null;
-    const len = Math.hypot(dx, dz) || 1;
-    return { tick, actorId: self.id, kind: "move", dir: { x: dx / len, z: dz / len }, yaw: Math.atan2(dz, dx) };
+    return moveToward(tick, self.id, selfMM, win.center);
   }
   return null;
 }

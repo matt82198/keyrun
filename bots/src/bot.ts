@@ -12,7 +12,8 @@
  * Usage: `import { makeBot, runBots, defaultMemory } from "./bot.js"`
  */
 import type { ActorId, ActorState, BotView, Command, Tick } from "./types.js";
-import { toMM, isInAnyDanger, nearestSafePoint } from "./shared/positioning.js";
+import { isInAnyDanger, nearestSafePoint } from "./shared/positioning.js";
+import { moveToward } from "./shared/command.js";
 import { type PrngState, reactionDelayTicks, rollMistake } from "./skill.js";
 import { tankDecide, healerDecide, damageDecide } from "./roles.js";
 import { pingReactionCommands } from "./pings-policy.js";
@@ -39,15 +40,12 @@ export interface Bot {
 
 function dangerAvoidCommand(view: BotView, self: ActorState): Command | null {
   const tick = view.state.tick;
-  const selfMM = { x: toMM(self.pos.x), z: toMM(self.pos.z) };
+  const selfMM = { x: self.pos.x, z: self.pos.z };
   const active = view.telegraphs.filter((t) => t.danger && t.resolvesTick > tick);
   if (!isInAnyDanger(selfMM, active)) return null;
   const safe = nearestSafePoint(selfMM, active);
-  if (!safe || (safe.x === selfMM.x && safe.z === selfMM.z)) return null;
-  const dx = safe.x - selfMM.x;
-  const dz = safe.z - selfMM.z;
-  const len = Math.hypot(dx, dz) || 1;
-  return { tick, actorId: self.id, kind: "move", dir: { x: dx / len, z: dz / len }, yaw: Math.atan2(dz, dx) };
+  if (!safe) return null;
+  return moveToward(tick, self.id, selfMM, safe);
 }
 
 function decideForActor(

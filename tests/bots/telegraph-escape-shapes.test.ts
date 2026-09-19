@@ -9,12 +9,13 @@
  */
 import { describe, expect, it } from "vitest";
 import { makeBot, defaultMemory } from "@bots/src/bot.js";
-import { isInAnyDanger, toMM } from "@bots/src/shared/positioning.js";
+import { isInAnyDanger } from "@bots/src/shared/positioning.js";
 import { seedPrng } from "@bots/src/skill.js";
+import { applyMove } from "./apply-move.js";
 import type { ActorState, BotView, SimState, Telegraph } from "@bots/src/types.js";
 
 const MAX_ESCAPE_TICKS = 15;
-const STEP_METRES = 2;
+const STEP_MM = 2000; // sim-space mm/tick
 
 function makeActor(overrides: Partial<ActorState>): ActorState {
   return {
@@ -63,17 +64,14 @@ function runEscape(startPos: { x: number; z: number }, telegraph: Telegraph): { 
       telegraphs: [telegraph],
       classKit: { rotation: [], interruptAbilityId: null, defensiveAbilityId: null, healAbilityId: null },
     };
-    const posMM = { x: toMM(self.pos.x), z: toMM(self.pos.z) };
-    if (!isInAnyDanger(posMM, [telegraph])) break;
+    if (!isInAnyDanger(self.pos, [telegraph])) break;
 
     const result = bot.decide(view, memory, self.id, prng);
     memory = result.memory;
     prng = result.prng;
     const move = result.commands.find((c) => c.kind === "move");
     expect(move).toBeDefined();
-    if (move && move.kind === "move") {
-      self.pos = { x: self.pos.x + move.dir.x * STEP_METRES, y: 0, z: self.pos.z + move.dir.z * STEP_METRES };
-    }
+    self.pos = { ...self.pos, ...applyMove(self.pos, move, STEP_MM) };
   }
 
   return { ticks, finalPos: { x: self.pos.x, z: self.pos.z } };
@@ -85,17 +83,19 @@ describe("telegraph avoidance: real shapes", () => {
       id: "boss-cleave",
       shape: "cone",
       center: { x: 0, z: 0 },
-      length: 8,
+      // A cone's reach is `radius` (matching sim/encounter/telegraphs.ts's resolveTelegraphs: both
+      // "circle" and "cone" read `tg.radius`; only "line" reads `tg.length`/`tg.width`).
+      radius: 8000,
       angle1024: 200,
       yaw: 0,
       resolvesTick: 1000,
       danger: true,
     };
     // Standing well inside the cone's arc, close to the apex.
-    const { ticks, finalPos } = runEscape({ x: 3, z: 0 }, telegraph);
+    const { ticks, finalPos } = runEscape({ x: 3000, z: 0 }, telegraph);
 
     expect(ticks).toBeLessThan(MAX_ESCAPE_TICKS);
-    expect(isInAnyDanger({ x: toMM(finalPos.x), z: toMM(finalPos.z) }, [telegraph])).toBe(false);
+    expect(isInAnyDanger(finalPos, [telegraph])).toBe(false);
   });
 
   it("escapes a dangerous line within a bounded number of ticks", () => {
@@ -104,24 +104,24 @@ describe("telegraph avoidance: real shapes", () => {
       shape: "line",
       center: { x: 0, z: 0 },
       yaw: 0,
-      length: 20,
-      width: 6,
+      length: 20000,
+      width: 6000,
       resolvesTick: 1000,
       danger: true,
     };
     // Standing on the beam's centreline, partway down its length.
-    const { ticks, finalPos } = runEscape({ x: 5, z: 0 }, telegraph);
+    const { ticks, finalPos } = runEscape({ x: 5000, z: 0 }, telegraph);
 
     expect(ticks).toBeLessThan(MAX_ESCAPE_TICKS);
-    expect(isInAnyDanger({ x: toMM(finalPos.x), z: toMM(finalPos.z) }, [telegraph])).toBe(false);
+    expect(isInAnyDanger(finalPos, [telegraph])).toBe(false);
   });
 
   it("a bot that never enters the danger zone issues no escape move", () => {
     const telegraph: Telegraph = {
       id: "far-puddle",
       shape: "circle",
-      center: { x: 100, z: 100 },
-      radius: 5,
+      center: { x: 100000, z: 100000 },
+      radius: 5000,
       resolvesTick: 1000,
       danger: true,
     };

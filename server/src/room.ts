@@ -22,6 +22,7 @@ import { TICK_MS } from "../../sim/core/tick";
 import { initialSlackTicks } from "../../sim/encounter/timer";
 import { makeBot, defaultMemory, runBots, type Bot, type BotMemory } from "../../bots/src/bot.js";
 import type { BotView } from "../../bots/src/types.js";
+import { buildBotView } from "../../bots/src/view.js";
 import { seedPrng, type PrngState } from "../../bots/src/skill.js";
 import { toBotTelegraph } from "./telegraph.js";
 import { buildSnapshot, type Snapshot } from "./snapshot.js";
@@ -134,7 +135,7 @@ export class Room {
     for (const c of this.pending) (c.tick === currentTick ? due : stillPending).push(c);
     this.pending = stillPending;
 
-    const view: BotView = { state: this.run.state, telegraphs: this.run.encounter.telegraphs.map(toBotTelegraph), classKit: EMPTY_CLASS_KIT };
+    const view = buildBotView(this.run.state, this.run.encounter.telegraphs.map(toBotTelegraph), EMPTY_CLASS_KIT);
     const botResult = runBots(view, this.bots, this.botMemories, this.prng, []);
     this.botMemories = botResult.memories;
     this.prng = botResult.prng;

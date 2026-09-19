@@ -15,6 +15,7 @@ import type { ActorState, BotView, Command } from "../types.js";
 import { pickTankTarget } from "../shared/priority.js";
 import { resolveKit } from "../kits.js";
 import { floorEscapeCommand, meleeReapproachCommand } from "../shared/floor.js";
+import { yawToward, yawChanged } from "../shared/command.js";
 import { abilityReady, readyAndAffordable, ledgerKickCommand } from "./shared.js";
 
 const TANK_DEFENSIVE_THRESHOLD_PCT = 0.35;
@@ -40,14 +41,14 @@ export function tankDecide(view: BotView, self: ActorState): Command[] {
   }
   const party = Object.values(view.state.actors).filter((a) => a.kind === "player" && a.alive && a.id !== self.id);
   if (party.length > 0) {
-    const cx = party.reduce((s, a) => s + a.pos.x, 0) / party.length;
-    const cz = party.reduce((s, a) => s + a.pos.z, 0) / party.length;
-    const dx = self.pos.x - cx;
-    const dz = self.pos.z - cz;
-    if (dx !== 0 || dz !== 0) {
-      const yaw = Math.atan2(dz, dx);
-      if (Math.abs(yaw - self.yaw) > 0.01) {
-        out.push({ tick, actorId: self.id, kind: "move", dir: { x: 0, z: 0 }, yaw });
+    // Centroid rounded to an integer mm point (sim/CLAUDE.md: integer positions) -- an average of
+    // integers is not itself guaranteed integer.
+    const cx = Math.round(party.reduce((s, a) => s + a.pos.x, 0) / party.length);
+    const cz = Math.round(party.reduce((s, a) => s + a.pos.z, 0) / party.length);
+    if (self.pos.x !== cx || self.pos.z !== cz) {
+      const desiredYaw = yawToward({ x: cx, z: cz }, self.pos); // faces away from the party centroid
+      if (yawChanged(self.yaw, desiredYaw)) {
+        out.push({ tick, actorId: self.id, kind: "move", dir: { x: 0, z: 0 }, yaw: desiredYaw });
       }
     }
   }

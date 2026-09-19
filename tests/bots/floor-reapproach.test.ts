@@ -12,12 +12,13 @@
 import { describe, expect, it } from "vitest";
 import { damageDecide, healerDecide } from "@bots/src/roles.js";
 import { floorEscapeCommand, FLOOR_PATCH_PREFIX } from "@bots/src/shared/floor.js";
-import { isInAnyDanger, toMM } from "@bots/src/shared/positioning.js";
+import { isInAnyDanger } from "@bots/src/shared/positioning.js";
+import { applyMove } from "./apply-move.js";
 import type { ActorId, ActorState, BotView, SimState, Telegraph } from "@bots/src/types.js";
 
 const NO_CLASS_KIT = { rotation: [], interruptAbilityId: null, defensiveAbilityId: null, healAbilityId: null };
-/** Mirrors roles/healer.ts's own HEAL_RANGE_M -- kept local since that constant isn't exported. */
-const HEAL_RANGE_M = 30;
+/** Mirrors roles/healer.ts's own HEAL_RANGE_MM -- kept local since that constant isn't exported. */
+const HEAL_RANGE_MM = 30 * 1000;
 
 function makeActor(overrides: Partial<ActorState>): ActorState {
   return {
@@ -77,21 +78,23 @@ describe("melee re-approach", () => {
 
   it("re-approaches its target once no longer clearing any floor patch", () => {
     const target = makeActor({ id: 100, kind: "enemy", pos: { x: 0, y: 0, z: 0 } });
-    const self = makeActor({ id: 1, classId: "warden", pos: { x: 0, y: 0, z: 10 }, targetId: 100 });
+    // 10m out of MELEE_RANGE_MM's 5m -- must actually exceed the range in real mm, not just in a
+    // small hand-picked number, or meleeReapproachCommand's own range check never fires.
+    const self = makeActor({ id: 1, classId: "warden", pos: { x: 0, y: 0, z: 10000 }, targetId: 100 });
     const view = makeView([self, target]); // no floor patches: nothing left to escape
 
     const commands = damageDecide(view, self);
     const move = commands.find((c) => c.kind === "move");
     expect(move).toBeDefined();
     if (move && move.kind === "move") {
-      // Target is due south (z=0) of the bot (z=10): walking back in means dz < 0.
+      // Target is due south (z=0) of the bot (z=10000): walking back in means dz < 0.
       expect(move.dir.z).toBeLessThan(0);
     }
   });
 
   it("a ranged class does not chase its target (only tank/warden are treated as melee)", () => {
     const target = makeActor({ id: 100, kind: "enemy", pos: { x: 0, y: 0, z: 0 } });
-    const self = makeActor({ id: 1, classId: "cinder", role: "damage", pos: { x: 0, y: 0, z: 10 }, targetId: 100 });
+    const self = makeActor({ id: 1, classId: "cinder", role: "damage", pos: { x: 0, y: 0, z: 10000 }, targetId: 100 });
     const view = makeView([self, target]);
 
     expect(damageDecide(view, self)).toEqual([]);
@@ -100,34 +103,34 @@ describe("melee re-approach", () => {
 
 describe("healer keeps range while escaping a floor patch", () => {
   it("ends up within heal range of the party after clearing a patch centred on it", () => {
-    const STEP_METRES = 1;
+    const STEP_MM = 1000;
     const MAX_TICKS = 40;
+    // Patch centred just inside the 30m heal range of the ally at the origin: escaping straight
+    // away from the ally (the plain nearest-safe-point choice) would overshoot out of heal range,
+    // so this only passes if healerDecide's `keepNear` option is actually steering the escape.
     const patch: Telegraph = {
       id: `${FLOOR_PATCH_PREFIX}fire`,
       shape: "circle",
-      center: { x: -29, z: 0 },
-      radius: 2,
+      center: { x: -29000, z: 0 },
+      radius: 2000,
       resolvesTick: 1000,
       danger: false,
     };
-    let pos = { x: -29, z: 0 };
+    let pos = { x: -29000, z: 0 };
     let ticks = 0;
     for (; ticks < MAX_TICKS; ticks++) {
-      const posMM = { x: toMM(pos.x), z: toMM(pos.z) };
-      if (!isInAnyDanger(posMM, [{ ...patch, radius: 2.5 }])) break;
+      if (!isInAnyDanger(pos, [{ ...patch, radius: 2500 }])) break;
       const healer = makeActor({ id: 1, classId: "chanter", role: "healer", pos: { x: pos.x, y: 0, z: pos.z } });
       const ally = makeActor({ id: 2, classId: "warden", role: "damage", pos: { x: 0, y: 0, z: 0 } });
       const view = makeView([healer, ally], [patch], ticks);
 
       const move = healerDecide(view, healer).find((c) => c.kind === "move");
       expect(move).toBeDefined();
-      if (move && move.kind === "move") {
-        pos = { x: pos.x + move.dir.x * STEP_METRES, z: pos.z + move.dir.z * STEP_METRES };
-      }
+      pos = applyMove(pos, move, STEP_MM);
     }
 
     expect(ticks).toBeLessThan(MAX_TICKS);
     const distToAlly = Math.hypot(pos.x, pos.z);
-    expect(distToAlly).toBeLessThanOrEqual(HEAL_RANGE_M + 2); // small slack for discrete step overshoot
+    expect(distToAlly).toBeLessThanOrEqual(HEAL_RANGE_MM + 2000); // small slack for discrete step overshoot
   });
 });

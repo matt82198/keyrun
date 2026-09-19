@@ -72,8 +72,10 @@ describe("tank state machine", () => {
     const move = tankDecide(view, tank).find((c) => c.kind === "move");
     expect(move).toBeDefined();
     if (move && move.kind === "move") {
-      // Party is at z=0, tank at z=-5: facing away means yaw points further negative-z, i.e. atan2(-1,0) = -PI/2.
-      expect(move.yaw).toBeCloseTo(-Math.PI / 2, 5);
+      // Party is at z=0, tank at z=-5: facing away means yaw points further -z. yaw is an integer
+      // angle1024 unit (0..1023, sim/core/fixed.ts's convention: 0 = +x, 256 = +z), not a float
+      // radian -- 768 = 3 quarter-turns = -z.
+      expect(move.yaw).toBe(768);
     }
   });
 
