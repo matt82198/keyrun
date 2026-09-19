@@ -22,6 +22,19 @@ export interface EffectInstance {
   nextPeriodicTick: Tick | null;
 }
 
+/** A floor-patch Window (design/BIBLE.md §4/§5, a "window" op with onTarget:false -- e.g.
+ * warden.bulwark): keyed by windowId in SimState.floorWindows so it survives sim/combat/rules.ts's
+ * makeRules being rebuilt every stepRun call (sim/index.ts), unlike a plain closure-local registry
+ * would. See sim/combat/window-state.ts for the read/write helpers. */
+export interface FloorWindow {
+  windowId: string;
+  setupClass: string;
+  setupActorId: ActorId;
+  pos: Vec3;
+  endsTick: Tick;
+  radiusMm: number;
+}
+
 export interface ActorState {
   id: ActorId;
   kind: "player" | "enemy";
@@ -52,6 +65,10 @@ export interface SimState {
   runTimerTicks: number;
   phase: string;
   log: never[];
+  /** Floor-patch Windows keyed by windowId (see FloorWindow's docstring). Optional so hand-built
+   * SimState fixtures in tests that never touch floor Windows need not set it; createState always
+   * populates it and sim/combat/rules.ts lazily initialises it otherwise. */
+  floorWindows?: Record<string, FloorWindow>;
 }
 
 export function createState(seed: number): SimState {
@@ -63,6 +80,7 @@ export function createState(seed: number): SimState {
     runTimerTicks: 0,
     phase: "init",
     log: [],
+    floorWindows: {},
   };
 }
 

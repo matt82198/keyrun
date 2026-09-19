@@ -5,7 +5,7 @@
  * sim/core/events.ts, and sim/core/tick.ts.
  * Usage: import type { ActorState, Command, StepRules } from "./types";
  */
-export type { ActorId, Tick, Bp, Vec3, EffectInstance, ActorState, SimState } from "../core/state";
+export type { ActorId, Tick, Bp, Vec3, EffectInstance, ActorState, SimState, FloorWindow } from "../core/state";
 export type { Command } from "../core/commands";
 export type { SimEvent } from "../core/events";
 export type { StepRules } from "../core/tick";
