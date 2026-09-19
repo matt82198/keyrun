@@ -15,6 +15,17 @@ import type { RunSetupOptions } from "./run-setup.js";
 const DEFAULT_KEY_LEVEL = 5;
 const DEFAULT_DUNGEON_ID = "hollow-vault";
 
+/** research/11-tick-rate-measurement.md (D9): `?hz=` overrides the client's real-time tick
+ * pacing (see worker.ts's SimHost `tickMs`) so the measurement lane can drive the same playable
+ * at a different tick rate without editing sim/. `undefined` (param absent/invalid) leaves
+ * SimHost on its SIM_TICK_MS default -- unchanged behaviour for every existing URL. */
+export function parseHz(raw: string | null): number | undefined {
+  if (raw === null || raw.trim() === "") return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return Math.min(240, Math.max(1, Math.trunc(n)));
+}
+
 export function parseKeyLevel(raw: string | null): number {
   // Number(null) and Number("") are both 0 (finite) -- guard the "param absent" case explicitly
   // rather than let it silently clamp to the floor of the 2-20 range.
