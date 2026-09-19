@@ -7,12 +7,21 @@
  * constants below, indexed by yaw in angle1024 units (0..1023 = one full turn, matching
  * AbilityDef.shape.angle1024). This keeps facing math integer-only at runtime and
  * platform-deterministic (no Math.sin/cos call during simulation).
+ *
+ * Faction filter (P0 fix): circle/cone/line shapes resolve to every actor in radius/geometry, not
+ * just enemies -- a damage/debuff ability must exclude allies (and the caster) and a heal/buff
+ * ability must exclude enemies, or Cinder's cinderfield floor patch burns its own party and enemy
+ * cleaves hit other enemies. sim/combat/affinity.ts classifies each ability's dominant Affinity
+ * (hostile/friendly) and resolveTargets applies it after the existing geometry query; "self" and
+ * "target" shapes are unaffected (already a single explicit actor). Result ids are sorted
+ * ascending for determinism, matching cycleTarget's existing convention below.
  * Usage: inCircle(origin, radiusMm, actors); inCone(caster, angle1024, radiusMm, actors);
  *        cycleTarget(actors, currentTargetId); resolveTargets(state, actor, abilityDef).
  */
 import type { ActorId, ActorState, SimState, Vec3 } from "./types";
 import type { AbilityDef } from "./abilities";
 import { isqrt } from "./movement";
+import { abilityAffinity, matchesAffinity } from "./affinity";
 
 const TABLE_N = 128;
 const STEP = 1024 / TABLE_N;
@@ -100,6 +109,11 @@ export function inLine(caster: ActorState, length: number, radiusMm: number, act
  * explicit targetId argument, or left over from a prior cast/tab-target). Shared by casting.ts's
  * completeCast (an ability's own effects) and windows.ts's applyWindowsAndCombos (Window/Payoff
  * ops on that same ability) so both resolve identical target sets for the same input.
+ *
+ * circle/cone/line additionally apply `def`'s Affinity (see affinity.ts): a hostile ability keeps
+ * only actors of the opposing `kind` (dropping allies and the caster); a friendly one keeps only
+ * the caster's own `kind` (including the caster, even for cone/line shapes whose raw geometry
+ * query excludes it -- see the explicit `add(actor.id)` below).
  */
 export function resolveTargets(state: SimState, actor: ActorState, def: AbilityDef): ActorState[] {
   if (def.shape.kind === "self") return [actor];
@@ -108,17 +122,22 @@ export function resolveTargets(state: SimState, actor: ActorState, def: AbilityD
     return t ? [t] : [];
   }
   const all = Object.values(state.actors);
+  let ids: ActorId[];
   if (def.shape.kind === "circle") {
-    return inCircle(actor.pos, def.shape.radius ?? 0, all)
-      .map((id) => state.actors[id])
-      .filter((a): a is ActorState => !!a);
+    ids = inCircle(actor.pos, def.shape.radius ?? 0, all);
+  } else if (def.shape.kind === "cone") {
+    ids = inCone(actor, def.shape.angle1024 ?? 0, def.shape.radius ?? 0, all);
+  } else {
+    ids = inLine(actor, def.shape.length ?? 0, def.shape.radius ?? 0, all);
   }
-  if (def.shape.kind === "cone") {
-    return inCone(actor, def.shape.angle1024 ?? 0, def.shape.radius ?? 0, all)
-      .map((id) => state.actors[id])
-      .filter((a): a is ActorState => !!a);
-  }
-  return inLine(actor, def.shape.length ?? 0, def.shape.radius ?? 0, all)
+  const affinity = abilityAffinity(def);
+  const kept = new Set(ids.filter((id) => {
+    const candidate = state.actors[id];
+    return !!candidate && matchesAffinity(affinity, actor, candidate);
+  }));
+  if (affinity === "friendly") kept.add(actor.id);
+  return [...kept]
+    .sort((a, b) => a - b)
     .map((id) => state.actors[id])
     .filter((a): a is ActorState => !!a);
 }
