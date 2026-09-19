@@ -41,6 +41,7 @@ import { detectBackfill } from "./reconnect.js";
 import { NetConnection } from "./connection.js";
 import type { ServerRunResult, ServerSnapshot } from "./wire-types.js";
 import { DEFAULT_SERVER_URL, defaultWebSocketFactory, type ConnectionState, type HostHandle, type NetNotice, type WebSocketFactory } from "./host-handle.js";
+import type { RawLoadout } from "../sim-host/loadout-storage.js";
 
 export { DEFAULT_SERVER_URL };
 export type { ConnectionState, HostHandle, NetNotice, WebSocketFactory };
@@ -67,21 +68,28 @@ export class NetHostClient implements HostHandle {
   private runEndInfo: RunEndInfo | null = null;
   private runEndedAlready = false;
 
-  constructor(search: string, tickMsOverride?: number, wsFactory: WebSocketFactory = defaultWebSocketFactory) {
+  /** `loadout` (run-options-wiring): boot.ts's loadout-storage.ts read, forwarded verbatim on
+   * `queue` once `welcome` arrives (connection.ts). `?clause=` rides `search` like `?class=`; this
+   * lane has no registry to validate it client-side -- the server does (protocol.ts/room.ts),
+   * replying `error` for a bad id rather than crashing. */
+  constructor(search: string, tickMsOverride?: number, wsFactory: WebSocketFactory = defaultWebSocketFactory, loadout?: RawLoadout | null) {
     const params = new URLSearchParams(search);
     const url = params.get("server") ?? DEFAULT_SERVER_URL;
     const role = roleForClassId(resolveClassId(params.get("class")));
+    const clauseId = params.get("clause");
     this.tickMs = tickMsOverride ?? SIM_TICK_MS;
     this.readyPromise = new Promise((resolve) => {
       this.readyResolve = resolve;
     });
-    this.conn = new NetConnection(url, role, wsFactory, {
-      onState: (s, detail) => this.setState(s, detail),
-      onJoined: (actorId) => this.handleJoined(actorId),
-      onSnapshot: (s) => this.handleSnapshot(s),
-      onLate: (originalTick, newTick) => this.onNoticeCb?.({ kind: "late", originalTick, newTick }),
-      onRunEnd: (result, tick) => this.handleRunEnd(result, tick),
-    });
+    const hooks = {
+      onState: (s: ConnectionState, detail?: string) => this.setState(s, detail),
+      onJoined: (actorId: number) => this.handleJoined(actorId),
+      onSnapshot: (s: ServerSnapshot) => this.handleSnapshot(s),
+      onLate: (originalTick: number, newTick: number) => this.onNoticeCb?.({ kind: "late", originalTick, newTick }),
+      onRunEnd: (result: ServerRunResult, tick: number) => this.handleRunEnd(result, tick),
+    };
+    const queueExtras = { ...(clauseId?.trim() ? { clauseId } : {}), ...(loadout ? { loadout } : {}) };
+    this.conn = new NetConnection(url, role, wsFactory, hooks, queueExtras);
   }
 
   whenReady(): Promise<SimHostReady> {

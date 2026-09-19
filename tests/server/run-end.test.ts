@@ -49,12 +49,12 @@ describe("server: run-end detection", () => {
       const client = await TestClient.connect(server.port);
       clients.push(client);
 
-      client.send({ v: 2, type: "queue", role: "tank" });
+      client.send({ v: 3, type: "queue", role: "tank" });
       const joined = await client.waitForType("joined");
       if (joined.type !== "joined") throw new Error("expected joined");
       await client.waitForType("snapshot");
 
-      client.send({ v: 2, type: "abandon" });
+      client.send({ v: 3, type: "abandon" });
       const runEnd = await client.waitForType("run_end", 8000);
       if (runEnd.type !== "run_end") throw new Error("expected run_end");
       expect(runEnd.result).toBe("abandoned");
@@ -64,7 +64,7 @@ describe("server: run-end detection", () => {
       // The ended room is released: a fresh queue for the same role lands in a NEW room.
       const client2 = await TestClient.connect(server.port);
       clients.push(client2);
-      client2.send({ v: 2, type: "queue", role: "tank" });
+      client2.send({ v: 3, type: "queue", role: "tank" });
       const joined2 = await client2.waitForType("joined");
       if (joined2.type !== "joined") throw new Error("expected joined");
       expect(joined2.roomId).not.toBe(joined.roomId);

@@ -11,8 +11,15 @@
  */
 import { PROTOCOL_VERSION, parseServerFrame } from "./protocol-guard.js";
 import { ReconnectPolicy } from "./reconnect.js";
-import type { ClientMessage, PartyRole, ServerRunResult, ServerSnapshot } from "./wire-types.js";
+import type { ClientMessage, PartyRole, QueueLoadoutPayload, ServerRunResult, ServerSnapshot } from "./wire-types.js";
 import { WS_OPEN, type ConnectionState, type WebSocketFactory, type WebSocketLike } from "./host-handle.js";
+
+/** run-options-wiring: the Clause pick + loadout to ride the `queue` message the instant `welcome`
+ * arrives -- see net-client.ts's docstring for where these come from. */
+export interface QueueExtras {
+  clauseId?: string;
+  loadout?: QueueLoadoutPayload;
+}
 
 export interface ConnectionHooks {
   onState(state: ConnectionState, detail?: string): void;
@@ -36,7 +43,7 @@ export class NetConnection {
   private fatal = false;
   private everConnected = false;
 
-  constructor(url: string, role: PartyRole, wsFactory: WebSocketFactory, hooks: ConnectionHooks) {
+  constructor(url: string, role: PartyRole, wsFactory: WebSocketFactory, hooks: ConnectionHooks, private readonly queueExtras: QueueExtras = {}) {
     this.url = url;
     this.role = role;
     this.wsFactory = wsFactory;
@@ -83,7 +90,13 @@ export class NetConnection {
           this.ws?.close();
           return;
         }
-        this.send({ v: PROTOCOL_VERSION, type: "queue", role: this.role });
+        this.send({
+          v: PROTOCOL_VERSION,
+          type: "queue",
+          role: this.role,
+          ...(this.queueExtras.clauseId !== undefined ? { clauseId: this.queueExtras.clauseId } : {}),
+          ...(this.queueExtras.loadout !== undefined ? { loadout: this.queueExtras.loadout } : {}),
+        });
         return;
       case "joined":
         this.everConnected = true;

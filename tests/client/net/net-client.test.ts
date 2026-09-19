@@ -74,8 +74,8 @@ function server(overrides: Partial<ServerSnapshot> = {}): ServerSnapshot {
 
 async function joinAndQueue(ws: FakeWebSocket, actorId = 1): Promise<void> {
   ws.open();
-  ws.receive({ v: 2, type: "welcome", protocolVersion: 2 });
-  ws.receive({ v: 2, type: "joined", actorId, role: "tank", classId: "warden", roomId: "room-1" });
+  ws.receive({ v: 3, type: "welcome", protocolVersion: 3 });
+  ws.receive({ v: 3, type: "joined", actorId, role: "tank", classId: "warden", roomId: "room-1" });
 }
 
 const stops: (() => void)[] = [];
@@ -90,12 +90,12 @@ describe("NetHostClient: handshake ordering", () => {
     const client = new NetHostClient("?class=warden", 10, factory);
     const ws = sockets[0]!;
     ws.open();
-    expect(ws.sent).toEqual([{ v: 2, type: "join" }]);
+    expect(ws.sent).toEqual([{ v: 3, type: "join" }]);
 
-    ws.receive({ v: 2, type: "welcome", protocolVersion: 2 });
-    expect(ws.sent).toEqual([{ v: 2, type: "join" }, { v: 2, type: "queue", role: "tank" }]);
+    ws.receive({ v: 3, type: "welcome", protocolVersion: 3 });
+    expect(ws.sent).toEqual([{ v: 3, type: "join" }, { v: 3, type: "queue", role: "tank" }]);
 
-    ws.receive({ v: 2, type: "joined", actorId: 1, role: "tank", classId: "warden", roomId: "room-1" });
+    ws.receive({ v: 3, type: "joined", actorId: 1, role: "tank", classId: "warden", roomId: "room-1" });
     await expect(client.whenReady()).resolves.toEqual({ humanActorId: 1 });
   });
 
@@ -104,13 +104,33 @@ describe("NetHostClient: handshake ordering", () => {
     const cinder = new NetHostClient("?class=cinder", 10, f1);
     await joinAndQueue(s1[0]!);
     await cinder.whenReady();
-    expect(s1[0]!.sent).toContainEqual({ v: 2, type: "queue", role: "damage" });
+    expect(s1[0]!.sent).toContainEqual({ v: 3, type: "queue", role: "damage" });
 
     const { factory: f2, sockets: s2 } = makeFactory();
     const chanter = new NetHostClient("?class=chanter", 10, f2);
     await joinAndQueue(s2[0]!);
     await chanter.whenReady();
-    expect(s2[0]!.sent).toContainEqual({ v: 2, type: "queue", role: "healer" });
+    expect(s2[0]!.sent).toContainEqual({ v: 3, type: "queue", role: "healer" });
+  });
+
+  // run-options-wiring: `?clause=` and a loadout (4th ctor param, boot.ts's localStorage read)
+  // both ride the `queue` message the instant `welcome` arrives -- the exact payload the server's
+  // protocol.ts/room.ts now consume.
+  it("carries ?clause= and a loadout on the queue payload", async () => {
+    const { factory, sockets } = makeFactory();
+    const loadout = { talentChoices: { "warden.strike": "riposte" }, gear: [] };
+    const client = new NetHostClient("?class=warden&clause=echo", 10, factory, loadout);
+    await joinAndQueue(sockets[0]!);
+    await client.whenReady();
+    expect(sockets[0]!.sent).toContainEqual({ v: 3, type: "queue", role: "tank", clauseId: "echo", loadout });
+  });
+
+  it("omits clauseId/loadout from the queue payload when neither is given (unchanged shape)", async () => {
+    const { factory, sockets } = makeFactory();
+    const client = new NetHostClient("?class=warden", 10, factory);
+    await joinAndQueue(sockets[0]!);
+    await client.whenReady();
+    expect(sockets[0]!.sent).toContainEqual({ v: 3, type: "queue", role: "tank" });
   });
 });
 
@@ -123,7 +143,7 @@ describe("NetHostClient: protocol version mismatch", () => {
 
     const ws = sockets[0]!;
     ws.open();
-    ws.receive({ v: 2, type: "welcome", protocolVersion: 3 });
+    ws.receive({ v: 3, type: "welcome", protocolVersion: 2 });
 
     expect(states.at(-1)!.state).toBe("error");
     expect(states.at(-1)!.detail).toContain("protocol version mismatch");
@@ -145,7 +165,7 @@ describe("NetHostClient: late-command notice", () => {
 
     await joinAndQueue(sockets[0]!);
     await client.whenReady();
-    sockets[0]!.receive({ v: 2, type: "late", kind: "cmd", originalTick: 0, newTick: 7 });
+    sockets[0]!.receive({ v: 3, type: "late", kind: "cmd", originalTick: 0, newTick: 7 });
 
     expect(notices).toEqual([{ kind: "late", originalTick: 0, newTick: 7 }]);
   });
@@ -162,7 +182,7 @@ describe("NetHostClient: snapshot -> host interface mapping", () => {
     stops.push(client.start((s) => received.push(s)));
 
     const wire = server({ tick: 5 });
-    sockets[0]!.receive({ v: 2, type: "snapshot", snapshot: wire });
+    sockets[0]!.receive({ v: 3, type: "snapshot", snapshot: wire });
 
     expect(received).toHaveLength(1);
     expect(received[0]).toEqual(toClientSnapshot(wire));
@@ -177,10 +197,10 @@ describe("NetHostClient: snapshot -> host interface mapping", () => {
     await client.whenReady();
     stops.push(client.start(() => {}));
 
-    sockets[0]!.receive({ v: 2, type: "snapshot", snapshot: server({ tick: 5 }) });
+    sockets[0]!.receive({ v: 3, type: "snapshot", snapshot: server({ tick: 5 }) });
     expect(notices).toEqual([]); // first snapshot ever: never a backfill
 
-    sockets[0]!.receive({ v: 2, type: "snapshot", snapshot: server({ tick: 40 }) });
+    sockets[0]!.receive({ v: 3, type: "snapshot", snapshot: server({ tick: 40 }) });
     expect(notices).toEqual([{ kind: "backfilled", fromTick: 5, toTick: 40 }]);
   });
 });
@@ -197,11 +217,11 @@ describe("NetHostClient: run_end (P2 policy-inside-stepRun -- consumes the serve
     const received: Snapshot[] = [];
     stops.push(client.start((s) => received.push(s)));
 
-    sockets[0]!.receive({ v: 2, type: "snapshot", snapshot: server({ tick: 40 }) });
+    sockets[0]!.receive({ v: 3, type: "snapshot", snapshot: server({ tick: 40 }) });
     expect(received.at(-1)!.runEnd).toBeNull();
 
     sockets[0]!.receive({
-      v: 2,
+      v: 3,
       type: "run_end",
       roomId: "room-1",
       result: "depleted",
@@ -216,7 +236,7 @@ describe("NetHostClient: run_end (P2 policy-inside-stepRun -- consumes the serve
     expect(states.at(-1)).toBe("run_end");
 
     // A subsequent snapshot (e.g. one already in flight) keeps carrying the same result.
-    sockets[0]!.receive({ v: 2, type: "snapshot", snapshot: server({ tick: 41 }) });
+    sockets[0]!.receive({ v: 3, type: "snapshot", snapshot: server({ tick: 41 }) });
     expect(received.at(-1)!.runEnd).toEqual({ outcome: "depleted", tick: 41 });
   });
 
@@ -227,7 +247,7 @@ describe("NetHostClient: run_end (P2 policy-inside-stepRun -- consumes the serve
     await client.whenReady();
 
     client.applyCommand({ type: "abandon", tick: 0 });
-    expect(sockets[0]!.sent).toContainEqual({ v: 2, type: "abandon" });
+    expect(sockets[0]!.sent).toContainEqual({ v: 3, type: "abandon" });
   });
 });
 
@@ -265,8 +285,8 @@ describe("NetHostClient: reconnect", () => {
     expect(sockets).toHaveLength(2);
 
     sockets[1]!.open();
-    sockets[1]!.receive({ v: 2, type: "welcome", protocolVersion: 2 });
-    sockets[1]!.receive({ v: 2, type: "joined", actorId: 1, role: "tank", classId: "warden", roomId: "room-1" });
+    sockets[1]!.receive({ v: 3, type: "welcome", protocolVersion: 3 });
+    sockets[1]!.receive({ v: 3, type: "joined", actorId: 1, role: "tank", classId: "warden", roomId: "room-1" });
     sockets[1]!.close();
 
     vi.advanceTimersByTime(249);

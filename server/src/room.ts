@@ -19,6 +19,12 @@
  * (the one signal sim cannot derive) in as `stepRun`'s `abandonRequested` option. run-end.ts is left
  * owning only the wire-payload concern (the reward roll), not the decision.
  *
+ * RUN OPTIONS (run-options-wiring): an optional 4th `firstQueuer` arg carries the Clause pick and
+ * loadout of the ONE queue request that opened this room ("fixed at room creation", like
+ * `keyLevel`), resolved into a real `RunOptions` by room-options.ts's `firstQueuerOptions` (split
+ * out for the 190-LOC cap -- see that file for the full contract incl. the backfill limitation). A
+ * bad clauseId/loadout throws out of this constructor; lobby.ts/main.ts turn that into `error`.
+ *
  * Usage: `const room = new Room("room-1", serverContent, onEnd); room.attachHuman(1, ws); room.start();`
  */
 import { createRun, stepRun, type Run } from "../../sim/index";
@@ -37,8 +43,11 @@ import { ROLE_ROSTER, actorIdForSlot, buildPartySpec, type PartyRole } from "./r
 import { buildRunEndPayload } from "./run-end.js";
 import { resolveCommand, type EnqueueOk, type EnqueueErr } from "./command-queue.js";
 import type { ServerContent } from "./content-setup.js";
+import { firstQueuerOptions, type RoomFirstQueuer } from "./room-options.js";
 import type { ServerMessage } from "./protocol.js";
 import type { WebSocket } from "ws";
+
+export type { RoomFirstQueuer } from "./room-options.js";
 
 export const SEED = 1;
 const BOT_SKILL_DIAL = 80;
@@ -60,11 +69,11 @@ export class Room {
   private abandonRequested = false;
   private readonly onEnd: ((roomId: string) => void) | undefined;
 
-  constructor(id: string, sc: ServerContent, onEnd?: (roomId: string) => void) {
+  constructor(id: string, sc: ServerContent, onEnd?: (roomId: string) => void, firstQueuer?: RoomFirstQueuer) {
     this.id = id;
     this.onEnd = onEnd;
     const party = buildPartySpec(sc.registry);
-    this.run = createRun(SEED, party, sc.dungeon, sc.content); // targeting already resolved: see sim/index.ts's createRun
+    this.run = createRun(SEED, party, sc.dungeon, sc.content, firstQueuerOptions(sc, firstQueuer)); // targeting already resolved: see sim/index.ts's createRun
     this.keyLevel = sc.keyLevel;
     this.parTicks = sc.parTicks;
     this.pullCount = sc.dungeon.pulls.length;
@@ -162,11 +171,11 @@ export class Room {
   start(): () => void {
     this.timer = setInterval(() => {
       const { snapshot, events } = this.tick();
-      this.broadcast({ v: 2, type: "snapshot", snapshot });
-      if (events.length > 0) this.broadcast({ v: 2, type: "event", events });
+      this.broadcast({ v: 3, type: "snapshot", snapshot });
+      if (events.length > 0) this.broadcast({ v: 3, type: "event", events });
       const payload = buildRunEndPayload(this.run.runEnd, SEED, this.keyLevel);
       if (payload) {
-        this.broadcast({ v: 2, type: "run_end", roomId: this.id, ...payload });
+        this.broadcast({ v: 3, type: "run_end", roomId: this.id, ...payload });
         this.stop();
         this.onEnd?.(this.id);
       }

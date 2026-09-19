@@ -23,11 +23,11 @@ describe("server: multiple concurrent rooms", () => {
     a = await TestClient.connect(server.port);
     b = await TestClient.connect(server.port);
 
-    a.send({ v: 2, type: "queue", role: "tank" });
+    a.send({ v: 3, type: "queue", role: "tank" });
     const joinedA = await a.waitForType("joined");
     if (joinedA.type !== "joined") throw new Error("expected joined");
 
-    b.send({ v: 2, type: "queue", role: "tank" });
+    b.send({ v: 3, type: "queue", role: "tank" });
     const joinedB = await b.waitForType("joined");
     if (joinedB.type !== "joined") throw new Error("expected joined");
 
@@ -39,7 +39,7 @@ describe("server: multiple concurrent rooms", () => {
     const scheduledTick = baseA.snapshot.tick + 10;
 
     // Move room A's tank; room B's own tank actor must stay put -- these are two independent Runs.
-    a.send({ v: 2, type: "cmd", cmd: { tick: scheduledTick, kind: "move", dir: { x: 1000, z: 0 }, yaw: 0 } });
+    a.send({ v: 3, type: "cmd", cmd: { tick: scheduledTick, kind: "move", dir: { x: 1000, z: 0 }, yaw: 0 } });
 
     let movedInA = false;
     for (let i = 0; i < 30 && !movedInA; i++) {

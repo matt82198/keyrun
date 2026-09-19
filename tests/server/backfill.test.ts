@@ -24,12 +24,12 @@ describe("server: disconnect -> bot takeover -> backfill", () => {
 
     // healer stays connected throughout, as the room's live observer.
     healer = await TestClient.connect(server.port);
-    healer.send({ v: 2, type: "queue", role: "healer" });
+    healer.send({ v: 3, type: "queue", role: "healer" });
     const joinedHealer = await healer.waitForType("joined");
     if (joinedHealer.type !== "joined") throw new Error("expected joined");
 
     tankA = await TestClient.connect(server.port);
-    tankA.send({ v: 2, type: "queue", role: "tank" });
+    tankA.send({ v: 3, type: "queue", role: "tank" });
     const joinedA = await tankA.waitForType("joined");
     if (joinedA.type !== "joined") throw new Error("expected joined");
     expect(joinedA.roomId).toBe(joinedHealer.roomId);
@@ -53,7 +53,7 @@ describe("server: disconnect -> bot takeover -> backfill", () => {
 
     // A new human queuing for "tank" reattaches to the same actorId, same room.
     tankC = await TestClient.connect(server.port);
-    tankC.send({ v: 2, type: "queue", role: "tank" });
+    tankC.send({ v: 3, type: "queue", role: "tank" });
     const joinedC = await tankC.waitForType("joined");
     if (joinedC.type !== "joined") throw new Error("expected joined");
     expect(joinedC.actorId).toBe(joinedA.actorId);

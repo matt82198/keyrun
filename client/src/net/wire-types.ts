@@ -9,8 +9,9 @@
  *
  * Usage: `import type { ServerMessage, ClientMessage } from "./wire-types.js";`
  */
+import type { Item } from "../../../content/schema/facet.js";
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export type PartyRole = "tank" | "healer" | "damage";
 
@@ -22,9 +23,16 @@ export type ClientCommandPayload =
   | { tick: number; kind: "stopcast" }
   | { tick: number; kind: "target"; targetId: number | null };
 
+/** run-options-wiring: mirrors server/src/protocol.ts's `LoadoutPayload` exactly (client/server
+ * are separate bundles -- see that file's own "mirrors X, not imported" convention). */
+export interface QueueLoadoutPayload {
+  talentChoices: Record<string, string>;
+  gear: Item[];
+}
+
 export type ClientMessage =
   | { v: number; type: "join" }
-  | { v: number; type: "queue"; role: PartyRole }
+  | { v: number; type: "queue"; role: PartyRole; clauseId?: string; loadout?: QueueLoadoutPayload }
   | { v: number; type: "cmd"; cmd: ClientCommandPayload }
   | { v: number; type: "abandon" }
   | { v: number; type: "leave" };

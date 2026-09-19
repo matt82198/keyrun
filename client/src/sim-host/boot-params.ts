@@ -35,6 +35,20 @@ export function parseKeyLevel(raw: string | null): number {
   return Math.min(20, Math.max(2, Math.trunc(n)));
 }
 
+/** run-options-wiring: `?clause=<id>` -- design/BIBLE.md sec 8's Clause pick, riding the Play URL
+ * screen/src/clauses.ts's `buildPlayUrl` already builds (`?clause=<id>`, previously never read by
+ * any host -- the exact P0 this lane fixes). Same convention as `?class=`/`?dungeon=` below: an
+ * absent or unknown id falls back (here, to "no Clause") with a `console.warn`, never a crash --
+ * this is a locally-typed/bookmarked URL param, not a network boundary (sim/index.ts's `createRun`
+ * still throws on a truly bad `content.clauses` lookup as defence in depth, but every id reaching
+ * it from here is already registry-validated). */
+export function parseClauseId(raw: string | null, registry: ContentRegistry): string | undefined {
+  if (raw === null || raw.trim() === "") return undefined;
+  if (registry.clauses.has(raw)) return raw;
+  console.warn(`keyrun: "?clause=${raw}" is not a known Clause -- ignoring (no Clause active)`);
+  return undefined;
+}
+
 export function resolveRunSetupOptions(url: URLSearchParams, registry: ContentRegistry): RunSetupOptions {
   const keyLevel = parseKeyLevel(url.get("key"));
 
@@ -50,5 +64,7 @@ export function resolveRunSetupOptions(url: URLSearchParams, registry: ContentRe
     console.warn(`keyrun: unknown dungeon "${requestedDungeonId}" -- defaulting to "${dungeonId}"`);
   }
 
-  return { keyLevel, dungeonId, humanClassId };
+  const clauseId = parseClauseId(url.get("clause"), registry);
+
+  return { keyLevel, dungeonId, humanClassId, ...(clauseId !== undefined ? { clauseId } : {}) };
 }

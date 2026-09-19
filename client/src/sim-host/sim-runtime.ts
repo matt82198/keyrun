@@ -55,7 +55,9 @@ export class SimRuntime {
   private readonly maxSlackTicks: number;
 
   constructor(private readonly setup: RunSetup) {
-    this.run = createRun(SEED, setup.party, setup.dungeon, setup.content); // targeting already resolved: see sim/index.ts's createRun
+    // run-options-wiring: setup.runOptions carries the Clause pick + loadout-resolved abilities
+    // (run-setup.ts's buildRunSetup); targeting already resolved: see sim/index.ts's createRun.
+    this.run = createRun(SEED, setup.party, setup.dungeon, setup.content, setup.runOptions);
 
     for (const member of setup.party) {
       if (member.id === setup.humanActorId) continue;

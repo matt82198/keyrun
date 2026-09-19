@@ -18,12 +18,19 @@
  * `rooms`, so no future queue ever reaches it) the instant server/src/room.ts reports it ended
  * (server/src/run-end.ts's result) -- never reused for a fresh run.
  *
+ * v3 (run-options-wiring): `handleQueue` also takes the queuing request's `clauseId`/`loadout` --
+ * threaded to `newRoom` ONLY (same "fixed at room creation" rule `keyLevel` already follows): they
+ * matter only the instant a fresh room is actually opened by this exact request (server/src/
+ * room-options.ts's `firstQueuerOptions`); reusing an existing room ignores them, same as an
+ * existing room's `keyLevel` can't be changed by a later queue into it.
+ *
  * Usage: `const lobby = new Lobby(registry); const hit = lobby.handleQueue("tank", 5);`
  */
-import { Room } from "./room.js";
+import { Room, type RoomFirstQueuer } from "./room.js";
 import { buildServerContent, DEFAULT_KEY_LEVEL, DUNGEON_ID } from "./content-setup.js";
 import type { ContentRegistry } from "../../content/schema/registry";
 import type { ActorId } from "../../sim/core/state";
+import type { LoadoutPayload } from "./protocol.js";
 import type { PartyRole } from "./roster.js";
 
 export interface QueueHit {
@@ -40,24 +47,28 @@ export class Lobby {
     this.registry = registry;
   }
 
-  private newRoom(keyLevel: number): Room {
+  private newRoom(keyLevel: number, firstQueuer: RoomFirstQueuer): Room {
     this.roomCounter += 1;
     const id = `room-${this.roomCounter}`;
     const content = buildServerContent(this.registry, DUNGEON_ID, keyLevel);
-    const room = new Room(id, content, (endedId) => this.rooms.delete(endedId));
+    const room = new Room(id, content, (endedId) => this.rooms.delete(endedId), firstQueuer);
     this.rooms.set(id, room);
     room.start();
     return room;
   }
 
   /** First room (in creation order) with an open slot for `role`; never null -- opens a fresh room
-   * (v2 CHANGE, see file docstring) rather than reporting "role_full". */
-  handleQueue(role: PartyRole, keyLevel: number = DEFAULT_KEY_LEVEL): QueueHit {
+   * (v2 CHANGE, see file docstring) rather than reporting "role_full". `clauseId`/`loadout` only
+   * take effect when this call is the one that opens that fresh room (v3, see file docstring); a
+   * bad clauseId/loadout throws (Room's constructor -> sim/index.ts's createRun or content/apply.ts's
+   * applyLoadout) -- callers (server/src/main.ts) turn that into a clean `error` message. */
+  handleQueue(role: PartyRole, keyLevel: number = DEFAULT_KEY_LEVEL, clauseId?: string, loadout?: LoadoutPayload): QueueHit {
     for (const room of this.rooms.values()) {
       const actorId = room.findOpenSlot(role);
       if (actorId !== null) return { room, actorId };
     }
-    const room = this.newRoom(keyLevel);
+    const firstQueuer: RoomFirstQueuer = { role, ...(clauseId !== undefined ? { clauseId } : {}), ...(loadout !== undefined ? { loadout } : {}) };
+    const room = this.newRoom(keyLevel, firstQueuer);
     const actorId = room.findOpenSlot(role);
     if (actorId === null) throw new Error("lobby: a freshly created room has no open slot -- ROLE_ROSTER is misconfigured");
     return { room, actorId };
