@@ -4,19 +4,19 @@
  * caller (the client's sim-host worker, tests, a future server) never has to hand-wire the three
  * lanes itself.
  *
- * Tick order inside stepRun, both parts addressed to the SAME `run.state.tick`:
- *   1. `stepEncounter` reads the (unmutated) current state to decide which enemies cast this tick
- *      and to register/resolve telegraphs; it returns enemy-authored `cast` Commands for this tick
- *      plus a patched EncounterState (never touches ActorState itself -- see sim/encounter/index.ts).
- *   2. Those enemy commands are merged with the caller-supplied `commands` (players + bots) and
- *      handed to `sim/core/tick.step` together with a `sim/combat/rules` StepRules built from
- *      `run.content`. This is where damage/heals/effects/cast completion actually happen -- an
- *      enemy telegraph's *warning* comes from step 1, but the ability itself resolves through the
- *      ordinary cast pipeline in step 2 against the caster's actual position/facing at completion,
- *      exactly like a player cast (see sim/combat/casting.ts). For a stationary scripted enemy
- *      whose ability castTicks equals the telegraph's leadTicks, the two coincide.
- *   3. If the encounter step advanced `pullIndex` (the previous pull's spawns are all dead), the
- *      next pull's enemies are spawned into the post-tick state.
+ * Tick order inside stepRun, all addressed to the SAME `run.state.tick`:
+ *   1. `stepEncounter` decides which enemies cast this tick (resolving targetId/range via
+ *      sim/encounter/script-target.ts, given `content.abilities`), registers/resolves telegraphs,
+ *      and drains any break bars (`content.breakBarSources`) off this tick's `commands`; returns
+ *      enemy `cast` Commands plus a patched EncounterState (never touches ActorState itself).
+ *   2. Enemy commands are merged with the caller-supplied `commands` (players + bots) and handed
+ *      to `sim/core/tick.step` with a `sim/combat/rules` StepRules built from `run.content` --
+ *      where damage/heals/effects/cast completion actually happen, against each caster's live
+ *      position/facing at completion (sim/combat/casting.ts), same as a player cast.
+ *   3. Any break bar that just staggered has its onEmpty patches (run-wiring.ts's
+ *      `applyBreakBarPatches`) applied to the post-combat state.
+ *   4. If `pullIndex` advanced (the previous pull's spawns are all dead), the next pull's enemies
+ *      are spawned into the post-tick state.
  *
  * `createRun`'s documented return shape is `{state, encounter}`; the object returned also carries
  * `dungeon` and `content` so `stepRun` does not need them re-passed on every call -- a strict
@@ -26,20 +26,23 @@
  *   const run = createRun(seed, party, dungeonDef, content);
  *   const { run: run2, events } = stepRun(run, commandsForThisTick);
  */
-import { createState, type ActorId, type ActorState, type SimState, type Tick, type Vec3 } from "./core/state";
+import { createState, type ActorId, type SimState, type Tick, type Vec3 } from "./core/state";
 import { step as coreStep } from "./core/tick";
 import type { Command } from "./core/commands";
 import type { SimEvent } from "./core/events";
 import { createActor } from "./combat/actors";
-import { makeRules, type RulesConfig } from "./combat/rules";
+import { makeRules } from "./combat/rules";
 import type { ComboTable } from "./combat/combos";
 import type { AbilityDef } from "./combat/abilities";
 import type { EffectDef } from "./combat/effects";
 import type { Bounds } from "./combat/movement";
+import { abilityTagsOf, applyBreakBarPatches, mergeActors, rulesConfigOf } from "./run-wiring";
 import {
   stepEncounter,
   spawnPull,
   initialSlackTicks,
+  type BreakBarSource,
+  type BreakBarWiring,
   type DungeonDef,
   type EncounterState,
   type EnemyScript,
@@ -82,6 +85,10 @@ export interface RunContent {
   combos?: ComboTable;
   /** Same shape as `combos`, for the smaller "field" combos floor-patch Windows fire. */
   fieldCombos?: ComboTable;
+  /** [barId] -> break-bar source data (break-bar-wiring, BIBLE.md Sec 9 "The Sundered Twins"),
+   * passed to `stepEncounter` as `BreakBarWiring.sources` on every tick. Omit for content with no
+   * break bars -- `stepRun` then drains none. */
+  breakBarSources?: Record<string, BreakBarSource>;
 }
 
 export interface Run {
@@ -89,26 +96,6 @@ export interface Run {
   encounter: EncounterState;
   dungeon: DungeonDef;
   content: RunContent;
-}
-
-function rulesConfigOf(content: RunContent): RulesConfig {
-  return {
-    abilities: content.abilities,
-    effects: content.effects,
-    lockoutTicks: content.lockoutTicks,
-    baseSpeedMmPerTick: content.baseSpeedMmPerTick,
-    actorRadiusMm: content.actorRadiusMm,
-    bounds: content.bounds,
-    ...(content.combos !== undefined ? { combos: content.combos } : {}),
-    ...(content.fieldCombos !== undefined ? { fieldCombos: content.fieldCombos } : {}),
-  };
-}
-
-function mergeActors(state: SimState, spawned: ActorState[]): SimState {
-  if (spawned.length === 0) return state;
-  const actors = { ...state.actors };
-  for (const actor of spawned) actors[actor.id] = actor;
-  return { ...state, actors };
 }
 
 /**
@@ -149,6 +136,7 @@ export function createRun(seed: number, party: PartyMemberSpec[], dungeon: Dunge
     keyLevel,
     depleted: false,
     rules: content.encounterRules ?? defaultEncounterRules(keyLevel),
+    firedOnDeath: {},
   };
 
   return { state, encounter, dungeon, content };
@@ -165,14 +153,27 @@ export function stepRun(run: Run, commands: Command[]): { run: Run; events: SimE
     events.push(e);
   };
 
-  const encResult = stepEncounter(run.state, run.encounter, run.dungeon, run.content.enemyScripts, emit);
+  const wiring: BreakBarWiring = {
+    sources: run.content.breakBarSources ?? {},
+    commands,
+    abilityTags: abilityTagsOf(run.content.abilities),
+  };
+  const encResult = stepEncounter(
+    run.state,
+    run.encounter,
+    run.dungeon,
+    run.content.enemyScripts,
+    emit,
+    wiring,
+    run.content.abilities
+  );
 
   const rules = makeRules(rulesConfigOf(run.content));
   const merged = [...commands, ...encResult.commands];
   const stepped = coreStep(run.state, merged, rules);
   events.push(...stepped.events);
 
-  let nextState = stepped.state;
+  let nextState = applyBreakBarPatches(stepped.state, encResult.effectPatches, run.content.effects);
   let nextEncounter = encResult.encounter;
   if (nextEncounter.pullIndex !== run.encounter.pullIndex) {
     const spawned = spawnPull(run.dungeon, nextEncounter.pullIndex, nextState.tick, emit);

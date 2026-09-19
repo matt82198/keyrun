@@ -41,6 +41,14 @@ export interface EncounterState {
   keyLevel: number;
   depleted: boolean;
   rules: EncounterRules;
+  /** [actorId] -> ability ids whose "onDeath" script step has already fired for that actor
+   * (death-trigger-wiring): threaded into sim/encounter/scripts.ts's `stepEnemyScripts` each tick
+   * so an "onDeath" step's FIRE-ONCE CONTRACT (see that file's docstring) survives across ticks
+   * instead of re-firing every tick after death. Optional (defaults to `{}` wherever read, see
+   * sim/encounter/index.ts's `stepEncounter`) so every EncounterState object literal elsewhere in
+   * this codebase predating this field keeps compiling unchanged; `createRun` sets it explicitly
+   * on every real run. */
+  firedOnDeath?: Record<ActorId, string[]>;
 }
 
 const SCALE = 4096;

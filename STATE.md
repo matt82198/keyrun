@@ -41,9 +41,9 @@ assets; pure POC.
 - Phase 4: server/ authoritative tick + queue/lobby + character screen → 5 humans.
 - Phase 5: tuning with Matt playing.
 
-## NEXT STEPS (2026-09-18, phase 3 in progress)
-1. Land #14 (progression) and #15 (integrate-sim: `sim/index.ts` createRun/stepRun, client worker on the real sim, golden replay).
-2. Land lanes content-sim-align (P0), bots-v1, apply-talents-facets; then dispatch playable-v1 (client + bots + content, Hollow Vault end to end).
-3. Then clauses, window-radius-field, dedupe-target-resolution, screen panels for talents/facets, tick-rate-measure (D9).
-4. Matt's `[DECIDE]` items in design/BIBLE.md (class names, combo numbers, key range/par time, Ascension visibility) stay parked until he weighs in.
-5. Session end: /refinesystem to zero verified defects.
+## NEXT STEPS (2026-09-18 evening — phase 3 reached)
+Playable: `npm run dev` → `http://127.0.0.1:8791/client/index.html?key=5&dungeon=hollow-vault&class=warden` (or cinder/chanter). Main a8d5e76, 534 tests, `test` check required on main (strict).
+1. Land in-flight lanes: fix/aoe-faction (P0: area shapes hit own side), fix/encounter-run-wiring (break bar + onDeath + enemy range through stepRun), feat/bots-floor-avoid, research/tick-rate-measure (decides D9 with numbers).
+2. Then: chanter-stance needs Matt — `[DECIDE]` verse semantics (BIBLE §3/§5) before the sim gets a stance system; other BIBLE `[DECIDE]` items still parked (class names, combo numbers, key range/par time, Ascension visibility).
+3. Phase 4 (server: authoritative tick, WebSocket, queue/lobby, backfill) is next once the sim seams above are closed; the client worker host is the contract the server replaces.
+4. Session end: /refinesystem to zero verified defects — the day's pattern is layer-wiring defects that only public-path (`createRun`+`stepRun`) repros catch; every convergence audit must use that path.

@@ -19,19 +19,34 @@
  * optional trailing `breakBarWiring` argument (content->sim data + this tick's submitted commands,
  * see breakbar.ts's `BreakBarSource`/`deriveBreakBarInputs`) is the "spawn/enemy setup" hook that
  * turns a spawned shared-bar pair into a real `BreakBarState` the first tick both of its `actorIds`
- * are alive, then drains it off this tick's tagged casts. It is optional (defaults to `undefined`)
- * purely so sim/index.ts's existing 5-arg call (that file is out of this lane's scope) keeps
- * compiling unchanged; threading `commands`/`abilityTags` through that call site so break bars
- * drain inside a real `stepRun`-driven game is the one-line follow-up left for sim/index.ts's
- * owning lane. `StepEncounterResult.effectPatches` is the onEmpty counterpart to `commands`: this
- * function never mutates ActorState, so a bar's stagger effects (e.g. `stunned` on both twins)
- * ride out as data for the caller to apply via sim/combat/effects.ts's real `applyEffectInstance`.
+ * are alive, then drains it off this tick's tagged casts. It stays optional (defaults to
+ * `undefined`) for any caller with no break bars to drain; `sim/index.ts`'s `stepRun` now builds it
+ * from `RunContent.breakBarSources` on every real run (see that file). `StepEncounterResult.
+ * effectPatches` is the onEmpty counterpart to `commands`: this function never mutates ActorState,
+ * so a bar's stagger effects (e.g. `stunned` on both twins) ride out as data for the caller to
+ * apply via sim/combat/effects.ts's real `applyEffectInstance`.
+ *
+ * DEATH-TRIGGER WIRING (backlog item death-trigger-wiring, scripts.ts's FIRE-ONCE CONTRACT):
+ * `encounter.firedOnDeath` is threaded into `stepEnemyScripts` as its third argument and the
+ * result folded back into the returned `EncounterState`, so an `"onDeath"` step (e.g.
+ * `seed.deathBloom`) fires exactly once across a run instead of re-firing every tick after death.
+ * `sim/combat/rules.ts` carries the matching half of this fix (it no longer drops a dead actor's
+ * "cast" command -- see that file's DEATH-CAST EXCEPTION note).
+ *
+ * TARGETING WIRING (PR #35's WIRING NOTE, sim/encounter/script-target.ts): an optional trailing
+ * `abilities` argument (default `{}`) is `stepEnemyScripts`'s own 4th parameter, passed straight
+ * through -- with it, an enemy script's cast resolves a real targetId (threat/nearest for a
+ * hostile ability, lowest-health ally for a heal) and range-gates it against the ability's own
+ * `range`, skipping the cast this tick rather than firing at an out-of-range target. `sim/index.ts`
+ * passes `RunContent.abilities` here on every real run; omitted, `stepEnemyScripts` falls back to
+ * its always-safe legacy behaviour (see that file's docstring).
  *
  * Usage: `const { state, encounter, commands } = stepEncounter(state, encounter, dungeon, scripts, emit);`
  */
 import type { ActorId, Command, SimEvent, SimState } from "./types";
 import { stepEnemyScripts, type EnemyScript } from "./scripts";
 import { resolveTelegraphs, type EncounterState, type Telegraph } from "./telegraphs";
+import type { AbilityDef } from "../combat/abilities";
 import {
   tickBreakBarReset,
   createBreakBar,
@@ -84,11 +99,12 @@ export function stepEncounter(
   dungeon: DungeonDef,
   scripts: Record<ActorId, EnemyScript>,
   emit: (event: SimEvent) => void,
-  breakBarWiring?: BreakBarWiring
+  breakBarWiring?: BreakBarWiring,
+  abilities: Record<string, AbilityDef> = {}
 ): StepEncounterResult {
   const tick = state.tick;
 
-  const { commands, telegraphEvents } = stepEnemyScripts(state, scripts);
+  const { commands, telegraphEvents, firedOnDeath } = stepEnemyScripts(state, scripts, encounter.firedOnDeath ?? {}, abilities);
   telegraphEvents.forEach(emit);
   const registered = telegraphEvents.map(registerTelegraph);
 
@@ -122,7 +138,7 @@ export function stepEncounter(
     effectPatches.push(...breakBarEffectPatches(source, !wasStaggered && drained.current <= 0));
   }
 
-  let nextEncounter: EncounterState = { ...encounter, telegraphs, breakBars };
+  let nextEncounter: EncounterState = { ...encounter, telegraphs, breakBars, firedOnDeath };
   nextEncounter = checkPullAdvance(state, dungeon, nextEncounter, tick, emit);
 
   return { state, encounter: nextEncounter, commands, effectPatches };
