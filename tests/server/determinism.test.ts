@@ -2,17 +2,16 @@
 // the command stream is fully test-controlled), each sends one `move` command scheduled comfortably
 // in the future (well clear of any late re-stamping), and after N ticks the server's reported
 // `stateHash` (server/src/snapshot.ts) must equal a LOCAL createRun/stepRun replay of the exact
-// same command stream, run through the SAME sim-exported fixupTargeting/applyDeathsAndWipe policy
-// (sim/run-wiring.ts) room.ts calls -- no server-only duplicate of that policy exists any more
-// (server-policy-in-sim, P1) -- proof that what the wire reports is exactly what sim/index.ts plus
-// its own public policy exports would have produced for that seed, content, and command stream.
+// same command stream -- policy-inside-stepRun (P2) means that replay is now bare createRun/stepRun,
+// no separate policy call of any kind (sim/index.ts's stepRun applies targeting/Slack/run-end policy
+// itself) -- proof that what the wire reports is exactly what sim/index.ts alone would have
+// produced for that seed, content, and command stream.
 import { describe, expect, it } from "vitest";
 import { createRun, stepRun } from "../../sim/index";
 import { hashState } from "../../sim/core/state";
 import type { Command } from "../../sim/core/commands";
-import { ROLE_ROSTER, actorIdForSlot, buildPartySpec, type PartyRole } from "../../server/src/roster.js";
+import { ROLE_ROSTER, buildPartySpec } from "../../server/src/roster.js";
 import { buildServerContent, DUNGEON_ID } from "../../server/src/content-setup.js";
-import { fixupTargeting, applyDeathsAndWipe } from "../../sim/run-wiring";
 import { SEED } from "../../server/src/room.js";
 import type { Snapshot } from "../../server/src/snapshot.js";
 import { startTestServer, type TestServer } from "./harness.js";
@@ -68,19 +67,14 @@ describe("server: wire determinism vs. local sim replay", () => {
       const serverHash = settled.stateHash;
       const serverTick = settled.tick;
 
-      // Local replay: identical seed/content/party/policy layer, driven only by sentCommands.
+      // Local replay: identical seed/content/party, driven only by sentCommands -- createRun/
+      // stepRun alone apply every bit of policy now (P2), so there is nothing else to call.
       const content = buildServerContent(server.registry, DUNGEON_ID, TEST_KEY_LEVEL);
       const party = buildPartySpec(content.registry);
-      const tankIndex = ROLE_ROSTER.findIndex((s: { role: PartyRole }) => s.role === "tank");
-      const tankActorId = actorIdForSlot(tankIndex);
       let run = createRun(SEED, party, content.dungeon, content.content);
-      fixupTargeting(run, tankActorId);
       for (let t = 0; t < serverTick; t++) {
         const due = sentCommands.filter((c) => c.tick === t);
-        const stepped = stepRun(run, due);
-        run = stepped.run;
-        fixupTargeting(run, tankActorId);
-        run = applyDeathsAndWipe(run, stepped.events, t);
+        run = stepRun(run, due).run;
       }
 
       expect(hashState(run.state)).toBe(serverHash);

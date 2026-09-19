@@ -85,6 +85,9 @@ describe("sim-runtime: SimRuntime steps 200 ticks without throwing", () => {
     const host = freshHost("warden");
     host.applyCommand({ type: "abandon", tick: 0 });
     const snapshot = host.step();
-    expect(snapshot.runEnd).toEqual({ outcome: "abandoned", tick: 0 });
+    // P2 (policy-inside-stepRun): run-end is now decided inside stepRun itself, stamped with the
+    // tick stepRun just advanced TO (1, same as snapshot.tick) -- not the pre-step tick a host-side
+    // wrapper used to capture before calling stepRun.
+    expect(snapshot.runEnd).toEqual({ outcome: "abandoned", tick: 1 });
   });
 });

@@ -130,7 +130,9 @@ function advanceTick(
     nextState = mergeActors(nextState, spawned);
   }
 
-  return { state: nextState, encounter: nextEncounter, dungeon: run.dungeon, content: run.content };
+  // This local mirror doesn't touch sim/index.ts's own run-end policy (see file docstring) --
+  // runEnd just passes through unchanged.
+  return { state: nextState, encounter: nextEncounter, dungeon: run.dungeon, content: run.content, runEnd: run.runEnd };
 }
 
 // The first choir.melee spawn (toSimDungeon assigns actor ids sequentially, group order matching

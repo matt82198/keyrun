@@ -80,23 +80,18 @@ describe("mapping: toClientSnapshot", () => {
     expect(out).not.toHaveProperty("stateHash");
   });
 
-  it("marks the run ended (abandoned) when every player actor is dead", () => {
-    const s = snapshot({ actors: [actor({ id: 1, alive: false }), actor({ id: 2, alive: false })] });
-    expect(toClientSnapshot(s).runEnd).toEqual({ outcome: "abandoned", tick: 10 });
-  });
+  // P2 (policy-inside-stepRun): toClientSnapshot no longer derives a runEnd signal from wire
+  // snapshot data at all (the old isRunEnded/runOutcome, deleted) -- it always maps to null here.
+  // The server's own authoritative `run_end` message is what carries the real result; net-client.ts
+  // overlays it onto the mapped Snapshot itself (see tests/client/net/net-client.test.ts's
+  // "run_end" coverage), not this pure per-snapshot mapping function.
+  it("never derives runEnd from snapshot data alone -- always null here, regardless of actor state", () => {
+    const wiped = snapshot({ actors: [actor({ id: 1, alive: false }), actor({ id: 2, alive: false })] });
+    expect(toClientSnapshot(wiped).runEnd).toBeNull();
 
-  it("marks the run ended (timed/depleted) when the final pull's enemies are all dead", () => {
     const enemy = actor({ id: 900, kind: "enemy", alive: false });
-    const timed = snapshot({ pullIndex: 1, pullCount: 2, depleted: false, actors: [actor(), enemy] });
-    expect(toClientSnapshot(timed).runEnd).toEqual({ outcome: "timed", tick: 10 });
-
-    const depleted = snapshot({ pullIndex: 1, pullCount: 2, depleted: true, actors: [actor(), enemy] });
-    expect(toClientSnapshot(depleted).runEnd).toEqual({ outcome: "depleted", tick: 10 });
-  });
-
-  it("is not ended mid-run (players alive, non-final pull, or enemies still up)", () => {
-    const s = snapshot({ pullIndex: 0, pullCount: 2, actors: [actor(), actor({ id: 900, kind: "enemy", alive: true })] });
-    expect(toClientSnapshot(s).runEnd).toBeNull();
+    const cleared = snapshot({ pullIndex: 1, pullCount: 2, depleted: false, actors: [actor(), enemy] });
+    expect(toClientSnapshot(cleared).runEnd).toBeNull();
   });
 });
 

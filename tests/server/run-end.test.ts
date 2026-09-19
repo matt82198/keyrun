@@ -1,24 +1,27 @@
-// Usage: server-policy-in-sim (P1) deliverable 3 -- run-end detection (server/src/run-end.ts).
+// Usage: policy-inside-stepRun (P2) -- run-end DETECTION now lives entirely inside sim/index.ts's
+// stepRun (sim/run-wiring.ts's checkRunEnd); server/src/run-end.ts only builds the wire payload.
 //
 // Two scenarios:
 //  1. WIPE (Room-level): `Room.tick()` is public exactly so tests can drive it directly (same
 //     reason client/src/sim-host/worker.ts's `step()` is public) -- forcing a wipe through real
 //     content combat would be slow and content-balance-dependent, so this kills every player actor
 //     directly on `room.run.state.actors` (bypassing combat) and ticks the room WIPE_GRACE_TICKS+
-//     times, watching for the "finish" SimEvent stepRunEndCheck appends to that tick's events.
+//     times, watching for the "run_end" SimEvent stepRun appends to that tick's events. An
+//     unrecoverable full wipe reports "depleted" (a failure to finish within budget), not
+//     "abandoned" (reserved for an explicit human quit) -- see sim/run-wiring.ts's checkRunEnd.
 //  2. ABANDON (full pipeline, through the real WebSocket): a human sends `abandon`; the room
 //     broadcasts `run_end` with result "abandoned", stops itself, and lobby.ts releases it -- proven
 //     by a fresh queue for the same role landing in a NEW room, not the ended one.
 import { describe, expect, it } from "vitest";
 import { Room } from "../../server/src/room.js";
 import { buildServerContent, loadServerRegistry, DUNGEON_ID, DEFAULT_KEY_LEVEL } from "../../server/src/content-setup.js";
-import { WIPE_GRACE_TICKS } from "../../server/src/run-end.js";
+import { WIPE_GRACE_TICKS } from "../../sim/run-wiring";
 import type { SimEvent } from "../../sim/core/events";
 import { startTestServer, type TestServer } from "./harness.js";
 import { TestClient } from "./ws-client.js";
 
 describe("server: run-end detection", () => {
-  it("a full wipe auto-abandons the run after WIPE_GRACE_TICKS, exactly once", () => {
+  it("a full wipe auto-ends the run 'depleted' after WIPE_GRACE_TICKS, exactly once", () => {
     const registry = loadServerRegistry();
     const content = buildServerContent(registry, DUNGEON_ID, DEFAULT_KEY_LEVEL);
     const room = new Room("wipe-room", content);
@@ -32,9 +35,10 @@ describe("server: run-end detection", () => {
       allEvents.push(...room.tick().events);
     }
 
-    const finishes = allEvents.filter((e) => e.type === "finish");
-    expect(finishes).toHaveLength(1);
-    expect(finishes[0]).toMatchObject({ result: "abandoned" });
+    const runEnds = allEvents.filter((e) => e.type === "run_end");
+    expect(runEnds).toHaveLength(1);
+    expect(runEnds[0]).toMatchObject({ result: "depleted" });
+    expect(room.run.runEnd.result).toBe("depleted");
   });
 
   it("an explicit abandon ends the run and the lobby releases the room for a fresh queue", async () => {

@@ -3,14 +3,21 @@
  *
  * One authoritative Run: the fixed-timestep tick loop (sim/core/tick.ts's TICK_HZ), per-tick
  * command buffering with late re-stamping, bot decision-making for every bot-controlled slot,
- * run-end detection (server/src/run-end.ts), and per-tick broadcast to every human-controlled
- * socket. Party composition is `roster.ts`'s fixed ROLE_ROSTER -- slot -> actorId never depends on
- * join order, so `this.run` is bit-identical regardless of who (human or bot) ends up controlling
- * which slot (server/CLAUDE.md's determinism invariant).
+ * and per-tick broadcast to every human-controlled socket. Party composition is `roster.ts`'s
+ * fixed ROLE_ROSTER -- slot -> actorId never depends on join order, so `this.run` is bit-identical
+ * regardless of who (human or bot) ends up controlling which slot (server/CLAUDE.md's determinism
+ * invariant).
  *
- * v2 (server-run-lifecycle, P1): once run-end.ts decides the run is over, this stops its own tick
- * loop, broadcasts `run_end`, and calls `onEnd` (lobby.ts's release hook) exactly once -- fills the
- * v0/v1 DEVIATION this file used to carry ("a room ticks until externally stopped").
+ * v2 (server-run-lifecycle, P1): once the run is over, this stops its own tick loop, broadcasts
+ * `run_end`, and calls `onEnd` (lobby.ts's release hook) exactly once -- fills the v0/v1 DEVIATION
+ * this file used to carry ("a room ticks until externally stopped").
+ *
+ * P2 (policy-inside-stepRun): targeting fixup, Slack spend on death/wipe, and run-end DETECTION
+ * (timed/depleted/abandoned, WHEN it happens) all now live inside sim/index.ts's stepRun itself --
+ * this file no longer calls sim/run-wiring.ts's helpers, and no longer tracks its own RunEndState;
+ * it just reads `this.run.runEnd` after each `stepRun` call and forwards an explicit human abandon
+ * (the one signal sim cannot derive) in as `stepRun`'s `abandonRequested` option. run-end.ts is left
+ * owning only the wire-payload concern (the reward roll), not the decision.
  *
  * Usage: `const room = new Room("room-1", serverContent, onEnd); room.attachHuman(1, ws); room.start();`
  */
@@ -27,8 +34,7 @@ import { seedPrng, type PrngState } from "../../bots/src/skill.js";
 import { toBotTelegraph } from "./telegraph.js";
 import { buildSnapshot, type Snapshot } from "./snapshot.js";
 import { ROLE_ROSTER, actorIdForSlot, buildPartySpec, type PartyRole } from "./roster.js";
-import { fixupTargeting, applyDeathsAndWipe } from "../../sim/run-wiring";
-import { initialRunEndState, stepRunEndCheck, buildRunEndPayload, type RunEndState } from "./run-end.js";
+import { buildRunEndPayload } from "./run-end.js";
 import { resolveCommand, type EnqueueOk, type EnqueueErr } from "./command-queue.js";
 import type { ServerContent } from "./content-setup.js";
 import type { ServerMessage } from "./protocol.js";
@@ -41,8 +47,6 @@ const EMPTY_CLASS_KIT: BotView["classKit"] = { rotation: [], interruptAbilityId:
 export class Room {
   readonly id: string;
   run: Run;
-  readonly tankActorId: ActorId;
-  private readonly bossActorId: ActorId;
   private readonly keyLevel: number;
   private readonly parTicks: number;
   private readonly maxSlackTicks: number;
@@ -53,7 +57,6 @@ export class Room {
   private readonly humans = new Map<ActorId, WebSocket>();
   private pending: Command[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
-  private runEnd: RunEndState = initialRunEndState();
   private abandonRequested = false;
   private readonly onEnd: ((roomId: string) => void) | undefined;
 
@@ -61,16 +64,13 @@ export class Room {
     this.id = id;
     this.onEnd = onEnd;
     const party = buildPartySpec(sc.registry);
-    this.run = createRun(SEED, party, sc.dungeon, sc.content);
-    this.tankActorId = actorIdForSlot(ROLE_ROSTER.findIndex((s) => s.role === "tank"));
-    this.bossActorId = sc.bossActorId;
+    this.run = createRun(SEED, party, sc.dungeon, sc.content); // targeting already resolved: see sim/index.ts's createRun
     this.keyLevel = sc.keyLevel;
     this.parTicks = sc.parTicks;
     this.pullCount = sc.dungeon.pulls.length;
     this.maxSlackTicks = initialSlackTicks(sc.keyLevel);
     this.prng = seedPrng(SEED);
     ROLE_ROSTER.forEach((_slot, i) => this.ensureBot(actorIdForSlot(i)));
-    fixupTargeting(this.run, this.tankActorId);
   }
 
   /** Any connected human can end the run early -- takes effect on the next tick() call (same
@@ -140,14 +140,8 @@ export class Room {
     this.botMemories = botResult.memories;
     this.prng = botResult.prng;
 
-    const stepped = stepRun(this.run, [...due, ...botResult.commands]);
+    const stepped = stepRun(this.run, [...due, ...botResult.commands], { abandonRequested: this.abandonRequested });
     this.run = stepped.run;
-    fixupTargeting(this.run, this.tankActorId);
-    this.run = applyDeathsAndWipe(this.run, stepped.events, currentTick);
-
-    this.runEnd = stepRunEndCheck(this.runEnd, this.run, this.bossActorId, this.abandonRequested, this.run.state.tick, (e) =>
-      stepped.events.push(e),
-    );
 
     const snapshot = buildSnapshot(this.run, this.parTicks, this.maxSlackTicks, this.pullCount, new Set(this.humans.keys()));
     return { snapshot, events: stepped.events };
@@ -162,14 +156,15 @@ export class Room {
   }
 
   /** Fixed-timestep tick loop; broadcasts `snapshot` (and `event`, if any) every tick. Once
-   * run-end.ts decides the run is over, also broadcasts `run_end`, stops (before the next tick
-   * could fire), and releases the room via `onEnd` -- all exactly once. Returns a stop function. */
+   * sim/index.ts's stepRun decides the run is over (`this.run.runEnd`), also broadcasts `run_end`,
+   * stops (before the next tick could fire), and releases the room via `onEnd` -- all exactly once.
+   * Returns a stop function. */
   start(): () => void {
     this.timer = setInterval(() => {
       const { snapshot, events } = this.tick();
       this.broadcast({ v: 2, type: "snapshot", snapshot });
       if (events.length > 0) this.broadcast({ v: 2, type: "event", events });
-      const payload = buildRunEndPayload(this.runEnd, SEED, this.keyLevel);
+      const payload = buildRunEndPayload(this.run.runEnd, SEED, this.keyLevel);
       if (payload) {
         this.broadcast({ v: 2, type: "run_end", roomId: this.id, ...payload });
         this.stop();

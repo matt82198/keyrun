@@ -1,64 +1,22 @@
 /**
  * client/src/hud/run-end.ts
  *
- * Run-end state machine (pure, unit-tested) plus a small DOM overlay: the result banner and the
- * end-of-run choice-of-three stub the dispatch brief calls for. No progression logic lives here --
- * PR #14's screen/ owns that; choosing a card only `postMessage`s the choice out (see
- * `postRunEndChoice`) for a later lane to consume, matching "posts a message the screen can later
- * consume" and this lane's boundary (screen/** is off-limits).
+ * A small DOM overlay: the result banner and the end-of-run choice-of-three stub the dispatch brief
+ * calls for. No progression logic lives here -- PR #14's screen/ owns that; choosing a card only
+ * `postMessage`s the choice out (see `postRunEndChoice`) for a later lane to consume, matching
+ * "posts a message the screen can later consume" and this lane's boundary (screen/** is off-limits).
  *
- * `stepRunEnd` decides the run's outcome, one tick at a time, from signals worker.ts already has:
- *  - boss dead -> "timed" (Slack never hit 0) or "depleted" (it did) -- sim/encounter/timer.ts's
- *    own RunResult distinction, via `depleted`.
- *  - the human pressed the abandon key (client/src/sim-host/host-commands.ts) -> "abandoned".
- *  - every player actor is dead with no rez mechanic in sim -> auto-"abandoned" after a short
- *    grace window (WIPE_GRACE_TICKS), rather than soft-locking the run forever. This is a
- *    playable-v1-only policy choice, not something design/BIBLE.md Sec 8 specifies (its Slack
- *    model assumes deaths get recovered, which this five-actor POC has no mechanic for) -- see
- *    worker.ts's file docstring.
- * Once `info` is set the state is terminal; further calls are no-ops (`stepRunEnd` is idempotent
- * post-end) so worker.ts can call it unconditionally every tick.
+ * P2 (policy-inside-stepRun): this file used to also own a `stepRunEnd` state machine (deciding
+ * WHEN the run ended, from signals worker.ts assembled every tick) -- deleted. sim/index.ts's
+ * stepRun now decides that itself (sim/run-wiring.ts's checkRunEnd) and threads the result through
+ * `Run.runEnd`; sim-runtime.ts reads it straight off and hands it to `RunEndView.show` via
+ * `Snapshot.runEnd`, the local host's exact analogue of the net host reading the server's `run_end`
+ * message (client/src/net/net-client.ts). This file renders that result -- it has no run-end
+ * knowledge of its own.
  *
- * Usage: `state = stepRunEnd(state, signals); if (state.info) runEndView.show(state.info, ...);`
+ * Usage: `if (snapshot.runEnd) runEndView.show(snapshot.runEnd);` (hud-wiring.ts already does this).
  */
 import type { RunEndInfo, RunOutcome } from "../sim-host/snapshot.js";
-
-export const WIPE_GRACE_TICKS = 100; // 5s at 20Hz
-
-export interface RunEndSignals {
-  tick: number;
-  bossDead: boolean;
-  depleted: boolean;
-  allPlayersDead: boolean;
-  abandonPressed: boolean;
-}
-
-export interface RunEndState {
-  info: RunEndInfo | null;
-  wipeStartTick: number | null;
-}
-
-export function initialRunEndState(): RunEndState {
-  return { info: null, wipeStartTick: null };
-}
-
-export function stepRunEnd(state: RunEndState, signals: RunEndSignals): RunEndState {
-  if (state.info) return state;
-  if (signals.bossDead) {
-    return { info: { outcome: signals.depleted ? "depleted" : "timed", tick: signals.tick }, wipeStartTick: state.wipeStartTick };
-  }
-  if (signals.abandonPressed) {
-    return { info: { outcome: "abandoned", tick: signals.tick }, wipeStartTick: state.wipeStartTick };
-  }
-  if (signals.allPlayersDead) {
-    const wipeStart = state.wipeStartTick ?? signals.tick;
-    if (signals.tick - wipeStart >= WIPE_GRACE_TICKS) {
-      return { info: { outcome: "abandoned", tick: signals.tick }, wipeStartTick: wipeStart };
-    }
-    return { info: null, wipeStartTick: wipeStart };
-  }
-  return { info: null, wipeStartTick: null };
-}
 
 export interface RunEndCard {
   id: string;

@@ -1,62 +1,25 @@
-import { describe, expect, it } from "vitest";
-import { initialRunEndState, stepRunEnd, STUB_CARDS, WIPE_GRACE_TICKS } from "../../../client/src/hud/run-end.js";
-
-const baseSignals = { tick: 0, bossDead: false, depleted: false, allPlayersDead: false, abandonPressed: false };
-
-describe("hud/run-end: stepRunEnd", () => {
-  it("stays running while nothing has happened", () => {
-    const state = stepRunEnd(initialRunEndState(), { ...baseSignals, tick: 100 });
-    expect(state.info).toBeNull();
-  });
-
-  it("ends 'timed' when the boss dies before Slack depletes", () => {
-    const state = stepRunEnd(initialRunEndState(), { ...baseSignals, tick: 500, bossDead: true, depleted: false });
-    expect(state.info).toEqual({ outcome: "timed", tick: 500 });
-  });
-
-  it("ends 'depleted' when the boss dies after Slack hit zero", () => {
-    const state = stepRunEnd(initialRunEndState(), { ...baseSignals, tick: 500, bossDead: true, depleted: true });
-    expect(state.info).toEqual({ outcome: "depleted", tick: 500 });
-  });
-
-  it("ends 'abandoned' immediately on an abandon-key press", () => {
-    const state = stepRunEnd(initialRunEndState(), { ...baseSignals, tick: 10, abandonPressed: true });
-    expect(state.info).toEqual({ outcome: "abandoned", tick: 10 });
-  });
-
-  it("does not end on a wipe before the grace window elapses", () => {
-    let state = initialRunEndState();
-    state = stepRunEnd(state, { ...baseSignals, tick: 0, allPlayersDead: true });
-    state = stepRunEnd(state, { ...baseSignals, tick: WIPE_GRACE_TICKS - 1, allPlayersDead: true });
-    expect(state.info).toBeNull();
-    expect(state.wipeStartTick).toBe(0);
-  });
-
-  it("auto-abandons once the wipe grace window elapses", () => {
-    let state = initialRunEndState();
-    state = stepRunEnd(state, { ...baseSignals, tick: 0, allPlayersDead: true });
-    state = stepRunEnd(state, { ...baseSignals, tick: WIPE_GRACE_TICKS, allPlayersDead: true });
-    expect(state.info).toEqual({ outcome: "abandoned", tick: WIPE_GRACE_TICKS });
-  });
-
-  it("clears the wipe timer if the party recovers before the grace window elapses", () => {
-    let state = initialRunEndState();
-    state = stepRunEnd(state, { ...baseSignals, tick: 0, allPlayersDead: true });
-    state = stepRunEnd(state, { ...baseSignals, tick: 10, allPlayersDead: false });
-    expect(state.wipeStartTick).toBeNull();
-    expect(state.info).toBeNull();
-  });
-
-  it("is terminal: further signals never change an already-ended state", () => {
-    let state = stepRunEnd(initialRunEndState(), { ...baseSignals, tick: 5, abandonPressed: true });
-    state = stepRunEnd(state, { ...baseSignals, tick: 999, bossDead: true });
-    expect(state.info).toEqual({ outcome: "abandoned", tick: 5 });
-  });
-});
+// Usage: client/src/hud/run-end.ts, post P2 (policy-inside-stepRun) -- this file no longer owns a
+// run-end state machine (sim/index.ts's stepRun decides WHEN a run ends now; see that file's
+// docstring), so there is nothing left to unit-test at that layer here. What remains: the static
+// STUB_CARDS content and postRunEndChoice's outbound message shape (RunEndView itself needs a real
+// DOM, which this repo has no jsdom/happy-dom for -- see tests/screen/dom-stub.ts's own docstring
+// for why -- so it is instead verified visually via the `?net=1` Playwright screenshot).
+import { describe, expect, it, vi } from "vitest";
+import { postRunEndChoice, STUB_CARDS } from "../../../client/src/hud/run-end.js";
 
 describe("hud/run-end: STUB_CARDS", () => {
   it("ships exactly three placeholder choice cards with distinct ids", () => {
     expect(STUB_CARDS).toHaveLength(3);
     expect(new Set(STUB_CARDS.map((c) => c.id)).size).toBe(3);
+  });
+});
+
+describe("hud/run-end: postRunEndChoice", () => {
+  it("posts the chosen card id and outcome via window.postMessage", () => {
+    const postMessage = vi.fn();
+    vi.stubGlobal("window", { postMessage });
+    postRunEndChoice("gilded-echo", "depleted");
+    expect(postMessage).toHaveBeenCalledWith({ type: "keyrun:run-end-choice", cardId: "gilded-echo", outcome: "depleted" }, "*");
+    vi.unstubAllGlobals();
   });
 });
