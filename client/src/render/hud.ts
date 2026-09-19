@@ -2,7 +2,7 @@
 // timer, target-cycle hint, and a screen-centre crosshair. Kept separate
 // from the 3D scene since it is plain 2D UI.
 import { KEYBIND_ACTIONS, abilityIdForAction, type Keybinds } from "../input/keybinds.js";
-import { SIM_HZ } from "../sim-host/snapshot.js";
+import { TICK_HZ } from "../sim-host/snapshot.js";
 
 interface AbilitySlot {
   root: HTMLDivElement;
@@ -71,8 +71,8 @@ export class Hud {
   }
 
   updateTimer(runTimerTicks: number, timerLimitTicks: number): void {
-    const elapsed = formatClock(runTimerTicks / SIM_HZ);
-    const limit = formatClock(timerLimitTicks / SIM_HZ);
+    const elapsed = formatClock(runTimerTicks / TICK_HZ);
+    const limit = formatClock(timerLimitTicks / TICK_HZ);
     this.timerEl.textContent = `${elapsed} / ${limit}`;
     this.timerEl.classList.toggle("hud-timer-over", runTimerTicks > timerLimitTicks);
   }
@@ -90,7 +90,7 @@ export class Hud {
       this.cooldownPeaks.set(abilityId, remaining > 0 ? peak : 0);
       const fraction = peak > 0 ? remaining / peak : 0;
       slot.sweep.style.height = `${Math.round(fraction * 100)}%`;
-      slot.label.textContent = remaining > 0 ? String(Math.ceil(remaining / SIM_HZ)) : "";
+      slot.label.textContent = remaining > 0 ? String(Math.ceil(remaining / TICK_HZ)) : "";
     }
   }
 }
