@@ -3,18 +3,29 @@
  * lane's two other files (windows.ts for open/expiry, payoff.ts for payoff resolution) both need:
  * the synthetic EffectInstance encoding a Window rides in on (effectId = "window:<windowId>:
  * <setupClass>", or "lockwindow:<windowId>:<setupClass>" for an `alternate` Lock Window; `sourceId`
- * is the setup actor's id), the floor-patch registry a Window with `onTarget: false` lives in
- * (threaded explicitly through calls rather than a new SimState field — sim/combat/types.ts is out
- * of this lane's edit scope), and the Lock bookkeeping (`lastSetupClass`, the 3-fail enrage
- * counter) stored the same synthetic way, effectively-permanent (endsTick = PERMANENT_TICK) entries
- * on the boss actor.
+ * is the setup actor's id), the floor-patch registry a Window with `onTarget: false` lives in, and
+ * the Lock bookkeeping (`lastSetupClass`, the 3-fail enrage counter) stored the same synthetic way,
+ * effectively-permanent (endsTick = PERMANENT_TICK) entries on the boss actor.
+ *
+ * The floor-patch registry (`FloorWindowRegistry`) is a thin `{ patches }` wrapper; in production
+ * (sim/combat/rules.ts's makeRules) its `patches` is always the SAME object as
+ * `SimState.floorWindows` (an additive SimState field, see sim/core/state.ts's `FloorWindow`) so
+ * mutations survive both `cloneState` (structuredClone deep-copies it every tick, same as
+ * everything else in state) and `makeRules` being rebuilt on every `stepRun` call (sim/index.ts) --
+ * a floor Window is no longer lost the tick after it opens. `createFloorRegistry()` below still
+ * builds a free-standing (non-state-backed) registry for callers that want one detached from a
+ * SimState, e.g. unit tests driving `makeRules`'s returned StepRules directly against a hand-built
+ * state, or `createWindowsContext`'s standalone default.
  *
  * Usage: windows.ts imports these to open/parse/expire Windows; payoff.ts imports them to find and
  * close a Window and to read/update Lock alternation state. Neither of those two files imports from
  * the other.
  */
-import type { ActorId, ActorState, Tick, Vec3 } from "./types";
+import type { ActorId, ActorState, FloorWindow, Tick, Vec3 } from "./types";
 import { pushRawEffectInstance, removeEffectInstanceWhere } from "./effects";
+// Re-exported so existing importers of window-state.ts's FloorWindow (e.g. windows.ts's own
+// re-export) keep working now that the type's home is sim/core/state.ts (SimState.floorWindows).
+export type { FloorWindow } from "./types";
 
 export const PERMANENT_TICK: Tick = Number.MAX_SAFE_INTEGER;
 
@@ -29,18 +40,6 @@ export const LOCK_WINDOW_PREFIX = "lockwindow:";
 const LAST_CLASS_PREFIX = "lock:lastclass:";
 const LOCK_FAILS_ID = "lock:fails";
 export const LOCK_ENRAGE_THRESHOLD = 3;
-
-export interface FloorWindow {
-  windowId: string;
-  setupClass: string;
-  setupActorId: ActorId;
-  pos: Vec3;
-  endsTick: Tick;
-  /** Catch radius (mm) a Payoff must stand within to close this patch; content-set per ability via
-   * the "window" op's `radiusMm`, falling back to `FLOOR_WINDOW_RADIUS_MM` when omitted. Always
-   * populated by windows.ts's `openWindow`. */
-  radiusMm: number;
-}
 
 export interface FloorWindowRegistry {
   patches: Record<string, FloorWindow>;

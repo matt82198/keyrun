@@ -19,8 +19,13 @@
  * targets to open any "window" ops and attempt to close one for a "payoff" op. Window/Lock
  * expiry is checked per actor (checkWindowExpiries) immediately before the existing generic
  * expireEffects sweep in step 4, and floor-patch Windows are checked once per tick
- * (checkFloorExpiries) alongside it — see windows.ts's file docstring for why Windows live as
- * synthetic EffectInstance entries / a closure-scoped registry rather than new SimState fields.
+ * (checkFloorExpiries) alongside it — see windows.ts's file docstring for why target Windows live
+ * as synthetic EffectInstance entries. Floor-patch Windows (onTarget:false) live in
+ * `state.floorWindows` (sim/core/state.ts's additive `FloorWindow` field) rather than a value
+ * closed over at makeRules-build-time: the WindowsContext built below is constructed fresh from
+ * `state` on every StepRules invocation (not once per makeRules call) specifically so a floor
+ * Window survives `stepRun` rebuilding `makeRules` on every call (sim/index.ts) — see
+ * window-state.ts's file docstring for the full reasoning.
  *
  * Usage: const rules: StepRules = makeRules(cfg); rules(state, commandsForThisTick, emit);
  */
@@ -37,7 +42,6 @@ import {
   applyWindowsAndCombos,
   checkFloorExpiries,
   checkWindowExpiries,
-  createFloorRegistry,
   type WindowsContext,
 } from "./windows";
 
@@ -58,14 +62,21 @@ export interface RulesConfig {
 
 export function makeRules(cfg: RulesConfig): StepRules {
   const ctx: CastContext = { abilities: cfg.abilities, effects: cfg.effects, lockoutTicks: cfg.lockoutTicks };
-  const wctx: WindowsContext = {
-    effects: cfg.effects,
-    combos: cfg.combos ?? {},
-    fieldCombos: cfg.fieldCombos ?? {},
-    floor: createFloorRegistry(),
-  };
 
   return (state: SimState, commands: Command[], emit: (e: SimEvent) => void) => {
+    // Built fresh from `state` every call (not hoisted above, once per makeRules call): floor.patches
+    // is the SAME object as state.floorWindows, so mutations below persist on `state` itself and
+    // survive both cloneState and stepRun rebuilding makeRules every tick (see this file's and
+    // window-state.ts's docstrings). Lazily initialised for hand-built SimState fixtures (tests)
+    // that predate the field and never set it.
+    if (!state.floorWindows) state.floorWindows = {};
+    const wctx: WindowsContext = {
+      effects: cfg.effects,
+      combos: cfg.combos ?? {},
+      fieldCombos: cfg.fieldCombos ?? {},
+      floor: { patches: state.floorWindows },
+    };
+
     for (const actor of Object.values(state.actors)) {
       if (actor.castId !== null && actor.castEndsTick === state.tick) {
         const def = cfg.abilities[actor.castId];
