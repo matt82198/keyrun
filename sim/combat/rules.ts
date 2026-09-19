@@ -76,7 +76,13 @@ export function makeRules(cfg: RulesConfig): StepRules {
 
     for (const cmd of commands) {
       const actor = state.actors[cmd.actorId];
-      if (!actor || !actor.alive) continue;
+      if (!actor) continue;
+      // DEATH-CAST EXCEPTION (death-trigger-wiring): sim/encounter/scripts.ts's "onDeath" script
+      // step submits its cast the tick AFTER ActorState.alive flips false (its documented
+      // ONE-TICK LAG), so a dead enemy's own onDeath ability (e.g. seed.deathBloom) can still
+      // resolve through the ordinary cast pipeline instead of being silently dropped here. Every
+      // other command kind for a dead actor is still dropped, exactly as before.
+      if (!actor.alive && cmd.kind !== "cast") continue;
       if (cmd.kind === "target") {
         actor.targetId = cmd.targetId;
       } else if (cmd.kind === "stopcast") {

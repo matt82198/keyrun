@@ -4,36 +4,22 @@
  * Proves the Sundered Twins' shared Break bar (BIBLE.md Sec 9 -- the boss's add pair,
  * `content/data/enemies/hollow-warden.json`'s `hollowWarden.boss`/`twinA`/`twinB`, NOT
  * content/data/enemies/pair.json's unrelated "Pair" trash pull) works end to end through the REAL
- * content registry (`loadContent()`) and REAL sim: `createRun` spawns the party plus a hand-built
- * Twins encounter pull (content's `DungeonDef` has no "boss" entry in its `pulls` list -- `boss`
- * is a separate top-level field `toSimDungeon` never expands -- so this pull is authored directly
- * from the real `EnemyDef`s, exactly as content.test.ts already authors its own local
- * `advanceTick` for a similar sim/index.ts gap).
+ * content registry (`loadContent()`) and the REAL public path: `createRun`/`stepRun`, no local
+ * `advanceTick`. `RunContent.breakBarSources` (sim/index.ts) is the one addition `stepRun` needed
+ * to thread break-bar drains through `sim/encounter/index.ts`'s `stepEncounter` and apply its
+ * `effectPatches` after combat resolves each tick -- see sim/index.ts's file docstring.
  *
- * `sim/index.ts`'s `stepRun` does not yet thread commands/abilityTags into `stepEncounter`'s new
- * `breakBarWiring` argument or apply `effectPatches` after combat resolves (that one-line hook is
- * out of this lane's scope -- see sim/encounter/index.ts's file docstring), so this test mirrors
- * `stepRun`'s own documented tick order with a local `advanceTick`, same as
- * tests/sim/integration/content.test.ts does for its own sim/index.ts gap.
+ * `createRun` spawns the party plus a hand-built Twins encounter pull (content's `DungeonDef` has
+ * no "boss" entry in its `pulls` list -- `boss` is a separate top-level field `toSimDungeon` never
+ * expands -- so this pull is authored directly from the real `EnemyDef`s, exactly as
+ * tests/sim/integration/death.test.ts does for the Seed elite).
  */
 import { describe, expect, it } from "vitest";
-import { createRun, type Run, type RunContent, type PartyMemberSpec } from "@sim/index";
-import type { ActorId, ActorState, SimState } from "@sim/core/state";
-import { step as coreStep } from "@sim/core/tick";
+import { createRun, stepRun, type Run, type RunContent, type PartyMemberSpec } from "@sim/index";
+import type { DungeonDef as SimDungeonDef } from "@sim/encounter/index";
+import type { BreakBarSource } from "@sim/encounter/breakbar";
 import type { Command } from "@sim/core/commands";
 import type { SimEvent } from "@sim/core/events";
-import { applyEffectInstance } from "@sim/combat/effects";
-import { makeRules, type RulesConfig } from "@sim/combat/rules";
-import type { StepRules } from "@sim/core/tick";
-import {
-  stepEncounter,
-  spawnPull,
-  type EncounterState,
-  type DungeonDef as SimDungeonDef,
-  type EnemyScript,
-  type BreakBarWiring,
-} from "@sim/encounter/index";
-import type { BreakBarSource } from "@sim/encounter/breakbar";
 import { loadContent } from "@content/index";
 
 const SEED = 424242;
@@ -45,16 +31,7 @@ const BOSS = 2000;
 const TWIN_A = 2001;
 const TWIN_B = 2002;
 
-interface Ctx {
-  rules: StepRules;
-  dungeon: SimDungeonDef;
-  enemyScripts: Record<ActorId, EnemyScript>;
-  breakBarSources: Record<string, BreakBarSource>;
-  abilityTags: Record<string, string[] | undefined>;
-  effects: RunContent["effects"];
-}
-
-function buildRun(): { run: Run; ctx: Ctx } {
+function buildRun(): Run {
   const reg = loadContent();
   const abilities = Object.fromEntries(reg.abilities);
   const effects = Object.fromEntries(reg.effects);
@@ -78,7 +55,6 @@ function buildRun(): { run: Run; ctx: Ctx } {
       },
     ],
   };
-  const enemyScripts: Record<ActorId, EnemyScript> = { [BOSS]: bossDef.script, [TWIN_A]: twinADef.script, [TWIN_B]: twinBDef.script };
 
   const breakBarSources: Record<string, BreakBarSource> = {
     [barDef.id]: {
@@ -93,54 +69,24 @@ function buildRun(): { run: Run; ctx: Ctx } {
     },
   };
 
-  const abilityTags: Record<string, string[] | undefined> = {};
-  for (const [id, def] of reg.abilities) abilityTags[id] = def.tags;
-
   const party: PartyMemberSpec[] = [
     { id: WARDEN_A, classId: "warden", role: "tank", pos: { x: 400, y: 0, z: 100 }, maxHealth: 2000, maxResource: 150 },
     { id: CHANTER_A, classId: "chanter", role: "healer", pos: { x: -400, y: 0, z: 100 }, maxHealth: 2000, maxResource: 1 },
     { id: CINDER_A, classId: "cinder", role: "damage", pos: { x: 400, y: 0, z: -100 }, maxHealth: 2000, maxResource: 150 },
   ];
 
-  const runContent: RunContent = { abilities, effects, lockoutTicks: 80, baseSpeedMmPerTick: 180, actorRadiusMm: 400, bounds, enemyScripts };
-  const run = createRun(SEED, party, dungeon, runContent);
-  const rulesConfig: RulesConfig = { abilities, effects, lockoutTicks: 80, baseSpeedMmPerTick: 180, actorRadiusMm: 400, bounds };
-  const rules = makeRules(rulesConfig);
-
-  return { run, ctx: { rules, dungeon, enemyScripts, breakBarSources, abilityTags, effects } };
-}
-
-function mergeActors(state: SimState, spawned: ActorState[]): SimState {
-  if (spawned.length === 0) return state;
-  return { ...state, actors: { ...state.actors, ...Object.fromEntries(spawned.map((a) => [a.id, a])) } };
-}
-
-/** Mirrors sim/index.ts's stepRun tick order, plus the break-bar wiring hook it does not yet call
- * -- see file docstring. */
-function advanceTick(run: Run, ctx: Ctx, commands: Command[], events: SimEvent[]): Run {
-  const emit = (e: SimEvent): void => {
-    events.push(e);
+  const runContent: RunContent = {
+    abilities,
+    effects,
+    lockoutTicks: 80,
+    baseSpeedMmPerTick: 180,
+    actorRadiusMm: 400,
+    bounds,
+    enemyScripts: { [BOSS]: bossDef.script, [TWIN_A]: twinADef.script, [TWIN_B]: twinBDef.script },
+    breakBarSources,
   };
-  const wiring: BreakBarWiring = { sources: ctx.breakBarSources, commands, abilityTags: ctx.abilityTags };
-  const encResult = stepEncounter(run.state, run.encounter, ctx.dungeon, ctx.enemyScripts, emit, wiring);
-  const stepped = coreStep(run.state, [...commands, ...encResult.commands], ctx.rules);
-  events.push(...stepped.events);
 
-  let nextState = stepped.state;
-  for (const patch of encResult.effectPatches) {
-    const actor = nextState.actors[patch.actorId];
-    const effDef = ctx.effects[patch.effectId];
-    if (!actor || !effDef) continue;
-    const patched: ActorState = { ...actor, effects: [...actor.effects] };
-    applyEffectInstance(patched, effDef, BOSS, patch.durationTicks, patch.stacks, nextState.tick);
-    nextState = { ...nextState, actors: { ...nextState.actors, [patch.actorId]: patched } };
-  }
-
-  let nextEncounter: EncounterState = encResult.encounter;
-  if (nextEncounter.pullIndex !== run.encounter.pullIndex) {
-    nextState = mergeActors(nextState, spawnPull(ctx.dungeon, nextEncounter.pullIndex, nextState.tick, emit));
-  }
-  return { state: nextState, encounter: nextEncounter, dungeon: run.dungeon, content: run.content };
+  return createRun(SEED, party, dungeon, runContent);
 }
 
 function scriptedCommands(): Command[] {
@@ -152,12 +98,13 @@ function scriptedCommands(): Command[] {
 }
 
 function runScenario(commands: Command[]): { run: Run; events: SimEvent[] } {
-  const { run, ctx } = buildRun();
   const events: SimEvent[] = [];
-  let current = run;
+  let current = buildRun();
   while (current.state.tick < TICKS) {
     const tick = current.state.tick;
-    current = advanceTick(current, ctx, commands.filter((c) => c.tick === tick), events);
+    const { run: next, events: tickEvents } = stepRun(current, commands.filter((c) => c.tick === tick));
+    events.push(...tickEvents);
+    current = next;
   }
   return { run: current, events };
 }
