@@ -29,6 +29,7 @@ import {
   windowEffectId,
   type FloorWindowRegistry,
 } from "./window-state";
+import { floorWindowOpenedTelegraph } from "./floor-telegraphs";
 
 export {
   PERMANENT_TICK,
@@ -91,7 +92,8 @@ export function openWindow(
     return;
   }
   const pos = { x: setupActor.pos.x, y: setupActor.pos.y, z: setupActor.pos.z };
-  floor.patches[op.windowId] = makeFloorWindow(op.windowId, op.setupClass, setupActor.id, pos, endsTick, op.radiusMm);
+  const patch = makeFloorWindow(op.windowId, op.setupClass, setupActor.id, pos, endsTick, op.radiusMm);
+  floor.patches[op.windowId] = patch;
   emit({
     tick: state.tick,
     type: "window_opened",
@@ -100,6 +102,8 @@ export function openWindow(
     setupActorId: setupActor.id,
     setupClass: op.setupClass,
     endsTick,
+    // floor-patch-visibility: this patch's bots-consumable Telegraph (floor-telegraphs.ts).
+    telegraph: floorWindowOpenedTelegraph(state, patch),
   });
 }
 
