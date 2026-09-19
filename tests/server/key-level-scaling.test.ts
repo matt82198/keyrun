@@ -35,11 +35,11 @@ describe("server: key-level Tempo scaling", () => {
       // Distinct roles ("tank" then "healer") so each queue is guaranteed to open its OWN new
       // room -- lobby.ts only reuses a room that still has an open slot for the requested role,
       // and a brand-new room always starts empty.
-      low.send({ v: 2, type: "queue", role: "tank", keyLevel: KEY_LOW });
+      low.send({ v: 3, type: "queue", role: "tank", keyLevel: KEY_LOW });
       const joinedLow = await low.waitForType("joined");
       if (joinedLow.type !== "joined") throw new Error("expected joined");
 
-      high.send({ v: 2, type: "queue", role: "tank", keyLevel: KEY_HIGH });
+      high.send({ v: 3, type: "queue", role: "tank", keyLevel: KEY_HIGH });
       const joinedHigh = await high.waitForType("joined");
       if (joinedHigh.type !== "joined") throw new Error("expected joined");
       expect(joinedHigh.roomId).not.toBe(joinedLow.roomId);

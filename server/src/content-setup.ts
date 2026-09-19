@@ -30,8 +30,10 @@ import type { AbilityDef as ContentAbilityDef } from "../../content/schema/abili
 import type { ContentRegistry } from "../../content/schema/registry";
 import { loadContent } from "../../content/index";
 import { toComboTables, toSimDungeon } from "../../content/sim-adapt";
+import { applyLoadout } from "../../content/apply";
 import { setContentRegistry } from "../../bots/src/kits.js";
 import { EVERY_FLOOR_TICKS, scaleCastEvery, scaleHealth, scaleLeadTicks } from "../../sim/encounter/tempo";
+import type { LoadoutPayload } from "./protocol.js";
 
 export const DUNGEON_ID = "hollow-vault";
 export const DEFAULT_KEY_LEVEL = 2; // lowest real key -- key 1 is the tutorial/no-scaling floor.
@@ -49,8 +51,10 @@ const DUNGEON_BOUNDS: Bounds = { minX: -4000, maxX: 18000, minZ: -6000, maxZ: 90
 
 /** Chanter's stance-differentiated abilities (`variants`) have no sim-side resolution mechanism
  * (sim/combat/casting.ts's completeCast always uses `def.effects` verbatim) -- always substitute
- * the "mend" variant, same DEVIATION run-setup.ts documents. */
-function resolveVariant(a: ContentAbilityDef): SimAbilityDef {
+ * the "mend" variant, same DEVIATION run-setup.ts documents. Exported (run-options-wiring): a
+ * loadout's applyLoadout-patched abilities need this SAME substitution before they reach
+ * `RunContent.abilities` -- see room.ts's constructor. */
+export function resolveVariant(a: ContentAbilityDef): SimAbilityDef {
   return { ...a, effects: a.variants?.mend ?? a.effects };
 }
 
@@ -125,6 +129,11 @@ export function buildServerContent(registry: ContentRegistry, dungeonId: string,
   const { combos, fieldCombos } = toComboTables(registry.combos, classIds);
   const { dungeon, enemyScripts, parTicks, bossActorId } = buildDungeon(registry, dungeonId, keyLevel);
 
+  // run-options-wiring: content DATA passed straight through (sim never imports content) so
+  // createRun's options.clauseId (server/src/room.ts) can resolve a real ClauseDef.
+  const clauses: RunContent["clauses"] = {};
+  for (const [id, def] of registry.clauses) clauses[id] = def;
+
   const content: RunContent = {
     abilities,
     effects,
@@ -137,6 +146,7 @@ export function buildServerContent(registry: ContentRegistry, dungeonId: string,
     parTicks,
     combos,
     fieldCombos,
+    clauses,
   };
 
   return { registry, content, dungeon, parTicks, bossActorId, keyLevel };
@@ -146,4 +156,21 @@ export function buildServerContent(registry: ContentRegistry, dungeonId: string,
  * without managing the registry themselves -- `loadServerRegistry()` + `buildServerContent()`. */
 export function loadServerContent(dungeonId: string = DUNGEON_ID, keyLevel: number = DEFAULT_KEY_LEVEL): ServerContent {
   return buildServerContent(loadServerRegistry(), dungeonId, keyLevel);
+}
+
+/** run-options-wiring: resolves ONE actor's loadout (content/apply.ts's `applyLoadout`, given the
+ * room's real class/ability/facet registries) into `RunOptions.loadouts`'s per-actor shape --
+ * already-loadout-resolved AbilityDef records, with the SAME `resolveVariant` substitution every
+ * other ability in this room's content gets. Propagates `applyLoadout`'s own thrown Error for an
+ * invariant-breaking loadout (a talent/facet id this room's content does not have, or a loadout
+ * that would leave the wrong Setup/Payoff mix) -- server/src/room.ts's constructor lets that
+ * surface up through lobby.ts to server/src/main.ts's queue handler, which turns it into a clean
+ * `error` ServerMessage, never a crash. */
+export function resolveLoadoutAbilities(registry: ContentRegistry, classId: string, loadout: LoadoutPayload): Record<string, SimAbilityDef> {
+  const classDef = registry.classes.get(classId);
+  if (!classDef) throw new Error(`content-setup: unknown class "${classId}" for a loadout`);
+  const result = applyLoadout(classDef, registry.abilities, registry.facets, loadout.talentChoices, loadout.gear);
+  const abilities: Record<string, SimAbilityDef> = {};
+  for (const [id, def] of Object.entries(result.abilities)) abilities[id] = resolveVariant(def);
+  return abilities;
 }

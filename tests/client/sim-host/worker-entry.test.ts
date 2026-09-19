@@ -99,4 +99,56 @@ describe("worker.ts: the real Worker entry, headless (fake self/postMessage)", (
     expect(ended.snapshot.runEnd?.outcome).toBe("abandoned");
     expect(ended.snapshot.runEnd?.tick).toBeGreaterThanOrEqual(0);
   });
+
+  // run-options-wiring: the exact end-to-end path boot.ts really drives -- an InitMessage's
+  // `loadout`/`?clause=` reaching sim/index.ts's createRun through worker.ts -> run-setup.ts.
+  it("a real, valid loadout on init boots normally (ready + snapshots), same as no loadout", async () => {
+    const { posted, fire } = installFakeSelf();
+    await import("../../../client/src/sim-host/worker.js");
+
+    fire({
+      data: {
+        type: "init",
+        search: "?key=5&dungeon=hollow-vault&class=warden",
+        tickMs: 1,
+        loadout: { talentChoices: { "warden.strike": "riposte" }, gear: [] },
+      },
+    });
+
+    await waitUntil(() => posted.some((m) => m.type === "ready"));
+    await waitUntil(() => posted.filter((m) => m.type === "snapshot").length >= 5);
+    expect(posted.some((m) => m.type === "error")).toBe(false);
+  });
+
+  it("a real ?clause= on init boots normally -- never a crash", async () => {
+    const { posted, fire } = installFakeSelf();
+    await import("../../../client/src/sim-host/worker.js");
+    const { loadContent } = await import("@content/index");
+    const [firstClauseId] = [...loadContent().clauses.keys()];
+
+    fire({ data: { type: "init", search: `?key=5&dungeon=hollow-vault&class=warden&clause=${firstClauseId}`, tickMs: 1 } });
+
+    await waitUntil(() => posted.some((m) => m.type === "ready"));
+    await waitUntil(() => posted.filter((m) => m.type === "snapshot").length >= 5);
+    expect(posted.some((m) => m.type === "error")).toBe(false);
+  });
+
+  it("an invariant-breaking loadout posts a clean ErrorMessage -- never a silent base-kit fallback, never a crash", async () => {
+    const { posted, fire } = installFakeSelf();
+    await import("../../../client/src/sim-host/worker.js");
+
+    fire({
+      data: {
+        type: "init",
+        search: "?key=5&dungeon=hollow-vault&class=warden",
+        tickMs: 1,
+        loadout: { talentChoices: { "not-a-real-ability": "nope" }, gear: [] },
+      },
+    });
+
+    await waitUntil(() => posted.some((m) => m.type === "error"));
+    const err = posted.find((m): m is { type: "error"; message: string } => m.type === "error")!;
+    expect(err.message).toMatch(/no talent fork/);
+    expect(posted.some((m) => m.type === "ready")).toBe(false);
+  });
 });

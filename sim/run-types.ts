@@ -13,7 +13,7 @@ import type { AbilityDef } from "./combat/abilities";
 import type { EffectDef } from "./combat/effects";
 import type { Bounds } from "./combat/movement";
 import type { BreakBarSource, DungeonDef, EncounterState, EnemyScript } from "./encounter/index";
-import type { EncounterRules } from "./encounter/clauses";
+import type { ClauseDef, EncounterRules } from "./encounter/clauses";
 import type { RunEndState } from "./run-wiring";
 
 /** One party member to spawn as a player actor at run creation. */
@@ -56,6 +56,11 @@ export interface RunContent {
    * passed to `stepEncounter` as `BreakBarWiring.sources` on every tick. Omit for content with no
    * break bars -- `stepRun` then drains none. */
   breakBarSources?: Record<string, BreakBarSource>;
+  /** [clauseId] -> ClauseDef (content/data/clauses.json, content/schema/clause.ts's structural
+   * shape -- sim never imports content, so this is content DATA passed in like every other
+   * RunContent field). `createRun`'s `options.clauseId` (sim/run-options.ts) is looked up here.
+   * Omit for content that does not offer Clauses yet. */
+  clauses?: Record<string, ClauseDef>;
 }
 
 export interface Run {

@@ -16,15 +16,15 @@ describe("server: join/queue/snapshot roundtrip", () => {
   it("acks join with a versioned welcome", async () => {
     server = await startTestServer();
     client = await TestClient.connect(server.port);
-    client.send({ v: 2, type: "join" });
+    client.send({ v: 3, type: "join" });
     const welcome = await client.waitForType("welcome");
-    expect(welcome).toEqual({ v: 2, type: "welcome", protocolVersion: 2 });
+    expect(welcome).toEqual({ v: 3, type: "welcome", protocolVersion: 3 });
   });
 
   it("instantly forms a bot-filled room on the first queue (D8: no waiting for humans)", async () => {
     server = await startTestServer();
     client = await TestClient.connect(server.port);
-    client.send({ v: 2, type: "queue", role: "tank" });
+    client.send({ v: 3, type: "queue", role: "tank" });
 
     const joined = await client.waitForType("joined");
     expect(joined).toMatchObject({ type: "joined", actorId: 1, role: "tank", classId: "warden" });
@@ -49,13 +49,13 @@ describe("server: join/queue/snapshot roundtrip", () => {
     let firstRoomId: string | undefined;
     for (let i = 0; i < 3; i++) {
       const c = await TestClient.connect(server.port);
-      c.send({ v: 2, type: "queue", role: "damage" });
+      c.send({ v: 3, type: "queue", role: "damage" });
       const joined = await c.waitForType("joined");
       if (joined.type !== "joined") throw new Error("expected joined");
       firstRoomId = joined.roomId;
       fillers.push(c);
     }
-    client.send({ v: 2, type: "queue", role: "damage" });
+    client.send({ v: 3, type: "queue", role: "damage" });
     const joined = await client.waitForType("joined");
     if (joined.type !== "joined") throw new Error("expected joined");
     expect(joined.roomId).not.toBe(firstRoomId); // routed to a fresh, second room instead of erroring

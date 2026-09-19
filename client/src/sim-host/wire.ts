@@ -16,6 +16,7 @@ import type { AnyCommand } from "../input/commands.js";
 import type { PingEvent } from "../input/ping.js";
 import type { HostControlCommand } from "./host-commands.js";
 import type { Snapshot } from "./snapshot.js";
+import type { RawLoadout } from "./loadout-storage.js";
 
 /** Ping is not a sim Command (see input/ping.ts's file docstring) -- it only reaches
  * bots/src/bot.ts's pingReactionCommands via bot-commands.ts's `pings` list. */
@@ -27,11 +28,17 @@ export type HostCommand = AnyCommand | HostControlCommand | PingHostCommand;
  * boot-params.ts's resolveRunSetupOptions) happens exactly once, in the worker, instead of being
  * duplicated on both sides of the postMessage boundary. `tickMs`: research/11 (D9)'s `?hz=`
  * override, resolved once on the main thread (boot-params.ts's parseHz) and forwarded so both
- * sides schedule off the same number rather than re-deriving it independently. */
+ * sides schedule off the same number rather than re-deriving it independently. `loadout`
+ * (run-options-wiring): the screen's persisted build, read from localStorage on the main thread
+ * (loadout-storage.ts's `readPersistedLoadout` -- a Worker has no `localStorage` of its own) since
+ * that is a main-thread-only API; the worker resolves it into real abilities once it has the
+ * content registry (run-setup.ts's `buildRunSetup`). Omitted (or `null`) for "no persisted
+ * loadout" -- the run then uses every class's base kit, unchanged from before this addition. */
 export interface InitMessage {
   type: "init";
   search: string;
   tickMs?: number;
+  loadout?: RawLoadout | null;
 }
 export interface CommandMessage {
   type: "command";

@@ -22,11 +22,11 @@ describe("server: two clients share one room", () => {
     a = await TestClient.connect(server.port);
     b = await TestClient.connect(server.port);
 
-    a.send({ v: 2, type: "queue", role: "tank" });
+    a.send({ v: 3, type: "queue", role: "tank" });
     const joinedA = await a.waitForType("joined");
     if (joinedA.type !== "joined") throw new Error("expected joined");
 
-    b.send({ v: 2, type: "queue", role: "healer" });
+    b.send({ v: 3, type: "queue", role: "healer" });
     const joinedB = await b.waitForType("joined");
     if (joinedB.type !== "joined") throw new Error("expected joined");
 

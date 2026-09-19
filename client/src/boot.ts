@@ -34,6 +34,7 @@ import { PingMarkerPool } from "./render/pings.js";
 import { SimHostClient } from "./sim-host/sim-host-client.js";
 import { metrics, attachMetricsHud } from "./sim-host/metrics.js"; // research/11 (D9): ?metrics=1 HUD + window.__keyrunMetrics
 import { parseHz } from "./sim-host/boot-params.js";
+import { readPersistedLoadout } from "./sim-host/loadout-storage.js";
 import { RunEndView } from "./hud/run-end.js";
 import { NetHostClient } from "./net/net-client.js";
 import type { HostHandle } from "./net/host-handle.js";
@@ -124,9 +125,14 @@ export async function boot(): Promise<void> {
   const hz = parseHz(searchParams.get("hz")); // research/11 (D9); undefined => sim-derived default
   warnIfHzOverridden(hz);
   const tickMsOverride = hz ? 1000 / hz : undefined;
+  // run-options-wiring: the screen's persisted build (talent picks + gear), read here (main
+  // thread only -- a Worker has no localStorage) and forwarded to whichever host got picked; see
+  // loadout-storage.ts's file docstring for the storage key this reads and wire.ts/net-client.ts
+  // for how each host carries it the rest of the way.
+  const loadout = readPersistedLoadout(window.localStorage);
   const simHost: HostHandle = wantsNetHost(searchParams)
-    ? new NetHostClient(window.location.search, tickMsOverride)
-    : new SimHostClient(window.location.search, tickMsOverride);
+    ? new NetHostClient(window.location.search, tickMsOverride, undefined, loadout)
+    : new SimHostClient(window.location.search, tickMsOverride, loadout);
   const { humanActorId } = await simHost.whenReady();
   attachMetricsHud();
 

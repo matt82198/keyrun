@@ -79,7 +79,11 @@ async function handleInit(msg: InitMessage): Promise<void> {
   tickMs = msg.tickMs ?? SIM_TICK_MS;
   const registry: ContentRegistry = await fetchContentRegistry();
   const opts = resolveRunSetupOptions(new URLSearchParams(msg.search), registry);
-  const setup = buildRunSetup(registry, opts);
+  // run-options-wiring: msg.loadout is the screen's persisted build, read main-thread-side
+  // (loadout-storage.ts) since a Worker has no localStorage of its own -- see wire.ts's docstring.
+  // A bad loadout (applyLoadout's own invariant checks) throws here, caught by this function's
+  // caller below and surfaced as an ErrorMessage, never a silent base-kit fallback.
+  const setup = buildRunSetup(registry, opts, msg.loadout);
   runtime = new SimRuntime(setup);
   lastNowMs = Date.now();
   ctx.postMessage({ type: "ready", humanActorId: setup.humanActorId, tickMs });

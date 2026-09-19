@@ -33,7 +33,7 @@
  *
  * Usage: `const setup = buildRunSetup(registry, {keyLevel: 5, dungeonId: "hollow-vault", humanClassId: "warden"});`
  */
-import type { PartyMemberSpec, RunContent } from "../../../sim/index.js";
+import type { PartyMemberSpec, RunContent, RunOptions } from "../../../sim/index.js";
 import type { DungeonDef as SimDungeonDef } from "../../../sim/encounter/pulls.js";
 import type { AbilityDef as SimAbilityDef } from "../../../sim/combat/abilities.js";
 import type { EffectDef as SimEffectDef } from "../../../sim/combat/effects.js";
@@ -41,10 +41,12 @@ import type { ActorId } from "../../../sim/core/state.js";
 import type { Bounds } from "../../../sim/combat/movement.js";
 import type { AbilityDef as ContentAbilityDef } from "../../../content/schema/ability.js";
 import type { ContentRegistry } from "../../../content/schema/registry.js";
+import { applyLoadout } from "../../../content/apply.js";
 import { setContentRegistry } from "../../../bots/src/kits.js";
 import { buildDungeon } from "./content-dungeon.js";
 import { buildParty } from "./content-party.js";
 import { buildComboTables } from "./content-combos.js";
+import type { RawLoadout } from "./loadout-storage.js";
 
 const INTERRUPT_LOCKOUT_TICKS = 80;
 const BASE_SPEED_MM_PER_TICK = 180; // ~3.6 m/s at 20Hz
@@ -63,6 +65,9 @@ export interface RunSetupOptions {
   keyLevel: number;
   dungeonId: string;
   humanClassId: string;
+  /** run-options-wiring: a `registry.clauses` id (boot-params.ts's `resolveRunSetupOptions`
+   * validates it against the registry before this ever sees it -- see that file). */
+  clauseId?: string;
 }
 
 export interface RunSetup {
@@ -74,9 +79,31 @@ export interface RunSetup {
   bossActorId: ActorId;
   keyLevel: number;
   parTicks: number;
+  /** run-options-wiring: the human's Clause pick + loadout-resolved abilities, ready to pass
+   * straight to `sim/index.ts`'s `createRun` as its 5th argument. */
+  runOptions: RunOptions;
 }
 
-export function buildRunSetup(registry: ContentRegistry, opts: RunSetupOptions): RunSetup {
+/** run-options-wiring: resolves the human's persisted loadout (content/apply.ts's `applyLoadout`,
+ * against this registry) into `RunOptions.loadouts`'s per-actor shape, with the same
+ * `resolveVariant` substitution every other ability in this run's content gets. `null`/`undefined`
+ * `loadout` (no persisted build -- loadout-storage.ts's `readPersistedLoadout`) leaves the human on
+ * their class's base kit, unchanged from before this addition. */
+function resolveHumanLoadout(
+  registry: ContentRegistry,
+  humanClassId: string,
+  loadout: RawLoadout | null | undefined,
+): Record<string, SimAbilityDef> | undefined {
+  if (!loadout) return undefined;
+  const classDef = registry.classes.get(humanClassId);
+  if (!classDef) return undefined; // boot-params.ts already validated humanClassId against this registry
+  const result = applyLoadout(classDef, registry.abilities, registry.facets, loadout.talentChoices, loadout.gear);
+  const resolved: Record<string, SimAbilityDef> = {};
+  for (const [id, def] of Object.entries(result.abilities)) resolved[id] = resolveVariant(def);
+  return resolved;
+}
+
+export function buildRunSetup(registry: ContentRegistry, opts: RunSetupOptions, loadout?: RawLoadout | null): RunSetup {
   setContentRegistry(registry);
 
   const abilities: Record<string, SimAbilityDef> = {};
@@ -94,6 +121,10 @@ export function buildRunSetup(registry: ContentRegistry, opts: RunSetupOptions):
   const lastPull = dungeonBuild.dungeon.pulls[dungeonBuild.dungeon.pulls.length - 1];
   const bossActorId = lastPull?.spawns[0]?.actorId ?? -1;
 
+  // run-options-wiring: content DATA passed straight through (sim never imports content).
+  const clauses: RunContent["clauses"] = {};
+  for (const [id, def] of registry.clauses) clauses[id] = def;
+
   const content: RunContent = {
     abilities,
     effects,
@@ -106,6 +137,13 @@ export function buildRunSetup(registry: ContentRegistry, opts: RunSetupOptions):
     parTicks: dungeonBuild.parTicks,
     combos,
     fieldCombos,
+    clauses,
+  };
+
+  const humanLoadout = resolveHumanLoadout(registry, opts.humanClassId, loadout);
+  const runOptions: RunOptions = {
+    ...(opts.clauseId !== undefined ? { clauseId: opts.clauseId } : {}),
+    ...(humanLoadout ? { loadouts: { [partyBuild.humanActorId]: humanLoadout } } : {}),
   };
 
   return {
@@ -117,5 +155,6 @@ export function buildRunSetup(registry: ContentRegistry, opts: RunSetupOptions):
     bossActorId,
     keyLevel: opts.keyLevel,
     parTicks: dungeonBuild.parTicks,
+    runOptions,
   };
 }

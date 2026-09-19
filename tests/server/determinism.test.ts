@@ -32,7 +32,7 @@ describe("server: wire determinism vs. local sim replay", () => {
       for (const role of roles) {
         const c = await TestClient.connect(server.port);
         clients.push(c);
-        c.send({ v: 2, type: "queue", role, keyLevel: TEST_KEY_LEVEL });
+        c.send({ v: 3, type: "queue", role, keyLevel: TEST_KEY_LEVEL });
         const joined = await c.waitForType("joined");
         if (joined.type !== "joined") throw new Error("expected joined");
         actorIds.push(joined.actorId);
@@ -52,7 +52,7 @@ describe("server: wire determinism vs. local sim replay", () => {
         const actorId = actorIds[i];
         if (actorId === undefined) return;
         const dir = { x: ((i % 2 === 0 ? 1 : -1) * 500) | 0, z: 500 };
-        c.send({ v: 2, type: "cmd", cmd: { tick: scheduledTick, kind: "move", dir, yaw: 0 } });
+        c.send({ v: 3, type: "cmd", cmd: { tick: scheduledTick, kind: "move", dir, yaw: 0 } });
         sentCommands.push({ tick: scheduledTick, actorId, kind: "move", dir, yaw: 0 });
       });
       // The margin above is generous for a localhost round trip, so none of these should be late

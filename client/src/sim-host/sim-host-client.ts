@@ -19,7 +19,7 @@
  * commands posted between two worker ticks simply queue in SimRuntime's own `pending` buffers
  * (sim-runtime.ts), the same absorption the pre-Worker scaffold already relied on.
  *
- * Usage: `const client = new SimHostClient(location.search, tickMsOverride);
+ * Usage: `const client = new SimHostClient(location.search, tickMsOverride, loadout);
  * const { humanActorId } = await client.whenReady();
  * const stop = client.start(onSnapshot, pullCommands);`
  */
@@ -28,6 +28,7 @@ import type { Snapshot } from "./snapshot.js";
 import { SIM_TICK_MS } from "./snapshot.js";
 import { computeTicksToRun } from "./scheduler.js";
 import { metrics } from "./metrics.js";
+import type { RawLoadout } from "./loadout-storage.js";
 import type { HostCommand, MainToWorkerMessage, WorkerToMainMessage } from "./wire.js";
 
 export interface SimHostReady {
@@ -44,7 +45,7 @@ export class SimHostClient {
   private lastNowMs = Date.now();
   readonly tickMs: number;
 
-  constructor(search: string, tickMsOverride?: number) {
+  constructor(search: string, tickMsOverride?: number, loadout?: RawLoadout | null) {
     this.tickMs = tickMsOverride ?? SIM_TICK_MS;
     metrics.hz = Math.round(1000 / this.tickMs);
     this.readyPromise = new Promise((resolve) => {
@@ -57,8 +58,14 @@ export class SimHostClient {
     // "." mirrors that layout 1:1 under dist/.
     this.worker = new Worker(new URL("./sim-host/worker.js", import.meta.url), { type: "module" });
     this.worker.onmessage = (ev: MessageEvent<WorkerToMainMessage>) => this.onWorkerMessage(ev.data);
-    // exactOptionalPropertyTypes: only include `tickMs` at all when an override was actually given.
-    this.post(tickMsOverride === undefined ? { type: "init", search } : { type: "init", search, tickMs: tickMsOverride });
+    // exactOptionalPropertyTypes: only include `tickMs`/`loadout` at all when actually given
+    // (run-options-wiring: `loadout` is the screen's persisted build -- see wire.ts's docstring).
+    this.post({
+      type: "init",
+      search,
+      ...(tickMsOverride === undefined ? {} : { tickMs: tickMsOverride }),
+      ...(loadout ? { loadout } : {}),
+    });
   }
 
   /** Resolves once the worker has booted (content fetched, run created) and reports the one piece

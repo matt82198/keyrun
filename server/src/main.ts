@@ -35,7 +35,16 @@ function handleMessage(lobby: Lobby, session: Session, msg: ClientMessage): void
       send(session.ws, { v: PROTOCOL_VERSION, type: "welcome", protocolVersion: PROTOCOL_VERSION });
       return;
     case "queue": {
-      const hit = lobby.handleQueue(msg.role, msg.keyLevel);
+      let hit;
+      try {
+        // run-options-wiring: a bad clauseId (sim/index.ts's createRun) or invariant-breaking
+        // loadout (content/apply.ts's applyLoadout) throws out of Room's constructor -- caught
+        // here so the connection gets a clean `error`, never a crashed handler.
+        hit = lobby.handleQueue(msg.role, msg.keyLevel, msg.clauseId, msg.loadout);
+      } catch (err) {
+        send(session.ws, errorMessage(err instanceof Error ? err.message : String(err)));
+        return;
+      }
       hit.room.attachHuman(hit.actorId, session.ws);
       session.actorId = hit.actorId;
       session.room = hit.room;

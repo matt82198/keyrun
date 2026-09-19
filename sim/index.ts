@@ -22,9 +22,19 @@
  * `dungeon` and `content` so `stepRun` does not need them re-passed on every call -- a strict
  * superset of the documented shape, not a deviation from it.
  *
+ * RUN OPTIONS (run-options-wiring): an optional 5th `options` argument (sim/run-options.ts's
+ * `RunOptions`) carries the run's Clause pick (`clauseId`, looked up in `content.clauses` and
+ * folded into `encounter.rules` via sim/encounter/clauses.ts's `applyClause` -- see that file's
+ * WIRING NOTE, which this fulfils) and any party members' already-loadout-resolved abilities
+ * (`loadouts`, merged onto `content.abilities` -- see run-options.ts's file docstring for why sim
+ * receives applyLoadout's OUTPUT, never raw talentChoices/gear: sim never imports content).
+ * Omitting `options` (or any of its fields) reproduces today's exact behaviour byte-for-byte --
+ * no existing golden replay changes.
+ *
  * Usage:
  *   const run = createRun(seed, party, dungeonDef, content);
- *   const { run: run2, events } = stepRun(run, commandsForThisTick);
+ *   const run2 = createRun(seed, party, dungeonDef, content, {clauseId: "echo", loadouts: {1: patchedAbilities}});
+ *   const { run: run3, events } = stepRun(run, commandsForThisTick);
  */
 import { createState, type SimState } from "./core/state";
 import { step as coreStep } from "./core/tick";
@@ -43,17 +53,25 @@ import {
   rulesConfigOf,
 } from "./run-wiring";
 import { stepEncounter, spawnPull, initialSlackTicks, type BreakBarWiring, type DungeonDef, type EncounterState } from "./encounter/index";
-import { defaultEncounterRules } from "./encounter/clauses";
+import { resolveEncounterRules, mergeLoadoutAbilities, type RunOptions } from "./run-options";
 import type { PartyMemberSpec, Run, RunContent, StepRunOpts } from "./run-types";
 
 export type { PartyMemberSpec, Run, RunContent, StepRunOpts } from "./run-types";
+export type { RunOptions } from "./run-options";
+export { UnknownClauseError, UnknownLoadoutActorError, UnknownLoadoutAbilityError } from "./run-options";
 
 /**
  * Builds a fresh run: a `createState(seed)` with every party member spawned as a player actor,
  * plus the dungeon's first pull (index 0) spawned as enemy actors, and an initial EncounterState
  * (empty telegraph/break-bar registries, pullIndex 0, a full Slack bank for `keyLevel`).
  */
-export function createRun(seed: number, party: PartyMemberSpec[], dungeon: DungeonDef, content: RunContent): Run {
+export function createRun(
+  seed: number,
+  party: PartyMemberSpec[],
+  dungeon: DungeonDef,
+  content: RunContent,
+  options?: RunOptions,
+): Run {
   let state = createState(seed);
 
   const players = party.map((member) =>
@@ -77,6 +95,13 @@ export function createRun(seed: number, party: PartyMemberSpec[], dungeon: Dunge
   const spawned = spawnPull(dungeon, 0, state.tick, () => {});
   state = mergeActors(state, spawned);
 
+  // run-options-wiring: options?.loadouts merges onto content.abilities (unchanged reference when
+  // omitted); options?.clauseId folds into the encounter's starting rules via applyClause. Both
+  // throw a clear, named error (never a silent default) on bad input -- see run-options.ts.
+  const abilities = mergeLoadoutAbilities(content.abilities, party, options?.loadouts);
+  const effectiveContent: RunContent = abilities === content.abilities ? content : { ...content, abilities };
+  const rules = resolveEncounterRules(content, keyLevel, options?.clauseId);
+
   const encounter: EncounterState = {
     telegraphs: [],
     breakBars: {},
@@ -85,7 +110,7 @@ export function createRun(seed: number, party: PartyMemberSpec[], dungeon: Dunge
     parTicks: content.parTicks ?? 24000, // 20 minutes at 20Hz, a generous POC default
     keyLevel,
     depleted: false,
-    rules: content.encounterRules ?? defaultEncounterRules(keyLevel),
+    rules,
     firedOnDeath: {},
   };
 
@@ -93,7 +118,7 @@ export function createRun(seed: number, party: PartyMemberSpec[], dungeon: Dunge
   // first stepRun tick -- a host (or a bot's first-tick decision) never sees an untargeted party.
   fixupTargeting(state);
 
-  return { state, encounter, dungeon, content, runEnd: initialRunEndState() };
+  return { state, encounter, dungeon, content: effectiveContent, runEnd: initialRunEndState() };
 }
 
 /**
