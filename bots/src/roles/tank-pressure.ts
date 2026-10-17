@@ -26,7 +26,7 @@
  */
 import type { ActorState, BotView, Command, Tick } from "../types.js";
 import { getContentRegistry, type EffectiveKit } from "../kits.js";
-import { readyAndAffordable } from "./shared.js";
+import { readyAndAffordable, inLull } from "./shared.js";
 
 /** Enemies aimed at the tank at which it counts as under pack pressure. */
 export const PRESSURE_ATTACKERS = 3;
@@ -101,6 +101,11 @@ export function pressureMitigationCommand(view: BotView, self: ActorState, kit: 
  * no ability whose cost would drop momentum below the self-sustain spender's cost.
  */
 export function pressureRotation(view: BotView, self: ActorState, kit: EffectiveKit): string[] {
+  // Lull (roles/shared.ts inLull): bank the GCD and momentum for the next pull. Hollow Vault pull
+  // 0 ends on a lone Choir healer; the tank dumped Reckoning into it at t871, so pull 1's Paired
+  // Warriors (spawned t873, aimed at the tank) swung at t888 with the tank GCD-locked to t901 and
+  // holding 0 momentum: no Brace, no Vigil (tests/sim/integration/bots-pull1-warden.test.ts).
+  if (inLull(view)) return [];
   const sustain = kit.selfSustainAbilityId;
   const rotation = kit.rotation.filter((id) => id !== sustain);
   if (!sustain || !underPackPressure(view, self)) return rotation;
