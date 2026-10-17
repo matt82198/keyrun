@@ -30,9 +30,10 @@ const LOCKOUT_PREFIX = "lockout:";
  * `lockout:<school>` effect, and it stamps `endsTick = <interrupt tick> + lockoutTicks`. A lockout
  * whose start is exactly the tick just stepped (state.tick - 1) is therefore a kick that landed this
  * tick -- one-shot by construction (the next snapshot's previous tick no longer matches). Parity with
- * the sim's own "interrupt" event is asserted in tests/client/sim-host/snapshot-kick.test.ts.
+ * the sim's own "interrupt" event is asserted in tests/client/sim-host/snapshot-kick.test.ts. Exported
+ * for server/src/snapshot.ts (the ?net=1 path), so both hosts emit identical events from one rule.
  */
-function interruptEvents(run: Run): SnapshotEvent[] {
+export function interruptEvents(run: Run): SnapshotEvent[] {
   const steppedTick = run.state.tick - 1;
   const out: SnapshotEvent[] = [];
   for (const actor of Object.values(run.state.actors)) {
@@ -45,7 +46,8 @@ function interruptEvents(run: Run): SnapshotEvent[] {
   return out;
 }
 
-function toCast(actor: ActorState, abilities: Run["content"]["abilities"]): ActorCast | null {
+/** Shared with server/src/snapshot.ts (one authority for the wire cast shape, incl. kickable). */
+export function toCast(actor: ActorState, abilities: Run["content"]["abilities"]): ActorCast | null {
   if (actor.castId === null || actor.castStartTick === null || actor.castEndsTick === null) return null;
   const kickable = abilities[actor.castId]?.interruptible === true;
   return { abilityId: actor.castId, startTick: actor.castStartTick, endTick: actor.castEndsTick, kickable };

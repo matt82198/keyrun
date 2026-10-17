@@ -93,7 +93,7 @@ export class ActorPool {
       view.group.visible = actor.alive;
 
       if (raw) {
-        view.material.color.setHex(colorForActor(raw.kind, raw.role));
+        view.material.color.setHex(colorForActor(raw.kind, raw.role, raw.classId));
       }
 
       drawBar(view.healthBar, actor.health / Math.max(1, actor.maxHealth), "#e63946");

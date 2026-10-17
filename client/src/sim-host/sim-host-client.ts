@@ -35,8 +35,8 @@ import type { SlotAbilities } from "../input/slot-abilities.js";
 export interface SimHostReady {
   humanActorId: number;
   /** The host's keybind slot -> ability id map (input/slot-abilities.ts). The local worker always
-   * reports it; net/net-client.ts does not yet (the server's `joined` carries no slot map), and
-   * without it ability keys cast nothing (fail closed) -- tracked follow-up, not a fallback. */
+   * reports it; net/net-client.ts reports the map the server sends on `joined` (same resolver). If it
+   * is absent or malformed, ability keys cast nothing (fail closed) -- never a fallback. */
   slotAbilities?: SlotAbilities;
 }
 

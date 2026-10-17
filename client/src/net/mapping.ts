@@ -20,7 +20,7 @@
  */
 import { yawFromComponents } from "../../../sim/core/atan.js";
 import type { HostCommand } from "../sim-host/wire.js";
-import type { ActorSnapshot as ClientActorSnapshot, Snapshot as ClientSnapshot } from "../sim-host/snapshot.js";
+import { MAX_SNAPSHOT_EVENTS, type ActorSnapshot as ClientActorSnapshot, type Snapshot as ClientSnapshot, type SnapshotEvent } from "../sim-host/snapshot.js";
 import type { ClientCommandPayload, PartyRole, ServerActorSnapshot, ServerSnapshot } from "./wire-types.js";
 
 /** Mirrors server/src/roster.ts's ROLE_ROSTER class -> role binding (read-only, not imported --
@@ -43,14 +43,25 @@ function toClientActor(a: ServerActorSnapshot): ClientActorSnapshot {
   return { id: a.id, kind: a.kind, role: a.role, classId: a.classId, pos: a.pos, yaw: a.yaw, health: a.health, maxHealth: a.maxHealth, resource: a.resource, maxResource: a.maxResource, alive: a.alive, targetId: a.targetId, cast: a.cast, cooldowns: a.cooldowns };
 }
 
+/** Untrusted wire input: only well-formed interrupt events reach the renderer's InterruptLatch. */
+function isInterruptEvent(e: unknown): e is SnapshotEvent {
+  if (typeof e !== "object" || e === null) return false;
+  const r = e as Record<string, unknown>;
+  return r.type === "interrupt" && typeof r.tick === "number" && typeof r.actorId === "number" && typeof r.sourceId === "number" && typeof r.school === "string";
+}
+
 /** Strips server-only fields (stateHash, per-actor controlledBy) -- the exact Snapshot shape
  * hud-wiring.ts already consumes from the local Worker host, minus `runEnd`: net-client.ts overlays
- * that itself from the server's own `run_end` message (see file docstring), never derived here. */
+ * that itself from the server's own `run_end` message (see file docstring), never derived here.
+ * D10 net parity: ActorCast.kickable, each telegraph's telegraphClass, and the one-shot `events`
+ * channel are carried through unchanged, so ?net=1 renders kickable casts, kick flashes and
+ * telegraph classes exactly like the local host (a missing `events` maps to none, never stale). */
 export function toClientSnapshot(s: ServerSnapshot): ClientSnapshot {
   return {
     tick: s.tick,
     actors: s.actors.map(toClientActor),
     telegraphs: s.telegraphs,
+    events: Array.isArray(s.events) ? s.events.filter(isInterruptEvent).slice(0, MAX_SNAPSHOT_EVENTS) : [],
     runTimerTicks: s.runTimerTicks,
     timerLimitTicks: s.timerLimitTicks,
     slackTicks: s.slackTicks,

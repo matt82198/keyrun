@@ -27,3 +27,7 @@ bars, telegraphs, hud), `sim-host/` (worker that runs `sim.step` + bots; later `
 Unit tests for input→command mapping (given key state and tick, expect commands), camera math, interpolation,
 and the telegraph horizon math. Rendering is checked by a headless smoke test that builds the scene without a
 canvas (jsdom + WebGL mock) and by a manual screenshot before merge.
+- Event latching contract: the host may deliver several snapshots per render frame; `hud-wiring.ts` renders only
+  the latest STATE but latches every snapshot's one-shot `events` in `render/event-latch.ts` (arrival order,
+  bounded at `MAX_LATCHED_EVENTS`, oldest dropped) and drains them exactly once into the next frame's
+  `ActorPool.sync`. Never read `nextSnapshot.events` directly (tests/client/hud-wiring-event-latch.test.ts).
