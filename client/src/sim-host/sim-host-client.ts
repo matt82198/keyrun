@@ -30,9 +30,14 @@ import { computeTicksToRun } from "./scheduler.js";
 import { metrics } from "./metrics.js";
 import type { RawLoadout } from "./loadout-storage.js";
 import type { HostCommand, MainToWorkerMessage, WorkerToMainMessage } from "./wire.js";
+import type { SlotAbilities } from "../input/slot-abilities.js";
 
 export interface SimHostReady {
   humanActorId: number;
+  /** The host's keybind slot -> ability id map (input/slot-abilities.ts). The local worker always
+   * reports it; net/net-client.ts does not yet (the server's `joined` carries no slot map), and
+   * without it ability keys cast nothing (fail closed) -- tracked follow-up, not a fallback. */
+  slotAbilities?: SlotAbilities;
 }
 
 export class SimHostClient {
@@ -98,7 +103,7 @@ export class SimHostClient {
 
   private onWorkerMessage(msg: WorkerToMainMessage): void {
     if (msg.type === "ready") {
-      this.readyResolve({ humanActorId: msg.humanActorId });
+      this.readyResolve({ humanActorId: msg.humanActorId, slotAbilities: msg.slotAbilities });
     } else if (msg.type === "snapshot") {
       metrics.recordSimStep(msg.simStepMs);
       metrics.recordTickInterval(msg.elapsedMs, msg.tickMs);
