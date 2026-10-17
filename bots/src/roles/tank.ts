@@ -12,7 +12,9 @@
  * Pack pressure: the hard defensive also fires, at any health, once PRESSURE_ATTACKERS enemies are
  * aimed at the tank. Hollow Vault's pull 1 (five Paired Warriors, tests/sim/integration/
  * bots-pull1.test.ts) swings in sync: ~350 damage lands in one tick on a 400-HP Warden, so health
- * jumped from above the 35% floor straight to 0 and a floor-only Brace was never cast.
+ * jumped from above the 35% floor straight to 0 and a floor-only Brace was never cast. Under the
+ * same pressure the tank also holds momentum for Vigil and casts it as Brace runs out
+ * (roles/tank-pressure.ts), instead of dumping momentum into Reckoning.
  *
  * Usage: `import { tankDecide } from "./tank.js"`
  */
@@ -23,25 +25,24 @@ import { floorEscapeCommand, meleeReapproachCommand } from "../shared/floor.js";
 import { yawToward, yawChanged } from "../shared/command.js";
 import { abilityReady, readyAndAffordable, ledgerKickCommand } from "./shared.js";
 import { tankEngageCommands } from "./tank-engage.js";
+import { underPackPressure, pressureSustainCommand } from "./tank-pressure.js";
 
 const TANK_DEFENSIVE_THRESHOLD_PCT = 0.35;
 /** A higher, earlier floor for a self-sustain spender (Warden's Vigil) ahead of the harder defensive (Brace). */
 const TANK_SUSTAIN_THRESHOLD_PCT = 0.6;
 
-/** Enemies aimed at the tank at which the hard defensive is spent pre-emptively, at any health. */
-export const PRESSURE_ATTACKERS = 3;
-
-function attackersOf(view: BotView, self: ActorState): number {
-  return Object.values(view.state.actors).filter((a) => a.kind === "enemy" && a.alive && a.targetId === self.id).length;
-}
+export { PRESSURE_ATTACKERS } from "./tank-pressure.js";
 
 function defensiveCommands(view: BotView, self: ActorState, kit: EffectiveKit): Command[] {
   const tick = view.state.tick;
   const healthPct = self.health / self.maxHealth;
-  const pressured = healthPct < TANK_DEFENSIVE_THRESHOLD_PCT || attackersOf(view, self) >= PRESSURE_ATTACKERS;
+  const pressured = healthPct < TANK_DEFENSIVE_THRESHOLD_PCT || underPackPressure(view, self);
   if (kit.defensiveAbilityId && pressured && abilityReady(self, kit.defensiveAbilityId, tick)) {
     return [{ tick, actorId: self.id, kind: "cast", abilityId: kit.defensiveAbilityId }];
   }
+  // Pack pressure: Vigil covers Brace's expiry instead of waiting for the 60% floor (tank-pressure.ts).
+  const vigil = pressureSustainCommand(view, self, kit);
+  if (vigil) return [vigil];
   if (
     kit.selfSustainAbilityId &&
     healthPct < TANK_SUSTAIN_THRESHOLD_PCT &&
