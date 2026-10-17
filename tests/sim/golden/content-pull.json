@@ -1046,7 +1046,7 @@
       "targetId": 1000
     }
   ],
-  "expectedHash": "614b2c96",
+  "expectedHash": "755428e2",
   "eventCounts": {
     "damage": 25,
     "cast_complete": 25,

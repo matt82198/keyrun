@@ -243,7 +243,12 @@ describe("stepRun threads content.abilities into enemy targeting (range gating, 
   it("an out-of-range player is never targeted and never takes meleeSwing damage", () => {
     const events: SimEvent[] = [];
     const initial = buildRangeRun({ x: 9000, y: 0, z: 0 }); // 9000mm: well outside range 3000
-    const final = runTicks(initial, 80, events, () => []);
+    // sim/encounter/chase.ts now closes a melee enemy on its target at base speed, so the player
+    // kites straight away at the same speed (+x; the 20000mm wall is reached at tick ~61, still
+    // >5000mm clear at tick 79): the gap is still 9000mm at the tick-40 swing, which range gating
+    // must skip rather than fire at an out-of-range target.
+    const kite = (t: number): Command[] => [{ tick: t, actorId: PLAYER_ID, kind: "move", dir: { x: 1000, z: 0 }, yaw: 0 }];
+    const final = runTicks(initial, 80, events, kite);
 
     const swings = eventsOf("cast_complete", events).filter((e) => e.abilityId === "pair.meleeSwing");
     expect(swings).toEqual([]);
