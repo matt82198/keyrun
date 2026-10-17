@@ -54,7 +54,7 @@ import {
 } from "./run-wiring";
 import { stepEncounter, stepEchoSpawns, spawnPull, initialSlackTicks, type BreakBarWiring, type DungeonDef, type EncounterState } from "./encounter/index";
 import { resolveEncounterRules, mergeLoadoutAbilities, type RunOptions } from "./run-options";
-import { setActiveEncounterRules } from "./combat/clause-hooks";
+import { withEncounterRules } from "./combat/clause-hooks";
 import type { PartyMemberSpec, Run, RunContent, StepRunOpts } from "./run-types";
 
 export type { PartyMemberSpec, Run, RunContent, StepRunOpts } from "./run-types";
@@ -155,10 +155,10 @@ export function stepRun(run: Run, commands: Command[], opts?: StepRunOpts): { ru
     run.content.abilities
   );
 
-  setActiveEncounterRules(run.encounter.rules); // clause-mechanics: Hush/Pact hooks read this during coreStep
   const rules = makeRules(rulesConfigOf(run.content));
   const merged = [...commands, ...encResult.commands];
-  const stepped = coreStep(run.state, merged, rules);
+  // clause-mechanics: Hush/Pact hooks read the rules during coreStep only (scoped, see clause-hooks.ts)
+  const stepped = withEncounterRules(run.encounter.rules, () => coreStep(run.state, merged, rules));
   events.push(...stepped.events);
 
   let nextState = applyBreakBarPatches(stepped.state, encResult.effectPatches, run.content.effects);

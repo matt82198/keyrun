@@ -49,3 +49,5 @@ the server (later) runs it authoritatively; tests replay it.
   completed and was interrupted.
 - No module-level mutable counters: ids minted during a run live in run state (e.g. `EncounterState.nextTelegraphId`),
   so two runs in one process (two server rooms) stay seed-deterministic (`tests/sim/integration/telegraph-ids-per-run.test.ts`).
+- Module-scoped side channels are scoped to the call that needs them, never set-and-forget: stepRun wraps coreStep in
+  `withEncounterRules` (restores on exit) and `runAsCombo` is try/finally-balanced (`tests/sim/integration/module-state-per-run.test.ts`).
