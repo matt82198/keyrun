@@ -19,11 +19,16 @@ export interface AbilityDisplay {
   cooldownTicks: number;
   gcdTicks: number;
   castTicks: number;
+  /** Has a `{op:"payoff"}` effect: closes an open Window (render/payoff-ready.ts lights its key). */
+  payoff?: boolean;
 }
 
 export interface DisplayInfo {
   abilities: Record<string, AbilityDisplay>;
   actorNames: Record<string, string>;
+  /** Burst combo names keyed "<setupClass>><payoffClass>" (data/combos.json exact pairs only: the
+   * "*" rows are floor-field combos, which an actor's Window never uses). Optional: ?net=1 has none. */
+  combos?: Record<string, string>;
 }
 
 /** Last dotted segment of an id, camelCase split, words capitalised; a trailing ".boss" is dropped. */
@@ -42,6 +47,11 @@ interface AbilityTimings {
   cooldownTicks?: unknown;
   gcdTicks?: unknown;
   castTicks?: unknown;
+  effects?: unknown;
+}
+
+function hasPayoff(effects: unknown): boolean {
+  return Array.isArray(effects) && effects.some((e) => (e as { op?: unknown } | null)?.op === "payoff");
 }
 
 function num(v: unknown): number {
@@ -54,12 +64,14 @@ export function buildDisplayInfo(registry: ContentRegistry, runAbilities: Readon
   const abilities: Record<string, AbilityDisplay> = {};
   for (const [id, def] of Object.entries(runAbilities)) {
     const name = typeof def.name === "string" && def.name.length > 0 ? def.name : registry.abilities.get(id)?.name ?? humanizeId(id);
-    abilities[id] = { name, cooldownTicks: num(def.cooldownTicks), gcdTicks: num(def.gcdTicks), castTicks: num(def.castTicks) };
+    abilities[id] = { name, cooldownTicks: num(def.cooldownTicks), gcdTicks: num(def.gcdTicks), castTicks: num(def.castTicks), payoff: hasPayoff(def.effects) };
   }
   const actorNames: Record<string, string> = {};
   for (const [id, def] of registry.enemies) actorNames[id] = def.name;
   for (const [id, def] of registry.classes) actorNames[id] = def.name;
-  return { abilities, actorNames };
+  const combos: Record<string, string> = {};
+  for (const c of registry.combos.values()) if (c.payoffClass !== "*") combos[`${c.setupClass}>${c.payoffClass}`] = c.name;
+  return { abilities, actorNames, combos };
 }
 
 export function abilityName(info: DisplayInfo | undefined, abilityId: string): string {

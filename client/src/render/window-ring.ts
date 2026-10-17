@@ -9,6 +9,10 @@
  * toWindow projects null -- or it expired), or tick >= endsTick. A kick does NOT close a Window in
  * the sim, so a kick never dismisses the ring (that would hide a Window a Payoff can still close).
  *
+ * A constant-size label sprite rides just above the ring naming whose setup it is
+ * (windowRingLabel: "Warden Window: Sundered"), so a player can tell which class can close it;
+ * render/payoff-ready.ts separately lights YOUR payoff key on the ability bar.
+ *
  * Driven ONLY from snapshot state (ActorSnapshot.window, projected by sim-host/snapshot-codec.ts's
  * toWindow) -- never from sim internals and never from one-shot events.
  *
@@ -18,6 +22,8 @@
 import * as THREE from "three";
 import type { InterpolatedActor } from "../sim-host/interpolate.js";
 import type { ActorSnapshot, ActorWindow, SnapshotEvent } from "../sim-host/snapshot.js";
+import { humanizeId } from "../sim-host/display-info.js";
+import { createCanvasSprite, type CanvasSprite } from "./canvasSprite.js";
 
 const MM_PER_M = 1000;
 /** Placeholder ring size (metres), sized to sit just outside the 0.4 m actor capsule. */
@@ -29,6 +35,30 @@ export const WINDOW_RING_OPEN_COLOR = 0x3ddc97; // fresh Window: green
 const WINDOW_RING_MID_COLOR = 0xffd166; // half-way: amber
 export const WINDOW_RING_CLOSING_COLOR = 0xef476f; // about to close: red
 const RING_LIFT_M = 0.03;
+/** Label canvas px and its constant on-screen size (same px-per-world ratio as render/name-tag.ts). */
+const LABEL_PX: [number, number] = [512, 64];
+const LABEL_LIFT_M = 0.3;
+
+/** The ring's text (D10 window readability): whose setup it is and which Window -- e.g.
+ * "Warden Window: Sundered"; the Lock (BIBLE.md sec 9, any class but the last closer) reads as such. */
+export function windowRingLabel(win: Pick<ActorWindow, "windowId" | "setupClass" | "lock">): string {
+  if (win.lock) return "LOCK: alternate classes";
+  return `${humanizeId(win.setupClass)} Window: ${humanizeId(win.windowId)}`;
+}
+
+function drawLabel(label: CanvasSprite, text: string, lock: boolean): void {
+  const { ctx, canvas } = label;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "bold 40px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = "rgba(0,0,0,0.9)";
+  ctx.fillStyle = lock ? "#ffd166" : "#3ddc97";
+  ctx.strokeText(text, LABEL_PX[0] / 2, LABEL_PX[1] / 2);
+  ctx.fillText(text, LABEL_PX[0] / 2, LABEL_PX[1] / 2);
+  label.sync();
+}
 
 export interface WindowRingModel {
   visible: boolean;
@@ -68,6 +98,8 @@ interface RingView {
   mesh: THREE.Mesh;
   material: THREE.MeshBasicMaterial;
   step: number;
+  label: CanvasSprite;
+  labelText: string;
 }
 
 function ringGeometry(step: number): THREE.RingGeometry {
@@ -92,12 +124,21 @@ export class WindowRingPool {
       const view = this.ensure(actor.id, Math.max(1, Math.ceil(model.fraction * WINDOW_RING_STEPS)));
       view.material.color.setHex(model.color);
       view.mesh.position.set(actor.pos.x / MM_PER_M, actor.pos.y / MM_PER_M + RING_LIFT_M, actor.pos.z / MM_PER_M);
+      const text = windowRingLabel(raw.window!);
+      if (view.labelText !== text) {
+        drawLabel(view.label, text, raw.window!.lock);
+        view.labelText = text;
+      }
+      view.label.sprite.position.set(actor.pos.x / MM_PER_M, actor.pos.y / MM_PER_M + LABEL_LIFT_M, actor.pos.z / MM_PER_M);
     }
     for (const [id, view] of this.rings) {
       if (seen.has(id)) continue;
       this.scene.remove(view.mesh);
+      this.scene.remove(view.label.sprite);
       view.mesh.geometry.dispose();
       view.material.dispose();
+      view.label.sprite.material.map?.dispose();
+      view.label.sprite.material.dispose();
       this.rings.delete(id);
     }
   }
@@ -110,7 +151,9 @@ export class WindowRingPool {
       mesh.rotation.x = -Math.PI / 2;
       mesh.renderOrder = 2;
       this.scene.add(mesh);
-      view = { mesh, material, step };
+      const label = createCanvasSprite(LABEL_PX[0], LABEL_PX[1], 0.29, 0.036, false);
+      this.scene.add(label.sprite);
+      view = { mesh, material, step, label, labelText: "" };
       this.rings.set(id, view);
     } else if (view.step !== step) {
       view.mesh.geometry.dispose();
