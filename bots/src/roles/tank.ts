@@ -2,25 +2,42 @@
  * bots/src/roles/tank.ts
  *
  * The tank state machine (bots/CLAUDE.md: "hold threat, face away, use defensives at health
- * thresholds"): kick the priority cast, acquire the highest-threat-deficit enemy, face away from
- * the party centroid, and pop a self-sustain spender (Warden's Vigil) under a higher health floor
- * than its harder defensive (Brace). Also the tank's floor-patch avoidance/re-approach
+ * thresholds"): kick the priority cast, then ENGAGE (roles/tank-engage.ts: taunt loose enemies,
+ * walk into melee, face the target, cast the rotation), and pop a self-sustain spender (Warden's
+ * Vigil) under a higher health floor than its harder defensive (Brace). With no enemy to engage
+ * it faces away from the party centroid. Also the tank's floor-patch avoidance/re-approach
  * (shared/floor.ts): a hostile floor patch under the tank preempts everything below it here, and
- * once clear, a tank out of melee range of its target walks back in before resuming its usual
- * facing/defensive logic. Pure: (view, self) -> Command[].
+ * once clear, a tank out of melee range of its target walks back in. Pure: (view, self) -> Command[].
  *
  * Usage: `import { tankDecide } from "./tank.js"`
  */
 import type { ActorState, BotView, Command } from "../types.js";
 import { pickTankTarget } from "../shared/priority.js";
-import { resolveKit } from "../kits.js";
+import { resolveKit, type EffectiveKit } from "../kits.js";
 import { floorEscapeCommand, meleeReapproachCommand } from "../shared/floor.js";
 import { yawToward, yawChanged } from "../shared/command.js";
 import { abilityReady, readyAndAffordable, ledgerKickCommand } from "./shared.js";
+import { tankEngageCommands } from "./tank-engage.js";
 
 const TANK_DEFENSIVE_THRESHOLD_PCT = 0.35;
 /** A higher, earlier floor for a self-sustain spender (Warden's Vigil) ahead of the harder defensive (Brace). */
 const TANK_SUSTAIN_THRESHOLD_PCT = 0.6;
+
+function defensiveCommands(view: BotView, self: ActorState, kit: EffectiveKit): Command[] {
+  const tick = view.state.tick;
+  const healthPct = self.health / self.maxHealth;
+  if (kit.defensiveAbilityId && healthPct < TANK_DEFENSIVE_THRESHOLD_PCT && abilityReady(self, kit.defensiveAbilityId, tick)) {
+    return [{ tick, actorId: self.id, kind: "cast", abilityId: kit.defensiveAbilityId }];
+  }
+  if (
+    kit.selfSustainAbilityId &&
+    healthPct < TANK_SUSTAIN_THRESHOLD_PCT &&
+    readyAndAffordable(self, kit.selfSustainAbilityId, tick, kit)
+  ) {
+    return [{ tick, actorId: self.id, kind: "cast", abilityId: kit.selfSustainAbilityId }];
+  }
+  return [];
+}
 
 export function tankDecide(view: BotView, self: ActorState): Command[] {
   const tick = view.state.tick;
@@ -33,6 +50,11 @@ export function tankDecide(view: BotView, self: ActorState): Command[] {
   if (escape) return [escape];
   const reapproach = meleeReapproachCommand(view, self);
   if (reapproach) return [reapproach];
+
+  // Defensives first: sim gates even a gcd-0 cast on the GCD, so it must precede a rotation cast.
+  const defensive = defensiveCommands(view, self, kit);
+  const engage = tankEngageCommands(view, self, kit);
+  if (engage) return [...defensive, ...engage];
 
   const out: Command[] = [];
   const targetId = pickTankTarget(view.state.actors, self.id);
@@ -52,16 +74,5 @@ export function tankDecide(view: BotView, self: ActorState): Command[] {
       }
     }
   }
-
-  const healthPct = self.health / self.maxHealth;
-  if (kit.defensiveAbilityId && healthPct < TANK_DEFENSIVE_THRESHOLD_PCT && abilityReady(self, kit.defensiveAbilityId, tick)) {
-    out.push({ tick, actorId: self.id, kind: "cast", abilityId: kit.defensiveAbilityId });
-  } else if (
-    kit.selfSustainAbilityId &&
-    healthPct < TANK_SUSTAIN_THRESHOLD_PCT &&
-    readyAndAffordable(self, kit.selfSustainAbilityId, tick, kit)
-  ) {
-    out.push({ tick, actorId: self.id, kind: "cast", abilityId: kit.selfSustainAbilityId });
-  }
-  return out;
+  return [...out, ...defensive];
 }

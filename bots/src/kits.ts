@@ -40,6 +40,8 @@ import type { AbilityDef } from "@content/schema/ability";
 import type { ClassDef, LoopKind } from "@content/schema/class";
 import { abilityTags, buildRotationPriority, SETUP_TAG_PREFIX, PAYOFF_TAG } from "./kit-priority.js";
 import { resourceEffectDelta, costAmount, healsOnCast } from "./kit-resources.js";
+import type { EffectDef } from "@content/schema/effect";
+import { classifyHeals, tauntAbilityId, type HealKit } from "./kit-heals.js";
 
 export { resolveKit, type EffectiveKit } from "./kit-resolve.js";
 export { setContentRegistry, getContentRegistry, getClassKit, priorityInterruptAbilityIds } from "./kit-registry.js";
@@ -79,9 +81,16 @@ export interface ClassKit {
   selfSustainAbilityId: string | null;
   /** For a "stance" loop (Chanter): the neutral rotational ability that flips the stance resource -- Refrain. Null for non-stance classes. */
   stanceSwapAbilityId: string | null;
+  /** Shape-aware heals (kit-heals.ts) + the threat-op utility (Warden's Taunt), or null. */
+  heals: HealKit;
+  tauntAbilityId: string | null;
 }
 
-export function buildClassKit(cls: ClassDef, abilities: ReadonlyMap<string, AbilityDef>): ClassKit {
+export function buildClassKit(
+  cls: ClassDef,
+  abilities: ReadonlyMap<string, AbilityDef>,
+  effects?: ReadonlyMap<string, EffectDef>,
+): ClassKit {
   const get = (id: string): AbilityDef => {
     const def = abilities.get(id);
     if (!def) throw new Error(`kits: class "${cls.id}" references unknown ability "${id}"`);
@@ -157,5 +166,7 @@ export function buildClassKit(cls: ClassDef, abilities: ReadonlyMap<string, Abil
     healAbilityId,
     selfSustainAbilityId,
     stanceSwapAbilityId,
+    heals: classifyHeals(rotationalDefs, effects),
+    tauntAbilityId: tauntAbilityId(utilityDef),
   };
 }

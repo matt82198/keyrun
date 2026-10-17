@@ -42,7 +42,7 @@ export function getClassKit(classId: string): ClassKit | null {
   if (cached) return cached;
   const cls = registry.classes.get(classId);
   if (!cls) return null;
-  const kit = buildClassKit(cls, registry.abilities);
+  const kit = buildClassKit(cls, registry.abilities, registry.effects);
   kitCache.set(classId, kit);
   return kit;
 }

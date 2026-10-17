@@ -22,6 +22,7 @@ import { resolveKit } from "../kits.js";
 import { floorEscapeCommand } from "../shared/floor.js";
 import { moveToward } from "../shared/command.js";
 import { readyAndAffordable, ledgerKickCommand } from "./shared.js";
+import { healCommands } from "./heal-pick.js";
 
 const DISPELLABLE_PREFIX = "dispellable:";
 /** ActorState.pos is already integer millimetres (sim/CLAUDE.md), so this 30m design constant is
@@ -88,13 +89,16 @@ export function healerDecide(view: BotView, self: ActorState): Command[] {
       .map((e) => e.effectId)
       .filter((id) => id.startsWith(DISPELLABLE_PREFIX))
   );
-  let targetId = dispellable.size > 0 ? pickDispelTarget(view.state.actors, dispellable) : null;
-  let abilityId: string | null = targetId !== null ? kit.dispelAbilityId ?? "dispel" : null;
-  if (targetId === null) {
-    targetId = pickHealTarget(view.state.actors, HEAL_THRESHOLD_PCT);
-    abilityId = kit.healAbilityId;
+  const dispelId = dispellable.size > 0 ? pickDispelTarget(view.state.actors, dispellable) : null;
+  if (dispelId === null) {
+    // Heal triage goes through the shape-aware picker: a self-shaped heal cast AT an ally heals
+    // only the caster (roles/heal-pick.ts).
+    const healId = pickHealTarget(view.state.actors, HEAL_THRESHOLD_PCT);
+    const healTarget = healId !== null ? view.state.actors[healId] : undefined;
+    return healTarget ? healCommands(view, self, kit, healTarget) : [];
   }
-  if (targetId === null || !abilityId) return [];
+  const targetId = dispelId;
+  const abilityId = kit.dispelAbilityId ?? "dispel";
   const target = view.state.actors[targetId];
   if (!target) return [];
   const dx = target.pos.x - self.pos.x;

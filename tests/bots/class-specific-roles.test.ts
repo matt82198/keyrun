@@ -58,16 +58,17 @@ describe("Chanter healer: verse swap on party missing-health threshold", () => {
     expect(commands).toEqual([{ tick: 10, actorId: 1, kind: "cast", abilityId: "chanter.refrain" }]);
   });
 
-  it("does not verse-swap when already in Mend (heals through Refrain's targeted heal-triage path instead)", () => {
+  it("does not verse-swap when already in Mend (heals through the shape-aware heal-triage path instead)", () => {
     const chanter = makeActor({ id: 1, resource: 1 }); // already Mend
     const hurt = makeActor({ id: 2, role: "damage", health: 10, maxHealth: 100 });
     const view = makeView([chanter, hurt]);
 
     const commands = healerDecide(view, chanter);
 
-    // A bare (untargeted) Refrain would be the verse-swap signature; a targeted one is the
-    // ordinary heal-triage cast -- proving the swap branch itself did not fire.
-    expect(commands).toEqual([{ tick: 10, actorId: 1, kind: "cast", abilityId: "chanter.refrain", targetId: hurt.id }]);
+    // No Refrain at all (the verse-swap signature). Previously this asserted a Refrain cast
+    // "targeted" at the hurt ally -- but Refrain is self-shaped, so sim healed only the Chanter
+    // (the pull-0 wipe). The ally stands inside Chorus's radius, so the heal is Chorus.
+    expect(commands).toEqual([{ tick: 10, actorId: 1, kind: "cast", abilityId: "chanter.chorus" }]);
   });
 
   it("does not swap when the party is healthy", () => {
