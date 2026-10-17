@@ -22,6 +22,7 @@ export type PartyRole = "tank" | "healer" | "damage";
  * session, never trusts a client-supplied one -- server/CLAUDE.md). */
 export type ClientCommandPayload =
   | { tick: number; kind: "move"; dir: { x: number; z: number }; yaw: number }
+  | { tick: number; kind: "dash"; dir: { x: number; z: number }; yaw: number }
   | { tick: number; kind: "cast"; abilityId: string; targetId?: number }
   | { tick: number; kind: "stopcast" }
   | { tick: number; kind: "target"; targetId: number | null };
