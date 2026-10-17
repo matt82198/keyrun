@@ -3,8 +3,22 @@
 // from the 3D scene since it is plain 2D UI.
 import type { Keybinds } from "../input/keybinds.js";
 import { ABILITY_ACTIONS, type SlotAbilities } from "../input/slot-abilities.js";
-import { TICK_HZ } from "../sim-host/snapshot.js";
+import { TICK_HZ, type Snapshot } from "../sim-host/snapshot.js";
 import { abilityBarModel } from "./ability-bar-model.js";
+import { colorForActor } from "./roleColor.js";
+import { formatPullReadout, partyMarkers } from "./run-readout.js";
+
+interface PartyMarkerEls {
+  root: HTMLDivElement;
+  fill: HTMLDivElement;
+}
+
+function styled<K extends "div" | "span">(tag: K, className: string, style: Partial<CSSStyleDeclaration>): HTMLElementTagNameMap[K] {
+  const e = document.createElement(tag);
+  e.className = className;
+  Object.assign(e.style, style);
+  return e;
+}
 
 interface AbilitySlot {
   root: HTMLDivElement;
@@ -20,11 +34,29 @@ export class Hud {
   private readonly abilityBarEl: HTMLDivElement;
   private readonly slots = new Map<string, AbilitySlot>();
   private readonly cooldownPeaks = new Map<string, number>();
+  private readonly readoutEl: HTMLDivElement;
+  private readonly pullEl: HTMLDivElement;
+  private readonly partyEl: HTMLDivElement;
+  private readonly partyMarkerEls: PartyMarkerEls[] = [];
 
   constructor(container: HTMLElement, keybinds: Keybinds) {
     this.root = document.createElement("div");
     this.root.className = "hud-root";
     container.appendChild(this.root);
+
+    // D10 run readout (render/run-readout.ts): top-left, clear of the top-centre timer/Slack/boss bar,
+    // the bottom-centre ability bar, the top-right net state and the bottom-left ?metrics=1 line.
+    // Inherits .hud-root's pointer-events: none; restated so it never eats a canvas event.
+    this.readoutEl = styled("div", "hud-run-readout", {
+      position: "absolute", top: "18px", left: "18px", pointerEvents: "none",
+      font: "14px/1.3 sans-serif", fontVariantNumeric: "tabular-nums",
+    });
+    this.pullEl = styled("div", "hud-pull", { fontSize: "18px", fontWeight: "600", letterSpacing: "0.04em" });
+    this.pullEl.textContent = formatPullReadout({});
+    this.partyEl = styled("div", "hud-party", { display: "flex", gap: "6px", marginTop: "6px" });
+    this.readoutEl.appendChild(this.pullEl);
+    this.readoutEl.appendChild(this.partyEl);
+    this.root.appendChild(this.readoutEl);
 
     const crosshair = document.createElement("div");
     crosshair.className = "hud-crosshair";
@@ -82,6 +114,37 @@ export class Hud {
     const fraction = maxSlackTicks > 0 ? Math.max(0, Math.min(1, slackTicks / maxSlackTicks)) : 0;
     this.slackFillEl.style.width = `${Math.round(fraction * 100)}%`;
     this.slackFillEl.classList.toggle("hud-slack-depleted", depleted);
+  }
+
+  /** "Pull <n>/<total>" plus one marker per party member: role colour, HP fill, dimmed + red when dead. */
+  updateRunReadout(snapshot: Pick<Snapshot, "actors" | "pullIndex" | "pullCount">): void {
+    this.pullEl.textContent = formatPullReadout(snapshot);
+    const markers = partyMarkers(snapshot);
+    while (this.partyMarkerEls.length > markers.length) this.partyEl.removeChild(this.partyMarkerEls.pop()!.root);
+    while (this.partyMarkerEls.length < markers.length) this.partyMarkerEls.push(this.buildPartyMarker());
+    markers.forEach((m, i) => {
+      const els = this.partyMarkerEls[i]!;
+      const color = `#${colorForActor("player", m.role).toString(16).padStart(6, "0")}`;
+      els.root.dataset.actorId = String(m.id);
+      els.root.dataset.alive = String(m.alive);
+      els.root.title = `${m.role} #${m.id}: ${m.alive ? `${Math.round(m.hpFraction * 100)}%` : "dead"}`;
+      els.root.style.borderColor = color;
+      els.root.style.opacity = m.alive ? "1" : "0.4";
+      els.root.style.background = m.alive ? "rgba(20, 24, 30, 0.85)" : "rgba(120, 20, 20, 0.6)";
+      els.fill.style.background = color;
+      els.fill.style.height = `${Math.round(m.hpFraction * 100)}%`;
+    });
+  }
+
+  private buildPartyMarker(): PartyMarkerEls {
+    const root = styled("div", "hud-party-marker", {
+      position: "relative", width: "14px", height: "28px", borderRadius: "3px",
+      border: "2px solid #999999", overflow: "hidden", boxSizing: "border-box",
+    });
+    const fill = styled("div", "hud-party-hp", { position: "absolute", left: "0", right: "0", bottom: "0", height: "100%" });
+    root.appendChild(fill);
+    this.partyEl.appendChild(root);
+    return { root, fill };
   }
 
   updateAbilityBar(cooldowns: Record<string, number>, slotAbilities: SlotAbilities | undefined): void {
