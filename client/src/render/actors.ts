@@ -2,7 +2,8 @@
 // interpolated transforms each render frame.
 import * as THREE from "three";
 import type { InterpolatedActor } from "../sim-host/interpolate.js";
-import type { ActorSnapshot } from "../sim-host/snapshot.js";
+import type { ActorSnapshot, SnapshotEvent } from "../sim-host/snapshot.js";
+import { castBarModel, InterruptLatch } from "./castBar.js";
 import { colorForActor } from "./roleColor.js";
 import { createCanvasSprite, type CanvasSprite } from "./canvasSprite.js";
 
@@ -58,15 +59,24 @@ function buildActorView(): ActorView {
 
 export class ActorPool {
   private views = new Map<number, ActorView>();
+  private readonly kicks = new InterruptLatch();
 
   constructor(private readonly scene: THREE.Scene) {}
 
   /**
    * Syncs one actor pool entry per id present in `interpolated`, pulling
    * static fields (kind/role) from `rawById` since those aren't part of the
-   * interpolated transform. Entries no longer present are removed.
+   * interpolated transform. Entries no longer present are removed. `events` is the current
+   * snapshot's one-shot Snapshot.events; landed kicks are latched so the cast bar flashes for
+   * castBar.ts's INTERRUPT_FLASH_TICKS (passing the same snapshot's events every frame is safe).
    */
-  sync(interpolated: InterpolatedActor[], rawById: Map<number, ActorSnapshot>, currentTick: number): void {
+  sync(
+    interpolated: InterpolatedActor[],
+    rawById: Map<number, ActorSnapshot>,
+    currentTick: number,
+    events?: readonly SnapshotEvent[],
+  ): void {
+    this.kicks.ingest(events);
     const seen = new Set<number>();
     for (const actor of interpolated) {
       seen.add(actor.id);
@@ -89,14 +99,9 @@ export class ActorPool {
       drawBar(view.healthBar, actor.health / Math.max(1, actor.maxHealth), "#e63946");
       drawBar(view.resourceBar, actor.resource / Math.max(1, actor.maxResource), "#4ea8de");
 
-      if (actor.cast) {
-        const span = Math.max(1, actor.cast.endTick - actor.cast.startTick);
-        const progress = (currentTick - actor.cast.startTick) / span;
-        view.castBar.sprite.visible = true;
-        drawBar(view.castBar, progress, "#f4d35e");
-      } else {
-        view.castBar.sprite.visible = false;
-      }
+      const bar = castBarModel(actor.cast, currentTick, this.kicks.interruptedAt(actor.id));
+      view.castBar.sprite.visible = bar.visible;
+      if (bar.visible) drawBar(view.castBar, bar.fraction, bar.fill);
     }
 
     for (const [id, view] of this.views) {

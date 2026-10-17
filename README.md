@@ -25,3 +25,7 @@ Keybinds (`client/keybinds.json`, mapped to slots in `client/src/input/slot-abil
 - `Tab`: cycle target (`targetCycle`, keybinds.json:11).
 - `G`: ping (`KeyG`, keybinds.json:12).
 - WASD, Space and mouse-look are hardcoded camera/movement controls, outside keybinds.json (`client/src/input/keybinds.ts:1-2`).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
