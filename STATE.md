@@ -55,10 +55,30 @@ assets; pure POC.
 - Phase 4: server/ authoritative tick + queue/lobby + character screen → 5 humans.
 - Phase 5: tuning with Matt playing.
 
-## NEXT STEPS (2026-09-18 night — phase 4 reached)
-Playable locally (`npm run dev` → `/client/index.html?key=5&dungeon=hollow-vault&class=warden`) and over the network (`npm run server` + `?net=1`). Main 0b63c85, 668 tests. All run policy lives in `stepRun` (one authority, one call site); servers and clients only call createRun/stepRun.
-1. Land fix/run-options-wiring (P0: clause + loadout never reached a run through any host).
-2. Then a convergence audit under the repro-not-citation rule; zero verified defects before any release talk.
-3. Matt decisions parked: chanter-stance (verse semantics), server-account-store (accounts/auth model for Ash over the wire), BIBLE `[DECIDE]` items (class names, combo numbers, key range/par time, Ascension visibility).
-4. Phase 5 is Matt playing: tuning from play, not from tests.
+## 2026-10-17 highvelocity burn (D10)
+Ledger bound from GitHub (gh pr view / gh repo view, 2026-10-17). Brief-supplied heads for #61 and #63 were stale; live values recorded.
+- D10 (MVP = 3D gameplay) and D11 (Opus for Keyrun dev lanes) are recorded above (PR #59, f5f4ac6b).
+- Recon (read-only, main 8e97ada): run-options P0 LANDED (#54 be56655). typecheck 0; vitest 724.
+- VERIFIED DEFECTS at recon: (a) keypress never cast; the key label was sent as the ability id. (b) no enemy ever moved, so melee never landed.
+- MISSING vs the 3D bar: kickable flag and interrupt feedback; telegraph kinds; Window ring; boss HP/phase HUD; Sundered Twins spawn; boss colour; Space jump.
+- Only BIBLE [DECIDE] blocking 3D: combo effects and numbers (Lock gate, Window payoffs).
+- #60 fix/enemy-melee-reaches-party: MERGED 2e332e38 (gh mergeCommit). sim/encounter/chase.ts wired at scripts.ts; first hit t38 seed 1; golden content-pull hash 614b2c96 -> 755428e2 (eventCounts identical); vitest 726.
+- #61 feat/telegraph-kinds: MERGED 589b6e68 (gh mergeCommit; headRefOid at merge d80e5d75). Classes: spread #CC79A7 dashed; stack #56B4E9 dotted, not danger; boss #E74C3C double; avoid #F0E442 solid. Bots no longer flee stack circles. Net path lacks telegraphClass.
+- #62 fix/keybind-slot-map: MERGED c0483801 (gh mergeCommit). Single authority client/src/input/slot-abilities.ts resolveSlotAbilities (1-5 rot1-5, Q interrupt, E defensive, R utility, F movement), computed in sim-host/run-setup.ts and carried in worker ready; read by deriveAbilityCommands and render/ability-bar-model.ts; abilityIdForAction deleted. 14 public-path tests; vitest 739.
+- #63 feat/kickable-cast-flag: OPEN, headRefOid ddfe3bf5 (gh). ActorCast.kickable; Snapshot.events (one-shot, cap 16); render/castBar.ts gold #f4d35e / grey #8d99ae / red flash #ff2e63 for 10 ticks. Flash needs hud-wiring.ts to pass nextSnapshot.events to actorPool.sync. Net path lacks kickable and events.
+- #64 docs/readme-run-and-net: OPEN, headRefOid fdb18368 (gh).
+- Boss colour: attempt stopped. Boss is identifiable only via ActorSnapshot.classId ending ".boss" (content-dungeon.ts:79) or id 900. Plan: actors.ts:86 passes raw.classId; roleColor COLOR_BOSS 0x9b59b6.
+- Open source: repo matt82198/keyrun visibility is PRIVATE (gh repo view, 2026-10-17). Matt 2026-10-17: "you can open source the code for keyrun too". Lane running: full-history secret scan, MIT LICENSE PR, visibility flip gated on zero hits.
+- Landing: repo auto-merge is OFF; PRs land by direct squash, proven with pr_merged_check.
+
+## NEXT STEPS (2026-10-17 ladder, D10)
+Ranked. Every rung must be playable and judged in the 3D client; Phase 5 "Matt playing" stays the acceptance test.
+1. L8 net and wiring parity: hud-wiring events argument (pass nextSnapshot.events to actorPool.sync); actors.ts classId hook and roleColor boss (COLOR_BOSS 0x9b59b6); server joined slot map; server snapshot kickable, events and telegraphClass.
+2. L4 Window ring.
+3. L5 boss HP bar and Sundered Twins (Lock trigger needs the combo [DECIDE]).
+4. L6 camera feel and Space jump.
+5. L10 keybinds.json 11 -> 10 per D4.
+6. Review follow-ups from #60-#64.
+Matt decisions parked: enable repo auto-merge?; combo effects and numbers; MIT vs other licence.
+Phase 5 remains "Matt playing".
 Standing rule: every audit and integration test reproduces through the public path (createRun/stepRun, the bot loop, the server room over ws, the client worker host); a mechanic that is not wired into the composition root in the same PR is a P0, not a note.
