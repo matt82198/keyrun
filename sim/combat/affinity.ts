@@ -21,21 +21,24 @@
  * signature that carries no effect definitions, and SimState itself carries none either
  * (sim/CLAUDE.md: content is passed in, never stored in state). configureAffinityEffects is the
  * one seam available to still reuse effectPolarity for "applyEffect" ops without touching either
- * locked file or SimState's shape: sim/combat/rules.ts's makeRules (not a locked file, and the one
- * real place a run's effects map exists before any resolveTargets call happens) calls it once per
- * run with RulesConfig.effects -- the same map already threaded into CastContext and
- * WindowsContext. A caller that skips it (e.g. a unit test building a CastContext/WindowsContext
- * directly, as tests/sim/combat/targeting-resolve.test.ts does) gets the fail-closed hostile
- * default for any applyEffect op it cannot look up, which already happens to be correct for every
- * current-content ability whose only per-actor op is applyEffect and is in fact hostile
- * (Cinderfield's burning, the enemy stackCall mark); only a friendly-only one (Bulwark's braced,
- * Hymn's hymnHeal/hymnSpeed, Chanter's Ward-stance wardPulse) needs the registry to classify
- * correctly. This is a content-wiring detail set once before a run's first tick, not sim state:
- * one run steps synchronously to completion (or one tick at a time) before another run's
- * makeRules is ever called in this codebase's usage, so no two runs' resolveTargets calls
- * interleave against a stale registry.
+ * locked file or SimState's shape. The registry is module-level and therefore process-global
+ * between calls. sim/combat/rules.ts's StepRules calls configureAffinityEffects(cfg.effects) at the
+ * top of every invocation (not once from makeRules), so the registry is re-set to that run's effect
+ * map before any resolveTargets call made during that step. Because of this, held StepRules
+ * closures from different runs are safe to step in any interleaving: each step re-points the
+ * registry at its own run's effects before it resolves targets. Between calls the registry holds
+ * whatever the most recent StepRules call set, so code that calls resolveTargets outside a
+ * StepRules call (e.g. a unit test building a CastContext/WindowsContext directly, as
+ * tests/sim/combat/targeting-resolve.test.ts does) sees that last-set map, or the fail-closed
+ * hostile default for any applyEffect op it cannot look up if none was ever set. The fail-closed
+ * default is already correct for every current-content ability whose only per-actor op is
+ * applyEffect and is in fact hostile (Cinderfield's burning, the enemy stackCall mark); only a
+ * friendly-only one (Bulwark's braced, Hymn's hymnHeal/hymnSpeed, Chanter's Ward-stance wardPulse)
+ * needs the registry to classify correctly. This is content wiring, not sim state: the registry
+ * carries no per-run state of its own and is never read as anything but the effects map most
+ * recently set by a StepRules call.
  *
- * Usage: configureAffinityEffects(runEffects); // once, e.g. from makeRules
+ * Usage: configureAffinityEffects(runEffects); // at the top of each StepRules call (rules.ts)
  *        const aff = abilityAffinity(def); // reads the registered effects
  *        matchesAffinity(aff, caster, candidate); // per-actor filter predicate
  */
