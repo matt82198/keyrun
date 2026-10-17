@@ -31,6 +31,10 @@ export interface HealKit {
   groupHealAbilityId: string | null;
   groupHealRadiusMm: number;
   targetHealAbilityId: string | null;
+  /** A second circle-shaped heal around the caster (Chanter's Hymn: a heal-over-time pool), if
+   * the class has one. Before this field the first circle heal (Chorus) shadowed it and the bot
+   * never cast Hymn at all (pull-1 repro, tests/sim/integration/bots-pull1.test.ts). */
+  secondGroupHeal?: { abilityId: string; radiusMm: number };
 }
 
 function castOps(def: AbilityDef): Op[] {
@@ -55,6 +59,8 @@ export function classifyHeals(defs: readonly AbilityDef[], effects?: ReadonlyMap
     else if (def.shape.kind === "circle" && kit.groupHealAbilityId === null) {
       kit.groupHealAbilityId = def.id;
       kit.groupHealRadiusMm = def.shape.radius ?? 0;
+    } else if (def.shape.kind === "circle" && kit.secondGroupHeal === undefined) {
+      kit.secondGroupHeal = { abilityId: def.id, radiusMm: def.shape.radius ?? 0 };
     } else if (def.shape.kind === "target" && kit.targetHealAbilityId === null) kit.targetHealAbilityId = def.id;
   }
   return kit;
