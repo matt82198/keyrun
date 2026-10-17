@@ -53,12 +53,15 @@
  * 4th parameter (`abilities`) unlocks its full range/shape-aware ruleset; real call sites don't
  * pass it yet, which is deliberately safe. A `blocked` resolution skips the command that tick.
  *
+ * CHASE: with `abilities`, commands also carry chase.ts's `move`s closing a melee enemy on its target.
+ *
  * Usage: `const { commands, telegraphEvents, firedOnDeath } =
  *   stepEnemyScripts(state, scripts, encounter.firedOnDeath, content.abilities);`
  */
 import type { ActorId, ActorState, Command, SimEvent, SimState, Tick } from "./types";
 import type { AbilityDef } from "../combat/abilities";
 import { resolveScriptTarget, type ScriptTargetOverride } from "./script-target";
+import { chaseCommands } from "./chase";
 
 export interface TelegraphSpec {
   shape: "circle" | "cone" | "line";
@@ -178,6 +181,8 @@ export function stepEnemyScripts(
       }
     }
   }
+
+  commands.push(...chaseCommands(state, scripts, abilities));
 
   return { commands, telegraphEvents, firedOnDeath: nextFired };
 }
