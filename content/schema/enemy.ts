@@ -55,6 +55,10 @@ export interface EnemyDef {
   role: EnemyRole;
   abilities: string[];
   script: EnemyScript;
+  /** Walk speed in mm/tick (sim ActorState.speedMmPerTick); absent = the run's baseSpeedMmPerTick. */
+  speedMmPerTick?: number;
+  /** Chase stop margin inside engage range, mm (sim ActorState.chaseMarginMm); absent = CHASE_MARGIN_MM. */
+  chaseMarginMm?: number;
   /** ADDED: id of a BreakBarDef (declared on the encounter's boss entry) this enemy shares. */
   breakBarId?: string;
   /** ADDED: only populated on the encounter's primary boss entry; adds reference it by id. */

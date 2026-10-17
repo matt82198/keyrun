@@ -97,6 +97,13 @@ describe("validateCommand: malformed input", () => {
     expect(validateCommand({ tick: 1.5, actorId: 1, kind: "stopcast" })).toBeNull();
   });
 
+  it("rejects a client-supplied walk speed on move/dash (speed is actor state, never command data)", () => {
+    for (const kind of ["move", "dash"]) {
+      expect(validateCommand({ tick: 1, actorId: 1, kind, dir: { x: 0, z: 1000 }, yaw: 0 })).not.toBeNull();
+      expect(validateCommand({ tick: 1, actorId: 1, kind, dir: { x: 0, z: 1000 }, yaw: 0, speedMmPerTick: 9999 })).toBeNull();
+    }
+  });
+
   it("rejects a non-integer actorId", () => {
     expect(validateCommand({ tick: 1, actorId: "1", kind: "stopcast" })).toBeNull();
   });

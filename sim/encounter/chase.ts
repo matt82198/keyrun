@@ -15,6 +15,13 @@
  * Choir Cantor, which only heals) never move. With no `abilities` map (legacy callers), nothing
  * is known about range, so nothing chases -- same deliberately-safe default as script-target.ts.
  *
+ * Per-enemy tuning (defect (d)/(e)) rides on the ActorState, set from content at spawn: the margin
+ * is `actor.chaseMarginMm ?? CHASE_MARGIN_MM`, and the emitted `move` walks at
+ * `actor.speedMmPerTick ?? baseSpeedMmPerTick` in combat/rules.ts. Speed is deliberately NOT a
+ * field on the command: core/tick.ts re-runs validateCommand on every command (encounter-emitted
+ * ones too), and validateCommand rejects a client-supplied speed, so actor state is the only
+ * channel a client cannot forge.
+ *
  * Usage: `commands.push(...chaseCommands(state, scripts, abilities));`
  */
 import type { ActorId, Command, SimState } from "./types";
@@ -58,7 +65,7 @@ export function chaseCommands(
     const { targetId } = resolveScriptTarget({ state, caster: actor });
     const target = targetId !== undefined ? state.actors[targetId] : undefined;
     if (!target || !target.alive) continue;
-    if (rangeMm(actor, target) <= Math.max(0, engage - CHASE_MARGIN_MM)) continue;
+    if (rangeMm(actor, target) <= Math.max(0, engage - (actor.chaseMarginMm ?? CHASE_MARGIN_MM))) continue;
     const delta = { x: target.pos.x - actor.pos.x, y: 0, z: target.pos.z - actor.pos.z };
     const dir = normaliseTo(delta, 1000);
     out.push({

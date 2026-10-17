@@ -49,4 +49,15 @@ describe("server: malformed input never crashes", () => {
     const snap = await client.waitForType("snapshot");
     expect(snap.type).toBe("snapshot");
   });
+
+  it("rejects a move that carries a client-supplied walk speed", async () => {
+    server = await startTestServer();
+    client = await TestClient.connect(server.port);
+    client.send({ v: 3, type: "queue", role: "tank" });
+    await client.waitForType("joined");
+
+    client.send({ v: 3, type: "cmd", cmd: { tick: 0, kind: "move", dir: { x: 0, z: 1000 }, yaw: 0, speedMmPerTick: 9999 } });
+    const err = await client.waitForType("error");
+    expect(err).toMatchObject({ type: "error", reason: "malformed_command" });
+  });
 });

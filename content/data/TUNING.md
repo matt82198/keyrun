@@ -83,3 +83,10 @@ dmg 80, hymn-field heal 60.
 
 `parTicks` 14400 (12 min at 20 Hz, per BIBLE.md Sec 1). Choir/Pair/Seed trash 6000 hp; Hollow Warden
 boss 60000 hp; Sundered Twins 6000 hp each.
+
+## Enemy movement (`// TUNE`)
+
+[DECIDE Matt] `choir.melee` and `pair.melee` `speedMmPerTick` 207 = provisional 1.15x the 180 mm/tick
+player base, so a player fleeing at base speed is caught (tests/sim/integration/chase-speed.test.ts).
+Every other enemy omits it and walks at base. `chaseMarginMm` is unset everywhere (default 500,
+sim/encounter/chase.ts's CHASE_MARGIN_MM).

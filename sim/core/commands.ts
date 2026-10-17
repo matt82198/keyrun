@@ -46,6 +46,9 @@ export function validateCommand(c: unknown): Command | null {
       const dir = c.dir;
       if (!isObject(dir) || !isIntInRange(dir.x, -1000, 1000) || !isIntInRange(dir.z, -1000, 1000)) return null;
       if (!isIntInRange(c.yaw, 0, 1023)) return null;
+      // Walk speed is actor state (content-set at spawn, combat/rules.ts), never command data: a
+      // client asking for its own speed is malformed, not merely ignored.
+      if ("speedMmPerTick" in c) return null;
       return { ...base, kind: c.kind, dir: { x: dir.x, z: dir.z }, yaw: c.yaw };
     }
     case "cast": {

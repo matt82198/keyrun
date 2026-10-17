@@ -55,6 +55,11 @@ export interface ActorState {
   gcdReadyTick: Tick;
   effects: EffectInstance[];
   threat: Record<ActorId, number>;
+  /** Per-actor walk speed (mm/tick) for `move` commands; absent = RulesConfig.baseSpeedMmPerTick.
+   * Set from content at spawn (sim/encounter/pulls.ts), never from a command. */
+  speedMmPerTick?: number;
+  /** Per-actor override of sim/encounter/chase.ts's CHASE_MARGIN_MM; absent = that constant. */
+  chaseMarginMm?: number;
 }
 
 export interface SimState {
