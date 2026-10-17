@@ -13,7 +13,8 @@ export const TICK_MS = Math.round(1000 / TICK_HZ);
 
 export type StepRules = (state: SimState, commands: Command[], emit: (e: SimEvent) => void) => void;
 
-const KIND_ORDER: Record<Command["kind"], number> = { cast: 0, move: 1, stopcast: 2, target: 3 };
+// dash (additive, D10) sorts right after move; the existing kinds keep their relative order.
+const KIND_ORDER: Record<Command["kind"], number> = { cast: 0, move: 1, dash: 2, stopcast: 3, target: 4 };
 
 /** Deterministic ordering: by actorId ascending, then kind, then original insertion order. */
 function sortCommands(commands: Command[]): Command[] {

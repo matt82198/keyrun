@@ -6,6 +6,8 @@ import type { ActorId, Tick, Vec3 } from "./state";
 
 export type Command = { tick: Tick; actorId: ActorId } & (
   | { kind: "move"; dir: { x: number; z: number }; yaw: number }
+  // Space (D10): one-tick flat-arena burst of combat/movement.ts's DASH_DISTANCE_MM along `dir`.
+  | { kind: "dash"; dir: { x: number; z: number }; yaw: number }
   | { kind: "cast"; abilityId: string; targetId?: ActorId; point?: Vec3 }
   | { kind: "stopcast" }
   | { kind: "target"; targetId: ActorId | null }
@@ -39,11 +41,12 @@ export function validateCommand(c: unknown): Command | null {
   if (!base) return null;
 
   switch (c.kind) {
-    case "move": {
+    case "move":
+    case "dash": {
       const dir = c.dir;
       if (!isObject(dir) || !isIntInRange(dir.x, -1000, 1000) || !isIntInRange(dir.z, -1000, 1000)) return null;
       if (!isIntInRange(c.yaw, 0, 1023)) return null;
-      return { ...base, kind: "move", dir: { x: dir.x, z: dir.z }, yaw: c.yaw };
+      return { ...base, kind: c.kind, dir: { x: dir.x, z: dir.z }, yaw: c.yaw };
     }
     case "cast": {
       if (typeof c.abilityId !== "string" || c.abilityId.length === 0) return null;
