@@ -47,6 +47,7 @@ import { buildDungeon } from "./content-dungeon.js";
 import { buildParty } from "./content-party.js";
 import { buildComboTables } from "./content-combos.js";
 import type { RawLoadout } from "./loadout-storage.js";
+import { resolveSlotAbilities, type SlotAbilities } from "../input/slot-abilities.js";
 
 const INTERRUPT_LOCKOUT_TICKS = 80;
 const BASE_SPEED_MM_PER_TICK = 180; // ~3.6 m/s at 20Hz
@@ -82,6 +83,9 @@ export interface RunSetup {
   /** run-options-wiring: the human's Clause pick + loadout-resolved abilities, ready to pass
    * straight to `sim/index.ts`'s `createRun` as its 5th argument. */
   runOptions: RunOptions;
+  /** P0 (D10): the human's keybind slot -> ability id map, resolved ONCE here by
+   * input/slot-abilities.ts and shipped to the main thread in the worker's `ready` message. */
+  slotAbilities: SlotAbilities;
 }
 
 /** run-options-wiring: resolves the human's persisted loadout (content/apply.ts's `applyLoadout`,
@@ -156,5 +160,12 @@ export function buildRunSetup(registry: ContentRegistry, opts: RunSetupOptions, 
     keyLevel: opts.keyLevel,
     parTicks: dungeonBuild.parTicks,
     runOptions,
+    slotAbilities: resolveHumanSlots(registry, opts.humanClassId),
   };
+}
+
+function resolveHumanSlots(registry: ContentRegistry, humanClassId: string): SlotAbilities {
+  const classDef = registry.classes.get(humanClassId);
+  if (!classDef) throw new Error(`buildRunSetup: unknown human class "${humanClassId}"`);
+  return resolveSlotAbilities(classDef);
 }

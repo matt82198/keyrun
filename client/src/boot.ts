@@ -133,12 +133,13 @@ export async function boot(): Promise<void> {
   const simHost: HostHandle = wantsNetHost(searchParams)
     ? new NetHostClient(window.location.search, tickMsOverride, undefined, loadout)
     : new SimHostClient(window.location.search, tickMsOverride, loadout);
-  const { humanActorId } = await simHost.whenReady();
+  const { humanActorId, slotAbilities } = await simHost.whenReady();
   attachMetricsHud();
 
   runGameLoop({
     simHost,
     humanActorId,
+    slotAbilities,
     keyState,
     moveKeys,
     pingLimiter,
