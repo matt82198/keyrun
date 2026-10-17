@@ -88,7 +88,7 @@ function playThroughPull(humanClassId: string, lastPull: number): Outcome {
 describe("bots clear Hollow Vault pull 1 (the Pair) with an idle human", () => {
   it("idle cinder human: pulls 0 and 1 clear with no party deaths", () => {
     const o = playThroughPull("cinder", 1);
-    const why = o.timeline.join("\n");
+    const why = `${o.timeline.join("\n")}\nfirst party death: ${JSON.stringify(o.deaths[0] ?? null)}`;
     if (process.env.PULL1_TRACE) {
       console.log(`${why}\nclearTicks=${JSON.stringify(o.clearTicks)} deaths=${JSON.stringify(o.deaths)} hp=${JSON.stringify(o.partyHpAtClear1)}`);
     }
