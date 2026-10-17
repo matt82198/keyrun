@@ -2,6 +2,7 @@
 // Three.js is loaded from cdnjs by client/index.html and marked external here, per client/CLAUDE.md.
 import { build, context } from "esbuild";
 import { existsSync } from "node:fs";
+import { pickServeHost, playableUrl } from "./serve-url.mjs";
 
 // research/11-tick-rate-measurement.md (D9) follow-up: client/src/sim-host/worker.ts is now a real
 // Worker entry point (loaded at runtime via `new Worker(...)` from sim-host-client.ts), so it needs
@@ -28,8 +29,11 @@ if (watch || serve) {
   const ctx = await context(options);
   await ctx.watch();
   if (serve) {
-    const { host, port } = await ctx.serve({ servedir: ".", port: 8791 });
+    const serveResult = await ctx.serve({ servedir: ".", port: 8791 });
+    const host = pickServeHost(serveResult);
+    const port = serveResult.port;
     console.log(`[dev] serving http://${host}:${port}/client/ and /screen/`);
+    console.log(`[dev] open ${playableUrl(host, port)}`);
   }
 } else {
   await build(options);
