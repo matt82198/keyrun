@@ -36,6 +36,7 @@ import { metrics, attachMetricsHud } from "./sim-host/metrics.js"; // research/1
 import { parseHz } from "./sim-host/boot-params.js";
 import { readPersistedLoadout } from "./sim-host/loadout-storage.js";
 import { RunEndView } from "./hud/run-end.js";
+import { BossBarView } from "./hud/boss-bar.js";
 import { NetHostClient } from "./net/net-client.js";
 import type { HostHandle } from "./net/host-handle.js";
 import { runGameLoop, MOVE_CODES } from "./hud-wiring.js";
@@ -153,6 +154,7 @@ export async function boot(): Promise<void> {
     pingPool,
     hud,
     runEndView,
+    bossBar: new BossBarView(app),
     renderer,
     scene,
   });
