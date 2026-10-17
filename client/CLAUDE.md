@@ -35,3 +35,6 @@ canvas (jsdom + WebGL mock) and by a manual screenshot before merge.
   `ActorSnapshot.window` (projected by `sim-host/snapshot-codec.ts`'s `toWindow`) is open; arc = remaining
   fraction, colour green -> amber -> red as it closes; removed on close or on a kick drained into
   `ActorPool.sync` events. Snapshot state only, called once from `ActorPool.sync` (tests/client/render/window-ring.test.ts).
+- Boss bar contract: `hud/boss-bar.ts` is a top-centre DOM bar, one stacked row per live actor that
+  `roleColor.ts` colours `COLOR_BOSS` (classId ends ".boss"), ordered by actor id; name from classId, fill
+  `COLOR_BOSS`, percent rounded up. Fed `snapshot.actors` via `GameLoopDeps.bossBar` (tests/client/hud/boss-bar.test.ts).
