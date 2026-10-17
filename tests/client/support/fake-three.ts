@@ -161,6 +161,8 @@ export class Mesh extends Object3D {
 }
 
 export class Sprite extends Object3D {
+  /** Anchor (render/actor-view.ts's status chips hang under the name tag). */
+  center = { x: 0.5, y: 0.5, set(x: number, y: number) { this.x = x; this.y = y; return this; } };
   constructor(readonly material: SpriteMaterial) {
     super();
   }

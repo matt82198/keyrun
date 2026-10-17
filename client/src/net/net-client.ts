@@ -43,7 +43,7 @@ import type { ServerRunResult, ServerSnapshot } from "./wire-types.js";
 import { DEFAULT_SERVER_URL, defaultWebSocketFactory, type ConnectionState, type HostHandle, type NetNotice, type WebSocketFactory } from "./host-handle.js";
 import type { RawLoadout } from "../sim-host/loadout-storage.js";
 import type { SlotAbilities } from "../input/slot-abilities.js";
-
+import type { DisplayInfo } from "../sim-host/display-info.js";
 export { DEFAULT_SERVER_URL };
 export type { ConnectionState, HostHandle, NetNotice, WebSocketFactory };
 
@@ -85,7 +85,7 @@ export class NetHostClient implements HostHandle {
     });
     const hooks = {
       onState: (s: ConnectionState, detail?: string) => this.setState(s, detail),
-      onJoined: (actorId: number, slotAbilities: SlotAbilities | undefined) => this.handleJoined(actorId, slotAbilities),
+      onJoined: (actorId: number, slotAbilities: SlotAbilities | undefined, display?: DisplayInfo) => this.handleJoined(actorId, slotAbilities, display),
       onSnapshot: (s: ServerSnapshot) => this.handleSnapshot(s),
       onLate: (originalTick: number, newTick: number) => this.onNoticeCb?.({ kind: "late", originalTick, newTick }),
       onRunEnd: (result: ServerRunResult, tick: number) => this.handleRunEnd(result, tick),
@@ -140,13 +140,13 @@ export class NetHostClient implements HostHandle {
     return () => this.stop();
   }
 
-  /** Resolves whenReady() with the server-sent slot map (D10 net parity), so input/commands.ts and the
-   * HUD read the same one-authority map the local worker host reports. */
-  private handleJoined(actorId: number, slotAbilities: SlotAbilities | undefined): void {
+  /** Resolves whenReady() with the server-sent slot map and display names (D10 net parity), so
+   * input/commands.ts and the HUD read the same one-authority data the local worker host reports. */
+  private handleJoined(actorId: number, slotAbilities: SlotAbilities | undefined, display?: DisplayInfo): void {
     this.humanActorId = actorId;
     if (!this.readyResolved) {
       this.readyResolved = true;
-      this.readyResolve({ humanActorId: actorId, ...(slotAbilities ? { slotAbilities } : {}) });
+      this.readyResolve({ humanActorId: actorId, ...(slotAbilities ? { slotAbilities } : {}), ...(display ? { display } : {}) });
     }
   }
 
@@ -158,7 +158,7 @@ export class NetHostClient implements HostHandle {
     this.lastEnemies = s.actors.filter((a) => a.kind === "enemy").map((a) => ({ id: a.id, alive: a.alive }));
     this.lastSelf = this.humanActorId !== null ? s.actors.find((a) => a.id === this.humanActorId) : undefined;
 
-    const snapshot = { ...toClientSnapshot(s), runEnd: this.runEndInfo };
+    const snapshot = { ...toClientSnapshot(s, this.humanActorId), runEnd: this.runEndInfo };
     this.lastSnapshot = snapshot;
     this.onSnapshot?.(snapshot);
   }

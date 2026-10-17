@@ -38,7 +38,7 @@ worker host for a thin network client with minimal shape changes.
   `telegraphClass` + class-derived `danger` on the wire); `toBotTelegraph` is too (same class-derived `danger`).
 - `joined` (main.ts) carries `slotAbilities` from `client/src/input/slot-abilities.ts`'s
   `resolveSlotAbilities` — the same single authority the local worker host uses.
-- Shared pure client modules (`snapshot-codec.ts`, `telegraph-map.ts`, `slot-abilities.ts`) are the
+- Shared pure client modules (`snapshot-codec.ts`, `cast-events.ts`, `cast-feedback.ts`, `player-commands.ts`, `display-info.ts`, `telegraph-map.ts`, `slot-abilities.ts`) are the
   only client imports allowed here; they must stay DOM-free.
 - `content-setup.ts` — loads content once, builds `RunContent` + the expanded `DungeonDef` (Hollow
   Vault + its boss pull). **Deviation**: no `sim/encounter/tempo.ts` key-level scaling yet (the
@@ -68,3 +68,4 @@ and the wire-determinism replay (`hashState` from a local `createRun`/`stepRun` 
 command stream the test sent, compared to the server's reported `stateHash`).
 - D10 Window net parity: `ActorSnapshot.window` is snapshot-codec.ts's `toWindow` (imported, never copied); `tests/server/snapshot-window.test.ts` proves per-tick parity with the client host and the ws open-then-null lifecycle.
 - Bots (STATE (f)/(g)): server bots read the client host's class-derived telegraph `danger` (stack circles are not fled; `tests/server/bot-telegraph-danger.test.ts`) and real content class kits via `loadServerRegistry`'s `setContentRegistry` (room.ts's `EMPTY_CLASS_KIT` is only the unknown-class fallback, same as the client; `tests/server/bot-class-kits.test.ts` proves bots cast over ws).
+- Net readability (items 5, #98 deferred a/b): `ActorSnapshot.effects` (snapshot-codec.ts `toEffects`) + `gcdRemainingTicks`, and `cast` events (cast-events.ts `castEvents` over the step SimEvents) are built from the client host rules (imported). `human-casts.ts`: a human `cast` with no targetId gets player-commands.ts `castTargetFor` against THIS tick state (bots and explicit targets untouched), and a press that cast nothing becomes `cast_failed` (cast-feedback.ts). A replay must apply the same resolution to match `stateHash`. `joined.display` = display-info.ts `buildDisplayInfo` (additive; no PROTOCOL_VERSION bump). tests/server/snapshot-net-readability.test.ts.

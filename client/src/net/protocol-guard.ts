@@ -15,6 +15,7 @@
  */
 import { PROTOCOL_VERSION, type ServerActorSnapshot, type ServerMessage, type ServerRunResult, type ServerSnapshot } from "./wire-types.js";
 import { ABILITY_ACTIONS, type SlotAbilities } from "../input/slot-abilities.js";
+import { isDisplayInfo } from "./snapshot-codec.js";
 
 export { PROTOCOL_VERSION };
 
@@ -82,7 +83,7 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       return isRole(raw.role) ? { v, type: "queued", role: raw.role } : null;
     case "joined":
       return typeof raw.actorId === "number" && isRole(raw.role) && typeof raw.classId === "string" && typeof raw.roomId === "string"
-        ? { v, type: "joined", actorId: raw.actorId, role: raw.role, classId: raw.classId, roomId: raw.roomId, ...(isSlotAbilities(raw.slotAbilities) ? { slotAbilities: raw.slotAbilities } : {}) }
+        ? { v, type: "joined", actorId: raw.actorId, role: raw.role, classId: raw.classId, roomId: raw.roomId, ...(isSlotAbilities(raw.slotAbilities) ? { slotAbilities: raw.slotAbilities } : {}), ...(isDisplayInfo(raw.display) ? { display: raw.display } : {}) }
         : null;
     case "error":
       return typeof raw.reason === "string" ? { v, type: "error", reason: raw.reason } : null;

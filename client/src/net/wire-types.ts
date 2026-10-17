@@ -12,6 +12,7 @@
 import type { Item } from "../../../content/schema/facet.js";
 import type { SlotAbilities } from "../input/slot-abilities.js";
 import type { ActorCast, ActorWindow, SnapshotEvent } from "../sim-host/snapshot.js";
+import type { DisplayInfo } from "../sim-host/display-info.js";
 import type { TelegraphClass } from "../sim-host/telegraph-map.js";
 
 export const PROTOCOL_VERSION = 3;
@@ -61,6 +62,11 @@ export interface ServerActorSnapshot {
   cooldowns: Record<string, number>;
   /** D10 (#74): the open Window, built by sim-host/snapshot-codec.ts's toWindow; null when none. */
   window?: ActorWindow | null;
+  /** Item 5: content effects + ticks left (sim-host/snapshot-codec.ts toEffects). Untrusted until
+   * net/snapshot-codec.ts's decodeEffects; optional so an older server still parses. */
+  effects?: unknown;
+  /** Ticks until the GCD is ready (absent on an older server -> 0). */
+  gcdRemainingTicks?: number;
   /** Server-only: which side controls this actor right now. No client-side equivalent. */
   controlledBy: "human" | "bot";
 }
@@ -92,7 +98,8 @@ export interface ServerSnapshot {
   parTicks: number;
   pullIndex: number;
   pullCount: number;
-  /** D10: one-shot landed-kick events (sim-host/snapshot-codec.ts's interruptEvents, server-side). */
+  /** D10: one-shot events -- landed kicks, completed casts, human cast_failed (server-side, the client
+   * host's own rules). Untrusted until net/snapshot-codec.ts's decodeEvents. */
   events?: SnapshotEvent[];
   /** Server-only: the wire-determinism proof (server/CLAUDE.md). No client-side equivalent. */
   stateHash: string;
@@ -107,7 +114,7 @@ export type ServerMessage =
   | { v: number; type: "queued"; role: PartyRole }
   /** `slotAbilities`: the server's resolveSlotAbilities (input/slot-abilities.ts) for the joined
    * actor's class. Optional only so a malformed/absent map fails closed (keys cast nothing). */
-  | { v: number; type: "joined"; actorId: number; role: PartyRole; classId: string; roomId: string; slotAbilities?: SlotAbilities }
+  | { v: number; type: "joined"; actorId: number; role: PartyRole; classId: string; roomId: string; slotAbilities?: SlotAbilities; display?: DisplayInfo }
   | { v: number; type: "error"; reason: string }
   | { v: number; type: "snapshot"; snapshot: ServerSnapshot }
   | { v: number; type: "event"; events: unknown[] }

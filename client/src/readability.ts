@@ -28,6 +28,8 @@ export interface KeyrunReadabilityView {
   castLabels(): number;
   /** Name-tag title per live actor id. */
   nameTags(): Record<number, string>;
+  /** Item 5: status chips (text) and status tag last drawn over actor `id`. */
+  status(id: number): { chips: string[]; tag: string };
   onboardingDismissed(): boolean;
 }
 
@@ -46,6 +48,7 @@ export function mountReadability(app: HTMLElement, scene: THREE.Scene, keybinds:
     selfProjectionHistory: () => castFx.selfProjectionHistory(),
     castLabels: () => castFx.activeLabels(),
     nameTags: () => actorPool.tagTitles(),
+    status: (id: number) => actorPool.statusOf(id),
     onboardingDismissed: () => onboarding.root.dataset.dismissed === "true",
   });
   return {

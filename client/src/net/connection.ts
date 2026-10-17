@@ -14,6 +14,7 @@ import { ReconnectPolicy } from "./reconnect.js";
 import type { ClientMessage, PartyRole, QueueLoadoutPayload, ServerRunResult, ServerSnapshot } from "./wire-types.js";
 import { WS_OPEN, type ConnectionState, type WebSocketFactory, type WebSocketLike } from "./host-handle.js";
 import type { SlotAbilities } from "../input/slot-abilities.js";
+import type { DisplayInfo } from "../sim-host/display-info.js";
 
 /** run-options-wiring: the Clause pick + loadout to ride the `queue` message the instant `welcome`
  * arrives -- see net-client.ts's docstring for where these come from. */
@@ -24,8 +25,9 @@ export interface QueueExtras {
 
 export interface ConnectionHooks {
   onState(state: ConnectionState, detail?: string): void;
-  /** `slotAbilities`: the server-resolved keybind slot map (absent = keys cast nothing, fail closed). */
-  onJoined(actorId: number, slotAbilities: SlotAbilities | undefined): void;
+  /** `slotAbilities`: the server-resolved keybind slot map (absent = keys cast nothing, fail closed).
+   * `display`: the server's names/timings (absent = labels fall back to humanized ids). */
+  onJoined(actorId: number, slotAbilities: SlotAbilities | undefined, display?: DisplayInfo): void;
   onSnapshot(snapshot: ServerSnapshot): void;
   onLate(originalTick: number, newTick: number): void;
   /** The server's own, authoritative run-end signal (server/src/protocol.ts's `run_end` message) --
@@ -104,7 +106,7 @@ export class NetConnection {
         this.everConnected = true;
         this.reconnectPolicy.reset();
         this.hooks.onState("connected");
-        this.hooks.onJoined(msg.actorId, msg.slotAbilities);
+        this.hooks.onJoined(msg.actorId, msg.slotAbilities, msg.display);
         return;
       case "snapshot":
         this.hooks.onSnapshot(msg.snapshot);
