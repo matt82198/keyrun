@@ -39,6 +39,8 @@ import type { RunSetup } from "./run-setup.js";
 import { buildSnapshot } from "./snapshot-codec.js";
 import { computePlayerCommands, type PendingInput } from "./player-commands.js";
 import { computeBotCommands } from "./bot-commands.js";
+import { castFailures, predictFailReasons } from "./cast-feedback.js";
+import { MAX_SNAPSHOT_EVENTS } from "./snapshot.js";
 import type { HostCommand } from "./wire.js";
 
 const SEED = 1;
@@ -88,6 +90,7 @@ export class SimRuntime {
     this.prng = botResult.prng;
 
     const commands: Command[] = [...computePlayerCommands(this.run, this.setup, tick, this.pending), ...botResult.commands];
+    const failReasons = predictFailReasons(this.run, this.setup.humanActorId, this.pending.casts); // D10, display only
     this.pending = { moves: [], casts: [], targetCycles: 0 };
     if (this.pendingStopcast) {
       commands.push({ tick, actorId: this.setup.humanActorId, kind: "stopcast" });
@@ -103,6 +106,9 @@ export class SimRuntime {
         ? { outcome: this.run.runEnd.result, tick: this.run.runEnd.resultTick }
         : null;
 
-    return buildSnapshot(this.run, this.setup, this.maxSlackTicks, runEnd);
+    const snapshot = buildSnapshot(this.run, this.setup, this.maxSlackTicks, runEnd, stepped.events);
+    const failed = castFailures(this.run, this.setup.humanActorId, failReasons, stepped.events);
+    if (failed.length > 0) snapshot.events = [...(snapshot.events ?? []), ...failed].slice(0, MAX_SNAPSHOT_EVENTS);
+    return snapshot;
   }
 }

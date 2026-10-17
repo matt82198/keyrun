@@ -24,12 +24,12 @@ export const CAMERA_TUNING = {
   pitchMinRad: -1.4,
   /** Shallowest pitch: stays slightly negative so the camera never dips below the ground plane. */
   pitchMaxRad: -0.05,
-  /** Starting pitch (radians). */
-  initialPitchRad: -0.45,
+  /** Starting pitch (radians): ~43 deg down (D10 first-run readability), so the pack behind the party is visible. */
+  initialPitchRad: -0.75,
   /** Closest / farthest / starting orbit distance (metres). */
   minDistanceM: 2.5,
   maxDistanceM: 25,
-  initialDistanceM: 11,
+  initialDistanceM: 13,
   /** Metres of zoom per scroll-wheel notch. */
   zoomStepM: 0.75,
   /** Height above the player's feet the camera looks at (metres). */

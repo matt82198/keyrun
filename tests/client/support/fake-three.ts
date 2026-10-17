@@ -12,13 +12,25 @@
  */
 export class FakeCanvasContext {
   fillStyle = "";
+  strokeStyle = "";
+  font = "";
+  lineWidth = 1;
+  textAlign = "start";
+  textBaseline = "alphabetic";
   readonly fills: string[] = [];
+  /** Every fillText string since the last clearRect (name tags, cast labels). */
+  readonly texts: string[] = [];
   clearRect(): void {
     this.fills.length = 0;
+    this.texts.length = 0;
   }
   fillRect(): void {
     this.fills.push(this.fillStyle);
   }
+  fillText(text: string): void {
+    this.texts.push(text);
+  }
+  strokeText(): void {}
 }
 
 export class FakeCanvas {
@@ -84,6 +96,31 @@ export class BufferGeometry {
   dispose(): void {}
 }
 export class CapsuleGeometry extends BufferGeometry {}
+export class ConeGeometry extends BufferGeometry {}
+export class ShapeGeometry extends BufferGeometry {}
+export class BoxGeometry extends BufferGeometry {}
+export class Shape {
+  moveTo(): this {
+    return this;
+  }
+  lineTo(): this {
+    return this;
+  }
+  absarc(): this {
+    return this;
+  }
+}
+export class PlaneGeometry extends BufferGeometry {
+  constructor(readonly width = 1, readonly height = 1) {
+    super();
+  }
+}
+/** render/cast-fx.ts's discs and cone sectors; records the sector so tests can read the shape. */
+export class CircleGeometry extends BufferGeometry {
+  constructor(readonly radius = 1, readonly segments = 32, readonly thetaStart = 0, readonly thetaLength = Math.PI * 2) {
+    super();
+  }
+}
 /** render/window-ring.ts's Window ring arc; records thetaLength so tests can read the fraction. */
 export class RingGeometry extends BufferGeometry {
   constructor(readonly innerRadius = 0.5, readonly outerRadius = 1, readonly thetaSegments = 32,
@@ -102,15 +139,19 @@ export class CanvasTexture {
 export class Material {
   color: Color;
   map: CanvasTexture | undefined;
+  opacity: number;
   constructor(p: Record<string, unknown> = {}) {
     this.color = new Color((p.color as number) ?? 0);
     this.map = p.map as CanvasTexture | undefined;
+    this.opacity = (p.opacity as number | undefined) ?? 1;
   }
   dispose(): void {}
 }
 export class MeshStandardMaterial extends Material {}
 export class MeshBasicMaterial extends Material {}
 export class SpriteMaterial extends Material {}
+export class LineBasicMaterial extends Material {}
+export class LineDashedMaterial extends Material {}
 
 export class Mesh extends Object3D {
   constructor(readonly geometry: BufferGeometry, readonly material: Material) {
@@ -121,6 +162,15 @@ export class Mesh extends Object3D {
 export class Sprite extends Object3D {
   constructor(readonly material: SpriteMaterial) {
     super();
+  }
+}
+
+export class LineLoop extends Object3D {
+  constructor(readonly geometry: BufferGeometry, readonly material: Material) {
+    super();
+  }
+  computeLineDistances(): this {
+    return this;
   }
 }
 

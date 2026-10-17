@@ -25,6 +25,8 @@ import { deriveAbilityCommands, type AnyCommand } from "./input/commands.js";
 import { derivePingEvent, type PingEvent, type PingGroundPoint, type PingRateLimiter } from "./input/ping.js";
 import type { Keybinds } from "./input/keybinds.js";
 import type { SlotAbilities } from "./input/slot-abilities.js";
+import type { CastFxPool } from "./render/cast-fx.js";
+import type { DisplayInfo } from "./sim-host/display-info.js";
 import { interpolateSnapshots } from "./sim-host/interpolate.js";
 import type { ActorSnapshot, Snapshot } from "./sim-host/snapshot.js";
 import { metrics } from "./sim-host/metrics.js";
@@ -50,6 +52,8 @@ export interface GameLoopDeps {
   humanActorId: number;
   /** From the host's whenReady() (input/slot-abilities.ts): read by both the cast path and the HUD. */
   slotAbilities: SlotAbilities | undefined;
+  display?: DisplayInfo | undefined; // D10 names (sim-host/display-info.ts) for the bar, tags and cast labels
+  castFx?: Pick<CastFxPool, "spawn" | "update" | "configure">; // render/cast-fx.ts projections (D10)
   keyState: KeyState;
   moveKeys: MoveKeyState;
   pingLimiter: PingRateLimiter;
@@ -86,6 +90,9 @@ function wireConnectionState(simHost: HostHandle, el: HTMLDivElement | undefined
 export function runGameLoop(deps: GameLoopDeps): void {
   const { simHost, humanActorId, actorPool, telegraphPool, damageNumbers, reticle, pingPool, hud, runEndView, orbitCamera, renderer, scene, connectionStateEl } = deps;
   wireConnectionState(simHost, connectionStateEl);
+  hud.display = deps.display;
+  actorPool.configure?.(humanActorId, deps.display); // YOU ring + name tags (render/actors.ts)
+  deps.castFx?.configure(humanActorId, deps.display);
   let localTick = 0;
   let prevSnapshot: Snapshot | null = null;
   let nextSnapshot: Snapshot | null = null;
@@ -126,7 +133,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
       hud.updateSlack(snapshot.slackTicks ?? 0, snapshot.maxSlackTicks ?? 0, snapshot.depleted ?? false);
       hud.updateRunReadout(snapshot);
       const player = snapshot.actors.find((a) => a.id === humanActorId);
-      if (player) hud.updateAbilityBar(player.cooldowns, deps.slotAbilities);
+      if (player) hud.updateAbilityBar(player.cooldowns, deps.slotAbilities, player.gcdRemainingTicks ?? 0);
       deps.bossBar?.update(snapshot.actors);
       if (snapshot.runEnd) runEndView.show(snapshot.runEnd);
     },
@@ -162,7 +169,9 @@ export function runGameLoop(deps: GameLoopDeps): void {
       const alpha = (performance.now() - lastSnapshotAt) / simHost.tickMs;
       metrics.recordRenderAlpha(alpha, simHost.tickMs); // research/11 (D9): render staleness
       const interpolated = interpolateSnapshots(prevSnapshot, nextSnapshot, alpha);
-      actorPool.sync(interpolated, rawById, nextSnapshot.tick, eventLatch.drain()); // events: castBar.ts kick flash (D10)
+      const events = eventLatch.drain(); // castBar.ts kick flash + cast-fx.ts projections + hit flash (D10)
+      actorPool.sync(interpolated, rawById, nextSnapshot.tick, events);
+      deps.castFx?.spawn(events, rawById, (id) => actorPool.worldPositionOf(id));
       telegraphPool.sync(nextSnapshot.telegraphs, nextSnapshot.tick);
       pingPool.sync(pingEvents, nextSnapshot.tick, placementForPing, (e) => pingLabelText(e));
 
@@ -174,6 +183,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
     }
 
     damageNumbers.update(1 / 60);
+    deps.castFx?.update(1 / 60);
     renderer.render(scene, orbitCamera.camera);
   }
   requestAnimationFrame(frame);

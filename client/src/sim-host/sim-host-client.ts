@@ -31,6 +31,7 @@ import { metrics } from "./metrics.js";
 import type { RawLoadout } from "./loadout-storage.js";
 import type { HostCommand, MainToWorkerMessage, WorkerToMainMessage } from "./wire.js";
 import type { SlotAbilities } from "../input/slot-abilities.js";
+import type { DisplayInfo } from "./display-info.js";
 
 export interface SimHostReady {
   humanActorId: number;
@@ -38,6 +39,9 @@ export interface SimHostReady {
    * reports it; net/net-client.ts reports the map the server sends on `joined` (same resolver). If it
    * is absent or malformed, ability keys cast nothing (fail closed) -- never a fallback. */
   slotAbilities?: SlotAbilities;
+  /** D10 names/timings (display-info.ts); the local worker reports it, ?net=1 does not (labels then
+   * fall back to humanized ids). Display only. */
+  display?: DisplayInfo;
 }
 
 export class SimHostClient {
@@ -103,7 +107,7 @@ export class SimHostClient {
 
   private onWorkerMessage(msg: WorkerToMainMessage): void {
     if (msg.type === "ready") {
-      this.readyResolve({ humanActorId: msg.humanActorId, slotAbilities: msg.slotAbilities });
+      this.readyResolve({ humanActorId: msg.humanActorId, slotAbilities: msg.slotAbilities, display: msg.display });
     } else if (msg.type === "snapshot") {
       metrics.recordSimStep(msg.simStepMs);
       metrics.recordTickInterval(msg.elapsedMs, msg.tickMs);

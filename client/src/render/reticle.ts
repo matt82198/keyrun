@@ -6,7 +6,7 @@ export class TargetReticle {
   private readonly mesh: THREE.Mesh;
 
   constructor(scene: THREE.Scene) {
-    const geometry = new THREE.RingGeometry(0.55, 0.68, 32);
+    const geometry = new THREE.RingGeometry(0.85, 1.1, 40); // D10: clears a tank-width or boss body
     const material = new THREE.MeshBasicMaterial({
       color: 0xffe066,
       transparent: true,

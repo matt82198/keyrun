@@ -18,6 +18,7 @@ import type { HostControlCommand } from "./host-commands.js";
 import type { Snapshot } from "./snapshot.js";
 import type { RawLoadout } from "./loadout-storage.js";
 import type { SlotAbilities } from "../input/slot-abilities.js";
+import type { DisplayInfo } from "./display-info.js";
 
 /** Ping is not a sim Command (see input/ping.ts's file docstring) -- it only reaches
  * bots/src/bot.ts's pingReactionCommands via bot-commands.ts's `pings` list. */
@@ -54,6 +55,8 @@ export interface ReadyMessage {
   humanActorId: number;
   tickMs: number;
   slotAbilities: SlotAbilities;
+  /** D10: display-info.ts's names/timings for the ability bar and actor name tags. */
+  display: DisplayInfo;
 }
 /** `simStepMs`/`elapsedMs`: worker.ts's own measurement of its step cost and scheduler jitter --
  * metrics.ts's `window.__keyrunMetrics` singleton only exists on the main thread (a Worker has its

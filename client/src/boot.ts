@@ -40,6 +40,7 @@ import { BossBarView } from "./hud/boss-bar.js";
 import { NetHostClient } from "./net/net-client.js";
 import type { HostHandle } from "./net/host-handle.js";
 import { runGameLoop, MOVE_CODES } from "./hud-wiring.js";
+import { mountReadability } from "./readability.js"; // D10: cast projections + onboarding overlay
 
 /** Read-only camera readout for the headless e2e overlay test (tests/client/e2e/run-end-overlay.e2e.ts):
  * getters only, so a page script can observe that mouse-look/zoom reached the camera but never drive it. */
@@ -57,15 +58,9 @@ declare global {
 
 function readOnlyCameraView(cam: OrbitCamera): KeyrunCameraView {
   return Object.freeze({
-    get yaw() {
-      return cam.yaw;
-    },
-    get pitch() {
-      return cam.pitch;
-    },
-    get distance() {
-      return cam.distance;
-    },
+    get yaw() { return cam.yaw; }, // prettier-ignore
+    get pitch() { return cam.pitch; }, // prettier-ignore
+    get distance() { return cam.distance; }, // prettier-ignore
   });
 }
 
@@ -116,6 +111,7 @@ export async function boot(): Promise<void> {
   const pingPool = new PingMarkerPool(scene);
   const hud = new Hud(app, keybinds);
   const runEndView = new RunEndView(app);
+  const readability = mountReadability(app, scene, keybinds, actorPool);
   const connectionStateEl = document.createElement("div");
   connectionStateEl.className = "net-connection-state";
   connectionStateEl.hidden = true;
@@ -163,13 +159,16 @@ export async function boot(): Promise<void> {
   const simHost: HostHandle = wantsNetHost(searchParams)
     ? new NetHostClient(window.location.search, tickMsOverride, undefined, loadout)
     : new SimHostClient(window.location.search, tickMsOverride, loadout);
-  const { humanActorId, slotAbilities } = await simHost.whenReady();
+  const { humanActorId, slotAbilities, display } = await simHost.whenReady();
   attachMetricsHud();
+  readability.onReady(display, searchParams.get("class") ?? undefined);
 
   runGameLoop({
     simHost,
     humanActorId,
     slotAbilities,
+    display,
+    castFx: readability.castFx,
     keyState,
     moveKeys,
     pingLimiter,

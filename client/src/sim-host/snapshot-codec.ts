@@ -4,9 +4,12 @@
  * Pure SimState/Run -> Snapshot encoding, split out of worker.ts to keep it under the repo's
  * 190-LOC-per-file gate (tests/repo/loc.test.ts).
  *
- * Usage: `const snapshot = buildSnapshot(run, setup, maxSlackTicks, runEndInfo);`
+ * Usage: `const snapshot = buildSnapshot(run, setup, maxSlackTicks, runEndInfo, stepped.events);`
+ * (`simEvents`, optional: the step's own SimEvents, turned into one-shot cast events by cast-events.ts.)
  */
 import type { ActorState, Tick } from "../../../sim/core/state.js";
+import type { SimEvent } from "../../../sim/core/events.js";
+import { castEvents } from "./cast-events.js";
 import type { Run } from "../../../sim/index.js";
 import type { RunEndInfo } from "./snapshot.js";
 import type { ActorCast, ActorSnapshot, ActorWindow, Snapshot, SnapshotEvent } from "./snapshot.js";
@@ -106,11 +109,20 @@ function toActorSnapshot(actor: ActorState, tick: Tick, abilities: Run["content"
     targetId: actor.targetId,
     cast: toCast(actor, abilities),
     cooldowns: remainingCooldowns(actor, tick),
+    gcdRemainingTicks: Math.max(0, actor.gcdReadyTick - tick),
     window: toWindow(actor, tick, abilities),
   };
 }
 
-export function buildSnapshot(run: Run, setup: RunSetup, maxSlackTicks: number, runEnd: RunEndInfo | null): Snapshot {
+export function buildSnapshot(
+  run: Run,
+  setup: RunSetup,
+  maxSlackTicks: number,
+  runEnd: RunEndInfo | null,
+  simEvents?: readonly SimEvent[],
+): Snapshot {
+  const kicks = interruptEvents(run);
+  const events: SnapshotEvent[] = [...kicks, ...castEvents(run, simEvents, MAX_SNAPSHOT_EVENTS - kicks.length)];
   const state = run.state;
   const actors: ActorSnapshot[] = Object.values(state.actors).map((actor) => toActorSnapshot(actor, state.tick, run.content.abilities));
   const telegraphs = run.encounter.telegraphs.map(toTelegraphSnapshot);
@@ -128,6 +140,6 @@ export function buildSnapshot(run: Run, setup: RunSetup, maxSlackTicks: number, 
     pullIndex: run.encounter.pullIndex,
     pullCount: setup.dungeon.pulls.length,
     runEnd,
-    events: interruptEvents(run),
+    events,
   };
 }

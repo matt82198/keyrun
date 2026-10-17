@@ -1,12 +1,16 @@
-// Ground telegraph decals: circle = ring mesh, cone = sector mesh, line =
-// box mesh. Each decal is coloured and outlined by its telegraph class
+// Ground telegraph decals: circle = filled disc, cone = sector mesh, line =
+// flat strip. Each decal is coloured and outlined by its telegraph class
 // (telegraphFill.ts's TELEGRAPH_STYLES: avoid / spread / stack / boss each
 // get their own colour AND edge pattern), and fills in (opacity ramps up)
 // as resolvesTick approaches, per telegraphFillFraction.
+// Orientation (render/ground-frame.ts): geometry in local XY with forward = +x, laid flat with
+// rotation.x = -PI/2 and turned with rotation.y under Euler order "YXZ", using the ENCOUNTER facing
+// convention (sim/encounter/telegraphs.ts: yaw 0 = +z) so the decal covers exactly what resolves.
 import * as THREE from "three";
 import type { TelegraphSnapshot } from "../sim-host/snapshot.js";
 import type { TelegraphClass } from "../sim-host/telegraph-map.js";
 import { edgePattern, telegraphFillFraction, telegraphStyle, type TelegraphStyle } from "./telegraphFill.js";
+import { telegraphYawToThree } from "./ground-frame.js";
 
 const MM_PER_M = 1000;
 const YAW_UNITS = 1024;
@@ -17,15 +21,18 @@ const DOUBLE_INNER_SCALE = 0.88;
  * wire path, which then renders as "avoid"). */
 export type RenderTelegraph = TelegraphSnapshot & { telegraphClass?: TelegraphClass };
 
-function yawUnitsToRadians(units: number): number {
-  return -(units / YAW_UNITS) * Math.PI * 2;
+/** Line decal corners in local XY: x in [0, length] forward, y in [-width/2, width/2] (full width). */
+export function lineCorners(t: TelegraphSnapshot, scale = 1): Array<[number, number]> {
+  const w = (Math.max(0.05, (t.width ?? 0) / MM_PER_M) / 2) * scale;
+  const l = Math.max(0.05, (t.length ?? 0) / MM_PER_M) * scale;
+  return [[0, -w], [l, -w], [l, w], [0, w]];
 }
 
 function buildGeometry(t: TelegraphSnapshot): THREE.BufferGeometry {
   switch (t.shape) {
     case "circle": {
       const radiusM = (t.radius ?? 0) / MM_PER_M;
-      return new THREE.RingGeometry(Math.max(0, radiusM * 0.8), Math.max(0.05, radiusM), 48);
+      return new THREE.RingGeometry(0, Math.max(0.05, radiusM), 48);
     }
     case "cone": {
       const radiusM = (t.radius ?? 0) / MM_PER_M;
@@ -37,11 +44,10 @@ function buildGeometry(t: TelegraphSnapshot): THREE.BufferGeometry {
       return new THREE.ShapeGeometry(shape, 24);
     }
     case "line": {
-      const widthM = Math.max(0.05, (t.width ?? 0) / MM_PER_M);
-      const lengthM = Math.max(0.05, (t.length ?? 0) / MM_PER_M);
-      const geometry = new THREE.BoxGeometry(widthM, 0.02, lengthM);
-      geometry.translate(0, 0, lengthM / 2);
-      return geometry;
+      const shape = new THREE.Shape();
+      lineCorners(t).forEach(([x, y], i) => (i === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y)));
+      shape.lineTo(lineCorners(t)[0]![0], lineCorners(t)[0]![1]);
+      return new THREE.ShapeGeometry(shape, 1);
     }
     default:
       return new THREE.RingGeometry(0.4, 0.5, 16);
@@ -52,9 +58,7 @@ function buildGeometry(t: TelegraphSnapshot): THREE.BufferGeometry {
 function outlinePoints(t: TelegraphSnapshot, scale: number): THREE.Vector3[] {
   const pts: THREE.Vector3[] = [];
   if (t.shape === "line") {
-    const w = (Math.max(0.05, (t.width ?? 0) / MM_PER_M) / 2) * scale;
-    const l = Math.max(0.05, (t.length ?? 0) / MM_PER_M) * scale;
-    for (const [x, z] of [[-w, 0], [w, 0], [w, l], [-w, l]] as const) pts.push(new THREE.Vector3(x, EDGE_LIFT_M, z));
+    for (const [x, y] of lineCorners(t, scale)) pts.push(new THREE.Vector3(x, y, EDGE_LIFT_M));
     return pts;
   }
   const r = Math.max(0.05, (t.radius ?? 0) / MM_PER_M) * scale;
@@ -127,6 +131,7 @@ export class TelegraphPool {
           depthWrite: false,
         });
         const mesh = new THREE.Mesh(buildGeometry(t), material);
+        mesh.rotation.order = "YXZ"; // flatten first, then yaw (ground-frame.ts)
         mesh.rotation.x = -Math.PI / 2;
         mesh.renderOrder = 1;
         const edge = buildEdge(t, style);
@@ -137,7 +142,7 @@ export class TelegraphPool {
       }
 
       view.mesh.position.set(t.center.x / MM_PER_M, 0.02, t.center.z / MM_PER_M);
-      view.mesh.rotation.y = yawUnitsToRadians(t.yaw ?? 0);
+      view.mesh.rotation.y = telegraphYawToThree(t.yaw ?? 0);
 
       const fraction = telegraphFillFraction(currentTick, t.resolvesTick);
       view.material.opacity = 0.15 + fraction * 0.55;
