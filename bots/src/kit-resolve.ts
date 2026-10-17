@@ -11,6 +11,9 @@
 import type { LoopKind } from "@content/schema/class";
 import type { BotView } from "./types.js";
 import { getClassKit } from "./kits.js";
+import type { HealKit } from "./kit-heals.js";
+
+const NO_HEALS: HealKit = { selfHealAbilityId: null, groupHealAbilityId: null, groupHealRadiusMm: 0, targetHealAbilityId: null };
 
 /** The superset of ClassKit fields roles/*.ts actually consumes, with every field optional-safe. */
 export interface EffectiveKit {
@@ -28,6 +31,8 @@ export interface EffectiveKit {
   resourceGainByAbility: Record<string, number>;
   resourceDumpAbilityIds: string[];
   resourceBuilderAbilityIds: string[];
+  heals: HealKit;
+  tauntAbilityId: string | null;
   loopKind: LoopKind | null;
   resource: string | null;
   resourceMax: number | null;
@@ -62,6 +67,8 @@ export function resolveKit(classId: string, fallback: BotView["classKit"]): Effe
       loopKind: kit.loopKind,
       resource: kit.resource,
       resourceMax: kit.resourceMax,
+      heals: kit.heals,
+      tauntAbilityId: kit.tauntAbilityId,
     };
   }
   return {
@@ -82,5 +89,8 @@ export function resolveKit(classId: string, fallback: BotView["classKit"]): Effe
     loopKind: null,
     resource: null,
     resourceMax: null,
+    // A scripted view's single healAbilityId carries no shape: treat it as an ally-targeted heal.
+    heals: { ...NO_HEALS, targetHealAbilityId: fallback.healAbilityId },
+    tauntAbilityId: null,
   };
 }

@@ -139,6 +139,8 @@ describe("Cinder heat-overheat resource-awareness", () => {
       loopKind: "heat-overheat",
       resource: "heat",
       resourceMax: 100,
+      heals: { selfHealAbilityId: null, groupHealAbilityId: null, groupHealRadiusMm: 0, targetHealAbilityId: null },
+      tauntAbilityId: null,
     };
     const self = makeActor({ resource: 90, cooldowns: {} });
 
@@ -164,6 +166,8 @@ describe("Cinder heat-overheat resource-awareness", () => {
       loopKind: "heat-overheat",
       resource: "heat",
       resourceMax: 100,
+      heals: { selfHealAbilityId: null, groupHealAbilityId: null, groupHealRadiusMm: 0, targetHealAbilityId: null },
+      tauntAbilityId: null,
     };
     const self = makeActor({ resource: 90, cooldowns: { dump: 999 } });
 

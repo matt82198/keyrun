@@ -18,3 +18,4 @@ evaluated once per tick; it never mutates state.
 ## Layout
 `bots/src/bot.ts` (interface + runner), `roles/tank.ts`, `roles/healer.ts`, `roles/damage.ts`,
 `shared/positioning.ts`, `shared/priority.ts`, `skill.ts`.
+- Threat is ONLY explicit threat ops in sim (damage adds none): the tank must taunt loose enemies and cast its rotation (roles/tank-engage.ts) or enemies stay on nearest-player. Heals are shape-gated: a self-shaped heal (Refrain) only heals the caster, so pick by reach (kit-heals.ts, roles/heal-pick.ts). Pull-0 idle-human repro: tests/sim/integration/bots-pull0.test.ts (PULL0_TRACE=1 prints the timeline).
