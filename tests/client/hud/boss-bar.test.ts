@@ -189,7 +189,7 @@ describe("hud/boss-bar: hud-wiring composition root", () => {
     runGameLoop({
       simHost: host,
       humanActorId: 1,
-      hud: { updateTimer: noop, updateSlack: noop, updateAbilityBar: noop },
+      hud: { updateTimer: noop, updateSlack: noop, updateAbilityBar: noop, updateRunReadout: noop },
       runEndView: { show: noop },
       damageNumbers: { spawn: noop },
       actorPool: { worldPositionOf: () => null },
