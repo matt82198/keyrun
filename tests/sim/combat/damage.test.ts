@@ -46,14 +46,14 @@ describe("applyDamage", () => {
     expect(emit).toHaveBeenNthCalledWith(2, expect.objectContaining({ type: "death", actorId: 2 }));
   });
 
-  it("does not re-emit death on further damage to an already-dead actor", () => {
+  it("does not re-emit death (or any event) on further damage to an already-dead actor", () => {
     const t = target(10);
     const emit = vi.fn();
     applyDamage({ tick: 5 }, t, 10, 0, 0, {}, emit, 1);
     emit.mockClear();
     applyDamage({ tick: 6 }, t, 10, 0, 0, {}, emit, 1);
-    expect(emit).toHaveBeenCalledTimes(1);
-    expect(emit).toHaveBeenCalledWith(expect.objectContaining({ type: "damage" }));
+    // A dead actor is inert: no damage event either (tests/sim/combat/dead-actors.test.ts).
+    expect(emit).not.toHaveBeenCalled();
   });
 
   it("consumes absorb before health, in pipeline order base->mods->absorb->health", () => {

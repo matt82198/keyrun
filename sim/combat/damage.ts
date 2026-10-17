@@ -13,6 +13,11 @@
  * Payoff's combo effects, so a combo hit gets `comboDamageBp` and every other hit (a normal cast,
  * a periodic DoT tick) gets `soloDamageBp`.
  *
+ * DEAD ACTORS ARE INERT: applyDamage and applyHeal are no-ops on a target whose `alive` is false
+ * -- no health change, no absorb consumed, no damage/heal/death event. Death is terminal here
+ * (sim/combat/actors.ts's reviveActor is the only way back), so a corpse never soaks a hit and a
+ * heal never lifts a dead actor's health while it stays alive=false.
+ *
  * Usage: applyDamage(state, target, 100, sourceModBp, targetModBp, effectDefs, emit, sourceId);
  */
 import type { ActorId, ActorState, SimEvent, Tick } from "./types";
@@ -45,6 +50,7 @@ export function applyDamage(
   emit: (e: SimEvent) => void,
   sourceId: ActorId,
 ): DamageResult {
+  if (!target.alive) return { rawAmount, modifiedAmount: 0, absorbed: 0, healthDamage: 0, died: false };
   const rules = getActiveEncounterRules();
   const pactAmount = rules ? applyPactDamageBp(rawAmount, isComboActive(), rules) : rawAmount;
   const modifiedAmount = applyModifiers(pactAmount, sourceModBp, targetModBp);
@@ -52,9 +58,8 @@ export function applyDamage(
   const absorbed = pool > 0 ? consumeAbsorb(target, defs, Math.min(pool, modifiedAmount)) : 0;
   const afterAbsorb = Math.max(0, modifiedAmount - absorbed);
   const healthDamage = Math.min(target.health, afterAbsorb);
-  const wasAlive = target.alive;
   target.health = Math.max(0, target.health - healthDamage);
-  const died = wasAlive && target.health === 0;
+  const died = target.health === 0;
   if (died) target.alive = false;
   emit({
     tick: state.tick,
@@ -77,6 +82,7 @@ export function applyHeal(
   sourceId: ActorId,
   emit: (e: SimEvent) => void,
 ): number {
+  if (!target.alive) return 0;
   const applied = Math.max(0, Math.min(amount, target.maxHealth - target.health));
   target.health += applied;
   emit({ tick: state.tick, type: "heal", sourceId, targetId: target.id, amount: applied });

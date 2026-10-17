@@ -114,14 +114,19 @@ export function inLine(caster: ActorState, length: number, radiusMm: number, act
  * only actors of the opposing `kind` (dropping allies and the caster); a friendly one keeps only
  * the caster's own `kind` (including the caster, even for cone/line shapes whose raw geometry
  * query excludes it -- see the explicit `add(actor.id)` below).
+ *
+ * Dead actors (`alive === false`) never resolve as a "target" or circle/cone/line target: a
+ * target that died mid-cast resolves to [] (the same outcome as no targetId), and corpses do not
+ * soak AoE. "self" is unchanged -- the caster acting on itself, reachable while dead only via
+ * rules.ts's onDeath DEATH-CAST EXCEPTION; damage.ts already makes heal/damage on it no-ops.
  */
 export function resolveTargets(state: SimState, actor: ActorState, def: AbilityDef): ActorState[] {
   if (def.shape.kind === "self") return [actor];
   if (def.shape.kind === "target") {
     const t = actor.targetId !== null ? state.actors[actor.targetId] : undefined;
-    return t ? [t] : [];
+    return t && t.alive ? [t] : [];
   }
-  const all = Object.values(state.actors);
+  const all = Object.values(state.actors).filter((a) => a.alive);
   let ids: ActorId[];
   if (def.shape.kind === "circle") {
     ids = inCircle(actor.pos, def.shape.radius ?? 0, all);
@@ -135,7 +140,7 @@ export function resolveTargets(state: SimState, actor: ActorState, def: AbilityD
     const candidate = state.actors[id];
     return !!candidate && matchesAffinity(affinity, actor, candidate);
   }));
-  if (affinity === "friendly") kept.add(actor.id);
+  if (affinity === "friendly" && actor.alive) kept.add(actor.id);
   return [...kept]
     .sort((a, b) => a - b)
     .map((id) => state.actors[id])
