@@ -35,6 +35,10 @@ canvas (jsdom + WebGL mock) and by a manual screenshot before merge.
   `ActorSnapshot.window` (projected by `sim-host/snapshot-codec.ts`'s `toWindow`) is open; arc = remaining
   fraction, colour green -> amber -> red as it closes; removed on close or on a kick drained into
   `ActorPool.sync` events. Snapshot state only, called once from `ActorPool.sync` (tests/client/render/window-ring.test.ts).
+- Window ring correction (supersedes "or on a kick" above): ring lifetime is driven ONLY by `ActorSnapshot.window`
+  (present and `tick < endsTick` => ring; null/absent/expired => none). A kick never dismisses it -- only a Payoff
+  closes a Window in the sim (`sim/combat/payoff.ts` removes the effect, so `toWindow` projects null that tick;
+  tests/client/sim-host/snapshot-window.test.ts).
 - Camera feel: every constant is in `CAMERA_TUNING` (`camera/cameraMath.ts`, pure, tests/client/camera-feel.test.ts):
   `followHalfLifeS` position-lag half-life, `zoomHalfLifeS` zoom easing, `snapDistanceM` teleport snap gap,
   `maxFrameDtS` dt cap, `mouseSensitivityRadPerPx` look speed, `pitchMinRad`/`pitchMaxRad` pitch clamp (max<0 keeps
@@ -44,3 +48,6 @@ canvas (jsdom + WebGL mock) and by a manual screenshot before merge.
 - Net dash parity: `net/mapping.ts` translates `dash` with `sim-host/player-commands.ts`'s `resolveDashDir` (the one
   direction authority): the last sent `move` if stamped this same tick, else the human's last-snapshot facing, both
   supplied by `net-client.ts` (tests/client/net/mapping.test.ts, net-parity.test.ts over a real ws room).
+- Boss bar contract: `hud/boss-bar.ts` is a top-centre DOM bar, one stacked row per live actor that
+  `roleColor.ts` colours `COLOR_BOSS` (classId ends ".boss"), ordered by actor id; name from classId, fill
+  `COLOR_BOSS`, percent rounded up. Fed `snapshot.actors` via `GameLoopDeps.bossBar` (tests/client/hud/boss-bar.test.ts).
