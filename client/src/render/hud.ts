@@ -1,8 +1,10 @@
 // DOM-overlay HUD: ability bar (keybind labels + cooldown sweep), run
 // timer, target-cycle hint, and a screen-centre crosshair. Kept separate
 // from the 3D scene since it is plain 2D UI.
-import { KEYBIND_ACTIONS, abilityIdForAction, type Keybinds } from "../input/keybinds.js";
+import type { Keybinds } from "../input/keybinds.js";
+import { ABILITY_ACTIONS, type SlotAbilities } from "../input/slot-abilities.js";
 import { TICK_HZ } from "../sim-host/snapshot.js";
+import { abilityBarModel } from "./ability-bar-model.js";
 
 interface AbilitySlot {
   root: HTMLDivElement;
@@ -45,12 +47,11 @@ export class Hud {
     this.abilityBarEl.className = "hud-ability-bar";
     this.root.appendChild(this.abilityBarEl);
 
-    for (const action of KEYBIND_ACTIONS) {
-      const abilityId = abilityIdForAction(action);
-      if (!abilityId) continue; // skip targetCycle: not an ability-bar slot
+    // Keyed by keybind ACTION (the slot); the ability in each slot comes from slotAbilities at update time.
+    for (const action of ABILITY_ACTIONS) {
       const slot = this.buildSlot(keybinds[action]);
       this.abilityBarEl.appendChild(slot.root);
-      this.slots.set(abilityId, slot);
+      this.slots.set(action, slot);
     }
   }
 
@@ -83,11 +84,12 @@ export class Hud {
     this.slackFillEl.classList.toggle("hud-slack-depleted", depleted);
   }
 
-  updateAbilityBar(cooldowns: Record<string, number>): void {
-    for (const [abilityId, slot] of this.slots) {
-      const remaining = Math.max(0, cooldowns[abilityId] ?? 0);
-      const peak = Math.max(this.cooldownPeaks.get(abilityId) ?? 0, remaining);
-      this.cooldownPeaks.set(abilityId, remaining > 0 ? peak : 0);
+  updateAbilityBar(cooldowns: Record<string, number>, slotAbilities: SlotAbilities | undefined): void {
+    for (const { action, remainingTicks: remaining } of abilityBarModel(slotAbilities, cooldowns)) {
+      const slot = this.slots.get(action);
+      if (!slot) continue;
+      const peak = Math.max(this.cooldownPeaks.get(action) ?? 0, remaining);
+      this.cooldownPeaks.set(action, remaining > 0 ? peak : 0);
       const fraction = peak > 0 ? remaining / peak : 0;
       slot.sweep.style.height = `${Math.round(fraction * 100)}%`;
       slot.label.textContent = remaining > 0 ? String(Math.ceil(remaining / TICK_HZ)) : "";

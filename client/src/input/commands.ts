@@ -1,7 +1,8 @@
 // Pure input -> sim command mapping. No DOM/Three.js dependency so it is
 // directly unit-testable given a key state and tick.
 
-import { KEYBIND_ACTIONS, abilityIdForAction, type Keybinds } from "./keybinds.js";
+import { KEYBIND_ACTIONS, type Keybinds } from "./keybinds.js";
+import { isAbilityAction, type SlotAbilities } from "./slot-abilities.js";
 
 export interface CastCommand {
   type: "cast";
@@ -28,10 +29,15 @@ export type AnyCommand = CastCommand | TargetCycleCommand | MoveCommand;
  * were newly pressed this tick (edge-triggered: holding a key does not
  * re-fire it). Order is deterministic, following keybind action order
  * (1,2,3,4,5,Q,E,R,F,Tab) regardless of Set iteration order.
+ *
+ * A cast carries the ability id in that key's slot, from `slotAbilities` (the host's
+ * slot-abilities.ts resolution for this run's class kit). With no map (a host that does not
+ * report one), ability keys emit nothing rather than a cast of some other id: fail closed.
  */
 export function deriveAbilityCommands(
   codesJustPressed: ReadonlySet<string>,
   keybinds: Keybinds,
+  slotAbilities: SlotAbilities | undefined,
   tick: number,
 ): AnyCommand[] {
   const commands: AnyCommand[] = [];
@@ -42,7 +48,8 @@ export function deriveAbilityCommands(
       commands.push({ type: "targetCycle", tick });
       continue;
     }
-    const abilityId = abilityIdForAction(action);
+    if (!isAbilityAction(action)) continue;
+    const abilityId = slotAbilities?.[action];
     if (abilityId) commands.push({ type: "cast", abilityId, tick });
   }
   return commands;

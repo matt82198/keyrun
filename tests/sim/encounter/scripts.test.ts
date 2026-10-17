@@ -201,7 +201,9 @@ describe("stepEnemyScripts", () => {
       const state = stateAt(40);
       state.actors[2] = playerActor(2, { x: 0, y: 0, z: 9000 }); // outside MELEE's 3000mm range
       const result = stepEnemyScripts(state, { 1: meleeScript }, {}, { melee: MELEE });
-      expect(result.commands).toHaveLength(0);
+      expect(result.commands.filter((c) => c.kind === "cast")).toHaveLength(0);
+      // ...but the enemy closes the gap instead (sim/encounter/chase.ts): one move straight at +z.
+      expect(result.commands).toEqual([{ tick: 40, actorId: 1, kind: "move", dir: { x: 0, z: 1000 }, yaw: 256 }]);
     });
 
     it("a blocked onDeath step emits neither the cast command nor its telegraph", () => {
