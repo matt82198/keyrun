@@ -17,6 +17,7 @@ import type { PingEvent } from "../input/ping.js";
 import type { HostControlCommand } from "./host-commands.js";
 import type { Snapshot } from "./snapshot.js";
 import type { RawLoadout } from "./loadout-storage.js";
+import type { SlotAbilities } from "../input/slot-abilities.js";
 
 /** Ping is not a sim Command (see input/ping.ts's file docstring) -- it only reaches
  * bots/src/bot.ts's pingReactionCommands via bot-commands.ts's `pings` list. */
@@ -46,10 +47,13 @@ export interface CommandMessage {
 }
 export type MainToWorkerMessage = InitMessage | CommandMessage;
 
+/** `slotAbilities`: run-setup.ts's one resolution of the human's keybind slot -> ability id map
+ * (input/slot-abilities.ts), so the main thread's cast path and HUD read the worker's answer. */
 export interface ReadyMessage {
   type: "ready";
   humanActorId: number;
   tickMs: number;
+  slotAbilities: SlotAbilities;
 }
 /** `simStepMs`/`elapsedMs`: worker.ts's own measurement of its step cost and scheduler jitter --
  * metrics.ts's `window.__keyrunMetrics` singleton only exists on the main thread (a Worker has its

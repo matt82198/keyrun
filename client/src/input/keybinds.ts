@@ -51,11 +51,8 @@ export const DEFAULT_KEYBINDS: Keybinds = {
   ping: "KeyG",
 };
 
-/** Maps an ability action id to the abilityId used in cast commands; null for non-ability actions. */
-export function abilityIdForAction(action: KeybindAction): string | null {
-  if (action === "targetCycle" || action === "ping") return null;
-  return action.replace(/^ability/, "");
-}
+// An ability action names a SLOT, not an ability id: the ability in each slot is resolved per class
+// kit by input/slot-abilities.ts's resolveSlotAbilities (the single authority; see that file).
 
 export async function loadKeybinds(url = "./keybinds.json"): Promise<Keybinds> {
   const res = await fetch(url);

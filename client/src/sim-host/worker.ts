@@ -86,7 +86,7 @@ async function handleInit(msg: InitMessage): Promise<void> {
   const setup = buildRunSetup(registry, opts, msg.loadout);
   runtime = new SimRuntime(setup);
   lastNowMs = Date.now();
-  ctx.postMessage({ type: "ready", humanActorId: setup.humanActorId, tickMs });
+  ctx.postMessage({ type: "ready", humanActorId: setup.humanActorId, tickMs, slotAbilities: setup.slotAbilities });
   intervalHandle = setInterval(tickLoop, tickMs);
 }
 
