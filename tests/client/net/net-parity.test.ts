@@ -177,6 +177,27 @@ describe("net parity: kickable and the one-shot interrupt event cross the wire (
   });
 });
 
+describe("net parity: an open Window crosses the wire to the renderer (D10)", () => {
+  it("warden.strike on the lieutenant opens 'sundered', and the mapped ActorSnapshot carries it", async () => {
+    const s = await connect();
+    for (let i = 0; i < 14; i++) {
+      await s.send([{ type: "move", dx: 0, dz: -1000, tick: pastTick(s) }]);
+      await s.step();
+    }
+    for (let i = 0; i < 10 && actor(s.last(), HUMAN).targetId !== LIEUTENANT; i++) {
+      await s.send([{ type: "targetCycle", tick: pastTick(s) }]);
+      await s.step();
+    }
+    expect(actor(s.last(), HUMAN).targetId).toBe(LIEUTENANT);
+    expect(actor(s.last(), LIEUTENANT).window ?? null).toBeNull();
+    await s.send([{ type: "cast", abilityId: "warden.strike", tick: pastTick(s) }]);
+    let win: Snapshot["actors"][number]["window"] = null;
+    for (let i = 0; i < 20 && !win; i++) win = actor(await s.step(), LIEUTENANT).window ?? null;
+    expect(win).toMatchObject({ windowId: "sundered", lock: false });
+    expect(s.last().tick).toBeLessThan(win!.endsTick);
+  });
+});
+
 describe("net parity: telegraphClass crosses the wire (gap 4)", () => {
   it("The Pair's mechanic telegraphs arrive classed spread/stack (not the avoid default), danger derived from class", async () => {
     // Real content, with Hollow Vault's pull order rotated so The Pair (spreadMark/stackCall) is

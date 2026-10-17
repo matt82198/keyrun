@@ -165,8 +165,8 @@ describe("Space dash intent", () => {
 
   it("dashes along this tick's move, else along current facing", () => {
     expect(resolveDashDir({ dx: 0, dz: -180 }, 0)).toEqual({ x: 0, z: -180 });
-    expect(resolveDashDir(undefined, 0)).toEqual({ x: 0, z: 1000 }); // sim yaw 0 faces +z
-    expect(resolveDashDir(undefined, 256)).toEqual({ x: 1000, z: 0 }); // yaw 256 faces +x
-    expect(resolveDashDir({ dx: 0, dz: 0 }, 512)).toEqual({ x: 0, z: -1000 });
+    expect(resolveDashDir(undefined, 0)).toEqual({ x: 1000, z: 0 }); // sim yaw 0 faces +x (yawFromComponents)
+    expect(resolveDashDir(undefined, 256)).toEqual({ x: 0, z: 1000 }); // yaw 256 faces +z
+    expect(resolveDashDir({ dx: 0, dz: 0 }, 512)).toEqual({ x: -1000, z: 0 });
   });
 });

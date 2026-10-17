@@ -68,7 +68,7 @@ describe("mapping: toClientSnapshot", () => {
     const out = toClientSnapshot(s);
     expect(out).toEqual({
       tick: 10,
-      actors: [{ id: 1, kind: "player", role: "tank", classId: "warden", pos: { x: 0, y: 0, z: 0 }, yaw: 0, health: 100, maxHealth: 100, resource: 0, maxResource: 100, alive: true, targetId: null, cast: null, cooldowns: {} }],
+      actors: [{ id: 1, kind: "player", role: "tank", classId: "warden", pos: { x: 0, y: 0, z: 0 }, yaw: 0, health: 100, maxHealth: 100, resource: 0, maxResource: 100, alive: true, targetId: null, cast: null, cooldowns: {}, window: null }],
       telegraphs: [],
       runTimerTicks: 10,
       timerLimitTicks: 1000,
@@ -147,6 +147,19 @@ describe("mapping: translateHostCommand", () => {
 
   it("has no wire equivalent for host controls with no sim meaning (abandon)", () => {
     expect(translateHostCommand({ type: "abandon", tick: 8 }, ctx)).toBeNull();
+  });
+});
+
+describe("mapping: ActorSnapshot.window crosses to the renderer (D10 net parity)", () => {
+  const open = { windowId: "sundered", setupClass: "warden", endsTick: 80, durationTicks: 60, lock: false };
+
+  it("an actor with an open Window maps with the field intact", () => {
+    const out = toClientSnapshot(snapshot({ actors: [actor({ id: 102, kind: "enemy", window: open })] }));
+    expect(out.actors[0]!.window).toEqual(open);
+  });
+
+  it("a null Window maps to null", () => {
+    expect(toClientSnapshot(snapshot({ actors: [actor({ window: null })] })).actors[0]!.window).toBeNull();
   });
 });
 

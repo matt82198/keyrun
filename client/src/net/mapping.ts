@@ -41,7 +41,8 @@ export function roleForClassId(classId: string): PartyRole {
 
 function toClientActor(a: ServerActorSnapshot): ClientActorSnapshot {
   // Drops the server-only `controlledBy` field -- the client host interface has no equivalent.
-  return { id: a.id, kind: a.kind, role: a.role, classId: a.classId, pos: a.pos, yaw: a.yaw, health: a.health, maxHealth: a.maxHealth, resource: a.resource, maxResource: a.maxResource, alive: a.alive, targetId: a.targetId, cast: a.cast, cooldowns: a.cooldowns };
+  // `window` (#74) is carried through so render/window-ring.ts draws it under ?net=1; absent -> null.
+  return { id: a.id, kind: a.kind, role: a.role, classId: a.classId, pos: a.pos, yaw: a.yaw, health: a.health, maxHealth: a.maxHealth, resource: a.resource, maxResource: a.maxResource, alive: a.alive, targetId: a.targetId, cast: a.cast, cooldowns: a.cooldowns, window: a.window ?? null };
 }
 
 /** Untrusted wire input: only well-formed interrupt events reach the renderer's InterruptLatch. */
@@ -97,7 +98,7 @@ export interface TargetContext {
   targetId: number | null;
   enemies: readonly { id: number; alive: boolean }[];
   /** The human actor's facing from the last snapshot (sim yaw, 1/1024 turns); a dash with no move
-   * this tick goes this way. Absent -> 0 (+z). */
+   * this tick goes this way. Absent -> 0 (+x). */
   selfYaw?: number | undefined;
   /** The most recent move command sent; a dash only follows it when stamped with the same tick. */
   move?: { tick: number; dx: number; dz: number } | null | undefined;
