@@ -9,9 +9,10 @@
  * and tilt the decal out of the ground plane -- the pre-D10 telegraph bug that stood line decals up
  * as walls and tipped rotated cones.
  *
- * The sim has two facing conventions and each decal must use the one its resolver uses:
- * - combat (sim/combat/targeting.ts faceDir; player casts): yaw 0 = +x, 256 = +z.
- * - encounter telegraphs (sim/encounter/telegraphs.ts pointInCone/pointInLine): yaw 0 = +z, 256 = +x.
+ * The sim has ONE facing convention (sim/combat/targeting.ts faceDir): yaw 0 = +x, 256 = +z. Combat
+ * casts and encounter telegraphs (sim/encounter/telegraphs.ts pointInCone/pointInLine, which read
+ * faceDir and receive the caster's combat yaw verbatim) both resolve on it, so both decal kinds use
+ * the same rotation; telegraphYawToThree is kept as a named alias for the telegraph call sites.
  *
  * Usage: `mesh.rotation.order = "YXZ"; mesh.rotation.x = -Math.PI / 2; mesh.rotation.y = combatYawToThree(yaw);`
  */
@@ -22,9 +23,9 @@ export function combatYawToThree(yaw: number): number {
   return -(yaw / YAW_UNITS) * Math.PI * 2;
 }
 
-/** rotation.y that points local +x along sim/encounter's telegraph facing (sin, cos) in (x, z). */
+/** rotation.y for an encounter telegraph: same faceDir convention as combat, so the same rotation. */
 export function telegraphYawToThree(yaw: number): number {
-  return (yaw / YAW_UNITS) * Math.PI * 2 - Math.PI / 2;
+  return combatYawToThree(yaw);
 }
 
 /** Where a decal-local (x, y) point lands on the ground (x, z) for a mesh at `origin` turned by
