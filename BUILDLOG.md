@@ -19,3 +19,5 @@
 - 2026-10-17 MERGED #60 fix/enemy-melee-reaches-party -> 2e332e38 (vitest 726; golden content-pull 614b2c96 -> 755428e2).
 - 2026-10-17 MERGED #61 feat/telegraph-kinds -> 589b6e68 (telegraph classes render distinctly; net path lacks telegraphClass).
 - 2026-10-17 MERGED #62 fix/keybind-slot-map -> c0483801 (single slot-abilities authority; vitest 739).
+--- 2026-10-17 BURN SUMMARY (D10 ladder, orchestrator bookkeeping): merged #59 f5f4ac6b (D10/D11 decisions), #62 c0483801, #60 2e332e38, #61 589b6e68, #63 7dbc83e, #65 bd2ec0c (MIT LICENSE), #64 9f38415 (README run and licence), #66 27cba48, #68 92b03b8 (L8 net and wiring parity; event latch; tests 784 -> 788). Lanes in flight: feat/l4-window-ring (L4), feat/l6-camera-feel (L6). Review follow-ups (a)-(k) filed in STATE.md.
+--- 2026-10-17 PUBLIC REPO FLIP: matt82198/keyrun visibility is PUBLIC (gh repo view). Matt: 'you can open source the code for keyrun too'. Root CLAUDE.md wording corrected in the docs PR. Repo auto-merge still OFF; Matt decision parked.

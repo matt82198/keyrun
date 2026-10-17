@@ -72,14 +72,28 @@ Ledger bound from GitHub (gh pr view / gh repo view, 2026-10-17). Brief-supplied
 - Open source: repo matt82198/keyrun visibility is PUBLIC (gh repo view, 2026-10-17). Matt 2026-10-17: "you can open source the code for keyrun too". MIT LICENSE landed via #65 (bd2ec0c).
 - Landing: repo auto-merge is OFF; PRs land by direct squash, proven with pr_merged_check.
 
+## Verified/filed defects (refinesystem debt)
+Filed 2026-10-17 from the #60-#68 review follow-ups; each carries the evidence the reviewer gave.
+- (a) Telegraphs that start and end entirely inside skipped snapshots are never drawn (state-latest-wins). Design choice; revisit if telegraphs get short.
+- (b) Stack call has no mechanical effect: no stack-in logic; BIBLE damage split unimplemented.
+- (c) Golden never lands a melee hit.
+- (d) Chase speed == player speed coupling.
+- (e) CHASE_MARGIN_MM hardcoded.
+- (f) Server toBotTelegraph danger always true.
+- (g) Server bots use EMPTY_CLASS_KIT.
+- (h) Default server run never clears pull 0 without a human.
+- (i) Telegraph id counter shared across rooms.
+- (j) keybinds.json has 11 binds vs BIBLE 10 [DECIDE Matt].
+- (k) Root CLAUDE.md said "Private repo"; repo is PUBLIC since 2026-10-17. Fixed in the docs PR (one line).
+
 ## NEXT STEPS (2026-10-17 ladder, D10)
 Ranked. Every rung must be playable and judged in the 3D client; Phase 5 "Matt playing" stays the acceptance test.
-1. L8 net and wiring parity: hud-wiring events argument (pass nextSnapshot.events to actorPool.sync); actors.ts classId hook and roleColor boss (COLOR_BOSS 0x9b59b6); server joined slot map; server snapshot kickable, events and telegraphClass.
-2. L4 Window ring.
+1. DONE L8 net and wiring parity: #68 MERGED 92b03b8 (kick flash wired; COLOR_BOSS via classId ".boss"; server joined slot map; snapshot kickable/events/telegraphClass; client/src/render/event-latch.ts SnapshotEventLatch, cap MAX_LATCHED_EVENTS=128 oldest-dropped). Tests 784 -> 788. Rule: client/CLAUDE.md, never read nextSnapshot.events directly.
+2. IN FLIGHT L4 Window ring (feat/l4-window-ring).
 3. L5 boss HP bar and Sundered Twins (Lock trigger needs the combo [DECIDE]).
-4. L6 camera feel and Space jump.
-5. L10 keybinds.json 11 -> 10 per D4.
-6. Review follow-ups from #60-#64.
-Matt decisions parked: enable repo auto-merge?; combo effects and numbers; MIT vs other licence.
+4. IN FLIGHT L6 camera feel and Space jump (feat/l6-camera-feel).
+5. L10 keybinds.json 11 -> 10 per D4 [DECIDE Matt, see defect (j)].
+6. Review follow-ups (a)-(k) above, in refinesystem order.
+Matt decisions parked: enable repo auto-merge?; combo effects and numbers; licence MIT (#65) unless Matt objects.
 Phase 5 remains "Matt playing".
 Standing rule: every audit and integration test reproduces through the public path (createRun/stepRun, the bot loop, the server room over ws, the client worker host); a mechanic that is not wired into the composition root in the same PR is a P0, not a note.

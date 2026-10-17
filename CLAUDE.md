@@ -3,7 +3,7 @@
 **What**: a proof-of-concept co-op dungeon game that isolates the Mythic+ loop from WoW — queue up, run a timed
 dungeon with a small party, kill a boss, come back to a simple character screen and get stronger — with the bloat
 cut: 4–5 rotational abilities per class, 10 keybinds total, class synergy as the design goal. No art assets: 3D
-placeholder geometry (capsules, boxes, planes), text, and colour only. Private repo. Working name; rename later.
+placeholder geometry (capsules, boxes, planes), text, and colour only. Public repo (MIT, since 2026-10-17). Working name; rename later.
 
 ## Stack (locked, STATE.md D1)
 TypeScript everywhere so the simulation is one shared, deterministic package: `sim/` (headless rules engine),

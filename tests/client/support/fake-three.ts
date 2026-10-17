@@ -84,6 +84,14 @@ export class BufferGeometry {
   dispose(): void {}
 }
 export class CapsuleGeometry extends BufferGeometry {}
+/** render/window-ring.ts's Window ring arc; records thetaLength so tests can read the fraction. */
+export class RingGeometry extends BufferGeometry {
+  constructor(readonly innerRadius = 0.5, readonly outerRadius = 1, readonly thetaSegments = 32,
+    readonly phiSegments = 1, readonly thetaStart = 0, readonly thetaLength = Math.PI * 2) {
+    super();
+  }
+}
+export const DoubleSide = 2;
 
 export class CanvasTexture {
   needsUpdate = false;
@@ -101,6 +109,7 @@ export class Material {
   dispose(): void {}
 }
 export class MeshStandardMaterial extends Material {}
+export class MeshBasicMaterial extends Material {}
 export class SpriteMaterial extends Material {}
 
 export class Mesh extends Object3D {

@@ -6,6 +6,7 @@ import type { ActorSnapshot, SnapshotEvent } from "../sim-host/snapshot.js";
 import { castBarModel, InterruptLatch } from "./castBar.js";
 import { colorForActor } from "./roleColor.js";
 import { createCanvasSprite, type CanvasSprite } from "./canvasSprite.js";
+import { WindowRingPool } from "./window-ring.js";
 
 const MM_PER_M = 1000;
 const CAPSULE_RADIUS_M = 0.4;
@@ -60,8 +61,11 @@ function buildActorView(): ActorView {
 export class ActorPool {
   private views = new Map<number, ActorView>();
   private readonly kicks = new InterruptLatch();
+  private readonly windowRings: WindowRingPool;
 
-  constructor(private readonly scene: THREE.Scene) {}
+  constructor(private readonly scene: THREE.Scene) {
+    this.windowRings = new WindowRingPool(scene);
+  }
 
   /**
    * Syncs one actor pool entry per id present in `interpolated`, pulling
@@ -77,6 +81,7 @@ export class ActorPool {
     events?: readonly SnapshotEvent[],
   ): void {
     this.kicks.ingest(events);
+    this.windowRings.sync(interpolated, rawById, currentTick, events);
     const seen = new Set<number>();
     for (const actor of interpolated) {
       seen.add(actor.id);
