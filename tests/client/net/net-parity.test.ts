@@ -167,13 +167,16 @@ describe("net parity: kickable and the one-shot interrupt event cross the wire (
       await s.step();
     }
     expect(kicked).toBe(true);
-    const carrying = s.snaps.filter((x) => (x.events ?? []).length > 0);
+    // The events channel now also carries cast / cast_failed (local-host parity); the kick itself
+    // must still arrive exactly once.
+    const kicks = (x: Snapshot) => (x.events ?? []).filter((e) => e.type === "interrupt");
+    const carrying = s.snaps.filter((x) => kicks(x).length > 0);
     expect(carrying).toHaveLength(1);
     const snap = carrying[0]!;
-    expect(snap.events).toEqual([{ type: "interrupt", tick: snap.tick - 1, actorId: LIEUTENANT, sourceId: HUMAN, school: expect.any(String) }]);
+    expect(kicks(snap)).toEqual([{ type: "interrupt", tick: snap.tick - 1, actorId: LIEUTENANT, sourceId: HUMAN, school: expect.any(String) }]);
     expect(actor(snap, LIEUTENANT).cast).toBeNull();
     await s.step(3);
-    expect(s.snaps.filter((x) => (x.events ?? []).length > 0)).toHaveLength(1); // one-shot, never repeated
+    expect(s.snaps.filter((x) => kicks(x).length > 0)).toHaveLength(1); // one-shot, never repeated
   });
 });
 

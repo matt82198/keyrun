@@ -11,13 +11,20 @@
  * the client host's own pure rules (snapshot-codec.ts's toCast/toWindow/interruptEvents, telegraph-map.ts
  * via ./telegraph.ts), imported, so the local worker and the server cannot drift apart.
  *
- * Usage: `const snapshot = buildSnapshot(run, parTicks, maxSlackTicks, pullCount, humanIds);`
+ * Same for the item-5 status channel (`effects`, snapshot-codec.ts's toEffects), `gcdRemainingTicks`,
+ * and the one-shot `cast` events (sim-host/cast-events.ts's castEvents over the step's SimEvents);
+ * `cast_failed` events come from room.ts via human-casts.ts (sim-host/cast-feedback.ts's rule).
+ *
+ * Usage: `const snapshot = buildSnapshot(run, parTicks, maxSlackTicks, pullCount, humanIds, stepped.events, failed);`
  */
 import type { ActorState, Tick } from "../../sim/core/state";
 import { hashState } from "../../sim/core/state";
+import type { SimEvent } from "../../sim/core/events";
 import type { Run } from "../../sim/index";
-import { interruptEvents, toCast, toWindow } from "../../client/src/sim-host/snapshot-codec.js";
-import type { ActorCast, ActorWindow, SnapshotEvent } from "../../client/src/sim-host/snapshot.js";
+import { interruptEvents, toCast, toEffects, toWindow } from "../../client/src/sim-host/snapshot-codec.js";
+import { castEvents } from "../../client/src/sim-host/cast-events.js";
+import { MAX_SNAPSHOT_EVENTS } from "../../client/src/sim-host/snapshot.js";
+import type { ActorCast, ActorEffect, ActorWindow, CastFailedSnapshotEvent, SnapshotEvent } from "../../client/src/sim-host/snapshot.js";
 import type { TelegraphClass } from "../../client/src/sim-host/telegraph-map.js";
 import { toTelegraphSnapshot } from "./telegraph.js";
 
@@ -56,7 +63,11 @@ export interface ActorSnapshot {
   /** D10 net parity: the latest-ending open Window (open while endsTick > tick), else null --
    * built by snapshot-codec.ts's toWindow (imported, one rule), so ?net=1 can draw the ring. */
   window: ActorWindow | null;
+  /** Item 5: content effects + ticks left (snapshot-codec.ts toEffects, imported -- one rule). */
+  effects: ActorEffect[];
   cooldowns: Record<string, number>;
+  /** Ticks until the global cooldown is ready (same as the client host's snapshot-codec.ts). */
+  gcdRemainingTicks: number;
   /** Server-only addition (no client-side equivalent yet): whether a human or a bot currently
    * drives this actor -- lets a joining/backfilling client tell which slots are open. */
   controlledBy: "human" | "bot";
@@ -93,8 +104,8 @@ export interface Snapshot {
   pullIndex: number;
   pullCount: number;
   keyLevel: number;
-  /** One-shot, bounded feedback events for the tick just stepped (snapshot-codec.ts's
-   * interruptEvents): currently only landed kicks. Never carried forward. */
+  /** One-shot, bounded feedback events for the tick just stepped: landed kicks (interruptEvents),
+   * completed casts (castEvents), human cast_failed (room.ts). Never carried forward. */
   events: SnapshotEvent[];
   /** FNV-1a hash of the authoritative SimState this tick (sim/core/state.ts's hashState) -- the
    * wire-determinism proof; not part of the client's mirrored shape. */
@@ -109,7 +120,7 @@ function remainingCooldowns(actor: ActorState, tick: Tick): Record<string, numbe
   return out;
 }
 
-function toActorSnapshot(actor: ActorState, tick: Tick, abilities: Run["content"]["abilities"], controlledBy: "human" | "bot"): ActorSnapshot {
+function toActorSnapshot(actor: ActorState, tick: Tick, { abilities, effects }: Run["content"], controlledBy: "human" | "bot"): ActorSnapshot {
   return {
     id: actor.id,
     kind: actor.kind,
@@ -125,17 +136,30 @@ function toActorSnapshot(actor: ActorState, tick: Tick, abilities: Run["content"
     targetId: actor.targetId,
     cast: toCast(actor, abilities),
     window: toWindow(actor, tick, abilities),
+    effects: toEffects(actor, tick, effects),
     cooldowns: remainingCooldowns(actor, tick),
+    gcdRemainingTicks: Math.max(0, actor.gcdReadyTick - tick),
     controlledBy,
   };
 }
 
-export function buildSnapshot(run: Run, parTicks: number, maxSlackTicks: number, pullCount: number, humanControlled: ReadonlySet<number>): Snapshot {
+/** `simEvents`: the step's own SimEvents (cast events); `failed`: room.ts's human cast_failed list. */
+export function buildSnapshot(
+  run: Run,
+  parTicks: number,
+  maxSlackTicks: number,
+  pullCount: number,
+  humanControlled: ReadonlySet<number>,
+  simEvents?: readonly SimEvent[],
+  failed: readonly CastFailedSnapshotEvent[] = [],
+): Snapshot {
   const state = run.state;
   const actors: ActorSnapshot[] = Object.values(state.actors).map((actor) =>
-    toActorSnapshot(actor, state.tick, run.content.abilities, actor.kind === "player" && humanControlled.has(actor.id) ? "human" : "bot"),
+    toActorSnapshot(actor, state.tick, run.content, actor.kind === "player" && humanControlled.has(actor.id) ? "human" : "bot"),
   );
   const telegraphs = run.encounter.telegraphs.map(toTelegraphSnapshot);
+  const kicks = interruptEvents(run);
+  const events = [...kicks, ...castEvents(run, simEvents, MAX_SNAPSHOT_EVENTS - kicks.length), ...failed].slice(0, MAX_SNAPSHOT_EVENTS);
 
   return {
     tick: state.tick,
@@ -150,7 +174,7 @@ export function buildSnapshot(run: Run, parTicks: number, maxSlackTicks: number,
     pullIndex: run.encounter.pullIndex,
     pullCount,
     keyLevel: run.encounter.keyLevel,
-    events: interruptEvents(run),
+    events,
     stateHash: hashState(state),
   };
 }

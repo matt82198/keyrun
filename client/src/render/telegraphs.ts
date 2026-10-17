@@ -17,6 +17,16 @@ const YAW_UNITS = 1024;
 const EDGE_LIFT_M = 0.01;
 const DOUBLE_INNER_SCALE = 0.88;
 
+/** Item 14: fill opacity the moment a telegraph appears. The old 0.15 blended a spread circle to
+ * ~1.2:1 against the 0x1b2027 floor (faint); 0.4 gives every class >= 1.6:1 (boss red: ~1.6)
+ * (tests/client/render/telegraph-contrast.test.ts). It still fills toward the peak as it resolves. */
+export const TELEGRAPH_BASE_OPACITY = 0.4;
+export const TELEGRAPH_PEAK_OPACITY = 0.8;
+
+export function telegraphOpacity(fillFraction: number): number {
+  return TELEGRAPH_BASE_OPACITY + fillFraction * (TELEGRAPH_PEAK_OPACITY - TELEGRAPH_BASE_OPACITY);
+}
+
 /** snapshot.ts's TelegraphSnapshot plus telegraph-map.ts's optional class (absent on the server
  * wire path, which then renders as "avoid"). */
 export type RenderTelegraph = TelegraphSnapshot & { telegraphClass?: TelegraphClass };
@@ -126,7 +136,7 @@ export class TelegraphPool {
         const material = new THREE.MeshBasicMaterial({
           color: style.color,
           transparent: true,
-          opacity: 0.2,
+          opacity: TELEGRAPH_BASE_OPACITY,
           side: THREE.DoubleSide,
           depthWrite: false,
         });
@@ -145,7 +155,7 @@ export class TelegraphPool {
       view.mesh.rotation.y = telegraphYawToThree(t.yaw ?? 0);
 
       const fraction = telegraphFillFraction(currentTick, t.resolvesTick);
-      view.material.opacity = 0.15 + fraction * 0.55;
+      view.material.opacity = telegraphOpacity(fraction);
       view.material.color.setHex(style.color);
     }
 

@@ -62,7 +62,20 @@ export interface CastSnapshotEvent {
   length?: number;
   targetId: number | null;
   hitIds: number[];
+  /** Item 5: the ability is a taunt (a threat op whose multiplier is >= cast-events.ts's
+   * TAUNT_MIN_MULTIPLIER_BP); render/actors.ts tags its target "TAUNTED". Absent = not a taunt. */
+  taunt?: boolean;
 }
+
+/** Item 5 status channel: one content-defined effect on an actor (a run.content.effects id) and the
+ * sim ticks it has left (endsTick - tick, > 0). render/status-chips.ts draws it above the health bar. */
+export interface ActorEffect {
+  id: string;
+  ticks: number;
+}
+
+/** Upper bound on ActorSnapshot.effects (the channel is compact; extra effects are dropped). */
+export const MAX_ACTOR_EFFECTS = 6;
 
 /** One-shot "your key press cast nothing" feedback (sim-host/cast-feedback.ts; local host only). */
 export interface CastFailedSnapshotEvent {
@@ -111,6 +124,9 @@ export interface ActorSnapshot {
   /** The latest-ending open Window on this actor, or null. Optional: the ?net=1 server snapshot
    * (server/src/snapshot.ts) does not project it yet, and older literals predate it. */
   window?: ActorWindow | null;
+  /** Item 5: content effects on this actor, sorted by id, at most MAX_ACTOR_EFFECTS (snapshot-codec.ts
+   * toEffects; the ?net=1 server projects the same). Optional: absent on older literals = none. */
+  effects?: ActorEffect[];
 }
 
 export type TelegraphShape = "circle" | "cone" | "line";

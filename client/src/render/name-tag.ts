@@ -19,7 +19,7 @@ function line(ctx: CanvasRenderingContext2D, text: string, y: number, color: str
 }
 
 export function drawNameTag(tag: CanvasSprite, label: ActorLabel): void {
-  const key = `${label.title}|${label.color}|${label.castLine}`;
+  const key = `${label.title}|${label.color}|${label.castLine}|${label.lineColor ?? ""}`;
   if (drawn.get(tag) === key) return;
   drawn.set(tag, key);
   const { ctx, canvas } = tag;
@@ -27,6 +27,6 @@ export function drawNameTag(tag: CanvasSprite, label: ActorLabel): void {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   line(ctx, label.title, 30, label.color, 40);
-  if (label.castLine) line(ctx, label.castLine, 82, label.kickable ? CAST_FILL_KICKABLE : CAST_FILL_UNKICKABLE, 34);
+  if (label.castLine) line(ctx, label.castLine, 82, label.lineColor ?? (label.kickable ? CAST_FILL_KICKABLE : CAST_FILL_UNKICKABLE), 34);
   tag.sync();
 }

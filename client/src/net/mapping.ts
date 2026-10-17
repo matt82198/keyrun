@@ -6,8 +6,8 @@
  * (client/src/sim-host/snapshot.ts's Snapshot, sim-host/wire.ts's HostCommand) -- so net-client.ts
  * hands hud-wiring.ts/render code the exact same Snapshot shape the local Worker host already
  * produces, and sends the server the exact sim/core/commands.ts Command payload
- * sim-host/player-commands.ts derives for the local path (same yawFromComponents call, same
- * targetId-defaults-to-current-target-or-self rule).
+ * sim-host/player-commands.ts derives for the local path (same yawFromComponents call; a cast's
+ * target is left to the server, which applies the local host's castTargetFor -- server/src/human-casts.ts).
  *
  * P2 (policy-inside-stepRun): `toClientSnapshot` no longer derives a `runEnd` signal from wire
  * snapshot data (the old `isRunEnded`/`runOutcome`, deleted) -- the server now sends an explicit,
@@ -21,7 +21,8 @@
 import { yawFromComponents } from "../../../sim/core/atan.js";
 import type { HostCommand } from "../sim-host/wire.js";
 import { resolveDashDir } from "../sim-host/player-commands.js";
-import { MAX_SNAPSHOT_EVENTS, type ActorSnapshot as ClientActorSnapshot, type Snapshot as ClientSnapshot, type SnapshotEvent } from "../sim-host/snapshot.js";
+import type { ActorSnapshot as ClientActorSnapshot, Snapshot as ClientSnapshot } from "../sim-host/snapshot.js";
+import { decodeEffects, decodeEvents } from "./snapshot-codec.js";
 import type { ClientCommandPayload, PartyRole, ServerActorSnapshot, ServerSnapshot } from "./wire-types.js";
 
 /** Mirrors server/src/roster.ts's ROLE_ROSTER class -> role binding (read-only, not imported --
@@ -42,14 +43,9 @@ export function roleForClassId(classId: string): PartyRole {
 function toClientActor(a: ServerActorSnapshot): ClientActorSnapshot {
   // Drops the server-only `controlledBy` field -- the client host interface has no equivalent.
   // `window` (#74) is carried through so render/window-ring.ts draws it under ?net=1; absent -> null.
-  return { id: a.id, kind: a.kind, role: a.role, classId: a.classId, pos: a.pos, yaw: a.yaw, health: a.health, maxHealth: a.maxHealth, resource: a.resource, maxResource: a.maxResource, alive: a.alive, targetId: a.targetId, cast: a.cast, cooldowns: a.cooldowns, window: a.window ?? null };
-}
-
-/** Untrusted wire input: only well-formed interrupt events reach the renderer's InterruptLatch. */
-function isInterruptEvent(e: unknown): e is SnapshotEvent {
-  if (typeof e !== "object" || e === null) return false;
-  const r = e as Record<string, unknown>;
-  return r.type === "interrupt" && typeof r.tick === "number" && typeof r.actorId === "number" && typeof r.sourceId === "number" && typeof r.school === "string";
+  // Item 5: `effects` (decoded, malformed entries dropped) and the GCD (absent -> 0, same as local).
+  const gcdRemainingTicks = typeof a.gcdRemainingTicks === "number" ? a.gcdRemainingTicks : 0;
+  return { id: a.id, kind: a.kind, role: a.role, classId: a.classId, pos: a.pos, yaw: a.yaw, health: a.health, maxHealth: a.maxHealth, resource: a.resource, maxResource: a.maxResource, alive: a.alive, targetId: a.targetId, cast: a.cast, cooldowns: a.cooldowns, gcdRemainingTicks, window: a.window ?? null, effects: decodeEffects(a.effects) };
 }
 
 /** Strips server-only fields (stateHash, per-actor controlledBy) -- the exact Snapshot shape
@@ -57,13 +53,14 @@ function isInterruptEvent(e: unknown): e is SnapshotEvent {
  * that itself from the server's own `run_end` message (see file docstring), never derived here.
  * D10 net parity: ActorCast.kickable, each telegraph's telegraphClass, and the one-shot `events`
  * channel are carried through unchanged, so ?net=1 renders kickable casts, kick flashes and
- * telegraph classes exactly like the local host (a missing `events` maps to none, never stale). */
-export function toClientSnapshot(s: ServerSnapshot): ClientSnapshot {
+ * telegraph classes exactly like the local host (a missing `events` maps to none, never stale).
+ * `selfId`: this client's actor -- only its own `cast_failed` events are kept (net/snapshot-codec.ts). */
+export function toClientSnapshot(s: ServerSnapshot, selfId: number | null = null): ClientSnapshot {
   return {
     tick: s.tick,
     actors: s.actors.map(toClientActor),
     telegraphs: s.telegraphs,
-    events: Array.isArray(s.events) ? s.events.filter(isInterruptEvent).slice(0, MAX_SNAPSHOT_EVENTS) : [],
+    events: decodeEvents(s.events, selfId),
     runTimerTicks: s.runTimerTicks,
     timerLimitTicks: s.timerLimitTicks,
     slackTicks: s.slackTicks,
@@ -92,8 +89,7 @@ export function cycleEnemyTarget(enemies: readonly { id: number; alive: boolean 
 }
 
 export interface TargetContext {
-  /** The human actor's own id -- sim-host/player-commands.ts's default cast target when nothing
-   * else is targeted (self-cast, e.g. a healer with no target healing themself). */
+  /** The human actor's own id (no longer sent as a cast target: the server resolves casts). */
   selfId: number;
   targetId: number | null;
   enemies: readonly { id: number; alive: boolean }[];
@@ -115,7 +111,10 @@ export function translateHostCommand(cmd: HostCommand, ctx: TargetContext): Clie
       return { tick: cmd.tick, kind: "move", dir, yaw: yawFromComponents(dir.x, dir.z) };
     }
     case "cast":
-      return { tick: cmd.tick, kind: "cast", abilityId: cmd.abilityId, targetId: ctx.targetId ?? ctx.selfId };
+      // No targetId: the server resolves it with sim-host/player-commands.ts's castTargetFor against
+      // its own state (server/src/human-casts.ts) -- the local host's rule, so a fresh Strike hits the
+      // nearest enemy instead of the old `targetId ?? selfId` self-target.
+      return { tick: cmd.tick, kind: "cast", abilityId: cmd.abilityId };
     case "targetCycle":
       return { tick: cmd.tick, kind: "target", targetId: cycleEnemyTarget(ctx.enemies, ctx.targetId) };
     case "dash": {

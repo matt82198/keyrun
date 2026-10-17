@@ -27,7 +27,7 @@ export interface DisplayInfo {
   abilities: Record<string, AbilityDisplay>;
   actorNames: Record<string, string>;
   /** Burst combo names keyed "<setupClass>><payoffClass>" (data/combos.json exact pairs only: the
-   * "*" rows are floor-field combos, which an actor's Window never uses). Optional: ?net=1 has none. */
+   * "*" rows are floor-field combos, which an actor's Window never uses). Optional (an older ?net=1 server sends none). */
   combos?: Record<string, string>;
 }
 
