@@ -7,8 +7,8 @@
  * compares it against a local createRun/stepRun replay's hashState()).
  *
  * D10 net parity: the readability fields -- ActorCast.kickable, the one-shot `events` channel
- * (landed kicks), and each telegraph's `telegraphClass` -- are NOT re-derived here. They come from
- * the client host's own pure rules (snapshot-codec.ts's toCast/interruptEvents, telegraph-map.ts
+ * (landed kicks), each actor's open `window`, and each telegraph's `telegraphClass` -- are NOT re-derived here. They come from
+ * the client host's own pure rules (snapshot-codec.ts's toCast/toWindow/interruptEvents, telegraph-map.ts
  * via ./telegraph.ts), imported, so the local worker and the server cannot drift apart.
  *
  * Usage: `const snapshot = buildSnapshot(run, parTicks, maxSlackTicks, pullCount, humanIds);`
@@ -16,8 +16,8 @@
 import type { ActorState, Tick } from "../../sim/core/state";
 import { hashState } from "../../sim/core/state";
 import type { Run } from "../../sim/index";
-import { interruptEvents, toCast } from "../../client/src/sim-host/snapshot-codec.js";
-import type { ActorCast, SnapshotEvent } from "../../client/src/sim-host/snapshot.js";
+import { interruptEvents, toCast, toWindow } from "../../client/src/sim-host/snapshot-codec.js";
+import type { ActorCast, ActorWindow, SnapshotEvent } from "../../client/src/sim-host/snapshot.js";
 import type { TelegraphClass } from "../../client/src/sim-host/telegraph-map.js";
 import { toTelegraphSnapshot } from "./telegraph.js";
 
@@ -37,7 +37,7 @@ export interface Vec2Mm {
 }
 
 /** The client host's own cast shape (incl. D10 `kickable`), built by snapshot-codec.ts's toCast. */
-export type { ActorCast };
+export type { ActorCast, ActorWindow };
 
 export interface ActorSnapshot {
   id: number;
@@ -53,6 +53,9 @@ export interface ActorSnapshot {
   alive: boolean;
   targetId: number | null;
   cast: ActorCast | null;
+  /** D10 net parity: the latest-ending open Window (open while endsTick > tick), else null --
+   * built by snapshot-codec.ts's toWindow (imported, one rule), so ?net=1 can draw the ring. */
+  window: ActorWindow | null;
   cooldowns: Record<string, number>;
   /** Server-only addition (no client-side equivalent yet): whether a human or a bot currently
    * drives this actor -- lets a joining/backfilling client tell which slots are open. */
@@ -121,6 +124,7 @@ function toActorSnapshot(actor: ActorState, tick: Tick, abilities: Run["content"
     alive: actor.alive,
     targetId: actor.targetId,
     cast: toCast(actor, abilities),
+    window: toWindow(actor, tick, abilities),
     cooldowns: remainingCooldowns(actor, tick),
     controlledBy,
   };
