@@ -124,6 +124,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
 
       hud.updateTimer(snapshot.runTimerTicks, snapshot.timerLimitTicks);
       hud.updateSlack(snapshot.slackTicks ?? 0, snapshot.maxSlackTicks ?? 0, snapshot.depleted ?? false);
+      hud.updateRunReadout(snapshot);
       const player = snapshot.actors.find((a) => a.id === humanActorId);
       if (player) hud.updateAbilityBar(player.cooldowns, deps.slotAbilities);
       deps.bossBar?.update(snapshot.actors);

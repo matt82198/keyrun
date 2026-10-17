@@ -15,7 +15,14 @@
  *     is spent (Reckoning's 100 vs Vigil's 50 on a 100 cap -> Reckoning waits for the pull to thin).
  * With no pressure the rotation is unchanged and Reckoning stays the finisher.
  *
- * Usage: `import { underPackPressure, pressureSustainCommand, pressureRotation } from "./tank-pressure.js"`
+ * Under pressure the tank also keeps its group mitigation (Warden's Bulwark: a circle that applies
+ * Braced, -15% damage taken, 160 of every 200 ticks) up whenever its effect is down. Bulwark is a
+ * rotation Setup, and kit-priority.ts ranks Payoffs above Setups, so Guard Break (a cd-0 Payoff,
+ * ready every GCD) starved it: the tank never cast Bulwark once in pull 0 or pull 1. Without it the
+ * pull-1 opener survived on a ~10 HP margin, and sim #94 (dead actors inert) perturbing pull 0 by a
+ * few ticks was enough to wipe the party (the tank died at t1295 to the third synced swing).
+ *
+ * Usage: `import { underPackPressure, pressureSustainCommand, pressureMitigationCommand, pressureRotation } from "./tank-pressure.js"`
  */
 import type { ActorState, BotView, Command, Tick } from "../types.js";
 import { getContentRegistry, type EffectiveKit } from "../kits.js";
@@ -57,6 +64,36 @@ export function pressureSustainCommand(view: BotView, self: ActorState, kit: Eff
   const braceLeft = kit.defensiveAbilityId ? effectTicksLeft(self, kit.defensiveAbilityId, tick) : 0;
   if (braceLeft > BRACE_EXPIRY_LEAD_TICKS) return null;
   return { tick, actorId: self.id, kind: "cast", abilityId: sustain };
+}
+
+/**
+ * The kit's group mitigation: the first rotational circle-shaped ability that applies an effect
+ * with a negative damageTakenBp (Warden's Bulwark -> Braced), read from the injected content
+ * registry. Null without a registry or for a class that has none.
+ */
+export function groupMitigationAbilityId(kit: EffectiveKit): string | null {
+  const reg = getContentRegistry();
+  if (!reg) return null;
+  for (const id of kit.rotation) {
+    const def = reg.abilities.get(id);
+    if (!def || def.shape.kind !== "circle") continue;
+    const mitigates = def.effects.some(
+      (e) => e.op === "applyEffect" && (reg.effects.get(e.effectId)?.modifiers?.damageTakenBp ?? 0) < 0,
+    );
+    if (mitigates) return id;
+  }
+  return null;
+}
+
+/** Under pressure: cast the group mitigation when it is ready, its effect is down on the tank, and
+ * the tank is not already mid-cast (Bulwark has a 20-tick cast; never clip our own cast). */
+export function pressureMitigationCommand(view: BotView, self: ActorState, kit: EffectiveKit): Command | null {
+  const tick = view.state.tick;
+  const id = groupMitigationAbilityId(kit);
+  if (!id || !underPackPressure(view, self) || self.castId !== null) return null;
+  if (!readyAndAffordable(self, id, tick, kit)) return null;
+  if (effectTicksLeft(self, id, tick) > 0) return null;
+  return { tick, actorId: self.id, kind: "cast", abilityId: id };
 }
 
 /**
