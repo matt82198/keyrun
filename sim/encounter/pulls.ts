@@ -20,6 +20,9 @@ export interface PullSpawn {
   pos: Vec3;
   yaw: number;
   health: number;
+  /** Copied onto ActorState only when present, so content without it hashes exactly as before. */
+  speedMmPerTick?: number;
+  chaseMarginMm?: number;
 }
 
 export interface PullDef {
@@ -53,6 +56,8 @@ function spawnActor(spawn: PullSpawn): ActorState {
     gcdReadyTick: 0,
     effects: [],
     threat: {},
+    ...(spawn.speedMmPerTick !== undefined ? { speedMmPerTick: spawn.speedMmPerTick } : {}),
+    ...(spawn.chaseMarginMm !== undefined ? { chaseMarginMm: spawn.chaseMarginMm } : {}),
   };
 }
 

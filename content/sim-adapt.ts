@@ -67,6 +67,8 @@ export function toSimDungeon(dungeon: DungeonDef, enemies: Map<string, EnemyDef>
           pos: { x: group.spawn.x, y: 0, z: group.spawn.z },
           yaw: 0,
           health: def.maxHealth,
+          ...(def.speedMmPerTick !== undefined ? { speedMmPerTick: def.speedMmPerTick } : {}),
+          ...(def.chaseMarginMm !== undefined ? { chaseMarginMm: def.chaseMarginMm } : {}),
         });
         enemyScripts[actorId] = def.script;
       }

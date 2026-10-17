@@ -38,8 +38,9 @@ the server (later) runs it authoritatively; tests replay it.
   schemas; `sim` never imports `content` — content is passed in.
 - `client/` and `bots/` consume `state` snapshots and produce `commands`; they never mutate state.
 - `server/` (phase 4) runs `step` authoritatively and broadcasts snapshots/events; identical code.
-- `encounter/chase.ts` emits plain `move` commands, so chasers move at `RulesConfig.baseSpeedMmPerTick`
-  (combat/rules.ts) -- the players' speed. Per-enemy speed/margin needs a speed on `move` + content wiring.
+- Walk speed and chase margin are ACTOR state (`ActorState.speedMmPerTick`/`chaseMarginMm`, content
+  `EnemyDef` -> `PullSpawn` -> spawn), defaulting to `RulesConfig.baseSpeedMmPerTick`/`CHASE_MARGIN_MM`.
+  Never put speed on a `Command`: core/tick.ts revalidates every command and `validateCommand` rejects one.
 
 ## Tests (Vitest, `tests/sim/`)
 - Determinism: same seed + commands → same hash on 3 runs and after clone.
@@ -48,3 +49,5 @@ the server (later) runs it authoritatively; tests replay it.
   completed and was interrupted.
 - No module-level mutable counters: ids minted during a run live in run state (e.g. `EncounterState.nextTelegraphId`),
   so two runs in one process (two server rooms) stay seed-deterministic (`tests/sim/integration/telegraph-ids-per-run.test.ts`).
+- Module-scoped side channels are scoped to the call that needs them, never set-and-forget: stepRun wraps coreStep in
+  `withEncounterRules` (restores on exit) and `runAsCombo` is try/finally-balanced (`tests/sim/integration/module-state-per-run.test.ts`).

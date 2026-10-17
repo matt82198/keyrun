@@ -4,6 +4,7 @@
     "name": "Choir Acolyte",
     "maxHealth": 6000,
     "role": "melee",
+    "speedMmPerTick": 207,
     "abilities": ["choir.meleeSwing"],
     "script": [
       { "at": "loop", "every": 40, "cast": "choir.meleeSwing" }
