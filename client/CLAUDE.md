@@ -35,3 +35,13 @@ canvas (jsdom + WebGL mock) and by a manual screenshot before merge.
   `ActorSnapshot.window` (projected by `sim-host/snapshot-codec.ts`'s `toWindow`) is open; arc = remaining
   fraction, colour green -> amber -> red as it closes; removed on close or on a kick drained into
   `ActorPool.sync` events. Snapshot state only, called once from `ActorPool.sync` (tests/client/render/window-ring.test.ts).
+- Window ring correction (supersedes "or on a kick" above): ring lifetime is driven ONLY by `ActorSnapshot.window`
+  (present and `tick < endsTick` => ring; null/absent/expired => none). A kick never dismisses it -- only a Payoff
+  closes a Window in the sim (`sim/combat/payoff.ts` removes the effect, so `toWindow` projects null that tick;
+  tests/client/sim-host/snapshot-window.test.ts).
+- Camera feel: every constant is in `CAMERA_TUNING` (`camera/cameraMath.ts`, pure, tests/client/camera-feel.test.ts):
+  `followHalfLifeS` position-lag half-life, `zoomHalfLifeS` zoom easing, `snapDistanceM` teleport snap gap,
+  `maxFrameDtS` dt cap, `mouseSensitivityRadPerPx` look speed, `pitchMinRad`/`pitchMaxRad` pitch clamp (max<0 keeps
+  the camera above ground), `initialPitchRad`, `minDistanceM`/`maxDistanceM`/`initialDistanceM` zoom range,
+  `zoomStepM` per wheel notch, `lookAtHeightM` aim point. Yaw is unsmoothed (it is the WASD basis). Space emits one
+  `dash` per press; the sim moves `DASH_DISTANCE_MM` along this tick's move, else facing ([DECIDE] placeholder).

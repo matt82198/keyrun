@@ -33,7 +33,7 @@ import type { ActorState, Command, SimEvent, SimState, StepRules } from "./types
 import type { AbilityDef, EffectOp } from "./abilities";
 import type { EffectDef } from "./effects";
 import { startCast, completeCast, stopcast, type CastContext } from "./casting";
-import { applyMovement, resolveCollision, clampToBounds, type Bounds } from "./movement";
+import { applyMovement, resolveCollision, clampToBounds, DASH_DISTANCE_MM, type Bounds } from "./movement";
 import { expireEffects, duePeriodicInstances, advancePeriodic, aggregateModifiers } from "./effects";
 import { applyDamage, applyHeal } from "./damage";
 import { addThreat } from "./threat";
@@ -106,9 +106,10 @@ export function makeRules(cfg: RulesConfig): StepRules {
         actor.targetId = cmd.targetId;
       } else if (cmd.kind === "stopcast") {
         stopcast(actor, emit, state.tick);
-      } else if (cmd.kind === "move") {
+      } else if (cmd.kind === "move" || cmd.kind === "dash") {
         const mods = aggregateModifiers(actor, cfg.effects);
-        applyMovement(actor, cmd.dir, cfg.baseSpeedMmPerTick, mods.movementBp, cmd.yaw);
+        const distance = cmd.kind === "dash" ? DASH_DISTANCE_MM : cfg.baseSpeedMmPerTick;
+        applyMovement(actor, cmd.dir, distance, mods.movementBp, cmd.yaw);
       } else if (cmd.kind === "cast") {
         const def = cfg.abilities[cmd.abilityId];
         if (!def) continue;
