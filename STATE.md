@@ -65,10 +65,11 @@ Ledger bound from GitHub (gh pr view / gh repo view, 2026-10-17). Brief-supplied
 - #60 fix/enemy-melee-reaches-party: MERGED 2e332e38 (gh mergeCommit). sim/encounter/chase.ts wired at scripts.ts; first hit t38 seed 1; golden content-pull hash 614b2c96 -> 755428e2 (eventCounts identical); vitest 726.
 - #61 feat/telegraph-kinds: MERGED 589b6e68 (gh mergeCommit; headRefOid at merge d80e5d75). Classes: spread #CC79A7 dashed; stack #56B4E9 dotted, not danger; boss #E74C3C double; avoid #F0E442 solid. Bots no longer flee stack circles. Net path lacks telegraphClass.
 - #62 fix/keybind-slot-map: MERGED c0483801 (gh mergeCommit). Single authority client/src/input/slot-abilities.ts resolveSlotAbilities (1-5 rot1-5, Q interrupt, E defensive, R utility, F movement), computed in sim-host/run-setup.ts and carried in worker ready; read by deriveAbilityCommands and render/ability-bar-model.ts; abilityIdForAction deleted. 14 public-path tests; vitest 739.
-- #63 feat/kickable-cast-flag: OPEN, headRefOid ddfe3bf5 (gh). ActorCast.kickable; Snapshot.events (one-shot, cap 16); render/castBar.ts gold #f4d35e / grey #8d99ae / red flash #ff2e63 for 10 ticks. Flash needs hud-wiring.ts to pass nextSnapshot.events to actorPool.sync. Net path lacks kickable and events.
-- #64 docs/readme-run-and-net: OPEN, headRefOid fdb18368 (gh).
+- #63 feat/kickable-cast-flag: MERGED 7dbc83e (gh mergeCommit). ActorCast.kickable; Snapshot.events (one-shot, cap 16); render/castBar.ts gold #f4d35e / grey #8d99ae / red flash #ff2e63 for 10 ticks. Flash needs hud-wiring.ts to pass nextSnapshot.events to actorPool.sync. Net path lacks kickable and events.
+- #64 docs/readme-run-and-net: MERGED 9f38415 (gh squash, pr_merged_check MERGED). README "Play it" + License sections kept (merge of origin/main).
+- #65 chore/open-source: MERGED bd2ec0c (gh squash, pr_merged_check MERGED). MIT LICENSE, README, .gitignore.
 - Boss colour: attempt stopped. Boss is identifiable only via ActorSnapshot.classId ending ".boss" (content-dungeon.ts:79) or id 900. Plan: actors.ts:86 passes raw.classId; roleColor COLOR_BOSS 0x9b59b6.
-- Open source: repo matt82198/keyrun visibility is PRIVATE (gh repo view, 2026-10-17). Matt 2026-10-17: "you can open source the code for keyrun too". Lane running: full-history secret scan, MIT LICENSE PR, visibility flip gated on zero hits.
+- Open source: repo matt82198/keyrun visibility is PUBLIC (gh repo view, 2026-10-17). Matt 2026-10-17: "you can open source the code for keyrun too". MIT LICENSE landed via #65 (bd2ec0c).
 - Landing: repo auto-merge is OFF; PRs land by direct squash, proven with pr_merged_check.
 
 ## NEXT STEPS (2026-10-17 ladder, D10)
