@@ -100,7 +100,7 @@ async function harness(setup: RunSetup): Promise<Harness> {
     damageNumbers: { spawn: noop, update: noop },
     reticle: { update: noop },
     pingPool: { sync: noop },
-    hud: { updateTimer: noop, updateSlack: noop, updateAbilityBar: noop },
+    hud: { updateTimer: noop, updateSlack: noop, updateAbilityBar: noop, updateRunReadout: noop },
     runEndView: { show: noop },
     renderer: { render: noop },
     scene,
