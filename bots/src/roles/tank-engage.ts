@@ -23,6 +23,7 @@ import { pickTankTarget } from "../shared/priority.js";
 import { moveToward, yawToward, yawChanged } from "../shared/command.js";
 import { pickResourceAwareRotation } from "./damage.js";
 import { abilityReady } from "./shared.js";
+import { pressureRotation } from "./tank-pressure.js";
 
 /** Fallback melee reach when no registry is injected (Warden's 3000mm swing). */
 const DEFAULT_REACH_MM = 3000;
@@ -95,8 +96,9 @@ export function tankEngageCommands(view: BotView, self: ActorState, kit: Effecti
 
   const desiredYaw = yawToward(self.pos, target.pos); // cones (Guard Break) resolve on current facing
   if (yawChanged(self.yaw, desiredYaw)) out.push({ tick, actorId: self.id, kind: "move", dir: { x: 0, z: 0 }, yaw: desiredYaw });
-  // The self-sustain spender (Vigil) is gated by tank.ts's health floor, never spent as rotation.
-  const rotationKit = { ...kit, rotation: kit.rotation.filter((id) => id !== kit.selfSustainAbilityId) };
+  // The self-sustain spender (Vigil) is gated by tank.ts, never spent as rotation; under pack
+  // pressure the rotation also holds enough momentum for it (tank-pressure.ts).
+  const rotationKit = { ...kit, rotation: pressureRotation(view, self, kit) };
   const abilityId = pickResourceAwareRotation(rotationKit, self, tick);
   if (abilityId) out.push({ tick, actorId: self.id, kind: "cast", abilityId, targetId: target.id });
   return out;
