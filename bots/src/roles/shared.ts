@@ -5,11 +5,28 @@
  * checks, and the kick-ledger command every role attempts first each tick. Split out of the
  * former single-file roles.ts to stay under the repo's <=190 LOC/file cap; no behaviour change.
  *
- * Usage: `import { abilityReady, readyAndAffordable, ledgerKickCommand } from "./shared.js"`
+ * Also the party-wide lull signal (inLull), role-agnostic so any role can read it.
+ *
+ * Usage: `import { abilityReady, readyAndAffordable, ledgerKickCommand, inLull } from "./shared.js"`
  */
 import type { ActorState, BotView, Command, Tick } from "../types.js";
 import { resolveInterrupt } from "../shared/ledger.js";
 import { resolveKit, priorityInterruptAbilityIds, type EffectiveKit } from "../kits.js";
+
+/**
+ * A lull: at least one enemy is alive and every living enemy is aimed at another enemy (a
+ * heal-only caster tending its own pack). Nothing threatens the party. Hollow Vault pull 0 ends
+ * on a lone Choir healer, and pull 1's five Paired Warriors spawn the tick pull 0 clears, already
+ * aimed at the tank -- so the lull is the party's last chance to prepare (the tank banks its GCD
+ * and momentum, roles/tank-pressure.ts; tests/sim/integration/bots-pull1-warden.test.ts). An
+ * enemy with no target (not yet engaged) is NOT a lull: the tank must still pull it.
+ */
+export function inLull(view: BotView): boolean {
+  const actors = view.state.actors;
+  const living = Object.values(actors).filter((a) => a.kind === "enemy" && a.alive);
+  if (living.length === 0) return false;
+  return living.every((e) => e.targetId !== null && actors[e.targetId]?.kind === "enemy");
+}
 
 export function abilityReady(self: ActorState, abilityId: string, tick: Tick): boolean {
   return (self.cooldowns[abilityId] ?? 0) <= tick && self.gcdReadyTick <= tick;
