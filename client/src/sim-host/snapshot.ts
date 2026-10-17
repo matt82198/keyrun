@@ -45,7 +45,35 @@ export interface InterruptSnapshotEvent {
   school: string;
 }
 
-export type SnapshotEvent = InterruptSnapshotEvent;
+/** One-shot cast feedback (D10 projections, render/cast-fx.ts): `actorId` completed `abilityId` during
+ * `tick`. Geometry is the ability's own shape as sim/combat/targeting.ts resolves it: circle around the
+ * caster, cone/line along the caster's facing (combat yaw: 0 = +x, 256 = +z; line half-width =
+ * `radius`), target = a beam to `targetId`. `hitIds`: every actor it damaged or healed that tick. */
+export interface CastSnapshotEvent {
+  type: "cast";
+  tick: number;
+  actorId: number;
+  abilityId: string;
+  shape: "self" | "target" | "circle" | "cone" | "line";
+  origin: Vec2Mm;
+  yaw: number;
+  radius?: number;
+  angle1024?: number;
+  length?: number;
+  targetId: number | null;
+  hitIds: number[];
+}
+
+/** One-shot "your key press cast nothing" feedback (sim-host/cast-feedback.ts; local host only). */
+export interface CastFailedSnapshotEvent {
+  type: "cast_failed";
+  tick: number;
+  actorId: number;
+  abilityId: string;
+  reason: string;
+}
+
+export type SnapshotEvent = InterruptSnapshotEvent | CastSnapshotEvent | CastFailedSnapshotEvent;
 
 /** The open Window (design/BIBLE.md §4) an actor carries, projected from its "window:"/"lockwindow:"
  * effect by snapshot-codec.ts's toWindow. Open while `tick < endsTick`; opened at
@@ -77,6 +105,9 @@ export interface ActorSnapshot {
   targetId: number | null;
   cast: ActorCast | null;
   cooldowns: Record<string, number>;
+  /** Ticks until this actor's global cooldown is ready (sim gcdReadyTick - tick, floored at 0).
+   * Optional: the ?net=1 server snapshot does not project it; render/ability-bar-model.ts reads 0. */
+  gcdRemainingTicks?: number;
   /** The latest-ending open Window on this actor, or null. Optional: the ?net=1 server snapshot
    * (server/src/snapshot.ts) does not project it yet, and older literals predate it. */
   window?: ActorWindow | null;

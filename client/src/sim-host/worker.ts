@@ -27,6 +27,7 @@ import { fetchContentRegistry } from "./content-registry.js";
 import { resolveRunSetupOptions } from "./boot-params.js";
 import { buildRunSetup } from "./run-setup.js";
 import { SimRuntime } from "./sim-runtime.js";
+import { buildDisplayInfo } from "./display-info.js";
 import { computeTicksToRun } from "./scheduler.js";
 import { SIM_TICK_MS } from "./snapshot.js";
 import type { InitMessage, MainToWorkerMessage, WorkerToMainMessage } from "./wire.js";
@@ -86,7 +87,8 @@ async function handleInit(msg: InitMessage): Promise<void> {
   const setup = buildRunSetup(registry, opts, msg.loadout);
   runtime = new SimRuntime(setup);
   lastNowMs = Date.now();
-  ctx.postMessage({ type: "ready", humanActorId: setup.humanActorId, tickMs, slotAbilities: setup.slotAbilities });
+  const display = buildDisplayInfo(registry, setup.content.abilities); // D10: names for the bar + tags
+  ctx.postMessage({ type: "ready", humanActorId: setup.humanActorId, tickMs, slotAbilities: setup.slotAbilities, display });
   intervalHandle = setInterval(tickLoop, tickMs);
 }
 

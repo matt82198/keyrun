@@ -1,10 +1,15 @@
-// DOM-overlay HUD: ability bar (keybind labels + cooldown sweep), run
-// timer, target-cycle hint, and a screen-centre crosshair. Kept separate
-// from the 3D scene since it is plain 2D UI.
+// DOM-overlay HUD: ability bar (render/ability-bar.ts: key badge, ability name, cooldown sweep, GCD
+// state, key legend), run timer, Slack bank, the top-left run readout (pull number, objective line,
+// party markers) and a screen-centre crosshair. Kept separate from the 3D scene since it is plain 2D UI.
 import type { Keybinds } from "../input/keybinds.js";
-import { ABILITY_ACTIONS, type SlotAbilities } from "../input/slot-abilities.js";
+import type { SlotAbilities } from "../input/slot-abilities.js";
 import { TICK_HZ, type Snapshot } from "../sim-host/snapshot.js";
-import { abilityBarModel } from "./ability-bar-model.js";
+import { abilityName, type DisplayInfo } from "../sim-host/display-info.js";
+
+/** How long a "cast_failed" reason stays up: 1.5 s at 20 Hz. */
+export const CAST_ERROR_TICKS = 30;
+import { AbilityBarView } from "./ability-bar.js";
+import { objectiveText } from "./objective.js";
 import { colorForActor } from "./roleColor.js";
 import { formatPullReadout, partyMarkers } from "./run-readout.js";
 
@@ -20,24 +25,20 @@ function styled<K extends "div" | "span">(tag: K, className: string, style: Part
   return e;
 }
 
-interface AbilitySlot {
-  root: HTMLDivElement;
-  sweep: HTMLDivElement;
-  label: HTMLSpanElement;
-  keyLabel: HTMLSpanElement;
-}
-
 export class Hud {
   private readonly root: HTMLDivElement;
   private readonly timerEl: HTMLDivElement;
   private readonly slackFillEl: HTMLDivElement;
-  private readonly abilityBarEl: HTMLDivElement;
-  private readonly slots = new Map<string, AbilitySlot>();
-  private readonly cooldownPeaks = new Map<string, number>();
+  private readonly abilityBar: AbilityBarView;
   private readonly readoutEl: HTMLDivElement;
   private readonly pullEl: HTMLDivElement;
+  private readonly objectiveEl: HTMLDivElement;
   private readonly partyEl: HTMLDivElement;
   private readonly partyMarkerEls: PartyMarkerEls[] = [];
+  private readonly castErrorEl: HTMLDivElement;
+  private castErrorUntil = -1;
+  /** The host's display info (sim-host/display-info.ts); set once after whenReady(). */
+  display: DisplayInfo | undefined;
 
   constructor(container: HTMLElement, keybinds: Keybinds) {
     this.root = document.createElement("div");
@@ -53,8 +54,10 @@ export class Hud {
     });
     this.pullEl = styled("div", "hud-pull", { fontSize: "18px", fontWeight: "600", letterSpacing: "0.04em" });
     this.pullEl.textContent = formatPullReadout({});
+    this.objectiveEl = styled("div", "hud-objective", { fontSize: "15px", color: "#ffe066", marginTop: "2px", maxWidth: "340px" });
     this.partyEl = styled("div", "hud-party", { display: "flex", gap: "6px", marginTop: "6px" });
     this.readoutEl.appendChild(this.pullEl);
+    this.readoutEl.appendChild(this.objectiveEl);
     this.readoutEl.appendChild(this.partyEl);
     this.root.appendChild(this.readoutEl);
 
@@ -75,32 +78,11 @@ export class Hud {
     slackTrack.appendChild(this.slackFillEl);
     this.root.appendChild(slackTrack);
 
-    this.abilityBarEl = document.createElement("div");
-    this.abilityBarEl.className = "hud-ability-bar";
-    this.root.appendChild(this.abilityBarEl);
-
-    // Keyed by keybind ACTION (the slot); the ability in each slot comes from slotAbilities at update time.
-    for (const action of ABILITY_ACTIONS) {
-      const slot = this.buildSlot(keybinds[action]);
-      this.abilityBarEl.appendChild(slot.root);
-      this.slots.set(action, slot);
-    }
-  }
-
-  private buildSlot(keyLabelText: string): AbilitySlot {
-    const root = document.createElement("div");
-    root.className = "hud-ability-slot";
-    const sweep = document.createElement("div");
-    sweep.className = "hud-ability-sweep";
-    root.appendChild(sweep);
-    const keyLabel = document.createElement("span");
-    keyLabel.className = "hud-ability-key";
-    keyLabel.textContent = formatKeyLabel(keyLabelText);
-    root.appendChild(keyLabel);
-    const label = document.createElement("span");
-    label.className = "hud-ability-cd";
-    root.appendChild(label);
-    return { root, sweep, label, keyLabel };
+    this.abilityBar = new AbilityBarView(this.root, keybinds);
+    this.castErrorEl = document.createElement("div");
+    this.castErrorEl.className = "hud-cast-error";
+    this.castErrorEl.hidden = true;
+    this.root.appendChild(this.castErrorEl);
   }
 
   updateTimer(runTimerTicks: number, timerLimitTicks: number): void {
@@ -116,9 +98,13 @@ export class Hud {
     this.slackFillEl.classList.toggle("hud-slack-depleted", depleted);
   }
 
-  /** "Pull <n>/<total>" plus one marker per party member: role colour, HP fill, dimmed + red when dead. */
-  updateRunReadout(snapshot: Pick<Snapshot, "actors" | "pullIndex" | "pullCount">): void {
+  /** "Pull <n>/<total>", the objective line, plus one marker per party member: role colour, HP fill,
+   * dimmed + red when dead. Also surfaces a "cast_failed" event (sim-host/cast-feedback.ts) as the
+   * red "<Ability>: <reason>" line over the bar for CAST_ERROR_TICKS. */
+  updateRunReadout(snapshot: Pick<Snapshot, "actors" | "pullIndex" | "pullCount"> & Partial<Pick<Snapshot, "events" | "tick">>): void {
+    this.showCastError(snapshot);
     this.pullEl.textContent = formatPullReadout(snapshot);
+    this.objectiveEl.textContent = objectiveText(snapshot, this.display);
     const markers = partyMarkers(snapshot);
     while (this.partyMarkerEls.length > markers.length) this.partyEl.removeChild(this.partyMarkerEls.pop()!.root);
     while (this.partyMarkerEls.length < markers.length) this.partyMarkerEls.push(this.buildPartyMarker());
@@ -147,23 +133,19 @@ export class Hud {
     return { root, fill };
   }
 
-  updateAbilityBar(cooldowns: Record<string, number>, slotAbilities: SlotAbilities | undefined): void {
-    for (const { action, remainingTicks: remaining } of abilityBarModel(slotAbilities, cooldowns)) {
-      const slot = this.slots.get(action);
-      if (!slot) continue;
-      const peak = Math.max(this.cooldownPeaks.get(action) ?? 0, remaining);
-      this.cooldownPeaks.set(action, remaining > 0 ? peak : 0);
-      const fraction = peak > 0 ? remaining / peak : 0;
-      slot.sweep.style.height = `${Math.round(fraction * 100)}%`;
-      slot.label.textContent = remaining > 0 ? String(Math.ceil(remaining / TICK_HZ)) : "";
+  private showCastError(snapshot: Partial<Pick<Snapshot, "events" | "tick">>): void {
+    const tick = snapshot.tick ?? 0;
+    const failed = (snapshot.events ?? []).filter((e) => e.type === "cast_failed").pop();
+    if (failed?.type === "cast_failed") {
+      this.castErrorEl.textContent = `${abilityName(this.display, failed.abilityId)}: ${failed.reason}`;
+      this.castErrorUntil = tick + CAST_ERROR_TICKS;
     }
+    this.castErrorEl.hidden = tick > this.castErrorUntil;
   }
-}
 
-function formatKeyLabel(code: string): string {
-  if (code.startsWith("Digit")) return code.slice(5);
-  if (code.startsWith("Key")) return code.slice(3);
-  return code;
+  updateAbilityBar(cooldowns: Record<string, number>, slotAbilities: SlotAbilities | undefined, gcdRemainingTicks = 0): void {
+    this.abilityBar.update(cooldowns, slotAbilities, this.display, gcdRemainingTicks);
+  }
 }
 
 function formatClock(totalSeconds: number): string {

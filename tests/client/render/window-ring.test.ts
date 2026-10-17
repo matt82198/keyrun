@@ -31,6 +31,7 @@ vi.mock("three", () => {
     children: Object3D[] = [];
     position = new Vec();
     rotation = { x: 0, y: 0, z: 0 };
+    scale = new Vec();
     visible = true;
     renderOrder = 0;
     add(c: Object3D): void { this.children.push(c); }
@@ -45,7 +46,7 @@ vi.mock("three", () => {
     constructor(public geometry: Geometry, public material: Material) { super(); }
   }
   return {
-    Color, Object3D, Group: Object3D, Scene: Object3D, Mesh, RingGeometry, CapsuleGeometry: Geometry,
+    Color, Object3D, Group: Object3D, Scene: Object3D, Mesh, RingGeometry, CapsuleGeometry: Geometry, ConeGeometry: Geometry,
     MeshBasicMaterial: Material, MeshStandardMaterial: Material, DoubleSide: 2,
   };
 });
@@ -53,7 +54,7 @@ vi.mock("three", () => {
 vi.mock("../../../client/src/render/canvasSprite.js", () => ({
   createCanvasSprite: () => ({
     canvas: { width: 128, height: 16 },
-    ctx: { clearRect: () => undefined, fillRect: () => undefined, fillStyle: "" },
+    ctx: { clearRect: () => undefined, fillRect: () => undefined, fillText: () => undefined, strokeText: () => undefined, fillStyle: "" },
     sprite: { position: { set: () => undefined }, visible: true },
     sync: () => undefined,
   }),

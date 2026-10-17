@@ -16,6 +16,8 @@ export function createCanvasSprite(
   pixelHeight: number,
   worldWidth: number,
   worldHeight: number,
+  /** false = constant on-screen size (name tags, D10): world size is then the size at 1 m depth. */
+  sizeAttenuation = true,
 ): CanvasSprite {
   const canvas = document.createElement("canvas");
   canvas.width = pixelWidth;
@@ -25,7 +27,7 @@ export function createCanvasSprite(
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, sizeAttenuation });
   const sprite = new THREE.Sprite(material);
   sprite.scale.set(worldWidth, worldHeight, 1);
   sprite.renderOrder = 10;

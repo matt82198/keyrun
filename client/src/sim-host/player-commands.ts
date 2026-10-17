@@ -12,7 +12,28 @@ import type { Tick } from "../../../sim/core/state.js";
 import type { Command } from "../../../sim/core/commands.js";
 import { yawFromComponents } from "../../../sim/core/atan.js";
 import { cycleTarget, faceDir, FACING_Q } from "../../../sim/combat/targeting.js";
+import { abilityAffinity } from "../../../sim/combat/affinity.js";
 import type { RunSetup } from "./run-setup.js";
+
+/** D10 first-run fix: the target a human cast is sent at. A hostile single-target ability with no
+ * live enemy targeted auto-targets the nearest live enemy (squared distance, lowest id on a tie) --
+ * before this, `targetId ?? humanId` made a fresh run's Strike hit the Warden himself. Everything
+ * else keeps the old rule: the current target, else the caster. */
+export function castTargetFor(run: Run, humanId: number, abilityId: string): number {
+  const player = run.state.actors[humanId];
+  const current = player?.targetId ?? null;
+  const def = run.content.abilities[abilityId];
+  if (!player || !def || def.shape.kind !== "target" || abilityAffinity(def, run.content.effects) !== "hostile") return current ?? humanId;
+  const cur = current !== null ? run.state.actors[current] : undefined;
+  if (cur && cur.alive && cur.kind !== player.kind) return cur.id;
+  let best: { id: number; d2: number } | null = null;
+  for (const a of Object.values(run.state.actors)) {
+    if (!a.alive || a.kind === player.kind) continue;
+    const d2 = (a.pos.x - player.pos.x) ** 2 + (a.pos.z - player.pos.z) ** 2;
+    if (!best || d2 < best.d2 || (d2 === best.d2 && a.id < best.id)) best = { id: a.id, d2 };
+  }
+  return best?.id ?? current ?? humanId;
+}
 
 export interface PendingInput {
   moves: { dx: number; dz: number }[];
@@ -56,7 +77,7 @@ export function computePlayerCommands(run: Run, setup: RunSetup, tick: Tick, pen
   }
 
   for (const abilityId of pending.casts) {
-    const targetId = player?.targetId ?? humanId;
+    const targetId = castTargetFor(run, humanId, abilityId);
     commands.push({ tick, actorId: humanId, kind: "cast", abilityId, targetId });
   }
 
