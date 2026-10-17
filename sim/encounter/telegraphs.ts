@@ -58,6 +58,11 @@ export interface EncounterState {
    * sim/encounter/index.ts's `ECHO_ACTOR_ID_BASE`, far above any dungeon/party id, so a spawned
    * add never collides with one. */
   nextEchoActorId?: number;
+  /** Next `Telegraph.id` sim/encounter/index.ts's `stepEncounter` will mint (starts at 1). Run
+   * state, never a module global, so two runs in one process (two server rooms) mint identical,
+   * seed-deterministic id sequences. Optional, defaults to 1 wherever read, same convention as
+   * `firedOnDeath` above; `createRun` sets it explicitly. */
+  nextTelegraphId?: number;
 }
 
 const SCALE = 4096;

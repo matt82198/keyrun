@@ -113,6 +113,7 @@ export function createRun(
     depleted: false,
     rules,
     firedOnDeath: {},
+    nextTelegraphId: 1,
   };
 
   // P2 policy-inside-stepRun: targeting resolves immediately at creation too, not just on the
