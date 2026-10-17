@@ -14,7 +14,8 @@
  * bots-pull1.test.ts) swings in sync: ~350 damage lands in one tick on a 400-HP Warden, so health
  * jumped from above the 35% floor straight to 0 and a floor-only Brace was never cast. Under the
  * same pressure the tank also holds momentum for Vigil and casts it as Brace runs out
- * (roles/tank-pressure.ts), instead of dumping momentum into Reckoning.
+ * (roles/tank-pressure.ts), instead of dumping momentum into Reckoning, and keeps its group
+ * mitigation (Bulwark) up, which the Payoff-first rotation otherwise never casts.
  *
  * Usage: `import { tankDecide } from "./tank.js"`
  */
@@ -25,7 +26,7 @@ import { floorEscapeCommand, meleeReapproachCommand } from "../shared/floor.js";
 import { yawToward, yawChanged } from "../shared/command.js";
 import { abilityReady, readyAndAffordable, ledgerKickCommand } from "./shared.js";
 import { tankEngageCommands } from "./tank-engage.js";
-import { underPackPressure, pressureSustainCommand } from "./tank-pressure.js";
+import { underPackPressure, pressureSustainCommand, pressureMitigationCommand } from "./tank-pressure.js";
 
 const TANK_DEFENSIVE_THRESHOLD_PCT = 0.35;
 /** A higher, earlier floor for a self-sustain spender (Warden's Vigil) ahead of the harder defensive (Brace). */
@@ -43,6 +44,9 @@ function defensiveCommands(view: BotView, self: ActorState, kit: EffectiveKit): 
   // Pack pressure: Vigil covers Brace's expiry instead of waiting for the 60% floor (tank-pressure.ts).
   const vigil = pressureSustainCommand(view, self, kit);
   if (vigil) return [vigil];
+  // Pack pressure: keep Bulwark's Braced up; Guard Break (a cd-0 Payoff) starves it in the rotation.
+  const bulwark = pressureMitigationCommand(view, self, kit);
+  if (bulwark) return [bulwark];
   if (
     kit.selfSustainAbilityId &&
     healthPct < TANK_SUSTAIN_THRESHOLD_PCT &&
