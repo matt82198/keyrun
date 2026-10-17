@@ -4,10 +4,14 @@
  * `EncounterState` is the encounter-lane's slice of durable run state (composed into the full sim by
  * sim/encounter/index.ts). `resolveTelegraphs(state, encounter)` returns, for every telegraph whose
  * `resolvesTick <= state.tick`, the list of actors it hits — using only integer arithmetic (squared
- * distances, no sqrt; direction vectors from a baked fixed-point quarter-turn cosine table, no
+ * distances, no sqrt; direction vectors from faceDir's baked fixed-point table, no
  * runtime trig calls) so results are bit-identical across machines.
  *
- * Facing convention: yaw 0 faces +z; increasing yaw (angle1024, 1024 units/turn) rotates toward +x.
+ * Facing convention: the ONE sim convention, sim/combat/targeting.ts's faceDir (yaw 0 faces +x,
+ * yaw 256 faces +z; matches sim/core/fixed.ts's yawBetween = atan2(dz, dx)). A telegraph's yaw is
+ * the caster's combat yaw copied verbatim (sim/encounter/scripts.ts), so the facing vector comes
+ * from faceDir itself rather than a second table -- the old local (sin, cos) reading resolved
+ * every cone/line 90 degrees off the caster's real facing.
  * Cone containment requires the FULL cone angle (`angle1024`) to be < 512 (180 degrees) — a
  * documented limitation of the squared-dot-product trick used to avoid sqrt; every cone in the
  * design bible (Cleave, etc.) is well under that.
@@ -17,6 +21,7 @@
 import type { ActorId, SimState, Tick, Vec3 } from "./types";
 import type { BreakBarState } from "./breakbar";
 import type { EchoSpawnRequest, EncounterRules } from "./clauses";
+import { faceDir } from "../combat/targeting";
 
 export interface Telegraph {
   id: number;
@@ -79,27 +84,6 @@ function cosQ(r: number): number {
   return COS_Q[idx] ?? 0;
 }
 
-function normYaw(yaw: number): number {
-  const m = yaw % 1024;
-  return m < 0 ? m + 1024 : m;
-}
-
-/** Returns [cosScaled, sinScaled] for a yaw in angle1024 units, each scaled by SCALE. */
-function cosSin1024(yaw: number): [number, number] {
-  const t = normYaw(yaw);
-  const q = Math.floor(t / QUARTER);
-  const r = t - q * QUARTER;
-  switch (q) {
-    case 0:
-      return [cosQ(r), cosQ(QUARTER - r)];
-    case 1:
-      return [-cosQ(QUARTER - r), cosQ(r)];
-    case 2:
-      return [-cosQ(r), -cosQ(QUARTER - r)];
-    default:
-      return [cosQ(QUARTER - r), -cosQ(r)];
-  }
-}
 
 export function pointInCircle(origin: Vec3, radius: number, p: Vec3): boolean {
   const dx = p.x - origin.x;
@@ -107,15 +91,15 @@ export function pointInCircle(origin: Vec3, radius: number, p: Vec3): boolean {
   return dx * dx + dz * dz <= radius * radius;
 }
 
-/** dirX/dirZ = facing vector (yaw=0 -> +z, yaw=256 -> +x), each scaled by SCALE. Full cone angle < 512. */
+/** Facing vector = faceDir(yaw) (yaw=0 -> +x, yaw=256 -> +z), scaled by SCALE. Full cone angle < 512. */
 export function pointInCone(origin: Vec3, yaw: number, angle1024: number, radius: number, p: Vec3): boolean {
   const dx = p.x - origin.x;
   const dz = p.z - origin.z;
   const distSq = dx * dx + dz * dz;
   if (distSq > radius * radius) return false;
   if (distSq === 0) return true;
-  const [cosYaw, sinYaw] = cosSin1024(yaw);
-  const dot = dx * sinYaw + dz * cosYaw; // scaled by SCALE
+  const f = faceDir(yaw);
+  const dot = dx * f.x + dz * f.z; // scaled by SCALE
   if (dot < 0) return false;
   const halfAngle = Math.min(511, Math.max(0, angle1024)) / 2;
   const cosHalf = cosQ(halfAngle <= QUARTER ? halfAngle : QUARTER); // clamp: half-angle assumed <= 90deg
@@ -125,9 +109,9 @@ export function pointInCone(origin: Vec3, yaw: number, angle1024: number, radius
 export function pointInLine(origin: Vec3, yaw: number, length: number, width: number, p: Vec3): boolean {
   const dx = p.x - origin.x;
   const dz = p.z - origin.z;
-  const [cosYaw, sinYaw] = cosSin1024(yaw);
-  const forward = dx * sinYaw + dz * cosYaw; // scaled by SCALE
-  const lateral = dx * cosYaw - dz * sinYaw; // scaled by SCALE
+  const f = faceDir(yaw);
+  const forward = dx * f.x + dz * f.z; // scaled by SCALE
+  const lateral = dx * f.z - dz * f.x; // scaled by SCALE
   if (forward < 0 || forward > length * SCALE) return false;
   return Math.abs(lateral) * 2 <= width * SCALE;
 }
