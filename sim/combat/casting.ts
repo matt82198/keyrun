@@ -22,7 +22,8 @@ import type { EffectDef } from "./effects";
 import { applyEffectInstance, removeEffectInstances } from "./effects";
 import { removeDispellableEffects } from "./effects-remove";
 import { isAbilityReady, startGcd, consumeCharge } from "./cooldowns";
-import { applyDamage, applyHeal } from "./damage";
+import { applyHeal } from "./damage";
+import { creditResource, dealDamage } from "./mitigation";
 import { addThreat } from "./threat";
 import { resolveTargets } from "./targeting";
 import { isqrt } from "./movement";
@@ -100,6 +101,11 @@ export function completeCast(state: SimState, actor: ActorState, ctx: CastContex
   for (const target of resolveTargets(state, actor, def)) {
     applyEffects(state, actor, target, def.effects, ctx, emit);
   }
+  // "resource" ops credit the CASTER, once per completed cast (not once per resolved target):
+  // the op has no target field (abilities.ts), so a builder's momentum/heat is the caster's.
+  for (const op of def.effects) {
+    if (op.op === "resource") creditResource(actor, op.delta);
+  }
   emit({ tick: state.tick, type: "cast_complete", actorId: actor.id, abilityId: def.id });
   clearCast(actor);
 }
@@ -114,7 +120,7 @@ function applyEffects(
 ): void {
   for (const op of ops) {
     if (op.op === "damage") {
-      applyDamage(state, target, op.amount, 0, 0, ctx.effects, emit, source.id);
+      dealDamage(state, source, target, op.amount, ctx.effects, emit, source.id);
     } else if (op.op === "heal") {
       applyHeal(state, target, op.amount, source.id, emit);
     } else if (op.op === "applyEffect") {
@@ -123,8 +129,6 @@ function applyEffects(
     } else if (op.op === "removeEffect") {
       if (op.effectId === "*") removeDispellableEffects(source, target, ctx.effects);
       else removeEffectInstances(target, op.effectId);
-    } else if (op.op === "resource") {
-      target.resource = Math.max(0, Math.min(target.maxResource, target.resource + op.delta));
     } else if (op.op === "threat") {
       addThreat(target, source.id, op.amount ?? 0, op.multiplierBp);
     } else if (op.op === "interrupt") {

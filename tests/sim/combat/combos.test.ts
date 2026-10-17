@@ -55,13 +55,17 @@ describe("applyComboEffects", () => {
     expect(dmg?.targetId).toBe(2);
   });
 
-  it("applies a resource delta for a Forge-style combo", () => {
-    const source = createActor({ id: 1, kind: "player", classId: "cinder", role: "damage", pos: { x: 0, y: 0, z: 0 }, maxHealth: 100, maxResource: 0 });
-    const target = createActor({ id: 2, kind: "player", classId: "warden", role: "tank", pos: { x: 0, y: 0, z: 0 }, maxHealth: 100, maxResource: 100 });
+  it("credits a Forge-style combo's resource delta to the payoff actor, not the Window carrier", () => {
+    // Forge is setupClass cinder -> payoffClass warden: payoff.ts passes the WARDEN (the payoff
+    // actor) as `source` and the Window's carrier (an enemy) as `target`.
+    const source = createActor({ id: 1, kind: "player", classId: "warden", role: "tank", pos: { x: 0, y: 0, z: 0 }, maxHealth: 100, maxResource: 100 });
+    const target = createActor({ id: 2, kind: "enemy", classId: "boss", role: "none", pos: { x: 0, y: 0, z: 0 }, maxHealth: 100, maxResource: 100 });
+    source.resource = 0;
     target.resource = 0;
     const s = state();
     applyComboEffects(s, source, target, table.cinder!.warden!.effects, {}, () => {});
-    expect(target.resource).toBe(40);
+    expect(source.resource).toBe(40);
+    expect(target.resource).toBe(0);
   });
 
   it("applies a bundled applyEffect alongside damage (Consecrate)", () => {

@@ -14,7 +14,8 @@ import type { EffectOp } from "./abilities";
 import type { EffectDef } from "./effects";
 import { applyEffectInstance, removeEffectInstances } from "./effects";
 import { removeDispellableEffects } from "./effects-remove";
-import { applyDamage, applyHeal } from "./damage";
+import { applyHeal } from "./damage";
+import { creditResource, dealDamage } from "./mitigation";
 import { addThreat } from "./threat";
 
 export interface ComboDef {
@@ -53,7 +54,7 @@ export function applyComboEffects(
 ): void {
   for (const op of ops) {
     if (op.op === "damage") {
-      applyDamage(state, target, op.amount, 0, 0, effectDefs, emit, source.id);
+      dealDamage(state, source, target, op.amount, effectDefs, emit, source.id);
     } else if (op.op === "heal") {
       applyHeal(state, target, op.amount, source.id, emit);
     } else if (op.op === "applyEffect") {
@@ -63,7 +64,9 @@ export function applyComboEffects(
       if (op.effectId === "*") removeDispellableEffects(source, target, effectDefs);
       else removeEffectInstances(target, op.effectId);
     } else if (op.op === "resource") {
-      target.resource = Math.max(0, Math.min(target.maxResource, target.resource + op.delta));
+      // The payoff actor earns the combo's resource (e.g. Forge's +40 momentum), never the
+      // Window carrier: the op has no target field (abilities.ts). See mitigation.ts.
+      creditResource(source, op.delta);
     } else if (op.op === "threat") {
       addThreat(target, source.id, op.amount ?? 0, op.multiplierBp);
     }
