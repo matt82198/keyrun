@@ -51,3 +51,4 @@ the server (later) runs it authoritatively; tests replay it.
   so two runs in one process (two server rooms) stay seed-deterministic (`tests/sim/integration/telegraph-ids-per-run.test.ts`).
 - Module-scoped side channels are scoped to the call that needs them, never set-and-forget: stepRun wraps coreStep in
   `withEncounterRules` (restores on exit) and `runAsCombo` is try/finally-balanced (`tests/sim/integration/module-state-per-run.test.ts`).
+- The affinity registry (`sim/combat/affinity.ts`) is module-level and process-global between calls; `sim/combat/rules.ts`'s StepRules re-sets it via `configureAffinityEffects(cfg.effects)` at the top of every call (not once in makeRules), so held closures from different runs are safe to step interleaved (`tests/sim/combat/rules-affinity-per-run.test.ts`).
