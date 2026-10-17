@@ -76,6 +76,7 @@ describe("mapping: toClientSnapshot", () => {
       pullIndex: 0,
       pullCount: 2,
       runEnd: null,
+      events: [],
     });
     expect(out).not.toHaveProperty("stateHash");
   });

@@ -155,7 +155,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
       const alpha = (performance.now() - lastSnapshotAt) / simHost.tickMs;
       metrics.recordRenderAlpha(alpha, simHost.tickMs); // research/11 (D9): render staleness
       const interpolated = interpolateSnapshots(prevSnapshot, nextSnapshot, alpha);
-      actorPool.sync(interpolated, rawById, nextSnapshot.tick);
+      actorPool.sync(interpolated, rawById, nextSnapshot.tick, nextSnapshot.events); // events: castBar.ts kick flash (D10)
       telegraphPool.sync(nextSnapshot.telegraphs, nextSnapshot.tick);
       pingPool.sync(pingEvents, nextSnapshot.tick, placementForPing, (e) => pingLabelText(e));
 

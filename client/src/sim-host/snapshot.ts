@@ -30,8 +30,8 @@ export interface ActorCast {
   startTick: number;
   endTick: number;
   /** D10: the sim's own cast definition says this cast can be interrupted (AbilityDef.interruptible).
-   * Optional only because the net path (server/src/snapshot.ts -> net/mapping.ts) does not carry it
-   * yet; render/castBar.ts treats anything but `true` as not kickable. */
+   * Optional for older literals; both hosts set it (server/src/snapshot.ts reuses snapshot-codec.ts's
+   * toCast). render/castBar.ts treats anything but `true` as not kickable. */
   kickable?: boolean;
 }
 

@@ -10,6 +10,9 @@
  * Usage: `import type { ServerMessage, ClientMessage } from "./wire-types.js";`
  */
 import type { Item } from "../../../content/schema/facet.js";
+import type { SlotAbilities } from "../input/slot-abilities.js";
+import type { ActorCast, SnapshotEvent } from "../sim-host/snapshot.js";
+import type { TelegraphClass } from "../sim-host/telegraph-map.js";
 
 export const PROTOCOL_VERSION = 3;
 
@@ -52,7 +55,8 @@ export interface ServerActorSnapshot {
   maxResource: number;
   alive: boolean;
   targetId: number | null;
-  cast: { abilityId: string; startTick: number; endTick: number } | null;
+  /** D10: carries `kickable` (server/src/snapshot.ts builds it with sim-host/snapshot-codec.ts's toCast). */
+  cast: ActorCast | null;
   cooldowns: Record<string, number>;
   /** Server-only: which side controls this actor right now. No client-side equivalent. */
   controlledBy: "human" | "bot";
@@ -69,6 +73,8 @@ export interface ServerTelegraphSnapshot {
   width?: number;
   resolvesTick: number;
   danger: boolean;
+  /** D10 render class (sim-host/telegraph-map.ts). Optional: an absent class renders as avoid. */
+  telegraphClass?: TelegraphClass;
 }
 
 export interface ServerSnapshot {
@@ -83,6 +89,8 @@ export interface ServerSnapshot {
   parTicks: number;
   pullIndex: number;
   pullCount: number;
+  /** D10: one-shot landed-kick events (sim-host/snapshot-codec.ts's interruptEvents, server-side). */
+  events?: SnapshotEvent[];
   /** Server-only: the wire-determinism proof (server/CLAUDE.md). No client-side equivalent. */
   stateHash: string;
 }
@@ -94,7 +102,9 @@ export type ServerRunResult = "timed" | "depleted" | "abandoned";
 export type ServerMessage =
   | { v: number; type: "welcome"; protocolVersion: number }
   | { v: number; type: "queued"; role: PartyRole }
-  | { v: number; type: "joined"; actorId: number; role: PartyRole; classId: string; roomId: string }
+  /** `slotAbilities`: the server's resolveSlotAbilities (input/slot-abilities.ts) for the joined
+   * actor's class. Optional only so a malformed/absent map fails closed (keys cast nothing). */
+  | { v: number; type: "joined"; actorId: number; role: PartyRole; classId: string; roomId: string; slotAbilities?: SlotAbilities }
   | { v: number; type: "error"; reason: string }
   | { v: number; type: "snapshot"; snapshot: ServerSnapshot }
   | { v: number; type: "event"; events: unknown[] }

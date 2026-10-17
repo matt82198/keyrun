@@ -31,9 +31,15 @@ worker host for a thin network client with minimal shape changes.
   validation (`parseClientMessage`).
 - `snapshot.ts` — `ActorSnapshot`/`TelegraphSnapshot`/`Snapshot` (mirrors `client/src/sim-host/
   snapshot.ts`'s field names) plus `buildSnapshot(run)`, extended with a `stateHash` field (server-
-  only addition — the wire-determinism proof; client has no equivalent need for it).
-- `telegraph.ts` — `toBotTelegraph`/`toTelegraphSnapshot`, mirrors `client/src/sim-host/
-  telegraph-map.ts`.
+  only addition — the wire-determinism proof; client has no equivalent need for it). D10 net
+  parity: `ActorCast.kickable` and the one-shot `events` channel are built by IMPORTING the client
+  host's pure `snapshot-codec.ts` `toCast`/`interruptEvents` — one rule, never a server copy.
+- `telegraph.ts` — `toTelegraphSnapshot` is `client/src/sim-host/telegraph-map.ts`'s own (imported:
+  `telegraphClass` + class-derived `danger` on the wire); `toBotTelegraph` keeps `danger: true`.
+- `joined` (main.ts) carries `slotAbilities` from `client/src/input/slot-abilities.ts`'s
+  `resolveSlotAbilities` — the same single authority the local worker host uses.
+- Shared pure client modules (`snapshot-codec.ts`, `telegraph-map.ts`, `slot-abilities.ts`) are the
+  only client imports allowed here; they must stay DOM-free.
 - `content-setup.ts` — loads content once, builds `RunContent` + the expanded `DungeonDef` (Hollow
   Vault + its boss pull). **Deviation**: no `sim/encounter/tempo.ts` key-level scaling yet (the
   client's `content-dungeon.ts` applies it) — every key level runs Hollow Vault's base numbers. A
