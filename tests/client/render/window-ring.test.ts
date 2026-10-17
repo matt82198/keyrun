@@ -5,7 +5,9 @@
  * against a minimal recording fake of "three" (three ships from cdnjs, not node_modules). Assertions
  * are on what the pool actually built and put in the scene: one ring per enemy carrying an open
  * Window (snapshot ActorSnapshot.window), its arc length = remaining fraction, its colour shifting as
- * the Window closes, and its removal on close and on a landed kick drained from the event latch.
+ * the Window closes, and its removal ONLY when the snapshot Window closes (null, or tick >= endsTick).
+ * A kick does not close a Window in the sim (only a Payoff does, design/BIBLE.md §4 and
+ * sim/combat/payoff.ts), so a kick landing during the Window must leave the ring up.
  */
 import { describe, expect, it, vi } from "vitest";
 
@@ -84,17 +86,17 @@ const kick = (actorId: number, tick: number): SnapshotEvent => ({ type: "interru
 const rings = (scene: THREE.Scene) => (scene as unknown as { children: FakeMesh[] }).children.filter((c) => c.geometry && "thetaLength" in c.geometry);
 
 describe("windowRingModel", () => {
-  it("is hidden with no Window, after it closes, and after a kick landed during it", () => {
-    expect(windowRingModel(null, 120, null).visible).toBe(false);
-    expect(windowRingModel(undefined, 120, null).visible).toBe(false);
-    expect(windowRingModel(WIN, 160, null).visible).toBe(false);
-    expect(windowRingModel(WIN, 130, 105).visible).toBe(false);
+  it("is hidden with no Window and once it closes (tick >= endsTick)", () => {
+    expect(windowRingModel(null, 120).visible).toBe(false);
+    expect(windowRingModel(undefined, 120).visible).toBe(false);
+    expect(windowRingModel(WIN, 160).visible).toBe(false);
+    expect(windowRingModel(WIN, 161).visible).toBe(false);
   });
 
-  it("shows the remaining fraction while open, ignoring a kick from before it opened", () => {
-    expect(windowRingModel(WIN, 100, null)).toMatchObject({ visible: true, fraction: 1 });
-    expect(windowRingModel(WIN, 130, null).fraction).toBeCloseTo(0.5);
-    expect(windowRingModel(WIN, 130, 90)).toMatchObject({ visible: true });
+  it("shows the remaining fraction while open", () => {
+    expect(windowRingModel(WIN, 100)).toMatchObject({ visible: true, fraction: 1 });
+    expect(windowRingModel(WIN, 130).fraction).toBeCloseTo(0.5);
+    expect(windowRingModel(WIN, 159)).toMatchObject({ visible: true });
   });
 
   it("shifts colour from the open colour toward the closing colour", () => {
@@ -140,13 +142,31 @@ describe("WindowRingPool", () => {
     expect(rings(scene)).toHaveLength(0);
   });
 
-  it("removes the ring on a landed kick and keeps it gone on later frames with no events", () => {
+  it("keeps the ring up when a kick lands during the open Window (a kick does not close it)", () => {
     const scene = new THREE.Scene();
     const pool = new WindowRingPool(scene);
     pool.sync(...frame([actor(102, "enemy", WIN)]), 110);
     pool.sync(...frame([actor(102, "enemy", WIN)]), 112, [kick(102, 111)]);
-    expect(rings(scene)).toHaveLength(0);
+    expect(rings(scene)).toHaveLength(1);
     pool.sync(...frame([actor(102, "enemy", WIN)]), 113);
+    expect(rings(scene)).toHaveLength(1);
+  });
+
+  it("removes the ring when a Payoff consumes the Window (snapshot window -> null mid-Window)", () => {
+    const scene = new THREE.Scene();
+    const pool = new WindowRingPool(scene);
+    pool.sync(...frame([actor(102, "enemy", WIN)]), 120);
+    expect(rings(scene)).toHaveLength(1);
+    pool.sync(...frame([actor(102, "enemy", null)]), 121);
+    expect(rings(scene)).toHaveLength(0);
+  });
+
+  it("removes the ring when the Window expires even if the snapshot still carries it", () => {
+    const scene = new THREE.Scene();
+    const pool = new WindowRingPool(scene);
+    pool.sync(...frame([actor(102, "enemy", WIN)]), 159);
+    expect(rings(scene)).toHaveLength(1);
+    pool.sync(...frame([actor(102, "enemy", WIN)]), 160);
     expect(rings(scene)).toHaveLength(0);
   });
 
@@ -159,12 +179,14 @@ describe("WindowRingPool", () => {
 });
 
 describe("ActorPool wiring", () => {
-  it("draws the Window ring from the snapshot and hides it on a kick drained into sync's events", () => {
+  it("draws the Window ring from the snapshot, keeps it through a drained kick, drops it on close", () => {
     const scene = new THREE.Scene();
     const pool = new ActorPool(scene);
     pool.sync(...frame([actor(102, "enemy", WIN)]), 110);
     expect(rings(scene)).toHaveLength(1);
     pool.sync(...frame([actor(102, "enemy", WIN)]), 112, [kick(102, 111)]);
+    expect(rings(scene)).toHaveLength(1);
+    pool.sync(...frame([actor(102, "enemy", null)]), 113);
     expect(rings(scene)).toHaveLength(0);
   });
 });

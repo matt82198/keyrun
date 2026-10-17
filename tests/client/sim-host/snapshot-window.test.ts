@@ -20,6 +20,33 @@ import type { Snapshot } from "../../../client/src/sim-host/snapshot.js";
 const HUMAN = 1;
 const LIEUTENANT = 102;
 const STRIKE_TICK = 20;
+/** First Cinder in content-party.ts's roster (warden human = 1, chanter = 2, cinders = 3..5). */
+const CINDER = 3;
+const PAYOFF_TICK = STRIKE_TICK + 15;
+
+interface PayoffPlay { frames: Snapshot[]; comboTicks: number[] }
+
+/** Same scenario, plus the Cinder casting Cold Snap (a Payoff, cinder.json) on the lieutenant
+ * mid-Window: warden "sundered" + cinder = the Shatter combo (combos.json), which removes the
+ * Window effect in sim/combat/payoff.ts's tryClosePayoff. */
+function playWithPayoff(ticks: number): PayoffPlay {
+  const setup = buildRunSetup(loadContent(), { keyLevel: 5, dungeonId: "hollow-vault", humanClassId: "warden" });
+  let run: Run = createRun(1, setup.party, setup.dungeon, setup.content, setup.runOptions);
+  const frames: Snapshot[] = [];
+  const comboTicks: number[] = [];
+  for (let i = 0; i < ticks; i++) {
+    const tick = run.state.tick;
+    const commands: Command[] = [];
+    if (tick < 14) commands.push({ tick, actorId: HUMAN, kind: "move", dir: { x: 0, z: -1000 }, yaw: 512 });
+    if (tick === STRIKE_TICK) commands.push({ tick, actorId: HUMAN, kind: "cast", abilityId: "warden.strike", targetId: LIEUTENANT });
+    if (tick === PAYOFF_TICK) commands.push({ tick, actorId: CINDER, kind: "cast", abilityId: "cinder.coldSnap", targetId: LIEUTENANT });
+    const stepped = stepRun(run, commands);
+    run = stepped.run;
+    for (const e of stepped.events) if (e.type === "combo" && "targetId" in e && e.targetId === LIEUTENANT) comboTicks.push(e.tick);
+    frames.push(buildSnapshot(run, setup, 0, null));
+  }
+  return { frames, comboTicks };
+}
 
 function play(ticks: number, strike: boolean): Snapshot[] {
   const setup = buildRunSetup(loadContent(), { keyLevel: 5, dungeonId: "hollow-vault", humanClassId: "warden" });
@@ -59,6 +86,20 @@ describe("snapshot-codec Window projection", () => {
     for (const s of during) expect(windowOf(s, LIEUTENANT)?.endsTick).toBe(w.endsTick);
     const after = frames.filter((s) => s.tick >= w.endsTick);
     expect(after.length).toBeGreaterThan(0);
+    for (const s of after) expect(windowOf(s, LIEUTENANT)).toBeNull();
+  });
+
+  it("drops the Window to null the tick a Payoff consumes it, well before it would expire", () => {
+    const { frames: pf, comboTicks } = playWithPayoff(STRIKE_TICK + 80);
+    const w = windowOf(opened!, LIEUTENANT)!;
+    expect(comboTicks).toHaveLength(1);
+    const comboTick = comboTicks[0]!;
+    expect(comboTick).toBeLessThan(w.endsTick);
+    const before = pf.filter((s) => s.tick >= opened!.tick && s.tick <= comboTick);
+    expect(before.length).toBeGreaterThan(0);
+    for (const s of before) expect(windowOf(s, LIEUTENANT)?.endsTick).toBe(w.endsTick);
+    const after = pf.filter((s) => s.tick > comboTick);
+    expect(after.some((s) => s.tick < w.endsTick)).toBe(true);
     for (const s of after) expect(windowOf(s, LIEUTENANT)).toBeNull();
   });
 
