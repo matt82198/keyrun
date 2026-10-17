@@ -35,7 +35,8 @@ import type { EffectDef } from "./effects";
 import { startCast, completeCast, stopcast, type CastContext } from "./casting";
 import { applyMovement, resolveCollision, clampToBounds, DASH_DISTANCE_MM, type Bounds } from "./movement";
 import { expireEffects, duePeriodicInstances, advancePeriodic, aggregateModifiers } from "./effects";
-import { applyDamage, applyHeal } from "./damage";
+import { applyHeal } from "./damage";
+import { dealDamage } from "./mitigation";
 import { addThreat } from "./threat";
 import type { ComboTable } from "./combos";
 import {
@@ -157,7 +158,9 @@ function runPeriodicOp(
   emit: (e: SimEvent) => void,
 ): void {
   if (op.op === "damage") {
-    applyDamage(state, target, op.amount, 0, 0, effectDefs, emit, sourceId);
+    // DoT ticks pick up the carrier's damageTakenBp and (if the source still exists) its
+    // damageDoneBp -- the same aggregateModifiers totals movement reads above. See mitigation.ts.
+    dealDamage(state, state.actors[sourceId], target, op.amount, effectDefs, emit, sourceId);
   } else if (op.op === "heal") {
     applyHeal(state, target, op.amount, sourceId, emit);
   } else if (op.op === "resource") {
