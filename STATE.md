@@ -8,9 +8,9 @@ class max, 10 total keybinds should be plenty for rotation, movement, utility...
 assets; pure POC.
 
 ## Current state (checkpoint 2026-10-17 23:30Z)
-- Main tip: 00e4ebb (PR #98 squash, bound via gh pr view 2026-10-17: MERGED, mergeCommit 00e4ebb0d10d4bfa4c8f04e634d21f530624cbfa).
+- Main tip: 54e69c5 (PR #99 squash, bound via pr_merged_check 2026-10-17: MERGED 54e69c5 on main@54e69c5; full 54e69c547a014744fc173af622a9bbda2a065298). Prior main tip 00e4ebb (PR #98).
 - Phase: 3 closing into 3D MVP (D10). Phase 5 "Matt playing" is the acceptance test; not yet reached.
-- Landed since 5b63ca2: #92 HUD pull readout (e3f622e), #95 bots mitigation docs (e56955c), #97 checkpoint re-land (08b9611), #98 first-run readability (00e4ebb).
+- Landed since 5b63ca2: #92 HUD pull readout (e3f622e), #95 bots mitigation docs (e56955c), #97 checkpoint re-land (08b9611), #98 first-run readability (00e4ebb), #99 telegraph facing fix (54e69c5).
 - Test suite on main: 973 tests (per #98 lane), e2e 13/13.
 - In flight (not on main): feat/window-ping-castbar-readability, fix/sim-telegraph-facing, feat/status-chips-downed-net-casts (see NEXT STEPS).
 
