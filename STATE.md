@@ -10,7 +10,7 @@ assets; pure POC.
 ## Current state (checkpoint 2026-10-17 23:55Z)
 - Main tip: 2c8f8ea (#102 squash, tank banks GCD in a lull so it survives pull 1). Prior main tips: 54e69c5 (#99), 00e4ebb (#98).
 - Merged today since the 23:30Z checkpoint: #101 99836b0 (window ring labels + payoff-ready key glow + ping context + aimed spot ping); #102 2c8f8ea (bots/src/roles/shared.ts inLull, tank-pressure.ts).
-- In flight (not on main): #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info). Sync + merge in progress.
+- MERGED 99f39a2: #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info).
 - Phase: 3 closing into 3D MVP (D10). Phase 5 "Matt playing" is the acceptance test; not yet reached.
 - Earlier landed (unchanged): #92 e3f622e, #95 e56955c, #97 08b9611, #98 00e4ebb, #99 54e69c5.
 - Test count on 2c8f8ea: not restated in this checkpoint (not sourced for this head).

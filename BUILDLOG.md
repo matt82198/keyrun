@@ -49,3 +49,4 @@
 - 2026-10-17 23:50Z MERGED #102 2c8f8ea: tank banks GCD in a lull so it survives pull 1 (bots/src/roles/shared.ts inLull, tank-pressure.ts). Main tip now 2c8f8ea.
 - 2026-10-17 23:50Z OPENED #103 feat/status-chips-downed-net-casts (head sha not yet bound): status chips STUNNED/TAUNTED/BRACED, DOWNED tag, dash trail, telegraph opacity 0.15->0.4, net self-target fix, server cast/cast_failed/gcd events. Sync + merge in progress.
 - 2026-10-17 23:55Z CHECKPOINT docs/checkpoint-2026-10-17-2355: STATE.md current state, DECISIONS FOR MATT (7 items), NEXT after #103 (SPREAD/STACK labels, Slack delta, gap list). Main 2c8f8ea.
+- 2026-10-17T23:58Z #103 feat/status-chips-downed-net-casts MERGED 99f39a2 (squash of head d49130a); #102 MERGED 2c8f8ea confirmed via pr_merged_check. Worktree removal follows in checkpoint-follow-up step 6.
