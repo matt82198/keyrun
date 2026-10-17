@@ -95,5 +95,8 @@ Ranked. Every rung must be playable and judged in the 3D client; Phase 5 "Matt p
 5. L10 keybinds.json 11 -> 10 per D4 [DECIDE Matt, see defect (j)].
 6. Review follow-ups (a)-(k) above, in refinesystem order.
 Matt decisions parked: enable repo auto-merge?; combo effects and numbers; licence MIT (#65) unless Matt objects.
+   (a) sim/combat/payoff.ts:117 applies field combos to the payoff actor, so cinderfield-field's 80 fire damage hits the actor paying it off (pinned by tests/sim/combat/windows.test.ts:210); needs a content/ design decision.
+   (b) Repo setting "Require branches to be up to date before merging" or a merge queue (POST-MORTEM in PR #96: #94 was tested against a base main had already moved past).
+   Play-feel note: tank lowest HP in pull 1 at skill 100 is 22 (thin margin, play-feel call).
 Phase 5 remains "Matt playing".
 Standing rule: every audit and integration test reproduces through the public path (createRun/stepRun, the bot loop, the server room over ws, the client worker host); a mechanic that is not wired into the composition root in the same PR is a P0, not a note.
