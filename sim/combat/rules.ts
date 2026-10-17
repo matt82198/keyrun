@@ -62,17 +62,12 @@ export interface RulesConfig {
 }
 
 export function makeRules(cfg: RulesConfig): StepRules {
-  // Faction-filter fix (targeting.ts's resolveTargets, sim/combat/affinity.ts): resolveTargets is
-  // called from casting.ts and windows.ts with no effects map in scope, and SimState carries none
-  // either (content is passed in, never stored in state -- sim/CLAUDE.md). This registers the
-  // run's effect definitions once so resolveTargets can classify a circle/cone/line ability whose
-  // only per-actor op is "applyEffect" (Bulwark/Hymn's floor buffs) without duplicating
-  // effects-remove.ts's effectPolarity. See affinity.ts's file docstring for the full rationale.
-  // Registered on EVERY invocation of the returned closure, not once at makeRules-build time: a
-  // caller holding this StepRules across another run's makeRules call (bots/tests driving
-  // makeRules + core step, two runs interleaved) would otherwise resolve targets against the
-  // OTHER run's effect table (fix/makerules-closure-affinity,
-  // tests/sim/combat/rules-affinity-per-run.test.ts).
+  // The affinity registry (sim/combat/affinity.ts) is module-level and process-global between calls.
+  // configureAffinityEffects(cfg.effects) runs at the top of EVERY invocation of the returned closure,
+  // not once at makeRules-build time, so the registry is re-pointed to this run's effects before each
+  // step resolves targets. Held closures from different runs are therefore safe to step interleaved.
+  // resolveTargets has no effects map in scope and SimState carries none (sim/CLAUDE.md). See
+  // affinity.ts's file docstring for the full contract (tests/sim/combat/rules-affinity-per-run.test.ts).
   const ctx: CastContext = { abilities: cfg.abilities, effects: cfg.effects, lockoutTicks: cfg.lockoutTicks };
 
   return (state: SimState, commands: Command[], emit: (e: SimEvent) => void) => {
