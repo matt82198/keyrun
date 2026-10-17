@@ -45,7 +45,8 @@ describe("stepEncounter", () => {
       tick: 100,
       seed: 1,
       prng: [1, 2, 3, 4],
-      actors: { 1: actor(1, "enemy", { x: 0, y: 0, z: 0 }), 2: actor(2, "player", { x: 0, y: 0, z: 3000 }) },
+      // Boss yaw 0 faces +x (sim/combat/targeting.ts faceDir); the player stands directly in front.
+      actors: { 1: actor(1, "enemy", { x: 0, y: 0, z: 0 }), 2: actor(2, "player", { x: 3000, y: 0, z: 0 }) },
       runTimerTicks: 100,
       phase: "combat",
       log: [],

@@ -4,8 +4,8 @@
  * D10 projections must cover exactly what the sim resolves. render/ground-frame.ts maps decal-local
  * points to the ground the way three.js does (flatten, then yaw under Euler "YXZ"); these tests
  * push points from INSIDE and OUTSIDE each drawn shape through that mapping and ask the SIM's own
- * resolvers whether they hit: sim/encounter/telegraphs.ts (telegraph facing, yaw 0 = +z) and
- * sim/combat/targeting.ts (combat facing, yaw 0 = +x). Also drives the real TelegraphPool to prove it
+ * resolvers whether they hit: sim/encounter/telegraphs.ts and sim/combat/targeting.ts, which share
+ * ONE facing convention (faceDir, yaw 0 = +x). Also drives the real TelegraphPool to prove it
  * applies that frame (order "YXZ", the telegraph yaw) and lays a line decal flat (no BoxGeometry wall).
  */
 import { describe, expect, it, vi } from "vitest";

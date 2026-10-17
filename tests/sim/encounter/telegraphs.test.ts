@@ -55,37 +55,38 @@ describe("integer geometry", () => {
     expect(pointInCircle(ORIGIN, 5000, { x: 3000, y: 0, z: 4001 })).toBe(false);
   });
 
-  it("point-in-cone: directly in front of yaw 0 (facing +z) is true, directly behind is false", () => {
-    const front = { x: 0, y: 0, z: 3000 };
-    const behind = { x: 0, y: 0, z: -3000 };
+  // Facing convention = sim/combat/targeting.ts faceDir: yaw 0 faces +x, yaw 256 faces +z.
+  it("point-in-cone: directly in front of yaw 0 (facing +x) is true, directly behind is false", () => {
+    const front = { x: 3000, y: 0, z: 0 };
+    const behind = { x: -3000, y: 0, z: 0 };
     expect(pointInCone(ORIGIN, 0, 200, 6000, front)).toBe(true);
     expect(pointInCone(ORIGIN, 0, 200, 6000, behind)).toBe(false);
   });
 
-  it("point-in-cone: respects the facing yaw, not just world +z", () => {
-    // yaw 256 faces +x; a point on +x is in front, a point on +z (was "front" at yaw 0) is now to the side/out.
-    const onPlusX = { x: 3000, y: 0, z: 0 };
+  it("point-in-cone: respects the facing yaw, not just world +x", () => {
+    // yaw 256 faces +z; a point on +z is in front, a point on +x (was "front" at yaw 0) is now to the side/out.
     const onPlusZ = { x: 0, y: 0, z: 3000 };
-    expect(pointInCone(ORIGIN, 256, 200, 6000, onPlusX)).toBe(true);
-    expect(pointInCone(ORIGIN, 256, 40, 6000, onPlusZ)).toBe(false); // narrow cone, 90deg off yaw
+    const onPlusX = { x: 3000, y: 0, z: 0 };
+    expect(pointInCone(ORIGIN, 256, 200, 6000, onPlusZ)).toBe(true);
+    expect(pointInCone(ORIGIN, 256, 40, 6000, onPlusX)).toBe(false); // narrow cone, 90deg off yaw
   });
 
   it("point-in-cone: outside the radius is never a hit even if angularly centered", () => {
-    expect(pointInCone(ORIGIN, 0, 200, 2000, { x: 0, y: 0, z: 3000 })).toBe(false);
+    expect(pointInCone(ORIGIN, 0, 200, 2000, { x: 3000, y: 0, z: 0 })).toBe(false);
   });
 
   it("point-in-line: width math includes points within half-width, excludes beyond it", () => {
-    const withinWidth = { x: 400, y: 0, z: 2500 }; // width 1000 -> half-width 500
-    const beyondWidth = { x: 600, y: 0, z: 2500 };
-    const onAxis = { x: 0, y: 0, z: 2500 };
+    const withinWidth = { x: 2500, y: 0, z: 400 }; // width 1000 -> half-width 500
+    const beyondWidth = { x: 2500, y: 0, z: 600 };
+    const onAxis = { x: 2500, y: 0, z: 0 };
     expect(pointInLine(ORIGIN, 0, 5000, 1000, onAxis)).toBe(true);
     expect(pointInLine(ORIGIN, 0, 5000, 1000, withinWidth)).toBe(true);
     expect(pointInLine(ORIGIN, 0, 5000, 1000, beyondWidth)).toBe(false);
   });
 
   it("point-in-line: beyond the length or behind the origin is excluded", () => {
-    expect(pointInLine(ORIGIN, 0, 5000, 1000, { x: 0, y: 0, z: 5001 })).toBe(false);
-    expect(pointInLine(ORIGIN, 0, 5000, 1000, { x: 0, y: 0, z: -100 })).toBe(false);
+    expect(pointInLine(ORIGIN, 0, 5000, 1000, { x: 5001, y: 0, z: 0 })).toBe(false);
+    expect(pointInLine(ORIGIN, 0, 5000, 1000, { x: -100, y: 0, z: 0 })).toBe(false);
   });
 });
 
@@ -107,8 +108,8 @@ describe("resolveTelegraphs", () => {
       seed: 1,
       prng: [1, 2, 3, 4],
       actors: {
-        2: playerActor(2, { x: 0, y: 0, z: 3000 }), // in front: hit
-        3: playerActor(3, { x: 0, y: 0, z: -3000 }), // behind: not hit
+        2: playerActor(2, { x: 3000, y: 0, z: 0 }), // in front (yaw 0 = +x): hit
+        3: playerActor(3, { x: -3000, y: 0, z: 0 }), // behind: not hit
         99: playerActor(99, ORIGIN), // the source itself, never hit
       },
       runTimerTicks: 10,
