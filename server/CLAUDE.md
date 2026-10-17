@@ -35,7 +35,7 @@ worker host for a thin network client with minimal shape changes.
   parity: `ActorCast.kickable` and the one-shot `events` channel are built by IMPORTING the client
   host's pure `snapshot-codec.ts` `toCast`/`interruptEvents` — one rule, never a server copy.
 - `telegraph.ts` — `toTelegraphSnapshot` is `client/src/sim-host/telegraph-map.ts`'s own (imported:
-  `telegraphClass` + class-derived `danger` on the wire); `toBotTelegraph` keeps `danger: true`.
+  `telegraphClass` + class-derived `danger` on the wire); `toBotTelegraph` is too (same class-derived `danger`).
 - `joined` (main.ts) carries `slotAbilities` from `client/src/input/slot-abilities.ts`'s
   `resolveSlotAbilities` — the same single authority the local worker host uses.
 - Shared pure client modules (`snapshot-codec.ts`, `telegraph-map.ts`, `slot-abilities.ts`) are the
@@ -67,3 +67,4 @@ human re-queuing for that role reattaches), late-command re-stamping, malformed-
 and the wire-determinism replay (`hashState` from a local `createRun`/`stepRun` run against the exact
 command stream the test sent, compared to the server's reported `stateHash`).
 - D10 Window net parity: `ActorSnapshot.window` is snapshot-codec.ts's `toWindow` (imported, never copied); `tests/server/snapshot-window.test.ts` proves per-tick parity with the client host and the ws open-then-null lifecycle.
+- Bots (STATE (f)/(g)): server bots read the client host's class-derived telegraph `danger` (stack circles are not fled; `tests/server/bot-telegraph-danger.test.ts`) and real content class kits via `loadServerRegistry`'s `setContentRegistry` (room.ts's `EMPTY_CLASS_KIT` is only the unknown-class fallback, same as the client; `tests/server/bot-class-kits.test.ts` proves bots cast over ws).
