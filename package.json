@@ -6,6 +6,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "node --test \"tests/client/e2e/*.e2e.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs --watch --serve",

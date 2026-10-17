@@ -85,6 +85,12 @@
         text-align: center;
         pointer-events: auto;
       }
+      /* RunEndView (src/hud/run-end.ts) shows/hides via the `hidden` attribute; the author
+         `display: flex` above outranks the UA `[hidden] { display: none }`, so restate it here or
+         the overlay dims the scene and eats every pointer event for the whole run. */
+      .run-end-root[hidden] {
+        display: none;
+      }
       .run-end-title {
         font-size: 32px;
         font-weight: 700;
