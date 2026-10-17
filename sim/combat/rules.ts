@@ -68,10 +68,15 @@ export function makeRules(cfg: RulesConfig): StepRules {
   // run's effect definitions once so resolveTargets can classify a circle/cone/line ability whose
   // only per-actor op is "applyEffect" (Bulwark/Hymn's floor buffs) without duplicating
   // effects-remove.ts's effectPolarity. See affinity.ts's file docstring for the full rationale.
-  configureAffinityEffects(cfg.effects);
+  // Registered on EVERY invocation of the returned closure, not once at makeRules-build time: a
+  // caller holding this StepRules across another run's makeRules call (bots/tests driving
+  // makeRules + core step, two runs interleaved) would otherwise resolve targets against the
+  // OTHER run's effect table (fix/makerules-closure-affinity,
+  // tests/sim/combat/rules-affinity-per-run.test.ts).
   const ctx: CastContext = { abilities: cfg.abilities, effects: cfg.effects, lockoutTicks: cfg.lockoutTicks };
 
   return (state: SimState, commands: Command[], emit: (e: SimEvent) => void) => {
+    configureAffinityEffects(cfg.effects);
     // Built fresh from `state` every call (not hoisted above, once per makeRules call): floor.patches
     // is the SAME object as state.floorWindows, so mutations below persist on `state` itself and
     // survive both cloneState and stepRun rebuilding makeRules every tick (see this file's and
