@@ -47,6 +47,18 @@ export interface InterruptSnapshotEvent {
 
 export type SnapshotEvent = InterruptSnapshotEvent;
 
+/** The open Window (design/BIBLE.md §4) an actor carries, projected from its "window:"/"lockwindow:"
+ * effect by snapshot-codec.ts's toWindow. Open while `tick < endsTick`; opened at
+ * `endsTick - durationTicks`. render/window-ring.ts draws it. */
+export interface ActorWindow {
+  windowId: string;
+  setupClass: string;
+  endsTick: number;
+  durationTicks: number;
+  /** The Lock (§9): an `alternate` Window. */
+  lock: boolean;
+}
+
 /** Upper bound on Snapshot.events per snapshot (the channel is bounded; overflow is dropped). */
 export const MAX_SNAPSHOT_EVENTS = 16;
 
@@ -65,6 +77,9 @@ export interface ActorSnapshot {
   targetId: number | null;
   cast: ActorCast | null;
   cooldowns: Record<string, number>;
+  /** The latest-ending open Window on this actor, or null. Optional: the ?net=1 server snapshot
+   * (server/src/snapshot.ts) does not project it yet, and older literals predate it. */
+  window?: ActorWindow | null;
 }
 
 export type TelegraphShape = "circle" | "cone" | "line";

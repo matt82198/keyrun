@@ -31,3 +31,7 @@ canvas (jsdom + WebGL mock) and by a manual screenshot before merge.
   the latest STATE but latches every snapshot's one-shot `events` in `render/event-latch.ts` (arrival order,
   bounded at `MAX_LATCHED_EVENTS`, oldest dropped) and drains them exactly once into the next frame's
   `ActorPool.sync`. Never read `nextSnapshot.events` directly (tests/client/hud-wiring-event-latch.test.ts).
+- Window ring contract: `render/window-ring.ts` draws a floor ring around each live enemy whose snapshot
+  `ActorSnapshot.window` (projected by `sim-host/snapshot-codec.ts`'s `toWindow`) is open; arc = remaining
+  fraction, colour green -> amber -> red as it closes; removed on close or on a kick drained into
+  `ActorPool.sync` events. Snapshot state only, called once from `ActorPool.sync` (tests/client/render/window-ring.test.ts).

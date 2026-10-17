@@ -9,10 +9,47 @@
 import type { ActorState, Tick } from "../../../sim/core/state.js";
 import type { Run } from "../../../sim/index.js";
 import type { RunEndInfo } from "./snapshot.js";
-import type { ActorCast, ActorSnapshot, Snapshot, SnapshotEvent } from "./snapshot.js";
+import type { ActorCast, ActorSnapshot, ActorWindow, Snapshot, SnapshotEvent } from "./snapshot.js";
 import { MAX_SNAPSHOT_EVENTS } from "./snapshot.js";
 import type { RunSetup } from "./run-setup.js";
 import { toTelegraphSnapshot } from "./telegraph-map.js";
+import { isWindowEffectId, parseWindowEffectId } from "../../../sim/combat/window-state.js";
+
+type Abilities = Run["content"]["abilities"];
+const windowDurations = new WeakMap<Abilities, Map<string, number>>();
+
+/** windowId -> durationTicks from every "window" op anywhere in the content's ability defs (incl.
+ * nested variants), cached per content object. The Window effect itself only stores endsTick. */
+function durationsFor(abilities: Abilities): Map<string, number> {
+  let out = windowDurations.get(abilities);
+  if (out) return out;
+  const found = new Map<string, number>();
+  const visit = (v: unknown): void => {
+    if (Array.isArray(v)) return v.forEach(visit);
+    if (!v || typeof v !== "object") return;
+    const o = v as Record<string, unknown>;
+    if (o.op === "window" && typeof o.windowId === "string" && typeof o.durationTicks === "number") {
+      found.set(o.windowId, Math.max(found.get(o.windowId) ?? 0, o.durationTicks));
+    }
+    Object.values(o).forEach(visit);
+  };
+  visit(Object.values(abilities));
+  windowDurations.set(abilities, (out = found));
+  return out;
+}
+
+/** The actor's latest-ending open Window (sim/combat/window-state.ts's findOpenWindow rule:
+ * endsTick > tick), or null. Read-only projection of SimState; no sim rule changes. */
+export function toWindow(actor: ActorState, tick: Tick, abilities: Abilities): ActorWindow | null {
+  let best: ActorState["effects"][number] | null = null;
+  for (const e of actor.effects) {
+    if (isWindowEffectId(e.effectId) && e.endsTick > tick && (!best || e.endsTick > best.endsTick)) best = e;
+  }
+  const parsed = best ? parseWindowEffectId(best.effectId) : null;
+  if (!best || !parsed) return null;
+  const durationTicks = Math.max(durationsFor(abilities).get(parsed.windowId) ?? 0, best.endsTick - tick, 1);
+  return { windowId: parsed.windowId, setupClass: parsed.setupClass, endsTick: best.endsTick, durationTicks, lock: parsed.alternate };
+}
 
 function remainingCooldowns(actor: ActorState, tick: Tick): Record<string, number> {
   const out: Record<string, number> = {};
@@ -69,6 +106,7 @@ function toActorSnapshot(actor: ActorState, tick: Tick, abilities: Run["content"
     targetId: actor.targetId,
     cast: toCast(actor, abilities),
     cooldowns: remainingCooldowns(actor, tick),
+    window: toWindow(actor, tick, abilities),
   };
 }
 
