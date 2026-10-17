@@ -55,7 +55,7 @@ vi.mock("../../../client/src/render/canvasSprite.js", () => ({
   createCanvasSprite: () => ({
     canvas: { width: 128, height: 16 },
     ctx: { clearRect: () => undefined, fillRect: () => undefined, fillText: () => undefined, strokeText: () => undefined, fillStyle: "" },
-    sprite: { position: { set: () => undefined }, visible: true },
+    sprite: { position: { set: () => undefined }, visible: true, material: { map: { dispose: () => undefined }, dispose: () => undefined } },
     sync: () => undefined,
   }),
 }));
