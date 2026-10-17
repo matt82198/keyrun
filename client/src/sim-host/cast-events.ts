@@ -15,6 +15,14 @@ import type { SimEvent } from "../../../sim/core/events.js";
 import type { Run } from "../../../sim/index.js";
 import type { CastSnapshotEvent } from "./snapshot.js";
 
+/** Item 5: a threat op multiplying by at least this much (5x) is a taunt (warden.taunt: 1000x;
+ * Guard Break / Reckoning's 1.5x / 2x riders are not). */
+export const TAUNT_MIN_MULTIPLIER_BP = 50000;
+
+function isTaunt(def: Run["content"]["abilities"][string]): boolean {
+  return def.effects.some((op) => op.op === "threat" && (op.multiplierBp ?? 0) >= TAUNT_MIN_MULTIPLIER_BP);
+}
+
 function idOf(v: unknown): number | null {
   return typeof v === "number" ? v : null;
 }
@@ -56,6 +64,7 @@ export function castEvents(run: Run, simEvents: readonly SimEvent[] | undefined,
       ...(shape.length !== undefined ? { length: shape.length } : {}),
       targetId: caster.targetId,
       hitIds,
+      ...(isTaunt(def) ? { taunt: true } : {}),
     });
     if (out.length >= room) break;
   }

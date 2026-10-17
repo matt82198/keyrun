@@ -68,7 +68,7 @@ describe("mapping: toClientSnapshot", () => {
     const out = toClientSnapshot(s);
     expect(out).toEqual({
       tick: 10,
-      actors: [{ id: 1, kind: "player", role: "tank", classId: "warden", pos: { x: 0, y: 0, z: 0 }, yaw: 0, health: 100, maxHealth: 100, resource: 0, maxResource: 100, alive: true, targetId: null, cast: null, cooldowns: {}, window: null }],
+      actors: [{ id: 1, kind: "player", role: "tank", classId: "warden", pos: { x: 0, y: 0, z: 0 }, yaw: 0, health: 100, maxHealth: 100, resource: 0, maxResource: 100, alive: true, targetId: null, cast: null, cooldowns: {}, gcdRemainingTicks: 0, window: null, effects: [] }],
       telegraphs: [],
       runTimerTicks: 10,
       timerLimitTicks: 1000,
@@ -132,9 +132,12 @@ describe("mapping: translateHostCommand", () => {
     expect(out).toEqual({ tick: 3, kind: "move", dir: { x: 180, z: 0 }, yaw: 0 });
   });
 
-  it("cast -> targets the current target, or self.selfId when nothing is targeted", () => {
-    expect(translateHostCommand({ type: "cast", abilityId: "smite", tick: 4 }, ctx)).toEqual({ tick: 4, kind: "cast", abilityId: "smite", targetId: 5 });
-    expect(translateHostCommand({ type: "cast", abilityId: "heal", tick: 4 }, { ...ctx, targetId: null })).toEqual({ tick: 4, kind: "cast", abilityId: "heal", targetId: 1 });
+  // Deferred-from-#98 (a): the old `targetId ?? selfId` self-targeted a fresh Strike on ?net=1. The
+  // client now sends no target; the server applies the local host's castTargetFor
+  // (tests/server/snapshot-net-readability.test.ts proves the Strike lands on the nearest enemy).
+  it("cast -> carries no targetId, targeted or not (the server resolves it like the local host)", () => {
+    expect(translateHostCommand({ type: "cast", abilityId: "smite", tick: 4 }, ctx)).toEqual({ tick: 4, kind: "cast", abilityId: "smite" });
+    expect(translateHostCommand({ type: "cast", abilityId: "heal", tick: 4 }, { ...ctx, targetId: null })).toEqual({ tick: 4, kind: "cast", abilityId: "heal" });
   });
 
   it("targetCycle -> a target command with the next alive enemy id", () => {

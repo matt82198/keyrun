@@ -39,8 +39,8 @@ export interface SimHostReady {
    * reports it; net/net-client.ts reports the map the server sends on `joined` (same resolver). If it
    * is absent or malformed, ability keys cast nothing (fail closed) -- never a fallback. */
   slotAbilities?: SlotAbilities;
-  /** D10 names/timings (display-info.ts); the local worker reports it, ?net=1 does not (labels then
-   * fall back to humanized ids). Display only. */
+  /** D10 names/timings (display-info.ts); the local worker reports it; ?net=1 gets it on `joined` (absent from an
+   * older server: labels fall back to humanized ids). Display only. */
   display?: DisplayInfo;
 }
 

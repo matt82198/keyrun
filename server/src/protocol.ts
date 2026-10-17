@@ -35,6 +35,7 @@ import type { RunResult } from "../../sim/encounter/timer";
 import type { Item as RewardItem } from "../../sim/encounter/rewards";
 import type { GearSlotId, Item } from "../../content/schema/facet";
 import type { SlotAbilities } from "../../client/src/input/slot-abilities.js";
+import type { DisplayInfo } from "../../client/src/sim-host/display-info.js";
 
 export const PROTOCOL_VERSION = 3;
 
@@ -147,8 +148,9 @@ export type ServerMessage =
   | { v: number; type: "queued"; role: PartyRole }
   /** `slotAbilities` (D10 net parity): the joined actor's keybind slot -> ability id map, from
    * client/src/input/slot-abilities.ts's resolveSlotAbilities (the one authority both hosts use);
-   * without it the net client's ability keys cast nothing (fail closed). */
-  | { v: number; type: "joined"; actorId: number; role: PartyRole; classId: string; roomId: string; slotAbilities: SlotAbilities }
+   * without it the net client's ability keys cast nothing (fail closed). `display`: the local worker's
+   * own buildDisplayInfo names/timings (additive, optional on the client -- no version bump). */
+  | { v: number; type: "joined"; actorId: number; role: PartyRole; classId: string; roomId: string; slotAbilities: SlotAbilities; display: DisplayInfo }
   | { v: number; type: "error"; reason: string }
   | { v: number; type: "snapshot"; snapshot: Snapshot }
   | { v: number; type: "event"; events: SimEvent[] }

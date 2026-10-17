@@ -8,7 +8,9 @@
  * on the target, self = a ring around the caster. Colour = who cast it (YOU cyan, bots their role
  * colour, enemies red, boss purple). The human's and every enemy's cast also floats its ability
  * NAME over the caster, so "what is that enemy doing" is readable. Hit flashes on struck actors are
- * render/actors.ts's job (same events).
+ * render/actors.ts's job (same events). Charge (warden.charge) is a "line" cast, so its strip IS the
+ * Charge line. Item 13: a Space dash (render/dash-trail.ts, from snapshot positions) leaves a short
+ * "dash" strip from take-off to landing in the dasher's colour.
  *
  * Geometry uses render/ground-frame.ts's frame: meshes flattened inside a Group turned by the sim's
  * combat facing (sim/combat/targeting.ts faceDir, yaw 0 = +x).
@@ -21,6 +23,7 @@ import { abilityName, type DisplayInfo } from "../sim-host/display-info.js";
 import { colorForActor } from "./roleColor.js";
 import { createCanvasSprite } from "./canvasSprite.js";
 import { combatYawToThree } from "./ground-frame.js";
+import { dashGeometry, dashYaw, detectDashes, DASH_TRAIL_SECONDS } from "./dash-trail.js";
 
 export const FX_SECONDS = 0.7;
 const LABEL_SECONDS = 1.2;
@@ -79,6 +82,7 @@ export class CastFxPool {
   private active: Fx[] = [];
   private spawned = 0;
   private selfShapes: string[] = [];
+  private readonly lastPos = new Map<number, { x: number; z: number }>();
   private humanActorId: number | null = null;
   private display: DisplayInfo | undefined;
 
@@ -113,26 +117,32 @@ export class CastFxPool {
     return colorForActor(caster.kind, caster.role, caster.classId);
   }
 
+  /** One fading ground decal group at `origin` (mm), turned by `yaw`. */
+  private ground(origin: { x: number; z: number }, yaw: number, geos: THREE.BufferGeometry[], color: number, shape: string, life: number): void {
+    const group = new THREE.Group();
+    group.position.set(origin.x / MM_PER_M, 0, origin.z / MM_PER_M);
+    group.rotation.y = yaw;
+    const materials: THREE.Material[] = [];
+    for (const g of geos) {
+      const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+      materials.push(m);
+      group.add(flat(g, m));
+    }
+    this.scene.add(group);
+    this.active.push({ root: group, materials, age: 0, life, peak: 0.55, shape, rise: false });
+  }
+
   spawn(events: readonly SnapshotEvent[] | undefined, rawById: Map<number, ActorSnapshot>, posOf: PosOf): void {
+    for (const d of detectDashes(this.lastPos, rawById)) this.ground(d.from, dashYaw(d), [dashGeometry(d)], this.colorFor(rawById.get(d.id)), "dash", DASH_TRAIL_SECONDS);
     for (const e of events ?? []) {
       if (e.type !== "cast") continue;
       const caster = rawById.get(e.actorId);
       const color = this.colorFor(caster);
       const { geos, yaw } = shapeGeometries(e, posOf);
       if (geos.length > 0) {
-        const group = new THREE.Group();
-        group.position.set(e.origin.x / MM_PER_M, 0, e.origin.z / MM_PER_M);
-        group.rotation.y = yaw;
-        const materials: THREE.Material[] = [];
-        for (const g of geos) {
-          const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
-          materials.push(m);
-          group.add(flat(g, m));
-        }
-        this.scene.add(group);
+        this.ground(e.origin, yaw, geos, color, e.shape, FX_SECONDS);
         this.spawned += 1;
         if (e.actorId === this.humanActorId) this.selfShapes = [...this.selfShapes.slice(-19), e.shape];
-        this.active.push({ root: group, materials, age: 0, life: FX_SECONDS, peak: 0.55, shape: e.shape, rise: false });
       }
       if (caster && (caster.id === this.humanActorId || caster.kind === "enemy")) this.label(e, caster, color);
     }

@@ -27,7 +27,7 @@
  *
  * Usage: `const room = new Room("room-1", serverContent, onEnd); room.attachHuman(1, ws); room.start();`
  */
-import { createRun, stepRun, type Run } from "../../sim/index";
+import { createRun, type Run } from "../../sim/index";
 import type { Command } from "../../sim/core/commands";
 import type { ActorId } from "../../sim/core/state";
 import type { SimEvent } from "../../sim/core/events";
@@ -39,6 +39,7 @@ import { buildBotView } from "../../bots/src/view.js";
 import { seedPrng, type PrngState } from "../../bots/src/skill.js";
 import { toBotTelegraph } from "./telegraph.js";
 import { buildSnapshot, type Snapshot } from "./snapshot.js";
+import { stepWithHumans } from "./human-casts.js";
 import { ROLE_ROSTER, actorIdForSlot, buildPartySpec, type PartyRole } from "./roster.js";
 import { buildRunEndPayload } from "./run-end.js";
 import { resolveCommand, type EnqueueOk, type EnqueueErr } from "./command-queue.js";
@@ -149,10 +150,9 @@ export class Room {
     this.botMemories = botResult.memories;
     this.prng = botResult.prng;
 
-    const stepped = stepRun(this.run, [...due, ...botResult.commands], { abandonRequested: this.abandonRequested });
+    const { stepped, failed } = stepWithHumans(this.run, due, botResult.commands, (id) => this.humans.has(id), { abandonRequested: this.abandonRequested });
     this.run = stepped.run;
-
-    const snapshot = buildSnapshot(this.run, this.parTicks, this.maxSlackTicks, this.pullCount, new Set(this.humans.keys()));
+    const snapshot = buildSnapshot(this.run, this.parTicks, this.maxSlackTicks, this.pullCount, new Set(this.humans.keys()), stepped.events, failed);
     return { snapshot, events: stepped.events };
   }
 

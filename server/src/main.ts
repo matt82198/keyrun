@@ -16,6 +16,7 @@ import type { Room } from "./room.js";
 import type { ActorId } from "../../sim/core/state";
 import type { ContentRegistry } from "../../content/schema/registry";
 import { resolveSlotAbilities, type SlotAbilities } from "../../client/src/input/slot-abilities.js";
+import { buildDisplayInfo } from "../../client/src/sim-host/display-info.js";
 
 export const DEFAULT_PORT = 8792;
 const OPEN = 1;
@@ -62,7 +63,9 @@ function handleMessage(lobby: Lobby, registry: ContentRegistry, session: Session
       hit.room.attachHuman(hit.actorId, session.ws);
       session.actorId = hit.actorId;
       session.room = hit.room;
-      send(session.ws, { v: PROTOCOL_VERSION, type: "joined", actorId: hit.actorId, role: msg.role, classId, roomId: hit.room.id, slotAbilities });
+      // D10 net parity: the same buildDisplayInfo the local worker ships in `ready` (names/timings).
+      const display = buildDisplayInfo(registry, hit.room.run.content.abilities);
+      send(session.ws, { v: PROTOCOL_VERSION, type: "joined", actorId: hit.actorId, role: msg.role, classId, roomId: hit.room.id, slotAbilities, display });
       return;
     }
     case "cmd": {

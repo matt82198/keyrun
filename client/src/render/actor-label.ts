@@ -21,6 +21,8 @@ export interface ActorLabel {
   /** "" when not casting; else "casting <ability>" (+ " - KICK!" when interruptible). */
   castLine: string;
   kickable: boolean;
+  /** Overrides the second line's colour (render/actors.ts's status tag / Downed line). */
+  lineColor?: string;
   /** Capsule scale [x/z, y]: tank wide, healer slim, boss huge, self tallest. */
   scale: [number, number];
 }

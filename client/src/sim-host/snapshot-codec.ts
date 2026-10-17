@@ -12,8 +12,8 @@ import type { SimEvent } from "../../../sim/core/events.js";
 import { castEvents } from "./cast-events.js";
 import type { Run } from "../../../sim/index.js";
 import type { RunEndInfo } from "./snapshot.js";
-import type { ActorCast, ActorSnapshot, ActorWindow, Snapshot, SnapshotEvent } from "./snapshot.js";
-import { MAX_SNAPSHOT_EVENTS } from "./snapshot.js";
+import type { ActorCast, ActorEffect, ActorSnapshot, ActorWindow, Snapshot, SnapshotEvent } from "./snapshot.js";
+import { MAX_ACTOR_EFFECTS, MAX_SNAPSHOT_EVENTS } from "./snapshot.js";
 import type { RunSetup } from "./run-setup.js";
 import { toTelegraphSnapshot } from "./telegraph-map.js";
 import { isWindowEffectId, parseWindowEffectId } from "../../../sim/combat/window-state.js";
@@ -52,6 +52,18 @@ export function toWindow(actor: ActorState, tick: Tick, abilities: Abilities): A
   if (!best || !parsed) return null;
   const durationTicks = Math.max(durationsFor(abilities).get(parsed.windowId) ?? 0, best.endsTick - tick, 1);
   return { windowId: parsed.windowId, setupClass: parsed.setupClass, endsTick: best.endsTick, durationTicks, lock: parsed.alternate };
+}
+
+/** Item 5 status channel: the actor's content-defined effects (ids present in `effects`, the run's
+ * EffectDef table -- so synthetic "window:"/"lockout:"/"lock:" bookkeeping never shows) with ticks
+ * left, unexpired only, sorted by id, capped at MAX_ACTOR_EFFECTS. Shared with server/src/snapshot.ts. */
+export function toEffects(actor: ActorState, tick: Tick, effects: Run["content"]["effects"]): ActorEffect[] {
+  const left = new Map<string, number>(); // one chip per id (two sources' instances: the longer one)
+  for (const e of actor.effects) {
+    if (e.endsTick > tick && Object.hasOwn(effects, e.effectId)) left.set(e.effectId, Math.max(left.get(e.effectId) ?? 0, e.endsTick - tick));
+  }
+  const ids = [...left.keys()].sort();
+  return ids.slice(0, MAX_ACTOR_EFFECTS).map((id) => ({ id, ticks: left.get(id)! }));
 }
 
 function remainingCooldowns(actor: ActorState, tick: Tick): Record<string, number> {
@@ -93,7 +105,7 @@ export function toCast(actor: ActorState, abilities: Run["content"]["abilities"]
   return { abilityId: actor.castId, startTick: actor.castStartTick, endTick: actor.castEndsTick, kickable };
 }
 
-function toActorSnapshot(actor: ActorState, tick: Tick, abilities: Run["content"]["abilities"]): ActorSnapshot {
+function toActorSnapshot(actor: ActorState, tick: Tick, { abilities, effects }: Run["content"]): ActorSnapshot {
   return {
     id: actor.id,
     kind: actor.kind,
@@ -111,6 +123,7 @@ function toActorSnapshot(actor: ActorState, tick: Tick, abilities: Run["content"
     cooldowns: remainingCooldowns(actor, tick),
     gcdRemainingTicks: Math.max(0, actor.gcdReadyTick - tick),
     window: toWindow(actor, tick, abilities),
+    effects: toEffects(actor, tick, effects),
   };
 }
 
@@ -124,7 +137,7 @@ export function buildSnapshot(
   const kicks = interruptEvents(run);
   const events: SnapshotEvent[] = [...kicks, ...castEvents(run, simEvents, MAX_SNAPSHOT_EVENTS - kicks.length)];
   const state = run.state;
-  const actors: ActorSnapshot[] = Object.values(state.actors).map((actor) => toActorSnapshot(actor, state.tick, run.content.abilities));
+  const actors: ActorSnapshot[] = Object.values(state.actors).map((actor) => toActorSnapshot(actor, state.tick, run.content));
   const telegraphs = run.encounter.telegraphs.map(toTelegraphSnapshot);
 
   return {
