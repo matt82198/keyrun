@@ -30,6 +30,7 @@ import type { ActorSnapshot, Snapshot } from "./sim-host/snapshot.js";
 import { metrics } from "./sim-host/metrics.js";
 import { deriveHostControlCommands } from "./sim-host/host-commands.js";
 import { RunEndView } from "./hud/run-end.js";
+import type { BossBarView } from "./hud/boss-bar.js";
 import type { ConnectionState, HostHandle, NetNotice } from "./net/host-handle.js";
 
 const MOVE_SPEED_MM_PER_TICK = 180; // ~3.6 m/s at 20Hz
@@ -61,6 +62,7 @@ export interface GameLoopDeps {
   pingPool: PingMarkerPool;
   hud: Hud;
   runEndView: RunEndView;
+  bossBar?: Pick<BossBarView, "update">; // hud/boss-bar.ts: top-centre boss HP bar (D10)
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   connectionStateEl?: HTMLDivElement; // shown/updated only for a host implementing onConnectionState
@@ -124,6 +126,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
       hud.updateSlack(snapshot.slackTicks ?? 0, snapshot.maxSlackTicks ?? 0, snapshot.depleted ?? false);
       const player = snapshot.actors.find((a) => a.id === humanActorId);
       if (player) hud.updateAbilityBar(player.cooldowns, deps.slotAbilities);
+      deps.bossBar?.update(snapshot.actors);
       if (snapshot.runEnd) runEndView.show(snapshot.runEnd);
     },
     () => {

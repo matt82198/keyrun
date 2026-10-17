@@ -45,3 +45,6 @@ canvas (jsdom + WebGL mock) and by a manual screenshot before merge.
   the camera above ground), `initialPitchRad`, `minDistanceM`/`maxDistanceM`/`initialDistanceM` zoom range,
   `zoomStepM` per wheel notch, `lookAtHeightM` aim point. Yaw is unsmoothed (it is the WASD basis). Space emits one
   `dash` per press; the sim moves `DASH_DISTANCE_MM` along this tick's move, else facing ([DECIDE] placeholder).
+- Boss bar contract: `hud/boss-bar.ts` is a top-centre DOM bar, one stacked row per live actor that
+  `roleColor.ts` colours `COLOR_BOSS` (classId ends ".boss"), ordered by actor id; name from classId, fill
+  `COLOR_BOSS`, percent rounded up. Fed `snapshot.actors` via `GameLoopDeps.bossBar` (tests/client/hud/boss-bar.test.ts).
