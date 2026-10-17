@@ -134,6 +134,7 @@ export class CanvasTexture {
   needsUpdate = false;
   minFilter = 0;
   constructor(readonly image: FakeCanvas) {}
+  dispose(): void {}
 }
 
 export class Material {

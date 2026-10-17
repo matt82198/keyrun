@@ -18,7 +18,9 @@ import type { TelegraphPool } from "./render/telegraphs.js";
 import type { DamageNumberField } from "./render/damageNumbers.js";
 import type { TargetReticle } from "./render/reticle.js";
 import type { Hud } from "./render/hud.js";
-import { PingMarkerPool, pingLabelText, type PingWorldPlacement } from "./render/pings.js";
+import { PingMarkerPool, pingLabelText } from "./render/pings.js";
+import { aimedGroundPoint, exposePings, pingContextFor, pingPlacement } from "./ping-wiring.js";
+import { openPayoff } from "./render/payoff-ready.js";
 import { SnapshotEventLatch } from "./render/event-latch.js";
 import type { KeyState } from "./input/keyState.js";
 import { deriveAbilityCommands, type AnyCommand } from "./input/commands.js";
@@ -101,16 +103,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
   let prevHealthById = new Map<number, number>();
   const pingEvents: PingEvent[] = [];
   const eventLatch = new SnapshotEventLatch(); // one-shot events outlive snapshots skipped between frames
-
-  function placementForPing(event: PingEvent): PingWorldPlacement | null {
-    if (event.targetId !== undefined) {
-      const pos = actorPool.worldPositionOf(event.targetId);
-      return pos ? { x: pos.x, y: pos.y, z: pos.z } : null;
-    }
-    // No ground raycast implemented here -- a spot ping lands at the pinger's own position.
-    const pos = actorPool.worldPositionOf(event.actorId);
-    return pos ? { x: pos.x, y: 0, z: pos.z } : null;
-  }
+  const shownPings = exposePings(); // read-only window.__keyrunPings for the e2e (ping-wiring.ts)
 
   const stop = simHost.start(
     (snapshot) => {
@@ -133,7 +126,8 @@ export function runGameLoop(deps: GameLoopDeps): void {
       hud.updateSlack(snapshot.slackTicks ?? 0, snapshot.maxSlackTicks ?? 0, snapshot.depleted ?? false);
       hud.updateRunReadout(snapshot);
       const player = snapshot.actors.find((a) => a.id === humanActorId);
-      if (player) hud.updateAbilityBar(player.cooldowns, deps.slotAbilities, player.gcdRemainingTicks ?? 0);
+      const payoff = openPayoff(snapshot.actors, humanActorId, snapshot.tick, deps.display, deps.slotAbilities); // Window -> live payoff keys
+      if (player) hud.updateAbilityBar(player.cooldowns, deps.slotAbilities, player.gcdRemainingTicks ?? 0, payoff?.abilityIds);
       deps.bossBar?.update(snapshot.actors);
       if (snapshot.runEnd) runEndView.show(snapshot.runEnd);
     },
@@ -150,7 +144,9 @@ export function runGameLoop(deps: GameLoopDeps): void {
       for (const control of deriveHostControlCommands(justPressed, localTick)) simHost.applyCommand(control);
 
       const player = rawById.get(humanActorId);
-      const groundPoint: PingGroundPoint = player ? { x: player.pos.x, z: player.pos.z } : { x: 0, z: 0 };
+      // Spot pings land where the crosshair ray meets the floor (ping-wiring.ts); else at the pinger.
+      const aimed = justPressed.has(deps.keybinds.ping) ? aimedGroundPoint(orbitCamera.camera) : null; // raycast only on a G press
+      const groundPoint: PingGroundPoint = aimed ?? (player ? { x: player.pos.x, z: player.pos.z } : { x: 0, z: 0 });
       const ping = derivePingEvent(justPressed, deps.keybinds.ping, localTick, humanActorId, player?.targetId ?? null, groundPoint, deps.pingLimiter);
       if (ping) {
         pingEvents.push(ping);
@@ -173,7 +169,9 @@ export function runGameLoop(deps: GameLoopDeps): void {
       actorPool.sync(interpolated, rawById, nextSnapshot.tick, events);
       deps.castFx?.spawn(events, rawById, (id) => actorPool.worldPositionOf(id));
       telegraphPool.sync(nextSnapshot.telegraphs, nextSnapshot.tick);
-      pingPool.sync(pingEvents, nextSnapshot.tick, placementForPing, (e) => pingLabelText(e));
+      const pingTick = nextSnapshot.tick; // "Kick!"/"Window!" read the target's latest raw snapshot
+      const place = (e: PingEvent) => pingPlacement(e, (id) => actorPool.worldPositionOf(id));
+      pingPool.sync(pingEvents, pingTick, place, (e) => shownPings.note(e, pingLabelText(e, pingContextFor(e, rawById, pingTick)), place(e)));
 
       const player = interpolated.find((a) => a.id === humanActorId);
       if (player) orbitCamera.update(player.pos.x / 1000, player.pos.y / 1000, player.pos.z / 1000);

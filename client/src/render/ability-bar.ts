@@ -73,8 +73,8 @@ export class AbilityBarView {
     }
   }
 
-  update(cooldowns: Record<string, number>, slotAbilities: SlotAbilities | undefined, info?: DisplayInfo, gcdRemainingTicks = 0): void {
-    for (const s of abilityBarModel(slotAbilities, cooldowns, info, gcdRemainingTicks)) {
+  update(cooldowns: Record<string, number>, slotAbilities: SlotAbilities | undefined, info?: DisplayInfo, gcdRemainingTicks = 0, payoffIds?: ReadonlySet<string>): void {
+    for (const s of abilityBarModel(slotAbilities, cooldowns, info, gcdRemainingTicks, payoffIds)) {
       const els = this.slots.get(s.action);
       if (!els) continue;
       const peak = s.remainingTicks > 0 ? Math.max(this.peaks.get(s.action) ?? 0, s.remainingTicks) : 0;
@@ -88,6 +88,10 @@ export class AbilityBarView {
       if (s.abilityId) els.root.dataset.abilityId = s.abilityId;
       els.root.dataset.state = s.abilityId === null ? "empty" : s.onCooldown ? "cooldown" : s.gcdActive ? "gcd" : "ready";
       els.root.title = s.name;
+      // Window payoff live: a thick green glow on the key (the Window ring's own open colour).
+      if (s.payoffReady) els.root.dataset.payoff = "ready";
+      else delete els.root.dataset.payoff;
+      els.root.style.boxShadow = s.payoffReady ? "0 0 0 3px #3ddc97, 0 0 18px 6px rgba(61,220,151,0.75)" : "";
     }
   }
 }

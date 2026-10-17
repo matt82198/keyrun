@@ -30,6 +30,8 @@ export interface AbilityBarSlot {
   gcdActive: boolean;
   /** Not on cooldown and not held by the GCD: pressing the key will try to cast. */
   ready: boolean;
+  /** Ready AND in `payoffIds` (render/payoff-ready.ts): pressing it now closes an open Window. */
+  payoffReady: boolean;
 }
 
 export function abilityBarModel(
@@ -37,6 +39,7 @@ export function abilityBarModel(
   cooldowns: Readonly<Record<string, number>>,
   info?: DisplayInfo,
   gcdRemainingTicks = 0,
+  payoffIds?: ReadonlySet<string>,
 ): AbilityBarSlot[] {
   return ABILITY_ACTIONS.map((action) => {
     const abilityId = slotAbilities?.[action] ?? null;
@@ -47,6 +50,7 @@ export function abilityBarModel(
     const onGcd = display ? display.gcdTicks > 0 : true;
     const gcdActive = abilityId !== null && remainingTicks <= 0 && onGcd && gcdRemainingTicks > 0;
     const onCooldown = remainingTicks > 0;
+    const ready = abilityId !== null && !onCooldown && !gcdActive;
     return {
       action,
       abilityId,
@@ -55,7 +59,8 @@ export function abilityBarModel(
       onCooldown,
       cooldownFraction,
       gcdActive,
-      ready: abilityId !== null && !onCooldown && !gcdActive,
+      ready,
+      payoffReady: ready && abilityId !== null && payoffIds !== undefined && payoffIds.has(abilityId),
     };
   });
 }

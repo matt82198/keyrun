@@ -143,8 +143,9 @@ export class Hud {
     this.castErrorEl.hidden = tick > this.castErrorUntil;
   }
 
-  updateAbilityBar(cooldowns: Record<string, number>, slotAbilities: SlotAbilities | undefined, gcdRemainingTicks = 0): void {
-    this.abilityBar.update(cooldowns, slotAbilities, this.display, gcdRemainingTicks);
+  /** `payoffIds`: abilities whose press would close an open Window now (render/payoff-ready.ts). */
+  updateAbilityBar(cooldowns: Record<string, number>, slotAbilities: SlotAbilities | undefined, gcdRemainingTicks = 0, payoffIds?: ReadonlySet<string>): void {
+    this.abilityBar.update(cooldowns, slotAbilities, this.display, gcdRemainingTicks, payoffIds);
   }
 }
 
