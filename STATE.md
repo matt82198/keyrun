@@ -37,6 +37,17 @@ assets; pure POC.
   a real Web Worker removes the scheduler-shaped stalls AND content constants are rescaled in lockstep AND the
   latency gain still shows in play tests.
 
+- D10 **MVP = 3D gameplay** (Matt, 2026-10-17: "I would like to restate the mvp on that is 3d gameplay"): the
+  MVP deliverable is one complete 3D run Matt can play end to end and judge by feel, not a test count. Concretely:
+  third-person camera + WASD + mouse-look that feel right in hand; one dungeon (hollow-vault) with readable enemies,
+  the interrupt mechanic, and the boss; one class (warden) plus bot party; placeholder geometry stays, but readability
+  of every mechanic in 3D is the bar. D3 still governs the renderer/sim split (headless deterministic sim, 3D is the
+  renderer + flat-arena movement). Phase 5 "Matt playing" is the acceptance test. Supersedes nothing; sharpens D3.
+- D11 **Model grant for Keyrun** (Matt, 2026-10-17: "use opus 5.5 for development on that"): development lanes for
+  this project run on Opus (claude-opus-5-5). Per-project exception to the fleet Haiku-default rule; recorded in
+  ~/.claude/docs/grants.md with provenance. Does not relax the Haiku rule for any other project. Read-only recon,
+  lint and bookkeeping lanes stay Haiku.
+
 ## Phase plan
 - Phase 1 (research day): 9 cited briefs (incl. Fellowship) → design/BIBLE.md v1 (Matt reviews the taste calls).
 - Phase 2: sim/ rules engine (deterministic, tested) + content v1 (3 classes, 1 dungeon, 1 boss).
