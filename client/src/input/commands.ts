@@ -22,13 +22,24 @@ export interface MoveCommand {
   tick: number;
 }
 
-export type AnyCommand = CastCommand | TargetCycleCommand | MoveCommand;
+/** Space (D10): a one-tick movement burst. Direction is resolved host-side from this tick's move
+ * (else current facing) by sim-host/player-commands.ts's resolveDashDir; the sim owns the
+ * distance (sim/combat/movement.ts DASH_DISTANCE_MM). */
+export interface DashCommand {
+  type: "dash";
+  tick: number;
+}
+
+export type AnyCommand = CastCommand | TargetCycleCommand | MoveCommand | DashCommand;
+
+/** Space is a hardcoded movement control (input/keybinds.ts), not one of the configurable binds. */
+export const DASH_CODE = "Space";
 
 /**
  * Derives ability/target-cycle commands from the set of keyboard codes that
  * were newly pressed this tick (edge-triggered: holding a key does not
  * re-fire it). Order is deterministic, following keybind action order
- * (1,2,3,4,5,Q,E,R,F,Tab) regardless of Set iteration order.
+ * (1,2,3,4,5,Q,E,R,F,Tab) regardless of Set iteration order, then a Space dash last.
  *
  * A cast carries the ability id in that key's slot, from `slotAbilities` (the host's
  * slot-abilities.ts resolution for this run's class kit). With no map (a host that does not
@@ -52,5 +63,7 @@ export function deriveAbilityCommands(
     const abilityId = slotAbilities?.[action];
     if (abilityId) commands.push({ type: "cast", abilityId, tick });
   }
+  // Edge-triggered like the binds above: one dash per Space press, none while it is held.
+  if (codesJustPressed.has(DASH_CODE)) commands.push({ type: "dash", tick });
   return commands;
 }

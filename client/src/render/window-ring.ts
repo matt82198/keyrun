@@ -4,13 +4,13 @@
  * The 3D Window ring (design/BIBLE.md §4, D10 readability): a flat placeholder ring on the floor
  * around every enemy carrying an open Window. Its arc is the remaining fraction of the Window
  * (full circle when it opens, sweeping down to nothing as it closes) and its colour shifts from
- * WINDOW_RING_OPEN_COLOR to WINDOW_RING_CLOSING_COLOR. It disappears when the Window closes
- * (snapshot window -> null, or tick >= endsTick) or when a kick lands on that enemy during the
- * Window (a render-side dismissal; sim rules are untouched).
+ * WINDOW_RING_OPEN_COLOR to WINDOW_RING_CLOSING_COLOR. It disappears ONLY when the Window closes:
+ * snapshot window -> null (a Payoff consumed it -- sim/combat/payoff.ts removes the effect, so
+ * toWindow projects null -- or it expired), or tick >= endsTick. A kick does NOT close a Window in
+ * the sim, so a kick never dismisses the ring (that would hide a Window a Payoff can still close).
  *
  * Driven ONLY from snapshot state (ActorSnapshot.window, projected by sim-host/snapshot-codec.ts's
- * toWindow) plus the one-shot events ActorPool.sync receives from the event latch drain -- never
- * from sim internals and never from Snapshot.events directly.
+ * toWindow) -- never from sim internals and never from one-shot events.
  *
  * Usage: `const rings = new WindowRingPool(scene); rings.sync(interpolated, rawById, tick, events);`
  * (render/actors.ts's ActorPool.sync makes that call once per frame).
@@ -18,7 +18,6 @@
 import * as THREE from "three";
 import type { InterpolatedActor } from "../sim-host/interpolate.js";
 import type { ActorSnapshot, ActorWindow, SnapshotEvent } from "../sim-host/snapshot.js";
-import { InterruptLatch } from "./castBar.js";
 
 const MM_PER_M = 1000;
 /** Placeholder ring size (metres), sized to sit just outside the 0.4 m actor capsule. */
@@ -57,11 +56,10 @@ export function windowRingColor(fraction: number): number {
     : lerpHex(WINDOW_RING_CLOSING_COLOR, WINDOW_RING_MID_COLOR, f * 2);
 }
 
-/** Pure model: hidden with no Window, once closed, or once a kick landed at/after it opened. */
-export function windowRingModel(win: ActorWindow | null | undefined, currentTick: number, kickedAt: number | null): WindowRingModel {
+/** Pure model: visible exactly while the snapshot Window is present and tick < endsTick. */
+export function windowRingModel(win: ActorWindow | null | undefined, currentTick: number): WindowRingModel {
   if (!win || currentTick >= win.endsTick) return HIDDEN;
   const span = Math.max(1, win.durationTicks);
-  if (kickedAt !== null && kickedAt >= win.endsTick - span) return HIDDEN;
   const fraction = Math.min(1, Math.max(0, (win.endsTick - currentTick) / span));
   return { visible: true, fraction, color: windowRingColor(fraction) };
 }
@@ -79,17 +77,16 @@ function ringGeometry(step: number): THREE.RingGeometry {
 
 export class WindowRingPool {
   private readonly rings = new Map<number, RingView>();
-  private readonly kicks = new InterruptLatch();
-
   constructor(private readonly scene: THREE.Scene) {}
 
-  sync(interpolated: InterpolatedActor[], rawById: Map<number, ActorSnapshot>, currentTick: number, events?: readonly SnapshotEvent[]): void {
-    this.kicks.ingest(events);
+  /** `_events` is accepted for ActorPool.sync's call shape but deliberately unused: no current
+   * snapshot event closes a Window (the stream carries only interrupts, which do not). */
+  sync(interpolated: InterpolatedActor[], rawById: Map<number, ActorSnapshot>, currentTick: number, _events?: readonly SnapshotEvent[]): void {
     const seen = new Set<number>();
     for (const actor of interpolated) {
       const raw = rawById.get(actor.id);
       if (!raw || raw.kind !== "enemy" || !actor.alive) continue;
-      const model = windowRingModel(raw.window, currentTick, this.kicks.interruptedAt(actor.id));
+      const model = windowRingModel(raw.window, currentTick);
       if (!model.visible) continue;
       seen.add(actor.id);
       const view = this.ensure(actor.id, Math.max(1, Math.ceil(model.fraction * WINDOW_RING_STEPS)));

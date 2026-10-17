@@ -11,6 +11,11 @@ import type { ActorState } from "./types";
 import { BP_DENOM } from "./effects";
 import { isqrt as coreIsqrt } from "../core/fixed";
 
+/** Space dash (D10, [DECIDE] placeholder -- design/BIBLE.md does not define Space): a "dash"
+ * command moves this many mm in one tick, through applyMovement (so movement modifiers such as a
+ * root scale it) and the ordinary collision + bounds clamp. ~17 walk ticks of distance. */
+export const DASH_DISTANCE_MM = 3000;
+
 export interface Bounds {
   minX: number;
   maxX: number;

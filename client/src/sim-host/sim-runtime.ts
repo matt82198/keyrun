@@ -73,6 +73,7 @@ export class SimRuntime {
     if (cmd.type === "move") this.pending.moves.push({ dx: cmd.dx, dz: cmd.dz });
     else if (cmd.type === "cast") this.pending.casts.push(cmd.abilityId);
     else if (cmd.type === "targetCycle") this.pending.targetCycles += 1;
+    else if (cmd.type === "dash") this.pending.dashes = (this.pending.dashes ?? 0) + 1;
     else if (cmd.type === "stopcast") this.pendingStopcast = true;
     else if (cmd.type === "abandon") this.abandonRequested = true;
     else if (cmd.type === "ping") this.recentPings.push(cmd.event);
