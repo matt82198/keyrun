@@ -63,7 +63,8 @@ export class NetHostClient implements HostHandle {
   private state: ConnectionState = "connecting";
   private humanActorId: number | null = null;
   private lastSnapshotTick: number | null = null;
-  private lastTargetId: number | null = null;
+  private lastSelf: { targetId: number | null; yaw: number } | undefined;
+  private lastMove: { tick: number; dx: number; dz: number } | null = null;
   private lastEnemies: { id: number; alive: boolean }[] = [];
   private lastSnapshot: Snapshot | null = null;
   private runEndInfo: RunEndInfo | null = null;
@@ -116,7 +117,9 @@ export class NetHostClient implements HostHandle {
       return;
     }
     if (kind === "ping") return; // no sim-side wire equivalent (sim-host/wire.ts)
-    const payload = translateHostCommand(cmd, { selfId: this.humanActorId ?? 0, targetId: this.lastTargetId, enemies: this.lastEnemies });
+    if (cmd.type === "move") this.lastMove = cmd; // a dash this same tick follows it (net/mapping.ts)
+    const ctx = { selfId: this.humanActorId ?? 0, targetId: this.lastSelf?.targetId ?? null, enemies: this.lastEnemies, selfYaw: this.lastSelf?.yaw, move: this.lastMove };
+    const payload = translateHostCommand(cmd, ctx);
     if (payload !== null) this.conn.send({ v: PROTOCOL_VERSION, type: "cmd", cmd: payload });
   }
 
@@ -153,8 +156,7 @@ export class NetHostClient implements HostHandle {
     }
     this.lastSnapshotTick = s.tick;
     this.lastEnemies = s.actors.filter((a) => a.kind === "enemy").map((a) => ({ id: a.id, alive: a.alive }));
-    const self = this.humanActorId !== null ? s.actors.find((a) => a.id === this.humanActorId) : undefined;
-    this.lastTargetId = self?.targetId ?? null;
+    this.lastSelf = this.humanActorId !== null ? s.actors.find((a) => a.id === this.humanActorId) : undefined;
 
     const snapshot = { ...toClientSnapshot(s), runEnd: this.runEndInfo };
     this.lastSnapshot = snapshot;

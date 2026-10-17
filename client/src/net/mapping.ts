@@ -20,6 +20,7 @@
  */
 import { yawFromComponents } from "../../../sim/core/atan.js";
 import type { HostCommand } from "../sim-host/wire.js";
+import { resolveDashDir } from "../sim-host/player-commands.js";
 import { MAX_SNAPSHOT_EVENTS, type ActorSnapshot as ClientActorSnapshot, type Snapshot as ClientSnapshot, type SnapshotEvent } from "../sim-host/snapshot.js";
 import type { ClientCommandPayload, PartyRole, ServerActorSnapshot, ServerSnapshot } from "./wire-types.js";
 
@@ -95,6 +96,11 @@ export interface TargetContext {
   selfId: number;
   targetId: number | null;
   enemies: readonly { id: number; alive: boolean }[];
+  /** The human actor's facing from the last snapshot (sim yaw, 1/1024 turns); a dash with no move
+   * this tick goes this way. Absent -> 0 (+z). */
+  selfYaw?: number | undefined;
+  /** The most recent move command sent; a dash only follows it when stamped with the same tick. */
+  move?: { tick: number; dx: number; dz: number } | null | undefined;
 }
 
 /** Translates one host-interface command into the wire `cmd` payload sim/core/commands.ts's
@@ -111,6 +117,12 @@ export function translateHostCommand(cmd: HostCommand, ctx: TargetContext): Clie
       return { tick: cmd.tick, kind: "cast", abilityId: cmd.abilityId, targetId: ctx.targetId ?? ctx.selfId };
     case "targetCycle":
       return { tick: cmd.tick, kind: "target", targetId: cycleEnemyTarget(ctx.enemies, ctx.targetId) };
+    case "dash": {
+      // Same direction rule as the local host (sim-host/player-commands.ts): this tick's move, else facing.
+      const move = ctx.move && ctx.move.tick === cmd.tick ? ctx.move : undefined;
+      const dir = resolveDashDir(move, ctx.selfYaw ?? 0);
+      return { tick: cmd.tick, kind: "dash", dir, yaw: yawFromComponents(dir.x, dir.z) };
+    }
     case "stopcast":
       return { tick: cmd.tick, kind: "stopcast" };
     default:

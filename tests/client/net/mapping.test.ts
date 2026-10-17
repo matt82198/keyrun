@@ -3,6 +3,9 @@
 // content-agnostic enemy-target cycle, and host-command -> wire-command translation.
 import { describe, expect, it } from "vitest";
 import { cycleEnemyTarget, resolveClassId, roleForClassId, toClientSnapshot, translateHostCommand } from "../../../client/src/net/mapping.js";
+import { resolveDashDir } from "../../../client/src/sim-host/player-commands.js";
+import { validateCommand } from "../../../sim/core/commands.js";
+import { yawFromComponents } from "../../../sim/core/atan.js";
 import type { ServerActorSnapshot, ServerSnapshot } from "../../../client/src/net/wire-types.js";
 
 function actor(overrides: Partial<ServerActorSnapshot> = {}): ServerActorSnapshot {
@@ -144,5 +147,27 @@ describe("mapping: translateHostCommand", () => {
 
   it("has no wire equivalent for host controls with no sim meaning (abandon)", () => {
     expect(translateHostCommand({ type: "abandon", tick: 8 }, ctx)).toBeNull();
+  });
+});
+
+describe("mapping: translateHostCommand dash (D10 net parity)", () => {
+  const ctx = { selfId: 1, targetId: null, enemies: [], selfYaw: 256 };
+  const accepted = (p: object) => validateCommand({ ...p, actorId: 1 });
+
+  it("dash goes along this tick's move, same dir/yaw resolveDashDir gives the local host", () => {
+    const out = translateHostCommand({ type: "dash", tick: 9 }, { ...ctx, move: { tick: 9, dx: 0, dz: -180 } });
+    const dir = resolveDashDir({ dx: 0, dz: -180 }, 256);
+    expect(out).toEqual({ tick: 9, kind: "dash", dir, yaw: yawFromComponents(dir.x, dir.z) });
+    expect(accepted(out!)).toEqual({ ...out, actorId: 1 });
+  });
+
+  it("dash with no move this tick goes along current facing (a stale move from another tick is ignored)", () => {
+    for (const move of [undefined, null, { tick: 8, dx: 0, dz: -180 }]) {
+      const out = translateHostCommand({ type: "dash", tick: 9 }, { ...ctx, move });
+      const dir = resolveDashDir(undefined, 256); // the local host's facing rule, not a re-derivation
+      expect(dir).not.toEqual({ x: 0, z: -180 }); // proves the stale tick-8 move was not followed
+      expect(out).toEqual({ tick: 9, kind: "dash", dir, yaw: yawFromComponents(dir.x, dir.z) });
+      expect(accepted(out!)).toEqual({ ...out, actorId: 1 });
+    }
   });
 });

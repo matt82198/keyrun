@@ -25,7 +25,8 @@ import type { WebSocketLike } from "../../../client/src/net/host-handle.js";
 import type { Snapshot } from "../../../client/src/sim-host/snapshot.js";
 import type { HostCommand } from "../../../client/src/sim-host/wire.js";
 import type { SimHostReady } from "../../../client/src/sim-host/sim-host-client.js";
-import { deriveAbilityCommands } from "../../../client/src/input/commands.js";
+import { DASH_CODE, deriveAbilityCommands } from "../../../client/src/input/commands.js";
+import { DASH_DISTANCE_MM } from "../../../sim/combat/movement.js";
 import { DEFAULT_KEYBINDS } from "../../../client/src/input/keybinds.js";
 import { resolveSlotAbilities } from "../../../client/src/input/slot-abilities.js";
 import { isDangerClass, type ClassedTelegraphSnapshot } from "../../../client/src/sim-host/telegraph-map.js";
@@ -115,6 +116,30 @@ describe("net parity: joined carries the slot map (gap 3)", () => {
     await s.send(cmds);
     const after = await s.step(2);
     expect(actor(after, HUMAN).cooldowns["warden.brace"] ?? 0).toBeGreaterThan(0);
+  });
+});
+
+describe("net parity: Space dash crosses the wire (D10)", () => {
+  // +z walks the warden away from the party/boss so no collision push-out muddies the distance.
+  const away = (tick: number): HostCommand => ({ type: "move", dx: 0, dz: 180, tick });
+  const zOf = (s: Snapshot): number => actor(s, HUMAN).pos.z;
+
+  it("Space with a same-tick move dashes DASH_DISTANCE_MM along it, in one tick, on top of the walk", async () => {
+    const s = await connect();
+    await s.send([away(pastTick(s))]);
+    await s.step(); // first step clears the spawn overlap (collision push-out adds a few mm)
+    const z0 = zOf(s.last());
+    await s.send([away(pastTick(s))]);
+    const walk = zOf(await s.step()) - z0; // control tick: walk only, in open space
+    expect(walk).toBeGreaterThan(0);
+
+    const z1 = zOf(s.last());
+    const dash = deriveAbilityCommands(new Set([DASH_CODE]), DEFAULT_KEYBINDS, s.ready.slotAbilities, pastTick(s));
+    expect(dash).toEqual([{ type: "dash", tick: pastTick(s) }]);
+    await s.send([away(pastTick(s)), ...dash]);
+    const after = await s.step();
+    expect(zOf(after) - z1 - walk).toBe(DASH_DISTANCE_MM);
+    expect(actor(after, HUMAN).pos.x).toBe(actor(s.snaps.at(-2)!, HUMAN).pos.x); // straight along the move
   });
 });
 
