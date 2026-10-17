@@ -19,6 +19,7 @@ import type { DamageNumberField } from "./render/damageNumbers.js";
 import type { TargetReticle } from "./render/reticle.js";
 import type { Hud } from "./render/hud.js";
 import { PingMarkerPool, pingLabelText, type PingWorldPlacement } from "./render/pings.js";
+import { SnapshotEventLatch } from "./render/event-latch.js";
 import type { KeyState } from "./input/keyState.js";
 import { deriveAbilityCommands, type AnyCommand } from "./input/commands.js";
 import { derivePingEvent, type PingEvent, type PingGroundPoint, type PingRateLimiter } from "./input/ping.js";
@@ -90,6 +91,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
   let rawById = new Map<number, ActorSnapshot>();
   let prevHealthById = new Map<number, number>();
   const pingEvents: PingEvent[] = [];
+  const eventLatch = new SnapshotEventLatch(); // one-shot events outlive snapshots skipped between frames
 
   function placementForPing(event: PingEvent): PingWorldPlacement | null {
     if (event.targetId !== undefined) {
@@ -105,6 +107,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
     (snapshot) => {
       prevSnapshot = nextSnapshot ?? snapshot;
       nextSnapshot = snapshot;
+      eventLatch.push(snapshot.events);
       lastSnapshotAt = performance.now();
       rawById = new Map(snapshot.actors.map((a) => [a.id, a]));
 
@@ -155,7 +158,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
       const alpha = (performance.now() - lastSnapshotAt) / simHost.tickMs;
       metrics.recordRenderAlpha(alpha, simHost.tickMs); // research/11 (D9): render staleness
       const interpolated = interpolateSnapshots(prevSnapshot, nextSnapshot, alpha);
-      actorPool.sync(interpolated, rawById, nextSnapshot.tick, nextSnapshot.events); // events: castBar.ts kick flash (D10)
+      actorPool.sync(interpolated, rawById, nextSnapshot.tick, eventLatch.drain()); // events: castBar.ts kick flash (D10)
       telegraphPool.sync(nextSnapshot.telegraphs, nextSnapshot.tick);
       pingPool.sync(pingEvents, nextSnapshot.tick, placementForPing, (e) => pingLabelText(e));
 
