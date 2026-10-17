@@ -66,3 +66,4 @@ Join/queue/snapshot roundtrip, two-clients-one-room, backfill (disconnect → bo
 human re-queuing for that role reattaches), late-command re-stamping, malformed-message rejection,
 and the wire-determinism replay (`hashState` from a local `createRun`/`stepRun` run against the exact
 command stream the test sent, compared to the server's reported `stateHash`).
+- D10 Window net parity: `ActorSnapshot.window` is snapshot-codec.ts's `toWindow` (imported, never copied); `tests/server/snapshot-window.test.ts` proves per-tick parity with the client host and the ws open-then-null lifecycle.
