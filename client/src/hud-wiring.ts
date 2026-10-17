@@ -23,6 +23,7 @@ import type { KeyState } from "./input/keyState.js";
 import { deriveAbilityCommands, type AnyCommand } from "./input/commands.js";
 import { derivePingEvent, type PingEvent, type PingGroundPoint, type PingRateLimiter } from "./input/ping.js";
 import type { Keybinds } from "./input/keybinds.js";
+import type { SlotAbilities } from "./input/slot-abilities.js";
 import { interpolateSnapshots } from "./sim-host/interpolate.js";
 import type { ActorSnapshot, Snapshot } from "./sim-host/snapshot.js";
 import { metrics } from "./sim-host/metrics.js";
@@ -45,6 +46,8 @@ const CONNECTION_STATE_LABEL: Record<ConnectionState, string> = {
 export interface GameLoopDeps {
   simHost: HostHandle;
   humanActorId: number;
+  /** From the host's whenReady() (input/slot-abilities.ts): read by both the cast path and the HUD. */
+  slotAbilities: SlotAbilities | undefined;
   keyState: KeyState;
   moveKeys: MoveKeyState;
   pingLimiter: PingRateLimiter;
@@ -117,7 +120,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
       hud.updateTimer(snapshot.runTimerTicks, snapshot.timerLimitTicks);
       hud.updateSlack(snapshot.slackTicks ?? 0, snapshot.maxSlackTicks ?? 0, snapshot.depleted ?? false);
       const player = snapshot.actors.find((a) => a.id === humanActorId);
-      if (player) hud.updateAbilityBar(player.cooldowns);
+      if (player) hud.updateAbilityBar(player.cooldowns, deps.slotAbilities);
       if (snapshot.runEnd) runEndView.show(snapshot.runEnd);
     },
     () => {
@@ -129,7 +132,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
 
       const justPressed = deps.keyState.sampleAndClearJustPressed();
       metrics.noteInputSample([...justPressed], performance.now()); // research/11 (D9)
-      commands.push(...deriveAbilityCommands(justPressed, deps.keybinds, localTick));
+      commands.push(...deriveAbilityCommands(justPressed, deps.keybinds, deps.slotAbilities, localTick));
       for (const control of deriveHostControlCommands(justPressed, localTick)) simHost.applyCommand(control);
 
       const player = rawById.get(humanActorId);
