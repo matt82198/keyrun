@@ -39,11 +39,12 @@ describe("Chanter shape-aware heals", () => {
       groupHealAbilityId: "chanter.chorus",
       groupHealRadiusMm: 5000,
       targetHealAbilityId: "chanter.cadence",
+      secondGroupHeal: { abilityId: "chanter.hymn", radiusMm: 2500 },
     });
   });
 
   it("heals a hurt tank 10m away with the targeted heal, never the self-shaped Refrain", () => {
-    const healer = makeActor({});
+    const healer = makeActor({ cooldowns: { "chanter.hymn": 999 } });
     const tank = makeActor({ id: 2, classId: "warden", role: "tank", health: 100, maxHealth: 400, pos: { x: 0, y: 0, z: 10000 } });
     const cmds = healerDecide(makeView([healer, tank]), healer);
     expect(cmds).toEqual([{ tick: 10, actorId: 3, kind: "cast", abilityId: "chanter.cadence", targetId: 2 }]);
@@ -60,5 +61,30 @@ describe("Chanter shape-aware heals", () => {
     const tank = makeActor({ id: 2, classId: "warden", role: "tank", health: 100, maxHealth: 400, pos: { x: 0, y: 0, z: 3000 } });
     const cmds = healerDecide(makeView([healer, tank]), healer);
     expect(cmds).toEqual([{ tick: 10, actorId: 3, kind: "cast", abilityId: "chanter.chorus" }]);
+  });
+
+  // Pull-1 wipe (tests/sim/integration/bots-pull1.test.ts): Chorus shadowed Hymn, so the bot never
+  // cast its heal-over-time pool and the tank under five Paired Warriors out-damaged its heals.
+  it("casts Hymn (the second group heal) when Chorus is down and the ally stands in Hymn's radius", () => {
+    const healer = makeActor({ cooldowns: { "chanter.chorus": 999 } });
+    const tank = makeActor({ id: 2, classId: "warden", role: "tank", health: 100, maxHealth: 400, pos: { x: 0, y: 0, z: 1500 } });
+    const cmds = healerDecide(makeView([healer, tank]), healer);
+    expect(cmds).toEqual([{ tick: 10, actorId: 3, kind: "cast", abilityId: "chanter.hymn" }]);
+  });
+
+  it("walks toward a hurt ally outside Hymn's radius while Hymn is ready", () => {
+    const healer = makeActor({ cooldowns: { "chanter.chorus": 999 } });
+    const tank = makeActor({ id: 2, classId: "warden", role: "tank", health: 100, maxHealth: 400, pos: { x: 0, y: 0, z: 10000 } });
+    const cmds = healerDecide(makeView([healer, tank]), healer);
+    expect(cmds.some((c) => c.kind === "cast")).toBe(false);
+    const move = cmds.find((c) => c.kind === "move");
+    expect(move && move.kind === "move" ? move.dir.z : 0).toBeGreaterThan(0);
+  });
+
+  it("never walks out of its own cast for Hymn", () => {
+    const healer = makeActor({ cooldowns: { "chanter.chorus": 999 }, castId: "chanter.cadence", castEndsTick: 20, castStartTick: 0 });
+    const tank = makeActor({ id: 2, classId: "warden", role: "tank", health: 100, maxHealth: 400, pos: { x: 0, y: 0, z: 10000 } });
+    const cmds = healerDecide(makeView([healer, tank]), healer);
+    expect(cmds.some((c) => c.kind === "move")).toBe(false);
   });
 });

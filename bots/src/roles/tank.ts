@@ -9,6 +9,11 @@
  * (shared/floor.ts): a hostile floor patch under the tank preempts everything below it here, and
  * once clear, a tank out of melee range of its target walks back in. Pure: (view, self) -> Command[].
  *
+ * Pack pressure: the hard defensive also fires, at any health, once PRESSURE_ATTACKERS enemies are
+ * aimed at the tank. Hollow Vault's pull 1 (five Paired Warriors, tests/sim/integration/
+ * bots-pull1.test.ts) swings in sync: ~350 damage lands in one tick on a 400-HP Warden, so health
+ * jumped from above the 35% floor straight to 0 and a floor-only Brace was never cast.
+ *
  * Usage: `import { tankDecide } from "./tank.js"`
  */
 import type { ActorState, BotView, Command } from "../types.js";
@@ -23,10 +28,18 @@ const TANK_DEFENSIVE_THRESHOLD_PCT = 0.35;
 /** A higher, earlier floor for a self-sustain spender (Warden's Vigil) ahead of the harder defensive (Brace). */
 const TANK_SUSTAIN_THRESHOLD_PCT = 0.6;
 
+/** Enemies aimed at the tank at which the hard defensive is spent pre-emptively, at any health. */
+export const PRESSURE_ATTACKERS = 3;
+
+function attackersOf(view: BotView, self: ActorState): number {
+  return Object.values(view.state.actors).filter((a) => a.kind === "enemy" && a.alive && a.targetId === self.id).length;
+}
+
 function defensiveCommands(view: BotView, self: ActorState, kit: EffectiveKit): Command[] {
   const tick = view.state.tick;
   const healthPct = self.health / self.maxHealth;
-  if (kit.defensiveAbilityId && healthPct < TANK_DEFENSIVE_THRESHOLD_PCT && abilityReady(self, kit.defensiveAbilityId, tick)) {
+  const pressured = healthPct < TANK_DEFENSIVE_THRESHOLD_PCT || attackersOf(view, self) >= PRESSURE_ATTACKERS;
+  if (kit.defensiveAbilityId && pressured && abilityReady(self, kit.defensiveAbilityId, tick)) {
     return [{ tick, actorId: self.id, kind: "cast", abilityId: kit.defensiveAbilityId }];
   }
   if (
