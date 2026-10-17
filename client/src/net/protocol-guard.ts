@@ -14,8 +14,15 @@
  * Usage: `const msg = parseServerFrame(rawText); if (!msg) return; // ignore, fail closed`
  */
 import { PROTOCOL_VERSION, type ServerActorSnapshot, type ServerMessage, type ServerRunResult, type ServerSnapshot } from "./wire-types.js";
+import { ABILITY_ACTIONS, type SlotAbilities } from "../input/slot-abilities.js";
 
 export { PROTOCOL_VERSION };
+
+/** A complete slot map: every ability keybind action names a non-empty ability id. Anything less
+ * is treated as absent (fail closed -- keys cast nothing), never partially trusted. */
+function isSlotAbilities(v: unknown): v is SlotAbilities {
+  return isObject(v) && ABILITY_ACTIONS.every((a) => typeof v[a] === "string" && (v[a] as string).length > 0);
+}
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -75,7 +82,7 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       return isRole(raw.role) ? { v, type: "queued", role: raw.role } : null;
     case "joined":
       return typeof raw.actorId === "number" && isRole(raw.role) && typeof raw.classId === "string" && typeof raw.roomId === "string"
-        ? { v, type: "joined", actorId: raw.actorId, role: raw.role, classId: raw.classId, roomId: raw.roomId }
+        ? { v, type: "joined", actorId: raw.actorId, role: raw.role, classId: raw.classId, roomId: raw.roomId, ...(isSlotAbilities(raw.slotAbilities) ? { slotAbilities: raw.slotAbilities } : {}) }
         : null;
     case "error":
       return typeof raw.reason === "string" ? { v, type: "error", reason: raw.reason } : null;

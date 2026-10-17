@@ -34,6 +34,7 @@ import type { SimEvent } from "../../sim/core/events";
 import type { RunResult } from "../../sim/encounter/timer";
 import type { Item as RewardItem } from "../../sim/encounter/rewards";
 import type { GearSlotId, Item } from "../../content/schema/facet";
+import type { SlotAbilities } from "../../client/src/input/slot-abilities.js";
 
 export const PROTOCOL_VERSION = 3;
 
@@ -144,7 +145,10 @@ export function parseClientFrame(text: string): ClientMessage | null {
 export type ServerMessage =
   | { v: number; type: "welcome"; protocolVersion: number }
   | { v: number; type: "queued"; role: PartyRole }
-  | { v: number; type: "joined"; actorId: number; role: PartyRole; classId: string; roomId: string }
+  /** `slotAbilities` (D10 net parity): the joined actor's keybind slot -> ability id map, from
+   * client/src/input/slot-abilities.ts's resolveSlotAbilities (the one authority both hosts use);
+   * without it the net client's ability keys cast nothing (fail closed). */
+  | { v: number; type: "joined"; actorId: number; role: PartyRole; classId: string; roomId: string; slotAbilities: SlotAbilities }
   | { v: number; type: "error"; reason: string }
   | { v: number; type: "snapshot"; snapshot: Snapshot }
   | { v: number; type: "event"; events: SimEvent[] }

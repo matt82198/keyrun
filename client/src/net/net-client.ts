@@ -42,6 +42,7 @@ import { NetConnection } from "./connection.js";
 import type { ServerRunResult, ServerSnapshot } from "./wire-types.js";
 import { DEFAULT_SERVER_URL, defaultWebSocketFactory, type ConnectionState, type HostHandle, type NetNotice, type WebSocketFactory } from "./host-handle.js";
 import type { RawLoadout } from "../sim-host/loadout-storage.js";
+import type { SlotAbilities } from "../input/slot-abilities.js";
 
 export { DEFAULT_SERVER_URL };
 export type { ConnectionState, HostHandle, NetNotice, WebSocketFactory };
@@ -83,7 +84,7 @@ export class NetHostClient implements HostHandle {
     });
     const hooks = {
       onState: (s: ConnectionState, detail?: string) => this.setState(s, detail),
-      onJoined: (actorId: number) => this.handleJoined(actorId),
+      onJoined: (actorId: number, slotAbilities: SlotAbilities | undefined) => this.handleJoined(actorId, slotAbilities),
       onSnapshot: (s: ServerSnapshot) => this.handleSnapshot(s),
       onLate: (originalTick: number, newTick: number) => this.onNoticeCb?.({ kind: "late", originalTick, newTick }),
       onRunEnd: (result: ServerRunResult, tick: number) => this.handleRunEnd(result, tick),
@@ -136,11 +137,13 @@ export class NetHostClient implements HostHandle {
     return () => this.stop();
   }
 
-  private handleJoined(actorId: number): void {
+  /** Resolves whenReady() with the server-sent slot map (D10 net parity), so input/commands.ts and the
+   * HUD read the same one-authority map the local worker host reports. */
+  private handleJoined(actorId: number, slotAbilities: SlotAbilities | undefined): void {
     this.humanActorId = actorId;
     if (!this.readyResolved) {
       this.readyResolved = true;
-      this.readyResolve({ humanActorId: actorId });
+      this.readyResolve({ humanActorId: actorId, ...(slotAbilities ? { slotAbilities } : {}) });
     }
   }
 

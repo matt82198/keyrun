@@ -15,6 +15,7 @@ import { parseClientFrame, errorMessage, PROTOCOL_VERSION, type ClientMessage, t
 import type { Room } from "./room.js";
 import type { ActorId } from "../../sim/core/state";
 import type { ContentRegistry } from "../../content/schema/registry";
+import { resolveSlotAbilities, type SlotAbilities } from "../../client/src/input/slot-abilities.js";
 
 export const DEFAULT_PORT = 8792;
 const OPEN = 1;
@@ -29,7 +30,7 @@ function send(ws: WebSocket, msg: ServerMessage): void {
   if (ws.readyState === OPEN) ws.send(JSON.stringify(msg));
 }
 
-function handleMessage(lobby: Lobby, session: Session, msg: ClientMessage): void {
+function handleMessage(lobby: Lobby, registry: ContentRegistry, session: Session, msg: ClientMessage): void {
   switch (msg.type) {
     case "join":
       send(session.ws, { v: PROTOCOL_VERSION, type: "welcome", protocolVersion: PROTOCOL_VERSION });
@@ -45,11 +46,23 @@ function handleMessage(lobby: Lobby, session: Session, msg: ClientMessage): void
         send(session.ws, errorMessage(err instanceof Error ? err.message : String(err)));
         return;
       }
+      const classId = hit.room.classIdForActor(hit.actorId) ?? "";
+      let slotAbilities: SlotAbilities;
+      try {
+        // D10 net parity: the same resolveSlotAbilities the local worker host's run-setup.ts calls
+        // -- one authority for "which ability does this key cast". Resolved before attaching, so a
+        // class whose kit cannot fill every slot fails closed with an `error`, never a half-join.
+        const classDef = registry.classes.get(classId);
+        if (!classDef) throw new Error(`unknown class "${classId}" for actor ${hit.actorId}`);
+        slotAbilities = resolveSlotAbilities(classDef);
+      } catch (err) {
+        send(session.ws, errorMessage(err instanceof Error ? err.message : String(err)));
+        return;
+      }
       hit.room.attachHuman(hit.actorId, session.ws);
       session.actorId = hit.actorId;
       session.room = hit.room;
-      const classId = hit.room.classIdForActor(hit.actorId) ?? "";
-      send(session.ws, { v: PROTOCOL_VERSION, type: "joined", actorId: hit.actorId, role: msg.role, classId, roomId: hit.room.id });
+      send(session.ws, { v: PROTOCOL_VERSION, type: "joined", actorId: hit.actorId, role: msg.role, classId, roomId: hit.room.id, slotAbilities });
       return;
     }
     case "cmd": {
@@ -118,7 +131,7 @@ export function startServer(port: number, registry: ContentRegistry): Promise<Se
           send(ws, errorMessage("malformed_message"));
           return;
         }
-        handleMessage(lobby, session, msg);
+        handleMessage(lobby, registry, session, msg);
       });
 
       ws.on("close", () => {

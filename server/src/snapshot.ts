@@ -2,17 +2,26 @@
  * server/src/snapshot.ts
  *
  * Wire snapshot shape broadcast once per tick. Mirrors client/src/sim-host/snapshot.ts +
- * snapshot-codec.ts field-for-field (read-only reference, not imported -- see server/CLAUDE.md)
- * so a future client net layer needs no translation, plus one server-only addition: `stateHash`,
- * the wire-determinism proof (tests/server/determinism.test.ts compares it against a local
- * createRun/stepRun replay's hashState()).
+ * snapshot-codec.ts field-for-field so client/src/net/mapping.ts needs no translation, plus one
+ * server-only addition: `stateHash`, the wire-determinism proof (tests/server/determinism.test.ts
+ * compares it against a local createRun/stepRun replay's hashState()).
  *
- * Usage: `const snapshot = buildSnapshot(run, parTicks, maxSlackTicks, pullCount);`
+ * D10 net parity: the readability fields -- ActorCast.kickable, the one-shot `events` channel
+ * (landed kicks), and each telegraph's `telegraphClass` -- are NOT re-derived here. They come from
+ * the client host's own pure rules (snapshot-codec.ts's toCast/interruptEvents, telegraph-map.ts
+ * via ./telegraph.ts), imported, so the local worker and the server cannot drift apart.
+ *
+ * Usage: `const snapshot = buildSnapshot(run, parTicks, maxSlackTicks, pullCount, humanIds);`
  */
 import type { ActorState, Tick } from "../../sim/core/state";
 import { hashState } from "../../sim/core/state";
 import type { Run } from "../../sim/index";
+import { interruptEvents, toCast } from "../../client/src/sim-host/snapshot-codec.js";
+import type { ActorCast, SnapshotEvent } from "../../client/src/sim-host/snapshot.js";
+import type { TelegraphClass } from "../../client/src/sim-host/telegraph-map.js";
 import { toTelegraphSnapshot } from "./telegraph.js";
+
+export type { SnapshotEvent };
 
 export type ActorKind = "player" | "enemy";
 
@@ -27,11 +36,8 @@ export interface Vec2Mm {
   z: number;
 }
 
-export interface ActorCast {
-  abilityId: string;
-  startTick: number;
-  endTick: number;
-}
+/** The client host's own cast shape (incl. D10 `kickable`), built by snapshot-codec.ts's toCast. */
+export type { ActorCast };
 
 export interface ActorSnapshot {
   id: number;
@@ -65,7 +71,10 @@ export interface TelegraphSnapshot {
   length?: number;
   width?: number;
   resolvesTick: number;
+  /** Derived from telegraphClass (telegraph-map.ts's isDangerClass): a stack circle is not danger. */
   danger: boolean;
+  /** D10 render class (telegraph-map.ts's telegraphClassFor): avoid / spread / stack / boss. */
+  telegraphClass: TelegraphClass;
 }
 
 export interface Snapshot {
@@ -81,6 +90,9 @@ export interface Snapshot {
   pullIndex: number;
   pullCount: number;
   keyLevel: number;
+  /** One-shot, bounded feedback events for the tick just stepped (snapshot-codec.ts's
+   * interruptEvents): currently only landed kicks. Never carried forward. */
+  events: SnapshotEvent[];
   /** FNV-1a hash of the authoritative SimState this tick (sim/core/state.ts's hashState) -- the
    * wire-determinism proof; not part of the client's mirrored shape. */
   stateHash: string;
@@ -94,7 +106,7 @@ function remainingCooldowns(actor: ActorState, tick: Tick): Record<string, numbe
   return out;
 }
 
-function toActorSnapshot(actor: ActorState, tick: Tick, controlledBy: "human" | "bot"): ActorSnapshot {
+function toActorSnapshot(actor: ActorState, tick: Tick, abilities: Run["content"]["abilities"], controlledBy: "human" | "bot"): ActorSnapshot {
   return {
     id: actor.id,
     kind: actor.kind,
@@ -108,10 +120,7 @@ function toActorSnapshot(actor: ActorState, tick: Tick, controlledBy: "human" | 
     maxResource: actor.maxResource,
     alive: actor.alive,
     targetId: actor.targetId,
-    cast:
-      actor.castId !== null && actor.castStartTick !== null && actor.castEndsTick !== null
-        ? { abilityId: actor.castId, startTick: actor.castStartTick, endTick: actor.castEndsTick }
-        : null,
+    cast: toCast(actor, abilities),
     cooldowns: remainingCooldowns(actor, tick),
     controlledBy,
   };
@@ -120,7 +129,7 @@ function toActorSnapshot(actor: ActorState, tick: Tick, controlledBy: "human" | 
 export function buildSnapshot(run: Run, parTicks: number, maxSlackTicks: number, pullCount: number, humanControlled: ReadonlySet<number>): Snapshot {
   const state = run.state;
   const actors: ActorSnapshot[] = Object.values(state.actors).map((actor) =>
-    toActorSnapshot(actor, state.tick, actor.kind === "player" && humanControlled.has(actor.id) ? "human" : "bot"),
+    toActorSnapshot(actor, state.tick, run.content.abilities, actor.kind === "player" && humanControlled.has(actor.id) ? "human" : "bot"),
   );
   const telegraphs = run.encounter.telegraphs.map(toTelegraphSnapshot);
 
@@ -137,6 +146,7 @@ export function buildSnapshot(run: Run, parTicks: number, maxSlackTicks: number,
     pullIndex: run.encounter.pullIndex,
     pullCount,
     keyLevel: run.encounter.keyLevel,
+    events: interruptEvents(run),
     stateHash: hashState(state),
   };
 }
