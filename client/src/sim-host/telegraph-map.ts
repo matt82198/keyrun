@@ -6,6 +6,17 @@
  * (bots/src/types.ts) -- both are structurally the same "origin/shape/yaw/resolvesTick" data,
  * previously duplicated inline in worker.ts in two places.
  *
+ * Telegraph classes (D10 readability): the sim registers a telegraph per telegraphed enemy cast
+ * (content/data/enemies/*.json script steps with a `telegraph`), carrying the casting abilityId.
+ * Each such ability gets one render class here -- avoid (generic "get out"), spread (stand apart),
+ * stack (stand together), boss (the boss's own mechanic). `danger` is derived from the class
+ * (a stack circle is the one telegraph you should stand IN, so it is not danger), never hardcoded.
+ * Unknown abilities fall back to "avoid". No "soak" class: nothing in the sim/content emits one.
+ *
+ * Snapshot field: `telegraphClass` lives ONLY on this file's own output shape
+ * (ClassedTelegraphSnapshot, a structural superset of snapshot.ts's TelegraphSnapshot), so
+ * snapshot-codec.ts carries it to the renderer without any change to snapshot.ts.
+ *
  * Usage: `const snap = toTelegraphSnapshot(t); const botTg = toBotTelegraph(t);`
  */
 import type { EncounterState } from "../../../sim/encounter/telegraphs.js";
@@ -14,14 +25,38 @@ import type { TelegraphSnapshot } from "./snapshot.js";
 
 type Telegraph = EncounterState["telegraphs"][number];
 
-export function toTelegraphSnapshot(t: Telegraph): TelegraphSnapshot {
+export type TelegraphClass = "avoid" | "spread" | "stack" | "boss";
+
+export interface ClassedTelegraphSnapshot extends TelegraphSnapshot {
+  telegraphClass: TelegraphClass;
+}
+
+/** Every telegraphed cast the shipped content emits (tests/client/sim-host/telegraph-map.test.ts
+ * fails if a new one appears without an entry here). */
+export const TELEGRAPH_CLASS_BY_ABILITY: Readonly<Record<string, TelegraphClass>> = {
+  "pair.spreadMark": "spread",
+  "pair.stackCall": "stack",
+  "hollowWarden.cleave": "boss",
+  "seed.slam": "avoid",
+};
+
+export function telegraphClassFor(abilityId: string): TelegraphClass {
+  return TELEGRAPH_CLASS_BY_ABILITY[abilityId] ?? "avoid";
+}
+
+/** Danger = "get out of this shape". Everything but a stack circle. */
+export function isDangerClass(c: TelegraphClass): boolean {
+  return c !== "stack";
+}
+
+function geometry(t: Telegraph): BotTelegraph {
   return {
     id: String(t.id),
     shape: t.shape,
     center: { x: t.origin.x, z: t.origin.z },
     yaw: t.yaw,
     resolvesTick: t.resolvesTick,
-    danger: true,
+    danger: isDangerClass(telegraphClassFor(t.abilityId)),
     ...(t.radius !== undefined ? { radius: t.radius } : {}),
     ...(t.angle1024 !== undefined ? { angle1024: t.angle1024 } : {}),
     ...(t.length !== undefined ? { length: t.length } : {}),
@@ -29,17 +64,10 @@ export function toTelegraphSnapshot(t: Telegraph): TelegraphSnapshot {
   };
 }
 
+export function toTelegraphSnapshot(t: Telegraph): ClassedTelegraphSnapshot {
+  return { ...geometry(t), telegraphClass: telegraphClassFor(t.abilityId) };
+}
+
 export function toBotTelegraph(t: Telegraph): BotTelegraph {
-  return {
-    id: String(t.id),
-    shape: t.shape,
-    center: { x: t.origin.x, z: t.origin.z },
-    yaw: t.yaw,
-    resolvesTick: t.resolvesTick,
-    danger: true,
-    ...(t.radius !== undefined ? { radius: t.radius } : {}),
-    ...(t.angle1024 !== undefined ? { angle1024: t.angle1024 } : {}),
-    ...(t.length !== undefined ? { length: t.length } : {}),
-    ...(t.width !== undefined ? { width: t.width } : {}),
-  };
+  return geometry(t);
 }
