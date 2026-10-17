@@ -41,6 +41,34 @@ import { NetHostClient } from "./net/net-client.js";
 import type { HostHandle } from "./net/host-handle.js";
 import { runGameLoop, MOVE_CODES } from "./hud-wiring.js";
 
+/** Read-only camera readout for the headless e2e overlay test (tests/client/e2e/run-end-overlay.e2e.ts):
+ * getters only, so a page script can observe that mouse-look/zoom reached the camera but never drive it. */
+export interface KeyrunCameraView {
+  readonly yaw: number;
+  readonly pitch: number;
+  readonly distance: number;
+}
+
+declare global {
+  interface Window {
+    __keyrunCamera?: KeyrunCameraView;
+  }
+}
+
+function readOnlyCameraView(cam: OrbitCamera): KeyrunCameraView {
+  return Object.freeze({
+    get yaw() {
+      return cam.yaw;
+    },
+    get pitch() {
+      return cam.pitch;
+    },
+    get distance() {
+      return cam.distance;
+    },
+  });
+}
+
 /** `?net=1` or a `?server=` override selects the net host; anything else keeps the local one. */
 function wantsNetHost(searchParams: URLSearchParams): boolean {
   return searchParams.get("net") === "1" || searchParams.has("server");
@@ -80,6 +108,7 @@ export async function boot(): Promise<void> {
   }
   const { scene, renderer } = createScene(canvas);
   const orbitCamera = new OrbitCamera(canvas, window.innerWidth / window.innerHeight);
+  window.__keyrunCamera = readOnlyCameraView(orbitCamera);
   const actorPool = new ActorPool(scene);
   const telegraphPool = new TelegraphPool(scene);
   const damageNumbers = new DamageNumberField(scene);

@@ -54,3 +54,4 @@ canvas (jsdom + WebGL mock) and by a manual screenshot before merge.
 - Net window + dash yaw: `net/mapping.ts` copies `ActorSnapshot.window` through (absent/null -> null) so ?net=1 draws
   the Window ring; `resolveDashDir`'s facing fallback uses sim `faceDir` (yaw 0 = +x, 256 = +z, the yawFromComponents
   convention), round-tripped at 16 yaws (tests/client/sim-host/dash-dir.test.ts, net/net-parity.test.ts).
+- Run-end overlay visibility: `.run-end-root[hidden] { display: none }` in `index.html` must outrank the class's `display: flex`, or the overlay dims the scene and eats every canvas pointer event all run. Guarded by the headless-Chromium `npm run test:e2e` (tests/client/e2e/run-end-overlay.e2e.ts; not in `npm test`), which reads boot.ts's read-only `window.__keyrunCamera`.
