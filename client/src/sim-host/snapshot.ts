@@ -29,7 +29,26 @@ export interface ActorCast {
   abilityId: string;
   startTick: number;
   endTick: number;
+  /** D10: the sim's own cast definition says this cast can be interrupted (AbilityDef.interruptible).
+   * Optional only because the net path (server/src/snapshot.ts -> net/mapping.ts) does not carry it
+   * yet; render/castBar.ts treats anything but `true` as not kickable. */
+  kickable?: boolean;
 }
+
+/** One-shot interrupt feedback: a kick landed on `actorId` during sim tick `tick`. Present in exactly
+ * one Snapshot (the one built right after that tick) and never repeated. */
+export interface InterruptSnapshotEvent {
+  type: "interrupt";
+  tick: number;
+  actorId: number;
+  sourceId: number;
+  school: string;
+}
+
+export type SnapshotEvent = InterruptSnapshotEvent;
+
+/** Upper bound on Snapshot.events per snapshot (the channel is bounded; overflow is dropped). */
+export const MAX_SNAPSHOT_EVENTS = 16;
 
 export interface ActorSnapshot {
   id: number;
@@ -89,6 +108,9 @@ export interface Snapshot {
   pullIndex?: number;
   pullCount?: number;
   runEnd?: RunEndInfo | null;
+  /** One-shot, bounded (MAX_SNAPSHOT_EVENTS) feedback events for things that happened during the
+   * tick this snapshot follows -- currently only landed interrupts. Never carried forward. */
+  events?: SnapshotEvent[];
 }
 
 /** Real ms per simulated tick, derived from the sim's own TICK_HZ -- never a separate literal.
