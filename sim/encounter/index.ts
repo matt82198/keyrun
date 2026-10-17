@@ -67,11 +67,12 @@ export interface BreakBarWiring {
   abilityTags: Record<string, string[] | undefined>;
 }
 
-let nextTelegraphId = 1;
-
-function registerTelegraph(event: SimEvent): Telegraph {
+/** Builds the Telegraph for one "telegraph" event. `id` comes from the run's own
+ * `EncounterState.nextTelegraphId` (see stepEncounter) -- never a module-level counter, which
+ * would interleave ids across runs sharing a process and break per-seed determinism. */
+function registerTelegraph(event: SimEvent, id: number): Telegraph {
   const telegraph: Telegraph = {
-    id: nextTelegraphId++,
+    id,
     sourceId: event.actorId as ActorId,
     abilityId: event.cast as string,
     shape: event.shape as Telegraph["shape"],
@@ -107,7 +108,9 @@ export function stepEncounter(
 
   const { commands, telegraphEvents, firedOnDeath } = stepEnemyScripts(state, scripts, encounter.firedOnDeath ?? {}, abilities);
   telegraphEvents.forEach(emit);
-  const registered = telegraphEvents.map(registerTelegraph);
+  const firstTelegraphId = encounter.nextTelegraphId ?? 1;
+  const registered = telegraphEvents.map((e, i) => registerTelegraph(e, firstTelegraphId + i));
+  const nextTelegraphId = firstTelegraphId + registered.length;
 
   // Tide (design/BIBLE.md sec 8): drifts every tracked telegraph's origin by
   // `encounter.rules.driftMmPerTick` this tick (a no-op unless Tide is the active Clause) BEFORE
@@ -143,7 +146,7 @@ export function stepEncounter(
     effectPatches.push(...breakBarEffectPatches(source, !wasStaggered && drained.current <= 0));
   }
 
-  let nextEncounter: EncounterState = { ...encounter, telegraphs, breakBars, firedOnDeath };
+  let nextEncounter: EncounterState = { ...encounter, telegraphs, breakBars, firedOnDeath, nextTelegraphId };
   nextEncounter = checkPullAdvance(state, dungeon, nextEncounter, tick, emit);
 
   return { state, encounter: nextEncounter, commands, effectPatches };

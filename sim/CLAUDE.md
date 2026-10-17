@@ -44,3 +44,5 @@ the server (later) runs it authoritatively; tests replay it.
 - Every combat rule has a unit test with integer expectations (no floats, no tolerances).
 - Property test: random command streams never produce NaN, negative health below 0, or a cast that both
   completed and was interrupted.
+- No module-level mutable counters: ids minted during a run live in run state (e.g. `EncounterState.nextTelegraphId`),
+  so two runs in one process (two server rooms) stay seed-deterministic (`tests/sim/integration/telegraph-ids-per-run.test.ts`).
