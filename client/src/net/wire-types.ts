@@ -11,7 +11,7 @@
  */
 import type { Item } from "../../../content/schema/facet.js";
 import type { SlotAbilities } from "../input/slot-abilities.js";
-import type { ActorCast, SnapshotEvent } from "../sim-host/snapshot.js";
+import type { ActorCast, ActorWindow, SnapshotEvent } from "../sim-host/snapshot.js";
 import type { TelegraphClass } from "../sim-host/telegraph-map.js";
 
 export const PROTOCOL_VERSION = 3;
@@ -59,6 +59,8 @@ export interface ServerActorSnapshot {
   /** D10: carries `kickable` (server/src/snapshot.ts builds it with sim-host/snapshot-codec.ts's toCast). */
   cast: ActorCast | null;
   cooldowns: Record<string, number>;
+  /** D10 (#74): the open Window, built by sim-host/snapshot-codec.ts's toWindow; null when none. */
+  window?: ActorWindow | null;
   /** Server-only: which side controls this actor right now. No client-side equivalent. */
   controlledBy: "human" | "bot";
 }

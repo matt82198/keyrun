@@ -11,7 +11,7 @@ import type { Run } from "../../../sim/index.js";
 import type { Tick } from "../../../sim/core/state.js";
 import type { Command } from "../../../sim/core/commands.js";
 import { yawFromComponents } from "../../../sim/core/atan.js";
-import { cycleTarget } from "../../../sim/combat/targeting.js";
+import { cycleTarget, faceDir, FACING_Q } from "../../../sim/combat/targeting.js";
 import type { RunSetup } from "./run-setup.js";
 
 export interface PendingInput {
@@ -23,12 +23,13 @@ export interface PendingInput {
 }
 
 /** A dash goes along this tick's move (camera-relative WASD) if there is one, else along the
- * actor's current facing (sim yaw in 1/1024 turns: 0 faces +z, 256 faces +x). Integer components
- * within sim/core/commands.ts's +/-1000 dir range. */
+ * actor's current facing, via the sim's own sim/combat/targeting.ts faceDir (yaw 0 faces +x, 256
+ * faces +z -- the yawFromComponents convention), rescaled from Q12 to integer components within
+ * sim/core/commands.ts's +/-1000 dir range (tests/client/sim-host/dash-dir.test.ts). */
 export function resolveDashDir(move: { dx: number; dz: number } | undefined, facingYaw1024: number): { x: number; z: number } {
   if (move && (move.dx !== 0 || move.dz !== 0)) return { x: move.dx, z: move.dz };
-  const rad = (facingYaw1024 / 1024) * Math.PI * 2;
-  return { x: Math.round(Math.sin(rad) * 1000) || 0, z: Math.round(Math.cos(rad) * 1000) || 0 };
+  const face = faceDir(facingYaw1024);
+  return { x: Math.round((face.x * 1000) / FACING_Q) || 0, z: Math.round((face.z * 1000) / FACING_Q) || 0 };
 }
 
 export function computePlayerCommands(run: Run, setup: RunSetup, tick: Tick, pending: PendingInput): Command[] {

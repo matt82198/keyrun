@@ -51,3 +51,6 @@ canvas (jsdom + WebGL mock) and by a manual screenshot before merge.
 - Boss bar contract: `hud/boss-bar.ts` is a top-centre DOM bar, one stacked row per live actor that
   `roleColor.ts` colours `COLOR_BOSS` (classId ends ".boss"), ordered by actor id; name from classId, fill
   `COLOR_BOSS`, percent rounded up. Fed `snapshot.actors` via `GameLoopDeps.bossBar` (tests/client/hud/boss-bar.test.ts).
+- Net window + dash yaw: `net/mapping.ts` copies `ActorSnapshot.window` through (absent/null -> null) so ?net=1 draws
+  the Window ring; `resolveDashDir`'s facing fallback uses sim `faceDir` (yaw 0 = +x, 256 = +z, the yawFromComponents
+  convention), round-tripped at 16 yaws (tests/client/sim-host/dash-dir.test.ts, net/net-parity.test.ts).
