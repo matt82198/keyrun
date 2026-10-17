@@ -159,12 +159,8 @@ const WHY =
   "Any change to this hash is either a deliberate content/sim behaviour change (explain it in the PR body) " +
   "or a regression (fix the code -- never retune this fixture to match, see sim/CLAUDE.md's 'Replays are " +
   "golden tests'). eventCounts exists for the same reason: a silent behaviour change should fail with a " +
-  "readable diff, not just a hash mismatch. NOTE (authoring time): sim/encounter/scripts.ts's " +
-  "stepEnemyScripts emits enemy cast commands with no targetId, and sim/combat/casting.ts's startCast " +
-  "requires one for a target-shape ability (returns target_required otherwise), so " +
-  "choir.meleeSwing/choir.healCast never execute today -- eventCounts carries zero enemy-sourced " +
-  "damage/cast_complete. fix/enemy-targeting (a separate lane) is expected to fix this; once it merges, " +
-  "re-record (npx tsx tests/sim/golden/build-content-pull.ts) and explain the change in that PR body.";
+  "readable diff, not just a hash mismatch. NOTE: enemy swings DO execute (targeting + chase landed): " +
+  "choir.meleeSwing hits the party from tick 40, guarded by tests/sim/encounter/golden-melee.test.ts.";
 
 function main(): void {
   const { run, events } = runScenario();

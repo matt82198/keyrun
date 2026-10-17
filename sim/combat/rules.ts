@@ -108,7 +108,9 @@ export function makeRules(cfg: RulesConfig): StepRules {
         stopcast(actor, emit, state.tick);
       } else if (cmd.kind === "move" || cmd.kind === "dash") {
         const mods = aggregateModifiers(actor, cfg.effects);
-        const distance = cmd.kind === "dash" ? DASH_DISTANCE_MM : cfg.baseSpeedMmPerTick;
+        // Walk speed is the ACTOR's (content-set at spawn, e.g. a faster melee chaser), never the
+        // command's: commands are untrusted input and validateCommand rejects a speed field.
+        const distance = cmd.kind === "dash" ? DASH_DISTANCE_MM : (actor.speedMmPerTick ?? cfg.baseSpeedMmPerTick);
         applyMovement(actor, cmd.dir, distance, mods.movementBp, cmd.yaw);
       } else if (cmd.kind === "cast") {
         const def = cfg.abilities[cmd.abilityId];

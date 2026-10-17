@@ -4,6 +4,7 @@
     "name": "Paired Warrior",
     "maxHealth": 6000,
     "role": "melee",
+    "speedMmPerTick": 207,
     "abilities": ["pair.meleeSwing", "pair.spreadMark", "pair.stackCall"],
     "script": [
       { "at": "loop", "every": 40, "cast": "pair.meleeSwing" },
