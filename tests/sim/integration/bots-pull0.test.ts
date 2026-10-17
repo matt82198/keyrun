@@ -78,6 +78,8 @@ describe("bots clear Hollow Vault pull 0 with an idle human", () => {
   it("idle cinder human: pull 0 clears with no party deaths", () => {
     const o = playPull0("cinder");
     const why = o.timeline.join("\n");
+    // PULL0_TRACE=1 prints the timeline + outcome even when green (diagnosis aid).
+    if (process.env.PULL0_TRACE) console.log(`${why}\nclearTick=${o.clearTick} hp=${JSON.stringify(o.partyHpAtClear)}`);
     expect(o.clearTick, `pull 0 never cleared\n${why}`).not.toBeNull();
     expect(o.clearTick!, why).toBeLessThan(MAX_TICKS);
     expect(o.deaths, `party deaths before the clear\n${why}`).toEqual([]);
