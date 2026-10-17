@@ -1,31 +1,54 @@
 # Keyrun
 
-Proof-of-concept co-op dungeon game: the Mythic+ loop, isolated. See CLAUDE.md for the domain map and STATE.md for decisions.
+Keyrun is a proof-of-concept co-op dungeon game. It takes the Mythic+ loop out of WoW and aims for an open, queue-based game where players bring a class into a dungeon and get to hard keys quickly. Its classes, synergy system and mechanics are original, not a copy of an existing game, and each class is limited to five rotational abilities and ten keybinds in total. The simulation is headless and deterministic; the 3D client (Three.js, TypeScript) is only the renderer and input layer on top of it, and all geometry is placeholder. The MVP is one complete 3D run: a third-person camera with WASD and mouse-look, the hollow-vault dungeon, the warden class with a bot party, judged by playing it rather than by test counts. Stack: TypeScript, Vitest, esbuild, Three.js.
 
-## Run
-- `npm ci` then `npm test` (Vitest), `npm run typecheck`, `npm run build` (esbuild to dist/), `npm run dev` (serve on :8791).
+## Status
 
-## Play it
+Proof of concept. Phase 5 (tuning from play, with the project owner playing as the acceptance test) is next. Decisions are recorded in [STATE.md](STATE.md); the domain map is in [CLAUDE.md](CLAUDE.md).
 
-Local solo run:
-1. `npm ci`, then `npm run dev` (esbuild watch + static server on port 8791; `scripts/build.mjs:31`, serves `/client/` per `scripts/build.mjs:32`).
-2. Open `http://localhost:8791/client/index.html?key=5&dungeon=hollow-vault&class=warden`.
+## Run locally
 
-Networked run (client and server in two terminals):
-1. Terminal A: `npm run server` (`server/src/run.mjs`, from `package.json:12`). The ws server listens on port 8792 (`server/src/main.ts:19`; no env override in `main.ts`).
-2. Terminal B: `npm run dev` as above.
-3. Open `http://localhost:8791/client/index.html?net=1&key=5&dungeon=hollow-vault&class=warden`. `?net=1` selects the net host (`client/src/boot.ts:43-46`). The default server URL is `ws://127.0.0.1:8792` (`client/src/net/host-handle.ts:20`). To point elsewhere, add `&server=ws://host:port` (`client/src/net/net-client.ts:77`).
+Requires Node.js and npm.
 
-Keybinds (`client/keybinds.json`, mapped to slots in `client/src/input/slot-abilities.ts:26-34`):
-- `1`-`5`: rotational abilities 1-5 (`Digit1`-`Digit5`, keybinds.json:2-6).
-- `Q`: interrupt (`KeyQ`, keybinds.json:7).
-- `E`: defensive (`KeyE`, keybinds.json:8).
-- `R`: utility (`KeyR`, keybinds.json:9).
-- `F`: movement ability (`KeyF`, keybinds.json:10).
-- `Tab`: cycle target (`targetCycle`, keybinds.json:11).
-- `G`: ping (`KeyG`, keybinds.json:12).
-- WASD, Space and mouse-look are hardcoded camera/movement controls, outside keybinds.json (`client/src/input/keybinds.ts:1-2`).
+```
+npm ci
+npm run dev
+```
 
-## License
+`npm run dev` builds the client, watches for changes and serves on port 8791. Open:
+
+http://localhost:8791/client/index.html?key=5&dungeon=hollow-vault&class=warden
+
+### Network path (in progress)
+
+In a second terminal, start the game server:
+
+```
+npm run server
+```
+
+It listens on port 8792. Then open:
+
+http://localhost:8791/client/index.html?net=1&key=5&dungeon=hollow-vault&class=warden
+
+The client connects to `ws://127.0.0.1:8792` by default.
+
+## Test
+
+```
+npm test
+```
+
+The last line of output is the Vitest summary, for example:
+
+```
+      Tests  880 passed (880)
+```
+
+## Open work
+
+Open items are tracked in [STATE.md](STATE.md) (NEXT STEPS) and [BACKLOG.md](BACKLOG.md). Combo effects and numbers are not decided yet.
+
+## Licence
 
 MIT. See [LICENSE](LICENSE).
