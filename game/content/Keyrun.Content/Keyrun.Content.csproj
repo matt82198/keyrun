@@ -21,6 +21,13 @@
 
   <ItemGroup>
     <EmbeddedResource Include="../../../content/data/**/*.json" LinkBase="data" LogicalName="content/data/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!--
+      C#-only content (no TS counterpart) lives in game/content/data/, because content/ is a frozen oracle
+      root (tests/oracle/generate.ts FROZEN_ROOTS) and an edit there turns the required oracle check red.
+      It shares the content/data/ logical namespace, so phase 4A's git mv merges the two trees with no
+      loader change; a name collision fails the build (duplicate manifest resource).
+    -->
+    <EmbeddedResource Include="../data/**/*.json" LinkBase="data" LogicalName="content/data/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

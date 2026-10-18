@@ -9,7 +9,7 @@ namespace Keyrun.Content;
 /// <summary>
 /// Loads every content kind from the verbatim content/data JSON into a typed, validated
 /// <see cref="ContentRegistry"/>: the C# mirror of content/index.ts <c>loadContent()</c>, reading
-/// the same 19 files in the same order. Fails closed with <see cref="ContentLoadException"/> on
+/// the same 19 files in the same order, plus the C#-only run.json. Fails closed with <see cref="ContentLoadException"/> on
 /// any unknown property, missing required field, null in a non-optional field, non-integer
 /// number, unknown enum or op, duplicate id, unresolved cross-reference, or unlisted/missing file.
 /// </summary>
@@ -32,7 +32,14 @@ public static class ContentLoader
         "dungeons/hollow-vault.json",
         "clauses.json",
         Facets + "warden.json", Facets + "cinder.json", Facets + "chanter.json",
+        RunFile,
     };
+
+    /// <summary>
+    /// C#-only run config (game/content/data/run.json, embedded under the same logical root): walk
+    /// speed, actor radius and arena bounds. Not read by the frozen TS loadContent.
+    /// </summary>
+    public const string RunFile = "run.json";
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -90,6 +97,7 @@ public static class ContentLoader
                 ReadArray<FacetDef>(source, Facets + "warden.json"),
                 ReadArray<FacetDef>(source, Facets + "cinder.json"),
                 ReadArray<FacetDef>(source, Facets + "chanter.json")),
+            Run = ReadOne<RunConfig>(source, RunFile)[0],
         };
 
         ContentValidator.Validate(registry);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using Godot;
+using Keyrun.Content;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
@@ -170,14 +171,22 @@ public partial class SimDriver : Node
     /// <summary>The human Warden's actor id.</summary>
     public const int WardenId = 1;
 
-    /// <summary>Walk speed, mm/tick (client/src/sim-host/run-setup.ts BASE_SPEED_MM_PER_TICK, ~3.6 m/s).</summary>
-    public const long BaseSpeedMmPerTick = 180;
+    /// <summary>
+    /// Walk speed, actor radius and arena bounds, read from content: game/content/data/run.json through
+    /// <see cref="ContentLoader.Load()"/> (validated, no defaults). The host holds no movement constants.
+    /// The values were first taken from the retired TS client (client/src/sim-host/run-setup.ts:53-57); the
+    /// content file is now the source of truth. Loading fails closed in <see cref="_Ready"/>.
+    /// </summary>
+    public MovementConfig? MovementRules { get; private set; }
 
-    /// <summary>Actor cylinder radius, mm (run-setup.ts ACTOR_RADIUS_MM).</summary>
-    public const long ActorRadiusMm = 400;
-
-    /// <summary>Arena bounds: the 40 m floor less one actor radius.</summary>
-    public static readonly Bounds ArenaBounds = new(-19600, 19600, -19600, 19600);
+    /// <summary>Maps the validated content run config onto the sim's movement rules.</summary>
+    /// <param name="run">The loaded <see cref="ContentRegistry.Run"/>.</param>
+    public static MovementConfig ToMovementConfig(RunConfig run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var b = run.ArenaBounds;
+        return new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm, new Bounds(b.MinX, b.MaxX, b.MinZ, b.MaxZ));
+    }
 
     private const int MaxStepsPerFrame = 5;
 
@@ -254,6 +263,7 @@ public partial class SimDriver : Node
         try
         {
             Options = ArenaOptions.Parse(OS.GetCmdlineUserArgs());
+            MovementRules = ToMovementConfig(ContentLoader.Load().Run);
             _log = new RunLog(Options.LogPath, Options.Autorun);
             _input = GetNode<PlayerInput>(InputPath);
             _hooks.Add(GetNode<DebugCleaveEmitter>(EmitterPath));
@@ -343,6 +353,7 @@ public partial class SimDriver : Node
     // Phase 1 arena rules (sim/combat/rules.ts command loop, movement part only; 2B ports the full Rules.cs).
     private void Rules(SimState state, IReadOnlyList<Command> commands, Action<SimEvent> emit)
     {
+        var movement = MovementRules ?? throw new InvalidOperationException("SimDriver stepped before content loaded");
         foreach (var cmd in commands)
         {
             if (!state.Actors.TryGetValue(cmd.ActorId, out var actor) || !actor.Alive)
@@ -352,7 +363,7 @@ public partial class SimDriver : Node
             switch (cmd)
             {
                 case MoveCommand m:
-                    Movement.ApplyMovement(actor, m.Dir, actor.SpeedMmPerTick ?? BaseSpeedMmPerTick, 0, m.Yaw);
+                    Movement.ApplyMovement(actor, m.Dir, movement, 0, m.Yaw);
                     break;
                 case DashCommand d:
                     Movement.ApplyMovement(actor, d.Dir, Movement.DashDistanceMm, 0, d.Yaw);
@@ -366,13 +377,13 @@ public partial class SimDriver : Node
             {
                 if (actors[i].Alive && actors[j].Alive)
                 {
-                    Movement.ResolveCollision(actors[i], actors[j], ActorRadiusMm);
+                    Movement.ResolveCollision(actors[i], actors[j], movement);
                 }
             }
         }
         foreach (var actor in actors)
         {
-            Movement.ClampToBounds(actor, ArenaBounds);
+            Movement.ClampToBounds(actor, movement);
         }
         foreach (var hook in _hooks)
         {

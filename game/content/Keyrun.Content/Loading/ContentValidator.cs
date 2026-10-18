@@ -44,6 +44,16 @@ public static class ContentValidator
         CheckEnemies(reg);
         CheckDungeons(reg);
         CheckFacets(reg);
+        CheckRun(reg.Run);
+    }
+
+    private static void CheckRun(RunConfig run)
+    {
+        if (run.Movement.SpeedMmPerTick <= 0) Fail("run movement.speedMmPerTick must be positive, got " + run.Movement.SpeedMmPerTick);
+        if (run.Movement.RadiusMm <= 0) Fail("run movement.radiusMm must be positive, got " + run.Movement.RadiusMm);
+        ArenaBounds b = run.ArenaBounds;
+        if (b.MinX >= b.MaxX || b.MinZ >= b.MaxZ)
+            Fail("run arenaBounds must have minX < maxX and minZ < maxZ, got x " + b.MinX + ".." + b.MaxX + " z " + b.MinZ + ".." + b.MaxZ);
     }
 
     private static void Fail(string message) => throw new ContentLoadException("content: " + message);
