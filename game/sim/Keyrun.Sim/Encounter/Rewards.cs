@@ -87,13 +87,18 @@ public static class Rewards
         return (min, max);
     }
 
-    // rewards.ts:90 drawItem: slot, then facet, then tier, three PRNG draws.
-    private static (Item Item, PrngState State) DrawItem(PrngState state, IReadOnlyList<string> pool, (int Min, int Max) band, int suffix)
+    // The placeholder lookup (rewards.ts:93 FACET_POOLS[slot]); an unknown slot throws exactly as before.
+    private static IReadOnlyList<Facet> PlaceholderPool(string slot) =>
+        FacetPools.TryGetValue(slot, out var f) ? f : throw new ArgumentException($"unknown gear slot \"{slot}\"", "pool");
+
+    // rewards.ts:90 drawItem: slot, then facet, then tier, three PRNG draws. The facet is drawn over the list
+    // facetsOf returns for the slot (the placeholder pools, or a caller-supplied content pool).
+    private static (Item Item, PrngState State) DrawItem(PrngState state, IReadOnlyList<string> pool, Func<string, IReadOnlyList<Facet>> facetsOf, (int Min, int Max) band, int suffix)
     {
         var (slotIdx, s1) = Prng.NextInt(state, pool.Count);
         var slot = pool[(int)slotIdx];
-        var facets = FacetPools.TryGetValue(slot, out var f) ? f : throw new ArgumentException($"unknown gear slot \"{slot}\"", nameof(pool));
-        var (facetIdx, s2) = Prng.NextInt(s1, facets.Length);
+        var facets = facetsOf(slot);
+        var (facetIdx, s2) = Prng.NextInt(s1, facets.Count);
         var facet = facets[(int)facetIdx];
         var (tierRoll, s3) = Prng.NextInt(s2, band.Max - band.Min + 1);
         var tier = band.Min + (int)tierRoll;
@@ -109,7 +114,37 @@ public static class Rewards
     /// </summary>
     /// <exception cref="ArgumentException">An owned slot is not one of <see cref="GearSlots"/> (the TS would crash
     /// on an undefined facet pool).</exception>
-    public static IReadOnlyList<Item> RollRewardChoices(long seed, int keyLevel, RunResult result, IReadOnlyList<string> slotsOwned)
+    public static IReadOnlyList<Item> RollRewardChoices(long seed, int keyLevel, RunResult result, IReadOnlyList<string> slotsOwned) =>
+        Roll(seed, keyLevel, result, slotsOwned, PlaceholderPool);
+
+    /// <summary>
+    /// The same roll over a caller-supplied facet pool (lane 3C-c; NEW behaviour, no TS oracle: the TS sim is frozen
+    /// with the placeholder pools). Draw order, seed discipline, tier band, choice count and the collision re-draw
+    /// are exactly <see cref="RollRewardChoices(long, int, RunResult, IReadOnlyList{string})"/>'s; only the facet
+    /// list each slot draws over is <paramref name="facetPools"/>[slot]. The host passes the content facet table
+    /// scoped to the party class (the sim takes the pool, it never reads class state or Keyrun.Content), so a card's
+    /// <see cref="Item.Id"/> embeds the real facet id ("reward-weapon-warden.weapon.keenEdge-t3-0") and its
+    /// <see cref="Facet.AbilityId"/> is the content ability id the HUD resolves.
+    /// </summary>
+    /// <param name="seed">Run-end seed (through <see cref="Prng.SeedState(long)"/>).</param>
+    /// <param name="keyLevel">Key level.</param>
+    /// <param name="result">Run result.</param>
+    /// <param name="slotsOwned">Slots to draw from; empty means all five.</param>
+    /// <param name="facetPools">Facets per gear slot, in the order the draw indexes them.</param>
+    /// <returns>Three items.</returns>
+    /// <exception cref="ArgumentException">A drawn slot has no entry or an empty list in
+    /// <paramref name="facetPools"/>.</exception>
+    public static IReadOnlyList<Item> RollRewardChoices(long seed, int keyLevel, RunResult result, IReadOnlyList<string> slotsOwned, IReadOnlyDictionary<string, IReadOnlyList<Facet>> facetPools)
+    {
+        ArgumentNullException.ThrowIfNull(facetPools);
+        IReadOnlyList<Facet> FacetsOf(string slot) =>
+            facetPools.TryGetValue(slot, out var f) && f.Count > 0
+                ? f
+                : throw new ArgumentException($"no facets for gear slot \"{slot}\"", nameof(facetPools));
+        return Roll(seed, keyLevel, result, slotsOwned, FacetsOf);
+    }
+
+    private static IReadOnlyList<Item> Roll(long seed, int keyLevel, RunResult result, IReadOnlyList<string> slotsOwned, Func<string, IReadOnlyList<Facet>> facetsOf)
     {
         var pool = slotsOwned.Count > 0 ? slotsOwned : GearSlots;
         var band = TierBand(keyLevel, result);
@@ -121,7 +156,7 @@ public static class Rewards
             Item? chosen = null;
             for (var attempt = 0; attempt < 20; attempt++)
             {
-                var (drawn, next) = DrawItem(state, pool, band, i);
+                var (drawn, next) = DrawItem(state, pool, facetsOf, band, i);
                 state = next;
                 if (!seen.Contains(ItemKey(drawn)))
                 {
@@ -130,7 +165,7 @@ public static class Rewards
                 }
             }
             // rewards.ts:141: after 20 collisions, one more draw from the current state, kept even if a duplicate.
-            var item = chosen ?? DrawItem(state, pool, band, i).Item;
+            var item = chosen ?? DrawItem(state, pool, facetsOf, band, i).Item;
             seen.Add(ItemKey(item));
             items.Add(item);
         }
