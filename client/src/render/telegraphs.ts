@@ -11,6 +11,7 @@ import type { TelegraphSnapshot } from "../sim-host/snapshot.js";
 import type { TelegraphClass } from "../sim-host/telegraph-map.js";
 import { edgePattern, telegraphFillFraction, telegraphStyle, type TelegraphStyle } from "./telegraphFill.js";
 import { telegraphYawToThree } from "./ground-frame.js";
+import type { TelegraphLabelPool } from "./telegraph-label.js";
 
 const MM_PER_M = 1000;
 const YAW_UNITS = 1024;
@@ -120,7 +121,12 @@ function disposeView(view: TelegraphView): void {
 export class TelegraphPool {
   private views = new Map<string, TelegraphView>();
 
-  constructor(private readonly scene: THREE.Scene) {}
+  /** `labels` (render/telegraph-label.ts) draws the SPREAD / STACK instruction sprites; omitted by
+   * headless callers that only need the decals. */
+  constructor(
+    private readonly scene: THREE.Scene,
+    private readonly labels: TelegraphLabelPool | null = null,
+  ) {}
 
   sync(telegraphs: readonly RenderTelegraph[], currentTick: number): void {
     const seen = new Set<string>();
@@ -166,5 +172,6 @@ export class TelegraphPool {
         this.views.delete(id);
       }
     }
+    this.labels?.sync(telegraphs, currentTick);
   }
 }

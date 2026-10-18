@@ -27,6 +27,7 @@ import { OrbitCamera } from "./camera/orbitCamera.js";
 import { createScene } from "./render/scene.js";
 import { ActorPool } from "./render/actors.js";
 import { TelegraphPool } from "./render/telegraphs.js";
+import { TelegraphLabelPool } from "./render/telegraph-label.js";
 import { DamageNumberField } from "./render/damageNumbers.js";
 import { TargetReticle } from "./render/reticle.js";
 import { Hud } from "./render/hud.js";
@@ -105,7 +106,7 @@ export async function boot(): Promise<void> {
   const orbitCamera = new OrbitCamera(canvas, window.innerWidth / window.innerHeight);
   window.__keyrunCamera = readOnlyCameraView(orbitCamera);
   const actorPool = new ActorPool(scene);
-  const telegraphPool = new TelegraphPool(scene);
+  const telegraphPool = new TelegraphPool(scene, new TelegraphLabelPool(scene));
   const damageNumbers = new DamageNumberField(scene);
   const reticle = new TargetReticle(scene);
   const pingPool = new PingMarkerPool(scene);
