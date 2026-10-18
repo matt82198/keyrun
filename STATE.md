@@ -189,8 +189,8 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
     content-pool rewards, five-argument Rewards.RollRewardChoices); #153 MERGED beefb47 (3C-d run-end title `Party wiped on
     pull N of T -- key depleted` via ObjectiveModel.Build; RunEndView.Of rolls from the content pool; `HUD runend choice`
     lines carry id=<facet id>); #154 MERGED 606e623 (CI: game.yml game-e2e runs HudSceneTest, CombatViewSceneTest and
-    ScreenSceneTest; all PASS on the runner). #155 (PLAN-DOCS: ENGINE-PLAN rows 3H 3I 3J, README status and record command)
-    is OPEN, not merged. #156 MERGED 28415a6 (3E-a2: E2eAssert.ps1 replay pass driven by example-yaw-walk.input-log.json,
+    ScreenSceneTest; all PASS on the runner). #155 MERGED f31311d (PLAN-DOCS: ENGINE-PLAN rows 3H 3I 3J,
+    README status and record command; verified with `gh pr view 155 --json state,mergeCommit`). #156 MERGED 28415a6 (3E-a2: E2eAssert.ps1 replay pass driven by example-yaw-walk.input-log.json,
     committed digest 94eb4f3d216477f9 over TICK 0-239; the CI proof of the human-input path for row 3E).
   - Per-row third-pass status: 3A MET; 3B PARTIAL (RolesOracleTraceTests.cs:148 k2-s11 and :151 k10-s7 traces exist; no
     k10-s11 trace, minor); 3C PARTIAL (RunEndPanel.cs:127 rolls from the pool, :138 wipe title; HudSceneTest asserts both;
