@@ -138,21 +138,23 @@ Remaining rungs (post-#98), cheapest and most visible first:
   colour is time-only; setupClass never rendered; capsules have no names on the non-#98 path; SPREAD/STACK
   telegraph text labels (no text yet); 3 of 4 bots die in pull 2 (balance).
 
-## NEXT STEPS (ranked; Phase 5 "Matt playing" stays the acceptance test)
-1. LAND the 3 live lanes (each must pass main's gates and be re-tested against the current main head, not an
-   older base - see the #94 post-mortem):
-   a. fix/sim-telegraph-facing - sim/encounter/telegraphs.ts:51 uses yaw0=+z while sim/combat/targeting.ts:57 uses
-      yaw0=+x; scripts.ts:109 copies the combat yaw, so cones/lines resolve 90 degrees off.
-   b. feat/window-ping-castbar-readability - ladder rungs 3, 4, 6, 7.
-   c. feat/status-chips-downed-net-casts - ladder rungs 5, 12, 13, 14, plus net/mapping.ts:118 self-target and
-      server snapshot cast / cast_failed / gcd events.
-2. SPREAD/STACK telegraph text labels (open item from #98).
-3. Bot balance on pull 2 (3 of 4 bots die); balance is Matt's play call - bring the numbers, not a tuned constant.
-4. Sundered Twins / Break bar spawn decision (content-dungeon.ts:20-23 intentionally omits them; remote branch
-   feat/break-bar-wiring exists). Needs Matt's scope call first.
-5. Floor Windows (Lock/Window payoffs) and combo event snapshot channels (snapshot.ts:38-48, 110-129).
-6. Rewards stub (run-end.ts:29-33) and clause pick UI + key level display.
-7. Cinder Blink displacement (cinder.json:266) and F=Charge vs Space=dash authority - see Decisions for Matt.
+## NEXT STEPS (engine plan, design/ENGINE-PLAN.md; Phase 5 "Matt playing" stays the acceptance test)
+PURPOSE: Keyrun is a Windows desktop 3D dungeon game per design/BIBLE.md; the TypeScript browser client was first paint only (status: throwaway); the Godot build is the real thing (status: real).
+TS feature work is FROZEN at main 6e1548d (sim/ bots/ client/ server/ screen/). Former items 1-7 (Slack delta, cast-bar
+names, bot balance pull 2, Twins/Break bar, floor Windows, rewards/clause UI, Blink/F vs Space) move to the C# build
+after parity (ENGINE-PLAN phase 5) and stay listed in Decisions for Matt.
+Phase 1 lanes (Opus per D11 unless noted; owned files in ENGINE-PLAN s5):
+1. 1A scaffold - game/ Godot 4.7.2 .NET project, Keyrun.Sim lib + purity test, tools/godot wrapper + export templates,
+   .gitignore/.gitattributes, .github/workflows/game.yml. Proof: dotnet test, --build-solutions, --export-release, SMOKE ok.
+2. 1B oracle - tests/oracle/** writes fixtures to game/sim/Keyrun.Sim.Tests/Fixtures/oracle/ (vectors, golden traces,
+   bot seeds 7/11, key 10); game/sim/ORACLE.md.  (parallel with 1A)
+3. 1C sim core port - Core/**, Combat/Movement.cs, Encounter/Telegraphs.cs; vector parity.  (after 1A+1B)
+4. 1D content loader - game/content/Keyrun.Content (EmbeddedResource from content/data).  (after 1A, parallel with 1C)
+5. 1E arena scene - SimDriver 20 Hz, PlayerInput, CameraRig, ActorView, TelegraphView, temporary DebugCleaveEmitter.
+   Proof: headless autorun log + 3 --write-movie frames.  (after 1C+1D)
+6. 1F docs (Haiku) - CLAUDE.md domain map, game/CLAUDE.md, README run section.
+Phase 1 exit: Matt double-clicks build/keyrun.exe and walks the Warden around a floor with a Cleave cone firing every 8 s.
+Every keyrun checkpoint runs the plan-vs-output check (aesop LANE-CONTRACT section 10) against design/BIBLE.md.
 
 ## Decisions for Matt
 Verbatim from the recon file's "Decisions for Matt / sim lanes (not client work)" list:
@@ -212,3 +214,18 @@ Additional parked decisions (from the burn ledger):
 - Net/local parity: a telegraph, kick flag, or event that exists on the local path must exist on the net path in
   the same PR. Client events are read only via client/CLAUDE.md SnapshotEventLatch, never nextSnapshot.events.
 - Model: Opus for Keyrun development lanes (D11); Haiku for read-only recon, lint and bookkeeping.
+
+## DECISIONS 2026-10-18 (engine)
+- Matt, verbatim: "im honestly confused why the game is being built in typescript on a browser lol, that was supposed
+  to be first paint but it'd be better just to install an actual tool people use for this you are familiar with"
+- Matt, verbatim: "i mean its not a browser game though"
+- Matt, verbatim: "how are you going to port ts to a 3d renderer lmfao" (answer: nothing visual is ported; only sim logic, with the seeded TS sim as parity oracle; rendering is rebuilt natively)
+- Matt, verbatim: "just use a common productivity framework lmfao people vibecode games like crazy... opus make a
+  better plan lmfao"
+- Matt, verbatim: "because it was never supposed to be a browser game lmfao"
+- D12 (recommended by the opus planning lane, design/ENGINE-PLAN.md; accepted by the orchestrator under the decide-and-report grant): Godot 4.7.2 .NET (installed, no account), C#
+  throughout, sim and bots ported tick for tick to plain net8.0 libraries with the frozen TS sim as parity oracle;
+  content/data JSON kept verbatim; TS trees deleted after parity (ENGINE-PLAN phase 4). Supersedes D1 (stack) and the
+  browser part of D3; D3's headless-deterministic-sim / renderer split, D9 (20 Hz) and D10 (MVP) stand. Unity rejected:
+  needs Matt's sign-in and a CI licence secret. Unreal rejected: account, size, binary assets.
+- Intent-decay note: five feature lanes (#101-#106) were built on the throwaway browser client as if it were the product. The PURPOSE line above and the plan-vs-output check exist so this does not recur.
