@@ -2,11 +2,14 @@
 
 [ext_resource type="Script" path="res://src/Host/SimDriver.cs" id="1_driver"]
 [ext_resource type="Script" path="res://src/Host/PlayerInput.cs" id="2_input"]
-[ext_resource type="Script" path="res://src/Host/DebugCleaveEmitter.cs" id="3_cleave"]
 [ext_resource type="PackedScene" path="res://scenes/Actor.tscn" id="4_actor"]
 [ext_resource type="Script" path="res://src/View/TelegraphView.cs" id="5_tgview"]
 [ext_resource type="PackedScene" path="res://scenes/Telegraph.tscn" id="6_tgscene"]
 [ext_resource type="Script" path="res://src/View/CameraRig.cs" id="7_rig"]
+[ext_resource type="Script" path="res://src/View/LabelView.cs" id="8_labels"]
+[ext_resource type="Script" path="res://src/View/WindowRingView.cs" id="9_rings"]
+[ext_resource type="Script" path="res://src/View/CastBarView.cs" id="10_castbars"]
+[ext_resource type="Script" path="res://src/Hud/AbilityBar.cs" id="11_abilitybar"]
 
 [sub_resource type="Environment" id="Env_arena"]
 background_mode = 1
@@ -69,9 +72,6 @@ surface_material_override/0 = SubResource("Mat_grid")
 [node name="SimDriver" type="Node" parent="."]
 script = ExtResource("1_driver")
 
-[node name="DebugCleaveEmitter" type="Node" parent="."]
-script = ExtResource("3_cleave")
-
 [node name="PlayerInput" type="Node" parent="."]
 script = ExtResource("2_input")
 
@@ -81,10 +81,12 @@ script = ExtResource("2_input")
 ActorId = 1
 BodyColor = Color(0.2, 0.4, 0.9, 1)
 
-[node name="Box" parent="Actors" instance=ExtResource("4_actor")]
-ActorId = 2
-BoxShape = true
-BodyColor = Color(0.5, 0.5, 0.53, 1)
+[node name="Labels" type="Node3D" parent="."]
+script = ExtResource("8_labels")
+ActorScene = ExtResource("4_actor")
+
+[node name="WindowRings" type="Node3D" parent="."]
+script = ExtResource("9_rings")
 
 [node name="Telegraphs" type="Node3D" parent="."]
 script = ExtResource("5_tgview")
@@ -102,6 +104,26 @@ fov = 70.0
 [node name="Help" type="Label" parent="Hud"]
 offset_left = 16.0
 offset_top = 16.0
-offset_right = 720.0
+offset_right = 1264.0
 offset_bottom = 48.0
-text = "Keyrun arena - WASD move, mouse look, Esc frees the mouse (click to capture)"
+text = "Hollow Vault - WASD move, mouse look, 1-5 abilities, Q kick, E defensive, R utility, F charge, Tab target, G ping, Esc frees the mouse"
+
+[node name="CastBars" type="Control" parent="Hud"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("10_castbars")
+
+[node name="AbilityBar" type="Control" parent="Hud"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("11_abilitybar")
