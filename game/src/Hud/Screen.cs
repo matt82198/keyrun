@@ -445,7 +445,22 @@ public partial class Screen : Control
         {
             return Array.Empty<Facet>();
         }
-        var kit = new HashSet<string>(setup.Slots.Select(s => s.AbilityId), StringComparer.Ordinal);
+        return SlotPool(reg, new HashSet<string>(setup.Slots.Select(s => s.AbilityId), StringComparer.Ordinal), slot);
+    }
+
+    /// <summary>
+    /// One gear slot's facet pool for a class: the content Facets of <paramref name="slot"/> that patch an ability in
+    /// <paramref name="kit"/>, ordered by id (load-order independent), as sim <see cref="Facet"/>s. The Screen's reroll
+    /// pool and the run-end reward roll (RunEndView.Of, lane 3C-d) share it.
+    /// </summary>
+    /// <param name="reg">Content.</param>
+    /// <param name="kit">The class kit's ability ids.</param>
+    /// <param name="slot">A gear slot ("weapon", "armor", ...).</param>
+    /// <returns>The pool, possibly empty.</returns>
+    public static IReadOnlyList<Facet> SlotPool(Keyrun.Content.ContentRegistry reg, IReadOnlySet<string> kit, string slot)
+    {
+        ArgumentNullException.ThrowIfNull(reg);
+        ArgumentNullException.ThrowIfNull(kit);
         return reg.Facets
             .Select(kv => kv.Value)
             .Where(f => f.Slot.ToString().ToLowerInvariant() == slot && kit.Contains(f.AbilityId))

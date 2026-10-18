@@ -14,12 +14,18 @@
       4. "HUD objective pull=1/4 id=choir name="The Choir"" (the current pull's content name);
       5. "HUD slack ticks=620 of=620" first (Timer.InitialSlackTicks(2) = 600 + 20), then a lower value after the
          death (the sim spends 300 on a death and 500 on the wipe);
-      6. "HUD runend result=depleted choices=3 cleared=0 ... title="Party wiped -- key depleted"" (the sim reports a
-         lasting wipe as "depleted"; the panel must not call it cleared), three "HUD runend choice n=<1..3>
-         slot=<slot> tier=<t> facet=..." lines (Rewards.RollRewardChoices), and "HUD runend cause seat=1" lines
-         naming only seat 1's own causes.
+      6. "HUD runend result=depleted choices=3 cleared=0 ... title="Party wiped on pull 1 of 4 -- key depleted"" (the
+         sim reports a lasting wipe as "depleted"; the panel must not call it cleared, and names the pull it was lost
+         on, numbered as the objective line numbers it: lane 3C-d), three "HUD runend choice n=<1..3> slot=<slot>
+         tier=<t> facet=... ability=warden.<id> charges=<c> id=reward-<slot>-warden.<slot>.<facet>-t<t>-<i>" lines
+         (Rewards.RollRewardChoices over the Warden's content facet pool, lane 3C-d: no placeholder "ability-<n>"
+         id), and "HUD runend cause seat=1" lines naming only seat 1's own causes; every "HUD runend result=" line of
+         every autorun (A-G) titles a cleared=1 run "Run cleared -- ..." and a cleared=0 depleted run "Party wiped
+         on pull <n> of <total> -- key depleted" (no autorun here clears the dungeon, so the clear title is checked
+         only when one does; the count of cleared runs is printed).
     Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 400 --pull 2 --solo
-      7. "HUD objective pull=2/4 id=pair name="The Pair"";
+      7. "HUD objective pull=2/4 id=pair name="The Pair"", and the wipe title "Party wiped on pull 2 of 4 -- key
+         depleted" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
       8. at least one "HUD ping label=SPREAD" or "HUD ping label=STACK" line (from the Pair's mark telegraphs and
          mark effects in the sim state). The solo Warden is down before the Pair's first mark (about tick 294), so
          this line comes from enemy scripts the sim keeps stepping after run_end; run C proves a live-run call.
@@ -30,7 +36,8 @@
      11. the party reaches the Pair or run_end, is not wiped by tick 295, and a "HUD ping label=SPREAD|STACK" line
          appears before the party's third death (a call during a live run);
      12. a bot seat takes damage and every "HUD runend cause" line is seat 1's (the private run log's seat filter
-         with more than one seat in the sim);
+         with more than one seat in the sim), and the party's wipe is titled "Party wiped on pull 2 of 4 -- key
+         depleted" (it wipes in the Pair at seed 1 key 2, lane 3C-d);
      13. "BOTS done commands=N hash=H" with N > 0, equal across the two runs (bot determinism).
     Run D (lane 3I, the armed boss; from pull 4, the boss pull, three-seat party, key 10 seed 7):
         -- --autorun --ticks 600 --pull 4 --key 10 --seed 7
@@ -258,10 +265,17 @@ if ($slackLines.Count -eq 0) {
     if (-not $slackLower) { $failures.Add('run A: Slack never dropped below 620 after the death') }
 }
 
-$runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped -- key depleted"'
-if (-not $runEnd) { $failures.Add('run A: no "HUD runend result=depleted choices=3 cleared=0 ... title=""Party wiped -- key depleted""" line') }
+$runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 1 of 4 -- key depleted"$'
+if (-not $runEnd) { $failures.Add("run A: no 'HUD runend result=depleted choices=3 cleared=0 ... title=""Party wiped on pull 1 of 4 -- key depleted""' line (got '$(First $a.Lines '^HUD runend result=')')") }
 $choices = @($a.Lines | Where-Object { $_ -match '^HUD runend choice n=[123] slot=(weapon|armor|charm|ring|keystone) tier=\d+ facet="[^"]+"' })
 if ($choices.Count -ne 3) { $failures.Add("run A: expected 3 'HUD runend choice' lines, got $($choices.Count)") }
+# Lane 3C-d: the cards roll over the Warden's content facet pool, so each names a real facet id and its kit ability.
+foreach ($ch in $choices) {
+    if ($ch -match ' ability=ability-[0-9]') { $failures.Add("run A: a run-end card still carries a placeholder ability id: '$ch'") }
+    elseif ($ch -notmatch '^HUD runend choice n=[123] slot=(\w+) tier=(\d+) facet="[^"]+" ability=warden\.[A-Za-z]+ charges=\d+ id=reward-\1-warden\.\1\.[A-Za-z]+-t\2-\d$') {
+        $failures.Add("run A: a run-end card does not name a Warden content facet (want ability=warden.<id> ... id=reward-<slot>-warden.<slot>.<facet>-t<t>-<i>): '$ch'")
+    }
+}
 $causes = @($a.Lines | Where-Object { $_ -match '^HUD runend cause ' })
 if ($causes.Count -eq 0) {
     $failures.Add('run A: no "HUD runend cause" line (the private run log names what got the Warden)')
@@ -276,6 +290,10 @@ $objB = First $b.Lines '^HUD objective pull=2/4 id=pair name="The Pair"'
 if (-not $objB) { $failures.Add('run B: no "HUD objective pull=2/4 id=pair name=""The Pair""" line') }
 $ping = First $b.Lines '^HUD ping label=(SPREAD|STACK) '
 if (-not $ping) { $failures.Add('run B: no "HUD ping label=SPREAD|STACK" line') }
+# Lane 3C-d: the solo Warden wipes in the Pair; --pull 2 drops pull 1 from the run's dungeon, and the title still
+# numbers the Pair 2 of 4 (ObjectiveModel numbering), never 1 of 3.
+$runEndB = First $b.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 2 of 4 -- key depleted"$'
+if (-not $runEndB) { $failures.Add("run B: no 'HUD runend ... title=""Party wiped on pull 2 of 4 -- key depleted""' line (got '$(First $b.Lines '^HUD runend result=')')") }
 
 # ---- Run C: the three-seat bot party (lane 3H) -------------------------------------------------------------------
 # The human Warden (seat 1) plus a Chanter (healer) and a Cinder (damage) driven by Keyrun.Bots through
@@ -324,6 +342,13 @@ if (-not $livePing) { $failures.Add('run C: no "HUD ping label=SPREAD|STACK" lin
 $causesC = @($c.Lines | Where-Object { $_ -match '^HUD runend cause ' })
 $foreignC = @($causesC | Where-Object { $_ -notmatch '^HUD runend cause seat=1 ' })
 if ($foreignC.Count -gt 0) { $failures.Add("run C: seat 1's run-end panel shows another seat's cause: '$($foreignC[0])'") }
+# Lane 3C-d: from pull 1 the party wipes in the Pair (run_end depleted at tick 3611 at seed 1 key 2), titled pull 2.
+$runEndC = First $c.Lines '^HUD runend result='
+if (-not $runEndC) {
+    $failures.Add("run C: no 'HUD runend result=' line in $PartyTicks ticks (the party's wipe in the Pair was not titled)")
+} elseif ($runEndC -notmatch '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 2 of 4 -- key depleted"$') {
+    $failures.Add("run C: the party's wipe title is not 'Party wiped on pull 2 of 4 -- key depleted': '$runEndC'")
+}
 $botHit = First $c.Lines '^EVENT \{.*"healthDamage":[1-9]\d*,.*"sourceId":(1\d\d|900),"targetId":[23],.*"type":"damage"'
 if (-not $botHit) { $failures.Add('run C: no enemy damaged a bot seat, so the private-log seat filter is not exercised') }
 $botsC = First $c.Lines '^BOTS done commands=\d+ hash=[0-9a-f]{16}$'
@@ -448,6 +473,21 @@ if ($f.Pull) {
 $g = Invoke-Backfill 'G' 3
 if ($g.Refill) { $failures.Add("run G: a key-3 joiner refilled a key-2 run: '$($g.Refill)'") }
 if ($g.Consume) { $failures.Add("run G: the key-3 joiner was consumed: '$($g.Consume)'") }
+
+# ---- Run-end titles across every autorun (lane 3C-d) ----------------------------------------------------------
+# A cleared run keeps the clear title; a wipe names the pull it was lost on. No autorun above clears the dungeon
+# (every run wipes or times out of ticks), so the cleared branch is checked only if one does: $clearedTitles says how many.
+$titleLines = @(@($a.Lines) + @($b.Lines) + @($c.Lines) + @($c2.Lines) + @($d.Lines) + @($e.Lines) + @($f.Lines) + @($g.Lines) | Where-Object { $_ -match '^HUD runend result=' })
+$clearedTitles = 0
+foreach ($t in $titleLines) {
+    if ($t -match ' cleared=1 ') {
+        $clearedTitles++
+        if ($t -notmatch ' title="Run cleared -- (within par|key depleted)"$') { $failures.Add("a cleared run lost the clear title: '$t'") }
+    } elseif ($t -match '^HUD runend result=depleted ' -and $t -notmatch ' title="Party wiped on pull \d+ of \d+ -- key depleted"$') {
+        $failures.Add("a wiped run's title does not name the pull it was lost on: '$t'")
+    }
+}
+if ($titleLines.Count -eq 0) { $failures.Add('no "HUD runend result=" line in any autorun (the title checks did not run)') }
 
 # ---- Run H: the interactive launch opens the screen first (lane 3D-b) ----------------------------------------------
 $ErrorActionPreference = 'Continue'
@@ -745,11 +785,13 @@ if ($yawTick -ge 0) {
 foreach ($p in @($walkPath, $lRecPath, $l1LogPath, $l2LogPath)) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p } }
 
 Write-Output '--- asserted HUD lines ---'
-foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping)) {
+foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping, $runEndB)) {
     if ($l) { Write-Output $l }
 }
+Write-Output "--- run-end titles, lane 3C-d (lines=$($titleLines.Count) cleared=$clearedTitles) ---"
+foreach ($l in $titleLines) { Write-Output $l }
 Write-Output '--- run C (bot party) ---'
-foreach ($l in $seats + $botCasts + @($pull2, $tick295, $livePing, $runEndEv, $botHit) + $causesC + @($botsC, $botsC2)) {
+foreach ($l in $seats + $botCasts + @($pull2, $tick295, $livePing, $runEndEv, $runEndC, $botHit) + $causesC + @($botsC, $botsC2)) {
     if ($l) { Write-Output $l }
 }
 Write-Output '--- run D (armed boss) and run E (queued run), lane 3I ---'
