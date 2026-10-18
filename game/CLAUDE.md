@@ -65,3 +65,4 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
   args --autorun --ticks N --log FILE --write-movie DIR), `PlayerInput.cs`, `RunLog.cs`, `DebugCleaveEmitter.cs`
   (TEMPORARY, 2E deletes it), `src/View/{ActorView,TelegraphView,CameraRig}.cs`. Scene test (not in CI yet):
   `pwsh game/src/Host/SimDriverSceneTest.ps1` asserts 40 TICK lines and frames=120 frame_ms=2000 at --fixed-fps 60.
+- 2C encounter (`sim/Keyrun.Sim/Encounter/` except Telegraphs.cs): scripts, script-target, chase, pulls, tempo (plus content-dungeon.ts scaleStep), timer/Slack, breakbar, clauses, echo, rewards, Seed Window loot (new, event-driven), `EncounterStep.Step` (index.ts stepEncounter), `EncounterJson` (setup and content readers). Oracle proof: `Keyrun.Sim.Tests/Encounter/EncounterTraceTests.cs` replays every encounter event of all five traces without combat; `TempoTests` checks the k2/k10 setup scripts against tempo-scaled content/data.
