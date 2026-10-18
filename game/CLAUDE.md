@@ -61,3 +61,7 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
 - `.github/workflows/game.yml`: `game-test` (dotnet test), `game-e2e` (headless smoke, export, exported-exe smoke).
   Both are non-required until phase 4A.
 - `.github/workflows/tests.yml`: the required TS gate (`npm test` runs the oracle drift test).
+- 1E arena (scenes/Arena.tscn, booted by Main.cs unless --smoke): `src/Host/SimDriver.cs` (20 Hz fixed accumulator,
+  args --autorun --ticks N --log FILE --write-movie DIR), `PlayerInput.cs`, `RunLog.cs`, `DebugCleaveEmitter.cs`
+  (TEMPORARY, 2E deletes it), `src/View/{ActorView,TelegraphView,CameraRig}.cs`. Scene test (not in CI yet):
+  `pwsh game/src/Host/SimDriverSceneTest.ps1` asserts 40 TICK lines and frames=120 frame_ms=2000 at --fixed-fps 60.

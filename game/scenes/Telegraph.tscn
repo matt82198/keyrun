@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[node name="Telegraph" type="Node3D"]
+
+[node name="Outline" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+
+[node name="Fill" type="MeshInstance3D" parent="."]
+cast_shadow = 0
