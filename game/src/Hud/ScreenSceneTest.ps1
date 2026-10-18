@@ -8,7 +8,8 @@
   "SCREEN ..." lines (printed under --autorun). After the run ends, Screen.cs pushes keys through the real input
   path one per frame: 1 (the run-end panel takes reward 1 and opens the screen), R, R, R, Right, 2, Enter.
 
-    -- --autorun --ticks 480 (pull 1, the Choir, solo Warden; the party wipes, so the result is depleted):
+    -- --autorun --ticks 480 --solo (pull 1, the Choir, solo Warden; the lone Warden wipes, so the run ends
+       depleted inside the tick budget; the 3H bot party may still be fighting at tick 480):
       1. exit 0 and "AUTORUN done ticks=480";
       2. "SCREEN bank result=depleted ash=30 total=30" (Ash banked win or lose, before any reward is taken);
       3. "HUD runend take n=1 id=reward-<slot>-..." and "SCREEN open ash=30 runs=1 since="+30 Ash, <slot> tier <t> (new)"";
@@ -36,7 +37,7 @@ $failures = New-Object System.Collections.Generic.List[string]
 # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
 $guard = (3 * $Ticks) + 240
 $ErrorActionPreference = 'Continue'
-$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks 2>&1 | Out-String
+$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --solo 2>&1 | Out-String
 $rc = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 if ($rc -eq 2 -and $text -match 'Godot binary not found') {
