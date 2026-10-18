@@ -11,6 +11,7 @@ using Keyrun.Hud;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Runs;
+using Keyrun.View;
 
 namespace Keyrun.Host;
 
@@ -84,7 +85,8 @@ public sealed class TickAccumulator
 /// The arena's user arguments (after <c>--</c> on the Godot command line), in the style of Main.cs's
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
 /// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T</c>, <c>--joiner-key K</c>,
-/// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--record-input PATH</c>, <c>--replay-input PATH</c>.
+/// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
+/// <c>--replay-input PATH</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -113,12 +115,21 @@ public sealed class TickAccumulator
 /// 0 = never.</param>
 /// <param name="RecordInput">Interactive input recorder (<c>--record-input PATH</c>, lane 3E-b): every key press and
 /// release the game reads is stamped with the host tick and written to PATH as <c>keyrun.input-log/1</c> (see
-/// <see cref="InputLog"/>) at each run end and at quit, logged <c>INPUT record done events=N path=P</c>. Ignored under
-/// <c>--autorun</c>. Null = no recording.</param>
+/// <see cref="InputLog"/>) at each run end and at quit, logged <c>INPUT record done events=N path=P</c>. Lane 3E-c: the
+/// CameraRig heading WASD is relative to is sampled before each step and recorded whenever it changes; a log holding a
+/// heading is written as <c>keyrun.input-log/2</c> and logged <c>INPUT record done events=N cam=M path=P</c>. Ignored
+/// under <c>--autorun</c>. Null = no recording.</param>
 /// <param name="ReplayInput">Interactive input replayer (<c>--replay-input PATH</c>, lane 3E-b): the log's events go back
 /// through <see cref="Input.ParseInputEvent"/> at their host ticks, so PlayerInput's polled keys and every node's
 /// <c>_UnhandledInput</c> see them as keyboard input; logged <c>INPUT replay tick=T key=K pressed=B</c> per event and
-/// <c>INPUT replay done events=N last=T</c>. Ignored under <c>--autorun</c>. Null = no replay.</param>
+/// <c>INPUT replay done events=N last=T</c>. Lane 3E-c: a <c>/2</c> log's headings are put back on the CameraRig
+/// (<see cref="Keyrun.View.CameraRig.RestoreYaw"/>) before the step at their tick, logged
+/// <c>INPUT replay cam tick=T yaw=Y</c>, and the summary ends <c>cam=M</c>. Ignored under <c>--autorun</c>. Null = no
+/// replay.</param>
+/// <param name="PressYaw">Interactive scene-test seam (<c>--press-yaw T:Y</c>, lane 3E-c): once the run reaches tick T a
+/// scripted player turns the CameraRig to Y radians through <see cref="Keyrun.View.CameraRig.Look"/>, the call the mouse
+/// handler makes, logged <c>INPUT yaw tick=T yaw=Y</c> (Y as the rig then reports it). Ignored under <c>--autorun</c>.
+/// Null = never.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -134,7 +145,8 @@ public sealed record ArenaOptions(
     int PressEnter = 0,
     int PressPing = 0,
     string? RecordInput = null,
-    string? ReplayInput = null)
+    string? ReplayInput = null,
+    YawPlan? PressYaw = null)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -167,6 +179,7 @@ public sealed record ArenaOptions(
         var pressPing = 0;
         string? recordInput = null;
         string? replayInput = null;
+        YawPlan? pressYaw = null;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -204,6 +217,9 @@ public sealed record ArenaOptions(
                 case "--press-ping":
                     pressPing = PositiveInt(args, ref i);
                     break;
+                case "--press-yaw":
+                    pressYaw = YawPlan.Parse(Value(args, ref i));
+                    break;
                 case "--record-input":
                     recordInput = Value(args, ref i);
                     break;
@@ -219,7 +235,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -265,6 +281,31 @@ public sealed record SeatAbandonPlan(int ActorId, int Tick)
             throw new ArgumentException($"--abandon-seat needs actorId@tick, got '{raw}'");
         }
         return new SeatAbandonPlan(actor, tick);
+    }
+}
+
+/// <summary>A scripted camera turn (<c>--press-yaw T:Y</c>, lane 3E-c): at run tick <paramref name="Tick"/> the CameraRig
+/// turns to <paramref name="Yaw"/> radians.</summary>
+/// <param name="Tick">The run tick (pre-step) at which the camera turns, 0 or more.</param>
+/// <param name="Yaw">The heading to turn to, radians (finite; the rig wraps it into [-Pi, Pi]).</param>
+public sealed record YawPlan(int Tick, float Yaw)
+{
+    /// <summary>Parses <c>T:Y</c> (T a tick of 0 or more, Y a finite invariant-culture number of radians).</summary>
+    /// <param name="raw">The flag value.</param>
+    /// <returns>The plan.</returns>
+    /// <exception cref="ArgumentException">Not of the form T:Y.</exception>
+    public static YawPlan Parse(string raw)
+    {
+        ArgumentNullException.ThrowIfNull(raw);
+        var parts = raw.Split(':');
+        if (parts.Length != 2 ||
+            !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var tick) ||
+            !float.TryParse(parts[1], NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var yaw) ||
+            !float.IsFinite(yaw))
+        {
+            throw new ArgumentException($"--press-yaw needs tick:radians, got '{raw}'");
+        }
+        return new YawPlan(tick, yaw);
     }
 }
 
@@ -353,12 +394,20 @@ public partial class SimDriver : Node
     private InputRecorder? _recorder;
     private InputReplayer? _replayer;
     private int _replayTotal;
+    private int _replayCameraTotal;
     private bool _replayDoneLogged;
+    private CameraRig? _rig;
+    private bool _cameraBaselined;
+    private bool _yawPressed;
     private bool _done;
 
     /// <summary>The PlayerInput node.</summary>
     [Export]
     public NodePath InputPath { get; set; } = new("../PlayerInput");
+
+    /// <summary>The CameraRig whose heading PlayerInput's WASD is relative to (lane 3E-c: recorded and replayed).</summary>
+    [Export]
+    public NodePath CameraRigPath { get; set; } = new("../CameraRig");
 
     /// <summary>The Queue node whose requests backfill reads (lane 3J; Arena.tscn mounts it at Hud/Screen/Queue).</summary>
     [Export]
@@ -435,6 +484,7 @@ public partial class SimDriver : Node
             Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo);
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _player = GetNode<PlayerInput>(InputPath);
+            _rig = GetNodeOrNull<CameraRig>(CameraRigPath);
             _input = _player;
             _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed);
             // Lane 3H-c: the human's G reaches the bot seats (hud-wiring.ts derivePingEvent -> simHost.applyCommand).
@@ -473,6 +523,13 @@ public partial class SimDriver : Node
     /// <inheritdoc />
     public override void _Process(double delta)
     {
+        // Lane 3E-c: the heading the rig starts at (every _Ready has run, PlayerInput has turned it to the spawn facing)
+        // is the recorder's baseline, never an event: a replay starts from the same heading.
+        if (!_cameraBaselined && _recorder is not null && _rig is not null)
+        {
+            _cameraBaselined = true;
+            _recorder.BaselineCamera(_rig.Yaw);
+        }
         MaybeScriptedEnter();
         MaybeReplay();
         if (_done || Run is null)
@@ -480,14 +537,20 @@ public partial class SimDriver : Node
             return;
         }
         MaybeScriptedPing(Run);
+        MaybeScriptedYaw(Run);
         Frames++;
         var steps = _accumulator.Advance(delta);
         for (var i = 0; i < steps; i++)
         {
             // Lane 3E-b: a replayed event lands before the step after its tick, as a key pressed in a frame does; the
-            // recorder's poll diff runs at the same point, so both see the keys PlayerInput is about to sample.
+            // recorder's poll diff runs at the same point, so both see the keys PlayerInput is about to sample. Lane
+            // 3E-c: so does the camera heading, the value SampleMove reads (CameraRig.Yaw).
             MaybeReplay();
             _recorder?.SyncPolled(TicksRun, PlayerInput.PolledKeys, Input.IsPhysicalKeyPressed);
+            if (_rig is not null)
+            {
+                _recorder?.SyncCamera(TicksRun, _rig.Yaw);
+            }
             StepOnce();
             if (Options.Autorun && TicksRun >= Options.Ticks)
             {
@@ -568,8 +631,13 @@ public partial class SimDriver : Node
                 throw new ArgumentException(FormattableString.Invariant(
                     $"--replay-input {path} was recorded at seed={log.Seed} key={log.KeyLevel}, this launch is seed={Options.Seed} key={Options.KeyLevel}"));
             }
+            if (log.Camera.Count > 0 && _rig is null)
+            {
+                throw new ArgumentException($"--replay-input {path} holds camera headings but the scene has no CameraRig at {CameraRigPath}");
+            }
             _replayer = new InputReplayer(log);
             _replayTotal = log.Events.Count;
+            _replayCameraTotal = log.Camera.Count;
         }
     }
 
@@ -589,10 +657,18 @@ public partial class SimDriver : Node
             Input.ParseInputEvent(new InputEventKey { Keycode = e.Key, PhysicalKeycode = e.Key, Pressed = e.Pressed });
             Input.FlushBufferedEvents();
         }
+        // Lane 3E-c: the recorded heading goes back on the rig PlayerInput reads, before the step at its tick. A /1 log
+        // has none, and its summary line is unchanged.
+        foreach (var c in _replayer.DueCamera(TicksRun))
+        {
+            _log?.Line(FormattableString.Invariant($"INPUT replay cam tick={c.Tick} yaw={InputLog.FormatYaw(c.Yaw)}"));
+            _rig?.RestoreYaw(c.Yaw);
+        }
         if (_replayer.Done && !_replayDoneLogged)
         {
             _replayDoneLogged = true;
-            _log?.Line(FormattableString.Invariant($"INPUT replay done events={_replayTotal} last={_replayer.LastTick}"));
+            var cam = _replayCameraTotal > 0 ? FormattableString.Invariant($" cam={_replayCameraTotal}") : string.Empty;
+            _log?.Line(FormattableString.Invariant($"INPUT replay done events={_replayTotal} last={_replayer.LastTick}{cam}"));
         }
     }
 
@@ -608,7 +684,8 @@ public partial class SimDriver : Node
             _recorder.ToLog(Options.Seed, Options.KeyLevel).Save(path);
             if (final)
             {
-                _log?.Line(FormattableString.Invariant($"INPUT record done events={_recorder.Events.Count} path={path}"));
+                var cam = _recorder.Camera.Count > 0 ? FormattableString.Invariant($" cam={_recorder.Camera.Count}") : string.Empty;
+                _log?.Line(FormattableString.Invariant($"INPUT record done events={_recorder.Events.Count}{cam} path={path}"));
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -730,6 +807,21 @@ public partial class SimDriver : Node
         _pingPressed = true;
         _log?.Line(FormattableString.Invariant($"INPUT ping tick={run.State.Tick}"));
         GetViewport().PushInput(new InputEventKey { Keycode = Key.G, PhysicalKeycode = Key.G, Pressed = true });
+    }
+
+    // --press-yaw T:Y (lane 3E-c's interactive proof): once the live run reaches tick T the scripted player turns the
+    // CameraRig to Y through CameraRig.Look, the call PlayerInput's mouse handler makes, so the heading changes exactly as
+    // a mouse turn changes it (headless has no captured mouse to move). Never under --autorun.
+    private void MaybeScriptedYaw(Run run)
+    {
+        if (_yawPressed || Options.Autorun || Options.PressYaw is not { } plan || _rig is null || run.State.Tick < plan.Tick ||
+            run.RunEnd.Result is not null || _screen?.IsOpen == true)
+        {
+            return;
+        }
+        _yawPressed = true;
+        _rig.Look(plan.Yaw - _rig.Yaw, 0);
+        _log?.Line(FormattableString.Invariant($"INPUT yaw tick={run.State.Tick} yaw={InputLog.FormatYaw(_rig.Yaw)}"));
     }
 
     // --abandon-seat A@T (lane 3J's scripted proof): at run tick T the seat empties and, with --joiner-key K, one

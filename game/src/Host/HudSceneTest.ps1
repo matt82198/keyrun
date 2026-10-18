@@ -119,6 +119,23 @@
          own): K1's markers are exactly the first markers of K2's log (K2 starts its first run a few frames sooner, so
          it may run further in the same frames). Before 3E-b SimDriver ignores both flags: no "INPUT record done" line and 30
          fails (RED).
+    Run L (lane 3E-c, the camera yaw a human sets is recorded beside the keys and replayed; interactive, three-seat party):
+      L1  -- --replay-input <walk> --record-input <log> --press-yaw <YawAt>:<YawTo> --log <l1>   (--quit-after <YawFrames>)
+      L2  -- --replay-input <log> --log <l2>                                                     (--quit-after <YawFrames>)
+        (<walk> is a keyrun.input-log/1 file this script writes: Enter at tick 0, the screen's Queue, and W held from tick 1,
+        so the Warden walks through the existing replay seam; --press-yaw T:Y turns the CameraRig to Y radians through
+        CameraRig.Look, the mouse handler's own call, once the run reaches tick T)
+     33. L1: exit 0, "INPUT yaw tick=T yaw=Y", "INPUT record done events=N cam=M path=<log>" with M >= 1, and the file
+         parses as keyrun.input-log/2 (seed 1, key 2) with M camera events, the first at or after <YawAt>, and W pressed
+         among its events; it equals the committed example game/fixtures/input/example-yaw-walk.input-log.json byte for
+         byte; the Warden's x in the L1 run log falls by more than 100 mm within 20 ticks of the yaw event (W walks along
+         the turned camera);
+     34. L2: exit 0, M "INPUT replay cam tick=T yaw=Y" lines matching the log's camera events in order, then
+         "INPUT replay done events=N last=T cam=M", and no scripted "INPUT enter"/"INPUT ping"/"INPUT yaw";
+     35. every L1 "TICK n warden=(x,z)" line at or after the yaw event's tick appears in L2's run log identically (at
+         least 20 of them): position equality is the proof the replayed yaw is the recorded one (positions are integer
+         mm, so there is no float noise to round). Before 3E-c SimDriver ignores --press-yaw and records no camera: no
+         "INPUT yaw" or "cam=" line and 33 fails (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -135,7 +152,10 @@ param(
     [int]$WipeFrames = 2400,
     [int]$PingAt = 100,
     [int]$PingFrames = 900,
-    [int]$RecordFrames = 2400
+    [int]$RecordFrames = 2400,
+    [int]$YawAt = 60,
+    [string]$YawTo = '1.5',
+    [int]$YawFrames = 900
 )
 $ErrorActionPreference = 'Stop'
 
@@ -615,6 +635,115 @@ if (@($m1 | Where-Object { $_ -match '\|SCREEN reopen ' }).Count -lt 1 -or @($m1
 }
 foreach ($p in @($recPath, $k1LogPath, $k2LogPath)) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p } }
 
+# ---- Run L: the camera yaw is recorded beside the keys and replayed through the rig movement reads (lane 3E-c) -------
+$lTag = [Guid]::NewGuid().ToString('N')
+$walkPath = Join-Path $kTemp "keyrun-hud-walk-$lTag.input-log.json"
+$lRecPath = Join-Path $kTemp "keyrun-hud-yaw-$lTag.input-log.json"
+$l1LogPath = Join-Path $kTemp "keyrun-hud-l1-$lTag.txt"
+$l2LogPath = Join-Path $kTemp "keyrun-hud-l2-$lTag.txt"
+$yawExamplePath = Join-Path $repo 'game/fixtures/input/example-yaw-walk.input-log.json'
+# L1's held key comes through the existing replay seam: Enter at tick 0 (the screen's Queue starts the run), W from tick 1.
+$walkJson = "{`n  `"schema`": `"keyrun.input-log/1`",`n  `"seed`": 1,`n  `"key`": 2,`n  `"events`": [`n" +
+    "    { `"tick`": 0, `"key`": `"Enter`", `"pressed`": true },`n    { `"tick`": 1, `"key`": `"W`", `"pressed`": true }`n  ]`n}`n"
+[IO.File]::WriteAllText($walkPath, $walkJson, (New-Object System.Text.UTF8Encoding($false)))
+
+# "TICK n warden=(x,z)" lines of a --log file by tick (the first run's line for each tick).
+function Get-WardenTicks([string]$path) {
+    $out = New-Object 'System.Collections.Generic.Dictionary[int,string]'
+    if (-not (Test-Path -LiteralPath $path)) { return ,$out }
+    foreach ($l in [IO.File]::ReadAllLines($path)) {
+        if ($l -match '^(TICK (\d+) warden=\((-?\d+),(-?\d+)\))' -and -not $out.ContainsKey([int]$Matches[2])) { $out[[int]$Matches[2]] = $Matches[1] }
+    }
+    return ,$out
+}
+
+$ErrorActionPreference = 'Continue'
+$l1Text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $YawFrames '--' --replay-input $walkPath --record-input $lRecPath --press-yaw "${YawAt}:$YawTo" --log $l1LogPath 2>&1 | Out-String
+$l1Code = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+$l1Lines = @($l1Text -split "`r?`n")
+if ($l1Code -ne 0) { $failures.Add("run L1: godot exited $l1Code (expected 0)") }
+$yawL1 = First $l1Lines '^INPUT yaw tick=\d+ yaw=\S+$'
+if (-not $yawL1) { $failures.Add("run L1: no 'INPUT yaw tick=T yaw=Y' line (the --press-yaw seam never turned the camera)") }
+$recDoneL = First $l1Lines '^INPUT record done events=\d+ cam=\d+ path=.+$'
+$lEvents = @()
+$camEvents = @()
+$yawTick = -1
+if (-not $recDoneL) {
+    $failures.Add("run L1: no 'INPUT record done events=N cam=M path=P' line (the camera turn was not recorded)")
+} else {
+    $camN = [int]($recDoneL -replace '^INPUT record done events=\d+ cam=(\d+) .*$', '$1')
+    if ($camN -lt 1) { $failures.Add("run L1: the input log holds $camN camera events (want >= 1: the scripted yaw)") }
+    if (-not (Test-Path -LiteralPath $lRecPath)) {
+        $failures.Add("run L1: '$recDoneL' but no file at $lRecPath")
+    } else {
+        $recL = Get-Content -Raw -LiteralPath $lRecPath | ConvertFrom-Json
+        if ($recL.schema -ne 'keyrun.input-log/2') { $failures.Add("run L1: input log schema is '$($recL.schema)' (want keyrun.input-log/2)") }
+        if ($recL.seed -ne 1 -or $recL.key -ne 2) { $failures.Add("run L1: input log header seed=$($recL.seed) key=$($recL.key) (want seed=1 key=2)") }
+        $lEvents = @($recL.events)
+        $camEvents = @($recL.camera)
+        if ($camEvents.Count -ne $camN) { $failures.Add("run L1: the log line says $camN camera events, the file holds $($camEvents.Count)") }
+        if ($camEvents.Count -gt 0) {
+            $yawTick = [int]$camEvents[0].tick
+            if ($yawTick -lt $YawAt) { $failures.Add("run L1: the first camera event is at tick $yawTick, before the scripted yaw at $YawAt") }
+        }
+        if (@($lEvents | Where-Object { $_.key -eq 'W' -and $_.pressed }).Count -ne 1) { $failures.Add('run L1: the input log does not hold the replayed W press') }
+        if (-not (Test-Path -LiteralPath $yawExamplePath)) {
+            $failures.Add("run L1: no committed example at $yawExamplePath")
+        } elseif ([Convert]::ToBase64String([IO.File]::ReadAllBytes($lRecPath)) -ne [Convert]::ToBase64String([IO.File]::ReadAllBytes($yawExamplePath))) {
+            $failures.Add("run L1: the recorded log differs from the committed example $yawExamplePath (regenerate it from run L1 with a stated reason)")
+        }
+    }
+}
+$w1 = Get-WardenTicks $l1LogPath
+$turnL1 = $null
+if ($yawTick -ge 0) {
+    if (-not $w1.ContainsKey($yawTick) -or -not $w1.ContainsKey($yawTick + 20)) {
+        $failures.Add("run L1: the run log has no TICK $yawTick and TICK $($yawTick + 20) warden lines around the yaw event")
+    } else {
+        $x0 = [int]($w1[$yawTick] -replace '^TICK \d+ warden=\((-?\d+),.*$', '$1')
+        $x20 = [int]($w1[$yawTick + 20] -replace '^TICK \d+ warden=\((-?\d+),.*$', '$1')
+        $turnL1 = "$($w1[$yawTick]) -> $($w1[$yawTick + 20])"
+        if ($x20 -ge ($x0 - 100)) { $failures.Add("run L1: the Warden's x went $x0 -> $x20 in the 20 ticks after the yaw (W did not walk along the turned camera)") }
+    }
+}
+
+$ErrorActionPreference = 'Continue'
+$l2Text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $YawFrames '--' --replay-input $lRecPath --log $l2LogPath 2>&1 | Out-String
+$l2Code = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+$l2Lines = @($l2Text -split "`r?`n")
+if ($l2Code -ne 0) { $failures.Add("run L2: godot exited $l2Code (expected 0)") }
+$scriptedL2 = First $l2Lines '^INPUT (enter|ping|yaw) '
+if ($scriptedL2) { $failures.Add("run L2: a scripted press ran during the replay: '$scriptedL2'") }
+$camReplayed = @($l2Lines | Where-Object { $_ -match '^INPUT replay cam tick=\d+ yaw=\S+$' })
+$replayDoneL = First $l2Lines '^INPUT replay done events=\d+ last=-?\d+ cam=\d+$'
+if ($camEvents.Count -gt 0) {
+    if ($camReplayed.Count -ne $camEvents.Count) {
+        $failures.Add("run L2: $($camReplayed.Count) 'INPUT replay cam' lines for $($camEvents.Count) recorded camera events")
+    } else {
+        for ($i = 0; $i -lt $camEvents.Count; $i++) {
+            $null = $camReplayed[$i] -match '^INPUT replay cam tick=(\d+) yaw=(\S+)$'
+            if ([int]$Matches[1] -ne [int]$camEvents[$i].tick -or [double]::Parse($Matches[2], [Globalization.CultureInfo]::InvariantCulture) -ne [double]$camEvents[$i].yaw) {
+                $failures.Add("run L2: camera replay line $i is '$($camReplayed[$i])' (want tick=$($camEvents[$i].tick) yaw=$($camEvents[$i].yaw))"); break
+            }
+        }
+    }
+    $wantDoneL = "INPUT replay done events=$($lEvents.Count) last=$($lEvents[$lEvents.Count - 1].tick) cam=$($camEvents.Count)"
+    if ($replayDoneL -ne $wantDoneL) { $failures.Add("run L2: replay summary '$replayDoneL' (want '$wantDoneL')") }
+}
+$w2 = Get-WardenTicks $l2LogPath
+$comparedL = 0
+if ($yawTick -ge 0) {
+    foreach ($t in @($w1.Keys | Where-Object { $_ -ge $yawTick } | Sort-Object)) {
+        if (-not $w2.ContainsKey($t)) { $failures.Add("run L2: the replayed run log has no TICK $t warden line (L1: '$($w1[$t])')"); break }
+        if ($w2[$t] -ne $w1[$t]) { $failures.Add("run L2: '$($w2[$t])' but L1 had '$($w1[$t])' (the replayed yaw is not the recorded one)"); break }
+        $comparedL++
+    }
+    if ($comparedL -lt 20) { $failures.Add("run L2: only $comparedL TICK lines at or after the yaw event's tick $yawTick were compared (want >= 20)") }
+}
+foreach ($p in @($walkPath, $lRecPath, $l1LogPath, $l2LogPath)) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p } }
+
 Write-Output '--- asserted HUD lines ---'
 foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping)) {
     if ($l) { Write-Output $l }
@@ -643,11 +772,15 @@ Write-Output '--- run K (record -> replay), lane 3E-b ---'
 foreach ($l in @($recDone) + $replayed + @($replayDone) + $m1) {
     if ($l) { Write-Output $l }
 }
+Write-Output '--- run L (camera yaw record -> replay), lane 3E-c ---'
+foreach ($l in @($yawL1, $recDoneL, $turnL1) + $camReplayed + @($replayDoneL, "compared=$comparedL")) {
+    if ($l) { Write-Output $l }
+}
 
 if ($failures.Count -gt 0) {
     Write-Output "HudSceneTest: FAIL ($($failures.Count))"
     $failures | ForEach-Object { Write-Output "  - $_" }
     exit 1
 }
-Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks backfillTicks=$BackfillTicks abandonSeat=$AbandonSeat wipeFrames=$WipeFrames pingAt=$PingAt pingFrames=$PingFrames recordFrames=$RecordFrames recordEvents=$recN"
+Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks backfillTicks=$BackfillTicks abandonSeat=$AbandonSeat wipeFrames=$WipeFrames pingAt=$PingAt pingFrames=$PingFrames recordFrames=$RecordFrames recordEvents=$recN yawAt=$YawAt yawTo=$YawTo yawFrames=$YawFrames yawCompared=$comparedL"
 exit 0
