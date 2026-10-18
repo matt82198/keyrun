@@ -13,7 +13,7 @@ namespace Keyrun.Hud;
 /// E defensive, R utility, F movement) plus the G ping, each with its key, the ability's content name, and its state:
 /// a dark sweep with seconds left while on cooldown, a light sweep during the global cooldown, dimmed when the
 /// class resource is short, a red edge when the cast's target is out of range. Above it: the Warden's health and
-/// Momentum. When the run ends a banner names the result (Enter starts a fresh run).
+/// Momentum. The run-over state (result, rewards, the Enter hint) is the run-end panel's (<see cref="RunEndPanel"/>).
 /// </summary>
 public partial class AbilityBar : Control
 {
@@ -108,12 +108,6 @@ public partial class AbilityBar : Control
         var pingRect = new Rect2(origin.X + (setup.Slots.Count * (Slot + Gap)), origin.Y, Slot, Slot);
         var pingKey = KeyInput is not null ? KeyBinds.Label(KeyInput.Binds.KeyFor(KeyAction.Ping)) : "G";
         DrawSlot(font, pingRect, pingKey, "Ping", 0.8f, false, true);
-
-        if (run.RunEnd.Result is { } result)
-        {
-            var banner = $"Run over: {result.ToJs()}  -  press Enter to start again";
-            DrawCentered(font, new Rect2(0, Size.Y * 0.3f, Size.X, 40), banner, 28, new Color(1f, 0.85f, 0.5f));
-        }
     }
 
     private static bool OutOfRange(Run run, ActorState me, AbilityDef def)

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using Godot;
 using Keyrun.Host;
@@ -32,6 +31,12 @@ public partial class Screen : Control
     private const int BodyFont = 14;
     private const int SmallFont = 12;
     private const float Margin = 32;
+
+    /// <summary>
+    /// The one line under the Queue box. Since lane 3I SimDriver starts the queued run at the queued key with the
+    /// queued Clause (<see cref="SimDriver.StartQueuedRun"/>), and since 3J that request leaves the Queue node.
+    /// </summary>
+    public const string QueueCaption = "Enter starts the next run at this key and Clause.";
 
     private static readonly Color Gold = new(1f, 0.85f, 0.5f);
     private static readonly Color Calm = new(0.7f, 0.85f, 1f);
@@ -216,6 +221,7 @@ public partial class Screen : Control
             ProofItem(slot);
         }
         ProofKeyBand();
+        Proof($"SCREEN queue caption=\"{QueueCaption}\"");
     }
 
     private void Close()
@@ -524,12 +530,7 @@ public partial class Screen : Control
         var (name, _) = ClauseText(state.Clause.Picked);
         HudNodes.Text(this, r.Position + new Vector2(18, 80), FormattableString.Invariant($"Key {state.KeyLevel} with {name}"), BodyFont, Calm);
         HudNodes.Text(this, r.Position + new Vector2(18, 102), "Enter or click", SmallFont, Colors.White);
-        // Honest about the host seam: SimDriver restarts on Enter at its own --key with no Clause until it reads
-        // the queued request (reported by lane 3D; SimDriver.cs belongs to lane 3H).
-        var host = _driver?.Options.KeyLevel.ToString(CultureInfo.InvariantCulture) ?? "?";
-        var note = new Vector2(r.Position.X, r.End.Y + 24);
-        HudNodes.Text(this, note, "This build starts the next run at key " + host + " with no Clause:", SmallFont, new Color(1f, 0.75f, 0.5f));
-        HudNodes.Text(this, note + new Vector2(0, 16), "the host does not read the queued key and Clause yet.", SmallFont, new Color(1f, 0.75f, 0.5f));
+        HudNodes.Text(this, new Vector2(r.Position.X, r.End.Y + 24), QueueCaption, SmallFont, Calm);
     }
 
     private static string Clip(string text, float width, int size)
