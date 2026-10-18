@@ -116,8 +116,17 @@ describe("window + ping readability (headless Chromium, real playable)", () => {
     await page.keyboard.down("KeyW");
     await sleep(600);
     await page.keyboard.up("KeyW");
-    await page.waitForFunction(() => document.querySelectorAll('.hud-ability-slot[data-payoff="ready"]').length > 0, undefined, { timeout: 20_000 });
-    const lit = await page.locator('.hud-ability-slot[data-payoff="ready"]').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.abilityId));
+    // Read the lit ids in the same DOM pass that detects them: the HUD re-renders each frame, so a
+    // separate read after the wait can race a transient clear and see [] (CI flake, PR #111 e2e).
+    const litHandle = await page.waitForFunction(
+      () => {
+        const ids = Array.from(document.querySelectorAll('.hud-ability-slot[data-payoff="ready"]')).map((e) => (e as HTMLElement).dataset.abilityId);
+        return ids.length > 0 ? ids : false;
+      },
+      undefined,
+      { timeout: 20_000 },
+    );
+    const lit = (await litHandle.jsonValue()) as string[];
     assert.ok(lit.length > 0 && lit.every((id) => id === "warden.guardBreak" || id === "warden.reckoning"), JSON.stringify(lit));
     await shot(page, "3-window-payoff");
   });

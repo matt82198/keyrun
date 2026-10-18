@@ -1,0 +1,161 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Keyrun.Content;
+
+/// <summary>
+/// Loads every content kind from the verbatim content/data JSON into a typed, validated
+/// <see cref="ContentRegistry"/>: the C# mirror of content/index.ts <c>loadContent()</c>, reading
+/// the same 19 files in the same order. Fails closed with <see cref="ContentLoadException"/> on
+/// any unknown property, missing required field, null in a non-optional field, non-integer
+/// number, unknown enum or op, duplicate id, unresolved cross-reference, or unlisted/missing file.
+/// </summary>
+public static class ContentLoader
+{
+    private const string Abilities = "abilities/";
+    private const string Effects = "effects/";
+    private const string Classes = "classes/";
+    private const string Enemies = "enemies/";
+    private const string Facets = "facets/";
+
+    /// <summary>The files read, in TS loadContent order, relative to content/data.</summary>
+    public static IReadOnlyList<string> Files { get; } = new[]
+    {
+        Abilities + "warden.json", Abilities + "cinder.json", Abilities + "chanter.json", Abilities + "enemies.json",
+        Effects + "player.json", Effects + "enemy.json",
+        Classes + "warden.json", Classes + "cinder.json", Classes + "chanter.json",
+        "combos.json",
+        Enemies + "choir.json", Enemies + "pair.json", Enemies + "seed.json", Enemies + "hollow-warden.json",
+        "dungeons/hollow-vault.json",
+        "clauses.json",
+        Facets + "warden.json", Facets + "cinder.json", Facets + "chanter.json",
+    };
+
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = false,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        NumberHandling = JsonNumberHandling.Strict,
+        ReadCommentHandling = JsonCommentHandling.Disallow,
+        AllowTrailingCommas = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Converters =
+        {
+            new ValueListConverterFactory(),
+            new ValueMapConverterFactory(),
+            new StrictEnumConverterFactory(),
+            new EffectOpConverter(),
+            new ScriptAtConverter(),
+        },
+    };
+
+    /// <summary>Loads and validates the content embedded in Keyrun.Content.dll.</summary>
+    public static ContentRegistry Load() => Load(EmbeddedContentSource.Instance);
+
+    /// <summary>Loads and validates content from <paramref name="source"/>.</summary>
+    /// <param name="source">Must hold exactly the JSON files in <see cref="Files"/>.</param>
+    /// <exception cref="ContentLoadException">Any file or invariant fails.</exception>
+    public static ContentRegistry Load(IContentSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        CheckFileSet(source);
+
+        var registry = new ContentRegistry
+        {
+            Abilities = ById("ability",
+                ReadArray<AbilityDef>(source, Abilities + "warden.json"),
+                ReadArray<AbilityDef>(source, Abilities + "cinder.json"),
+                ReadArray<AbilityDef>(source, Abilities + "chanter.json"),
+                ReadArray<AbilityDef>(source, Abilities + "enemies.json")),
+            Effects = ById("effect",
+                ReadArray<EffectDef>(source, Effects + "player.json"),
+                ReadArray<EffectDef>(source, Effects + "enemy.json")),
+            Classes = ById("class",
+                ReadOne<ClassDef>(source, Classes + "warden.json"),
+                ReadOne<ClassDef>(source, Classes + "cinder.json"),
+                ReadOne<ClassDef>(source, Classes + "chanter.json")),
+            Combos = ById("combo", ReadArray<ComboEntry>(source, "combos.json")),
+            Enemies = ById("enemy",
+                ReadArray<EnemyDef>(source, Enemies + "choir.json"),
+                ReadArray<EnemyDef>(source, Enemies + "pair.json"),
+                ReadArray<EnemyDef>(source, Enemies + "seed.json"),
+                ReadArray<EnemyDef>(source, Enemies + "hollow-warden.json")),
+            Dungeons = ById("dungeon", ReadOne<DungeonDef>(source, "dungeons/hollow-vault.json")),
+            Clauses = ById("clause", ReadArray<ClauseDef>(source, "clauses.json")),
+            Facets = ById("facet",
+                ReadArray<FacetDef>(source, Facets + "warden.json"),
+                ReadArray<FacetDef>(source, Facets + "cinder.json"),
+                ReadArray<FacetDef>(source, Facets + "chanter.json")),
+        };
+
+        ContentValidator.Validate(registry);
+        return registry;
+    }
+
+    private static void CheckFileSet(IContentSource source)
+    {
+        var present = new HashSet<string>(source.Paths.Where(p => p.EndsWith(".json", StringComparison.Ordinal)), StringComparer.Ordinal);
+        foreach (string file in Files)
+            if (!present.Contains(file)) throw new ContentLoadException("content: missing file \"" + file + "\"");
+        foreach (string file in present.OrderBy(p => p, StringComparer.Ordinal))
+            if (!Files.Contains(file, StringComparer.Ordinal))
+                throw new ContentLoadException("content: unlisted file \"" + file + "\" (add it to ContentLoader.Files and content/index.ts)");
+    }
+
+    private static T[] ReadArray<T>(IContentSource source, string path)
+        where T : class
+    {
+        T[] items = Parse<T[]>(source, path);
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (items[i] is null) throw new ContentLoadException("content: " + path + "[" + i + "] is null");
+            NullGuard.Check(items[i], "content: " + path + "[" + i + "]");
+        }
+        return items;
+    }
+
+    private static T[] ReadOne<T>(IContentSource source, string path)
+        where T : class
+    {
+        T item = Parse<T>(source, path);
+        NullGuard.Check(item, "content: " + path);
+        return new[] { item };
+    }
+
+    private static T Parse<T>(IContentSource source, string path)
+        where T : class
+    {
+        ReadOnlySpan<byte> bytes = source.Read(path);
+        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) bytes = bytes.Slice(3);
+        try
+        {
+            return JsonSerializer.Deserialize<T>(bytes, Options)
+                ?? throw new ContentLoadException("content: " + path + " is JSON null");
+        }
+        catch (JsonException ex)
+        {
+            throw new ContentLoadException("content: " + path + " " + (ex.Path ?? "$") + ": " + ex.Message, ex);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException or FormatException)
+        {
+            throw new ContentLoadException("content: " + path + ": " + ex.Message, ex);
+        }
+    }
+
+    private static ValueMap<T> ById<T>(string kind, params T[][] parts)
+        where T : IContentItem
+    {
+        var entries = new List<KeyValuePair<string, T>>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (T item in parts.SelectMany(p => p))
+        {
+            if (!seen.Add(item.Id)) throw new ContentLoadException("content: duplicate " + kind + " id \"" + item.Id + "\"");
+            entries.Add(new KeyValuePair<string, T>(item.Id, item));
+        }
+        return new ValueMap<T>(entries);
+    }
+}
