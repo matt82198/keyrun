@@ -4,9 +4,9 @@ using System.Globalization;
 using System.IO;
 using Godot;
 using Keyrun.Content;
-using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
+using Keyrun.Sim.Runs;
 
 namespace Keyrun.Host;
 
@@ -78,25 +78,45 @@ public sealed class TickAccumulator
 
 /// <summary>
 /// The arena's user arguments (after <c>--</c> on the Godot command line), in the style of Main.cs's
-/// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>.
+/// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
+/// <c>--seed N</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
-/// <param name="LogPath">Optional run log file (one TICK line per tick plus EVENT lines).</param>
+/// <param name="LogPath">Optional run log file (one TICK line per tick plus EVENT and host lines).</param>
 /// <param name="MovieDir">Optional directory for the three proof PNG frames (needs a rendering window).</param>
-public sealed record ArenaOptions(bool Autorun, int Ticks, string? LogPath, string? MovieDir)
+/// <param name="KeyLevel">Key level (Tempo scaling and the Slack bank).</param>
+/// <param name="Seed">Run seed.</param>
+public sealed record ArenaOptions(
+    bool Autorun,
+    int Ticks,
+    string? LogPath,
+    string? MovieDir,
+    int KeyLevel = ArenaOptions.DefaultKeyLevel,
+    long Seed = ArenaOptions.DefaultSeed)
 {
-    /// <summary>Default autorun length: one full Cleave cycle plus its flash (resolve at tick 160).</summary>
-    public const int DefaultTicks = 170;
+    /// <summary>
+    /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
+    /// the Warden's opening rotation.
+    /// </summary>
+    public const int DefaultTicks = 400;
+
+    /// <summary>Default key level: 2, the oracle bot runs' key.</summary>
+    public const int DefaultKeyLevel = 2;
+
+    /// <summary>Default seed.</summary>
+    public const long DefaultSeed = 1;
 
     /// <summary>Parses user arguments; unknown arguments are ignored (Godot passes them through verbatim).</summary>
-    /// <exception cref="ArgumentException">A flag is missing its value, or --ticks is not a positive integer.</exception>
+    /// <exception cref="ArgumentException">A flag is missing its value, or a number flag is not a positive integer.</exception>
     public static ArenaOptions Parse(IReadOnlyList<string> args)
     {
         var autorun = false;
         int? ticks = null;
         string? log = null;
         string? movie = null;
+        var key = DefaultKeyLevel;
+        long seed = DefaultSeed;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -105,12 +125,13 @@ public sealed record ArenaOptions(bool Autorun, int Ticks, string? LogPath, stri
                     autorun = true;
                     break;
                 case "--ticks":
-                    var raw = Value(args, ref i);
-                    if (!int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var n) || n <= 0)
-                    {
-                        throw new ArgumentException($"--ticks needs a positive integer, got '{raw}'");
-                    }
-                    ticks = n;
+                    ticks = PositiveInt(args, ref i);
+                    break;
+                case "--key":
+                    key = PositiveInt(args, ref i);
+                    break;
+                case "--seed":
+                    seed = PositiveInt(args, ref i);
                     break;
                 case "--log":
                     log = Value(args, ref i);
@@ -121,7 +142,18 @@ public sealed record ArenaOptions(bool Autorun, int Ticks, string? LogPath, stri
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed);
+    }
+
+    private static int PositiveInt(IReadOnlyList<string> args, ref int i)
+    {
+        var flag = args[i];
+        var raw = Value(args, ref i);
+        if (!int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var n) || n <= 0)
+        {
+            throw new ArgumentException($"{flag} needs a positive integer, got '{raw}'");
+        }
+        return n;
     }
 
     private static string Value(IReadOnlyList<string> args, ref int i)
@@ -138,70 +170,51 @@ public sealed record ArenaOptions(bool Autorun, int Ticks, string? LogPath, stri
 /// <summary>Supplies this tick's commands (keyboard or scripted).</summary>
 public interface ICommandSource
 {
-    /// <summary>Appends the commands for <paramref name="tick"/> (the pre-step state tick) to <paramref name="into"/>.</summary>
-    void Sample(int tick, SimState state, List<Command> into);
-}
-
-/// <summary>Encounter-side work run inside each step's rules (phase 1: only DebugCleaveEmitter).</summary>
-public interface ITickHook
-{
-    /// <summary>Adds the hook's actors to the fresh state before tick 0.</summary>
-    void Install(SimState state);
-
-    /// <summary>Runs on the step's clone after movement (its Tick is still the pre-step tick).</summary>
-    void OnStep(SimState state, Action<SimEvent> emit);
-
-    /// <summary>Telegraphs pending after the latest step, for the view.</summary>
-    IReadOnlyList<Telegraph> ActiveTelegraphs { get; }
+    /// <summary>Appends the commands for <paramref name="tick"/> (the pre-step run tick) to <paramref name="into"/>.</summary>
+    /// <param name="tick">The tick the commands are addressed to.</param>
+    /// <param name="run">The run before the step.</param>
+    /// <param name="into">The command list.</param>
+    void Sample(int tick, Run run, List<Command> into);
 }
 
 /// <summary>
-/// Runs the Keyrun.Sim tick at 20 Hz from Godot's frame loop with a fixed accumulator (D9), keeps the
-/// previous and current state for render interpolation, and owns the phase 1 arena rules: move/dash
-/// through Combat/Movement.cs, actor push-out, bounds clamp, then the encounter hooks. Keyrun.Sim stays
-/// pure; this node is the only place frame time meets sim ticks.
+/// Runs the real C# run root (<see cref="RunRoot.CreateRun"/> / <see cref="RunRoot.StepRun"/>, lane 2D) at 20 Hz from
+/// Godot's frame loop with a fixed accumulator (D9), on Hollow Vault with the human Warden alone: pull 1 (the Choir)
+/// spawns at creation, the encounter step chases and casts, the combat rules resolve the Warden's casts. Keeps the
+/// previous and current state for render interpolation. Keyrun.Sim stays pure; this node is the only place frame time
+/// meets sim ticks.
 /// </summary>
 /// <remarks>
-/// <c>--autorun --ticks N</c> replaces the keyboard with PlayerInput's scripted walk, prints one
+/// <c>--autorun --ticks N</c> replaces the keyboard with PlayerInput's scripted Warden, prints one
 /// <c>AUTORUN done ticks=N frames=F frame_ms=M</c> line and quits with exit code 0 once N ticks have run.
-/// <c>--write-movie DIR</c> saves three proof frames (Warden mid-walk, cone mid-fill, cone resolved).
+/// <c>--write-movie DIR</c> saves three proof frames (Choir chase, lieutenant heal cast bar, after the kick).
+/// Interactive: once the run ends, Enter starts a fresh run.
 /// </remarks>
 public partial class SimDriver : Node
 {
     /// <summary>The human Warden's actor id.</summary>
     public const int WardenId = 1;
 
-    /// <summary>
-    /// Walk speed, actor radius and arena bounds, read from content: game/content/data/run.json through
-    /// <see cref="ContentLoader.Load()"/> (validated, no defaults). The host holds no movement constants.
-    /// The values were first taken from the retired TS client (client/src/sim-host/run-setup.ts:53-57); the
-    /// content file is now the source of truth. Loading fails closed in <see cref="_Ready"/>.
-    /// </summary>
-    public MovementConfig? MovementRules { get; private set; }
+    /// <summary>The dungeon played.</summary>
+    public const string DungeonId = "hollow-vault";
 
-    /// <summary>Maps the validated content run config onto the sim's movement rules.</summary>
-    /// <param name="run">The loaded <see cref="ContentRegistry.Run"/>.</param>
-    public static MovementConfig ToMovementConfig(RunConfig run)
-    {
-        ArgumentNullException.ThrowIfNull(run);
-        var b = run.ArenaBounds;
-        return new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm, new Bounds(b.MinX, b.MaxX, b.MinZ, b.MaxZ));
-    }
+    /// <summary>The human's class.</summary>
+    public const string HumanClassId = "warden";
 
     private const int MaxStepsPerFrame = 5;
 
-    // Proof frames: tick at which to capture, and file name. The Cleave telegraph is registered on
-    // tick 120 and resolves on tick 160 (every 160, lead 40); the walk runs on ticks 0..19.
+    // Proof frames: the post-step tick at which to capture, and file name. Timings follow ScriptedWarden at key 2: the
+    // Choir closes in the first second, the lieutenant's 80-tick heal starts at tick 196, and the Warden kicks it once
+    // it is half cast (tick 236 or the first tick after that his Shield Bash is in range).
     private static readonly (int Tick, string Name)[] MovieFrames =
     {
-        (10, "01-warden-mid-walk.png"),
-        (141, "02-cone-mid-fill.png"),
-        (161, "03-cone-resolved.png"),
+        (8, "01-choir-chase.png"),
+        (220, "02-lieutenant-cast-bar.png"),
+        (246, "03-after-kick.png"),
     };
 
     private readonly TickAccumulator _accumulator = new(Tick.TickHz, MaxStepsPerFrame);
     private readonly List<Command> _commands = new();
-    private readonly List<ITickHook> _hooks = new();
     private ICommandSource? _input;
     private RunLog? _log;
     private int _pendingCaptures;
@@ -211,12 +224,17 @@ public partial class SimDriver : Node
     [Export]
     public NodePath InputPath { get; set; } = new("../PlayerInput");
 
-    /// <summary>The DebugCleaveEmitter node (TEMPORARY, 2E replaces it with the encounter step).</summary>
-    [Export]
-    public NodePath EmitterPath { get; set; } = new("../DebugCleaveEmitter");
-
     /// <summary>Parsed user arguments.</summary>
     public ArenaOptions Options { get; private set; } = new(false, ArenaOptions.DefaultTicks, null, null);
+
+    /// <summary>The validated content (display names for the views).</summary>
+    public ContentRegistry? Registry { get; private set; }
+
+    /// <summary>The run's setup (party, dungeon, content, the human's ability slots).</summary>
+    public HostRunSetup? Setup { get; private set; }
+
+    /// <summary>The current run, or null before <see cref="_Ready"/> succeeded.</summary>
+    public Run? Run { get; private set; }
 
     /// <summary>The state after the latest step.</summary>
     public SimState State { get; private set; } = SimState.Create(1);
@@ -236,26 +254,28 @@ public partial class SimDriver : Node
     /// <summary>Ticks stepped so far.</summary>
     public int TicksRun { get; private set; }
 
-    /// <summary>Telegraphs pending after the latest step, across all hooks.</summary>
-    public IReadOnlyList<Telegraph> ActiveTelegraphs
-    {
-        get
-        {
-            if (_hooks.Count == 1)
-            {
-                return _hooks[0].ActiveTelegraphs;
-            }
-            var all = new List<Telegraph>();
-            foreach (var h in _hooks)
-            {
-                all.AddRange(h.ActiveTelegraphs);
-            }
-            return all;
-        }
-    }
+    /// <summary>Encounter telegraphs pending after the latest step.</summary>
+    public IReadOnlyList<Telegraph> ActiveTelegraphs => Run?.Encounter.Telegraphs ?? Array.Empty<Telegraph>();
 
     /// <summary>Raised after every step with the pre-step tick and that step's events.</summary>
     public event Action<int, IReadOnlyList<SimEvent>>? Stepped;
+
+    /// <summary>Raised when a fresh run replaces the current one (views drop per-run state).</summary>
+    public event Action? RunStarted;
+
+    /// <summary>The display name of an actor: its class or enemy name from content, else its class id.</summary>
+    /// <param name="actor">The actor.</param>
+    /// <returns>The name.</returns>
+    public string DisplayName(ActorState actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return Names.Actor(Registry, actor.ClassId);
+    }
+
+    /// <summary>The content display name of an ability, else its id.</summary>
+    /// <param name="abilityId">The ability id.</param>
+    /// <returns>The name.</returns>
+    public string AbilityName(string abilityId) => Names.Ability(Registry, abilityId);
 
     /// <inheritdoc />
     public override void _Ready()
@@ -263,31 +283,11 @@ public partial class SimDriver : Node
         try
         {
             Options = ArenaOptions.Parse(OS.GetCmdlineUserArgs());
-            MovementRules = ToMovementConfig(ContentLoader.Load().Run);
-            _log = new RunLog(Options.LogPath, Options.Autorun);
+            Registry = ContentLoader.Load();
+            Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId);
+            _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _input = GetNode<PlayerInput>(InputPath);
-            _hooks.Add(GetNode<DebugCleaveEmitter>(EmitterPath));
-
-            var state = SimState.Create(1);
-            state.Phase = "combat";
-            state.Actors.Add(WardenId, new ActorState
-            {
-                Id = WardenId,
-                Kind = ActorKind.Player,
-                ClassId = "warden",
-                Role = ActorRole.Tank,
-                Pos = Vec3.Zero,
-                Yaw = 256, // facing +z, toward the box
-                Health = 1000,
-                MaxHealth = 1000,
-            });
-            foreach (var hook in _hooks)
-            {
-                hook.Install(state);
-            }
-            State = state;
-            PreviousState = state;
-            _log.Line($"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} actors={state.Actors.Count}");
+            StartRun();
 
             if (Options.MovieDir is { } dir)
             {
@@ -309,7 +309,7 @@ public partial class SimDriver : Node
     /// <inheritdoc />
     public override void _Process(double delta)
     {
-        if (_done)
+        if (_done || Run is null)
         {
             return;
         }
@@ -330,65 +330,52 @@ public partial class SimDriver : Node
     }
 
     /// <inheritdoc />
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (!Options.Autorun && Run?.RunEnd.Result is not null &&
+            @event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Enter or Key.KpEnter })
+        {
+            StartRun();
+        }
+    }
+
+    /// <inheritdoc />
     public override void _ExitTree()
     {
         _log?.Dispose();
     }
 
-    private void StepOnce()
+    private void StartRun()
     {
-        var preTick = State.Tick;
-        _commands.Clear();
-        _input?.Sample(preTick, State, _commands);
-        var result = Tick.Step(State, _commands, Rules);
-        PreviousState = State;
-        State = result.State;
-        LastEvents = result.Events;
-        TicksRun++;
-        _log?.Tick(preTick, State, result.Events);
-        Stepped?.Invoke(preTick, result.Events);
-        MaybeCapture(State.Tick);
+        var setup = Setup ?? throw new InvalidOperationException("SimDriver started a run before content loaded");
+        var run = RunRoot.CreateRun(Options.Seed, setup.Party, setup.Dungeon, setup.Content);
+        Run = run;
+        State = run.State;
+        PreviousState = run.State;
+        LastEvents = Array.Empty<SimEvent>();
+        _log?.Line(FormattableString.Invariant(
+            $"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} dungeon={setup.Dungeon.Id} key={Options.KeyLevel} seed={Options.Seed} actors={run.State.Actors.Count}"));
+        // createRun spawns pull 0 and drops its pull_start (it has no event sink); the log names it here.
+        _log?.PullSpawn(run.Encounter.PullIndex, setup.Dungeon);
+        _log?.Begin(run.State);
+        RunStarted?.Invoke();
     }
 
-    // Phase 1 arena rules (sim/combat/rules.ts command loop, movement part only; 2B ports the full Rules.cs).
-    private void Rules(SimState state, IReadOnlyList<Command> commands, Action<SimEvent> emit)
+    private void StepOnce()
     {
-        var movement = MovementRules ?? throw new InvalidOperationException("SimDriver stepped before content loaded");
-        foreach (var cmd in commands)
-        {
-            if (!state.Actors.TryGetValue(cmd.ActorId, out var actor) || !actor.Alive)
-            {
-                continue;
-            }
-            switch (cmd)
-            {
-                case MoveCommand m:
-                    Movement.ApplyMovement(actor, m.Dir, movement, 0, m.Yaw);
-                    break;
-                case DashCommand d:
-                    Movement.ApplyMovement(actor, d.Dir, Movement.DashDistanceMm, 0, d.Yaw);
-                    break;
-            }
-        }
-        var actors = new List<ActorState>(state.Actors.Values);
-        for (var i = 0; i < actors.Count; i++)
-        {
-            for (var j = i + 1; j < actors.Count; j++)
-            {
-                if (actors[i].Alive && actors[j].Alive)
-                {
-                    Movement.ResolveCollision(actors[i], actors[j], movement);
-                }
-            }
-        }
-        foreach (var actor in actors)
-        {
-            Movement.ClampToBounds(actor, movement);
-        }
-        foreach (var hook in _hooks)
-        {
-            hook.OnStep(state, emit);
-        }
+        var run = Run!;
+        var preTick = run.State.Tick;
+        _commands.Clear();
+        _input?.Sample(preTick, run, _commands);
+        var result = RunRoot.StepRun(run, _commands);
+        Run = result.Run;
+        PreviousState = run.State;
+        State = result.Run.State;
+        LastEvents = result.Events;
+        TicksRun++;
+        _log?.Tick(preTick, run.State, State, result.Events, result.Run.Dungeon);
+        Stepped?.Invoke(preTick, result.Events);
+        MaybeCapture(State.Tick);
     }
 
     private void MaybeCapture(int tickReached)
@@ -421,9 +408,40 @@ public partial class SimDriver : Node
     {
         _done = true;
         var frameMs = (long)Math.Round(_accumulator.ElapsedNanos / 1_000_000.0);
-        var warden = State.Actors.TryGetValue(WardenId, out var w) ? w.Pos : Vec3.Zero;
-        _log?.Line($"AUTORUN done ticks={TicksRun} frames={Frames} frame_ms={frameMs} dropped={_accumulator.DroppedTicks} warden=({warden.X},{warden.Z})");
+        var warden = State.Actors.TryGetValue(WardenId, out var w) ? w : null;
+        var pos = warden?.Pos ?? Vec3.Zero;
+        var result = Run?.RunEnd.Result is { } r ? r.ToJs() : "running";
+        _log?.Line(FormattableString.Invariant(
+            $"AUTORUN done ticks={TicksRun} frames={Frames} frame_ms={frameMs} dropped={_accumulator.DroppedTicks} warden=({pos.X},{pos.Z}) hp={warden?.Health ?? 0} run={result}"));
         _log?.Dispose();
         GetTree().Quit(0);
     }
+}
+
+/// <summary>Content display names for actors and abilities (Godot-free).</summary>
+public static class Names
+{
+    /// <summary>An actor's enemy or class display name, else <paramref name="classId"/>.</summary>
+    /// <param name="registry">The content, or null.</param>
+    /// <param name="classId">The actor's class id.</param>
+    /// <returns>The name.</returns>
+    public static string Actor(ContentRegistry? registry, string classId)
+    {
+        if (registry is null)
+        {
+            return classId;
+        }
+        if (registry.Enemies.TryGetValue(classId, out var enemy))
+        {
+            return enemy.Name;
+        }
+        return registry.Classes.TryGetValue(classId, out var cls) ? cls.Name : classId;
+    }
+
+    /// <summary>An ability's display name, else <paramref name="abilityId"/>.</summary>
+    /// <param name="registry">The content, or null.</param>
+    /// <param name="abilityId">The ability id.</param>
+    /// <returns>The name.</returns>
+    public static string Ability(ContentRegistry? registry, string abilityId) =>
+        registry is not null && registry.Abilities.TryGetValue(abilityId, out var def) ? def.Name : abilityId;
 }
