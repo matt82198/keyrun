@@ -7,14 +7,32 @@ abilities, a boss. Mechanics like interrupts, but be more creative than blizzard
 class max, 10 total keybinds should be plenty for rotation, movement, utility... the goal is class synergy." No art
 assets; pure POC.
 
-## Current state (checkpoint 2026-10-17 23:55Z)
-- Main tip: 2c8f8ea (#102 squash, tank banks GCD in a lull so it survives pull 1). Prior main tips: 54e69c5 (#99), 00e4ebb (#98).
+## Current state (checkpoint 2026-10-18)
+- Main tip: 10de063 (#106 squash, scaleStep keeps every). Prior main tips: 56c5686 (#105), b54eb40 (#104 docs), 2c8f8ea (#102), 54e69c5 (#99), 00e4ebb (#98).
 - Merged today since the 23:30Z checkpoint: #101 99836b0 (window ring labels + payoff-ready key glow + ping context + aimed spot ping); #102 2c8f8ea (bots/src/roles/shared.ts inLull, tank-pressure.ts).
 - MERGED 99f39a2: #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info).
 - Phase: 3 closing into 3D MVP (D10). Phase 5 "Matt playing" is the acceptance test; not yet reached.
 - Earlier landed (unchanged): #92 e3f622e, #95 e56955c, #97 08b9611, #98 00e4ebb, #99 54e69c5.
 - Test count on 2c8f8ea: not restated in this checkpoint (not sourced for this head).
-- NEXT (supersedes the status in NEXT STEPS item 1): after #103 lands, SPREAD/STACK telegraph text labels (render/telegraphs.ts); then Slack delta (needs hud-wiring.ts); then the gap list above by Matt's priority.
+- NEXT (supersedes the status in NEXT STEPS item 1; rewritten 2026-10-18 from BUILDLOG.md and git log -15):
+  Merged since the 23:55Z checkpoint: #104 b54eb40 (checkpoint docs); #105 56c5686 (SPREAD/STACK telegraph floor
+  labels with countdown, render/telegraph-label.ts); #106 10de063 (sim-host scaleStep keeps `every`, so recurring
+  STACK calls fire during The Pair; server/src/content-setup.ts ported identically). BUILDLOG.md has no line for
+  #104-#106; these come from git log and the commit bodies.
+  Earlier 2026-10-17 merges (BUILDLOG-recorded): #98 00e4ebb (named ability bar, cast projections, actor tags,
+  objective line, GCD dim, hit flash); #101 99836b0 (window ring labels, payoff key glow, ping context, aimed spot
+  ping); #102 2c8f8ea (tank banks GCD in a lull); #103 99f39a2 (status chips, DOWNED tag, dash trail, telegraph
+  contrast 0.15->0.4, ?net=1 cast parity).
+  BIBLE-vs-client gap ladder, remaining:
+  - Slack delta (needs hud-wiring.ts prevSnapshot; deferred in #103 per decision 6 below).
+  - Cast-bar ability names (ladder rung 7): in the #101 lane scope but not in its merged title; confirm on main before
+    ticking it. Proof: boss bar reads "Cleave".
+  - Class silhouettes and legend overlay: no BUILDLOG line either way; treat as not started.
+  - Open from the ladder: boss Slam cast bar unnamed; Lock ring with no shield; boss-bar.ts has no phase field;
+    window ring colour is time-only; setupClass never rendered; capsules have no names on the non-#98 path.
+  - Balance: 3 of 4 bots die in pull 2 at key 2; with hz=60 the party is mostly DOWNED (see OBSERVATIONS). Tuning is
+    Matt's call; bring the numbers, not a tuned constant.
+  - Then NEXT STEPS below in Matt's priority.
 
 ## Locked decisions
 - D1 **Stack**: TypeScript for sim, content, client, bots, server; Vitest; esbuild; Three.js for the 3D client; no engine.
@@ -168,6 +186,25 @@ Additional parked decisions (from the burn ledger):
 5. idle-human-warden variant still wipes in sim (actor 5 dies t1591; 4x70 one-shots 250 HP cinders from 3000 mm; needs bots/src/roles/damage.ts + bots/src/shared/positioning.ts); harness artifact, not the play case.
 6. #103 lane decisions taken silently: dead enemies stay hidden rather than tagged DOWNED; taunt detection = threat multiplier >= 5x; dash trail inferred from snapshot positions (a very large frame stall while walking could draw a false trail); Slack delta deferred (needs hud-wiring.ts).
 7. BIBLE-vs-client gaps still open: Sundered Twins + Break bar not spawned; boss 50% Lock + enrage absent; stack damage split absent; Cinder Blink no displacement; F=Charge vs Space=dash authority; floor Windows + combo events need snapshot channels; death log/mercy absent; rewards run-end stub; clause pick UI + key level display absent; keybinds 11 vs 10; Cinder fills all 3 damage slots.
+
+## DECISIONS AND OBSERVATIONS (checkpoint 2026-10-18)
+- (a) #106 MERGED 10de063: scaleStep keeps `every` (Tempo-scaled via scaleCastEvery, same as a loop step; `at` stays
+  the unscaled phase offset). Proof cited in the commit body: tests/server/stack-every.test.ts and
+  tests/client/sim-host/content-dungeon.test.ts drive stepEnemyScripts over a 1200-tick key-2 pull-2 window and expect
+  >=2 STACK telegraphs. The screenshot proof was reported as kept in the session scratchpad; this lane did not locate
+  or re-check that file.
+- (b) Telegraph-label decisions, from the #105 commit 56c5686 body (BUILDLOG.md has no telegraph-labels line):
+  1. Label text "SPREAD: move apart" / "STACK: group up", drawn in the class colour.
+  2. Constant-size billboard sprite at each spread/stack telegraph centre (render/telegraph-label.ts).
+  3. Seconds countdown plus a bar draining as 1 - telegraphFillFraction.
+  4. Fades over the last LABEL_FADE_TICKS.
+  5. Same-class labels within LABEL_MERGE_M share one label (a clumped pull of five casters reads as one instruction).
+  6. Labels draw above name tags and damage numbers.
+  7. avoid (incl. seed.slam), boss and unclassed telegraphs get no label.
+  8. TelegraphPool takes an optional TelegraphLabelPool that boot.ts injects; headless callers and existing telegraph
+     tests keep drawing decals only.
+- (c) OBSERVATION 2026-10-17: with hz=60 at key 2 the bot party is mostly DOWNED for much of the run (idle-human-warden
+  sim). Needs a tuning decision from Matt. Source: orchestrator brief for this lane; not yet in BUILDLOG.md.
 
 ## Standing rules
 - Every audit and integration test reproduces through the public path (createRun/stepRun, the bot loop, the server
