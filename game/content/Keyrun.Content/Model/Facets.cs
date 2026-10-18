@@ -86,4 +86,7 @@ public sealed record ContentRegistry
 
     /// <summary>Facets (warden, cinder, chanter files).</summary>
     public required ValueMap<FacetDef> Facets { get; init; }
+
+    /// <summary>Run-level movement and arena config (run.json; C#-only, no TS counterpart).</summary>
+    public required RunConfig Run { get; init; }
 }

@@ -65,4 +65,9 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
   args --autorun --ticks N --log FILE --write-movie DIR), `PlayerInput.cs`, `RunLog.cs`, `DebugCleaveEmitter.cs`
   (TEMPORARY, 2E deletes it), `src/View/{ActorView,TelegraphView,CameraRig}.cs`. Scene test (not in CI yet):
   `pwsh game/src/Host/SimDriverSceneTest.ps1` asserts 40 TICK lines and frames=120 frame_ms=2000 at --fixed-fps 60.
+- Host movement constants (L1): walk speed, actor radius and arena bounds come from `game/content/data/run.json` (C#-only;
+  not under the root content/ tree, which is a frozen oracle root), loaded as `ContentRegistry.Run` and passed to
+  Keyrun.Sim as `MovementConfig`. SimDriver holds no movement constants. `game/content/.gdignore` keeps Godot out of the
+  content libraries (no .uid files there).
+- 2A combat-damage (sim/Keyrun.Sim/Combat/{Types,Actors,Damage,Mitigation,Effects,EffectsRemove,Cooldowns,Threat,Targeting}.cs): Types.cs holds the shared AbilityDef/EffectOp/EffectDef/Affinity records lane 2B builds on; Pact weighting enters Damage/Mitigation as a `DamageWeighting` argument (null = no active rules), and `Targeting.ResolveTargets` takes the ability's Affinity from the caller. Gate: `CombatOracleDamageTests` replays every damage, heal and death event of the 5 oracle traces through the port against an hp ledger.
 - 2C encounter (`sim/Keyrun.Sim/Encounter/` except Telegraphs.cs): scripts, script-target, chase, pulls, tempo (plus content-dungeon.ts scaleStep), timer/Slack, breakbar, clauses, echo, rewards, Seed Window loot (new, event-driven), `EncounterStep.Step` (index.ts stepEncounter), `EncounterJson` (setup and content readers). Oracle proof: `Keyrun.Sim.Tests/Encounter/EncounterTraceTests.cs` replays every encounter event of all five traces without combat; `TempoTests` checks the k2/k10 setup scripts against tempo-scaled content/data.

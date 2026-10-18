@@ -75,6 +75,16 @@ jobs:
         shell: pwsh
         run: ./tools/godot/godot.ps1 --headless --path game --build-solutions --quit
 
+      - name: SimDriver scene test (40 sim ticks headless, must print PASS)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & ./game/src/Host/SimDriverSceneTest.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "SimDriver scene test exited $code" }
+          if ($out -notmatch '(?m)^SimDriverSceneTest: PASS') { throw 'SimDriver scene test did not print PASS' }
+
       - name: Boot smoke (headless, must print SMOKE ok)
         shell: pwsh
         run: |
