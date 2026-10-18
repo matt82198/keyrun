@@ -116,12 +116,33 @@ jobs:
 
       - name: Export Windows Desktop release
         shell: pwsh
+        # Fail fast: a healthy export takes well under a minute once godot.ps1
+        # disables MSBuild node reuse and the shared compiler server.
+        timeout-minutes: 12
         run: |
+          $ErrorActionPreference = 'Continue'
           New-Item -ItemType Directory -Force -Path build | Out-Null
-          ./tools/godot/godot.ps1 --headless --path game --export-release "Windows Desktop" ../build/keyrun.exe
-          if ($LASTEXITCODE -ne 0) { throw "export exited $LASTEXITCODE" }
+          $log = 'build/export.log'
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          & ./tools/godot/godot.ps1 --headless --path game --export-release "Windows Desktop" ../build/keyrun.exe 2>&1 | Tee-Object -FilePath $log
+          $code = $LASTEXITCODE
+          Write-Output "export exit=$code wall=$([int]$sw.Elapsed.TotalSeconds)s (log: $log)"
+          if ($code -ne 0) { throw "export exited $code" }
+          # Godot exits 0 when the .NET publish fails ("completed with warnings")
+          # and still writes an exe with no assemblies. Fail closed on both signs.
+          if (Select-String -Path $log -SimpleMatch -Quiet 'Export .NET Project: Failed to build project') { throw '.NET publish failed during export (see export.log)' }
+          if (-not (Test-Path build/data_Keyrun_windows_x86_64)) { throw 'build/data_Keyrun_windows_x86_64 (published assemblies) missing after export' }
           if (-not (Test-Path build/keyrun.exe)) { throw 'build/keyrun.exe missing after export' }
           Get-ChildItem build | Format-Table Name, Length
+
+      - name: Upload export log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-export-log
+          path: build/export.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Exported exe smoke (must print SMOKE ok)
         shell: pwsh
