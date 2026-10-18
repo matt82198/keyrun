@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Keyrun.Replay: replays a frozen TypeScript oracle trace (game/sim/ORACLE.md) through the C# run root
+    (Keyrun.Sim.Runs.RunRoot) and diffs every tick. Console entry point plus the reusable reader/replayer
+    that Keyrun.Sim.Tests' TraceReplayTests call. Not part of the sim: it may read files and print.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Keyrun.Tools.Replay</RootNamespace>
+    <AssemblyName>Keyrun.Replay</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>12.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../game/sim/Keyrun.Sim/Keyrun.Sim.csproj" />
+  </ItemGroup>
+
+</Project>

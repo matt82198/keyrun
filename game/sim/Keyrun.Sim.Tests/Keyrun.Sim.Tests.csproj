@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Keyrun.Sim/Keyrun.Sim.csproj" />
+    <ProjectReference Include="../../../tools/Keyrun.Replay/Keyrun.Replay.csproj" />
   </ItemGroup>
 
 </Project>
