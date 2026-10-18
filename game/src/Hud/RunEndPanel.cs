@@ -92,38 +92,50 @@ public sealed class PrivateRunLog
 /// <summary>What the run-end panel shows (Godot-free).</summary>
 /// <param name="Result">How the run ended.</param>
 /// <param name="ResultTick">The tick it ended.</param>
-/// <param name="Title">The banner (client/src/hud/run-end.ts OUTCOME_LABEL, plus "Party wiped" for a wipe).</param>
+/// <param name="Title">The banner (client/src/hud/run-end.ts OUTCOME_LABEL, plus "Party wiped on pull N of T" for a
+/// wipe, lane 3C-d).</param>
 /// <param name="Cleared">True when every pull was cleared (the sim's pull index is past the last pull).</param>
 /// <param name="Choices">The choice of three (BIBLE s7), each with its Facet text and tier.</param>
 /// <param name="Causes">The local seat's own causes.</param>
 public sealed record RunEndView(RunResult Result, int ResultTick, string Title, bool Cleared, IReadOnlyList<Item> Choices, IReadOnlyList<DeathCause> Causes)
 {
     /// <summary>
-    /// The view for an ended run, else null. The choices are <see cref="Rewards.RollRewardChoices"/> over all five
-    /// slots with the reward seed server/src/run-end.ts uses (run seed x 1000003 + the ending tick), so a host and the
-    /// server roll the same three.
+    /// The view for an ended run, else null. The choices are <see cref="Rewards.RollRewardChoices(long, int, RunResult, IReadOnlyList{string}, IReadOnlyDictionary{string, IReadOnlyList{Facet}})"/>
+    /// over all five slots with the reward seed server/src/run-end.ts uses (run seed x 1000003 + the ending tick), each
+    /// slot drawing over the human class's content facets (<see cref="Screen.SlotPool(ContentRegistry, IReadOnlySet{string}, string)"/>,
+    /// lane 3C-d), so a card names a real facet and a kit ability. Without content (<paramref name="registry"/> null) the
+    /// roll falls back to the placeholder pools.
     /// </summary>
     /// <param name="run">The run.</param>
     /// <param name="localSeat">The local player's seat.</param>
     /// <param name="log">The private run log.</param>
+    /// <param name="registry">Content, or null (placeholder facets; the wipe title numbers pulls within the run's dungeon).</param>
+    /// <param name="classKit">The local player's class kit ability ids (the facet pool's scope).</param>
     /// <returns>The view, or null while the run is live.</returns>
-    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log)
+    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log, ContentRegistry? registry, IReadOnlySet<string> classKit)
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(classKit);
         if (run.RunEnd.Result is not { } result || run.RunEnd.ResultTick is not { } tick)
         {
             return null;
         }
         var seed = unchecked((run.State.Seed * 1_000_003L) + tick);
-        var choices = Rewards.RollRewardChoices(seed, run.Encounter.KeyLevel, result, Rewards.GearSlots);
+        var choices = registry is null
+            ? Rewards.RollRewardChoices(seed, run.Encounter.KeyLevel, result, Rewards.GearSlots)
+            : Rewards.RollRewardChoices(seed, run.Encounter.KeyLevel, result, Rewards.GearSlots, Rewards.GearSlots.ToDictionary(s => s, s => Screen.SlotPool(registry, classKit, s), StringComparer.Ordinal));
         // The sim finishes a lasting wipe as "depleted" with completed forced (run-wiring.ts checkRunEnd), so the
         // result alone cannot tell a cleared depleted key from a wipe: the pull index past the last pull can.
         var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
+        // The pull lost on, numbered as the objective line numbers it (Objective.cs ObjectiveModel.Build: 1-based in
+        // the full content dungeon, so a --pull 2 start that wipes in the Pair reads "pull 2 of 4", not the sliced
+        // run dungeon's "1 of 3").
+        var lost = cleared ? null : ObjectiveModel.Build(run, registry);
         var title = (result, cleared) switch
         {
             (RunResult.Abandoned, _) => "Run abandoned",
-            (_, false) => "Party wiped -- key depleted",
+            (_, false) => FormattableString.Invariant($"Party wiped on pull {lost!.Number} of {lost.Total} -- key depleted"),
             (RunResult.Timed, true) => "Run cleared -- within par",
             _ => "Run cleared -- key depleted",
         };
@@ -139,7 +151,7 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         {
             var c = Choices[i];
             yield return FormattableString.Invariant(
-                $"HUD runend choice n={i + 1} slot={c.Slot} tier={c.Tier} facet=\"{c.Facet.Text.Replace('"', '\'')}\" ability={c.Facet.AbilityId} charges={c.Charges}");
+                $"HUD runend choice n={i + 1} slot={c.Slot} tier={c.Tier} facet=\"{c.Facet.Text.Replace('"', '\'')}\" ability={c.Facet.AbilityId} charges={c.Charges} id={c.Id}");
         }
         foreach (var cause in Causes)
         {
@@ -253,7 +265,8 @@ public partial class RunEndPanel : Control
             var alpha = dim ? 0.45f : 1f;
             var slot = c.Slot.Length > 0 ? char.ToUpperInvariant(c.Slot[0]) + c.Slot[1..] : c.Slot;
             HudNodes.Text(this, card.Position + new Vector2(10, 22), FormattableString.Invariant($"{i + 1}  {slot}  Tier {c.Tier}"), 16, new Color(1f, 0.9f, 0.55f, alpha));
-            // A Facet names its ability only when content knows it (the reward pool's placeholder ids are not shown).
+            // A Facet names its ability only when content knows it (the content pool's kit ids resolve, lane 3C-d; the
+            // placeholder pool's ids, used only without content, are not shown).
             if (_driver?.Registry is { } reg && reg.Abilities.TryGetValue(c.Facet.AbilityId, out var abilityDef))
             {
                 HudNodes.Text(this, card.Position + new Vector2(10, 42), abilityDef.Name, CardFont, new Color(0.7f, 0.85f, 1f, alpha));
@@ -319,7 +332,13 @@ public partial class RunEndPanel : Control
         }
         var registry = _driver.Registry;
         _log.Observe(events, run.State, classId => Names.Actor(registry, classId));
-        if (_view is null && RunEndView.Of(run, setup.HumanActorId, _log) is { } view)
+        if (_view is not null || run.RunEnd.Result is null)
+        {
+            return;
+        }
+        // The human's class kit scopes the reward facet pool (the Screen's reroll pool, Screen.SlotPool).
+        var kit = new HashSet<string>(setup.Slots.Select(s => s.AbilityId), StringComparer.Ordinal);
+        if (RunEndView.Of(run, setup.HumanActorId, _log, registry, kit) is { } view)
         {
             _view = view;
             foreach (var line in view.LogLines())
