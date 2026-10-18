@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using Godot;
 using Keyrun.Content;
 using Keyrun.Sim.Core;
@@ -79,7 +80,7 @@ public sealed class TickAccumulator
 /// <summary>
 /// The arena's user arguments (after <c>--</c> on the Godot command line), in the style of Main.cs's
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
-/// <c>--seed N</c>.
+/// <c>--seed N</c>, <c>--pull N</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -87,13 +88,16 @@ public sealed class TickAccumulator
 /// <param name="MovieDir">Optional directory for the three proof PNG frames (needs a rendering window).</param>
 /// <param name="KeyLevel">Key level (Tempo scaling and the Slack bank).</param>
 /// <param name="Seed">Run seed.</param>
+/// <param name="StartPull">1-based pull the run starts at (default 1). A later start drops the earlier pulls from the
+/// run's dungeon, keeping actor ids and scripts (lane 3C: the HUD scene test reaches the Pair's SPREAD/STACK calls).</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
     string? LogPath,
     string? MovieDir,
     int KeyLevel = ArenaOptions.DefaultKeyLevel,
-    long Seed = ArenaOptions.DefaultSeed)
+    long Seed = ArenaOptions.DefaultSeed,
+    int StartPull = 1)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -117,6 +121,7 @@ public sealed record ArenaOptions(
         string? movie = null;
         var key = DefaultKeyLevel;
         long seed = DefaultSeed;
+        var pull = 1;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -130,6 +135,9 @@ public sealed record ArenaOptions(
                 case "--key":
                     key = PositiveInt(args, ref i);
                     break;
+                case "--pull":
+                    pull = PositiveInt(args, ref i);
+                    break;
                 case "--seed":
                     seed = PositiveInt(args, ref i);
                     break;
@@ -142,7 +150,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -348,7 +356,16 @@ public partial class SimDriver : Node
     private void StartRun()
     {
         var setup = Setup ?? throw new InvalidOperationException("SimDriver started a run before content loaded");
-        var run = RunRoot.CreateRun(Options.Seed, setup.Party, setup.Dungeon, setup.Content);
+        var dungeon = setup.Dungeon;
+        if (Options.StartPull > 1)
+        {
+            if (Options.StartPull > dungeon.Pulls.Count)
+            {
+                throw new ArgumentException($"--pull {Options.StartPull} is past the dungeon's {dungeon.Pulls.Count} pulls");
+            }
+            dungeon = dungeon with { Pulls = dungeon.Pulls.Skip(Options.StartPull - 1).ToList() };
+        }
+        var run = RunRoot.CreateRun(Options.Seed, setup.Party, dungeon, setup.Content);
         Run = run;
         State = run.State;
         PreviousState = run.State;
@@ -356,7 +373,7 @@ public partial class SimDriver : Node
         _log?.Line(FormattableString.Invariant(
             $"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} dungeon={setup.Dungeon.Id} key={Options.KeyLevel} seed={Options.Seed} actors={run.State.Actors.Count}"));
         // createRun spawns pull 0 and drops its pull_start (it has no event sink); the log names it here.
-        _log?.PullSpawn(run.Encounter.PullIndex, setup.Dungeon);
+        _log?.PullSpawn(run.Encounter.PullIndex, dungeon);
         _log?.Begin(run.State);
         RunStarted?.Invoke();
     }
