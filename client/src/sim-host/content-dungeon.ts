@@ -50,7 +50,8 @@ function scaleStep(step: ScriptStep, keyLevel: number): ScriptStep {
   if (step.at === "loop") {
     return { at: "loop", every: scaleCastEvery(step.every ?? EVERY_FLOOR_TICKS, keyLevel), cast: step.cast, ...telegraph };
   }
-  return { at: step.at, cast: step.cast, ...telegraph };
+  const every = step.every !== undefined ? { every: scaleCastEvery(step.every, keyLevel) } : {};
+  return { at: step.at, ...every, cast: step.cast, ...telegraph };
 }
 
 function scaleScript(script: EnemyScript, keyLevel: number): EnemyScript {
