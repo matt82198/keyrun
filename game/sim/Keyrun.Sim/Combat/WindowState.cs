@@ -121,7 +121,7 @@ public static class WindowState
     /// <param name="now">Current tick.</param>
     /// <returns>The instance, or null.</returns>
     public static EffectInstance? FindOpenWindow(ActorState target, int now) =>
-        target.Effects.Find(e => IsWindowEffectId(e.EffectId) && e.EndsTick > now);
+        target.Effects.FindLast(e => IsWindowEffectId(e.EffectId) && e.EndsTick > now);
 
     /// <summary>window-state.ts:225-232 lastSetupClassOf: the class that closed this actor's last Lock, or null.</summary>
     /// <param name="actor">The boss.</param>
