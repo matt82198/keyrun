@@ -93,8 +93,8 @@
      27. exit 0, "SCREEN first open=1 key=2" (SimDriver opened the between-runs screen before any run), and no
          "RUN start", "BOSS armed" or "PULL spawn" line in <ScreenFirstFrames> frames (the first run waits for the
          screen's Queue, Screen.Queued -> StartQueuedRun). Before 3D-b the launch starts key 2 at once: 27 fails (RED).
-    Run I (lane 3D-c, a wipe goes back to the screen; interactive, three-seat party, from pull 2 so it wipes fast):
-        -- --press-enter 3 --pull 2   (--quit-after <WipeFrames>)
+    Run I (lane 3D-c, a wipe goes back to the screen; interactive, three-seat party, from pull 4 so it wipes on the boss):
+        -- --press-enter 3 --pull 4   (--quit-after <WipeFrames>)
         (--press-enter N: SimDriver's scripted player pushes Enter through the viewport each time the game waits on
         it, the screen up or the run ended, up to N presses; the real keyboard path, not a direct call)
      28. "SCREEN first open=1 key=2", press 1 queues the first run ("RUN start ... clause=<id>", not none), the party
@@ -112,9 +112,10 @@
          "PING react actor=A kind=move tick=M" with A a bot seat (2 Chanter, 3 Cinder) and N <= M <= N + 40
          (PingsPolicy.PingMoveTicks): the bot runner's batch carries that seat's ping reaction. Before 3H-c nothing
          subscribed to PlayerInput.Pinged: no "PING routed" line and 29 fails (RED).
-    Run K (lane 3E-b, a recorded input log replays through the real input path; interactive, three-seat party):
-      K1  -- --record-input <log> --press-enter 3 --press-ping 2 --pull 2 --log <k1>   (--quit-after <RecordFrames>)
-      K2  -- --replay-input <log> --pull 2 --log <k2>                                  (--quit-after <RecordFrames>)
+    Run K (lane 3E-b, a recorded input log replays through the real input path; interactive, three-seat party; from
+        pull 4 so the idle-human party wipes on the boss, since the 2026-10-18 content tuning, STATE.md D14):
+      K1  -- --record-input <log> --press-enter 3 --press-ping 2 --pull 4 --log <k1>   (--quit-after <RecordFrames>)
+      K2  -- --replay-input <log> --pull 4 --log <k2>                                  (--quit-after <RecordFrames>)
         (--record-input P: SimDriver appends every key press and release the game reads, stamped with the host's
         stepped-tick count, and writes P as keyrun.input-log/1 at quit; --replay-input P feeds each event back through
         Input.ParseInputEvent at its tick, the path PlayerInput polls and the viewport delivers)
@@ -158,10 +159,10 @@ param(
     [int]$BackfillTicks = 3300,
     [string]$AbandonSeat = '1@1000',
     [int]$ScreenFirstFrames = 240,
-    [int]$WipeFrames = 2400,
+    [int]$WipeFrames = 6600,
     [int]$PingAt = 100,
     [int]$PingFrames = 900,
-    [int]$RecordFrames = 2400,
+    [int]$RecordFrames = 6600,
     [int]$YawAt = 60,
     [string]$YawTo = '1.5',
     [int]$YawFrames = 900
@@ -514,7 +515,7 @@ if ($startH) { $failures.Add("run H: a run started (or failed) before any queue 
 
 # ---- Run I: Enter after a wipe opens the screen, never a Clause-less restart (lane 3D-c) --------------------------
 $ErrorActionPreference = 'Continue'
-$iText = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $WipeFrames '--' --press-enter 3 --pull 2 2>&1 | Out-String
+$iText = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $WipeFrames '--' --press-enter 3 --pull 4 2>&1 | Out-String
 $iCode = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 $iLines = @($iText -split "`r?`n")
@@ -617,7 +618,7 @@ function Get-Markers([string]$path) {
 }
 
 $ErrorActionPreference = 'Continue'
-$k1Text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $RecordFrames '--' --record-input $recPath --press-enter 3 --press-ping 2 --pull 2 --log $k1LogPath 2>&1 | Out-String
+$k1Text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $RecordFrames '--' --record-input $recPath --press-enter 3 --press-ping 2 --pull 4 --log $k1LogPath 2>&1 | Out-String
 $k1Code = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 $k1Lines = @($k1Text -split "`r?`n")
@@ -652,7 +653,7 @@ if (-not $recDone) {
 }
 
 $ErrorActionPreference = 'Continue'
-$k2Text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $RecordFrames '--' --replay-input $recPath --pull 2 --log $k2LogPath 2>&1 | Out-String
+$k2Text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $RecordFrames '--' --replay-input $recPath --pull 4 --log $k2LogPath 2>&1 | Out-String
 $k2Code = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 $k2Lines = @($k2Text -split "`r?`n")

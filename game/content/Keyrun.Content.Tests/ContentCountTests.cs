@@ -57,7 +57,7 @@ public sealed class ContentCountTests
 
         // The 1E telegraph reads hollowWarden.boss's cleave script step (ENGINE-PLAN section 5).
         EnemyDef boss = reg.Enemies["hollowWarden.boss"];
-        Assert.Equal(60000, boss.MaxHealth);
+        Assert.Equal(5000, boss.MaxHealth); // tuned 2026-10-18 per Matt (STATE.md D14), was 60000
         Assert.Equal(EnemyRole.Boss, boss.Role);
         ScriptStep cleave = boss.Script.Single(s => s.Cast == "hollowWarden.cleave");
         Assert.Equal(ScriptAtKind.Loop, cleave.At.Kind);

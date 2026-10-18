@@ -4,7 +4,8 @@ Usage: every number below is placeholder tuning, not a balance claim. `// TUNE` 
 inline in JSON, so this file is the single marker: **every number in every file under
 `content/data/` is `// TUNE`** unless it is a structural id/count (tick constants, tag strings,
 window ids). Ticks are 20 Hz (50 ms); GCD is fixed at 30 ticks (1.5 s) for every class per
-BIBLE.md D4. Player health 2000, trash health 6000, boss health 60000 (Hollow Warden).
+BIBLE.md D4. Player health 2000, Choir trash health 6000, Pair 1200, Seed 3000, boss health 5000
+(Hollow Warden; tuned 2026-10-18 per Matt, was 60000; see the Dungeon section).
 
 ## Abilities (all `// TUNE`)
 
@@ -81,8 +82,12 @@ dmg 80, hymn-field heal 60.
 
 ## Dungeon
 
-`parTicks` 14400 (12 min at 20 Hz, per BIBLE.md Sec 1). Choir/Pair/Seed trash 6000 hp; Hollow Warden
-boss 60000 hp; Sundered Twins 6000 hp each.
+`parTicks` 14400 (12 min at 20 Hz, per BIBLE.md Sec 1). Choir trash 6000 hp; Pair 1200 hp; Seed 3000 hp;
+Hollow Warden boss 5000 hp; Sundered Twins 1000 hp each (tuned 2026-10-18 per Matt, STATE.md D14: was Pair/Seed
+6000, boss 60000, Twins 6000, so that the bot-party autorun reaches and clears the boss).
+Enemy script cadences (tuned 2026-10-18 per Matt): `pair.meleeSwing` at 60 every 150 (was loop every 40);
+`hollowWarden.slam` loop every 300 (was 60); `twins.slam` loop every 400 (was 60); `hollowWarden.cleave` stays
+loop every 160. The ability cooldown columns above are unchanged.
 
 ## Enemy movement (`// TUNE`)
 

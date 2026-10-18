@@ -165,8 +165,8 @@ public sealed class BossRulesTests
         var enraged = BossRules.EffectiveScripts(run.Encounter.Boss! with { Enraged = true }, scripts);
 
         Assert.Equal(new[] { "hollowWarden.slam", "hollowWarden.cleave" }, calm[Boss].Select(s => s.Cast).ToArray());
-        Assert.Equal(new int?[] { 58, 156 }, calm[Boss].Select(s => s.Every).ToArray());
-        Assert.Equal(new int?[] { 38, 104 }, enraged[Boss].Select(s => s.Every).ToArray());
+        Assert.Equal(new int?[] { 294, 156 }, calm[Boss].Select(s => s.Every).ToArray());
+        Assert.Equal(new int?[] { 196, 104 }, enraged[Boss].Select(s => s.Every).ToArray());
         Assert.Equal(new int?[] { 60, 60 }, new[] { calm[TwinA], calm[TwinB] }.Select(s => s.Single().Every).ToArray());
     }
 
