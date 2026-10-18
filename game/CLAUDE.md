@@ -65,3 +65,7 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
   args --autorun --ticks N --log FILE --write-movie DIR), `PlayerInput.cs`, `RunLog.cs`, `DebugCleaveEmitter.cs`
   (TEMPORARY, 2E deletes it), `src/View/{ActorView,TelegraphView,CameraRig}.cs`. Scene test (not in CI yet):
   `pwsh game/src/Host/SimDriverSceneTest.ps1` asserts 40 TICK lines and frames=120 frame_ms=2000 at --fixed-fps 60.
+- Host movement constants (L1): walk speed, actor radius and arena bounds come from `game/content/data/run.json` (C#-only;
+  not under the root content/ tree, which is a frozen oracle root), loaded as `ContentRegistry.Run` and passed to
+  Keyrun.Sim as `MovementConfig`. SimDriver holds no movement constants. `game/content/.gdignore` keeps Godot out of the
+  content libraries (no .uid files there).
