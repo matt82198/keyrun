@@ -46,7 +46,7 @@ public partial class DebugCleaveEmitter : Node, ITickHook
     private int _nextTelegraphId = 1;
 
     /// <summary>The cleave's telegraph spec as loaded from content.</summary>
-    public TelegraphSpec? Spec { get; private set; }
+    public Keyrun.Content.TelegraphSpec? Spec { get; private set; }
 
     /// <summary>The cleave's loop period, ticks.</summary>
     public int Every { get; private set; }
