@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using Godot;
 using Keyrun.Bots;
+using Keyrun.Bots.Shared;
 using Keyrun.Content;
 using Keyrun.Hud;
 using Keyrun.Sim.Core;
@@ -105,6 +106,10 @@ public sealed class TickAccumulator
 /// <param name="PressEnter">Interactive scene-test seam (<c>--press-enter N</c>, lane 3D-c): a scripted player pushes
 /// Enter through the real input path (<see cref="Viewport.PushInput"/>) each time the game waits on Enter (the
 /// between-runs screen is up, or the run has ended), up to N presses. Ignored under <c>--autorun</c>. 0 = never.</param>
+/// <param name="PressPing">Interactive scene-test seam (<c>--press-ping T</c>, lane 3H-c): once the run reaches tick T a
+/// scripted player pushes one G (the ping key) through the real input path (<see cref="Viewport.PushInput"/>), so
+/// PlayerInput raises <see cref="PlayerInput.Pinged"/> exactly as a keyboard G does. Ignored under <c>--autorun</c>.
+/// 0 = never.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -117,7 +122,8 @@ public sealed record ArenaOptions(
     bool Requeue = false,
     SeatAbandonPlan? AbandonSeat = null,
     int? JoinerKey = null,
-    int PressEnter = 0)
+    int PressEnter = 0,
+    int PressPing = 0)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -147,6 +153,7 @@ public sealed record ArenaOptions(
         SeatAbandonPlan? abandon = null;
         int? joinerKey = null;
         var pressEnter = 0;
+        var pressPing = 0;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -181,6 +188,9 @@ public sealed record ArenaOptions(
                 case "--press-enter":
                     pressEnter = PositiveInt(args, ref i);
                     break;
+                case "--press-ping":
+                    pressPing = PositiveInt(args, ref i);
+                    break;
                 case "--log":
                     log = Value(args, ref i);
                     break;
@@ -190,7 +200,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -311,6 +321,7 @@ public partial class SimDriver : Node
     private readonly TickAccumulator _accumulator = new(Tick.TickHz, MaxStepsPerFrame);
     private readonly List<Command> _commands = new();
     private ICommandSource? _input;
+    private PlayerInput? _player;
     private BotCommandSource? _bots;
     private Screen? _screen;
     private Queue? _queue;
@@ -319,6 +330,7 @@ public partial class SimDriver : Node
     private int _pendingCaptures;
     private int _enterPresses;
     private int _enterWait;
+    private bool _pingPressed;
     private bool _done;
 
     /// <summary>The PlayerInput node.</summary>
@@ -399,8 +411,11 @@ public partial class SimDriver : Node
             Registry = ContentLoader.Load();
             Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo);
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
-            _input = GetNode<PlayerInput>(InputPath);
+            _player = GetNode<PlayerInput>(InputPath);
+            _input = _player;
             _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed);
+            // Lane 3H-c: the human's G reaches the bot seats (hud-wiring.ts derivePingEvent -> simHost.applyCommand).
+            _player.Pinged += RoutePing;
             // Lane 3D-b: the interactive launch waits on the between-runs screen (opened in HookScreen); --autorun and
             // --solo start the CLI run at once, as before.
             if (!StartsOnScreen)
@@ -435,6 +450,7 @@ public partial class SimDriver : Node
         {
             return;
         }
+        MaybeScriptedPing(Run);
         Frames++;
         var steps = _accumulator.Advance(delta);
         for (var i = 0; i < steps; i++)
@@ -483,6 +499,10 @@ public partial class SimDriver : Node
         if (_screen is not null)
         {
             _screen.Queued -= StartQueuedRun;
+        }
+        if (_player is not null)
+        {
+            _player.Pinged -= RoutePing;
         }
         _log?.Dispose();
     }
@@ -565,6 +585,43 @@ public partial class SimDriver : Node
         GetViewport().PushInput(new InputEventKey { Keycode = Key.Enter, PhysicalKeycode = Key.Enter, Pressed = true });
     }
 
+    // Lane 3H-c: PlayerInput.Pinged (G, raised inside the human's Sample, so Run is still the pre-step run) becomes a
+    // bots PingEvent, as hud-wiring.ts derivePingEvent builds it: a target ping on the human's target, else a spot ping.
+    // The TS spot point is the crosshair's floor hit, falling back to the pinger; the port uses the pinger's position.
+    private void RoutePing(int? targetId)
+    {
+        if (_bots is null || Run is not { } run || !run.State.Actors.TryGetValue(WardenId, out var me))
+        {
+            return;
+        }
+        var tick = run.State.Tick;
+        var ping = targetId is { } target
+            ? new PingEvent(tick, WardenId, PingKind.Target) { TargetId = target }
+            : new PingEvent(tick, WardenId, PingKind.Spot) { Point = new PointMm(me.Pos.X, me.Pos.Z) };
+        var kind = ping.Kind == PingKind.Target ? "target" : "spot";
+        var at = ping.Point is { } p ? FormattableString.Invariant($" point=({p.X},{p.Z})") : string.Empty;
+        if (!_bots.Ping(ping))
+        {
+            _log?.Line(FormattableString.Invariant($"PING limited kind={kind} tick={tick}"));
+            return;
+        }
+        _log?.Line(FormattableString.Invariant($"PING routed kind={kind} target={(targetId?.ToString(CultureInfo.InvariantCulture) ?? "none")} tick={tick}{at}"));
+    }
+
+    // --press-ping T (lane 3H-c's interactive proof): once the live run reaches tick T the scripted player pushes one G
+    // through the viewport, so PlayerInput queues the ping key exactly as a keyboard press does. Never under --autorun.
+    private void MaybeScriptedPing(Run run)
+    {
+        if (_pingPressed || Options.Autorun || Options.PressPing == 0 || run.State.Tick < Options.PressPing ||
+            run.RunEnd.Result is not null || _screen?.IsOpen == true)
+        {
+            return;
+        }
+        _pingPressed = true;
+        _log?.Line(FormattableString.Invariant($"INPUT ping tick={run.State.Tick}"));
+        GetViewport().PushInput(new InputEventKey { Keycode = Key.G, PhysicalKeycode = Key.G, Pressed = true });
+    }
+
     // --abandon-seat A@T (lane 3J's scripted proof): at run tick T the seat empties and, with --joiner-key K, one
     // request at key K joins the Queue node (the screen's Queue button is not pressed mid-run).
     private void MaybeScriptedAbandon(Run run)
@@ -634,6 +691,10 @@ public partial class SimDriver : Node
         // sim-runtime.ts step(): the human's commands first, then every bot seat's (one runBots call).
         _input?.Sample(preTick, run, _commands);
         _bots?.Sample(preTick, run, _commands);
+        foreach (var reaction in _bots?.TakeReactions() ?? Array.Empty<string>())
+        {
+            _log?.Line(reaction);
+        }
         // Lane 3J (3G's hand-off): RunRoot.StepRun through the backfill book; an open seat's commands are dropped.
         var queue = _queue;
         var step = Backfill.Step(_backfill, run, _commands, queue?.Requests ?? Array.Empty<QueueRequest>());
