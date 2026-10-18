@@ -83,6 +83,32 @@ class EscapeReproductionTest(unittest.TestCase):
         self.assertEqual(rc, 0)
 
 
+class RenameBypassTest(unittest.TestCase):
+    """Known bypass: with default rename detection `git diff --name-only` lists only
+    the NEW path of a rename, so moving game/src/X.cs to server/X.cs looked like a
+    non-game change and the gate passed with game-e2e cancelled."""
+
+    def test_game_file_moved_out_of_game_is_flagged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = os.path.join(tmp, "repo")
+            os.makedirs(repo)
+            _git(repo, "init", "-q")
+            _write(repo, "game/src/X.cs", "class X {\n    int hp;\n    int mana;\n}\n")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-q", "-m", "base")
+            base = _git(repo, "rev-parse", "HEAD")
+            _git(repo, "checkout", "-q", "-b", "move")
+            os.makedirs(os.path.join(repo, "server"))
+            _git(repo, "mv", "game/src/X.cs", "server/X.cs")
+            _git(repo, "commit", "-q", "-m", "move game file out of game/")
+            head = _git(repo, "rev-parse", "HEAD")
+            paths = game_gate.changed_paths(base, head, repo)
+            self.assertIn("game/src/X.cs", paths)
+            rc = game_gate.main(["--base", base, "--head", head,
+                                 "--e2e-result", "cancelled", "--repo", repo])
+            self.assertEqual(rc, 1)
+
+
 class CleanStateTest(unittest.TestCase):
     """No false positives: non-game PRs must not need game-e2e."""
 
@@ -119,12 +145,31 @@ class CleanStateTest(unittest.TestCase):
 
 
 class FailClosedTest(unittest.TestCase):
-    def test_zero_or_missing_base_is_error_not_pass(self):
+    def test_zero_base_first_push_treats_all_paths_as_changed(self):
+        """A push event whose github.event.before is all zeros (first push) has no
+        resolvable base. The gate must not crash and must not pass unless game-e2e
+        succeeded, because every path is assumed changed."""
         with tempfile.TemporaryDirectory() as tmp:
-            repo, _, head = _pr_fixture(tmp, {"game/src/Sim.cs": "class Sim { int z; }\n"})
+            repo, _, head = _pr_fixture(tmp, {"server/index.ts": "export const b = 2;\n"})
             self.assertEqual(game_gate.main(["--base", game_gate.ZERO_SHA, "--head", head,
-                                             "--e2e-result", "success", "--repo", repo]), 2)
+                                             "--e2e-result", "success", "--repo", repo]), 0)
+            self.assertEqual(game_gate.main(["--base", game_gate.ZERO_SHA, "--head", head,
+                                             "--e2e-result", "cancelled", "--repo", repo]), 1)
+            self.assertEqual(game_gate.main(["--base", game_gate.ZERO_SHA, "--head", head,
+                                             "--e2e-result", "", "--repo", repo]), 1)
+
+    def test_missing_base_treats_all_paths_as_changed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, _, head = _pr_fixture(tmp, {"server/index.ts": "export const c = 3;\n"})
             self.assertEqual(game_gate.main(["--base", "", "--head", head,
+                                             "--e2e-result", "success", "--repo", repo]), 0)
+            self.assertEqual(game_gate.main(["--base", "", "--head", head,
+                                             "--e2e-result", "", "--repo", repo]), 1)
+
+    def test_missing_head_is_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, base, _ = _pr_fixture(tmp, {"server/index.ts": "export const d = 4;\n"})
+            self.assertEqual(game_gate.main(["--base", base, "--head", "",
                                              "--e2e-result", "success", "--repo", repo]), 2)
 
     def test_unknown_sha_is_error(self):

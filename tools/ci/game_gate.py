@@ -20,6 +20,9 @@ import sys
 
 GAME_PREFIXES = ("game/", "tools/godot/")
 ZERO_SHA = "0" * 40
+# Stands in for "every path changed" when the base sha cannot be resolved. It sits under
+# game/ so evaluate() treats the change as game-touching and requires game-e2e success.
+ALL_PATHS_UNRESOLVED_BASE = "game/<all paths: base sha unresolvable, assumed changed>"
 
 
 class GateError(Exception):
@@ -46,10 +49,20 @@ def evaluate(changed_paths, e2e_result):
 
 
 def changed_paths(base, head, repo_dir):
-    """List repo-relative paths in base...head. Raises GateError on any failure."""
-    if not base or base == ZERO_SHA or not head:
-        raise GateError("base or head sha missing; cannot compute the diff")
-    cmd = ["git", "-C", repo_dir, "diff", "--name-only", "-z", "%s...%s" % (base, head)]
+    """List repo-relative paths in base...head. Raises GateError on any failure.
+
+    An unresolvable base (empty, or all zeros as on a first push where
+    github.event.before is zeros) yields a single sentinel game path, meaning
+    "every path is assumed changed": the gate then requires game-e2e success.
+    """
+    if not head:
+        raise GateError("head sha missing; cannot compute the diff")
+    if not base or base == ZERO_SHA:
+        return [ALL_PATHS_UNRESOLVED_BASE]
+    # --no-renames: with rename detection a move out of game/ lists only the new path,
+    # which hid the game/ side of the change (known bypass, see RenameBypassTest).
+    cmd = ["git", "-C", repo_dir, "diff", "--no-renames", "--name-only", "-z",
+           "%s...%s" % (base, head)]
     try:
         proc = subprocess.run(cmd, capture_output=True, check=False)
     except OSError as exc:
