@@ -1,0 +1,33 @@
+using System;
+using Keyrun.Sim.Core;
+
+namespace Keyrun.Bots.Shared;
+
+/// <summary>
+/// The cooldown readiness check of bots/src/roles/shared.ts <c>abilityReady</c>, re-exported by roles.ts and used
+/// by pings-policy.ts and shared/ledger.ts. It lives in shared/ here so pings-policy (lane 3A) and the role state
+/// machines (lane 3B) read one definition; roles/shared.ts's other helpers stay with the roles.
+/// </summary>
+public static class Readiness
+{
+    /// <summary><c>self.cooldowns[abilityId] ?? 0</c>: the tick the ability's cooldown is ready.</summary>
+    /// <param name="self">Actor.</param>
+    /// <param name="abilityId">Ability.</param>
+    /// <returns>Ready tick (0 when no cooldown is recorded).</returns>
+    public static int CooldownReadyTick(ActorState self, string abilityId)
+    {
+        ArgumentNullException.ThrowIfNull(self);
+        return self.Cooldowns.TryGetValue(abilityId, out var ready) ? ready : 0;
+    }
+
+    /// <summary>roles/shared.ts abilityReady: off cooldown and off the GCD at <paramref name="tick"/>.</summary>
+    /// <param name="self">Actor.</param>
+    /// <param name="abilityId">Ability.</param>
+    /// <param name="tick">Current tick.</param>
+    /// <returns>True when castable now (resource cost is not checked).</returns>
+    public static bool AbilityReady(ActorState self, string abilityId, int tick)
+    {
+        ArgumentNullException.ThrowIfNull(self);
+        return CooldownReadyTick(self, abilityId) <= tick && self.GcdReadyTick <= tick;
+    }
+}
