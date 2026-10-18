@@ -216,6 +216,19 @@ Phase 1 exit check 2026-10-18: DRIFT (plan-vs-output check of the merged 1E aren
   Fellowship defect, research/09). Sim: game/sim/Keyrun.Sim/Run/Backfill.cs (pure net8.0); UI: game/src/Hud/Queue.cs.
   Acceptance: a scripted abandon at pull 2 is refilled; the joiner first acts at the next pull start with the
   run's Slack value unchanged (sim test asserts both); a joiner queued at key 2 is refused a key-10 run.
+- 3H bot party (added after landing from STATE.md rows; landed in #136/#148): the human plays with a Chanter healer and a
+  Cinder damage bot beside the Warden, so the run is a party and not one seat (D10 "one class plus bot party"); the G ping
+  reaches the bot party (3H-c). Files: game/src/Host/{BotCommandSource,HostRunSetup,SimDriver}.cs, game/src/Host/HudSceneTest.ps1.
+  GATE: autorun prints `BOTS done commands=N hash=H`; HudSceneTest runs A and B keep the one-seat `--solo` path; HudSceneTest run J
+  proves the G-ping route (`PING routed`, `PING react`).
+- 3I host wiring (added after landing from STATE.md rows; landed in #141): the host arms the Sundered Twins boss on every run
+  (CLI, Enter, queued, `--solo`) and a queued run starts with its Clause, so the boss is reachable from the real host and not
+  only from the sim. Files: game/src/Host/{HostRunSetup,SimDriver}.cs, game/sim/Keyrun.Sim.Tests/HostQueuedRunTests.cs.
+  GATE: HudSceneTest runs D and E; game/sim/Keyrun.Sim.Tests/HostQueuedRunTests.cs.
+- 3J host backfill (added after landing from STATE.md rows; landed in #142): the real host steps the run through
+  `Backfill.Step` and refills an abandoned seat from the queue at the next pull start, so 3G is live in play and not only in
+  sim tests. Files: game/src/Host/SimDriver.cs, game/src/Host/HudSceneTest.ps1.
+  GATE: HudSceneTest run E (consume after the requeued run), run F (`1@1000`, refill at pull 2 tick 3152), run G (key-3 joiner refused).
 - Matt sees: launch, then a full run with the Warden plus a Cinder and Chanter bot party through three pulls and the boss
   (Twins and Lock included), ending on the run-end panel. The screen and Clause pick come up before the run starts.
   D10 wording (STATE.md: "one class plus bot party") is satisfied by this Warden plus Cinder and Chanter party.
