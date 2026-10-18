@@ -6,6 +6,7 @@ using System.Linq;
 using Godot;
 using Keyrun.Bots;
 using Keyrun.Content;
+using Keyrun.Hud;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Runs;
@@ -81,7 +82,7 @@ public sealed class TickAccumulator
 /// <summary>
 /// The arena's user arguments (after <c>--</c> on the Godot command line), in the style of Main.cs's
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
-/// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>.
+/// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -93,6 +94,9 @@ public sealed class TickAccumulator
 /// run's dungeon, keeping actor ids and scripts (lane 3C: the HUD scene test reaches the Pair's SPREAD/STACK calls).</param>
 /// <param name="Solo">The human's seat alone, no bot seats (<c>--solo</c>; the phase 2 run). Default: the three-seat
 /// bot party (lane 3H).</param>
+/// <param name="Requeue">Under <c>--autorun</c>, start the run the between-runs screen queues (<c>--requeue</c>, lane
+/// 3I). Off by default so an autorun stays one run (the scene tests and CI read one run's lines, and the HUD test's
+/// run B reads the Pair's marks after the solo wipe). An interactive game always starts the queued run.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -101,7 +105,8 @@ public sealed record ArenaOptions(
     int KeyLevel = ArenaOptions.DefaultKeyLevel,
     long Seed = ArenaOptions.DefaultSeed,
     int StartPull = 1,
-    bool Solo = false)
+    bool Solo = false,
+    bool Requeue = false)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -127,6 +132,7 @@ public sealed record ArenaOptions(
         long seed = DefaultSeed;
         var pull = 1;
         var solo = false;
+        var requeue = false;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -136,6 +142,9 @@ public sealed record ArenaOptions(
                     break;
                 case "--solo":
                     solo = true;
+                    break;
+                case "--requeue":
+                    requeue = true;
                     break;
                 case "--ticks":
                     ticks = PositiveInt(args, ref i);
@@ -158,7 +167,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -206,7 +215,13 @@ public interface ICommandSource
 /// <c>AUTORUN done ticks=N frames=F frame_ms=M</c> line, then <c>BOTS done commands=C hash=H</c> (the bot command
 /// stream's count and FNV-1a 64 fingerprint), and quits with exit code 0 once N ticks have run.
 /// <c>--write-movie DIR</c> saves three proof frames (Choir chase, lieutenant heal cast bar, after the kick).
-/// Interactive: once the run ends, Enter starts a fresh run.
+/// Interactive: once the run ends, Enter starts a fresh run at <c>--key</c> with no Clause (unless the between-runs
+/// screen is up: it owns Enter then).
+/// <para>Lane 3I: every run is created with the boss armed (<see cref="BossRules.Arm"/> with
+/// <see cref="HostRunSetup.Boss"/>, logged as <c>BOSS armed twins=N lockAt=P</c>), and a <see cref="Screen.Queued"/>
+/// request starts the next run at the queued key with the queued Clause (<see cref="StartQueuedRun"/>; under
+/// <c>--autorun</c> only with <c>--requeue</c>). The <c>RUN start</c> line reports the created run's key (its content KeyLevel) and Clause (the
+/// sim's <see cref="Keyrun.Sim.Encounter.EncounterRules.ActiveClauseId"/>, <c>none</c> without one).</para>
 /// </remarks>
 public partial class SimDriver : Node
 {
@@ -235,6 +250,7 @@ public partial class SimDriver : Node
     private readonly List<Command> _commands = new();
     private ICommandSource? _input;
     private BotCommandSource? _bots;
+    private Screen? _screen;
     private RunLog? _log;
     private int _pendingCaptures;
     private bool _done;
@@ -307,7 +323,9 @@ public partial class SimDriver : Node
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _input = GetNode<PlayerInput>(InputPath);
             _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed);
-            StartRun();
+            StartRun(null);
+            // The screen (Hud/Screen) is readied after this node; find it once the tree is up.
+            Callable.From(HookScreen).CallDeferred();
 
             if (Options.MovieDir is { } dir)
             {
@@ -352,22 +370,59 @@ public partial class SimDriver : Node
     /// <inheritdoc />
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (!Options.Autorun && Run?.RunEnd.Result is not null &&
+        if (!Options.Autorun && Run?.RunEnd.Result is not null && _screen?.IsOpen != true &&
             @event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Enter or Key.KpEnter })
         {
-            StartRun();
+            StartRun(null);
         }
     }
 
     /// <inheritdoc />
     public override void _ExitTree()
     {
+        if (_screen is not null)
+        {
+            _screen.Queued -= StartQueuedRun;
+        }
         _log?.Dispose();
     }
 
-    private void StartRun()
+    /// <summary>
+    /// Starts the run the between-runs screen queued (lane 3I; 3D's <see cref="QueueRequest"/>): the setup is rebuilt at
+    /// the request's dungeon and key, and the run carries the request's one Clause (<see cref="QueueRequest.ToRunOptions"/>).
+    /// </summary>
+    /// <param name="request">The queued key and Clause.</param>
+    public void StartQueuedRun(QueueRequest request)
     {
-        var setup = Setup ?? throw new InvalidOperationException("SimDriver started a run before content loaded");
+        ArgumentNullException.ThrowIfNull(request);
+        if (_done || Registry is null || (Options.Autorun && !Options.Requeue))
+        {
+            return;
+        }
+        StartRun(request);
+    }
+
+    private void HookScreen()
+    {
+        if (_screen is not null || GetTree().GetFirstNodeInGroup(Screen.GroupName) is not Screen screen)
+        {
+            return;
+        }
+        _screen = screen;
+        _screen.Queued += StartQueuedRun;
+    }
+
+    // request null: the CLI run (--key, no Clause), today's start and Enter restart. Otherwise the queued run.
+    private void StartRun(QueueRequest? request)
+    {
+        var registry = Registry ?? throw new InvalidOperationException("SimDriver started a run before content loaded");
+        var dungeonId = request?.DungeonId ?? DungeonId;
+        var keyLevel = request?.KeyLevel ?? Options.KeyLevel;
+        if (Setup is null || Setup.Dungeon.Id != dungeonId || Setup.Content.KeyLevel != keyLevel)
+        {
+            Setup = HostRunSetup.Build(registry, dungeonId, keyLevel, HumanClassId, withBots: !Options.Solo);
+        }
+        var setup = Setup;
         var dungeon = setup.Dungeon;
         if (Options.StartPull > 1)
         {
@@ -377,14 +432,19 @@ public partial class SimDriver : Node
             }
             dungeon = dungeon with { Pulls = dungeon.Pulls.Skip(Options.StartPull - 1).ToList() };
         }
-        var run = RunRoot.CreateRun(Options.Seed, setup.Party, dungeon, setup.Content);
+        var created = RunRoot.CreateRun(Options.Seed, setup.Party, dungeon, setup.Content, request?.ToRunOptions());
+        // 3F's hand-off (its decision 6): arm the boss on the created run's encounter.
+        var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
         Run = run;
         State = run.State;
         PreviousState = run.State;
         LastEvents = Array.Empty<SimEvent>();
         _bots?.Reset();
         _log?.Line(FormattableString.Invariant(
-            $"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} dungeon={setup.Dungeon.Id} key={Options.KeyLevel} seed={Options.Seed} actors={run.State.Actors.Count}"));
+            $"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} dungeon={setup.Dungeon.Id} key={setup.Content.KeyLevel} clause={run.Encounter.Rules.ActiveClauseId ?? "none"} seed={Options.Seed} actors={run.State.Actors.Count}"));
+        var boss = run.Encounter.Boss?.Config ?? throw new InvalidOperationException("SimDriver: the run's boss is not armed");
+        _log?.Line(FormattableString.Invariant(
+            $"BOSS armed twins={boss.Twins.Count} lockAt={boss.LockThresholdBp / 100} window={boss.LockWindowTicks} bar={boss.TwinsBar.Id} boss={boss.BossActorId}"));
         // createRun spawns pull 0 and drops its pull_start (it has no event sink); the log names it here.
         _log?.PullSpawn(run.Encounter.PullIndex, dungeon);
         _log?.Begin(run.State);
