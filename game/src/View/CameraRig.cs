@@ -49,6 +49,14 @@ public partial class CameraRig : Node3D
         Pitch = Mathf.Clamp(Pitch + pitchDelta, MinPitch, MaxPitch);
     }
 
+    /// <summary>
+    /// Puts the heading back to a value this rig reported as <see cref="Yaw"/> (lane 3E-c, <c>--replay-input</c>): the
+    /// recorded yaw is restored bit for bit, with no second wrap, so WASD (PlayerInput reads <see cref="Yaw"/>) walks the
+    /// recorded route. Pitch is untouched (movement never reads it).
+    /// </summary>
+    /// <param name="yaw">A heading in [-Pi, Pi], radians, as <see cref="Yaw"/> reported it.</param>
+    public void RestoreYaw(float yaw) => Yaw = yaw;
+
     /// <inheritdoc />
     public override void _Process(double delta) => Apply();
 

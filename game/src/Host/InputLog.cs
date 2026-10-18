@@ -20,35 +20,62 @@ namespace Keyrun.Host;
 public sealed record InputLogEvent(int Tick, Key Key, bool Pressed);
 
 /// <summary>
-/// The <c>keyrun.input-log/1</c> file (lane 3E-b, ENGINE-PLAN row 3E): the keys a human pressed during an interactive
-/// run, tick-stamped, so <c>--replay-input</c> can play them back through the real input path. Shape:
-/// <c>{ "schema": "keyrun.input-log/1", "seed": S, "key": K, "events": [ { "tick": N, "key": "W", "pressed": true } ] }</c>
-/// (UTF-8, no BOM, LF, one event per line). Seed and key are the launch's <c>--seed</c> and <c>--key</c>; a replay
-/// under a different seed or key is refused, because the same keys would not produce the same run.
+/// One recorded camera heading of a <c>keyrun.input-log/2</c> file (lane 3E-c): from host tick <paramref name="Tick"/>
+/// on, the CameraRig's <see cref="Keyrun.View.CameraRig.Yaw"/> (the heading PlayerInput's WASD is relative to) was
+/// <paramref name="Yaw"/>.
+/// </summary>
+/// <param name="Tick">The host tick (<see cref="SimDriver.TicksRun"/>) of the step the heading was first sampled for.
+/// The heading is restored before that step.</param>
+/// <param name="Yaw">The heading, radians in [-Pi, Pi], the float32 the rig held. The file writes it in the shortest form
+/// that reads back to the same float32 (<c>"R"</c>, invariant), so a replay restores it bit for bit.</param>
+public sealed record InputLogCamera(int Tick, float Yaw);
+
+/// <summary>
+/// The <c>keyrun.input-log</c> file (lane 3E-b, ENGINE-PLAN row 3E; camera headings lane 3E-c): the keys a human pressed
+/// during an interactive run, tick-stamped, so <c>--replay-input</c> can play them back through the real input path.
+/// Shape <c>/1</c>: <c>{ "schema": "keyrun.input-log/1", "seed": S, "key": K, "events": [ { "tick": N, "key": "W",
+/// "pressed": true } ] }</c>. Shape <c>/2</c> adds <c>"camera": [ { "tick": N, "yaw": Y } ]</c> after the events (Y in
+/// radians, see <see cref="InputLogCamera"/>). A log is written as <c>/2</c> exactly when it holds a camera event, so a
+/// run whose camera never turned writes the same <c>/1</c> bytes as before 3E-c; both shapes are read (a <c>/1</c> file
+/// has no camera list). UTF-8, no BOM, LF, one event per line. Seed and key are the launch's <c>--seed</c> and
+/// <c>--key</c>; a replay under a different seed or key is refused, because the same keys would not produce the same run.
 /// </summary>
 public sealed class InputLog
 {
-    /// <summary>The schema id.</summary>
-    public const string Schema = "keyrun.input-log/1";
+    /// <summary>The key-only schema id (lane 3E-b).</summary>
+    public const string SchemaV1 = "keyrun.input-log/1";
+
+    /// <summary>The schema id with camera headings (lane 3E-c).</summary>
+    public const string SchemaV2 = "keyrun.input-log/2";
 
     /// <summary>Builds a log.</summary>
     /// <param name="seed">The run seed.</param>
     /// <param name="keyLevel">The launch key level.</param>
-    /// <param name="events">The events, ticks never decreasing.</param>
-    /// <exception cref="ArgumentException">A tick is negative or goes down.</exception>
-    public InputLog(long seed, int keyLevel, IReadOnlyList<InputLogEvent> events)
+    /// <param name="events">The key events, ticks never decreasing.</param>
+    /// <param name="camera">The camera headings, ticks never decreasing; null or empty for a key-only log.</param>
+    /// <exception cref="ArgumentException">A tick is negative or goes down, or a yaw is not finite.</exception>
+    public InputLog(long seed, int keyLevel, IReadOnlyList<InputLogEvent> events, IReadOnlyList<InputLogCamera>? camera = null)
     {
         ArgumentNullException.ThrowIfNull(events);
+        camera ??= Array.Empty<InputLogCamera>();
         for (var i = 0; i < events.Count; i++)
         {
             if (events[i].Tick < 0 || (i > 0 && events[i].Tick < events[i - 1].Tick))
             {
-                throw new ArgumentException($"{Schema}: event {i} tick {events[i].Tick} is negative or before the previous event");
+                throw new ArgumentException($"input log: event {i} tick {events[i].Tick} is negative or before the previous event");
+            }
+        }
+        for (var i = 0; i < camera.Count; i++)
+        {
+            if (camera[i].Tick < 0 || (i > 0 && camera[i].Tick < camera[i - 1].Tick) || !float.IsFinite(camera[i].Yaw))
+            {
+                throw new ArgumentException($"input log: camera {i} tick {camera[i].Tick} is negative or before the previous one, or its yaw is not finite");
             }
         }
         Seed = seed;
         KeyLevel = keyLevel;
         Events = events;
+        Camera = camera;
     }
 
     /// <summary>The run seed the log was recorded at.</summary>
@@ -59,6 +86,13 @@ public sealed class InputLog
 
     /// <summary>The key transitions in order.</summary>
     public IReadOnlyList<InputLogEvent> Events { get; }
+
+    /// <summary>The camera headings in order (empty for a <c>/1</c> log).</summary>
+    public IReadOnlyList<InputLogCamera> Camera { get; }
+
+    /// <summary>The schema the log is written as: <see cref="SchemaV2"/> when it holds a camera event, else
+    /// <see cref="SchemaV1"/>.</summary>
+    public string Schema => Camera.Count > 0 ? SchemaV2 : SchemaV1;
 
     /// <summary>The file text (deterministic: fixed key order, invariant numbers, LF, trailing newline).</summary>
     /// <returns>The JSON text.</returns>
@@ -76,10 +110,27 @@ public sealed class InputLog
             sb.Append(i == 0 ? "\n" : ",\n");
             sb.Append(CultureInfo.InvariantCulture, $"    {{ \"tick\": {e.Tick}, \"key\": \"{e.Key}\", \"pressed\": {(e.Pressed ? "true" : "false")} }}");
         }
-        sb.Append(Events.Count == 0 ? "]\n" : "\n  ]\n");
-        sb.Append("}\n");
+        sb.Append(Events.Count == 0 ? "]" : "\n  ]");
+        if (Camera.Count > 0)
+        {
+            sb.Append(",\n  \"camera\": [");
+            for (var i = 0; i < Camera.Count; i++)
+            {
+                var c = Camera[i];
+                sb.Append(i == 0 ? "\n" : ",\n");
+                sb.Append(CultureInfo.InvariantCulture, $"    {{ \"tick\": {c.Tick}, \"yaw\": {FormatYaw(c.Yaw)} }}");
+            }
+            sb.Append("\n  ]");
+        }
+        sb.Append("\n}\n");
         return sb.ToString();
     }
+
+    /// <summary>A yaw as the file and the log lines write it: the shortest invariant text that reads back to the same
+    /// float32.</summary>
+    /// <param name="yaw">The yaw, radians.</param>
+    /// <returns>The text.</returns>
+    public static string FormatYaw(float yaw) => yaw.ToString("R", CultureInfo.InvariantCulture);
 
     /// <summary>Writes the file (its directory is created if missing).</summary>
     /// <param name="path">The file path.</param>
@@ -97,19 +148,19 @@ public sealed class InputLog
     /// <summary>Reads a file, fail-closed.</summary>
     /// <param name="path">The file path.</param>
     /// <returns>The log.</returns>
-    /// <exception cref="ArgumentException">Not a well-formed keyrun.input-log/1 file.</exception>
+    /// <exception cref="ArgumentException">Not a well-formed keyrun.input-log/1 or /2 file.</exception>
     public static InputLog Load(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         return Parse(File.ReadAllText(path), path);
     }
 
-    /// <summary>Parses file text, fail-closed: wrong schema, a missing or mistyped field, an unknown key name or a tick
-    /// that goes down are all refused.</summary>
+    /// <summary>Parses file text, fail-closed: an unknown schema, a missing or mistyped field, an unknown key name, a tick
+    /// that goes down, a camera list in a <c>/1</c> file or a <c>/2</c> file without one are all refused.</summary>
     /// <param name="json">The text.</param>
     /// <param name="source">Where it came from (error messages).</param>
     /// <returns>The log.</returns>
-    /// <exception cref="ArgumentException">Not a well-formed keyrun.input-log/1 document.</exception>
+    /// <exception cref="ArgumentException">Not a well-formed keyrun.input-log/1 or /2 document.</exception>
     public static InputLog Parse(string json, string source)
     {
         ArgumentNullException.ThrowIfNull(json);
@@ -117,16 +168,17 @@ public sealed class InputLog
         {
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("schema", out var schema) ||
-                schema.ValueKind != JsonValueKind.String || schema.GetString() != Schema)
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("schema", out var schemaEl) ||
+                schemaEl.ValueKind != JsonValueKind.String || schemaEl.GetString() is not (SchemaV1 or SchemaV2))
             {
-                throw new ArgumentException($"{source}: not a {Schema} file (schema field missing or different)");
+                throw new ArgumentException($"{source}: not a {SchemaV1} or {SchemaV2} file (schema field missing or different)");
             }
-            var seed = Field(root, "seed", source).GetInt64();
-            var key = Field(root, "key", source).GetInt32();
+            var schema = schemaEl.GetString()!;
+            var seed = Field(root, "seed", source, schema).GetInt64();
+            var key = Field(root, "key", source, schema).GetInt32();
             if (!root.TryGetProperty("events", out var list) || list.ValueKind != JsonValueKind.Array)
             {
-                throw new ArgumentException($"{source}: {Schema} needs an events array");
+                throw new ArgumentException($"{source}: {schema} needs an events array");
             }
             var events = new List<InputLogEvent>();
             foreach (var item in list.EnumerateArray())
@@ -140,11 +192,33 @@ public sealed class InputLog
                 }
                 events.Add(new InputLogEvent(tick.GetInt32(), ParseKey(name.GetString()!, at), pressed.GetBoolean()));
             }
-            return new InputLog(seed, key, events);
+            var hasCamera = root.TryGetProperty("camera", out var camList);
+            if (schema == SchemaV1 && hasCamera)
+            {
+                throw new ArgumentException($"{source}: a {SchemaV1} file has no camera list (camera headings are {SchemaV2})");
+            }
+            if (schema == SchemaV2 && (!hasCamera || camList.ValueKind != JsonValueKind.Array))
+            {
+                throw new ArgumentException($"{source}: {SchemaV2} needs a camera array");
+            }
+            var camera = new List<InputLogCamera>();
+            if (schema == SchemaV2)
+            {
+                foreach (var item in camList.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("tick", out var tick) || tick.ValueKind != JsonValueKind.Number ||
+                        !item.TryGetProperty("yaw", out var yaw) || yaw.ValueKind != JsonValueKind.Number)
+                    {
+                        throw new ArgumentException($"{source}: camera {camera.Count} needs tick (number) and yaw (number)");
+                    }
+                    camera.Add(new InputLogCamera(tick.GetInt32(), yaw.GetSingle()));
+                }
+            }
+            return new InputLog(seed, key, events, camera);
         }
         catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException)
         {
-            throw new ArgumentException($"{source}: not a well-formed {Schema} file ({ex.Message})", ex);
+            throw new ArgumentException($"{source}: not a well-formed {SchemaV1} or {SchemaV2} file ({ex.Message})", ex);
         }
     }
 
@@ -164,10 +238,10 @@ public sealed class InputLog
         return key;
     }
 
-    private static JsonElement Field(JsonElement root, string name, string source) =>
+    private static JsonElement Field(JsonElement root, string name, string source, string schema) =>
         root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number
             ? v
-            : throw new ArgumentException($"{source}: {Schema} needs a numeric {name}");
+            : throw new ArgumentException($"{source}: {schema} needs a numeric {name}");
 }
 
 /// <summary>
@@ -176,14 +250,21 @@ public sealed class InputLog
 /// them (every key PlayerInput, the between-runs screen, the run-end panel and SimDriver handle), and, before each step,
 /// a diff of the keys PlayerInput polls (<see cref="PlayerInput.PolledKeys"/>, WASD) against what the events said, which
 /// catches a release the engine applies without an event (focus loss). Echo repeats are skipped by the caller.
+/// Lane 3E-c: before each step it also samples the camera heading WASD is relative to and records it whenever it differs
+/// from the last one (<see cref="SyncCamera"/>; the first is compared with <see cref="BaselineCamera"/>).
 /// </summary>
 public sealed class InputRecorder
 {
     private readonly List<InputLogEvent> _events = new();
+    private readonly List<InputLogCamera> _camera = new();
     private readonly HashSet<Key> _down = new();
+    private float? _lastYaw;
 
     /// <summary>The events recorded so far.</summary>
     public IReadOnlyList<InputLogEvent> Events => _events;
+
+    /// <summary>The camera headings recorded so far.</summary>
+    public IReadOnlyList<InputLogCamera> Camera => _camera;
 
     /// <summary>Records one delivered key event, as delivered: a second press with no release between (a scripted
     /// <c>Viewport.PushInput</c> press has none) is still a press every reader acts on, so it is kept.</summary>
@@ -224,33 +305,56 @@ public sealed class InputRecorder
         }
     }
 
+    /// <summary>The heading the rig starts at, sampled once before anything can turn it (SimDriver's first frame, after
+    /// every node's <c>_Ready</c>). It is not recorded: a replay starts from the same scene and so the same heading.</summary>
+    /// <param name="yaw">The rig's heading, radians.</param>
+    public void BaselineCamera(float yaw) => _lastYaw ??= yaw;
+
+    /// <summary>Records the heading when it differs from the last recorded one (or the baseline). Called before each
+    /// step with the value PlayerInput is about to read.</summary>
+    /// <param name="tick">The host tick.</param>
+    /// <param name="yaw">The rig's heading, radians.</param>
+    public void SyncCamera(int tick, float yaw)
+    {
+        if (_lastYaw is { } last && last.Equals(yaw))
+        {
+            return;
+        }
+        _lastYaw = yaw;
+        _camera.Add(new InputLogCamera(tick, yaw));
+    }
+
     /// <summary>The log of what was recorded.</summary>
     /// <param name="seed">The run seed.</param>
     /// <param name="keyLevel">The launch key level.</param>
     /// <returns>The log.</returns>
-    public InputLog ToLog(long seed, int keyLevel) => new(seed, keyLevel, _events.ToArray());
+    public InputLog ToLog(long seed, int keyLevel) => new(seed, keyLevel, _events.ToArray(), _camera.ToArray());
 }
 
 /// <summary>
-/// <c>--replay-input</c> (lane 3E-b): hands back a log's events once the host tick reaches theirs, in order. Godot-free
-/// bookkeeping; SimDriver feeds each one to the engine.
+/// <c>--replay-input</c> (lane 3E-b): hands back a log's events once the host tick reaches theirs, in order; lane 3E-c
+/// does the same for its camera headings. Godot-free bookkeeping; SimDriver feeds each one to the engine.
 /// </summary>
 public sealed class InputReplayer
 {
     private readonly InputLog _log;
     private int _next;
+    private int _nextCamera;
 
     /// <summary>Builds a replayer.</summary>
     /// <param name="log">The log to play.</param>
     public InputReplayer(InputLog log) => _log = log ?? throw new ArgumentNullException(nameof(log));
 
-    /// <summary>Events applied so far.</summary>
+    /// <summary>Key events applied so far.</summary>
     public int Applied => _next;
 
-    /// <summary>All events applied.</summary>
-    public bool Done => _next >= _log.Events.Count;
+    /// <summary>Camera headings applied so far.</summary>
+    public int CameraApplied => _nextCamera;
 
-    /// <summary>The tick of the last applied event, or -1.</summary>
+    /// <summary>All key events and camera headings applied.</summary>
+    public bool Done => _next >= _log.Events.Count && _nextCamera >= _log.Camera.Count;
+
+    /// <summary>The tick of the last applied key event, or -1.</summary>
     public int LastTick => _next == 0 ? -1 : _log.Events[_next - 1].Tick;
 
     /// <summary>The events now due (tick at or before <paramref name="tick"/>) that have not been handed out.</summary>
@@ -263,6 +367,20 @@ public sealed class InputReplayer
         {
             due.Add(_log.Events[_next]);
             _next++;
+        }
+        return due;
+    }
+
+    /// <summary>The camera headings now due (tick at or before <paramref name="tick"/>) that have not been handed out.</summary>
+    /// <param name="tick">The host tick.</param>
+    /// <returns>The due headings, in log order (the last one is the heading in force).</returns>
+    public IReadOnlyList<InputLogCamera> DueCamera(int tick)
+    {
+        var due = new List<InputLogCamera>();
+        while (_nextCamera < _log.Camera.Count && _log.Camera[_nextCamera].Tick <= tick)
+        {
+            due.Add(_log.Camera[_nextCamera]);
+            _nextCamera++;
         }
         return due;
     }
