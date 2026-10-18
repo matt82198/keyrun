@@ -1,0 +1,12 @@
+{
+  "movement": {
+    "speedMmPerTick": 180,
+    "radiusMm": 400
+  },
+  "arenaBounds": {
+    "minX": -4000,
+    "maxX": 18000,
+    "minZ": -6000,
+    "maxZ": 9000
+  }
+}

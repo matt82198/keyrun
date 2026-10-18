@@ -11,6 +11,47 @@ namespace Keyrun.Sim.Combat;
 public readonly record struct Bounds(long MinX, long MaxX, long MinZ, long MaxZ);
 
 /// <summary>
+/// The arena movement rules a host feeds <see cref="Movement"/>: walk speed (sim/combat/rules.ts
+/// RulesConfig.baseSpeedMmPerTick), the equal actor radius for push-out, and the arena bounds. The host
+/// builds it from content (Keyrun.Content run.json); the sim holds no default.
+/// </summary>
+public sealed record MovementConfig
+{
+    /// <summary>Builds a config, rejecting values the movement rules cannot use.</summary>
+    /// <param name="BaseSpeedMmPerTick">Walk speed for an actor with no per-actor speed, mm/tick; must be positive.</param>
+    /// <param name="ActorRadiusMm">Actor cylinder radius, mm; must be positive.</param>
+    /// <param name="Bounds">Arena bounds; MinX &lt; MaxX and MinZ &lt; MaxZ.</param>
+    /// <exception cref="ArgumentOutOfRangeException">A value is non-positive or the bounds are empty.</exception>
+    public MovementConfig(long BaseSpeedMmPerTick, long ActorRadiusMm, Bounds Bounds)
+    {
+        if (BaseSpeedMmPerTick <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(BaseSpeedMmPerTick), BaseSpeedMmPerTick, "walk speed must be positive");
+        }
+        if (ActorRadiusMm <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(ActorRadiusMm), ActorRadiusMm, "actor radius must be positive");
+        }
+        if (Bounds.MinX >= Bounds.MaxX || Bounds.MinZ >= Bounds.MaxZ)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Bounds), Bounds, "bounds need MinX < MaxX and MinZ < MaxZ");
+        }
+        this.BaseSpeedMmPerTick = BaseSpeedMmPerTick;
+        this.ActorRadiusMm = ActorRadiusMm;
+        this.Bounds = Bounds;
+    }
+
+    /// <summary>Walk speed for an actor with no <see cref="ActorState.SpeedMmPerTick"/>, mm/tick.</summary>
+    public long BaseSpeedMmPerTick { get; }
+
+    /// <summary>Actor cylinder radius, mm.</summary>
+    public long ActorRadiusMm { get; }
+
+    /// <summary>Arena bounds.</summary>
+    public Bounds Bounds { get; }
+}
+
+/// <summary>
 /// Port of sim/combat/movement.ts: integer movement in mm/tick from move commands (with a basis-point
 /// movement modifier), equal-radius actor push-out in the XZ plane, and bounds clamping. Every division is
 /// the TS <c>Math.trunc</c>, i.e. C# integer <c>/</c> (ORACLE.md section 8, movement.ts:46-48, :61, :67-68).
@@ -19,7 +60,7 @@ public static class Movement
 {
     /// <summary>
     /// Space dash (D10 placeholder, design/BIBLE.md does not define it): a dash command moves this many mm in
-    /// one tick through <see cref="ApplyMovement"/>, so movement modifiers scale it.
+    /// one tick through <see cref="ApplyMovement(ActorState, Dir2, long, long, int)"/>, so movement modifiers scale it.
     /// </summary>
     public const long DashDistanceMm = 3000;
 
@@ -48,6 +89,31 @@ public static class Movement
         var dx = IntMath.TruncDiv(dir.X * speed, len);
         var dz = IntMath.TruncDiv(dir.Z * speed, len);
         actor.Pos = new Vec3(actor.Pos.X + dx, actor.Pos.Y, actor.Pos.Z + dz);
+    }
+
+    /// <summary>
+    /// A move command under <paramref name="config"/>: the actor's own <see cref="ActorState.SpeedMmPerTick"/>
+    /// when set, else the config walk speed (rules.ts:114 <c>actor.speedMmPerTick ?? cfg.baseSpeedMmPerTick</c>).
+    /// </summary>
+    public static void ApplyMovement(ActorState actor, Dir2 dir, MovementConfig config, long movementModBp, int yaw)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(config);
+        ApplyMovement(actor, dir, actor.SpeedMmPerTick ?? config.BaseSpeedMmPerTick, movementModBp, yaw);
+    }
+
+    /// <summary>Push-out at the config actor radius.</summary>
+    public static void ResolveCollision(ActorState a, ActorState b, MovementConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ResolveCollision(a, b, config.ActorRadiusMm);
+    }
+
+    /// <summary>Clamp into the config arena bounds.</summary>
+    public static void ClampToBounds(ActorState actor, MovementConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ClampToBounds(actor, config.Bounds);
     }
 
     /// <summary>Pushes two overlapping equal-radius actor cylinders apart symmetrically along their XZ delta.</summary>
