@@ -78,6 +78,12 @@
          the host starts the queued run (ScreenSceneTest asserts the caption it now draws).
   Before HUD-FU the bar still drew "Run over: <result> - press Enter to start again" and the Queue caption said the
   host does not read the queued key and Clause: 25-26 fail (RED).
+    Run H (lane 3D-b, the screen first; the interactive launch, NO --autorun, three-seat party):  -- (no user args)
+        (headless cannot press Queue, so --quit-after <ScreenFirstFrames> ends it; --autorun and --solo still start a
+        run at once, which runs A-G prove)
+     27. exit 0, "SCREEN first open=1 key=2" (SimDriver opened the between-runs screen before any run), and no
+         "RUN start", "BOSS armed" or "PULL spawn" line in <ScreenFirstFrames> frames (the first run waits for the
+         screen's Queue, Screen.Queued -> StartQueuedRun). Before 3D-b the launch starts key 2 at once: 27 fails (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -89,7 +95,8 @@ param(
     [int]$BossTicks = 600,
     [int]$QueueTicks = 480,
     [int]$BackfillTicks = 3300,
-    [string]$AbandonSeat = '1@1000'
+    [string]$AbandonSeat = '1@1000',
+    [int]$ScreenFirstFrames = 240
 )
 $ErrorActionPreference = 'Stop'
 
@@ -383,6 +390,18 @@ $g = Invoke-Backfill 'G' 3
 if ($g.Refill) { $failures.Add("run G: a key-3 joiner refilled a key-2 run: '$($g.Refill)'") }
 if ($g.Consume) { $failures.Add("run G: the key-3 joiner was consumed: '$($g.Consume)'") }
 
+# ---- Run H: the interactive launch opens the screen first (lane 3D-b) ----------------------------------------------
+$ErrorActionPreference = 'Continue'
+$hText = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $ScreenFirstFrames 2>&1 | Out-String
+$hCode = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+$hLines = @($hText -split "`r?`n")
+if ($hCode -ne 0) { $failures.Add("run H: godot exited $hCode (expected 0)") }
+$firstH = First $hLines '^SCREEN first open=1 key=2$'
+if (-not $firstH) { $failures.Add("run H: no 'SCREEN first open=1 key=2' line (the launch did not open the between-runs screen first)") }
+$startH = First $hLines '^(RUN start|BOSS armed|PULL spawn|ARENA error) '
+if ($startH) { $failures.Add("run H: a run started (or failed) before any queue action: '$startH'") }
+
 Write-Output '--- asserted HUD lines ---'
 foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping)) {
     if ($l) { Write-Output $l }
@@ -396,7 +415,7 @@ foreach ($l in @($armedA, $armedC, $summaryD, $armedD, $bossPull) + $twins + @($
     if ($l) { Write-Output $l }
 }
 Write-Output '--- run E consume, runs F and G (backfill), lane 3J ---'
-foreach ($l in @($consumedE, $f.Abandon, $f.Add, $f.Pull, $refillF, $consumeF, $joinerActs, $g.Abandon, $g.Add, $g.Pull)) {
+foreach ($l in @($consumedE, $f.Abandon, $f.Add, $f.Pull, $refillF, $consumeF, $joinerActs, $g.Abandon, $g.Add, $g.Pull, $firstH, $startH)) {
     if ($l) { Write-Output $l }
 }
 

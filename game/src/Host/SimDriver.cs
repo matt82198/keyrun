@@ -256,6 +256,9 @@ public interface ICommandSource
 /// <c>--write-movie DIR</c> saves three proof frames (Choir chase, lieutenant heal cast bar, after the kick).
 /// Interactive: once the run ends, Enter starts a fresh run at <c>--key</c> with no Clause (unless the between-runs
 /// screen is up: it owns Enter then).
+/// <para>Lane 3D-b: the interactive launch (<see cref="StartsOnScreen"/>) creates no run; it opens the between-runs
+/// screen (<see cref="Screen.OpenFirst"/>, logged <c>SCREEN first open=1 key=K</c>) and the first run is the one Queue
+/// hands to <see cref="StartQueuedRun"/>. Until then <see cref="Run"/> is null and nothing steps.</para>
 /// <para>Lane 3I: every run is created with the boss armed (<see cref="BossRules.Arm"/> with
 /// <see cref="HostRunSetup.Boss"/>, logged as <c>BOSS armed twins=N lockAt=P</c>), and a <see cref="Screen.Queued"/>
 /// request starts the next run at the queued key with the queued Clause (<see cref="StartQueuedRun"/>; under
@@ -320,7 +323,15 @@ public partial class SimDriver : Node
     /// <summary>The run's setup (party, dungeon, content, the human's ability slots).</summary>
     public HostRunSetup? Setup { get; private set; }
 
-    /// <summary>The current run, or null before <see cref="_Ready"/> succeeded.</summary>
+    /// <summary>
+    /// True when the launch opens the between-runs screen instead of starting a run (lane 3D-b): the interactive game,
+    /// i.e. neither <c>--autorun</c> (which <c>--write-movie</c> implies) nor <c>--solo</c>. Those two keep starting the
+    /// CLI run (<c>--key</c>, no Clause) at once, so CI, E2eAssert and the scene tests read the same lines as before.
+    /// </summary>
+    public bool StartsOnScreen => !Options.Autorun && !Options.Solo;
+
+    /// <summary>The current run, or null before <see cref="_Ready"/> succeeded and, when <see cref="StartsOnScreen"/>,
+    /// until the screen queues the first run.</summary>
     public Run? Run { get; private set; }
 
     /// <summary>The state after the latest step.</summary>
@@ -375,7 +386,12 @@ public partial class SimDriver : Node
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _input = GetNode<PlayerInput>(InputPath);
             _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed);
-            StartRun(null);
+            // Lane 3D-b: the interactive launch waits on the between-runs screen (opened in HookScreen); --autorun and
+            // --solo start the CLI run at once, as before.
+            if (!StartsOnScreen)
+            {
+                StartRun(null);
+            }
             // The screen (Hud/Screen) is readied after this node; find it once the tree is up.
             Callable.From(HookScreen).CallDeferred();
 
@@ -484,6 +500,13 @@ public partial class SimDriver : Node
         }
         _screen = screen;
         _screen.Queued += StartQueuedRun;
+        if (StartsOnScreen && Run is null)
+        {
+            // Lane 3D-b: the first run is the one the player queues on the screen (Queued -> StartQueuedRun).
+            screen.OpenFirst();
+            _log?.Line(FormattableString.Invariant(
+                $"SCREEN first open={(screen.IsOpen ? 1 : 0)} key={screen.State?.KeyLevel ?? 0}"));
+        }
     }
 
     // --abandon-seat A@T (lane 3J's scripted proof): at run tick T the seat empties and, with --joiner-key K, one
@@ -505,7 +528,8 @@ public partial class SimDriver : Node
         }
     }
 
-    // request null: the CLI run (--key, no Clause), today's start and Enter restart. Otherwise the queued run.
+    // request null: the CLI run (--key, no Clause), the --autorun/--solo start and Enter restart. Otherwise the queued
+    // run, which is also the interactive game's first run (lane 3D-b, StartsOnScreen).
     private void StartRun(QueueRequest? request)
     {
         var registry = Registry ?? throw new InvalidOperationException("SimDriver started a run before content loaded");

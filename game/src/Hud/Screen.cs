@@ -10,7 +10,8 @@ namespace Keyrun.Hud;
 
 /// <summary>
 /// The between-runs screen (BIBLE s10 "One screen, three bands"; s1 loop "End-of-run choice of three, then Screen";
-/// ENGINE-PLAN 3D). Opened by the run-end panel when a reward is taken (<see cref="OpenFrom"/>), it shows:
+/// ENGINE-PLAN 3D). Opened by the run-end panel when a reward is taken (<see cref="OpenFrom"/>), and at launch before
+/// the first run in the interactive game (<see cref="OpenFirst"/>, lane 3D-b), it shows:
 /// <list type="bullet">
 /// <item><b>Character</b>: the class, the "since last run" line, banked Ash, the five abilities with their keybinds,
 /// and the equipped gear with tier, Facet and crafting charges left (Tab selects an item, R rerolls its Facet).</item>
@@ -90,6 +91,14 @@ public partial class Screen : Control
         screen.Open(taken);
         return true;
     }
+
+    /// <summary>
+    /// Opens the screen before the first run (lane 3D-b, ENGINE-PLAN phase 3 "the screen and Clause pick come up before
+    /// the run starts"): no reward is taken, the Key band opens at the driver's <c>--key</c> with the first Clause offer
+    /// picked, and Queue (<see cref="Queued"/>) starts the first run. Needs only the driver's Registry and Setup, never
+    /// its Run, so it works while no run exists.
+    /// </summary>
+    public void OpenFirst() => Open(null);
 
     /// <inheritdoc />
     public override void _Ready()
@@ -192,10 +201,14 @@ public partial class Screen : Control
         DrawQueue(l.Queue, state);
     }
 
-    private void Open(Item taken)
+    // taken null: the first open, before any run (OpenFirst); no reward to equip.
+    private void Open(Item? taken)
     {
-        _progression = _progression.Take(taken);
-        _selected = taken.Slot;
+        if (taken is not null)
+        {
+            _progression = _progression.Take(taken);
+            _selected = taken.Slot;
+        }
         var key = _state?.KeyLevel ?? _driver?.Options.KeyLevel ?? ScreenState.MinKey;
         _state = ScreenState.Open(SimDriver.DungeonId, ClauseIds(), key);
         _status = string.Empty;
