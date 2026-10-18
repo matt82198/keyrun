@@ -10,7 +10,7 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// Seed Window loot (BIBLE s9 item 3, ENGINE-PLAN s5 lane 2C): the Seed elite drops a Window on death; a Combo
 /// landed in that Window sets a bonus-loot entry in the run's rewards. This is NEW behaviour (the frozen TS has no
 /// bonus loot), so it has no oracle trace of its own. It is checked against the real key-2 oracle trace's pull 3
-/// (the Seed pull: deathBloom opens "seedbloom" at t2706, ends t2806): the oracle stream as recorded has no Combo in
+/// (the Seed pull: deathBloom opens "seedbloom" at t1447, ends t1547 since the 2026-10-18 content tuning, STATE.md D14; was t2706 to t2806): the oracle stream as recorded has no Combo in
 /// that Window, so the entry is absent; the same stream with one field Combo injected, shaped exactly as
 /// sim/combat/payoff.ts:118-129 emits it, has the entry.
 /// </summary>
@@ -66,17 +66,17 @@ public sealed class SeedLootTests
         var (rule, records) = Pull3();
         var rewards = Observe(rule, records);
         Assert.Empty(rewards.BonusLoot);
-        // The rule did see the oracle's Seed Window open (window_opened seedbloom, setupActorId 108, endsTick 2806).
-        Assert.Equal(2806, rewards.SeedWindowEndsTick);
+        // The rule did see the oracle's Seed Window open (window_opened seedbloom, setupActorId 108, endsTick 1547).
+        Assert.Equal(1547, rewards.SeedWindowEndsTick);
     }
 
     [Fact]
     public void A_Combo_landed_in_the_Seed_Window_sets_one_bonus_entry()
     {
         var (rule, records) = Pull3();
-        var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]> { [2721] = new[] { FieldCombo(2720) } });
+        var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]> { [1462] = new[] { FieldCombo(1461) } });
         var entry = Assert.Single(rewards.BonusLoot);
-        Assert.Equal(new BonusLootEntry("seed", "seedbloom", "seedbloom-field", 2720, SeedActorId, 1), entry);
+        Assert.Equal(new BonusLootEntry("seed", "seedbloom", "seedbloom-field", 1461, SeedActorId, 1), entry);
     }
 
     [Fact]
@@ -85,10 +85,10 @@ public sealed class SeedLootTests
         var (rule, records) = Pull3();
         var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]>
         {
-            [2721] = new[] { FieldCombo(2720) },
-            [2751] = new[] { FieldCombo(2750) },
+            [1462] = new[] { FieldCombo(1461) },
+            [1492] = new[] { FieldCombo(1491) },
         });
-        Assert.Equal(2720, Assert.Single(rewards.BonusLoot).Tick);
+        Assert.Equal(1461, Assert.Single(rewards.BonusLoot).Tick);
     }
 
     [Fact]
@@ -98,9 +98,9 @@ public sealed class SeedLootTests
         // Before the Window opened, after it ended, in another actor's Window, and in another Window id.
         var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]>
         {
-            [2700] = new[] { FieldCombo(2699) },
-            [2808] = new[] { FieldCombo(2807) },
-            [2722] = new[] { FieldCombo(2721, setupActorId: 3), FieldCombo(2721, windowId: "kindled") },
+            [1441] = new[] { FieldCombo(1440) },
+            [1549] = new[] { FieldCombo(1548) },
+            [1463] = new[] { FieldCombo(1462, setupActorId: 3), FieldCombo(1462, windowId: "kindled") },
         });
         Assert.Empty(rewards.BonusLoot);
     }

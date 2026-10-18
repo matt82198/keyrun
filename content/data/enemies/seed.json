@@ -2,7 +2,7 @@
   {
     "id": "seed.elite",
     "name": "The Seed",
-    "maxHealth": 6000,
+    "maxHealth": 3000,
     "role": "elite",
     "abilities": ["seed.slam", "seed.deathBloom"],
     "script": [

@@ -198,12 +198,13 @@ public sealed class EncounterTraceTests
     }
 
     // exactTelegraphs / exactHits: how many fell right after a projection tick, where origin, yaw and the hit list
-    // are compared byte for byte. Key 2 has no telegraph on a projection tick (origins are covered by scripted-pull
-    // and key 10); each of its 43 is still compared on tick, caster, cast, shape, lead, resolvesTick and geometry.
+    // are compared byte for byte. Since the 2026-10-18 content tuning (STATE.md D14) the bot traces clear the dungeon
+    // and neither key has a telegraph on a projection tick (origins are covered by scripted-pull); each of their
+    // 8 / 12 is still compared on tick, caster, cast, shape, lead, resolvesTick and geometry.
     [Theory]
-    [InlineData("bots-hv-k2-s7", 43, 42, 6, 1, 0, 6)]
-    [InlineData("bots-hv-k2-s11", 43, 42, 6, 1, 0, 6)]
-    [InlineData("bots-hv-k10-s7", 65, 65, 7, 0, 3, 8)]
+    [InlineData("bots-hv-k2-s7", 8, 8, 7, 0, 0, 1)]
+    [InlineData("bots-hv-k2-s11", 8, 8, 7, 0, 0, 1)]
+    [InlineData("bots-hv-k10-s7", 12, 12, 7, 0, 0, 2)]
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

@@ -2,11 +2,11 @@
   {
     "id": "hollowWarden.boss",
     "name": "The Hollow Warden",
-    "maxHealth": 60000,
+    "maxHealth": 5000,
     "role": "boss",
     "abilities": ["hollowWarden.slam", "hollowWarden.cleave", "hollowWarden.lock"],
     "script": [
-      { "at": "loop", "every": 60, "cast": "hollowWarden.slam" },
+      { "at": "loop", "every": 300, "cast": "hollowWarden.slam" },
       { "at": "loop", "every": 160, "cast": "hollowWarden.cleave",
         "telegraph": { "shape": "cone", "radius": 4000, "angle1024": 200, "leadTicks": 40 } },
       { "at": "loop", "every": 600, "cast": "hollowWarden.lock" }
@@ -19,23 +19,23 @@
   {
     "id": "hollowWarden.twinA",
     "name": "Sundered Twin (A)",
-    "maxHealth": 6000,
+    "maxHealth": 1000,
     "role": "elite",
     "abilities": ["twins.slam"],
     "breakBarId": "twinsBreak",
     "script": [
-      { "at": "loop", "every": 60, "cast": "twins.slam" }
+      { "at": "loop", "every": 400, "cast": "twins.slam" }
     ]
   },
   {
     "id": "hollowWarden.twinB",
     "name": "Sundered Twin (B)",
-    "maxHealth": 6000,
+    "maxHealth": 1000,
     "role": "elite",
     "abilities": ["twins.slam"],
     "breakBarId": "twinsBreak",
     "script": [
-      { "at": "loop", "every": 60, "cast": "twins.slam" }
+      { "at": "loop", "every": 400, "cast": "twins.slam" }
     ]
   }
 ]

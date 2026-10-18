@@ -2,12 +2,12 @@
   {
     "id": "pair.melee",
     "name": "Paired Warrior",
-    "maxHealth": 6000,
+    "maxHealth": 1200,
     "role": "melee",
     "speedMmPerTick": 207,
     "abilities": ["pair.meleeSwing", "pair.spreadMark", "pair.stackCall"],
     "script": [
-      { "at": "loop", "every": 40, "cast": "pair.meleeSwing" },
+      { "at": 60, "every": 150, "cast": "pair.meleeSwing" },
       { "at": "loop", "every": 400, "cast": "pair.spreadMark",
         "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 100 } },
       { "at": 600, "every": 400, "cast": "pair.stackCall",
