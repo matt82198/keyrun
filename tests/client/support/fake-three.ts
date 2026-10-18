@@ -20,12 +20,16 @@ export class FakeCanvasContext {
   readonly fills: string[] = [];
   /** Every fillText string since the last clearRect (name tags, cast labels). */
   readonly texts: string[] = [];
+  /** Every fillRect's style and width since the last clearRect (render/telegraph-label.ts's countdown bar). */
+  readonly rects: Array<{ style: string; w: number }> = [];
   clearRect(): void {
     this.fills.length = 0;
     this.texts.length = 0;
+    this.rects.length = 0;
   }
-  fillRect(): void {
+  fillRect(_x = 0, _y = 0, w = 0): void {
     this.fills.push(this.fillStyle);
+    this.rects.push({ style: this.fillStyle, w });
   }
   fillText(text: string): void {
     this.texts.push(text);
