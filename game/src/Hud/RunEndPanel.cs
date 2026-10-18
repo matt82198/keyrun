@@ -216,6 +216,7 @@ public partial class RunEndPanel : Control
         if (n >= 0 && n < _view.Choices.Count)
         {
             _taken = n;
+            Screen.OpenFrom(this, _view.Choices[n]);
             if (_driver is not null)
             {
                 HudNodes.Proof(_driver, FormattableString.Invariant($"HUD runend take n={n + 1} id={_view.Choices[n].Id}"));
