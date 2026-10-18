@@ -32,7 +32,26 @@
      12. a bot seat takes damage and every "HUD runend cause" line is seat 1's (the private run log's seat filter
          with more than one seat in the sim);
      13. "BOTS done commands=N hash=H" with N > 0, equal across the two runs (bot determinism).
-  Before 3C the arena has no HUD and none of 2-8 appear (RED). Before 3H there are no bot seats and 9-13 fail (RED).
+    Run D (lane 3I, the armed boss; from pull 4, the boss pull, three-seat party, key 10 seed 7):
+        -- --autorun --ticks 600 --pull 4 --key 10 --seed 7
+     14. "BOSS armed twins=2 lockAt=50" before the first TICK line (HostRunSetup builds the BossConfig from
+         content/data/enemies/hollow-warden.json and SimDriver arms every run); runs A and C print it too (the --solo
+         path and the pull-1 party path arm the same way);
+     15. "PULL spawn index=0 id=boss actors=900:hollowWarden.boss";
+     16. two "boss_add_spawn" EVENTs, 901 hollowWarden.twinA and 902 hollowWarden.twinB, both for boss 900 (the Sundered
+         Twins exist only when the encounter is armed: an unarmed run never emits it).
+         Why --pull 4: no key reaches the boss from pull 1 under autorun. Lane 3I swept keys 2, 5, 8, 10, 12, 15, 20
+         at seeds 1 and 7 for 8000 ticks: every run wiped in pull 2 (the Pair, run_end depleted at tick 3611-5381),
+         because the human seat is PlayerInput's ScriptedWarden, not the 3B tank bot that 3F's k10 s7 probe used.
+    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 480 --solo --requeue
+        (--requeue: an autorun starts the queued run only when asked, so runs A-D and the other scene tests stay one
+        run each; an interactive game always starts it)
+     17. the first "RUN start" says "key=2 clause=none" (no queue yet: today's run);
+     18. "SCREEN queue dungeon=hollow-vault key=3 clause=<id>" (the screen's autorun script queues key 3 + Clause 2);
+     19. after it, a second "RUN start ... key=3 clause=<that id>" (the key is the run content's KeyLevel and the
+         Clause is the sim's EncounterRules.ActiveClauseId, so a request that is dropped on the way reads key=2 or
+         clause=none), followed by a second "BOSS armed" and "PULL spawn index=0 id=choir".
+  Before 3I the arena never arms the boss and never reads the queue: 14-19 fail (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -40,7 +59,9 @@
 param(
     [int]$Ticks = 400,
     [int]$PingTicks = 400,
-    [int]$PartyTicks = 3700
+    [int]$PartyTicks = 3700,
+    [int]$BossTicks = 600,
+    [int]$QueueTicks = 480
 )
 $ErrorActionPreference = 'Stop'
 
@@ -67,6 +88,26 @@ function First($lines, [string]$pattern) {
     return $lines | Where-Object { $_ -match $pattern } | Select-Object -First 1
 }
 
+# Lines of the first run only: everything before a second "RUN start" (the screen's autorun script queues the next
+# run once the first ends, lane 3I, so a long autorun can hold two runs).
+function FirstRun($lines) {
+    $starts = @(for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -match '^RUN start ') { $i } })
+    if ($starts.Count -lt 2) { return $lines }
+    return $lines[0..($starts[1] - 1)]
+}
+
+# "BOSS armed twins=2 lockAt=50" before the run's first TICK line (lane 3I).
+function Assert-BossArmed([string]$run, $lines) {
+    $armed = First $lines '^BOSS armed twins=2 lockAt=50\b'
+    $tick = First $lines '^TICK '
+    if (-not $armed) {
+        $failures.Add("run ${run}: no 'BOSS armed twins=2 lockAt=50' line (the run's boss is not armed)")
+    } elseif ($tick -and [array]::IndexOf($lines, $armed) -gt [array]::IndexOf($lines, $tick)) {
+        $failures.Add("run ${run}: 'BOSS armed' came after the first TICK (the boss was armed mid-run)")
+    }
+    return $armed
+}
+
 # ---- Run A: pull 1 ---------------------------------------------------------------------------------------------
 $a = Invoke-Arena $Ticks @('--solo')
 if ($a.Code -ne 0) { $failures.Add("run A: godot exited $($a.Code) (expected 0)") }
@@ -88,11 +129,14 @@ if (-not $death) {
     if ($iDowned -lt $iDeath) { $failures.Add('run A: DOWNED was drawn before the sim death event') }
 }
 $aliveAfter = $null
+# Up to the queued run's start only: a fresh run's Warden is alive again (lane 3I consumes the screen's queue).
+$aRun1 = @(FirstRun $a.Lines)
 if ($downed) {
-    $iDowned = [array]::IndexOf($a.Lines, $downed)
-    $aliveAfter = $a.Lines[($iDowned + 1)..($a.Lines.Count - 1)] | Where-Object { $_ -match '^HUD party seat=1 ' -and $_ -notmatch '\bDOWNED\b' } | Select-Object -First 1
+    $iDowned = [array]::IndexOf($aRun1, $downed)
+    $aliveAfter = $aRun1[($iDowned + 1)..($aRun1.Count - 1)] | Where-Object { $_ -match '^HUD party seat=1 ' -and $_ -notmatch '\bDOWNED\b' } | Select-Object -First 1
     if ($aliveAfter) { $failures.Add("run A: a party frame after DOWNED is not DOWNED: '$aliveAfter'") }
 }
+$armedA = Assert-BossArmed 'A' $aRun1
 
 $objective = First $a.Lines '^HUD objective pull=1/4 id=choir name="The Choir"'
 if (-not $objective) { $failures.Add('run A: no "HUD objective pull=1/4 id=choir name=""The Choir""" line') }
@@ -184,6 +228,59 @@ $botsC2 = First $c2.Lines '^BOTS done commands=\d+ hash=[0-9a-f]{16}$'
 if (-not $botsC) { $failures.Add('run C: no "BOTS done commands=N hash=H" line') }
 elseif ($botsC -match 'commands=0 ') { $failures.Add("run C: the bots issued no commands: '$botsC'") }
 elseif ($botsC -ne $botsC2) { $failures.Add("run C: bot command stream differs across two same-seed runs: '$botsC' vs '$botsC2'") }
+$armedC = Assert-BossArmed 'C' @(FirstRun $c.Lines)
+
+# ---- Run D: the armed boss (lane 3I) -----------------------------------------------------------------------------
+# From pull 4 (the boss pull): no key reaches the boss from pull 1 under autorun (see the header for the sweep).
+$d = Invoke-Arena $BossTicks @('--pull', '4', '--key', '10', '--seed', '7')
+if ($d.Code -ne 0) { $failures.Add("run D: godot exited $($d.Code) (expected 0)") }
+$summaryD = First $d.Lines "^AUTORUN done ticks=$BossTicks "
+if (-not $summaryD) { $failures.Add("run D: no 'AUTORUN done ticks=$BossTicks' summary") }
+$armedD = Assert-BossArmed 'D' @(FirstRun $d.Lines)
+$bossPull = First $d.Lines '^PULL spawn index=0 id=boss actors=900:hollowWarden\.boss$'
+if (-not $bossPull) { $failures.Add('run D: no "PULL spawn index=0 id=boss actors=900:hollowWarden.boss" line') }
+# Canonical EVENT JSON sorts keys: actorId, bossActorId, classId, tick, type.
+$twins = @()
+foreach ($t in @(@{ Id = 901; Class = 'hollowWarden.twinA' }, @{ Id = 902; Class = 'hollowWarden.twinB' })) {
+    $ev = First $d.Lines "^EVENT \{`"actorId`":$($t.Id),`"bossActorId`":900,`"classId`":`"$([regex]::Escape($t.Class))`",.*`"type`":`"boss_add_spawn`""
+    if (-not $ev) { $failures.Add("run D: no boss_add_spawn EVENT for $($t.Id) $($t.Class)") } else { $twins += $ev }
+}
+$bossRule = First $d.Lines '^EVENT \{.*"type":"(lock_open|lock_broken|lock_failed|boss_enrage)"'
+
+# ---- Run E: the queued run (lane 3I) -----------------------------------------------------------------------------
+# The solo Warden wipes in pull 1; the screen's autorun script takes reward 1, steps the key to 3, picks Clause 2 and
+# queues. SimDriver must start the next run at that key with that Clause.
+$e = Invoke-Arena $QueueTicks @('--solo', '--requeue')
+if ($e.Code -ne 0) { $failures.Add("run E: godot exited $($e.Code) (expected 0)") }
+$startsE = @($e.Lines | Where-Object { $_ -match '^RUN start ' })
+$queueE = First $e.Lines '^SCREEN queue dungeon=hollow-vault key=3 clause=(echo|tide|hush|pact)$'
+$requeued = $null
+$armedE2 = $null
+$pullE2 = $null
+if ($startsE.Count -lt 1 -or $startsE[0] -notmatch ' dungeon=hollow-vault key=2 clause=none ') {
+    $failures.Add("run E: the first run does not start at key 2 with no Clause: '$($startsE | Select-Object -First 1)'")
+}
+if (-not $queueE) {
+    $failures.Add('run E: no "SCREEN queue dungeon=hollow-vault key=3 clause=<id>" line (the screen did not queue)')
+} else {
+    $null = $queueE -match 'clause=(\w+)$'
+    $clauseE = $Matches[1]
+    $iQueueE = [array]::IndexOf($e.Lines, $queueE)
+    $after = @($e.Lines[($iQueueE + 1)..($e.Lines.Count - 1)])
+    $requeued = First $after '^RUN start '
+    if (-not $requeued) {
+        $failures.Add('run E: no "RUN start" after the queue (the queued run never started)')
+    } elseif ($requeued -notmatch " dungeon=hollow-vault key=3 clause=$clauseE ") {
+        $failures.Add("run E: the queued run did not start at key 3 with Clause ${clauseE}: '$requeued'")
+    } else {
+        $iRe = [array]::IndexOf($after, $requeued)
+        $rest = @($after[$iRe..($after.Count - 1)])
+        $armedE2 = First $rest '^BOSS armed twins=2 lockAt=50\b'
+        $pullE2 = First $rest '^PULL spawn index=0 id=choir '
+        if (-not $armedE2) { $failures.Add('run E: the queued run is not armed (no second "BOSS armed" line)') }
+        if (-not $pullE2) { $failures.Add('run E: the queued run did not spawn pull 1 (no second "PULL spawn index=0 id=choir")') }
+    }
+}
 
 Write-Output '--- asserted HUD lines ---'
 foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping)) {
@@ -193,11 +290,15 @@ Write-Output '--- run C (bot party) ---'
 foreach ($l in $seats + $botCasts + @($pull2, $tick295, $livePing, $runEndEv, $botHit) + $causesC + @($botsC, $botsC2)) {
     if ($l) { Write-Output $l }
 }
+Write-Output '--- run D (armed boss) and run E (queued run), lane 3I ---'
+foreach ($l in @($armedA, $armedC, $summaryD, $armedD, $bossPull) + $twins + @($bossRule) + $startsE + @($queueE, $requeued, $armedE2, $pullE2)) {
+    if ($l) { Write-Output $l }
+}
 
 if ($failures.Count -gt 0) {
     Write-Output "HudSceneTest: FAIL ($($failures.Count))"
     $failures | ForEach-Object { Write-Output "  - $_" }
     exit 1
 }
-Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks"
+Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks"
 exit 0

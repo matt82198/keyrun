@@ -19,12 +19,15 @@ namespace Keyrun.Host;
 /// <param name="Content">The run content, movement from game/content/data/run.json.</param>
 /// <param name="HumanActorId">The human's actor id.</param>
 /// <param name="Slots">The human's keybind slots (1-5, Q, E, R, F) to ability ids, in ability-bar order.</param>
+/// <param name="Boss">The armed boss rules for the dungeon's boss (lane 3I; 3F's <see cref="BossRules.Arm"/> hand-off):
+/// the Sundered Twins, their shared Break bar and the Lock, built from the boss's content entry.</param>
 public sealed record HostRunSetup(
     IReadOnlyList<PartyMemberSpec> Party,
     DungeonDef Dungeon,
     RunContent Content,
     int HumanActorId,
-    IReadOnlyList<AbilitySlot> Slots)
+    IReadOnlyList<AbilitySlot> Slots,
+    BossConfig Boss)
 {
     /// <summary>run-setup.ts:52 INTERRUPT_LOCKOUT_TICKS (4 s at 20 Hz).</summary>
     public const int InterruptLockoutTicks = 80;
@@ -55,6 +58,18 @@ public sealed record HostRunSetup(
 
     /// <summary>The human's actor id (every client file's PLAYER_ID); bot seats take 2, 3, ... in roster order.</summary>
     public const int HumanId = 1;
+
+    /// <summary>The first Sundered Twin's actor id; the second is the next id (both free: pulls use 100-899).</summary>
+    public const int TwinActorIdStart = BossActorId + 1;
+
+    /// <summary>
+    /// How far each Twin spawns from the boss along x, mm: the first at +x, the second at -x (the content carries no
+    /// twin spawn point; lane 3F's boss tests flank the boss the same way).
+    /// </summary>
+    public const int TwinOffsetMm = 2000;
+
+    /// <summary>The content tag that marks the boss's Lock ability (hollowWarden.lock <c>setup:lock</c>).</summary>
+    public const string LockTag = "setup:lock";
 
     /// <summary>
     /// The party roster (content-party.ts ROSTER cut to one seat per shipped class): Warden tank, Chanter healer,
@@ -123,7 +138,76 @@ public sealed record HostRunSetup(
         }.WithMovement(movement);
 
         var party = BuildParty(registry, classDef.Id, withBots);
-        return new HostRunSetup(party, dungeon, content, HumanId, ResolveSlots(classDef));
+        var boss = BuildBossConfig(registry, Enemy(registry, dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss"), keyLevel);
+        return new HostRunSetup(party, dungeon, content, HumanId, ResolveSlots(classDef), boss);
+    }
+
+    /// <summary>
+    /// The armed boss rules from the boss's content entry (content/data/enemies/hollow-warden.json for hollow-vault):
+    /// the boss's one Break bar becomes the Twins' shared bar, the two enemies whose <c>breakBarId</c> names it are the
+    /// Twins (ids from <see cref="TwinActorIdStart"/> in content id order, Tempo-scaled health and scripts, flanking the
+    /// boss at +/-<see cref="TwinOffsetMm"/> x), and the boss ability tagged <see cref="LockTag"/> gives the Lock its
+    /// Window length (its window op), shield effect (its applyEffect op) and the script cast the armed rules suppress.
+    /// The 50% gate, 30 s repeat, three-fail enrage and its Tempo spike are BIBLE s9 structure (the
+    /// <see cref="BossConfig"/> defaults; content has no field for them). Fails closed on any missing or extra piece.
+    /// </summary>
+    /// <param name="registry">The content.</param>
+    /// <param name="boss">The dungeon's boss enemy.</param>
+    /// <param name="keyLevel">The key level (Tempo scaling of the Twins, as the boss pull is scaled).</param>
+    /// <returns>The config for <see cref="BossRules.Arm"/>.</returns>
+    /// <exception cref="InvalidOperationException">The boss has not exactly one Break bar, the bar has not exactly two
+    /// Twins, an onEmpty op is not applyEffect, or the boss has not exactly one Lock ability with one window and one
+    /// applyEffect op.</exception>
+    public static BossConfig BuildBossConfig(C.ContentRegistry registry, C.EnemyDef boss, int keyLevel)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(boss);
+        var where = $"boss \"{boss.Id}\"";
+        if (boss.BreakBars is not { Count: 1 } bars)
+        {
+            throw new InvalidOperationException($"run setup: {where} must declare exactly one Break bar (the Twins' shared bar)");
+        }
+        var bar = bars[0];
+        var twinDefs = registry.Enemies.Values
+            .Where(e => string.Equals(e.BreakBarId, bar.Id, StringComparison.Ordinal))
+            .OrderBy(e => e.Id, StringComparer.Ordinal)
+            .ToList();
+        if (twinDefs.Count != 2)
+        {
+            throw new InvalidOperationException($"run setup: {where} bar \"{bar.Id}\" is shared by {twinDefs.Count} enemies, expected the two Twins");
+        }
+        var twins = twinDefs.Select((def, i) => new BossTwinSpec(
+            TwinActorIdStart + i,
+            def.Id,
+            Tempo.ScaleHealth(def.MaxHealth, keyLevel),
+            new Vec3(i == 0 ? TwinOffsetMm : -TwinOffsetMm, 0, 0),
+            Tempo.ScaleScript(ToSim(def.Script), keyLevel))).ToList();
+        var onEmpty = bar.OnEmpty.Select(op => op is C.ApplyEffectOp e
+            ? new BreakBarOnEmptyEffect(e.EffectId, e.DurationTicks, e.Stacks)
+            : throw new InvalidOperationException($"run setup: {where} bar \"{bar.Id}\" onEmpty has a {op.GetType().Name}, only applyEffect is run")).ToList();
+        var twinsBar = new BreakBarSource(bar.Id, twins.Select(t => t.ActorId).ToList(), bar.Max, bar.DrainPerInterrupt, bar.DrainPerControl, onEmpty);
+
+        var locks = boss.Abilities
+            .Select(id => registry.Abilities.TryGetValue(id, out var a) ? a : throw new InvalidOperationException($"run setup: {where} lists unknown ability \"{id}\""))
+            .Where(a => a.Tags.Contains(LockTag))
+            .ToList();
+        if (locks.Count != 1)
+        {
+            throw new InvalidOperationException($"run setup: {where} has {locks.Count} abilities tagged \"{LockTag}\", expected one Lock");
+        }
+        var lockAbility = locks[0];
+        var window = lockAbility.Effects.OfType<C.WindowOp>().ToList();
+        var shield = lockAbility.Effects.OfType<C.ApplyEffectOp>().ToList();
+        if (window.Count != 1 || shield.Count != 1)
+        {
+            throw new InvalidOperationException($"run setup: Lock \"{lockAbility.Id}\" needs one window op and one applyEffect op (has {window.Count} and {shield.Count})");
+        }
+        return new BossConfig(BossActorId, twins, twinsBar)
+        {
+            LockWindowTicks = window[0].DurationTicks,
+            ShieldEffectId = shield[0].EffectId,
+            SuppressedBossCasts = new[] { lockAbility.Id },
+        };
     }
 
     /// <summary>
