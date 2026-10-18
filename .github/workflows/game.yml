@@ -1,0 +1,132 @@
+name: Game
+# Godot 4.7.2 .NET desktop game (game/). Windows is the target platform.
+# Jobs game-test and game-e2e are NON-required until phase 4A renames them
+# test and e2e (ENGINE-PLAN section 5); tests.yml stays the required gate.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: 4.7.2
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  game-test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: dotnet test (sim purity and unit tests, no engine)
+        shell: pwsh
+        run: dotnet test game/Keyrun.sln --nologo --logger "console;verbosity=normal"
+
+  game-e2e:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Cache Godot editor
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/godot
+          key: godot-${{ env.GODOT_VERSION }}-stable-mono-win64
+
+      - name: Download Godot editor (verified SHA512)
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = "https://github.com/godotengine/godot/releases/download/$env:GODOT_VERSION-stable"
+          $asset = "Godot_v$env:GODOT_VERSION-stable_mono_win64.zip"
+          $zip = Join-Path $env:RUNNER_TEMP $asset
+          $sums = Join-Path $env:RUNNER_TEMP 'SHA512-SUMS.txt'
+          curl.exe --fail --location --silent --show-error --output $sums "$base/SHA512-SUMS.txt"
+          curl.exe --fail --location --silent --show-error --output $zip "$base/$asset"
+          $expected = ((Get-Content $sums | Where-Object { $_ -match ([regex]::Escape($asset) + '$') }) -split '\s+')[0].ToLowerInvariant()
+          $actual = (Get-FileHash $zip -Algorithm SHA512).Hash.ToLowerInvariant()
+          if (-not $expected -or $actual -ne $expected) { throw "SHA512 mismatch for $asset" }
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $env:RUNNER_TEMP 'godot') -Force
+
+      - name: Locate Godot
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path (Join-Path $env:RUNNER_TEMP 'godot') -Recurse -Filter "Godot_v$env:GODOT_VERSION-stable_mono_win64_console.exe" | Select-Object -First 1
+          if (-not $exe) { throw 'Godot console binary not found after download' }
+          "KEYRUN_GODOT=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Engine version
+        shell: pwsh
+        run: ./tools/godot/godot.ps1 --version
+
+      - name: Build C# solution in the editor (headless)
+        shell: pwsh
+        run: ./tools/godot/godot.ps1 --headless --path game --build-solutions --quit
+
+      - name: Boot smoke (headless, must print SMOKE ok)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & ./tools/godot/godot.ps1 --headless --path game --quit-after 60 '--' --smoke 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "boot smoke exited $code" }
+          if ($out -notmatch '(?m)^SMOKE ok') { throw 'boot smoke did not print SMOKE ok' }
+
+      - name: Cache export templates
+        id: cache-templates
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/export_templates
+          key: godot-templates-${{ env.GODOT_VERSION }}-stable-mono-windows-x86_64
+
+      - name: Install export templates
+        shell: pwsh
+        run: ./tools/godot/install-templates.ps1 -TemplatesRoot (Join-Path $env:RUNNER_TEMP 'export_templates')
+
+      - name: Link templates into Godot's data dir
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:APPDATA 'Godot/export_templates'
+          New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
+          if (Test-Path $target) { Remove-Item -Recurse -Force $target }
+          New-Item -ItemType Junction -Path $target -Target (Join-Path $env:RUNNER_TEMP 'export_templates') | Out-Null
+
+      - name: Export Windows Desktop release
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build | Out-Null
+          ./tools/godot/godot.ps1 --headless --path game --export-release "Windows Desktop" ../build/keyrun.exe
+          if ($LASTEXITCODE -ne 0) { throw "export exited $LASTEXITCODE" }
+          if (-not (Test-Path build/keyrun.exe)) { throw 'build/keyrun.exe missing after export' }
+          Get-ChildItem build | Format-Table Name, Length
+
+      - name: Exported exe smoke (must print SMOKE ok)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & ./build/keyrun.console.exe --headless '--' --smoke 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "exported smoke exited $code" }
+          if ($out -notmatch '(?m)^SMOKE ok') { throw 'exported exe did not print SMOKE ok' }
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyrun-windows-x86_64
+          path: build/
+          if-no-files-found: error
+          retention-days: 7

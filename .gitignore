@@ -5,3 +5,13 @@ dist/
 *.log
 *.pem
 *.key
+
+# Godot 4.7.2 .NET desktop game (game/) and its exports
+game/.godot/
+game/.mono/
+build/
+game/**/bin/
+game/**/obj/
+game/**/*.import
+*.user
+*.tmp
