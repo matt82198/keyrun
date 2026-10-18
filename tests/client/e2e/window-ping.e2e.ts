@@ -120,7 +120,7 @@ describe("window + ping readability (headless Chromium, real playable)", () => {
     // separate read after the wait can race a transient clear and see [] (CI flake, PR #111 e2e).
     const litHandle = await page.waitForFunction(
       () => {
-        const ids = [...document.querySelectorAll('.hud-ability-slot[data-payoff="ready"]')].map((e) => (e as HTMLElement).dataset.abilityId);
+        const ids = Array.from(document.querySelectorAll('.hud-ability-slot[data-payoff="ready"]')).map((e) => (e as HTMLElement).dataset.abilityId);
         return ids.length > 0 ? ids : false;
       },
       undefined,
