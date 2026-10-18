@@ -268,8 +268,11 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
      and documents both in game/CLAUDE.md. WHY: D15, a visible change is judged from frames, not a headless log.
   1. Matt records a human-played run to the boss (record command above) and judges it by feel, with the D15 frames. Only this
      moves D10 and the Phase 3 exit.
-  2. Matt decides whether bots must break the Lock or beating the boss through Lock fails is acceptable (ENGINE-PLAN.md:211 vs
-     BIBLE.md:177-179).
+  1a. ART-PLAN ladder, lane 1 first (design/ART-PLAN.md section 8, Phase 3.5 "Look and route"; D16, D17, D18). WHY: Matt judges
+     feel from frames (D15), and the run he judges must be the themed dungeon with navigation, not capsules in one box.
+  2. RESOLVED by D17 (2026-10-18 23:43Z): bots are not required to break the Lock; beating the boss through Lock fails is an
+     acceptable autorun outcome; the Lock must be theoretically winnable (ENGINE-PLAN.md:211 vs BIBLE.md:177-179 closed).
+  2a. Lock winnability proof: one scripted-input run that closes the Lock (additive test lane; design/ART-PLAN.md lane 9).
   3. Small proof lane: assert boss_add_spawn (Twins) in run C; reconcile the stale ps1:32 and ps1:54 comments. Additive only, no
      lock_broken assertion (it would fail today).
   4. Target-ping bot reaction (runner passes ClassKitView.Empty) and cinderfield self-hit intended target (BIBLE s5) stay Matt decisions.
@@ -400,6 +403,29 @@ Additional parked decisions (from the burn ledger):
   ships screenshots and a frame sequence of the run (PNG frames plus an mp4 made with ffmpeg, installed on this box) into a stated
   folder, and the orchestrator views them before accepting the work. Phase 5 feel judgments use them too. A headless log alone no
   longer closes a visible row.
+- D16 **The demo gets a real dungeon and real character models** (Matt, 2026-10-18 23:35Z, verbatim: "we need to design an actual
+  dungeon and character models for the demo lmfao"; "it cant be just kovakks"). Rule: the art and navigation pass in
+  design/ART-PLAN.md (Phase 3.5 "Look and route", a ten-lane ladder, lane 1 first) turns the capsules on a grey grid into a
+  themed dungeon run with modelled, animated party, enemies and boss; the HUD stays; every lane ships D15 frames. Why: Matt
+  judges the game by feel from viewed frames, and capsules on a grid read as an aim trainer, not a dungeon run.
+- D17 **CC0 kits only; the Lock must be theoretically winnable** (Matt, 2026-10-18 23:43Z, verbatim: "no custom art lol its a
+  vibecode game, bots don't have to beat the lock but it should be theoretically winnable lol..."). Rules: art is CC0 kits only
+  (KayKit, Kenney, Quaternius or similar, free tiers; no paid or original art); each pack ships its license file beside the
+  assets in game/assets/<pack>/ and an entry in game/assets/ATTRIBUTION.md. The Lock question (NEXT ORDER step 2) is closed: the
+  bot party is not required to break the Lock; the Lock must be theoretically winnable, proven by a scripted-input run on the
+  real sim where a Setup then a Payoff inside the window closes the Lock (the synthetic BossRulesTests.cs test alone is not the
+  proof); beating the boss through Lock fails stays an acceptable autorun outcome. Why: the demo is a vibecode game built from
+  free kits, and the Lock has to be a real, beatable mechanic even if the bots never beat it.
+- D18 **Themed rooms with real navigation** (Matt, 2026-10-18 23:45Z, verbatim: "just thematically theme the dungeons, and why are
+  all the mobs spawned on top of you? are we not going to have navigation in the dungeons lmfao?"). Rules: the Hollow Vault is
+  themed room by room to its pull: the Entrance where the screen and Clause pick happen, the Choir room, the Pair hall, the Seed
+  elite chamber and the Hollow Warden arena; theming uses kit pieces and lighting, no custom art (D17). Navigation is part of the
+  demo: each pull lives in its own room at its own position, the party travels through corridors from room to room, and a pull
+  triggers on entering its room, never on top of the player at run start. The bots follow the player between rooms and the
+  autorun walks the route. This is sim-affecting (spawn positions and pull triggers move), so the goldens are regenerated under
+  D11 rules (the C# goldens always; the TS oracle too if content/data/** changes); render-only dressing is no longer the
+  preferred path for the layout. Why: today pull 1 spawns 3 to 5 m from the party at tick 0 and every later pull spawns in the
+  same 22 x 15 m box the tick the previous one dies (design/ART-PLAN.md section 1), so there is no dungeon to travel.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
