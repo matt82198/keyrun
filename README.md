@@ -1,10 +1,10 @@
 # Keyrun
 
-Keyrun is a proof-of-concept co-op dungeon game. It takes the Mythic+ loop out of WoW and aims for an open, queue-based game where players bring a class into a dungeon and get to hard keys quickly. Its classes, synergy system and mechanics are original, not a copy of an existing game, and each class is limited to five rotational abilities and ten keybinds in total. The simulation is headless and deterministic; the 3D client (Three.js, TypeScript) is only the renderer and input layer on top of it, and all geometry is placeholder. The MVP is one complete 3D run: a third-person camera with WASD and mouse-look, the hollow-vault dungeon, the warden class with a bot party, judged by playing it rather than by test counts. Stack: TypeScript, Vitest, esbuild, Three.js.
+Keyrun is a proof-of-concept co-op dungeon game. It takes the Mythic+ loop out of WoW and aims for an open, queue-based game where players bring a class into a dungeon and get to hard keys quickly. Its classes, synergy system and mechanics are original, not a copy of an existing game, and each class is limited to five rotational abilities and ten keybinds in total. The simulation is headless and deterministic; the 3D client (Three.js, TypeScript) is only the renderer and input layer on top of it, and all geometry is placeholder. The MVP is one complete 3D run: a third-person camera with WASD and mouse-look, the hollow-vault dungeon, the warden class with a bot party, judged by playing it rather than by test counts. Stack: Godot 4.7.2 .NET with C# (the simulation and content are ported from the frozen TypeScript oracle; the TypeScript trees are retired in ENGINE-PLAN phase 4).
 
 ## Status
 
-Proof of concept. Phase 5 (tuning from play, with the project owner playing as the acceptance test) is next. Decisions are recorded in [STATE.md](STATE.md); the domain map is in [CLAUDE.md](CLAUDE.md).
+Proof of concept, in the engine rebuild. ENGINE-PLAN phase 1 is in progress: lanes 1A (scaffold), 1B (oracle), 1C (sim core), 1D (content loader) and 1F (docs) are merged; 1E (arena scene) is in progress. Phase 2 (full sim parity and playable combat) is next. Decisions are recorded in [STATE.md](STATE.md); the domain map is in [CLAUDE.md](CLAUDE.md).
 
 ## Run (desktop build)
 
