@@ -80,6 +80,8 @@ public sealed class CombatOracleCastTests
         var pendingCasts = new Dictionary<(int Actor, string Ability, int End), int>();
         var endedCasts = new HashSet<(int Actor, string Ability, int End)>();
         var castEnders = new Dictionary<int, List<int>>();
+        var lastSeen = new Dictionary<int, (string Ability, int End)>();
+        var superseded = 0;
         var finalTick = 0;
 
         ActorState Ledger(int id)
@@ -142,6 +144,7 @@ public sealed class CombatOracleCastTests
                             var abilityId = ev.GetProperty("abilityId").GetString()!;
                             Assert.True(setup.Abilities.TryGetValue(abilityId, out var def), $"{name} t={t}: cast_complete of {abilityId}, which the setup does not define");
                             endedCasts.Add((caster.Id, abilityId, tick));
+                            AddEnder(castEnders, caster.Id, tick);
                             var targets = TargetsOf(events, blockStart, i, caster.Id).Select(Ledger).ToList();
                             caster.CastId = abilityId;
                             Casting.CompleteCastOn(state, caster, def!, new List<ActorState>(), castCtx, actual.Add);
@@ -182,7 +185,7 @@ public sealed class CombatOracleCastTests
                                     ((TypeOf(e) == "combo" && e.TryGetProperty("field", out _)) || (TypeOf(e) == "combo_denied" && !e.TryGetProperty("targetId", out _))));
                                 if (closed.ValueKind == JsonValueKind.Object && floor.Patches.TryGetValue(closed.GetProperty("windowId").GetString()!, out var patch))
                                 {
-                                    caster.Pos = patch.Pos;
+                                    caster.Pos = StandIn(floor, patch, tick);
                                     floorStands++;
                                 }
                                 else if (!HasOp<WindowOp>(def!))
@@ -237,20 +240,24 @@ public sealed class CombatOracleCastTests
 
             if (rec.TryGetProperty("p", out var pEl))
             {
-                inFlight += CheckProjection(name, t, pEl.GetString()!, setup, state, castCtx, pendingCasts);
+                inFlight += CheckProjection(name, t, pEl.GetString()!, setup, state, castCtx, pendingCasts, lastSeen, castEnders, ref superseded);
             }
         }
 
-        foreach (var ((actor, ability, end), seenAt) in pendingCasts)
+        var completed = 0;
+        foreach (var ((actor, ability, end), start) in pendingCasts)
         {
-            var ended = endedCasts.Contains((actor, ability, end)) ||
-                end >= finalTick ||
-                (castEnders.TryGetValue(actor, out var ticks) && ticks.Any(x => x >= seenAt - 1 && x <= end));
-            Assert.True(ended, $"{name}: {actor} was casting {ability} (castEnd {end}, seen at t={seenAt}) but no cast_complete, interrupt, stop or death ends it");
+            if (endedCasts.Contains((actor, ability, end)))
+            {
+                completed++;
+                continue;
+            }
+            var ended = end >= finalTick || (castEnders.TryGetValue(actor, out var ticks) && ticks.Any(x => x > start && x <= end));
+            Assert.True(ended, $"{name}: {actor} was casting {ability} (started {start}, castEnd {end}) but no cast_complete, interrupt, stop, death or replacing cast ends it");
         }
 
         var table = string.Join(", ", totals.Keys.Select(k => $"{k} {checkedCounts.GetValueOrDefault(k)}/{totals[k]}"));
-        _out.WriteLine($"{name}: {table}; in-flight casts {inFlight}; records {records}; targets derived {derivedTargets}, from trace {traceTargets}; floor centres {floorCentres}, floor stands {floorStands}");
+        _out.WriteLine($"{name}: {table}; in-flight casts {inFlight} ({pendingCasts.Count} distinct: {completed} completed as traced, {pendingCasts.Count - completed} cut short, {superseded} seen replaced); records {records}; targets derived {derivedTargets}, from trace {traceTargets}; floor centres {floorCentres}, floor stands {floorStands}");
         foreach (var k in totals.Keys)
         {
             Assert.Equal(totals[k], checkedCounts.GetValueOrDefault(k));
@@ -265,6 +272,32 @@ public sealed class CombatOracleCastTests
             enders[actorId] = list = new List<int>();
         }
         list.Add(tick);
+    }
+
+    /// <summary>
+    /// A point inside <paramref name="patch"/> and outside every open patch ahead of it in key order (the order
+    /// Payoff.TryClosePayoffOnFloor walks), so the stand-in position selects the patch the trace says closed and
+    /// nothing else decides it. Searched on rings around the centre; the centre when no such point exists.
+    /// </summary>
+    private static Vec3 StandIn(FloorWindowRegistry floor, FloorWindow patch, int now)
+    {
+        var ahead = floor.Patches.Keys.TakeWhile(k => k != patch.WindowId).Select(k => floor.Patches[k]).Where(p => p.EndsTick > now).ToList();
+        bool Inside(FloorWindow p, long x, long z) => ((x - p.Pos.X) * (x - p.Pos.X)) + ((z - p.Pos.Z) * (z - p.Pos.Z)) <= p.RadiusMm * p.RadiusMm;
+        for (var ring = 0; ring <= 10; ring++)
+        {
+            var r = patch.RadiusMm * ring / 10;
+            for (var k = 0; k < (ring == 0 ? 1 : 16); k++)
+            {
+                var dir = Targeting.FaceDir(k * 64);
+                var x = patch.Pos.X + (dir.X * r / Targeting.FacingQ);
+                var z = patch.Pos.Z + (dir.Z * r / Targeting.FacingQ);
+                if (Inside(patch, x, z) && !ahead.Any(p => Inside(p, x, z)))
+                {
+                    return new Vec3(x, 0, z);
+                }
+            }
+        }
+        return patch.Pos;
     }
 
     /// <summary>The live targets a cast resolved: its own damage/heal events in [from, to), minus those it killed.</summary>
@@ -290,7 +323,9 @@ public sealed class CombatOracleCastTests
 
     /// <summary>
     /// Every actor casting in a full projection: syncs alive, then StartCast on a fresh, ready copy at
-    /// <c>castEnd - castTicks</c> must land on the projected castEnd, with the cast active in this record.
+    /// <c>castEnd - castTicks</c> must land on the projected castEnd, with the cast active in this record. A cast
+    /// seen earlier that this projection shows replaced (startCast does not refuse an actor already casting,
+    /// casting.ts:54-81) is recorded as ended here.
     /// </summary>
     private static int CheckProjection(
         string name,
@@ -299,7 +334,10 @@ public sealed class CombatOracleCastTests
         OracleSetupContent setup,
         SimState ledger,
         CastContext ctx,
-        Dictionary<(int, string, int), int> pending)
+        Dictionary<(int, string, int), int> pending,
+        Dictionary<int, (string Ability, int End)> lastSeen,
+        Dictionary<int, List<int>> enders,
+        ref int superseded)
     {
         var groups = p[(p.IndexOf(";a=", StringComparison.Ordinal) + 3)..];
         if (groups.Length == 0)
@@ -315,13 +353,20 @@ public sealed class CombatOracleCastTests
             {
                 la.Alive = f[5] == "1";
             }
+            var now = f[7] == "-" ? ("-", -1) : (f[7], int.Parse(f[8], CultureInfo.InvariantCulture));
+            if (lastSeen.TryGetValue(id, out var before) && before != now && t <= before.End)
+            {
+                AddEnder(enders, id, t - 1);
+                superseded++;
+            }
+            lastSeen[id] = now;
             if (f[7] == "-")
             {
                 Assert.Equal("-", f[8]);
                 continue;
             }
             var abilityId = f[7];
-            var castEnd = int.Parse(f[8], CultureInfo.InvariantCulture);
+            var castEnd = now.Item2;
             Assert.True(setup.Abilities.TryGetValue(abilityId, out var def), $"{name} t={t}: actor {id} casts {abilityId}, which the setup does not define");
             var start = castEnd - def!.CastTicks;
             Assert.True(start + 1 <= t && t <= castEnd, $"{name} t={t}: actor {id} cast {abilityId} castEnd {castEnd} is not in flight here");
@@ -333,7 +378,7 @@ public sealed class CombatOracleCastTests
             s.Actors[target.Id] = target;
             Assert.Null(Casting.StartCast(s, probe, def, target.Id, null, start, ctx.Hooks));
             Assert.Equal((abilityId, castEnd, start), (probe.CastId, probe.CastEndsTick!.Value, probe.CastStartTick!.Value));
-            pending.TryAdd((id, abilityId, castEnd), t);
+            pending.TryAdd((id, abilityId, castEnd), start);
             count++;
         }
         return count;

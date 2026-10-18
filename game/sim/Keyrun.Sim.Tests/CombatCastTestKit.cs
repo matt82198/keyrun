@@ -29,7 +29,7 @@ public static class CombatCastTestKit
     }
 
     /// <summary>An ability map keyed by id.</summary>
-    public static IReadOnlyDictionary<string, AbilityDef> Abilities(params AbilityDef[] defs)
+    public static IReadOnlyDictionary<string, AbilityDef> AbilityMap(params AbilityDef[] defs)
     {
         var d = new Dictionary<string, AbilityDef>();
         foreach (var def in defs)

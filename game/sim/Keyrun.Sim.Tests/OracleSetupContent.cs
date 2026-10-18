@@ -69,7 +69,7 @@ public sealed class OracleSetupContent
         var actors = new List<ActorState>();
         foreach (var p in root.GetProperty("party").EnumerateArray())
         {
-            actors.Add(Actors.Create(
+            actors.Add(Keyrun.Sim.Combat.Actors.Create(
                 p.GetProperty("id").GetInt32(),
                 ActorKind.Player,
                 p.GetProperty("classId").GetString()!,
@@ -83,7 +83,7 @@ public sealed class OracleSetupContent
         {
             foreach (var s in pull.GetProperty("spawns").EnumerateArray())
             {
-                actors.Add(Actors.Create(
+                actors.Add(Keyrun.Sim.Combat.Actors.Create(
                     s.GetProperty("actorId").GetInt32(),
                     ActorKind.Enemy,
                     s.GetProperty("classId").GetString()!,

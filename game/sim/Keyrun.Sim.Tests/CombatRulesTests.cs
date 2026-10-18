@@ -18,7 +18,7 @@ public sealed class CombatRulesTests
 
     private static readonly EffectDef Dot = new("dot", 1, "magic", new EffectModifiers(), new EffectPeriodic(20, new DamageOp(10, "nature")));
 
-    private static RulesConfig BaseCfg() => Config(Abilities(Poke), Defs(Dot), boundsHalf: 1000);
+    private static RulesConfig BaseCfg() => Config(AbilityMap(Poke), Defs(Dot), boundsHalf: 1000);
 
     [Fact]
     public void Movement_command_moves_the_actor_and_does_not_itself_advance_the_tick()
@@ -73,7 +73,7 @@ public sealed class CombatRulesTests
     // ---- dash.test.ts (the rules-driven cases; validation and sort are 1C's CommandTests) ----
 
     private static RulesConfig DashCfg() =>
-        Config(Abilities(), Defs(new EffectDef("root", 1, "magic", new EffectModifiers(MovementBp: -10000))), boundsHalf: 20000);
+        Config(AbilityMap(), Defs(new EffectDef("root", 1, "magic", new EffectModifiers(MovementBp: -10000))), boundsHalf: 20000);
 
     [Fact]
     public void Dash_moves_exactly_DASH_DISTANCE_MM_along_dir_in_one_tick_and_sets_facing()
@@ -122,7 +122,7 @@ public sealed class CombatRulesTests
         seed.Health = 0;
         var state = At(0, seed);
         var (events, emit) = Collector();
-        Rules.Make(Config(Abilities(bloom)))(state, Cmds(new MoveCommand(0, 1, new Dir2(1000, 0), 9), Cast(1, "bloom")), emit);
+        Rules.Make(Config(AbilityMap(bloom)))(state, Cmds(new MoveCommand(0, 1, new Dir2(1000, 0), 9), Cast(1, "bloom")), emit);
         Assert.Equal(Vec3.Zero, seed.Pos);
         Assert.Equal(0, seed.Yaw);
         Assert.True(state.FloorWindows.ContainsKey("seedbloom"));
@@ -148,7 +148,7 @@ public sealed class CombatRulesAffinityPerRunTests
     private static EffectDef MarkDef(long damageTakenBp, string id = "mark") => new(id, 1, null, new EffectModifiers(DamageTakenBp: damageTakenBp));
 
     private static RulesConfig Content(IReadOnlyDictionary<string, EffectDef> effects, AbilityDef? pulse = null) =>
-        Config(Abilities(pulse ?? CircleApply("mark")), effects, boundsHalf: 20000, actorRadiusMm: 400, lockoutTicks: 40);
+        Config(AbilityMap(pulse ?? CircleApply("mark")), effects, boundsHalf: 20000, actorRadiusMm: 400, lockoutTicks: 40);
 
     private static readonly RulesConfig Buff = Content(Defs(MarkDef(-1000)));
     private static readonly RulesConfig Curse = Content(Defs(MarkDef(1000)));
@@ -329,7 +329,7 @@ public sealed class CombatClauseHooksTests
         var cinder = Make(2, ActorKind.Player, "cinder", ActorRole.Damage);
         var boss = Make(3, ActorKind.Enemy, "boss", maxHealth: 10000);
         var state = At(0, warden, cinder, boss);
-        var rules = Rules.Make(Config(Abilities(Hit, Mark, Pay), combos: Burst, clause: new TestClause()));
+        var rules = Rules.Make(Config(AbilityMap(Hit, Mark, Pay), combos: Burst, clause: new TestClause()));
         var (events, emit) = Collector();
         Tick(state, rules, Cmds(Cast(2, "hit", 3)), emit);
         Assert.Equal(50, Int(events.Single(e => e.Type == "damage"), "modifiedAmount"));
@@ -387,7 +387,7 @@ public sealed class CombatFacetRuntimeTests
             new WindowOp("sundered", 60, true, "warden"));
         var detonate = Def("cinder.detonate", new AbilityShape(ShapeKind.Target), new EffectOp[] { new PayoffOp() });
         var (state, _, _, boss) = Party();
-        var rules = Rules.Make(Config(Abilities(taunt, detonate), combos: Burst));
+        var rules = Rules.Make(Config(AbilityMap(taunt, detonate), combos: Burst));
         var (events, emit) = Collector();
         Tick(state, rules, Cmds(Cast(1, "warden.taunt", 3)), emit);
         Assert.Contains(boss.Effects, e => e.EffectId == "window:sundered:warden" && e.EndsTick == 60);
@@ -404,13 +404,13 @@ public sealed class CombatFacetRuntimeTests
         var plain = Def("warden.vigil", new AbilityShape(ShapeKind.Target), new EffectOp[] { new ThreatOp(1) });
         var (state, warden, _, boss) = Party();
         var (events, emit) = Collector();
-        Tick(state, Rules.Make(Config(Abilities(flare, plain), combos: Burst)), Cmds(Cast(2, "cinder.flare", 3)), emit);
-        Tick(state, Rules.Make(Config(Abilities(flare, plain), combos: Burst)), Cmds(Cast(1, "warden.vigil", 3)), emit);
+        Tick(state, Rules.Make(Config(AbilityMap(flare, plain), combos: Burst)), Cmds(Cast(2, "cinder.flare", 3)), emit);
+        Tick(state, Rules.Make(Config(AbilityMap(flare, plain), combos: Burst)), Cmds(Cast(1, "warden.vigil", 3)), emit);
         Assert.DoesNotContain(events, e => e.Type == "combo");
         Assert.True(boss.Effects.Exists(e => e.EffectId == "window:kindled:cinder"));
 
         var vigilantsMark = Facet(plain, new ComboOp("combos"));
-        var rules = Rules.Make(Config(Abilities(flare, vigilantsMark), combos: Burst));
+        var rules = Rules.Make(Config(AbilityMap(flare, vigilantsMark), combos: Burst));
         Tick(state, rules, Cmds(Cast(1, "warden.vigil", 3)), emit);
         Assert.Equal("forge", Str(events.Single(e => e.Type == "combo"), "comboId"));
         Assert.Equal(40, warden.Resource);
@@ -423,7 +423,7 @@ public sealed class CombatFacetRuntimeTests
         // cinder.ring.heatSink: emberBolt gains {op:"resource", resource:"heat", delta:8}; actors hold one pool.
         var emberBolt = Facet(Def("cinder.emberBolt", new AbilityShape(ShapeKind.Target), new EffectOp[] { new DamageOp(10, "fire") }), new ResourceOp(8));
         var (state, _, cinder, boss) = Party();
-        Tick(state, Rules.Make(Config(Abilities(emberBolt))), Cmds(Cast(2, "cinder.emberBolt", 3)), _ => { });
+        Tick(state, Rules.Make(Config(AbilityMap(emberBolt))), Cmds(Cast(2, "cinder.emberBolt", 3)), _ => { });
         Assert.Equal(8, cinder.Resource);
         Assert.Equal(990, boss.Health);
     }
@@ -434,10 +434,10 @@ public sealed class CombatFacetRuntimeTests
         // warden.weapon.twinStrike: {kind:"line", length:6000, width:1200} -> half-width 600 either side.
         var twin = Def("warden.reckoning", Abilities.LineShape(6000, 1200), new EffectOp[] { new DamageOp(10, "physical") });
         var caster = Make(1, ActorKind.Player, "warden", ActorRole.Tank);
-        var inside = Make(2, ActorKind.Enemy, x: 600, z: 3000);
-        var outside = Make(3, ActorKind.Enemy, x: -700, z: 3000);
+        var inside = Make(2, ActorKind.Enemy, x: 3000, z: 600);
+        var outside = Make(3, ActorKind.Enemy, x: 3000, z: -700);
         var state = At(0, caster, inside, outside);
-        Tick(state, Rules.Make(Config(Abilities(twin))), Cmds(Cast(1, "warden.reckoning")), _ => { });
+        Tick(state, Rules.Make(Config(AbilityMap(twin))), Cmds(Cast(1, "warden.reckoning")), _ => { });
         Assert.Equal(90, inside.Health);
         Assert.Equal(100, outside.Health);
     }
@@ -448,11 +448,11 @@ public sealed class CombatFacetRuntimeTests
     public void An_unknown_facet_op_fails_closed_when_the_rules_are_built()
     {
         var bad = Def("x.bad", new AbilityShape(ShapeKind.Self), new EffectOp[] { new HealOp(1), new ExplodeOp() });
-        var ex = Assert.Throws<ArgumentException>(() => Rules.Make(Config(Abilities(bad))));
+        var ex = Assert.Throws<ArgumentException>(() => Rules.Make(Config(AbilityMap(bad))));
         Assert.Contains("x.bad: unknown effect op ExplodeOp", ex.Message, StringComparison.Ordinal);
         var badTable = Def("x.table", new AbilityShape(ShapeKind.Self), new EffectOp[] { new ComboOp("nope") });
-        Assert.Throws<ArgumentException>(() => Rules.Make(Config(Abilities(badTable))));
+        Assert.Throws<ArgumentException>(() => Rules.Make(Config(AbilityMap(badTable))));
         var badPeriodic = new EffectDef("weird", 1, null, new EffectModifiers(), new EffectPeriodic(5, new ExplodeOp()));
-        Assert.Throws<ArgumentException>(() => Rules.Make(Config(Abilities(), Defs(badPeriodic))));
+        Assert.Throws<ArgumentException>(() => Rules.Make(Config(AbilityMap(), Defs(badPeriodic))));
     }
 }

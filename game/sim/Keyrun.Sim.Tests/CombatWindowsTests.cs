@@ -88,7 +88,7 @@ public sealed class CombatWindowsTests
         ("warden", "cinder", new ComboDef("shatter-field", new EffectOp[] { new DamageOp(10, "physical") })));
 
     private static StepRules WindowRules() =>
-        Rules.Make(Config(Abilities(SetupAbility, PayoffAbility, FloorSetupAbility, NarrowFloorSetupAbility), combos: BurstCombos, fieldCombos: FieldCombos));
+        Rules.Make(Config(AbilityMap(SetupAbility, PayoffAbility, FloorSetupAbility, NarrowFloorSetupAbility), combos: BurstCombos, fieldCombos: FieldCombos));
 
     private static bool HasWindow(ActorState a, string prefix) => a.Effects.Any(e => e.EffectId.StartsWith(prefix, System.StringComparison.Ordinal));
 
@@ -236,7 +236,7 @@ public sealed class CombatWindowsTests
         var warden = Make(2, ActorKind.Player, "warden", ActorRole.Tank);
         var cinder = Make(3, ActorKind.Player, "cinder", ActorRole.Damage);
         var state = At(0, boss, warden, cinder);
-        return (state, boss, Rules.Make(Config(Abilities(LockAbility, PayoffAbility), combos: LockCombos, fieldCombos: new ComboTable())));
+        return (state, boss, Rules.Make(Config(AbilityMap(LockAbility, PayoffAbility), combos: LockCombos, fieldCombos: new ComboTable())));
     }
 
     [Fact]

@@ -100,7 +100,7 @@ public sealed class CombatCastingTests
     private static readonly AbilityDef Kick = Def("kick", new AbilityShape(ShapeKind.Target), new EffectOp[] { new InterruptOp() },
         castTicks: 0, gcdTicks: 15, cooldownTicks: 40, range: 5000);
 
-    private static CastContext Ctx() => new(Abilities(Fireball, Kick), NoDefs, 60);
+    private static CastContext Ctx() => new(AbilityMap(Fireball, Kick), NoDefs, 60);
 
     private static (ActorState Caster, ActorState Target) Pair(long casterResource = 100, long targetX = 0)
     {
@@ -175,7 +175,7 @@ public sealed class CombatCastingTests
         var (caster, target) = Pair();
         var state = At(10, caster, target);
         var nonInterruptible = Fireball with { Interruptible = false };
-        var c = new CastContext(Abilities(nonInterruptible), NoDefs, 60);
+        var c = new CastContext(AbilityMap(nonInterruptible), NoDefs, 60);
         Casting.StartCast(state, caster, nonInterruptible, 2, null, 10);
         var (events, emit) = Collector();
         Casting.InterruptCast(state, caster, 2, c, emit);
@@ -207,7 +207,7 @@ public sealed class CombatCastingTests
         var dummy = Make(2, ActorKind.Enemy, "target-dummy", x: 1000, maxHealth: 500);
         var rogue = Make(3, ActorKind.Player, "rogue", ActorRole.Damage, z: 100, maxResource: 100);
         var state = At(0, caster, dummy, rogue);
-        var rules = Rules.Make(Config(Abilities(Fireball, Kick), boundsHalf: 100000));
+        var rules = Rules.Make(Config(AbilityMap(Fireball, Kick), boundsHalf: 100000));
         return (state, rules, new List<SimEvent>());
     }
 
@@ -270,7 +270,7 @@ public sealed class CombatCastingTests
 
         caster.CastId = def.Id;
         var (cast, castEmit) = Collector();
-        Casting.CompleteCast(state, caster, new CastContext(Abilities(def), NoDefs, 0), castEmit);
+        Casting.CompleteCast(state, caster, new CastContext(AbilityMap(def), NoDefs, 0), castEmit);
         Assert.Equal(expectedIds, cast.Where(e => e.Type == "damage").Select(e => (int)Int(e, "targetId")).OrderBy(i => i));
 
         var (win, winEmit) = Collector();
@@ -291,7 +291,7 @@ public sealed class CombatCastingTests
         caster.Health = 90;
         caster.CastId = def.Id;
         var (cast, castEmit) = Collector();
-        Casting.CompleteCast(state, caster, new CastContext(Abilities(def), NoDefs, 0), castEmit);
+        Casting.CompleteCast(state, caster, new CastContext(AbilityMap(def), NoDefs, 0), castEmit);
         Assert.Equal(caster.Id, Int(cast.First(e => e.Type == "heal"), "targetId"));
 
         var (win, winEmit) = Collector();
@@ -323,7 +323,7 @@ public sealed class CombatCastingTests
         Assert.Null(Casting.StartCast(state, caster, d, 2, null, 0));
         Kill(t);
         var (events, emit) = Collector();
-        Casting.CompleteCast(state, caster, new CastContext(Abilities(d), NoDefs, 0), emit);
+        Casting.CompleteCast(state, caster, new CastContext(AbilityMap(d), NoDefs, 0), emit);
         Assert.DoesNotContain(events, e => e.Type == "damage" || e.Type == "death");
         Assert.Equal(0, t.Health);
     }
@@ -352,13 +352,13 @@ public sealed class CombatCastingTests
     private static void CastNow(SimState state, ActorState caster, AbilityDef def, int? targetId)
     {
         Assert.Null(Casting.StartCast(state, caster, def, targetId, null, state.Tick));
-        Casting.CompleteCast(state, caster, new CastContext(Abilities(Slam, Strike, Sweep), MitigationEffects, 60), _ => { });
+        Casting.CompleteCast(state, caster, new CastContext(AbilityMap(Slam, Strike, Sweep), MitigationEffects, 60), _ => { });
     }
 
     private static void Brace(ActorState a, int sourceId) =>
         a.Effects.Add(new EffectInstance { EffectId = "braceSelf", SourceId = sourceId, Stacks = 1, EndsTick = 1000, NextPeriodicTick = null });
 
-    private static RulesConfig MitigationRules(AbilityDef def) => Config(Abilities(def), MitigationEffects, boundsHalf: 100000, actorRadiusMm: 0);
+    private static RulesConfig MitigationRules(AbilityDef def) => Config(AbilityMap(def), MitigationEffects, boundsHalf: 100000, actorRadiusMm: 0);
 
     [Fact]
     public void Casting_a_Braced_actor_hit_for_70_loses_42()
