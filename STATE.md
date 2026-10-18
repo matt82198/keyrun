@@ -143,16 +143,20 @@ PURPOSE: Keyrun is a Windows desktop 3D dungeon game per design/BIBLE.md; the Ty
 TS feature work is FROZEN at main 6e1548d (sim/ bots/ client/ server/ screen/). Former items 1-7 (Slack delta, cast-bar
 names, bot balance pull 2, Twins/Break bar, floor Windows, rewards/clause UI, Blink/F vs Space) move to the C# build
 after parity (ENGINE-PLAN phase 5) and stay listed in Decisions for Matt.
-Phase 1 lanes (Opus per D11 unless noted; owned files in ENGINE-PLAN s5):
-1. 1A scaffold - game/ Godot 4.7.2 .NET project, Keyrun.Sim lib + purity test, tools/godot wrapper + export templates,
-   .gitignore/.gitattributes, .github/workflows/game.yml. Proof: dotnet test, --build-solutions, --export-release, SMOKE ok.
-2. 1B oracle - tests/oracle/** writes fixtures to game/sim/Keyrun.Sim.Tests/Fixtures/oracle/ (vectors, golden traces,
-   bot seeds 7/11, key 10); game/sim/ORACLE.md.  (parallel with 1A)
-3. 1C sim core port - Core/**, Combat/Movement.cs, Encounter/Telegraphs.cs; vector parity.  (after 1A+1B)
-4. 1D content loader - game/content/Keyrun.Content (EmbeddedResource from content/data).  (after 1A, parallel with 1C)
-5. 1E arena scene - SimDriver 20 Hz, PlayerInput, CameraRig, ActorView, TelegraphView, temporary DebugCleaveEmitter.
-   Proof: headless autorun log + 3 --write-movie frames.  (after 1C+1D)
-6. 1F docs (Haiku) - CLAUDE.md domain map, game/CLAUDE.md, README run section.
+Phase 1 lanes (Opus per D11 unless noted; owned files in ENGINE-PLAN s5). Status as of 2026-10-18:
+1. 1A scaffold - DONE, PR #109 (59d45d1). game/ Godot 4.7.2 .NET project, Keyrun.Sim lib + purity test, tools/godot
+   wrapper + export templates, .gitignore/.gitattributes, .github/workflows/game.yml.
+2. 1B oracle - DONE, PR #110 (59a7acb). tests/oracle/** writes fixtures to game/sim/Keyrun.Sim.Tests/Fixtures/oracle/
+   (vectors, golden traces, bot seeds 7/11, key 10); game/sim/ORACLE.md.
+3. 1C sim core port - DISPATCHED 2026-10-18. Core/**, Combat/Movement.cs, Encounter/Telegraphs.cs; vector parity.
+4. 1D content loader - PR #111 OPEN (game/content/Keyrun.Content, EmbeddedResource from content/data). Not yet on main.
+5. 1E arena scene - after 1C and 1D land. SimDriver 20 Hz, PlayerInput, CameraRig, ActorView, TelegraphView, temporary
+   DebugCleaveEmitter. Proof: headless autorun log + 3 --write-movie frames.
+6. 1F docs - THIS PR (docs/phase1-1f): CLAUDE.md domain map, game/CLAUDE.md, README run section, ENGINE-PLAN 3D/3F
+   additions, D13, the 1D content finding. Haiku, docs only.
+Next after 1F: phase 2 (ENGINE-PLAN section 5: 2A-2E), dispatched after 1E lands on main.
+Phase 3 now also carries 3D screen + Clause pick and 3F Sundered Twins + Lock (ENGINE-PLAN s5), added 2026-10-18 by
+the intent check: those BIBLE items were in the MVP but no phase planned them.
 Phase 1 exit: Matt double-clicks build/keyrun.exe and walks the Warden around a floor with a Cleave cone firing every 8 s.
 Every keyrun checkpoint runs the plan-vs-output check (aesop LANE-CONTRACT section 10) against design/BIBLE.md.
 
@@ -229,3 +233,13 @@ Additional parked decisions (from the burn ledger):
   browser part of D3; D3's headless-deterministic-sim / renderer split, D9 (20 Hz) and D10 (MVP) stand. Unity rejected:
   needs Matt's sign-in and a CI licence secret. Unreal rejected: account, size, binary assets.
 - Intent-decay note: five feature lanes (#101-#106) were built on the throwaway browser client as if it were the product. The PURPOSE line above and the plan-vs-output check exist so this does not recur.
+- D13 **Windows Smart App Control stays ON** (Matt, 2026-10-18: the orchestrator asked, Matt replied "go ahead"). Why:
+  the orchestrator asked Matt whether to turn SAC off to get past the intermittent block, and Matt chose to keep it on. Rules that
+  follow: CI game-test is the acceptance gate for C# lanes. A local `dotnet test` is run once and reported literally,
+  because SAC blocked lane 1A's host load while lane 1D's local run worked, so the block is intermittent. No lane touches
+  security settings; a block is reported literally and the lane stops (game/CLAUDE.md, Smart App Control section).
+- 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
+  on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
+  `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
+  it is. WHY it matters: phase 2 ports the RUNTIME behaviour the sim actually executes, not the TS declarations; the
+  TS types are not a reliable spec for the data. Parity is judged against the oracle traces (sim/ORACLE.md), not the types.
