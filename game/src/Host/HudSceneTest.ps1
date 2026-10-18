@@ -71,6 +71,13 @@
          "QUEUE consume" line (Backfill.Admits is exact key equality: a key-3 joiner is refused a key-2 run).
   Before 3I the arena never arms the boss and never reads the queue: 14-19 fail (RED). Before 3J SimDriver steps
   RunRoot.StepRun and ignores --abandon-seat: 20-24 fail (RED).
+    Source checks (lane HUD-FU; the ability bar draws with immediate-mode DrawString, so no node or line shows it):
+     25. game/src/Hud/AbilityBar.cs draws no run-over banner: no "Run over" text and no RunEnd read (since 3C the
+         run-end panel owns the run-over state), and RunEndPanel.cs still draws "Enter starts a fresh run";
+     26. game/src/Hud/Screen.cs no longer says the host ignores the queue ("does not read the queued"): since 3I/3J
+         the host starts the queued run (ScreenSceneTest asserts the caption it now draws).
+  Before HUD-FU the bar still drew "Run over: <result> - press Enter to start again" and the Queue caption said the
+  host does not read the queued key and Clause: 25-26 fail (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -128,6 +135,15 @@ function Assert-BossArmed([string]$run, $lines) {
     }
     return $armed
 }
+
+# ---- Source checks 25-26 (lane HUD-FU): no stale run-over banner, no stale queue caption ----------------------
+$barSrc = Get-Content -Raw (Join-Path $repo 'game/src/Hud/AbilityBar.cs')
+$panelSrc = Get-Content -Raw (Join-Path $repo 'game/src/Hud/RunEndPanel.cs')
+$screenSrc = Get-Content -Raw (Join-Path $repo 'game/src/Hud/Screen.cs')
+if ($barSrc -match 'Run over') { $failures.Add('AbilityBar.cs still draws a "Run over" banner (the run-end panel owns the run-over state)') }
+if ($barSrc -match '\bRunEnd\b') { $failures.Add('AbilityBar.cs still reads run.RunEnd (only the stale run-over banner did)') }
+if ($panelSrc -notmatch 'Enter starts a fresh run') { $failures.Add('RunEndPanel.cs no longer draws "Enter starts a fresh run" (the only Enter hint once the bar banner is gone)') }
+if ($screenSrc -match 'does not read the queued') { $failures.Add('Screen.cs still says the host does not read the queued key and Clause (false since 3I/3J)') }
 
 # ---- Run A: pull 1 ---------------------------------------------------------------------------------------------
 $a = Invoke-Arena $Ticks @('--solo')
