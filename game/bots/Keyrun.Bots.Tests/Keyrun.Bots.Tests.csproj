@@ -28,6 +28,8 @@
     <ProjectReference Include="../Keyrun.Bots/Keyrun.Bots.csproj" />
     <ProjectReference Include="../../sim/Keyrun.Sim/Keyrun.Sim.csproj" />
     <ProjectReference Include="../../content/Keyrun.Content/Keyrun.Content.csproj" />
+    <!-- Lane 3B: OracleTrace/RunSetup readers for the bot-driven trace gate (RolesOracleTraceTests). -->
+    <ProjectReference Include="../../../tools/Keyrun.Replay/Keyrun.Replay.csproj" />
   </ItemGroup>
 
 </Project>

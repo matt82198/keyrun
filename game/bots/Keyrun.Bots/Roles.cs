@@ -29,6 +29,12 @@ public sealed record RoleSet(IRole? Tank, IRole? Healer, IRole? Damage)
     /// <summary>No roles: only the danger tier and ping reactions act.</summary>
     public static RoleSet None { get; } = new(null, null, null);
 
+    /// <summary>
+    /// The real roles (lane 3B, roles/**): bot.ts's static <c>tankDecide</c>, <c>healerDecide</c> and
+    /// <c>damageDecide</c> imports. This is what the TS <c>makeBot()</c> dispatches through.
+    /// </summary>
+    public static RoleSet Default { get; } = new(Roles.TankRole.Instance, Roles.HealerRole.Instance, Roles.DamageRole.Instance);
+
     /// <summary>The role for <paramref name="role"/>; null for <see cref="ActorRole.None"/> (bot.ts dispatches nothing).</summary>
     /// <param name="role">Actor role tag.</param>
     /// <returns>The role, or null.</returns>
