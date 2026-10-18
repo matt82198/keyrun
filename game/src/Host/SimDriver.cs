@@ -102,6 +102,9 @@ public sealed class TickAccumulator
 /// <param name="JoinerKey">With <see cref="AbandonSeat"/>, <c>--joiner-key K</c> adds one <see cref="QueueRequest"/> at
 /// key K straight to the Queue node at the abandon (the scripted joiner; the screen's Queue button is not pressed
 /// mid-run). Null = no joiner is queued.</param>
+/// <param name="PressEnter">Interactive scene-test seam (<c>--press-enter N</c>, lane 3D-c): a scripted player pushes
+/// Enter through the real input path (<see cref="Viewport.PushInput"/>) each time the game waits on Enter (the
+/// between-runs screen is up, or the run has ended), up to N presses. Ignored under <c>--autorun</c>. 0 = never.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -113,7 +116,8 @@ public sealed record ArenaOptions(
     bool Solo = false,
     bool Requeue = false,
     SeatAbandonPlan? AbandonSeat = null,
-    int? JoinerKey = null)
+    int? JoinerKey = null,
+    int PressEnter = 0)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -142,6 +146,7 @@ public sealed record ArenaOptions(
         var requeue = false;
         SeatAbandonPlan? abandon = null;
         int? joinerKey = null;
+        var pressEnter = 0;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -173,6 +178,9 @@ public sealed record ArenaOptions(
                 case "--joiner-key":
                     joinerKey = PositiveInt(args, ref i);
                     break;
+                case "--press-enter":
+                    pressEnter = PositiveInt(args, ref i);
+                    break;
                 case "--log":
                     log = Value(args, ref i);
                     break;
@@ -182,7 +190,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -254,8 +262,10 @@ public interface ICommandSource
 /// <c>AUTORUN done ticks=N frames=F frame_ms=M</c> line, then <c>BOTS done commands=C hash=H</c> (the bot command
 /// stream's count and FNV-1a 64 fingerprint), and quits with exit code 0 once N ticks have run.
 /// <c>--write-movie DIR</c> saves three proof frames (Choir chase, lieutenant heal cast bar, after the kick).
-/// Interactive: once the run ends, Enter starts a fresh run at <c>--key</c> with no Clause (unless the between-runs
-/// screen is up: it owns Enter then).
+/// Interactive: once the run ends, Enter opens the between-runs screen (lane 3D-c, <see cref="Screen.OpenFirst"/>,
+/// logged <c>SCREEN reopen result=R open=1 key=K</c>) unless it is already up (a reward take opened it; it owns Enter
+/// then), so the next run is always the one its Queue hands to <see cref="StartQueuedRun"/>. Under <c>--solo</c> Enter
+/// still starts a fresh run at <c>--key</c> with no Clause; under <c>--autorun</c> Enter does nothing.
 /// <para>Lane 3D-b: the interactive launch (<see cref="StartsOnScreen"/>) creates no run; it opens the between-runs
 /// screen (<see cref="Screen.OpenFirst"/>, logged <c>SCREEN first open=1 key=K</c>) and the first run is the one Queue
 /// hands to <see cref="StartQueuedRun"/>. Until then <see cref="Run"/> is null and nothing steps.</para>
@@ -285,6 +295,9 @@ public partial class SimDriver : Node
 
     private const int MaxStepsPerFrame = 5;
 
+    // --press-enter: frames the scripted player waits on each Enter prompt before pressing.
+    private const int EnterWaitFrames = 10;
+
     // Proof frames: the post-step tick at which to capture, and file name. Timings follow ScriptedWarden at key 2: the
     // Choir closes in the first second, the lieutenant's 80-tick heal starts at tick 196, and the Warden kicks it once
     // it is half cast (tick 236 or the first tick after that his Shield Bash is in range).
@@ -304,6 +317,8 @@ public partial class SimDriver : Node
     private BackfillState _backfill = BackfillState.Empty;
     private RunLog? _log;
     private int _pendingCaptures;
+    private int _enterPresses;
+    private int _enterWait;
     private bool _done;
 
     /// <summary>The PlayerInput node.</summary>
@@ -415,6 +430,7 @@ public partial class SimDriver : Node
     /// <inheritdoc />
     public override void _Process(double delta)
     {
+        MaybeScriptedEnter();
         if (_done || Run is null)
         {
             return;
@@ -438,11 +454,27 @@ public partial class SimDriver : Node
     /// <inheritdoc />
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (!Options.Autorun && Run?.RunEnd.Result is not null && _screen?.IsOpen != true &&
-            @event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Enter or Key.KpEnter })
+        if (Options.Autorun || Run?.RunEnd.Result is not { } result || _screen?.IsOpen == true ||
+            @event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Enter or Key.KpEnter })
         {
-            StartRun(null);
+            return;
         }
+        if (!StartsOnScreen)
+        {
+            // --solo: Enter restarts at --key with no Clause, as before.
+            StartRun(null);
+            return;
+        }
+        // Lane 3D-c (ENGINE-PLAN "end-of-run choice of three, then Screen"): every interactive run end, wipe included,
+        // goes back through the between-runs screen; the next run starts only from its Queue (Queued -> StartQueuedRun).
+        // A reward take has already opened it (RunEndPanel -> Screen.OpenFrom); this is the no-take route.
+        if (_screen is { } screen)
+        {
+            screen.OpenFirst();
+            _log?.Line(FormattableString.Invariant(
+                $"SCREEN reopen result={result.ToJs()} open={(screen.IsOpen ? 1 : 0)} key={screen.State?.KeyLevel ?? 0}"));
+        }
+        GetViewport().SetInputAsHandled();
     }
 
     /// <inheritdoc />
@@ -509,6 +541,30 @@ public partial class SimDriver : Node
         }
     }
 
+    // --press-enter N (lane 3D-c's interactive proof): the scripted player waits EnterWaitFrames frames on each Enter
+    // prompt (the screen up, or the run ended), then pushes one Enter through the viewport, so the screen's Queue and
+    // this node's run-end Enter see the same event a keyboard sends. Never under --autorun.
+    private void MaybeScriptedEnter()
+    {
+        if (_done || Options.Autorun || _enterPresses >= Options.PressEnter)
+        {
+            return;
+        }
+        if (_screen?.IsOpen != true && Run?.RunEnd.Result is null)
+        {
+            _enterWait = 0;
+            return;
+        }
+        if (++_enterWait < EnterWaitFrames)
+        {
+            return;
+        }
+        _enterWait = 0;
+        _enterPresses++;
+        _log?.Line(FormattableString.Invariant($"INPUT enter n={_enterPresses} screen={(_screen?.IsOpen == true ? 1 : 0)}"));
+        GetViewport().PushInput(new InputEventKey { Keycode = Key.Enter, PhysicalKeycode = Key.Enter, Pressed = true });
+    }
+
     // --abandon-seat A@T (lane 3J's scripted proof): at run tick T the seat empties and, with --joiner-key K, one
     // request at key K joins the Queue node (the screen's Queue button is not pressed mid-run).
     private void MaybeScriptedAbandon(Run run)
@@ -528,7 +584,7 @@ public partial class SimDriver : Node
         }
     }
 
-    // request null: the CLI run (--key, no Clause), the --autorun/--solo start and Enter restart. Otherwise the queued
+    // request null: the CLI run (--key, no Clause), the --autorun/--solo start and the --solo Enter restart. Otherwise the queued
     // run, which is also the interactive game's first run (lane 3D-b, StartsOnScreen).
     private void StartRun(QueueRequest? request)
     {
