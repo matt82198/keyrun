@@ -12,7 +12,7 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
 - `sim/ORACLE.md` - the parity contract: trace format, vector fixtures, which TS commit is the reference.
 - `content/Keyrun.Content/` - JSON loader, validator and sim adapter (pure net8.0). Lane 1D, PR #111.
 - `tools/Keyrun.Replay/` (repo-root tools/, in Keyrun.sln): the oracle trace replayer, landed in #129 (lane 2D).
-- Planned (ENGINE-PLAN section 4): `bots/Keyrun.Bots/` (phase 3).
+- `bots/Keyrun.Bots/` (bots-core, lane 3A, PR #130 merged at 9c8a5ca) and `bots/Keyrun.Bots.Tests/` are present. `bots/Keyrun.Bots/Roles/` (lane 3B role implementations) lands via PR #133 and is not on main yet.
 
 ## Build and test
 
