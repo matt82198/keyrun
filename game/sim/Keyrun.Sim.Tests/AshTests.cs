@@ -58,7 +58,7 @@ public sealed class AshTests
             hits[r.Item.Facet.Id] = hits.TryGetValue(r.Item.Facet.Id, out var n) ? n + 1 : 1;
 
             var r2 = Crafting.Reroll(r.Item, WeaponPool, r.Prng);
-            Assert.True(r2.Ok);
+            Assert.True(r2!.Ok);
             Assert.Contains(r2.Item.Facet, WeaponPool);
             Assert.Equal(0, r2.Item.Charges);
         }
@@ -91,9 +91,9 @@ public sealed class AshTests
         var (p1, r1) = p.Reroll("weapon", WeaponPool);
         var (p2, r2) = p1.Reroll("weapon", WeaponPool);
         var (p3, r3) = p2.Reroll("weapon", WeaponPool);
-        Assert.True(r1.Ok);
-        Assert.True(r2.Ok);
-        Assert.False(r3.Ok);
+        Assert.True(r1!.Ok);
+        Assert.True(r2!.Ok);
+        Assert.False(r3!.Ok);
         Assert.Same(p2, p3);
         Assert.Equal(1, p1.Equipped["weapon"].Charges);
         Assert.Equal(0, p2.Equipped["weapon"].Charges);
@@ -113,7 +113,7 @@ public sealed class AshTests
                 {
                     var (next, r) = p.Reroll("weapon", WeaponPool);
                     p = next;
-                    ids.Add(r.Ok ? r.Item.Facet.Id : "refused");
+                    ids.Add(r!.Ok ? r.Item.Facet.Id : "refused");
                 }
             }
             return ids;
@@ -134,7 +134,7 @@ public sealed class AshTests
 
         var p = Progression.Start(1);
         var (same, refused) = p.Reroll("ring", WeaponPool);
-        Assert.False(refused.Ok);
+        Assert.Null(refused);
         Assert.Same(p, same);
     }
 

@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://src/View/CastBarView.cs" id="10_castbars"]
 [ext_resource type="Script" path="res://src/Hud/AbilityBar.cs" id="11_abilitybar"]
 [ext_resource type="PackedScene" path="res://scenes/Hud.tscn" id="12_hud"]
+[ext_resource type="PackedScene" path="res://scenes/Screen.tscn" id="13_screen"]
 
 [sub_resource type="Environment" id="Env_arena"]
 background_mode = 1
@@ -130,3 +131,5 @@ mouse_filter = 2
 script = ExtResource("11_abilitybar")
 
 [node name="HudRoot" parent="Hud" instance=ExtResource("12_hud")]
+
+[node name="Screen" parent="Hud" instance=ExtResource("13_screen")]
