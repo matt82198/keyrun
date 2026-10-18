@@ -1,6 +1,6 @@
 # Keyrun
 
-Keyrun is a proof-of-concept co-op dungeon game. It takes the Mythic+ loop out of WoW and aims for an open, queue-based game where players bring a class into a dungeon and get to hard keys quickly. Its classes, synergy system and mechanics are original, not a copy of an existing game, and each class is limited to five rotational abilities and ten keybinds in total. The simulation is headless and deterministic; the 3D client (Three.js, TypeScript) is only the renderer and input layer on top of it, and all geometry is placeholder. The MVP is one complete 3D run: a third-person camera with WASD and mouse-look, the hollow-vault dungeon, the warden class with a bot party, judged by playing it rather than by test counts. Stack: Godot 4.7.2 .NET with C# (the simulation and content are ported from the frozen TypeScript oracle; the TypeScript trees are retired in ENGINE-PLAN phase 4).
+Keyrun is a proof-of-concept co-op dungeon game for Windows desktop, with 3D rendering, built in Godot 4.7.2 .NET with C#. It takes the Mythic+ loop out of WoW and aims for an open, queue-based game where players bring a class into a dungeon and get to hard keys quickly. Its classes, synergy system and mechanics are original, not a copy of an existing game, and each class is limited to five rotational abilities and ten keybinds in total. The simulation is headless and deterministic; the 3D renderer and input layer sit on top of it, and all geometry is placeholder. The MVP (STATE.md D10) is one complete 3D run that the project owner plays end to end and judges by feel: a third-person camera with WASD and mouse-look, the hollow-vault dungeon, the warden class with a bot party. Stack: Godot 4.7.2 .NET with C# (the simulation and content are ported from the frozen TypeScript oracle; the TypeScript trees are retired in ENGINE-PLAN phase 4).
 
 ## Status
 
@@ -24,7 +24,9 @@ The export lands at `build/keyrun.exe` (the `build/` folder is gitignored). The 
 
 The TypeScript browser client below is first paint only and is not the product.
 
-## Run locally (TypeScript browser client, first paint only)
+## Retired TypeScript browser client (first paint, parity oracle only)
+
+This client is retired. It is kept only as the parity oracle until ENGINE-PLAN phase 4 deletes it; it is not the product.
 
 Requires Node.js and npm.
 
