@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Keyrun.Bots: the party AI (port of the frozen bots/src TypeScript, ENGINE-PLAN phase 3).
+    HARD RULE: no Godot reference, no System.Random, no clock. Unlike Keyrun.Sim it does use double:
+    the TS bots decide mistakes with a float PRNG draw (skill.ts) and test telegraph shapes with
+    trig (positioning.ts), and parity means reproducing those IEEE operations, not replacing them.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Keyrun.Bots</RootNamespace>
+    <AssemblyName>Keyrun.Bots</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>12.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../sim/Keyrun.Sim/Keyrun.Sim.csproj" />
+    <ProjectReference Include="../../content/Keyrun.Content/Keyrun.Content.csproj" />
+  </ItemGroup>
+
+</Project>
