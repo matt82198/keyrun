@@ -83,7 +83,8 @@ public sealed class TickAccumulator
 /// <summary>
 /// The arena's user arguments (after <c>--</c> on the Godot command line), in the style of Main.cs's
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
-/// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T</c>, <c>--joiner-key K</c>.
+/// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T</c>, <c>--joiner-key K</c>,
+/// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--record-input PATH</c>, <c>--replay-input PATH</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -110,6 +111,14 @@ public sealed class TickAccumulator
 /// scripted player pushes one G (the ping key) through the real input path (<see cref="Viewport.PushInput"/>), so
 /// PlayerInput raises <see cref="PlayerInput.Pinged"/> exactly as a keyboard G does. Ignored under <c>--autorun</c>.
 /// 0 = never.</param>
+/// <param name="RecordInput">Interactive input recorder (<c>--record-input PATH</c>, lane 3E-b): every key press and
+/// release the game reads is stamped with the host tick and written to PATH as <c>keyrun.input-log/1</c> (see
+/// <see cref="InputLog"/>) at each run end and at quit, logged <c>INPUT record done events=N path=P</c>. Ignored under
+/// <c>--autorun</c>. Null = no recording.</param>
+/// <param name="ReplayInput">Interactive input replayer (<c>--replay-input PATH</c>, lane 3E-b): the log's events go back
+/// through <see cref="Input.ParseInputEvent"/> at their host ticks, so PlayerInput's polled keys and every node's
+/// <c>_UnhandledInput</c> see them as keyboard input; logged <c>INPUT replay tick=T key=K pressed=B</c> per event and
+/// <c>INPUT replay done events=N last=T</c>. Ignored under <c>--autorun</c>. Null = no replay.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -123,7 +132,9 @@ public sealed record ArenaOptions(
     SeatAbandonPlan? AbandonSeat = null,
     int? JoinerKey = null,
     int PressEnter = 0,
-    int PressPing = 0)
+    int PressPing = 0,
+    string? RecordInput = null,
+    string? ReplayInput = null)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -154,6 +165,8 @@ public sealed record ArenaOptions(
         int? joinerKey = null;
         var pressEnter = 0;
         var pressPing = 0;
+        string? recordInput = null;
+        string? replayInput = null;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -191,6 +204,12 @@ public sealed record ArenaOptions(
                 case "--press-ping":
                     pressPing = PositiveInt(args, ref i);
                     break;
+                case "--record-input":
+                    recordInput = Value(args, ref i);
+                    break;
+                case "--replay-input":
+                    replayInput = Value(args, ref i);
+                    break;
                 case "--log":
                     log = Value(args, ref i);
                     break;
@@ -200,7 +219,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -331,6 +350,10 @@ public partial class SimDriver : Node
     private int _enterPresses;
     private int _enterWait;
     private bool _pingPressed;
+    private InputRecorder? _recorder;
+    private InputReplayer? _replayer;
+    private int _replayTotal;
+    private bool _replayDoneLogged;
     private bool _done;
 
     /// <summary>The PlayerInput node.</summary>
@@ -416,6 +439,11 @@ public partial class SimDriver : Node
             _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed);
             // Lane 3H-c: the human's G reaches the bot seats (hud-wiring.ts derivePingEvent -> simHost.applyCommand).
             _player.Pinged += RoutePing;
+            // Lane 3E-b: --record-input / --replay-input, interactive only (an autorun's input is ScriptedWarden).
+            if (!Options.Autorun)
+            {
+                OpenInputLogs();
+            }
             // Lane 3D-b: the interactive launch waits on the between-runs screen (opened in HookScreen); --autorun and
             // --solo start the CLI run at once, as before.
             if (!StartsOnScreen)
@@ -446,6 +474,7 @@ public partial class SimDriver : Node
     public override void _Process(double delta)
     {
         MaybeScriptedEnter();
+        MaybeReplay();
         if (_done || Run is null)
         {
             return;
@@ -455,6 +484,10 @@ public partial class SimDriver : Node
         var steps = _accumulator.Advance(delta);
         for (var i = 0; i < steps; i++)
         {
+            // Lane 3E-b: a replayed event lands before the step after its tick, as a key pressed in a frame does; the
+            // recorder's poll diff runs at the same point, so both see the keys PlayerInput is about to sample.
+            MaybeReplay();
+            _recorder?.SyncPolled(TicksRun, PlayerInput.PolledKeys, Input.IsPhysicalKeyPressed);
             StepOnce();
             if (Options.Autorun && TicksRun >= Options.Ticks)
             {
@@ -464,6 +497,17 @@ public partial class SimDriver : Node
         if (Options.Autorun && TicksRun >= Options.Ticks && _pendingCaptures == 0)
         {
             Finish();
+        }
+    }
+
+    /// <inheritdoc />
+    public override void _Input(InputEvent @event)
+    {
+        // Lane 3E-b: _Input sees every key before the GUI and the _UnhandledInput readers (PlayerInput, the screen, the
+        // run-end panel, this node), so the log holds whatever any of them reads. Echo repeats are not transitions.
+        if (_recorder is not null && @event is InputEventKey { Echo: false } key)
+        {
+            _recorder.OnKey(TicksRun, key.PhysicalKeycode != Key.None ? key.PhysicalKeycode : key.Keycode, key.Pressed);
         }
     }
 
@@ -504,7 +548,73 @@ public partial class SimDriver : Node
         {
             _player.Pinged -= RoutePing;
         }
+        SaveRecording(final: true);
         _log?.Dispose();
+    }
+
+    // --record-input / --replay-input (lane 3E-b). A replay is refused (ARENA error, exit 1) when the log's seed or key
+    // differs from this launch's: the same keys would not make the same run.
+    private void OpenInputLogs()
+    {
+        if (Options.RecordInput is not null)
+        {
+            _recorder = new InputRecorder();
+        }
+        if (Options.ReplayInput is { } path)
+        {
+            var log = InputLog.Load(path);
+            if (log.Seed != Options.Seed || log.KeyLevel != Options.KeyLevel)
+            {
+                throw new ArgumentException(FormattableString.Invariant(
+                    $"--replay-input {path} was recorded at seed={log.Seed} key={log.KeyLevel}, this launch is seed={Options.Seed} key={Options.KeyLevel}"));
+            }
+            _replayer = new InputReplayer(log);
+            _replayTotal = log.Events.Count;
+        }
+    }
+
+    // --replay-input: feeds every due event to the engine's Input singleton and flushes it at once, so the key state
+    // PlayerInput polls (Input.IsPhysicalKeyPressed) and the viewport's event delivery (_Input, GUI, _UnhandledInput)
+    // both see it before the next step, exactly as a keyboard press between frames. Waits for the screen to be hooked
+    // on the first screen (the run-less launch), where no tick advances.
+    private void MaybeReplay()
+    {
+        if (_replayer is null || _done || (_screen is null && Run is null))
+        {
+            return;
+        }
+        foreach (var e in _replayer.Due(TicksRun))
+        {
+            _log?.Line(FormattableString.Invariant($"INPUT replay tick={e.Tick} key={e.Key} pressed={(e.Pressed ? "true" : "false")}"));
+            Input.ParseInputEvent(new InputEventKey { Keycode = e.Key, PhysicalKeycode = e.Key, Pressed = e.Pressed });
+            Input.FlushBufferedEvents();
+        }
+        if (_replayer.Done && !_replayDoneLogged)
+        {
+            _replayDoneLogged = true;
+            _log?.Line(FormattableString.Invariant($"INPUT replay done events={_replayTotal} last={_replayer.LastTick}"));
+        }
+    }
+
+    // --record-input: written at every run end (a crash keeps the finished runs) and at quit, which logs the summary.
+    private void SaveRecording(bool final)
+    {
+        if (_recorder is null || Options.RecordInput is not { } path)
+        {
+            return;
+        }
+        try
+        {
+            _recorder.ToLog(Options.Seed, Options.KeyLevel).Save(path);
+            if (final)
+            {
+                _log?.Line(FormattableString.Invariant($"INPUT record done events={_recorder.Events.Count} path={path}"));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            GD.PrintErr($"INPUT record error path={path}: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -711,6 +821,10 @@ public partial class SimDriver : Node
             _log?.Line(FormattableString.Invariant($"SEAT refill actor={fill.ActorId} tick={fill.FillTick} key={fill.Joiner.KeyLevel}"));
         }
         queue?.Consume(step.ConsumedQueueIndices);
+        if (run.RunEnd.Result is null && result.Run.RunEnd.Result is not null)
+        {
+            SaveRecording(final: false);
+        }
         Stepped?.Invoke(preTick, result.Events);
         MaybeCapture(State.Tick);
     }
