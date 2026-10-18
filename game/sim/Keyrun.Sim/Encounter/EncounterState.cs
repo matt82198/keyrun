@@ -49,6 +49,12 @@ public sealed record EncounterState
     public int NextTelegraphId { get; init; } = 1;
 
     /// <summary>
+    /// The armed boss rules (lane 3F, <see cref="BossRules.Arm"/>), or null. Null on every <see cref="Create"/> and so
+    /// on every oracle run: the boss rules are new behaviour with no TS oracle and run only when a host arms them.
+    /// </summary>
+    public BossState? Boss { get; init; }
+
+    /// <summary>
     /// The encounter createRun builds (sim/index.ts:106-117): empty registries, pull 0, a full Slack bank for the
     /// key (<see cref="Timer.InitialSlackTicks"/>), not depleted, nextTelegraphId 1.
     /// </summary>

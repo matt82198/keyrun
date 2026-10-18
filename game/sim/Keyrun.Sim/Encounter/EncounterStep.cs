@@ -32,6 +32,8 @@ public sealed record StepEncounterResult(SimState State, EncounterState Encounte
 /// </summary>
 public static class EncounterStep
 {
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>?> NoTags = new Dictionary<string, IReadOnlyList<string>?>();
+
     /// <summary>index.ts:108 stepEncounter.</summary>
     /// <param name="state">The tick's state (read only).</param>
     /// <param name="encounter">The encounter state.</param>
@@ -50,6 +52,14 @@ public static class EncounterStep
         IReadOnlyDictionary<string, ScriptAbility>? abilities = null)
     {
         var tick = state.Tick;
+
+        // Lane 3F (no TS counterpart): an armed boss resolves its Lock and supplies the Twins' scripts and bar first.
+        // Unarmed (Boss null, every oracle run) this is skipped and the step is exactly index.ts stepEncounter.
+        BossPreStep? boss = encounter.Boss is { } armed ? BossRules.PreCombat(state, armed, scripts, emit) : null;
+        if (boss is not null)
+        {
+            scripts = boss.Scripts;
+        }
 
         // index.ts:119-123: scripts, emit their telegraph events, register them.
         var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities);
@@ -71,7 +81,13 @@ public static class EncounterStep
 
         // index.ts:143-157: lazy creation and drain.
         var effectPatches = new List<BreakBarEffectPatch>();
-        var sources = breakBarWiring?.Sources ?? Array.Empty<BreakBarSource>();
+        IReadOnlyList<BreakBarSource> sources = breakBarWiring?.Sources ?? Array.Empty<BreakBarSource>();
+        if (boss is not null && !sources.Any(s => s.Id == boss.TwinsBar.Id))
+        {
+            sources = sources.Append(boss.TwinsBar).ToList();
+        }
+        var commands = breakBarWiring?.Commands ?? Array.Empty<Command>();
+        var abilityTags = breakBarWiring?.AbilityTags ?? NoTags;
         foreach (var source in sources)
         {
             if (!breakBars.ContainsKey(source.Id) &&
@@ -84,7 +100,7 @@ public static class EncounterStep
                 continue;
             }
             var wasStaggered = bar.Current <= 0;
-            var inputs = BreakBar.DeriveInputs(breakBarWiring!.Commands, state.Actors, breakBarWiring.AbilityTags, source);
+            var inputs = BreakBar.DeriveInputs(commands, state.Actors, abilityTags, source);
             var drained = BreakBar.Drain(bar, source.Id, inputs, tick, emit);
             breakBars[source.Id] = drained;
             effectPatches.AddRange(BreakBar.EffectPatches(source, !wasStaggered && drained.Current <= 0));
@@ -98,6 +114,11 @@ public static class EncounterStep
             FiredOnDeath = scripted.FiredOnDeath,
             NextTelegraphId = advance.NextTelegraphId,
         };
+        if (boss is not null)
+        {
+            next = next with { Boss = boss.Boss };
+            effectPatches.AddRange(boss.EffectPatches);
+        }
         next = Pulls.CheckPullAdvance(state, dungeon, next, tick, emit);
         return new StepEncounterResult(state, next, scripted.Commands, effectPatches);
     }
