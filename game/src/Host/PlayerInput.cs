@@ -24,6 +24,12 @@ public partial class PlayerInput : Node, ICommandSource
     /// <summary>Mouse look sensitivity, radians per pixel.</summary>
     private const float MouseRadPerPixel = 0.0035f;
 
+    /// <summary>
+    /// The keys <see cref="Sample"/> polls with <c>Input.IsPhysicalKeyPressed</c> each tick (WASD, SampleMove) rather
+    /// than reading as events. <c>--record-input</c> diffs these every tick (lane 3E-b, <see cref="InputRecorder"/>).
+    /// </summary>
+    public static readonly IReadOnlyList<Key> PolledKeys = new[] { Key.W, Key.S, Key.D, Key.A };
+
     private readonly List<KeyAction> _pending = new();
     private readonly ScriptedWarden _script = new();
     private bool _scripted;
