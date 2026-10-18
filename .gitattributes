@@ -1,0 +1,26 @@
+# Line endings: LF everywhere (Godot text resources, C#, TS, docs); CRLF only for
+# PowerShell, so Windows PowerShell 5.1 parses it the same as pwsh.
+* text=auto eol=lf
+*.cs text eol=lf
+*.csproj text eol=lf
+*.sln text eol=lf
+*.tscn text eol=lf
+*.tres text eol=lf
+*.godot text eol=lf
+*.cfg text eol=lf
+*.uid text eol=lf
+*.gdignore text eol=lf
+*.sh text eol=lf
+*.ps1 text eol=crlf
+
+# Binary assets (placeholder geometry only today; listed so a future asset never gets EOL-mangled)
+*.png binary
+*.jpg binary
+*.glb binary
+*.wav binary
+*.ogg binary
+*.ttf binary
+*.tpz binary
+*.exe binary
+*.dll binary
+*.pck binary

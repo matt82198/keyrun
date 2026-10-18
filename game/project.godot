@@ -1,0 +1,24 @@
+; Keyrun desktop game shell (Godot 4.7.2 .NET, C#).
+; The sim lives in sim/Keyrun.Sim (no Godot reference); this project is the host.
+
+config_version=5
+
+[application]
+
+config/name="Keyrun"
+config/description="Co-op dungeon-run proof of concept (desktop)."
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[dotnet]
+
+project/assembly_name="Keyrun"
+
+[rendering]
+
+renderer/rendering_method="forward_plus"

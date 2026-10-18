@@ -1,0 +1,24 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+
+  <!--
+    Keyrun engine host (Godot 4.7.2 .NET). Scenes, views, HUD, input, and the
+    in-process sim host live under src/. The pure libraries (sim/, bots/,
+    content/) and tools/ are separate projects; they are excluded from this
+    project's default globs and referenced as ProjectReferences instead.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>Keyrun</RootNamespace>
+    <AssemblyName>Keyrun</AssemblyName>
+    <Nullable>enable</Nullable>
+    <LangVersion>12.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DefaultItemExcludes>$(DefaultItemExcludes);sim/**;bots/**;content/**;tools/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="sim/Keyrun.Sim/Keyrun.Sim.csproj" />
+  </ItemGroup>
+
+</Project>
