@@ -11,7 +11,9 @@ namespace Keyrun.Hud;
 /// <summary>
 /// The between-runs screen (BIBLE s10 "One screen, three bands"; s1 loop "End-of-run choice of three, then Screen";
 /// ENGINE-PLAN 3D). Opened by the run-end panel when a reward is taken (<see cref="OpenFrom"/>), and at launch before
-/// the first run in the interactive game (<see cref="OpenFirst"/>, lane 3D-b), it shows:
+/// the first run in the interactive game (<see cref="OpenFirst"/>, lane 3D-b), and again by <see cref="OpenFirst"/> each
+/// time a run ends in the interactive game and Enter is pressed on the run-end panel (the SimDriver reopen path, lane
+/// 3D-c, wipe included), it shows:
 /// <list type="bullet">
 /// <item><b>Character</b>: the class, the "since last run" line, banked Ash, the five abilities with their keybinds,
 /// and the equipped gear with tier, Facet and crafting charges left (Tab selects an item, R rerolls its Facet).</item>
@@ -93,10 +95,12 @@ public partial class Screen : Control
     }
 
     /// <summary>
-    /// Opens the screen before the first run (lane 3D-b, ENGINE-PLAN phase 3 "the screen and Clause pick come up before
-    /// the run starts"): no reward is taken, the Key band opens at the driver's <c>--key</c> with the first Clause offer
-    /// picked, and Queue (<see cref="Queued"/>) starts the first run. Needs only the driver's Registry and Setup, never
-    /// its Run, so it works while no run exists.
+    /// Opens the screen with no reward taken, in the interactive game only. It is called at launch, before the first run
+    /// (lane 3D-b, ENGINE-PLAN phase 3 "the screen and Clause pick come up before the run starts"), and again after every
+    /// run end when Enter is pressed on the run-end panel without taking a reward (SimDriver reopen path, lane 3D-c,
+    /// wipe included). The Key band opens at the current key (the driver's <c>--key</c> on the first open) with the first
+    /// Clause offer picked, and Queue (<see cref="Queued"/>) starts the next run. It reads only the driver's Registry and
+    /// Setup, never its Run, so it works whether no run exists yet or the previous one has ended.
     /// </summary>
     public void OpenFirst() => Open(null);
 
@@ -201,7 +205,7 @@ public partial class Screen : Control
         DrawQueue(l.Queue, state);
     }
 
-    // taken null: the first open, before any run (OpenFirst); no reward to equip.
+    // taken null: OpenFirst, both the launch open and the run-end reopen (no run is required); no reward to equip.
     private void Open(Item? taken)
     {
         if (taken is not null)
