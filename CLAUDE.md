@@ -39,3 +39,4 @@ Vitest. No game engine beyond Three.js for rendering, no bundler beyond esbuild.
 3. Constraint is the design: ≤5 rotational abilities, ≤10 keybinds (rotation + movement + utility), synergy first.
 4. Fail closed: a rule the sim cannot resolve deterministically is a bug, never a coin flip.
 5. Tiny files, one purpose; tests before code; PRs to main only (protected).
+- **tests/client/e2e/** - the five headless-browser `*.e2e.ts` specs. Read tests/client/e2e/CLAUDE.md first (run one spec, flake-fix proof bar).
