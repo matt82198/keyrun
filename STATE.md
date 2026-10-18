@@ -160,6 +160,16 @@ the intent check: those BIBLE items were in the MVP but no phase planned them.
 Phase 1 exit: Matt double-clicks build/keyrun.exe and walks the Warden around a floor with a Cleave cone firing every 8 s.
 Every keyrun checkpoint runs the plan-vs-output check (aesop LANE-CONTRACT section 10) against design/BIBLE.md.
 
+Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 origin/main`, origin/main 4572642):
+- Phase 1 complete: 1A 59d45d1 (#109), 1B 59a7acb (#110), 1F 9d75ed1 (#112), 1D 727e0ea (#111), 1C 2bab32f (#114), 1E 3f720b0 (#117).
+- Phase 2 complete, exit at #131 merge 4572642: 2A #121 c329c02, 2B #124 f5afcf6, 2C #122 a53a68a, 2D #129 2919ad0, 2E #131 4572642.
+- Phase 3 in progress:
+  - 3A bots core MERGED (#130, 9c8a5ca).
+  - 3B bots roles IN PROGRESS (branch feat/bots-3b). Evidence: local branch exists at 9c8a5ca with no commits past the 3A merge; `git ls-remote` found no origin/feat/bots-3b on 2026-10-18.
+  - 3C HUD IN PROGRESS (branch feat/hud-3c). Evidence: local branch exists at 4572642 with no commits past main; `git ls-remote` found no origin/feat/hud-3c on 2026-10-18.
+  - Phase 3 exit is the D10 candidate: one complete 3D run Matt can play end to end.
+  - 3B must verify 3A's hand-corrected floor keepNear expectation against the frozen TS test (3A hand-back caveat).
+
 ## Decisions for Matt
 Verbatim from the recon file's "Decisions for Matt / sim lanes (not client work)" list:
 - Sundered Twins + Break bar not spawned (content-dungeon.ts:20-23; remote feat/break-bar-wiring exists).
