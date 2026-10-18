@@ -190,13 +190,14 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
     pull N of T -- key depleted` via ObjectiveModel.Build; RunEndView.Of rolls from the content pool; `HUD runend choice`
     lines carry id=<facet id>); #154 MERGED 606e623 (CI: game.yml game-e2e runs HudSceneTest, CombatViewSceneTest and
     ScreenSceneTest; all PASS on the runner). #155 (PLAN-DOCS: ENGINE-PLAN rows 3H 3I 3J, README status and record command)
-    is OPEN, not merged.
+    is OPEN, not merged. #156 MERGED 28415a6 (3E-a2: E2eAssert.ps1 replay pass driven by example-yaw-walk.input-log.json,
+    committed digest 94eb4f3d216477f9 over TICK 0-239; the CI proof of the human-input path for row 3E).
   - Per-row third-pass status: 3A MET; 3B PARTIAL (RolesOracleTraceTests.cs:148 k2-s11 and :151 k10-s7 traces exist; no
     k10-s11 trace, minor); 3C PARTIAL (RunEndPanel.cs:127 rolls from the pool, :138 wipe title; HudSceneTest asserts both;
     no autorun clears, so the clear title has no live proof; the CI gap the oracle saw is closed by #154 after the read);
     3D MET; 3E PARTIAL (ENGINE-PLAN row 3E says a recorded file drives the Warden in CI; CI runs ScriptedWarden at
-    E2eAssert.ps1:50-57; recorded replay proven only by HudSceneTest runs K and L; lane 3E-a2 is adding a replay pass to
-    E2eAssert.ps1); 3F PARTIAL (no test asserts the Lock opens on a real run; BossRulesTests.cs:86 and :99 are synthetic;
+    E2eAssert.ps1:50-57; recorded replay proven in HudSceneTest runs K and L and, since #156 MERGED 28415a6, by the
+    game-e2e replay pass in E2eAssert.ps1 (merged after the oracle's read at beefb47, so the 3E status above is unchanged); 3F PARTIAL (no test asserts the Lock opens on a real run; BossRulesTests.cs:86 and :99 are synthetic;
     HudSceneTest.ps1:376 $bossRule is only echoed at :798; Boss.cs:26 LockThresholdBp=5000 compared at Boss.cs:180; base HP
     60000 (content hollow-warden.json:5) is Tempo-scaled by Tempo.cs:60-64 to about 76200 at key 10); 3G MET with minor drift
     (abandon at pull 1 tick 1000, HudSceneTest.ps1:70; key-3 joiner refused); 3H MET (HostRunSetup.cs:80-82, SimDriver.cs:491);
