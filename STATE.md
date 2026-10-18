@@ -7,12 +7,14 @@ abilities, a boss. Mechanics like interrupts, but be more creative than blizzard
 class max, 10 total keybinds should be plenty for rotation, movement, utility... the goal is class synergy." No art
 assets; pure POC.
 
-## Current state (checkpoint 2026-10-17 23:30Z)
-- Main tip: 54e69c5 (PR #99 squash, bound via pr_merged_check 2026-10-17: MERGED 54e69c5 on main@54e69c5; full 54e69c547a014744fc173af622a9bbda2a065298). Prior main tip 00e4ebb (PR #98).
+## Current state (checkpoint 2026-10-17 23:55Z)
+- Main tip: 2c8f8ea (#102 squash, tank banks GCD in a lull so it survives pull 1). Prior main tips: 54e69c5 (#99), 00e4ebb (#98).
+- Merged today since the 23:30Z checkpoint: #101 99836b0 (window ring labels + payoff-ready key glow + ping context + aimed spot ping); #102 2c8f8ea (bots/src/roles/shared.ts inLull, tank-pressure.ts).
+- MERGED 99f39a2: #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info).
 - Phase: 3 closing into 3D MVP (D10). Phase 5 "Matt playing" is the acceptance test; not yet reached.
-- Landed since 5b63ca2: #92 HUD pull readout (e3f622e), #95 bots mitigation docs (e56955c), #97 checkpoint re-land (08b9611), #98 first-run readability (00e4ebb), #99 telegraph facing fix (54e69c5).
-- Test suite on main: 973 tests (per #98 lane), e2e 13/13.
-- In flight (not on main): feat/window-ping-castbar-readability, fix/sim-telegraph-facing, feat/status-chips-downed-net-casts (see NEXT STEPS).
+- Earlier landed (unchanged): #92 e3f622e, #95 e56955c, #97 08b9611, #98 00e4ebb, #99 54e69c5.
+- Test count on 2c8f8ea: not restated in this checkpoint (not sourced for this head).
+- NEXT (supersedes the status in NEXT STEPS item 1): after #103 lands, SPREAD/STACK telegraph text labels (render/telegraphs.ts); then Slack delta (needs hud-wiring.ts); then the gap list above by Matt's priority.
 
 ## Locked decisions
 - D1 **Stack**: TypeScript for sim, content, client, bots, server; Vitest; esbuild; Three.js for the 3D client; no engine.
@@ -157,6 +159,15 @@ Additional parked decisions (from the burn ledger):
 - Hold-to-abandon for Backspace (defect l).
 - Licence MIT (#65) - landed; object if not wanted.
 - Play-feel: tank lowest HP in pull 1 at skill 100 is 22 (thin margin); balance after the fixes is Matt's call.
+
+## DECISIONS FOR MATT (checkpoint 2026-10-17 23:55Z)
+1. Spot ping aim: crosshair ray to y=0 lands 0.8-2 m past the player because the camera looks 1 m above the player; alternatives are a mouse-cursor raycast or a raised aim point.
+2. Lock payoff glow is optimistic: the client cannot see which class closed the last Lock.
+3. Net games (?net=1) get no payoff glow because the server sends no display info for them.
+4. pingEvents in client/src/hud-wiring.ts grows unbounded (pre-existing).
+5. idle-human-warden variant still wipes in sim (actor 5 dies t1591; 4x70 one-shots 250 HP cinders from 3000 mm; needs bots/src/roles/damage.ts + bots/src/shared/positioning.ts); harness artifact, not the play case.
+6. #103 lane decisions taken silently: dead enemies stay hidden rather than tagged DOWNED; taunt detection = threat multiplier >= 5x; dash trail inferred from snapshot positions (a very large frame stall while walking could draw a false trail); Slack delta deferred (needs hud-wiring.ts).
+7. BIBLE-vs-client gaps still open: Sundered Twins + Break bar not spawned; boss 50% Lock + enrage absent; stack damage split absent; Cinder Blink no displacement; F=Charge vs Space=dash authority; floor Windows + combo events need snapshot channels; death log/mercy absent; rewards run-end stub; clause pick UI + key level display absent; keybinds 11 vs 10; Cinder fills all 3 damage slots.
 
 ## Standing rules
 - Every audit and integration test reproduces through the public path (createRun/stepRun, the bot loop, the server
