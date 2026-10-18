@@ -105,6 +105,10 @@ public sealed class TickAccumulator
 /// <param name="PressEnter">Interactive scene-test seam (<c>--press-enter N</c>, lane 3D-c): a scripted player pushes
 /// Enter through the real input path (<see cref="Viewport.PushInput"/>) each time the game waits on Enter (the
 /// between-runs screen is up, or the run has ended), up to N presses. Ignored under <c>--autorun</c>. 0 = never.</param>
+/// <param name="PressPing">Interactive scene-test seam (<c>--press-ping T</c>, lane 3H-c): once the run reaches tick T a
+/// scripted player pushes one G (the ping key) through the real input path (<see cref="Viewport.PushInput"/>), so
+/// PlayerInput raises <see cref="PlayerInput.Pinged"/> exactly as a keyboard G does. Ignored under <c>--autorun</c>.
+/// 0 = never.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -117,7 +121,8 @@ public sealed record ArenaOptions(
     bool Requeue = false,
     SeatAbandonPlan? AbandonSeat = null,
     int? JoinerKey = null,
-    int PressEnter = 0)
+    int PressEnter = 0,
+    int PressPing = 0)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -147,6 +152,7 @@ public sealed record ArenaOptions(
         SeatAbandonPlan? abandon = null;
         int? joinerKey = null;
         var pressEnter = 0;
+        var pressPing = 0;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -181,6 +187,9 @@ public sealed record ArenaOptions(
                 case "--press-enter":
                     pressEnter = PositiveInt(args, ref i);
                     break;
+                case "--press-ping":
+                    pressPing = PositiveInt(args, ref i);
+                    break;
                 case "--log":
                     log = Value(args, ref i);
                     break;
@@ -190,7 +199,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -319,6 +328,7 @@ public partial class SimDriver : Node
     private int _pendingCaptures;
     private int _enterPresses;
     private int _enterWait;
+    private bool _pingPressed;
     private bool _done;
 
     /// <summary>The PlayerInput node.</summary>
@@ -435,6 +445,7 @@ public partial class SimDriver : Node
         {
             return;
         }
+        MaybeScriptedPing(Run);
         Frames++;
         var steps = _accumulator.Advance(delta);
         for (var i = 0; i < steps; i++)
@@ -563,6 +574,20 @@ public partial class SimDriver : Node
         _enterPresses++;
         _log?.Line(FormattableString.Invariant($"INPUT enter n={_enterPresses} screen={(_screen?.IsOpen == true ? 1 : 0)}"));
         GetViewport().PushInput(new InputEventKey { Keycode = Key.Enter, PhysicalKeycode = Key.Enter, Pressed = true });
+    }
+
+    // --press-ping T (lane 3H-c's interactive proof): once the live run reaches tick T the scripted player pushes one G
+    // through the viewport, so PlayerInput queues the ping key exactly as a keyboard press does. Never under --autorun.
+    private void MaybeScriptedPing(Run run)
+    {
+        if (_pingPressed || Options.Autorun || Options.PressPing == 0 || run.State.Tick < Options.PressPing ||
+            run.RunEnd.Result is not null || _screen?.IsOpen == true)
+        {
+            return;
+        }
+        _pingPressed = true;
+        _log?.Line(FormattableString.Invariant($"INPUT ping tick={run.State.Tick}"));
+        GetViewport().PushInput(new InputEventKey { Keycode = Key.G, PhysicalKeycode = Key.G, Pressed = true });
     }
 
     // --abandon-seat A@T (lane 3J's scripted proof): at run tick T the seat empties and, with --joiner-key K, one

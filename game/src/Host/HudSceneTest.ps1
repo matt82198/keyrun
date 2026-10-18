@@ -94,6 +94,15 @@
          press 3; press 3 is the screen's Queue, and the next "RUN start" carries a Clause (clause=<id>, never none:
          it came through Screen.Queued -> StartQueuedRun, ENGINE-PLAN "choose one, then Screen"). Before 3D-c Enter
          after a wipe called StartRun(null): a "RUN start ... clause=none" follows press 2 and 28 fails (RED).
+    Run J (lane 3H-c, a human G-ping reaches the bot party; interactive, three-seat party, pull 1):
+        -- --press-enter 1 --press-ping <PingAt>   (--quit-after <PingFrames>)
+        (--press-ping T: once the run reaches tick T, SimDriver's scripted player pushes one G through the viewport, the
+        real keyboard path into PlayerInput; press 1 is the screen's Queue, which starts the run)
+     29. "INPUT ping tick=T", then "PING routed kind=spot target=none tick=N" with N >= T (the idle human tank has no
+         target, so G is a spot ping at the Warden: SimDriver turned PlayerInput.Pinged into a bots PingEvent), then a
+         "PING react actor=A kind=move tick=M" with A a bot seat (2 Chanter, 3 Cinder) and N <= M <= N + 40
+         (PingsPolicy.PingMoveTicks): the bot runner's batch carries that seat's ping reaction. Before 3H-c nothing
+         subscribed to PlayerInput.Pinged: no "PING routed" line and 29 fails (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -107,7 +116,9 @@ param(
     [int]$BackfillTicks = 3300,
     [string]$AbandonSeat = '1@1000',
     [int]$ScreenFirstFrames = 240,
-    [int]$WipeFrames = 2400
+    [int]$WipeFrames = 2400,
+    [int]$PingAt = 100,
+    [int]$PingFrames = 900
 )
 $ErrorActionPreference = 'Stop'
 
@@ -459,6 +470,44 @@ if (-not $runEndI) {
     }
 }
 
+# ---- Run J: a human G-ping reaches the bot party (lane 3H-c) ------------------------------------------------------
+$ErrorActionPreference = 'Continue'
+$jText = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $PingFrames '--' --press-enter 1 --press-ping $PingAt 2>&1 | Out-String
+$jCode = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+$jLines = @($jText -split "`r?`n")
+if ($jCode -ne 0) { $failures.Add("run J: godot exited $jCode (expected 0)") }
+$inputJ = First $jLines '^INPUT ping tick=\d+$'
+$routedJ = $null
+$reactJ = $null
+if (-not $inputJ) {
+    $failures.Add("run J: no 'INPUT ping tick=T' line (the scripted G was never pushed by frame $PingFrames)")
+} else {
+    $pressTick = [int]($inputJ -replace '^INPUT ping tick=', '')
+    $iIn = [array]::IndexOf($jLines, $inputJ)
+    $afterIn = @($jLines[($iIn + 1)..($jLines.Count - 1)])
+    $routedJ = First $afterIn '^PING routed '
+    if (-not $routedJ) {
+        $failures.Add('run J: the G press reached no bot (no "PING routed" line: nothing routes PlayerInput.Pinged)')
+    } elseif ($routedJ -notmatch '^PING routed kind=spot target=none tick=(\d+)') {
+        $failures.Add("run J: wrong routed ping: '$routedJ' (want 'PING routed kind=spot target=none tick=N')")
+    } else {
+        $pingTick = [int]$Matches[1]
+        if ($pingTick -lt $pressTick) { $failures.Add("run J: the ping was routed at tick $pingTick, before the press at $pressTick") }
+        $iRt = [array]::IndexOf($afterIn, $routedJ)
+        $afterRt = @($afterIn[($iRt + 1)..($afterIn.Count - 1)])
+        $reactJ = First $afterRt '^PING react actor=[23] kind=move tick=\d+$'
+        if (-not $reactJ) {
+            $failures.Add('run J: no bot seat reacted to the routed ping (no "PING react actor=2|3 kind=move" line)')
+        } else {
+            $reactTick = [int]($reactJ -replace '^.* tick=', '')
+            if ($reactTick -lt $pingTick -or $reactTick -gt ($pingTick + 40)) {
+                $failures.Add("run J: the bot reaction at tick $reactTick is outside the ping's 40-tick move window from $pingTick")
+            }
+        }
+    }
+}
+
 Write-Output '--- asserted HUD lines ---'
 foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping)) {
     if ($l) { Write-Output $l }
@@ -479,11 +528,15 @@ Write-Output '--- run I (wipe -> screen), lane 3D-c ---'
 foreach ($l in @($firstI) + $startsI + @($runEndI, $reopenI, $requeuedI)) {
     if ($l) { Write-Output $l }
 }
+Write-Output '--- run J (human G-ping -> bots), lane 3H-c ---'
+foreach ($l in @($inputJ, $routedJ, $reactJ)) {
+    if ($l) { Write-Output $l }
+}
 
 if ($failures.Count -gt 0) {
     Write-Output "HudSceneTest: FAIL ($($failures.Count))"
     $failures | ForEach-Object { Write-Output "  - $_" }
     exit 1
 }
-Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks backfillTicks=$BackfillTicks abandonSeat=$AbandonSeat wipeFrames=$WipeFrames"
+Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks backfillTicks=$BackfillTicks abandonSeat=$AbandonSeat wipeFrames=$WipeFrames pingAt=$PingAt pingFrames=$PingFrames"
 exit 0
