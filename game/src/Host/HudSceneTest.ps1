@@ -50,8 +50,27 @@
      18. "SCREEN queue dungeon=hollow-vault key=3 clause=<id>" (the screen's autorun script queues key 3 + Clause 2);
      19. after it, a second "RUN start ... key=3 clause=<that id>" (the key is the run content's KeyLevel and the
          Clause is the sim's EncounterRules.ActiveClauseId, so a request that is dropped on the way reads key=2 or
-         clause=none), followed by a second "BOSS armed" and "PULL spawn index=0 id=choir".
-  Before 3I the arena never arms the boss and never reads the queue: 14-19 fail (RED).
+         clause=none), followed by a second "BOSS armed" and "PULL spawn index=0 id=choir";
+     20. then "QUEUE consume n=1 size=0" (lane 3J: the request that started the run leaves the Queue node, so it can
+         never also refill a seat).
+    Run F (lane 3J, backfill in the real loop; three-seat party, key 2, no --requeue):
+        -- --autorun --ticks 3300 --abandon-seat <AbandonSeat> --joiner-key 2
+        (--abandon-seat A@T: SimDriver calls AbandonSeat(A) at run tick T and, with --joiner-key K, adds one
+        QueueRequest at key K straight to the Queue node at Hud/Screen/Queue; this is the scripted path, the screen's
+        Queue button is not pressed mid-run)
+     21. "SEAT abandon actor=A tick=T" in pull 1, then "QUEUE add dungeon=hollow-vault key=2";
+     22. the party survives to "PULL spawn index=1 id=pair", and in that same step (no TICK line between them)
+         "SEAT refill actor=A tick=X key=2" with X = that step's TICK tick + 1 (Backfill.Step's FillTick: the first
+         tick whose commands are the joiner's), then "QUEUE consume n=1 size=0";
+     23. the open seat stands idle: no cast_complete EVENT with "actorId":A between the abandon and the refill, the
+         refilled seat casts again after it (the joiner's commands run from the pull start), and no party seat dies
+         before pull 2. Default A@T = 1@1000 (the human seat leaves at tick 1000; seed 1 key 2 pull 2 starts at
+         tick 3152 with all three seats alive; 2@2000 instead loses seats 1 and 2 in pull 1).
+    Run G (lane 3J, key mismatch): as F with --joiner-key 3
+     24. "SEAT abandon", "QUEUE add ... key=3" and "PULL spawn index=1" appear, but no "SEAT refill" line and no
+         "QUEUE consume" line (Backfill.Admits is exact key equality: a key-3 joiner is refused a key-2 run).
+  Before 3I the arena never arms the boss and never reads the queue: 14-19 fail (RED). Before 3J SimDriver steps
+  RunRoot.StepRun and ignores --abandon-seat: 20-24 fail (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -61,7 +80,9 @@ param(
     [int]$PingTicks = 400,
     [int]$PartyTicks = 3700,
     [int]$BossTicks = 600,
-    [int]$QueueTicks = 480
+    [int]$QueueTicks = 480,
+    [int]$BackfillTicks = 3300,
+    [string]$AbandonSeat = '1@1000'
 )
 $ErrorActionPreference = 'Stop'
 
@@ -279,8 +300,72 @@ if (-not $queueE) {
         $pullE2 = First $rest '^PULL spawn index=0 id=choir '
         if (-not $armedE2) { $failures.Add('run E: the queued run is not armed (no second "BOSS armed" line)') }
         if (-not $pullE2) { $failures.Add('run E: the queued run did not spawn pull 1 (no second "PULL spawn index=0 id=choir")') }
+        $consumedE = First $rest '^QUEUE consume n=1 size=0$'
+        if (-not $consumedE) { $failures.Add('run E: the request that started the queued run is still in the Queue node (no "QUEUE consume n=1 size=0" after it)') }
     }
 }
+
+# ---- Runs F and G: backfill in the real loop (lane 3J) -----------------------------------------------------------
+# SimDriver steps Backfill.Step: the seat abandoned in pull 1 is refilled at pull 2's start by a matching-key joiner.
+$seatParts = $AbandonSeat -split '@'
+$seatActor = $seatParts[0]
+$seatTick = $seatParts[1]
+function Invoke-Backfill([string]$run, [int]$joinerKey) {
+    $r = Invoke-Arena $BackfillTicks @('--abandon-seat', $AbandonSeat, '--joiner-key', "$joinerKey")
+    if ($r.Code -ne 0) { $failures.Add("run ${run}: godot exited $($r.Code) (expected 0)") }
+    $lines = @(FirstRun $r.Lines)
+    $res = [pscustomobject]@{ Lines = $lines; Abandon = $null; Add = $null; Pull = $null; IPull = -1; Refill = $null; Consume = $null }
+    $res.Abandon = First $lines "^SEAT abandon actor=$seatActor tick=$seatTick$"
+    $res.Add = First $lines "^QUEUE add dungeon=hollow-vault key=$joinerKey "
+    $res.Pull = First $lines '^PULL spawn index=1 id=pair '
+    if ($res.Pull) { $res.IPull = [array]::IndexOf($lines, $res.Pull) }
+    $res.Refill = First $lines '^SEAT refill '
+    $res.Consume = First $lines '^QUEUE consume '
+    if (-not $res.Abandon) { $failures.Add("run ${run}: no 'SEAT abandon actor=$seatActor tick=$seatTick' line") }
+    if (-not $res.Add) { $failures.Add("run ${run}: no 'QUEUE add dungeon=hollow-vault key=$joinerKey' line (the scripted joiner never reached the Queue node)") }
+    if (-not $res.Pull) {
+        $failures.Add("run ${run}: the party did not reach 'PULL spawn index=1 id=pair' (no next pull start to refill at)")
+    } elseif ($res.Abandon -and [array]::IndexOf($lines, $res.Abandon) -gt $res.IPull) {
+        $failures.Add("run ${run}: the abandon came after pull 2 spawned (it must be in pull 1)")
+    }
+    return $res
+}
+
+$f = Invoke-Backfill 'F' 2
+if ($f.Pull) {
+    $refillF = $null
+    for ($i = $f.IPull + 1; $i -lt $f.Lines.Count; $i++) {
+        if ($f.Lines[$i] -match '^TICK ') { break }
+        if ($f.Lines[$i] -match '^SEAT refill ') { $refillF = $f.Lines[$i]; break }
+    }
+    $stepTick = $null
+    for ($i = $f.IPull - 1; $i -ge 0; $i--) {
+        if ($f.Lines[$i] -match '^TICK (\d+) ') { $stepTick = [int]$Matches[1]; break }
+    }
+    $wantFill = if ($null -ne $stepTick) { $stepTick + 1 } else { -1 }
+    if (-not $refillF) {
+        $failures.Add("run F: no 'SEAT refill' line in the step that spawned pull 2 (first refill line: '$($f.Refill)')")
+    } elseif ($refillF -notmatch "^SEAT refill actor=$seatActor tick=$wantFill key=2$") {
+        $failures.Add("run F: wrong refill line: '$refillF' (want 'SEAT refill actor=$seatActor tick=$wantFill key=2')")
+    } else {
+        $iRefillF = [array]::IndexOf($f.Lines, $refillF)
+        $consumeF = First @($f.Lines[$iRefillF..($f.Lines.Count - 1)]) '^QUEUE consume n=1 size=0$'
+        if (-not $consumeF) { $failures.Add('run F: the joiner was not consumed from the Queue node (no "QUEUE consume n=1 size=0" after the refill)') }
+        if ($f.Abandon) {
+            $iAbandonF = [array]::IndexOf($f.Lines, $f.Abandon)
+            $idle = @($f.Lines[$iAbandonF..$iRefillF] | Where-Object { $_ -match "^EVENT \{`"abilityId`":`"[^`"]+`",`"actorId`":$seatActor,.*`"type`":`"cast_complete`"" })
+            if ($idle.Count -gt 0) { $failures.Add("run F: the open seat acted before the refill: '$($idle[0])'") }
+        }
+        $joinerActs = First @($f.Lines[$iRefillF..($f.Lines.Count - 1)]) "^EVENT \{`"abilityId`":`"[^`"]+`",`"actorId`":$seatActor,.*`"type`":`"cast_complete`""
+        if (-not $joinerActs) { $failures.Add('run F: the refilled seat never acted after the refill (the joiner''s commands are dropped)') }
+    }
+    $deadEarly = @($f.Lines[0..$f.IPull] | Where-Object { $_ -match '^EVENT \{"actorId":[123],.*"type":"death"' })
+    if ($deadEarly.Count -gt 0) { $failures.Add("run F: a party seat died before pull 2 (pick an abandon the party survives): '$($deadEarly[0])'") }
+}
+
+$g = Invoke-Backfill 'G' 3
+if ($g.Refill) { $failures.Add("run G: a key-3 joiner refilled a key-2 run: '$($g.Refill)'") }
+if ($g.Consume) { $failures.Add("run G: the key-3 joiner was consumed: '$($g.Consume)'") }
 
 Write-Output '--- asserted HUD lines ---'
 foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping)) {
@@ -294,11 +379,15 @@ Write-Output '--- run D (armed boss) and run E (queued run), lane 3I ---'
 foreach ($l in @($armedA, $armedC, $summaryD, $armedD, $bossPull) + $twins + @($bossRule) + $startsE + @($queueE, $requeued, $armedE2, $pullE2)) {
     if ($l) { Write-Output $l }
 }
+Write-Output '--- run E consume, runs F and G (backfill), lane 3J ---'
+foreach ($l in @($consumedE, $f.Abandon, $f.Add, $f.Pull, $refillF, $consumeF, $joinerActs, $g.Abandon, $g.Add, $g.Pull)) {
+    if ($l) { Write-Output $l }
+}
 
 if ($failures.Count -gt 0) {
     Write-Output "HudSceneTest: FAIL ($($failures.Count))"
     $failures | ForEach-Object { Write-Output "  - $_" }
     exit 1
 }
-Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks"
+Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks backfillTicks=$BackfillTicks abandonSeat=$AbandonSeat"
 exit 0
