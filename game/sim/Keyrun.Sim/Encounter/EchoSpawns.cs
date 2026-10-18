@@ -20,8 +20,26 @@ public static class EchoSpawns
     /// <summary>First Echo add id, far above any dungeon or party id (echo-spawns.ts:28).</summary>
     public const int EchoActorIdBase = 1_000_000;
 
-    /// <summary>echo-spawns.ts:35 stepEchoSpawns.</summary>
+    /// <summary>
+    /// echo-spawns.ts:35 stepEchoSpawns, then (lane 3F, no TS counterpart) the armed boss's post-combat step: this is
+    /// the encounter's one post-combat seam in the run root, so an armed boss's Twins spawn and its Lock reads the
+    /// tick's combos here. Unarmed (Boss null, every oracle run) the result is exactly stepEchoSpawns'.
+    /// </summary>
     public static EchoSpawnResult Step(EncounterState encounter, SimState state, IEnumerable<SimEvent> events, int tick, Action<SimEvent> emit)
+    {
+        ArgumentNullException.ThrowIfNull(encounter);
+        var materialized = events as IReadOnlyCollection<SimEvent> ?? events.ToList();
+        var echo = StepEcho(encounter, state, materialized, tick, emit);
+        if (echo.Encounter.Boss is not { } boss)
+        {
+            return echo;
+        }
+        var post = BossRules.AfterCombat(boss, state, materialized, tick, emit);
+        var spawned = post.Spawned.Count == 0 ? echo.Spawned : echo.Spawned.Concat(post.Spawned).ToList();
+        return new EchoSpawnResult(echo.Encounter with { Boss = post.Boss }, spawned);
+    }
+
+    private static EchoSpawnResult StepEcho(EncounterState encounter, SimState state, IEnumerable<SimEvent> events, int tick, Action<SimEvent> emit)
     {
         var queued = encounter.PendingEchoSpawns.Concat(Clauses.PendingEchoSpawns(events, encounter.Rules)).ToList();
         var due = queued.Where(r => r.SpawnAtTick <= tick).ToList();
