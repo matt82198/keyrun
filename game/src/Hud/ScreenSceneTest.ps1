@@ -20,7 +20,10 @@
          by the item line showing the charges left: 1, 0, 0;
       7. "SCREEN key level=3 locked=0" (the stepper moved from key 2), with three distinct Clause offers;
       8. "SCREEN clause n=2 ... picked=1" for key 3, then "SCREEN queue dungeon=hollow-vault key=3 clause=<that id>".
-  Before 3D there is no screen and none of 2-8 appear (RED).
+      9. "SCREEN queue caption="Enter starts the next run at this key and Clause."" (lane HUD-FU: the one line drawn
+         under the Queue box, Screen.QueueCaption, says what the host does since 3I; never "the host does not read
+         the queued key and Clause").
+  Before 3D there is no screen and none of 2-8 appear (RED). Before HUD-FU there is no caption line: 9 fails (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Hud/ScreenSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -134,8 +137,16 @@ if (-not $queue) {
     }
 }
 
+$captions = @($lines | Where-Object { $_ -match '^SCREEN queue caption=' })
+$caption = First '^SCREEN queue caption="Enter starts the next run at this key and Clause\."$'
+if (-not $caption) {
+    $failures.Add("no 'SCREEN queue caption=""Enter starts the next run at this key and Clause.""' line (got: $($captions -join ' | '))")
+}
+$stale = $captions | Where-Object { $_ -match 'does not read|no Clause' } | Select-Object -First 1
+if ($stale) { $failures.Add("the Queue caption still says the host ignores the queue: '$stale'") }
+
 Write-Output '--- asserted SCREEN lines ---'
-foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $picked, $queue)) {
+foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $picked, $queue, $caption)) {
     if ($l) { Write-Output $l }
 }
 
