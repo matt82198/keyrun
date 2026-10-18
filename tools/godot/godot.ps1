@@ -44,6 +44,19 @@ if ($dotnetRoot) {
     $env:PATH = $dotnetRoot + [IO.Path]::PathSeparator + $env:PATH
 }
 
+# No lingering .NET build daemons. Godot's --build-solutions and --export-release
+# run dotnet build/publish, which by default leave MSBuild worker nodes
+# (/nodeReuse:true, 15 min idle) and the Roslyn VBCSCompiler server (10 min idle)
+# running. Those daemons inherit the caller's stdout/stderr handles, so any caller
+# that reads Godot's output through a pipe (GitHub Actions pwsh steps, `| Out-String`,
+# `| Tee-Object`) blocks until they idle out: 10 to 15 minutes after Godot finished.
+# That made game-e2e's build and export steps take exactly 10:00 / 15:00 extra and
+# blow the job timeout once 1E added a second ProjectReference. Defaults only; an
+# explicit caller value wins.
+if (-not $env:MSBUILDDISABLENODEREUSE) { $env:MSBUILDDISABLENODEREUSE = '1' }
+if (-not $env:UseSharedCompilation) { $env:UseSharedCompilation = 'false' }
+if (-not $env:DOTNET_CLI_USE_MSBUILD_SERVER) { $env:DOTNET_CLI_USE_MSBUILD_SERVER = '0' }
+
 $godotArgs = @($args)
 if ($env:KEYRUN_USER_ARGS) {
     if ($godotArgs -notcontains '--') {
