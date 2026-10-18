@@ -1,0 +1,107 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://src/Host/SimDriver.cs" id="1_driver"]
+[ext_resource type="Script" path="res://src/Host/PlayerInput.cs" id="2_input"]
+[ext_resource type="Script" path="res://src/Host/DebugCleaveEmitter.cs" id="3_cleave"]
+[ext_resource type="PackedScene" path="res://scenes/Actor.tscn" id="4_actor"]
+[ext_resource type="Script" path="res://src/View/TelegraphView.cs" id="5_tgview"]
+[ext_resource type="PackedScene" path="res://scenes/Telegraph.tscn" id="6_tgscene"]
+[ext_resource type="Script" path="res://src/View/CameraRig.cs" id="7_rig"]
+
+[sub_resource type="Environment" id="Env_arena"]
+background_mode = 1
+background_color = Color(0.11, 0.12, 0.15, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.75, 0.78, 0.85, 1)
+ambient_light_energy = 0.45
+
+[sub_resource type="Shader" id="Shader_grid"]
+code = "shader_type spatial;
+
+uniform vec4 base_color : source_color = vec4(0.36, 0.36, 0.39, 1.0);
+uniform vec4 line_color : source_color = vec4(0.24, 0.24, 0.27, 1.0);
+uniform vec4 major_color : source_color = vec4(0.17, 0.17, 0.2, 1.0);
+uniform float cell = 1.0;
+uniform float line_width = 0.035;
+
+varying vec3 world_pos;
+
+void vertex() {
+	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+
+float grid_line(vec2 p, float size, float width) {
+	vec2 g = abs(fract(p / size - 0.5) - 0.5) * size;
+	float d = min(g.x, g.y);
+	float aa = fwidth(d);
+	return 1.0 - smoothstep(width * 0.5, width * 0.5 + aa, d);
+}
+
+void fragment() {
+	float minor = grid_line(world_pos.xz, cell, line_width);
+	float major = grid_line(world_pos.xz, cell * 5.0, line_width * 2.0);
+	vec3 c = mix(base_color.rgb, line_color.rgb, minor);
+	c = mix(c, major_color.rgb, major);
+	ALBEDO = c;
+	ROUGHNESS = 0.92;
+}
+"
+
+[sub_resource type="ShaderMaterial" id="Mat_grid"]
+shader = SubResource("Shader_grid")
+
+[sub_resource type="PlaneMesh" id="Mesh_floor"]
+size = Vector2(40, 40)
+
+[node name="Arena" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_arena")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 12, 0)
+shadow_enabled = true
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+mesh = SubResource("Mesh_floor")
+surface_material_override/0 = SubResource("Mat_grid")
+
+[node name="SimDriver" type="Node" parent="."]
+script = ExtResource("1_driver")
+
+[node name="DebugCleaveEmitter" type="Node" parent="."]
+script = ExtResource("3_cleave")
+
+[node name="PlayerInput" type="Node" parent="."]
+script = ExtResource("2_input")
+
+[node name="Actors" type="Node3D" parent="."]
+
+[node name="Warden" parent="Actors" instance=ExtResource("4_actor")]
+ActorId = 1
+BodyColor = Color(0.2, 0.4, 0.9, 1)
+
+[node name="Box" parent="Actors" instance=ExtResource("4_actor")]
+ActorId = 2
+BoxShape = true
+BodyColor = Color(0.5, 0.5, 0.53, 1)
+
+[node name="Telegraphs" type="Node3D" parent="."]
+script = ExtResource("5_tgview")
+TelegraphScene = ExtResource("6_tgscene")
+
+[node name="CameraRig" type="Node3D" parent="."]
+script = ExtResource("7_rig")
+
+[node name="Camera" type="Camera3D" parent="CameraRig"]
+current = true
+fov = 70.0
+
+[node name="Hud" type="CanvasLayer" parent="."]
+
+[node name="Help" type="Label" parent="Hud"]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 720.0
+offset_bottom = 48.0
+text = "Keyrun arena - WASD move, mouse look, Esc frees the mouse (click to capture)"

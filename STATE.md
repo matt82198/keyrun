@@ -150,8 +150,8 @@ Phase 1 lanes (Opus per D11 unless noted; owned files in ENGINE-PLAN s5). Status
    (vectors, golden traces, bot seeds 7/11, key 10); game/sim/ORACLE.md.
 3. 1C sim core port - DISPATCHED 2026-10-18. Core/**, Combat/Movement.cs, Encounter/Telegraphs.cs; vector parity.
 4. 1D content loader - PR #111 OPEN (game/content/Keyrun.Content, EmbeddedResource from content/data). Not yet on main.
-5. 1E arena scene - after 1C and 1D land. SimDriver 20 Hz, PlayerInput, CameraRig, ActorView, TelegraphView, temporary
-   DebugCleaveEmitter. Proof: headless autorun log + 3 --write-movie frames.
+5. 1E arena scene - PR #117 OPEN (feat/arena-1e), auto-merge armed. SimDriver 20 Hz, PlayerInput, CameraRig,
+   ActorView, TelegraphView, temporary DebugCleaveEmitter; scene test SimDriverSceneTest.ps1 (not wired into CI).
 6. 1F docs - THIS PR (docs/phase1-1f): CLAUDE.md domain map, game/CLAUDE.md, README run section, ENGINE-PLAN 3D/3F
    additions, D13, the 1D content finding. Haiku, docs only.
 Next after 1F: phase 2 (ENGINE-PLAN section 5: 2A-2E), dispatched after 1E lands on main.

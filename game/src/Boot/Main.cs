@@ -27,7 +27,16 @@ public partial class Main : Node3D
         var userArgs = OS.GetCmdlineUserArgs();
         _smoke = Array.IndexOf(userArgs, "--smoke") >= 0;
         GD.Print($"Keyrun boot: engine {Engine.GetVersionInfo()["string"]}, sim {SimAssemblyName()}");
+        if (!_smoke)
+        {
+            // Lane 1E: everything except the smoke check boots into the arena (SimDriver reads
+            // --autorun, --ticks, --log and --write-movie there).
+            GetTree().CallDeferred(SceneTree.MethodName.ChangeSceneToFile, ArenaScene);
+        }
     }
+
+    /// <summary>The phase 1 arena scene (lane 1E).</summary>
+    public const string ArenaScene = "res://scenes/Arena.tscn";
 
     /// <inheritdoc />
     public override void _Process(double delta)
