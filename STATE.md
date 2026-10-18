@@ -11,9 +11,9 @@ assets; pure POC.
 - Main tip: 10de063 (#106 squash, scaleStep keeps every). Prior main tips: 56c5686 (#105), b54eb40 (#104 docs), 2c8f8ea (#102), 54e69c5 (#99), 00e4ebb (#98).
 - Merged today since the 23:30Z checkpoint: #101 99836b0 (window ring labels + payoff-ready key glow + ping context + aimed spot ping); #102 2c8f8ea (bots/src/roles/shared.ts inLull, tank-pressure.ts).
 - MERGED 99f39a2: #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info).
-- Phase: 3 rows 3A-3J all MERGED on main (2026-10-18, verified per PR, see NEXT STEPS). PHASE 3 EXIT NOT RECORDED: the
-  2026-10-18 plan-vs-output oracle verdict on D10 is NOT-MET (DECISIONS AND OBSERVATIONS (d)). Phase 5 "Matt playing" is
-  the acceptance test; not yet reached. Phase 4 (TS deletion) stays blocked on D10.
+- Phase: 3 rows 3A-3J all MERGED on main (2026-10-18, verified per PR, see NEXT STEPS). PHASE 3 EXIT NOT RECORDED. D10
+  verdict: first pass NOT-MET (DECISIONS AND OBSERVATIONS (d)); second pass MET-WITH-TUNING-GAP (NEXT ORDER, 2026-10-18).
+  Phase 5 "Matt playing" is the acceptance test; not yet reached. Phase 4 (TS deletion) stays blocked on D10.
 - Earlier landed (unchanged): #92 e3f622e, #95 e56955c, #97 08b9611, #98 00e4ebb, #99 54e69c5.
 - Test count on 2c8f8ea: not restated in this checkpoint (not sourced for this head).
 - NEXT (supersedes the status in NEXT STEPS item 1; rewritten 2026-10-18 from BUILDLOG.md and git log -15):
@@ -170,19 +170,46 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   - 3B bots roles #133 138595a9; 3C HUD #135 3fc7fc69; 3D screen + Clause pick #138 301d0555; 3E e2e #139 be5ee827;
     3F boss Twins + Lock #137 66d457f3; 3G backfill #140 fd0924a5; 3H bot party #136 e0278237; 3I host wiring #141
     6036fdb0; 3J host backfill #142 c03f9055.
-  - PHASE 3 EXIT NOT RECORDED (2026-10-18). Merging proves the code paths exist, not that Matt can play the run. The
-    oracle verdict is D10 NOT-MET (DECISIONS AND OBSERVATIONS (d)). Phase 3 exit is recorded only after the human-played
-    path is measured, not on CI.
+  - PHASE 3 EXIT NOT RECORDED (2026-10-18). Merging proves the code paths exist, not that Matt can play the run. Phase 3
+    exit is recorded only after the human-played path is measured, not on CI.
   - 3B must verify 3A's hand-corrected floor keepNear expectation against the frozen TS test (3A hand-back caveat).
-- NEXT ORDER (2026-10-18, after the oracle verdict; resume here, in this order):
-  1. Land fix/hud-followup (IN FLIGHT, branch fix/hud-followup, worktree keyrun-wt/hud-followup): removes the P0 wrong
-     text in Screen.cs:527-532 (DrawQueue says the host does not read the queued key and Clause; false since #141).
-     Wrong data shown to a user blocks new keyrun feature work until merged.
-  2. Lane 3D-b (OPEN): open the between-runs screen before the first run, per ENGINE-PLAN.md:219-220. Today it opens
-     only from RunEndPanel.cs:219 after a reward take. Queued behind fix/hud-followup (both own Screen.cs).
-  3. Lane (OPEN, small test lane): assert the Lock outcome in HudSceneTest run D. SimDriver.cs:541 arms lockAt=50, but
-     HudSceneTest.ps1:269 only captures lock_open|lock_broken|lock_failed|boss_enrage and never asserts it.
-  4. Matt plays a run (Phase 5 measurement) and decides run difficulty tuning (DECISION FOR MATT, below).
+  - 2026-10-18 SECOND-PASS ORACLE VERDICT (read-only Haiku oracle, ~19:08Z, source reads at 4b35c98): D10
+    MET-WITH-TUNING-GAP. Supersedes the first-pass NOT-MET in DECISIONS AND OBSERVATIONS (d). Code path exists for every
+    Phase 3 row and the screen-to-run path is wired; the gap is balance, not wiring. Decisive line:
+    game/src/Host/HudSceneTest.ps1:43-45 (every swept key wipes in pull 2 under the scripted autorun Warden). No
+    human-played run is measured anywhere. If D10 requires a survivable run to the boss, the verdict is NOT-MET.
+    WHY: the first pass's wiring drift (3C, 3D-b, 3I) is closed on main; what remains open is balance, which only Matt's
+    play measures. PHASE 3 EXIT stays NOT recorded; Phase 4 stays blocked on D10.
+  - Per-row second-pass status: 3A, 3B, 3C, 3G, 3I, 3J BUILT-AS-INTENDED. 3D BUILT-BUT-DRIFTED (Enter after a wipe with
+    no reward take restarts via StartRun(null) at --key with no Clause, SimDriver.cs:441-445, bypassing the Screen; fix
+    lane feat/wipe-to-screen RUNNING per the orchestrator brief, not verified against a PR here). 3E BUILT-BUT-DRIFTED
+    (walk-kick.json does not drive the Warden; 3E-a recorded-input reader still OPEN). 3F BUILT-BUT-DRIFTED (Lock logic
+    exists, Boss.cs:26, 228-240, but HudSceneTest.ps1:292 captures and only echoes at :414, never asserts; blocked on the
+    tuning decision). 3H BUILT-BUT-DRIFTED (human G-pings not routed to bots: Pinged raised at PlayerInput.cs:148 with no
+    subscriber in game/src/Host; pull 2 wipe still open).
+  - Drift CLOSED since the first pass: 3C banner (AbilityBar.cs) via #144; 3I DrawQueue caption (Screen.cs:40) via #144;
+    3D-b screen first (SimDriver.cs:391) via #145.
+  - "Matt sees" clauses (second pass): launch screen-first PROVEN-IN-CODE; picked key and Clause PROVEN-IN-CODE; Warden
+    plus Cinder and Chanter bots PROVEN-IN-CODE (HostRunSetup.cs:78-83); through three pulls NOT-REACHABLE-IN-PLAY (pull 3
+    only via --pull N); Twins PROVEN-ONLY-UNDER-TEST-FLAGS (--pull 4 --key 10 --seed 7); Lock NOT-REACHABLE-IN-PLAY
+    (tuning); run-end panel PROVEN-IN-CODE.
+  - Lock measurement (lock-assert lane, no PR, no file changes, stopped per brief): 190 autorun runs, keys 2-20 x seeds
+    1-10, 1200 ticks, --pull 4: lock_open 0, lock_broken 0, lock_failed 0, boss_enrage 0 everywhere; run_end wipe in 155
+    of 190. Cause: Boss.cs opens the Lock at LockThresholdBp 5000 (50 percent) of a 60000 HP boss
+    (content/data/enemies/hollow-warden.json); the party dealt about 470 damage before wiping. The 3B claim that bots
+    break 1 of 4 Locks at k10 is NOT reproduced. DECISION FOR MATT: boss HP, lock threshold, or bot DPS tuning before any
+    Lock assertion is written (no fitted green).
+- NEXT ORDER (2026-10-18, second pass; resume here, in this order):
+  Done since the first pass, each verified with `gh pr view N --repo matt82198/keyrun --json state,mergeCommit`:
+  #144 MERGED ed1f2ec7 (HUD follow-up: AbilityBar banner removed; Screen.QueueCaption "Enter starts the next run at this
+  key and Clause."); #145 MERGED 4b35c983 (3D-b: SimDriver.StartsOnScreen, Screen.OpenFirst; HudSceneTest run H asserts
+  `SCREEN first open=1 key=2` and no RUN start on a no-flag launch).
+  1. Land feat/wipe-to-screen (3D-c, RUNNING per the orchestrator brief). Enter after a wipe must go through the Screen
+     (SimDriver.cs:441-445). WHY first: it shares SimDriver.cs with step 3.
+  2. Matt decides Lock/boss tuning (boss HP vs lock threshold vs bot DPS) and general run difficulty. Bring the numbers
+     from the Lock measurement above, not a tuned constant (DECISION FOR MATT, below).
+  3. Route G-pings to bots (3H c) after 3D-c lands.
+  4. Matt plays a run (Phase 5 measurement).
   5. Only then re-run the s10 plan-vs-output check and record PHASE 3 EXIT and D10 (MET / MET-WITH-TUNING-GAP / NOT-MET).
   6. Phase 4: TS deletion after parity. Blocked on step 5.
 
