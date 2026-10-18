@@ -4,7 +4,28 @@ Keyrun is a proof-of-concept co-op dungeon game for Windows desktop, with 3D ren
 
 ## Status
 
-Proof of concept, in the engine rebuild. ENGINE-PLAN phase 1 is in progress: lanes 1A (scaffold), 1B (oracle), 1C (sim core), 1D (content loader) and 1F (docs) are merged; 1E (arena scene) is in progress. Phase 2 (full sim parity and playable combat) is next. Decisions are recorded in [STATE.md](STATE.md); the domain map is in [CLAUDE.md](CLAUDE.md).
+Proof of concept, in the engine rebuild.
+
+- ENGINE-PLAN phases 1 and 2 have landed on main.
+- Phase 3 rows 3A-3J have landed on main (bot party, HUD, between-runs screen, e2e, boss, backfill, host wiring).
+- Phase 3 exit is not recorded. D10 has a tuning gap: under the scripted autorun Warden every swept key wipes in pull 2, and no human-played run has been measured yet (the Lock proof waits on a tuning decision from Matt).
+- Phase 4 stays blocked on D10. Decisions are recorded in [STATE.md](STATE.md); the domain map is in [CLAUDE.md](CLAUDE.md).
+
+## Record and replay a run
+
+A run's keys and camera yaw can be recorded from an interactive launch and replayed later at the same seed and key. The log is `keyrun.input-log/2`; camera pitch is not recorded. Build first:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/godot.ps1 --headless --path game --build-solutions --quit
+```
+
+Play a run and record it (the log is written at each run end and at quit):
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/godot.ps1 --path game '--' --record-input game/fixtures/input/my-run.input-log.json --log build/my-run.txt
+```
+
+Replay the same log with `--replay-input` in place of `--record-input`, on the same path. A replay at a different seed or key is refused. Both flags are interactive only and are ignored under `--autorun`.
 
 ## Run (desktop build)
 
