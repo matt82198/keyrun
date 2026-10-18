@@ -11,7 +11,9 @@ assets; pure POC.
 - Main tip: 10de063 (#106 squash, scaleStep keeps every). Prior main tips: 56c5686 (#105), b54eb40 (#104 docs), 2c8f8ea (#102), 54e69c5 (#99), 00e4ebb (#98).
 - Merged today since the 23:30Z checkpoint: #101 99836b0 (window ring labels + payoff-ready key glow + ping context + aimed spot ping); #102 2c8f8ea (bots/src/roles/shared.ts inLull, tank-pressure.ts).
 - MERGED 99f39a2: #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info).
-- Phase: 3 closing into 3D MVP (D10). Phase 5 "Matt playing" is the acceptance test; not yet reached.
+- Phase: 3 rows 3A-3J all MERGED on main (2026-10-18, verified per PR, see NEXT STEPS). PHASE 3 EXIT NOT RECORDED: the
+  2026-10-18 plan-vs-output oracle verdict on D10 is NOT-MET (DECISIONS AND OBSERVATIONS (d)). Phase 5 "Matt playing" is
+  the acceptance test; not yet reached. Phase 4 (TS deletion) stays blocked on D10.
 - Earlier landed (unchanged): #92 e3f622e, #95 e56955c, #97 08b9611, #98 00e4ebb, #99 54e69c5.
 - Test count on 2c8f8ea: not restated in this checkpoint (not sourced for this head).
 - NEXT (supersedes the status in NEXT STEPS item 1; rewritten 2026-10-18 from BUILDLOG.md and git log -15):
@@ -163,12 +165,26 @@ Every keyrun checkpoint runs the plan-vs-output check (aesop LANE-CONTRACT secti
 Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 origin/main`, origin/main 4572642):
 - Phase 1 complete: 1A 59d45d1 (#109), 1B 59a7acb (#110), 1F 9d75ed1 (#112), 1D 727e0ea (#111), 1C 2bab32f (#114), 1E 3f720b0 (#117).
 - Phase 2 complete, exit at #131 merge 4572642: 2A #121 c329c02, 2B #124 f5afcf6, 2C #122 a53a68a, 2D #129 2919ad0, 2E #131 4572642.
-- Phase 3 in progress:
-  - 3A bots core MERGED (#130, 9c8a5ca).
-  - 3B bots roles IN PROGRESS (branch feat/bots-3b). Evidence: local branch exists at 9c8a5ca with no commits past the 3A merge; `git ls-remote` found no origin/feat/bots-3b on 2026-10-18.
-  - 3C HUD IN PROGRESS (branch feat/hud-3c). Evidence: local branch exists at 4572642 with no commits past main; `git ls-remote` found no origin/feat/hud-3c on 2026-10-18.
-  - Phase 3 exit is the D10 candidate: one complete 3D run Matt can play end to end.
+- Phase 3 rows all MERGED on main (2026-10-18; each PR checked with `gh pr view N --json state,mergeCommit`):
+  - 3A bots core #130 9c8a5ca (supporting #132 fa65528, #134 f5361b62).
+  - 3B bots roles #133 138595a9; 3C HUD #135 3fc7fc69; 3D screen + Clause pick #138 301d0555; 3E e2e #139 be5ee827;
+    3F boss Twins + Lock #137 66d457f3; 3G backfill #140 fd0924a5; 3H bot party #136 e0278237; 3I host wiring #141
+    6036fdb0; 3J host backfill #142 c03f9055.
+  - PHASE 3 EXIT NOT RECORDED (2026-10-18). Merging proves the code paths exist, not that Matt can play the run. The
+    oracle verdict is D10 NOT-MET (DECISIONS AND OBSERVATIONS (d)). Phase 3 exit is recorded only after the human-played
+    path is measured, not on CI.
   - 3B must verify 3A's hand-corrected floor keepNear expectation against the frozen TS test (3A hand-back caveat).
+- NEXT ORDER (2026-10-18, after the oracle verdict; resume here, in this order):
+  1. Land fix/hud-followup (IN FLIGHT, branch fix/hud-followup, worktree keyrun-wt/hud-followup): removes the P0 wrong
+     text in Screen.cs:527-532 (DrawQueue says the host does not read the queued key and Clause; false since #141).
+     Wrong data shown to a user blocks new keyrun feature work until merged.
+  2. Lane 3D-b (OPEN): open the between-runs screen before the first run, per ENGINE-PLAN.md:219-220. Today it opens
+     only from RunEndPanel.cs:219 after a reward take. Queued behind fix/hud-followup (both own Screen.cs).
+  3. Lane (OPEN, small test lane): assert the Lock outcome in HudSceneTest run D. SimDriver.cs:541 arms lockAt=50, but
+     HudSceneTest.ps1:269 only captures lock_open|lock_broken|lock_failed|boss_enrage and never asserts it.
+  4. Matt plays a run (Phase 5 measurement) and decides run difficulty tuning (DECISION FOR MATT, below).
+  5. Only then re-run the s10 plan-vs-output check and record PHASE 3 EXIT and D10 (MET / MET-WITH-TUNING-GAP / NOT-MET).
+  6. Phase 4: TS deletion after parity. Blocked on step 5.
 
 ## Decisions for Matt
 Verbatim from the recon file's "Decisions for Matt / sim lanes (not client work)" list:
@@ -221,6 +237,34 @@ Additional parked decisions (from the burn ledger):
      tests keep drawing decals only.
 - (c) OBSERVATION 2026-10-17: with hz=60 at key 2 the bot party is mostly DOWNED for much of the run (idle-human-warden
   sim). Needs a tuning decision from Matt. Source: orchestrator brief for this lane; not yet in BUILDLOG.md.
+- (d) PHASE 3 ORACLE VERDICT 2026-10-18 (read-only plan-vs-output lane, ~18:25Z, source reads at c03f905): D10 NOT-MET
+  on the end-to-end bar. Decisive line: game/src/Host/HudSceneTest.ps1:43-45 records that every swept key (2,5,8,10,12,15,20)
+  wipes in pull 2 under the scripted autorun Warden, so no run in play reaches pull 3 or the boss without a start-pull
+  flag. The code path for the whole run exists (host, bots, boss arm, twins, queue, backfill), but the human-played path
+  is unmeasured, so even MET-WITH-TUNING-GAP is unproven. WHY this is recorded as NOT-MET and not MET: the bar is what Matt
+  can play, and no measured run reaches the boss. PHASE 3 EXIT is NOT recorded.
+  Drift per row (plan vs code, from the same lane):
+  - 3C: banner "Run over ... press Enter" at game/src/Hud/AbilityBar.cs:114 is not in the plan (fix/hud-followup RUNNING).
+  - 3D: the screen opens only from RunEndPanel.cs:219 after a reward take; ENGINE-PLAN.md:219-220 says it comes up before
+    the run starts (OPEN, build gap; step 2 above).
+  - 3E: game/fixtures/input/walk-kick.json does not drive the Warden; SimDriver reads no input file (OPEN, 3E-a
+    recorded-input reader).
+  - 3F: Lock is armed (SimDriver.cs:541 lockAt=50) but never asserted (step 3 above).
+  - 3G: default abandon is 1@1000 while the plan acceptance says pull 2 (minor, note only).
+  - 3I: Screen.cs:527-532 DrawQueue text is false since #141; P0 (step 1 above).
+  Other open items carried from lane hand-backs:
+  - 3H (c): human G-pings are not passed to RunBots. 3H (d): the scripted autorun party clears the Choir at about tick
+    3150, then wipes on the Pair at key 2.
+  - 3C: reward cards use placeholder ids; wipe title shows when PullIndex < Pulls.Count.
+  - cinderfield self-hit: REAL-BY-DESIGN, MEDIUM, at game/sim/Keyrun.Sim/Encounter/Payoff.cs:153 (mirrors payoff.ts:117).
+    DECISION FOR MATT: should field combos hit the caster (BIBLE section 5)? Same as defect (m) above.
+  - Cast-range finding from 3I: REFUTED by source recon (range checked at ScriptTarget.cs:31-32,100-108,120-122 and
+    Casting.cs:84-97). The 13-17 m figure is the spawn gap.
+  - D13 nuance: the Smart App Control block is intermittent. It did not block the 3D/3E/3F/3G/3I/3J test runs. A fresh
+    exported exe sometimes crashes with `gd_mono.cpp:487 Failed to get GodotPlugins initialization function pointer`
+    (rc -1073741819). Reported literally; no lane touches security settings.
+  - DECISION FOR MATT: run difficulty tuning. Under autorun no key reaches the boss. At `--pull 4 --key 10 --seed 7` the
+    party wipes at the boss by tick 400, before any Lock.
 
 ## Standing rules
 - Every audit and integration test reproduces through the public path (createRun/stepRun, the bot loop, the server
