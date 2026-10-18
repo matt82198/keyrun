@@ -69,3 +69,4 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
   not under the root content/ tree, which is a frozen oracle root), loaded as `ContentRegistry.Run` and passed to
   Keyrun.Sim as `MovementConfig`. SimDriver holds no movement constants. `game/content/.gdignore` keeps Godot out of the
   content libraries (no .uid files there).
+- 2A combat-damage (sim/Keyrun.Sim/Combat/{Types,Actors,Damage,Mitigation,Effects,EffectsRemove,Cooldowns,Threat,Targeting}.cs): Types.cs holds the shared AbilityDef/EffectOp/EffectDef/Affinity records lane 2B builds on; Pact weighting enters Damage/Mitigation as a `DamageWeighting` argument (null = no active rules), and `Targeting.ResolveTargets` takes the ability's Affinity from the caller. Gate: `CombatOracleDamageTests` replays every damage, heal and death event of the 5 oracle traces through the port against an hp ledger.
