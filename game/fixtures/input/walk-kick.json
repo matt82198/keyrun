@@ -1,0 +1,20 @@
+{
+  "schema": "keyrun.e2e.walk-kick/1",
+  "about": "The scripted human input for the game-e2e pull-1 run (ENGINE-PLAN 3E). SimDriver reads no input file: under --autorun the human Warden (seat 1) is driven by ScriptedWarden (game/src/Host/PlayerInput.cs), and the plan below records what that script does. game/src/Host/E2eAssert.ps1 reads 'run' to build the exported-exe command line and checks it fail-closed. Seats 2 and 3 are the 3H bot party (BotCommandSource), not input.",
+  "warden": {
+    "seat": 1,
+    "driver": "ScriptedWarden",
+    "plan": [
+      { "step": "walk", "toward": "choir.lieutenant", "untilRangeMm": 2400 },
+      { "step": "kick", "ability": "warden.shieldBash", "on": "interruptible lieutenant cast", "when": "half the cast has elapsed and the target is in range" },
+      { "step": "defensive", "ability": "warden.brace", "when": "health below half" },
+      { "step": "rotation", "abilities": ["warden.reckoning", "warden.vigil", "warden.guardBreak", "warden.strike"], "when": "GCD ready" }
+    ]
+  },
+  "run": {
+    "fixedFps": 60,
+    "ticks": 3700,
+    "mustPassTick": 295,
+    "args": ["--autorun"]
+  }
+}
