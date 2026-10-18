@@ -21,8 +21,8 @@
          (Rewards.RollRewardChoices over the Warden's content facet pool, lane 3C-d: no placeholder "ability-<n>"
          id), and "HUD runend cause seat=1" lines naming only seat 1's own causes; every "HUD runend result=" line of
          every autorun (A-G) titles a cleared=1 run "Run cleared -- ..." and a cleared=0 depleted run "Party wiped
-         on pull <n> of <total> -- key depleted" (no autorun here clears the dungeon, so the clear title is checked
-         only when one does; the count of cleared runs is printed).
+         on pull <n> of <total> -- key depleted" (run C clears the dungeon since lane TUNE-BOSS, so the clear title
+         is checked on it; the count of cleared runs is printed).
     Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 400 --pull 2 --solo
       7. "HUD objective pull=2/4 id=pair name="The Pair"", and the wipe title "Party wiped on pull 2 of 4 -- key
          depleted" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
@@ -36,8 +36,9 @@
      11. the party reaches the Pair or run_end, is not wiped by tick 295, and a "HUD ping label=SPREAD|STACK" line
          appears before the party's third death (a call during a live run);
      12. a bot seat takes damage and every "HUD runend cause" line is seat 1's (the private run log's seat filter
-         with more than one seat in the sim), and the party's wipe is titled "Party wiped on pull 2 of 4 -- key
-         depleted" (it wipes in the Pair at seed 1 key 2, lane 3C-d);
+         with more than one seat in the sim), and the party clears the dungeon (lane TUNE-BOSS, STATE.md D14): a
+         "PULL spawn index=3 id=boss actors=900:hollowWarden.boss" line and a lockIndex 1 "lock_open" EVENT before
+         run_end, and the run-end panel titled "Run cleared -- within par" (run_end timed at tick 6787 at seed 1 key 2);
      13. "BOTS done commands=N hash=H" with N > 0, equal across the two runs (bot determinism).
     Run D (lane 3I, the armed boss; from pull 4, the boss pull, three-seat party, key 10 seed 7):
         -- --autorun --ticks 600 --pull 4 --key 10 --seed 7
@@ -47,9 +48,10 @@
      15. "PULL spawn index=0 id=boss actors=900:hollowWarden.boss";
      16. two "boss_add_spawn" EVENTs, 901 hollowWarden.twinA and 902 hollowWarden.twinB, both for boss 900 (the Sundered
          Twins exist only when the encounter is armed: an unarmed run never emits it).
-         Why --pull 4: no key reaches the boss from pull 1 under autorun. Lane 3I swept keys 2, 5, 8, 10, 12, 15, 20
-         at seeds 1 and 7 for 8000 ticks: every run wiped in pull 2 (the Pair, run_end depleted at tick 3611-5381),
-         because the human seat is PlayerInput's ScriptedWarden, not the 3B tank bot that 3F's k10 s7 probe used.
+         Why --pull 4: key 10 does not reach the boss from pull 1 under autorun. Lane 3I swept keys 2, 5, 8, 10, 12,
+         15, 20 at seeds 1 and 7 for 8000 ticks: every run wiped in pull 2 (the Pair, run_end depleted at tick
+         3611-5381), because the human seat is PlayerInput's ScriptedWarden, not the 3B tank bot that 3F's k10 s7
+         probe used. Since lane TUNE-BOSS (STATE.md D14) keys 2 and 5 clear from pull 1 (run C); key 10 still wipes.
     Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 480 --solo --requeue
         (--requeue: an autorun starts the queued run only when asked, so runs A-D and the other scene tests stay one
         run each; an interactive game always starts it)
@@ -150,7 +152,7 @@
 param(
     [int]$Ticks = 400,
     [int]$PingTicks = 400,
-    [int]$PartyTicks = 3700,
+    [int]$PartyTicks = 7000,
     [int]$BossTicks = 600,
     [int]$QueueTicks = 480,
     [int]$BackfillTicks = 3300,
@@ -342,12 +344,21 @@ if (-not $livePing) { $failures.Add('run C: no "HUD ping label=SPREAD|STACK" lin
 $causesC = @($c.Lines | Where-Object { $_ -match '^HUD runend cause ' })
 $foreignC = @($causesC | Where-Object { $_ -notmatch '^HUD runend cause seat=1 ' })
 if ($foreignC.Count -gt 0) { $failures.Add("run C: seat 1's run-end panel shows another seat's cause: '$($foreignC[0])'") }
-# Lane 3C-d: from pull 1 the party wipes in the Pair (run_end depleted at tick 3611 at seed 1 key 2), titled pull 2.
+# Lane TUNE-BOSS (STATE.md D14): from pull 1 the party clears the dungeon at seed 1 key 2 (run_end timed at tick
+# 6787): it reaches the boss, the Lock opens before run_end, and the run-end panel carries the clear title.
 $runEndC = First $c.Lines '^HUD runend result='
 if (-not $runEndC) {
-    $failures.Add("run C: no 'HUD runend result=' line in $PartyTicks ticks (the party's wipe in the Pair was not titled)")
-} elseif ($runEndC -notmatch '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 2 of 4 -- key depleted"$') {
-    $failures.Add("run C: the party's wipe title is not 'Party wiped on pull 2 of 4 -- key depleted': '$runEndC'")
+    $failures.Add("run C: no 'HUD runend result=' line in $PartyTicks ticks (the party's run did not end on the run-end panel)")
+} elseif ($runEndC -notmatch '^HUD runend result=timed choices=3 cleared=1 tick=\d+ title="Run cleared -- within par"$') {
+    $failures.Add("run C: the party's run-end title is not the clear title 'Run cleared -- within par': '$runEndC'")
+}
+$bossC = First $c.Lines '^PULL spawn index=3 id=boss actors=900:hollowWarden\.boss$'
+if (-not $bossC -or [array]::IndexOf($c.Lines, $bossC) -gt $iRunEnd) {
+    $failures.Add("run C: the party never reached the boss before run_end (no 'PULL spawn index=3 id=boss actors=900:hollowWarden.boss' line)")
+}
+$lockC = First $c.Lines '^EVENT \{"actorId":900,"endsTick":\d+,"lockIndex":1,"tick":\d+,"type":"lock_open"\}$'
+if (-not $lockC -or [array]::IndexOf($c.Lines, $lockC) -gt $iRunEnd) {
+    $failures.Add("run C: the Lock never opened before run_end (no 'EVENT {""actorId"":900,...,""lockIndex"":1,...,""type"":""lock_open""}' line)")
 }
 $botHit = First $c.Lines '^EVENT \{.*"healthDamage":[1-9]\d*,.*"sourceId":(1\d\d|900),"targetId":[23],.*"type":"damage"'
 if (-not $botHit) { $failures.Add('run C: no enemy damaged a bot seat, so the private-log seat filter is not exercised') }
@@ -475,8 +486,8 @@ if ($g.Refill) { $failures.Add("run G: a key-3 joiner refilled a key-2 run: '$($
 if ($g.Consume) { $failures.Add("run G: the key-3 joiner was consumed: '$($g.Consume)'") }
 
 # ---- Run-end titles across every autorun (lane 3C-d) ----------------------------------------------------------
-# A cleared run keeps the clear title; a wipe names the pull it was lost on. No autorun above clears the dungeon
-# (every run wipes or times out of ticks), so the cleared branch is checked only if one does: $clearedTitles says how many.
+# A cleared run keeps the clear title; a wipe names the pull it was lost on. Run C (and its repeat) clears the dungeon
+# since lane TUNE-BOSS; the other autoruns wipe or time out of ticks: $clearedTitles says how many cleared.
 $titleLines = @(@($a.Lines) + @($b.Lines) + @($c.Lines) + @($c2.Lines) + @($d.Lines) + @($e.Lines) + @($f.Lines) + @($g.Lines) | Where-Object { $_ -match '^HUD runend result=' })
 $clearedTitles = 0
 foreach ($t in $titleLines) {
@@ -791,7 +802,7 @@ foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $sl
 Write-Output "--- run-end titles, lane 3C-d (lines=$($titleLines.Count) cleared=$clearedTitles) ---"
 foreach ($l in $titleLines) { Write-Output $l }
 Write-Output '--- run C (bot party) ---'
-foreach ($l in $seats + $botCasts + @($pull2, $tick295, $livePing, $runEndEv, $runEndC, $botHit) + $causesC + @($botsC, $botsC2)) {
+foreach ($l in $seats + $botCasts + @($pull2, $tick295, $livePing, $bossC, $lockC, $runEndEv, $runEndC, $botHit) + $causesC + @($botsC, $botsC2)) {
     if ($l) { Write-Output $l }
 }
 Write-Output '--- run D (armed boss) and run E (queued run), lane 3I ---'
