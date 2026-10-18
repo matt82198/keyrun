@@ -156,11 +156,27 @@ Matt sees: double-click build/keyrun.exe. A native window opens: a grey floor wi
 third-person camera, WASD to move, mouse to look (Esc frees the mouse), and every 8 s a red cone that fills on the
 floor in front of a grey box, then flashes and fades.
 
+Phase 1 exit check 2026-10-18: DRIFT (plan-vs-output check of the merged 1E arena, PR #117, main 3f720b0).
+- Host stand-ins in game/src/Host/SimDriver.cs:173-180 are not the TS values: speed 180 (BaseSpeedMmPerTick,
+  line 174), radius 400 (ActorRadiusMm, line 177), bounds +-19600 (ArenaBounds, line 180). TS run-setup.ts:57
+  DUNGEON_BOUNDS is -4000..18000 in x and -6000..9000 in z. Owed to lane 2B/2D: the host reads speed, radius and
+  bounds from sim run setup, never from constants.
+- CI gap: game.yml runs only boot and exported-exe `--smoke` (lines 78-86, 116-123); game-e2e runs no scene. The
+  SimDriverSceneTest.ps1 script is wired into no job. Owed to follow-up lane L2, which can start now because #117
+  is already on origin/main.
+
 ### Phase 2: full sim parity + playable combat (one human Warden, no bots)
 - 2A combat-damage (Opus): Combat/{Actors,Damage,Mitigation,Effects,EffectsRemove,Cooldowns,Threat,Targeting,Types}.cs.
 - 2B combat-cast (Opus): Combat/{Abilities,Casting,Windows,WindowState,Combos,Payoff,FloorTelegraphs,Affinity,ClauseHooks,Rules}.cs.
   It takes 2A's public types as given. If 2A is not merged, 2B starts after it, since they share Types.cs.
+  FACET RUNTIME (BIBLE s7, owner 2B): every facet op kind the content uses (Window effectsAppend with setupClass,
+  combo/comboTable, resource.resource, shapes that use width) runs in the sim. Acceptance: one sim test per op
+  kind asserts its state change; an unknown facet op fails the content validator closed. Any resource.resource
+  change to Effects.cs is a 2A edit that 2B lands after 2A merges.
 - 2C encounter (Opus): Encounter/** except Telegraphs.cs (scripts, pulls, chase, tempo, timer, breakbar, clauses, echo, rewards, script-target).
+  SEED WINDOW LOOT (BIBLE s9 item 3, owner 2C): the Seed elite drops a Window on death through 2B's Windows API;
+  a Combo landed in that Window sets a bonus-loot entry in the run's rewards. Acceptance: scripted pull-3 fixture,
+  one test with the Combo (bonus entry present) and one without (absent).
 - 2D run root (Opus, after 2A-2C): Run/{Run,RunWiring,RunOptions,RunTypes}.cs + tools/Keyrun.Replay. GATE: content-pull and
   scripted-pull traces match on every tick.
 - 2E combat view (Opus, parallel with 2D on View/Hud only): game/src/View/{CastBarView,WindowRingView,LabelView}.cs,
@@ -176,9 +192,15 @@ floor in front of a grey box, then flashes and fades.
   GATE: seeds 7 and 11 plus the key-10 traces match on every tick.
 - 3C HUD (Opus, parallel): game/src/Hud/{PartyFrames,Objective,TimerSlack,Pings,RunEndPanel}.cs, game/scenes/{Hud,RunEnd}.tscn:
   status chips, DOWNED, SPREAD/STACK labels, Slack bar, run-end choice of three (BIBLE s7).
+  PRIVATE RUN LOG (BIBLE s10, owner 3C): RunLog.cs stays the 1E harness JSONL and is not player-facing. The
+  RunEndPanel shows the local player only their own causes from SimEvents. Acceptance: two-seat test where
+  seat B's panel never contains seat A's entries.
 - 3D screen + Clause pick (Opus, after 3C): the BIBLE s10 screen (three bands: Character with the five abilities and
-  keybinds, Key with stepper and Clause pick, Queue as one button, no backfill yet) and the BIBLE s8 Clause pick (one of
-  Echo, Tide, Hush, Pact; exactly one runs). Also the BIBLE s7 progression loop: end-of-run choose one of three with
+  keybinds, Key with stepper and Clause pick, Queue as one button; backfill is lane 3G) and the BIBLE s8 Clause pick
+  (the party is offered three of Echo, Tide, Hush, Pact and picks one; exactly one runs). Also the BIBLE s7
+  CRAFTING REROLL: two charges per item, each reroll draws only from that slot's listed pool, a third is refused.
+  Acceptance: 1000 seeded rerolls all land in the pool; the third call is refused in a sim test; the screen
+  shows charges left. Also the BIBLE s7 progression loop: end-of-run choose one of three with
   Facet text and tier, Ash banked per run, cap at Tier 10. Files: game/src/Hud/{ClausePick,Screen}.cs, game/scenes/Screen.tscn,
   and sim-side Clause and Ash rules as pure net8.0 code in game/sim/Keyrun.Sim (no Godot reference).
   WHY (intent check 2026-10-18): s7, s8 and s10 are in the BIBLE MVP, but phases 1 to 3 never planned the screen,
@@ -190,8 +212,13 @@ floor in front of a grey box, then flashes and fades.
   These are NEW behaviour, so they diverge from the TS oracle and get regenerated goldens with a stated reason (section 5
   phase 5 rule). WHY (intent check 2026-10-18): Twins and Lock are in the BIBLE s9 MVP, but phases 1 to 3 omitted them.
   Matt's first playtest is the D10 MVP, so they land before it, not in phase 5.
+- 3G backfill (Opus, after 3D): a slot that empties mid-run is offered to the queue at the same key (BIBLE s10;
+  Fellowship defect, research/09). Sim: game/sim/Keyrun.Sim/Run/Backfill.cs (pure net8.0); UI: game/src/Hud/Queue.cs.
+  Acceptance: a scripted abandon at pull 2 is refilled; the joiner first acts at the next pull start with the
+  run's Slack value unchanged (sim test asserts both); a joiner queued at key 2 is refused a key-10 run.
 - Matt sees: launch, then a full run with the Warden plus a Cinder and Chanter bot party through three pulls and the boss
   (Twins and Lock included), ending on the run-end panel. The screen and Clause pick come up before the run starts.
+  D10 wording (STATE.md: "one class plus bot party") is satisfied by this Warden plus Cinder and Chanter party.
 
 ### Phase 4: retire TS (orchestrator decides once both phase 2 and phase 3 gates are green)
 - 4A one PR: delete the paths listed in section 3; `git mv content/data game/content/data` + edit the one csproj glob;
