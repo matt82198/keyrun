@@ -21,6 +21,26 @@
     7. "BOTS done commands=N hash=H" with N > 0, and the same line in run 2 (determinism).
   Any missing line exits 1. A --solo run (ExtraArgs '--solo') has one seat and no bots, so it must FAIL.
 
+  Replay pass (lane 3E-a2, ENGINE-PLAN row 3E "a recorded file drives the Warden"): the same exe is then run twice in
+  INTERACTIVE mode (no --autorun) replaying the recorded input log -ReplayFixture through the real PlayerInput route:
+
+    <exe> --headless --fixed-fps 60 --quit-after 900 -- --replay-input <ReplayFixture> --log <OutDir>/e2e-replayN.log
+
+  (SimDriver.MaybeReplay feeds each event through Input.ParseInputEvent and each camera heading through
+  CameraRig.RestoreYaw. Interactive TICK lines go to the --log file only; RunLog.Tick echoes them to the console under
+  --autorun alone. Both paths are made absolute: the exported exe resolves a relative path against its own folder.)
+  From those two runs it asserts:
+
+    8. exit 0, one "INPUT replay tick=T key=K pressed=B" line per fixture event, "INPUT replay done events=N ..." with
+       N > 0 and N = the fixture's event count, and no scripted "INPUT enter|ping|yaw" line;
+    9. the replay drove the Warden: "TICK 0".."TICK <ReplayTicks-1>" warden lines are all in the --log file (a launch
+       without --replay-input waits on the between-runs screen and logs no TICK line at all), the Warden moved at
+       least 1000 mm across them, and, when the fixture holds camera headings, the Warden's facing at the first
+       heading's tick + 20 differs from its facing the tick before it;
+   10. determinism: the SHA-256 (first 16 hex) of those TICK lines, each ending in LF, is equal in both runs and equals
+       $ReplayTickDigest committed below (computed once from the default fixture; a deliberate change to the fixture
+       or the sim regenerates it with a stated reason, never to fit a red run).
+
   Run from the repo root after an export:
     powershell -ExecutionPolicy Bypass -File game/src/Host/E2eAssert.ps1 [-Exe build/keyrun.console.exe] [-ExtraArgs '--solo']
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (exe or fixture missing).
@@ -29,9 +49,15 @@ param(
     [string]$Exe = 'build/keyrun.console.exe',
     [string]$Fixture = 'game/fixtures/input/walk-kick.json',
     [string]$OutDir = 'build',
-    [string[]]$ExtraArgs = @()
+    [string[]]$ExtraArgs = @(),
+    [string]$ReplayFixture = 'game/fixtures/input/example-yaw-walk.input-log.json'
 )
 $ErrorActionPreference = 'Stop'
+
+# Replay pass constants (lane 3E-a2). The digest is of TICK 0..ReplayTicks-1 of the default ReplayFixture's replay.
+$ReplayFrames = 900
+$ReplayTicks = 240
+$ReplayTickDigest = '94eb4f3d216477f9'
 
 $failures = New-Object System.Collections.Generic.List[string]
 
@@ -41,6 +67,10 @@ if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $Fixture -PathType Leaf)) {
     Write-Output "E2eAssert: CANNOT RUN (input fixture not found: $Fixture)"
+    exit 2
+}
+if (-not (Test-Path -LiteralPath $ReplayFixture -PathType Leaf)) {
+    Write-Output "E2eAssert: CANNOT RUN (replay input log not found: $ReplayFixture)"
     exit 2
 }
 
@@ -141,10 +171,110 @@ elseif ($bots1 -match 'commands=0 ') { $failures.Add("run 1: the bots issued no 
 if (-not $bots2) { $failures.Add('run 2: no "BOTS done commands=N hash=H" line') }
 if ($bots1 -and $bots2 -and $bots1 -ne $bots2) { $failures.Add("bot command stream differs across two same-seed runs: '$bots1' vs '$bots2'") }
 
+# ---- replay pass (lane 3E-a2): a recorded input log drives the Warden through PlayerInput --------------------------
+$replayFull = (Resolve-Path -LiteralPath $ReplayFixture).Path
+$outFull = (Resolve-Path -LiteralPath $OutDir).Path
+$replaySpec = Get-Content -LiteralPath $replayFull -Raw | ConvertFrom-Json
+$replayEvents = @($replaySpec.events | Where-Object { $null -ne $_ })
+$replayCamera = @($replaySpec.camera | Where-Object { $null -ne $_ })
+if ($replaySpec.schema -notmatch '^keyrun\.input-log/[12]$') { $failures.Add("replay fixture schema '$($replaySpec.schema)' is not keyrun.input-log/1 or /2") }
+
+function Invoke-Replay([string]$tag) {
+    $logPath = Join-Path $outFull "e2e-$tag.log"
+    if (Test-Path -LiteralPath $logPath) { Remove-Item -LiteralPath $logPath }
+    $userArgs = @('--replay-input', $replayFull, '--log', $logPath)
+    $ErrorActionPreference = 'Continue'
+    $text = & $Exe --headless --fixed-fps $fps --quit-after $ReplayFrames '--' @userArgs 2>&1 | Out-String
+    $rc = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    Set-Content -LiteralPath (Join-Path $OutDir "e2e-$tag.txt") -Value $text -Encoding utf8
+    $logLines = if (Test-Path -LiteralPath $logPath) { @([IO.File]::ReadAllLines($logPath)) } else { @() }
+    Write-Output "run ${tag}: exit=$rc lines=$(@($text -split "`r?`n").Count) log-lines=$($logLines.Count) args='$($userArgs -join ' ')'" | Out-Host
+    return [pscustomobject]@{ Code = $rc; Lines = @($text -split "`r?`n"); Log = $logLines }
+}
+
+# The first "TICK n warden=(x,z) yaw=Y ..." line of each tick in a --log file, keyed by tick.
+function Get-WardenTicks($logLines) {
+    $byTick = @{}
+    foreach ($l in $logLines) {
+        if ($l -match '^TICK (\d+) warden=\(-?\d+,-?\d+\) ' -and -not $byTick.ContainsKey([int]$Matches[1])) { $byTick[[int]$Matches[1]] = $l }
+    }
+    return $byTick
+}
+
+# SHA-256 (first 16 hex) of TICK 0..ReplayTicks-1, each line ending in LF; null when any tick of the window is missing.
+function Get-TickDigest($byTick) {
+    $window = New-Object System.Text.StringBuilder
+    for ($t = 0; $t -lt $ReplayTicks; $t++) {
+        if (-not $byTick.ContainsKey($t)) { return $null }
+        [void]$window.Append($byTick[$t]).Append("`n")
+    }
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $hash = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($window.ToString()))
+    return -join ($hash[0..7] | ForEach-Object { $_.ToString('x2') })
+}
+
+function Get-WardenPos([string]$tickLine) {
+    $m = [regex]::Match($tickLine, '^TICK \d+ warden=\((-?\d+),(-?\d+)\) yaw=(-?\d+) ')
+    return [pscustomobject]@{ X = [int]$m.Groups[1].Value; Z = [int]$m.Groups[2].Value; Yaw = $m.Groups[3].Value }
+}
+
+$p1 = Invoke-Replay 'replay1'
+$p2 = Invoke-Replay 'replay2'
+
+# 8. the replayer fed the fixture's events through the input route
+if ($p1.Code -ne 0) { $failures.Add("replay run 1: exported exe exited $($p1.Code) (expected 0)") }
+if ($p2.Code -ne 0) { $failures.Add("replay run 2: exported exe exited $($p2.Code) (expected 0)") }
+$replayLines = @($p1.Lines | Where-Object { $_ -match '^INPUT replay tick=\d+ key=\S+ pressed=(true|false)$' })
+$replayDone = First $p1.Lines '^INPUT replay done events=\d+ '
+$replayN = if ($replayDone) { [int]($replayDone -replace '^INPUT replay done events=(\d+) .*$', '$1') } else { 0 }
+if (-not $replayDone) { $failures.Add("replay run 1: no 'INPUT replay done events=N' line (--replay-input fed nothing)") }
+elseif ($replayN -le 0) { $failures.Add("replay run 1: the replayer fed no events: '$replayDone'") }
+elseif ($replayN -ne $replayEvents.Count) { $failures.Add("replay run 1: '$replayDone' but the fixture holds $($replayEvents.Count) events") }
+if ($replayLines.Count -ne $replayEvents.Count -or $replayLines.Count -eq 0) { $failures.Add("replay run 1: $($replayLines.Count) 'INPUT replay tick=' lines for $($replayEvents.Count) fixture events") }
+$scripted = First $p1.Lines '^INPUT (enter|ping|yaw) '
+if ($scripted) { $failures.Add("replay run 1: a scripted press ran during the replay: '$scripted'") }
+
+# 9. the replay drove the Warden (a launch without --replay-input logs no TICK line: it waits on the screen)
+$w1 = Get-WardenTicks $p1.Log
+$w2 = Get-WardenTicks $p2.Log
+$moved = $null
+$turned = $null
+if (-not $w1.ContainsKey(0) -or -not $w1.ContainsKey($ReplayTicks - 1)) {
+    $failures.Add("replay run 1: the --log file has no TICK 0 and TICK $($ReplayTicks - 1) warden lines (the replay never started a run)")
+} else {
+    $a = Get-WardenPos $w1[0]
+    $b = Get-WardenPos $w1[$ReplayTicks - 1]
+    $moved = "$($w1[0]) -> $($w1[$ReplayTicks - 1])"
+    if (([Math]::Abs($b.X - $a.X) + [Math]::Abs($b.Z - $a.Z)) -lt 1000) { $failures.Add("replay run 1: the Warden moved less than 1000 mm from TICK 0 to TICK $($ReplayTicks - 1): $moved") }
+    if ($replayCamera.Count -gt 0) {
+        $c = [int]$replayCamera[0].tick
+        if (-not $w1.ContainsKey($c - 1) -or -not $w1.ContainsKey($c + 20)) {
+            $failures.Add("replay run 1: no TICK $($c - 1) and TICK $($c + 20) warden lines around the first camera heading")
+        } else {
+            $turned = "$($w1[$c - 1]) -> $($w1[$c + 20])"
+            if ((Get-WardenPos $w1[$c - 1]).Yaw -eq (Get-WardenPos $w1[$c + 20]).Yaw) { $failures.Add("replay run 1: the Warden's facing did not change after the replayed camera heading at tick ${c}: $turned") }
+        }
+    }
+}
+
+# 10. determinism against the committed digest
+$digest1 = Get-TickDigest $w1
+$digest2 = Get-TickDigest $w2
+if (-not $digest1) { $failures.Add("replay run 1: TICK 0..$($ReplayTicks - 1) are not all in the --log file (no digest)") }
+if (-not $digest2) { $failures.Add("replay run 2: TICK 0..$($ReplayTicks - 1) are not all in the --log file (no digest)") }
+if ($digest1 -and $digest2 -and $digest1 -ne $digest2) { $failures.Add("replay TICK digest differs across two runs of the same log: $digest1 vs $digest2") }
+if ($digest1 -and $digest1 -ne $ReplayTickDigest) { $failures.Add("replay TICK digest $digest1 is not the committed $ReplayTickDigest") }
+
 Write-Output '--- asserted lines (run 1) ---'
 foreach ($l in @($summary) + $seats + $botCasts + @($pull2, $tickLine, $livePing, $runEndEv, $bots1, $bots2)) {
     if ($l) { Write-Output $l }
 }
+Write-Output "--- asserted lines (replay pass, $ReplayFixture) ---"
+foreach ($l in $replayLines + @($replayDone, $moved, $turned)) {
+    if ($l) { Write-Output $l }
+}
+if ($digest1) { Write-Output "REPLAY ticks=0..$($ReplayTicks - 1) digest=$digest1 run2=$digest2 committed=$ReplayTickDigest" }
 
 if ($failures.Count -gt 0) {
     Write-Output "E2eAssert: FAIL ($($failures.Count))"
