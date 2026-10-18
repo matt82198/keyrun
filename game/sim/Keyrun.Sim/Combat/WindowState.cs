@@ -59,7 +59,7 @@ public static class WindowState
     public const string LockWindowPrefix = "lockwindow:";
 
     /// <summary>window-state.ts:174 LOCK_ENRAGE_THRESHOLD: unpaid Locks before the boss enrages.</summary>
-    public const long LockEnrageThreshold = 3;
+    public const long LockEnrageThreshold = 2;
 
     private const string LastClassPrefix = "lock:lastclass:";
     private const string LockFailsId = "lock:fails";
