@@ -84,6 +84,16 @@
      27. exit 0, "SCREEN first open=1 key=2" (SimDriver opened the between-runs screen before any run), and no
          "RUN start", "BOSS armed" or "PULL spawn" line in <ScreenFirstFrames> frames (the first run waits for the
          screen's Queue, Screen.Queued -> StartQueuedRun). Before 3D-b the launch starts key 2 at once: 27 fails (RED).
+    Run I (lane 3D-c, a wipe goes back to the screen; interactive, three-seat party, from pull 2 so it wipes fast):
+        -- --press-enter 3 --pull 2   (--quit-after <WipeFrames>)
+        (--press-enter N: SimDriver's scripted player pushes Enter through the viewport each time the game waits on
+        it, the screen up or the run ended, up to N presses; the real keyboard path, not a direct call)
+     28. "SCREEN first open=1 key=2", press 1 queues the first run ("RUN start ... clause=<id>", not none), the party
+         wipes ("run_end" EVENT, result depleted), press 2 on the run-end panel prints "SCREEN reopen
+         result=depleted open=1 key=2" and NO "RUN start" comes between the run_end and that line, nor between it and
+         press 3; press 3 is the screen's Queue, and the next "RUN start" carries a Clause (clause=<id>, never none:
+         it came through Screen.Queued -> StartQueuedRun, ENGINE-PLAN "choose one, then Screen"). Before 3D-c Enter
+         after a wipe called StartRun(null): a "RUN start ... clause=none" follows press 2 and 28 fails (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -96,7 +106,8 @@ param(
     [int]$QueueTicks = 480,
     [int]$BackfillTicks = 3300,
     [string]$AbandonSeat = '1@1000',
-    [int]$ScreenFirstFrames = 240
+    [int]$ScreenFirstFrames = 240,
+    [int]$WipeFrames = 2400
 )
 $ErrorActionPreference = 'Stop'
 
@@ -402,6 +413,52 @@ if (-not $firstH) { $failures.Add("run H: no 'SCREEN first open=1 key=2' line (t
 $startH = First $hLines '^(RUN start|BOSS armed|PULL spawn|ARENA error) '
 if ($startH) { $failures.Add("run H: a run started (or failed) before any queue action: '$startH'") }
 
+# ---- Run I: Enter after a wipe opens the screen, never a Clause-less restart (lane 3D-c) --------------------------
+$ErrorActionPreference = 'Continue'
+$iText = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $WipeFrames '--' --press-enter 3 --pull 2 2>&1 | Out-String
+$iCode = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+$iLines = @($iText -split "`r?`n")
+if ($iCode -ne 0) { $failures.Add("run I: godot exited $iCode (expected 0)") }
+$firstI = First $iLines '^SCREEN first open=1 key=2$'
+if (-not $firstI) { $failures.Add("run I: no 'SCREEN first open=1 key=2' line") }
+$startsI = @($iLines | Where-Object { $_ -match '^RUN start ' })
+$runEndI = First $iLines '^EVENT \{"result":"depleted",.*"type":"run_end"'
+$reopenI = $null
+$requeuedI = $null
+if ($startsI.Count -lt 1 -or $startsI[0] -notmatch ' clause=(echo|tide|hush|pact) ') {
+    $failures.Add("run I: the first run did not come from the screen's Queue with a Clause: '$($startsI | Select-Object -First 1)'")
+}
+if (-not $runEndI) {
+    $failures.Add("run I: the party did not wipe (no depleted run_end EVENT) in $WipeFrames frames")
+} else {
+    $iEnd = [array]::IndexOf($iLines, $runEndI)
+    $afterEnd = @($iLines[($iEnd + 1)..($iLines.Count - 1)])
+    $nextI = First $afterEnd '^(RUN start|SCREEN reopen) '
+    $press3 = First $afterEnd '^INPUT enter n=3 screen=1$'
+    if (-not $nextI) {
+        $failures.Add('run I: Enter after the wipe neither reopened the screen nor started a run (no "SCREEN reopen" line)')
+    } elseif ($nextI -match '^RUN start ') {
+        $failures.Add("run I: Enter after the wipe started a run without the screen: '$nextI'")
+    } elseif ($nextI -notmatch '^SCREEN reopen result=depleted open=1 key=2$') {
+        $failures.Add("run I: wrong reopen line: '$nextI' (want 'SCREEN reopen result=depleted open=1 key=2')")
+    } else {
+        $reopenI = $nextI
+        $iRe = [array]::IndexOf($afterEnd, $reopenI)
+        $afterRe = @($afterEnd[($iRe + 1)..($afterEnd.Count - 1)])
+        $requeuedI = First $afterRe '^RUN start '
+        if (-not $press3) {
+            $failures.Add('run I: no third Enter on the open screen ("INPUT enter n=3 screen=1")')
+        } elseif ($requeuedI -and [array]::IndexOf($afterRe, $requeuedI) -lt [array]::IndexOf($afterRe, $press3)) {
+            $failures.Add("run I: a run started while the reopened screen waited, before its Queue: '$requeuedI'")
+        } elseif (-not $requeuedI) {
+            $failures.Add("run I: the reopened screen's Queue started no run")
+        } elseif ($requeuedI -notmatch ' clause=(echo|tide|hush|pact) ') {
+            $failures.Add("run I: the run after the wipe has no Clause (it did not come through the screen): '$requeuedI'")
+        }
+    }
+}
+
 Write-Output '--- asserted HUD lines ---'
 foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping)) {
     if ($l) { Write-Output $l }
@@ -418,11 +475,15 @@ Write-Output '--- run E consume, runs F and G (backfill), lane 3J ---'
 foreach ($l in @($consumedE, $f.Abandon, $f.Add, $f.Pull, $refillF, $consumeF, $joinerActs, $g.Abandon, $g.Add, $g.Pull, $firstH, $startH)) {
     if ($l) { Write-Output $l }
 }
+Write-Output '--- run I (wipe -> screen), lane 3D-c ---'
+foreach ($l in @($firstI) + $startsI + @($runEndI, $reopenI, $requeuedI)) {
+    if ($l) { Write-Output $l }
+}
 
 if ($failures.Count -gt 0) {
     Write-Output "HudSceneTest: FAIL ($($failures.Count))"
     $failures | ForEach-Object { Write-Output "  - $_" }
     exit 1
 }
-Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks backfillTicks=$BackfillTicks abandonSeat=$AbandonSeat"
+Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks backfillTicks=$BackfillTicks abandonSeat=$AbandonSeat wipeFrames=$WipeFrames"
 exit 0

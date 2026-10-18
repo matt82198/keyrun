@@ -151,7 +151,7 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
 /// <summary>
 /// The run-end panel (BIBLE s7 "End of every run: choose one of three"; ENGINE-PLAN 3C): the result, three reward
 /// cards with slot, tier and Facet text (keys 1-3 take one), and the local player's private "what got you" list.
-/// Enter starts a fresh run (SimDriver already restarts an ended run on Enter). The choice is shown, not banked:
+/// Enter opens the between-runs screen (SimDriver, lane 3D-c; under <c>--solo</c> it starts a fresh run). The choice is shown, not banked:
 /// progression is the screen lane's (3D). Reads the sim state only.
 /// </summary>
 public partial class RunEndPanel : Control
@@ -236,7 +236,9 @@ public partial class RunEndPanel : Control
         DrawRect(panel, new Color(0.06f, 0.07f, 0.09f, 0.94f));
         DrawRect(panel, new Color(1f, 0.85f, 0.5f), filled: false, width: 2f);
         HudNodes.Text(this, panel.Position + new Vector2(20, 34), view.Title, TitleFont, new Color(1f, 0.85f, 0.5f));
-        var hint = _taken is null ? "1-3 take a reward    Enter starts a fresh run" : "Enter starts a fresh run";
+        // Lane 3D-c: in the interactive game Enter opens the between-runs screen; only --solo restarts at once.
+        var enter = _driver?.StartsOnScreen == true ? "Enter opens the between-runs screen" : "Enter starts a fresh run";
+        var hint = _taken is null ? "1-3 take a reward    " + enter : enter;
         HudNodes.Text(this, new Vector2(panel.End.X - HudNodes.Width(hint, CardFont) - 20, panel.Position.Y + 30), hint, CardFont, Colors.White);
 
         var cardWidth = (PanelWidth - 40 - (2 * CardGap)) / 3;
