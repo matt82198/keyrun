@@ -158,6 +158,31 @@ jobs:
           if ($code -ne 0) { throw "exported smoke exited $code" }
           if ($out -notmatch '(?m)^SMOKE ok') { throw 'exported exe did not print SMOKE ok' }
 
+      # Lane 3E (D10 bar): the EXPORTED exe runs the Warden plus Chanter and
+      # Cinder bot party through pull 1 headless (--autorun, ticks from
+      # game/fixtures/input/walk-kick.json) twice, and E2eAssert.ps1 asserts the
+      # three seats, the bot heal and damage in pull 1, a live HUD ping and an
+      # equal BOTS done hash across both runs. Fails closed on any missing line.
+      - name: Exported exe e2e (bot party through pull 1, must print PASS)
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & ./game/src/Host/E2eAssert.ps1 -Exe build/keyrun.console.exe -Fixture game/fixtures/input/walk-kick.json -OutDir build/e2e 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "E2eAssert exited $code" }
+          if ($out -notmatch '(?m)^E2eAssert: PASS') { throw 'E2eAssert did not print PASS' }
+
+      - name: Upload e2e run logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-e2e-run-logs
+          path: build/e2e/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
