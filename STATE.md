@@ -12,7 +12,8 @@ assets; pure POC.
 - Merged today since the 23:30Z checkpoint: #101 99836b0 (window ring labels + payoff-ready key glow + ping context + aimed spot ping); #102 2c8f8ea (bots/src/roles/shared.ts inLull, tank-pressure.ts).
 - MERGED 99f39a2: #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info).
 - Phase: 3 rows 3A-3J all MERGED on main (2026-10-18, verified per PR, see NEXT STEPS). PHASE 3 EXIT NOT RECORDED. D10
-  verdict: first pass NOT-MET (DECISIONS AND OBSERVATIONS (d)); second pass MET-WITH-TUNING-GAP (NEXT ORDER, 2026-10-18).
+  verdict (2026-10-18): THIRD pass NOT-MET (Phase 3 block, THIRD-PASS ORACLE VERDICT). It supersedes the second pass
+  MET-WITH-TUNING-GAP and the first pass NOT-MET (DECISIONS AND OBSERVATIONS (d)). Why: no autorun run reaches the boss in play.
   Phase 5 "Matt playing" is the acceptance test; not yet reached. Phase 4 (TS deletion) stays blocked on D10.
 - Earlier landed (unchanged): #92 e3f622e, #95 e56955c, #97 08b9611, #98 00e4ebb, #99 54e69c5.
 - Test count on 2c8f8ea: not restated in this checkpoint (not sourced for this head).
@@ -173,7 +174,41 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   - PHASE 3 EXIT NOT RECORDED (2026-10-18). Merging proves the code paths exist, not that Matt can play the run. Phase 3
     exit is recorded only after the human-played path is measured, not on CI.
   - 3B must verify 3A's hand-corrected floor keepNear expectation against the frozen TS test (3A hand-back caveat).
-  - 2026-10-18 SECOND-PASS ORACLE VERDICT (read-only Haiku oracle, ~19:08Z, source reads at 4b35c98): D10
+  - 2026-10-18 THIRD-PASS ORACLE VERDICT (read-only Haiku plan-vs-output oracle, ~21:10Z, source reads at beefb47, before
+    #154; supersedes the second pass below): D10 NOT-MET, PHASE 3 EXIT NOT-MET. Decisive line:
+    game/src/Host/HudSceneTest.ps1:43-50 (every swept key 2,5,8,10,12,15,20 at seeds 1 and 7 wipes in pull 2 under autorun;
+    the boss is reached only with `--pull 4`). WHY: the plan's exit criterion (ENGINE-PLAN.md:219-221) names the boss in a
+    full run, and no run reaches it in play. The D10 text requires one complete run through the dungeon including the boss;
+    it does not say "survivable", so the oracle reads the requirement as reaching the boss in play. Only Matt's boss-HP,
+    lock-threshold or bot-DPS tuning decision can move it.
+  - Landed since the second pass (each PR checked with `gh pr view N --repo matt82198/keyrun --json state,mergeCommit`):
+    #146 MERGED ecbe0f0 (3D-c wipe-to-screen); #147 MERGED 924898c (3D follow-up); #148 MERGED 9afadc8 (3H-c G-ping route
+    to bots; the runner passes ClassKitView.Empty, so no bot reaction fires in autorun; DECISION FOR MATT); #149 MERGED
+    f233727; #150 MERGED 8b1913a (recorded input: --record-input and --replay-input, schema keyrun.input-log); #151 MERGED
+    9a9100f (3E-c camera yaw recorded, schema keyrun.input-log/2, HudSceneTest run L); #152 MERGED 29a855c (3C-c sim
+    content-pool rewards, five-argument Rewards.RollRewardChoices); #153 MERGED beefb47 (3C-d run-end title `Party wiped on
+    pull N of T -- key depleted` via ObjectiveModel.Build; RunEndView.Of rolls from the content pool; `HUD runend choice`
+    lines carry id=<facet id>); #154 MERGED 606e623 (CI: game.yml game-e2e runs HudSceneTest, CombatViewSceneTest and
+    ScreenSceneTest; all PASS on the runner). #155 (PLAN-DOCS: ENGINE-PLAN rows 3H 3I 3J, README status and record command)
+    is OPEN, not merged.
+  - Per-row third-pass status: 3A MET; 3B PARTIAL (RolesOracleTraceTests.cs:148 k2-s11 and :151 k10-s7 traces exist; no
+    k10-s11 trace, minor); 3C PARTIAL (RunEndPanel.cs:127 rolls from the pool, :138 wipe title; HudSceneTest asserts both;
+    no autorun clears, so the clear title has no live proof; the CI gap the oracle saw is closed by #154 after the read);
+    3D MET; 3E PARTIAL (ENGINE-PLAN row 3E says a recorded file drives the Warden in CI; CI runs ScriptedWarden at
+    E2eAssert.ps1:50-57; recorded replay proven only by HudSceneTest runs K and L; lane 3E-a2 is adding a replay pass to
+    E2eAssert.ps1); 3F PARTIAL (no test asserts the Lock opens on a real run; BossRulesTests.cs:86 and :99 are synthetic;
+    HudSceneTest.ps1:376 $bossRule is only echoed at :798; Boss.cs:26 LockThresholdBp=5000 compared at Boss.cs:180; base HP
+    60000 (content hollow-warden.json:5) is Tempo-scaled by Tempo.cs:60-64 to about 76200 at key 10); 3G MET with minor drift
+    (abandon at pull 1 tick 1000, HudSceneTest.ps1:70; key-3 joiner refused); 3H MET (HostRunSetup.cs:80-82, SimDriver.cs:491);
+    3I MET (SimDriver.cs:342, unreached in play); 3J MET (SimDriver.cs:347).
+  - Plan-vs-output seam: ENGINE-PLAN.md:189-221 defined rows 3A-3G only until #155; rows 3H-3J existed only in STATE.md and
+    BUILDLOG.md. The Lock measurement in the second-pass block still stands (boss base 60000, about 76200 at key 10).
+  - Record command for Matt (from game/CLAUDE.md; flags parsed in SimDriver.cs). Build:
+    `powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/godot.ps1 --headless --path game --build-solutions --quit`.
+    Record: `powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/godot.ps1 --path game '--' --record-input
+    game/fixtures/input/my-run.input-log.json --log build/my-run.txt`. Replay with `--replay-input` on the same path. Camera
+    yaw is recorded, pitch is not.
+  - 2026-10-18 SECOND-PASS ORACLE VERDICT (SUPERSEDED by the third pass above; read-only Haiku oracle, ~19:08Z, source reads at 4b35c98): D10
     MET-WITH-TUNING-GAP. Supersedes the first-pass NOT-MET in DECISIONS AND OBSERVATIONS (d). Code path exists for every
     Phase 3 row and the screen-to-run path is wired; the gap is balance, not wiring. Decisive line:
     game/src/Host/HudSceneTest.ps1:43-45 (every swept key wipes in pull 2 under the scripted autorun Warden). No
@@ -199,16 +234,16 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
     (content/data/enemies/hollow-warden.json); the party dealt about 470 damage before wiping. The 3B claim that bots
     break 1 of 4 Locks at k10 is NOT reproduced. DECISION FOR MATT: boss HP, lock threshold, or bot DPS tuning before any
     Lock assertion is written (no fitted green).
-- NEXT ORDER (2026-10-18, second pass; resume here, in this order):
+- NEXT ORDER (2026-10-18, second pass; progress recorded by the third pass; resume here, in this order):
   Done since the first pass, each verified with `gh pr view N --repo matt82198/keyrun --json state,mergeCommit`:
   #144 MERGED ed1f2ec7 (HUD follow-up: AbilityBar banner removed; Screen.QueueCaption "Enter starts the next run at this
   key and Clause."); #145 MERGED 4b35c983 (3D-b: SimDriver.StartsOnScreen, Screen.OpenFirst; HudSceneTest run H asserts
   `SCREEN first open=1 key=2` and no RUN start on a no-flag launch).
-  1. Land feat/wipe-to-screen (3D-c, RUNNING per the orchestrator brief). Enter after a wipe must go through the Screen
+  1. DONE 2026-10-18: #146 ecbe0f0 (3D-c). Enter after a wipe must go through the Screen
      (SimDriver.cs:441-445). WHY first: it shares SimDriver.cs with step 3.
   2. Matt decides Lock/boss tuning (boss HP vs lock threshold vs bot DPS) and general run difficulty. Bring the numbers
      from the Lock measurement above, not a tuned constant (DECISION FOR MATT, below).
-  3. Route G-pings to bots (3H c) after 3D-c lands.
+  3. DONE 2026-10-18: #148 9afadc8 routes G-pings to bots (3H-c); the runner still passes ClassKitView.Empty (DECISION FOR MATT).
   4. Matt plays a run (Phase 5 measurement).
   5. Only then re-run the s10 plan-vs-output check and record PHASE 3 EXIT and D10 (MET / MET-WITH-TUNING-GAP / NOT-MET).
   6. Phase 4: TS deletion after parity. Blocked on step 5.
