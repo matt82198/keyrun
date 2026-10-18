@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="sim/Keyrun.Sim/Keyrun.Sim.csproj" />
     <ProjectReference Include="content/Keyrun.Content/Keyrun.Content.csproj" />
+    <ProjectReference Include="bots/Keyrun.Bots/Keyrun.Bots.csproj" />
   </ItemGroup>
 
 </Project>

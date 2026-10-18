@@ -14,7 +14,7 @@ namespace Keyrun.Host;
 /// the C# port of the frozen TS client's <c>buildRunSetup</c> (client/src/sim-host/run-setup.ts with
 /// content-dungeon.ts, content-combos.ts and content/sim-adapt.ts). Godot-free.
 /// </summary>
-/// <param name="Party">The party (phase 2: the human Warden alone; bots arrive with lane 3A/3B).</param>
+/// <param name="Party">The party: the human Warden plus a Chanter and a Cinder bot seat (lane 3H; see <see cref="Roster"/>).</param>
 /// <param name="Dungeon">The sim dungeon: the content pulls in order (actor ids from 100) plus the boss pull.</param>
 /// <param name="Content">The run content, movement from game/content/data/run.json.</param>
 /// <param name="HumanActorId">The human's actor id.</param>
@@ -50,6 +50,26 @@ public sealed record HostRunSetup(
     /// <summary>content-party.ts:48 HUMAN_MAX_HEALTH.tank.</summary>
     public const long TankMaxHealth = 400;
 
+    /// <summary>content-party.ts:48 HUMAN_MAX_HEALTH.healer and .damage.</summary>
+    public const long SupportMaxHealth = 250;
+
+    /// <summary>The human's actor id (every client file's PLAYER_ID); bot seats take 2, 3, ... in roster order.</summary>
+    public const int HumanId = 1;
+
+    /// <summary>
+    /// The party roster (content-party.ts ROSTER cut to one seat per shipped class): Warden tank, Chanter healer,
+    /// Cinder damage, at content-party.ts SPAWN_X[0..2] on PARTY_SPAWN_Z.
+    /// </summary>
+    public static readonly IReadOnlyList<RosterSlot> Roster = new[]
+    {
+        new RosterSlot("warden", ActorRole.Tank, 0, TankMaxHealth),
+        new RosterSlot("chanter", ActorRole.Healer, -2100, SupportMaxHealth),
+        new RosterSlot("cinder", ActorRole.Damage, -700, SupportMaxHealth),
+    };
+
+    /// <summary>The bot seats: every party member but the human, ascending by actor id.</summary>
+    public IReadOnlyList<int> BotActorIds => Party.Where(p => p.Id != HumanActorId).Select(p => p.Id).OrderBy(id => id).ToList();
+
     /// <summary>
     /// Builds the setup. Fails closed (<see cref="InvalidOperationException"/>) on an unknown dungeon, class or enemy
     /// and on any content op the sim union does not carry, instead of inventing a default.
@@ -58,8 +78,10 @@ public sealed record HostRunSetup(
     /// <param name="dungeonId">The dungeon, e.g. "hollow-vault".</param>
     /// <param name="keyLevel">The key level (Tempo scaling, Slack bank).</param>
     /// <param name="humanClassId">The human's class, e.g. "warden".</param>
+    /// <param name="withBots">True (default) for the three-seat party: the human plus a bot in every other
+    /// <see cref="Roster"/> slot. False for the human's seat alone.</param>
     /// <returns>The setup.</returns>
-    public static HostRunSetup Build(C.ContentRegistry registry, string dungeonId, int keyLevel, string humanClassId)
+    public static HostRunSetup Build(C.ContentRegistry registry, string dungeonId, int keyLevel, string humanClassId, bool withBots = true)
     {
         ArgumentNullException.ThrowIfNull(registry);
         if (keyLevel < 1)
@@ -100,12 +122,43 @@ public sealed record HostRunSetup(
             Clauses = clauses,
         }.WithMovement(movement);
 
-        const int humanId = 1;
-        var party = new[]
+        var party = BuildParty(registry, classDef.Id, withBots);
+        return new HostRunSetup(party, dungeon, content, HumanId, ResolveSlots(classDef));
+    }
+
+    /// <summary>
+    /// content-party.ts buildParty over the three shipped classes: the human takes the roster slot of its class (else
+    /// the tank slot) as actor <see cref="HumanId"/>, every other slot becomes a bot seat with ids from 2 in roster
+    /// order. Spawn x, role and max health come from the slot; max resource from the class's loop. With
+    /// <paramref name="withBots"/> false only the human's seat is built (the phase 2 solo run).
+    /// </summary>
+    /// <param name="registry">The content (each roster class must exist).</param>
+    /// <param name="humanClassId">The human's class.</param>
+    /// <param name="withBots">True to fill the other roster slots with bot seats.</param>
+    /// <returns>The party in actor id order.</returns>
+    public static IReadOnlyList<PartyMemberSpec> BuildParty(C.ContentRegistry registry, string humanClassId, bool withBots = true)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        var humanSlot = Math.Max(0, Roster.ToList().FindIndex(s => s.ClassId == humanClassId));
+        var party = new List<PartyMemberSpec>();
+        var nextBotId = HumanId + 1;
+        for (var i = 0; i < Roster.Count; i++)
         {
-            new PartyMemberSpec(humanId, classDef.Id, ActorRole.Tank, WardenSpawn, TankMaxHealth, classDef.Loop.Max) { Yaw = WardenYaw },
-        };
-        return new HostRunSetup(party, dungeon, content, humanId, ResolveSlots(classDef));
+            var slot = Roster[i];
+            var isHuman = i == humanSlot;
+            if (!isHuman && !withBots)
+            {
+                continue;
+            }
+            var classId = isHuman ? humanClassId : slot.ClassId;
+            if (!registry.Classes.TryGetValue(classId, out var cls))
+            {
+                throw new InvalidOperationException($"run setup: party slot {i} references unknown class \"{classId}\"");
+            }
+            var id = isHuman ? HumanId : nextBotId++;
+            party.Add(new PartyMemberSpec(id, cls.Id, slot.Role, new Vec3(slot.SpawnX, 0, WardenSpawn.Z), slot.MaxHealth, cls.Loop.Max) { Yaw = WardenYaw });
+        }
+        return party.OrderBy(p => p.Id).ToList();
     }
 
     /// <summary>
@@ -365,6 +418,13 @@ public enum KeyAction
     /// <summary>Ping a target or spot.</summary>
     Ping,
 }
+
+/// <summary>One party roster slot (content-party.ts RosterSlot plus its SPAWN_X and HUMAN_MAX_HEALTH entries).</summary>
+/// <param name="ClassId">The class that fills the slot.</param>
+/// <param name="Role">The slot's role (bots dispatch on it).</param>
+/// <param name="SpawnX">Spawn x, mm (z is the party spawn line).</param>
+/// <param name="MaxHealth">Max health.</param>
+public sealed record RosterSlot(string ClassId, ActorRole Role, long SpawnX, long MaxHealth);
 
 /// <summary>One ability-bar slot: the action, its key label and the ability it casts.</summary>
 /// <param name="Action">The keybind action.</param>

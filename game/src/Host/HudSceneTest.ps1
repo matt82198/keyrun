@@ -7,7 +7,7 @@
   Boots the real game (Main.tscn -> Arena.tscn) headless at --fixed-fps 60 twice and reads the HUD's own
   "HUD ..." lines from the engine output (the HUD prints what it draws when --autorun is on):
 
-    Run A (pull 1, the Choir, solo Warden):  -- --autorun --ticks 400
+    Run A (pull 1, the Choir, solo Warden):  -- --autorun --ticks 400 --solo
       1. exit 0 and "AUTORUN done ticks=400";
       2. "HUD party seat=1 name=Warden hp=H/400 res=R/M" (the party frame reads the human's health and resource);
       3. "HUD party seat=1 ... DOWNED" after the sim's death event for actor 1 (the DOWNED chip);
@@ -18,19 +18,29 @@
          lasting wipe as "depleted"; the panel must not call it cleared), three "HUD runend choice n=<1..3>
          slot=<slot> tier=<t> facet=..." lines (Rewards.RollRewardChoices), and "HUD runend cause seat=1" lines
          naming only seat 1's own causes.
-    Run B (from pull 2, the Pair):  -- --autorun --ticks 400 --pull 2
+    Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 400 --pull 2 --solo
       7. "HUD objective pull=2/4 id=pair name="The Pair"";
       8. at least one "HUD ping label=SPREAD" or "HUD ping label=STACK" line (from the Pair's mark telegraphs and
          mark effects in the sim state). The solo Warden is down before the Pair's first mark (about tick 294), so
-         this line comes from enemy scripts the sim keeps stepping after run_end; a live-run call needs a party.
-  Before 3C the arena has no HUD and none of 2-8 appear (RED).
+         this line comes from enemy scripts the sim keeps stepping after run_end; run C proves a live-run call.
+    Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:  -- --autorun --ticks 3700
+      9. "HUD party seat=1 name=Warden", "seat=2 name=Chanter", "seat=3 name=Cinder" (BotCommandSource drives 2, 3);
+     10. in pull 1 (before the Pair spawns): a Chanter heal on a party seat and a Cinder damage hit on an enemy (at
+         seed 1 the 3B healer role spends every GCD on heals and never casts Dissonance; the Cinder kit has no heal);
+     11. the party reaches the Pair or run_end, is not wiped by tick 295, and a "HUD ping label=SPREAD|STACK" line
+         appears before the party's third death (a call during a live run);
+     12. a bot seat takes damage and every "HUD runend cause" line is seat 1's (the private run log's seat filter
+         with more than one seat in the sim);
+     13. "BOTS done commands=N hash=H" with N > 0, equal across the two runs (bot determinism).
+  Before 3C the arena has no HUD and none of 2-8 appear (RED). Before 3H there are no bot seats and 9-13 fail (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
     [int]$Ticks = 400,
-    [int]$PingTicks = 400
+    [int]$PingTicks = 400,
+    [int]$PartyTicks = 3700
 )
 $ErrorActionPreference = 'Stop'
 
@@ -58,7 +68,7 @@ function First($lines, [string]$pattern) {
 }
 
 # ---- Run A: pull 1 ---------------------------------------------------------------------------------------------
-$a = Invoke-Arena $Ticks @()
+$a = Invoke-Arena $Ticks @('--solo')
 if ($a.Code -ne 0) { $failures.Add("run A: godot exited $($a.Code) (expected 0)") }
 $summary = First $a.Lines "^AUTORUN done ticks=$Ticks "
 if (-not $summary) { $failures.Add("run A: no 'AUTORUN done ticks=$Ticks' summary") }
@@ -113,15 +123,74 @@ $foreign = @($causes | Where-Object { $_ -notmatch '^HUD runend cause seat=1 ' }
 if ($foreign.Count -gt 0) { $failures.Add("run A: the run-end panel shows another seat's cause: '$($foreign[0])'") }
 
 # ---- Run B: from pull 2 -----------------------------------------------------------------------------------------
-$b = Invoke-Arena $PingTicks @('--pull', '2')
+$b = Invoke-Arena $PingTicks @('--pull', '2', '--solo')
 if ($b.Code -ne 0) { $failures.Add("run B: godot exited $($b.Code) (expected 0)") }
 $objB = First $b.Lines '^HUD objective pull=2/4 id=pair name="The Pair"'
 if (-not $objB) { $failures.Add('run B: no "HUD objective pull=2/4 id=pair name=""The Pair""" line') }
 $ping = First $b.Lines '^HUD ping label=(SPREAD|STACK) '
 if (-not $ping) { $failures.Add('run B: no "HUD ping label=SPREAD|STACK" line') }
 
+# ---- Run C: the three-seat bot party (lane 3H) -------------------------------------------------------------------
+# The human Warden (seat 1) plus a Chanter (healer) and a Cinder (damage) driven by Keyrun.Bots through
+# BotCommandSource. Run twice with the same seed: the bot command streams must hash equal (determinism).
+$c = Invoke-Arena $PartyTicks @()
+$c2 = Invoke-Arena $PartyTicks @()
+if ($c.Code -ne 0) { $failures.Add("run C: godot exited $($c.Code) (expected 0)") }
+$seats = @()
+foreach ($s in @(@{ Seat = 1; Name = 'Warden' }, @{ Seat = 2; Name = 'Chanter' }, @{ Seat = 3; Name = 'Cinder' })) {
+    $line = First $c.Lines "^HUD party seat=$($s.Seat) name=$($s.Name) hp=\d+/\d+ "
+    if (-not $line) { $failures.Add("run C: no 'HUD party seat=$($s.Seat) name=$($s.Name)' line") } else { $seats += $line }
+}
+$iPull2 = -1
+$pull2 = First $c.Lines '^PULL spawn index=1 id=pair '
+if ($pull2) { $iPull2 = [array]::IndexOf($c.Lines, $pull2) }
+$pull1Lines = if ($iPull2 -ge 0) { $c.Lines[0..$iPull2] } else { $c.Lines }
+$botCasts = @()
+# Keys are sorted in canonical EVENT JSON: amount, sourceId, targetId, tick, type. Party seats are 1-3, enemies 100+.
+foreach ($want in @(
+        @{ Who = 'Chanter heal on a party seat'; Re = '^EVENT \{"amount":[1-9]\d*,"sourceId":2,"targetId":[123],.*"type":"heal"' },
+        @{ Who = 'Cinder damage on an enemy'; Re = '^EVENT \{.*"healthDamage":[1-9]\d*,.*"sourceId":3,"targetId":(1\d\d|900),.*"type":"damage"' })) {
+    $ev = First $pull1Lines $want.Re
+    if (-not $ev) { $failures.Add("run C: no $($want.Who) EVENT in pull 1") } else { $botCasts += $ev }
+}
+$runEndEv = First $c.Lines '^EVENT \{.*"type":"run_end"'
+$iRunEnd = if ($runEndEv) { [array]::IndexOf($c.Lines, $runEndEv) } else { $c.Lines.Count }
+if (-not $runEndEv -and -not $pull2) { $failures.Add('run C: the party neither reached the Pair (pull 2) nor run_end') }
+# The party is live until its third seat dies (the sim keeps stepping enemy scripts after a wipe, so run_end alone
+# is too late a bound: a solo Warden down at tick 273 still prints TICK 295 before run_end at 374).
+$iWipe = $iRunEnd
+$partyDeaths = 0
+for ($i = 0; $i -lt $iRunEnd; $i++) {
+    if ($c.Lines[$i] -match '^EVENT \{"actorId":[123],.*"type":"death"') {
+        $partyDeaths++
+        if ($partyDeaths -eq 3) { $iWipe = $i; break }
+    }
+}
+$tick295 = First $c.Lines '^TICK 295 '
+if (-not $tick295 -or [array]::IndexOf($c.Lines, $tick295) -gt $iWipe) { $failures.Add('run C: the party wiped before tick 295 (it did not survive to the Pair''s marks)') }
+$livePing = $null
+for ($i = 0; $i -lt $iWipe; $i++) {
+    if ($c.Lines[$i] -match '^HUD ping label=(SPREAD|STACK) ') { $livePing = $c.Lines[$i]; break }
+}
+if (-not $livePing) { $failures.Add('run C: no "HUD ping label=SPREAD|STACK" line while the run was live') }
+# Private run log, two seats: the human's (seat 1) run-end panel never lists a bot seat's causes.
+$causesC = @($c.Lines | Where-Object { $_ -match '^HUD runend cause ' })
+$foreignC = @($causesC | Where-Object { $_ -notmatch '^HUD runend cause seat=1 ' })
+if ($foreignC.Count -gt 0) { $failures.Add("run C: seat 1's run-end panel shows another seat's cause: '$($foreignC[0])'") }
+$botHit = First $c.Lines '^EVENT \{.*"healthDamage":[1-9]\d*,.*"sourceId":(1\d\d|900),"targetId":[23],.*"type":"damage"'
+if (-not $botHit) { $failures.Add('run C: no enemy damaged a bot seat, so the private-log seat filter is not exercised') }
+$botsC = First $c.Lines '^BOTS done commands=\d+ hash=[0-9a-f]{16}$'
+$botsC2 = First $c2.Lines '^BOTS done commands=\d+ hash=[0-9a-f]{16}$'
+if (-not $botsC) { $failures.Add('run C: no "BOTS done commands=N hash=H" line') }
+elseif ($botsC -match 'commands=0 ') { $failures.Add("run C: the bots issued no commands: '$botsC'") }
+elseif ($botsC -ne $botsC2) { $failures.Add("run C: bot command stream differs across two same-seed runs: '$botsC' vs '$botsC2'") }
+
 Write-Output '--- asserted HUD lines ---'
 foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping)) {
+    if ($l) { Write-Output $l }
+}
+Write-Output '--- run C (bot party) ---'
+foreach ($l in $seats + $botCasts + @($pull2, $tick295, $livePing, $runEndEv, $botHit) + $causesC + @($botsC, $botsC2)) {
     if ($l) { Write-Output $l }
 }
 
@@ -130,5 +199,5 @@ if ($failures.Count -gt 0) {
     $failures | ForEach-Object { Write-Output "  - $_" }
     exit 1
 }
-Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks"
+Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks"
 exit 0
