@@ -176,10 +176,22 @@ floor in front of a grey box, then flashes and fades.
   GATE: seeds 7 and 11 plus the key-10 traces match on every tick.
 - 3C HUD (Opus, parallel): game/src/Hud/{PartyFrames,Objective,TimerSlack,Pings,RunEndPanel}.cs, game/scenes/{Hud,RunEnd}.tscn:
   status chips, DOWNED, SPREAD/STACK labels, Slack bar, run-end choice of three (BIBLE s7).
-- 3D e2e (Opus): `--autorun` assertions in .github/workflows/game.yml job `game-e2e`; a recorded human input file
-  game/fixtures/input/walk-kick.json drives a scripted Warden through pull 1.
-- Matt sees: launch, then a full run with the Warden plus a Cinder and Chanter bot party through three pulls and the boss,
-  ending on the run-end panel.
+- 3D screen + Clause pick (Opus, after 3C): the BIBLE s10 screen (three bands: Character with the five abilities and
+  keybinds, Key with stepper and Clause pick, Queue as one button, no backfill yet) and the BIBLE s8 Clause pick (one of
+  Echo, Tide, Hush, Pact; exactly one runs). Also the BIBLE s7 progression loop: end-of-run choose one of three with
+  Facet text and tier, Ash banked per run, cap at Tier 10. Files: game/src/Hud/{ClausePick,Screen}.cs, game/scenes/Screen.tscn,
+  and sim-side Clause and Ash rules as pure net8.0 code in game/sim/Keyrun.Sim (no Godot reference).
+  WHY (intent check 2026-10-18): s7, s8 and s10 are in the BIBLE MVP, but phases 1 to 3 never planned the screen,
+  the Clause pick or the progression loop. The D8 test "high key in under a minute" needs them.
+- 3E e2e (Opus, renamed from 3D so IDs stay unique): `--autorun` assertions in .github/workflows/game.yml job `game-e2e`;
+  a recorded human input file game/fixtures/input/walk-kick.json drives a scripted Warden through pull 1.
+- 3F boss: Sundered Twins + Break bar, and the Lock (Opus, after 3A and 3B): game/sim/Keyrun.Sim/Encounter/** boss rules
+  and the 50% Lock with its 3 s Window and enrage (BIBLE s9). Bots (3B roles) must alternate Setup and Payoff for the Lock.
+  These are NEW behaviour, so they diverge from the TS oracle and get regenerated goldens with a stated reason (section 5
+  phase 5 rule). WHY (intent check 2026-10-18): Twins and Lock are in the BIBLE s9 MVP, but phases 1 to 3 omitted them.
+  Matt's first playtest is the D10 MVP, so they land before it, not in phase 5.
+- Matt sees: launch, then a full run with the Warden plus a Cinder and Chanter bot party through three pulls and the boss
+  (Twins and Lock included), ending on the run-end panel. The screen and Clause pick come up before the run starts.
 
 ### Phase 4: retire TS (orchestrator decides once both phase 2 and phase 3 gates are green)
 - 4A one PR: delete the paths listed in section 3; `git mv content/data game/content/data` + edit the one csproj glob;
@@ -188,7 +200,7 @@ floor in front of a grey box, then flashes and fades.
 - Matt sees: nothing changes in the game.
 
 ### Phase 5: Matt plays (D10 acceptance)
-- Feel lanes from his verdicts; BIBLE gaps (Sundered Twins + Break bar, 50% Lock + enrage, stack split) as C#
+- Feel lanes from his verdicts; BIBLE gaps not already in phase 3 (stack damage split; Twins and Lock moved to 3F) as C#
   features. These deliberately diverge from the oracle, so each regenerates its C# goldens with a stated reason.
 
 ### CI

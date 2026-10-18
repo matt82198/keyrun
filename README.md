@@ -6,7 +6,25 @@ Keyrun is a proof-of-concept co-op dungeon game. It takes the Mythic+ loop out o
 
 Proof of concept. Phase 5 (tuning from play, with the project owner playing as the acceptance test) is next. Decisions are recorded in [STATE.md](STATE.md); the domain map is in [CLAUDE.md](CLAUDE.md).
 
-## Run locally
+## Run (desktop build)
+
+The real game is the Godot 4.7.2 .NET desktop build in `game/` (C#, decision D12 in [STATE.md](STATE.md)). Requires
+Godot 4.7.2 .NET and the .NET 8 SDK (8.0.x).
+
+```
+dotnet build game/Keyrun.sln
+dotnet test game/Keyrun.sln
+tools/godot/godot.ps1 --headless --path game --build-solutions --quit
+tools/godot/godot.ps1 --headless --path game --export-release "Windows Desktop" ../build/keyrun.exe
+```
+
+The export lands at `build/keyrun.exe` (the `build/` folder is gitignored). The Godot binary path is resolved by
+`tools/godot/godot.ps1`, or set `KEYRUN_GODOT`. The engine plan and phase status are in
+[design/ENGINE-PLAN.md](design/ENGINE-PLAN.md); the build's domain notes are in [game/CLAUDE.md](game/CLAUDE.md).
+
+The TypeScript browser client below is first paint only and is not the product.
+
+## Run locally (TypeScript browser client, first paint only)
 
 Requires Node.js and npm.
 
