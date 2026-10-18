@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using Godot;
+using Keyrun.Bots;
 using Keyrun.Content;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
@@ -80,7 +81,7 @@ public sealed class TickAccumulator
 /// <summary>
 /// The arena's user arguments (after <c>--</c> on the Godot command line), in the style of Main.cs's
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
-/// <c>--seed N</c>, <c>--pull N</c>.
+/// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -90,6 +91,8 @@ public sealed class TickAccumulator
 /// <param name="Seed">Run seed.</param>
 /// <param name="StartPull">1-based pull the run starts at (default 1). A later start drops the earlier pulls from the
 /// run's dungeon, keeping actor ids and scripts (lane 3C: the HUD scene test reaches the Pair's SPREAD/STACK calls).</param>
+/// <param name="Solo">The human's seat alone, no bot seats (<c>--solo</c>; the phase 2 run). Default: the three-seat
+/// bot party (lane 3H).</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -97,7 +100,8 @@ public sealed record ArenaOptions(
     string? MovieDir,
     int KeyLevel = ArenaOptions.DefaultKeyLevel,
     long Seed = ArenaOptions.DefaultSeed,
-    int StartPull = 1)
+    int StartPull = 1,
+    bool Solo = false)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -122,12 +126,16 @@ public sealed record ArenaOptions(
         var key = DefaultKeyLevel;
         long seed = DefaultSeed;
         var pull = 1;
+        var solo = false;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
             {
                 case "--autorun":
                     autorun = true;
+                    break;
+                case "--solo":
+                    solo = true;
                     break;
                 case "--ticks":
                     ticks = PositiveInt(args, ref i);
@@ -150,7 +158,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -187,14 +195,16 @@ public interface ICommandSource
 
 /// <summary>
 /// Runs the real C# run root (<see cref="RunRoot.CreateRun"/> / <see cref="RunRoot.StepRun"/>, lane 2D) at 20 Hz from
-/// Godot's frame loop with a fixed accumulator (D9), on Hollow Vault with the human Warden alone: pull 1 (the Choir)
-/// spawns at creation, the encounter step chases and casts, the combat rules resolve the Warden's casts. Keeps the
+/// Godot's frame loop with a fixed accumulator (D9), on Hollow Vault with the human Warden plus a Chanter and a Cinder
+/// bot seat (<see cref="BotCommandSource"/>, lane 3H; <c>--solo</c> drops the bots): pull 1 (the Choir) spawns at
+/// creation, the encounter step chases and casts, the combat rules resolve the party's casts. Keeps the
 /// previous and current state for render interpolation. Keyrun.Sim stays pure; this node is the only place frame time
 /// meets sim ticks.
 /// </summary>
 /// <remarks>
 /// <c>--autorun --ticks N</c> replaces the keyboard with PlayerInput's scripted Warden, prints one
-/// <c>AUTORUN done ticks=N frames=F frame_ms=M</c> line and quits with exit code 0 once N ticks have run.
+/// <c>AUTORUN done ticks=N frames=F frame_ms=M</c> line, then <c>BOTS done commands=C hash=H</c> (the bot command
+/// stream's count and FNV-1a 64 fingerprint), and quits with exit code 0 once N ticks have run.
 /// <c>--write-movie DIR</c> saves three proof frames (Choir chase, lieutenant heal cast bar, after the kick).
 /// Interactive: once the run ends, Enter starts a fresh run.
 /// </remarks>
@@ -224,6 +234,7 @@ public partial class SimDriver : Node
     private readonly TickAccumulator _accumulator = new(Tick.TickHz, MaxStepsPerFrame);
     private readonly List<Command> _commands = new();
     private ICommandSource? _input;
+    private BotCommandSource? _bots;
     private RunLog? _log;
     private int _pendingCaptures;
     private bool _done;
@@ -292,9 +303,10 @@ public partial class SimDriver : Node
         {
             Options = ArenaOptions.Parse(OS.GetCmdlineUserArgs());
             Registry = ContentLoader.Load();
-            Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId);
+            Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo);
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _input = GetNode<PlayerInput>(InputPath);
+            _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed);
             StartRun();
 
             if (Options.MovieDir is { } dir)
@@ -370,6 +382,7 @@ public partial class SimDriver : Node
         State = run.State;
         PreviousState = run.State;
         LastEvents = Array.Empty<SimEvent>();
+        _bots?.Reset();
         _log?.Line(FormattableString.Invariant(
             $"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} dungeon={setup.Dungeon.Id} key={Options.KeyLevel} seed={Options.Seed} actors={run.State.Actors.Count}"));
         // createRun spawns pull 0 and drops its pull_start (it has no event sink); the log names it here.
@@ -383,7 +396,9 @@ public partial class SimDriver : Node
         var run = Run!;
         var preTick = run.State.Tick;
         _commands.Clear();
+        // sim-runtime.ts step(): the human's commands first, then every bot seat's (one runBots call).
         _input?.Sample(preTick, run, _commands);
+        _bots?.Sample(preTick, run, _commands);
         var result = RunRoot.StepRun(run, _commands);
         Run = result.Run;
         PreviousState = run.State;
@@ -430,6 +445,10 @@ public partial class SimDriver : Node
         var result = Run?.RunEnd.Result is { } r ? r.ToJs() : "running";
         _log?.Line(FormattableString.Invariant(
             $"AUTORUN done ticks={TicksRun} frames={Frames} frame_ms={frameMs} dropped={_accumulator.DroppedTicks} warden=({pos.X},{pos.Z}) hp={warden?.Health ?? 0} run={result}"));
+        if (_bots is not null)
+        {
+            _log?.Line(_bots.ProofLine());
+        }
         _log?.Dispose();
         GetTree().Quit(0);
     }
