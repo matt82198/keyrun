@@ -12,9 +12,10 @@ assets; pure POC.
 - Merged today since the 23:30Z checkpoint: #101 99836b0 (window ring labels + payoff-ready key glow + ping context + aimed spot ping); #102 2c8f8ea (bots/src/roles/shared.ts inLull, tank-pressure.ts).
 - MERGED 99f39a2: #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info).
 - Phase: 3 rows 3A-3J all MERGED on main (2026-10-18, verified per PR, see NEXT STEPS). PHASE 3 EXIT NOT RECORDED. D10
-  verdict (2026-10-18): THIRD pass NOT-MET (Phase 3 block, THIRD-PASS ORACLE VERDICT). It supersedes the second pass
-  MET-WITH-TUNING-GAP and the first pass NOT-MET (DECISIONS AND OBSERVATIONS (d)). Why: no autorun run reaches the boss in play.
-  Phase 5 "Matt playing" is the acceptance test; not yet reached. Phase 4 (TS deletion) stays blocked on D10.
+  verdict (2026-10-18): FOURTH pass PARTIAL, PHASE 3 EXIT NOT-MET (Phase 3 block, FOURTH-PASS ORACLE VERDICT). It supersedes
+  the third pass NOT-MET, the second pass MET-WITH-TUNING-GAP and the first pass NOT-MET (DECISIONS AND OBSERVATIONS (d)).
+  Why: #158 (D14) lets an autorun reach and clear the boss, but no human-played run to the boss is measured, and only that
+  closes Phase 3 exit. Phase 5 "Matt playing" is the acceptance test; not yet reached. Phase 4 (TS deletion) stays blocked on D10.
 - Earlier landed (unchanged): #92 e3f622e, #95 e56955c, #97 08b9611, #98 00e4ebb, #99 54e69c5.
 - Test count on 2c8f8ea: not restated in this checkpoint (not sourced for this head).
 - NEXT (supersedes the status in NEXT STEPS item 1; rewritten 2026-10-18 from BUILDLOG.md and git log -15):
@@ -174,6 +175,31 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   - PHASE 3 EXIT NOT RECORDED (2026-10-18). Merging proves the code paths exist, not that Matt can play the run. Phase 3
     exit is recorded only after the human-played path is measured, not on CI.
   - 3B must verify 3A's hand-corrected floor keepNear expectation against the frozen TS test (3A hand-back caveat).
+  - 2026-10-18 FOURTH-PASS ORACLE VERDICT (read-only Haiku oracle, ~23:30Z, source reads at origin/main a67192a; supersedes
+    the third pass below): D10 PARTIAL, PHASE 3 EXIT NOT-MET. Decisive line: the autorun now proves the content path through
+    the boss (game/src/Host/HudSceneTest.ps1:353, 356, 360) and the Warden plus Cinder and Chanter party (HostRunSetup.cs:78-82),
+    but no human-played run to the boss has been measured. WHY: the plan records Phase 3 exit only from a measured human-played
+    run (STATE.md:175), and only the autorun has reached the boss so far. Secondary gap: Twins from pull 1 are unasserted (run C
+    arms the boss at ps1:371 but does not assert boss_add_spawn; only run D with --pull 4 asserts it at ps1:385).
+  - LANDED 2026-10-18: #158 MERGED a67192a (TUNE-BOSS, Opus lane under D14; `gh pr view 158 --repo matt82198/keyrun --json
+    state,mergeCommit` confirms MERGED, mergeCommit a67192a). Content data (content/data/enemies/*.json, TUNING.md): boss
+    maxHealth 60000 -> 5000; boss slam every 60 -> 300; twinA/twinB 6000 -> 1000; twins.slam every 60 -> 400; pair.melee 6000 ->
+    1200 with meleeSwing at 60 every 150; seed.elite 6000 -> 3000; cleave every 160 unchanged. Sweep keys 2, 5, 8, 10 at seeds 1
+    and 7: every run reaches the boss, opens the Lock and clears within par (end ticks 6787, 6887, 7481, 7472, 8441, 7985, 8603,
+    8474), zero party deaths; solo Warden still wipes on pull 2 at tick 308. The bot party never breaks the Lock in any run; the
+    boss falls through one to three Lock fails. HudSceneTest run C asserts boss reached, lock_open and `Run cleared -- within
+    par`; runs I and K moved to `--pull 4`; oracle regenerated (frozenSourceHash 44e0de9a -> 7a65bec7); boss golden 9a99f823 ->
+    bd8a7fa5; content-pull golden contentHash 2cea6e84 -> 19436649; 13 C# expectations re-anchored. CI on the merge commit:
+    game-test, game-e2e, game-gate, e2e and test passed (runs 39175877212 and 39175877285).
+  - Per-row fourth-pass status: 3A MET; 3B PARTIAL unchanged (no k10-s11 trace, minor); 3C MET (was PARTIAL: clear title
+    asserted at ps1:353, RunEndPanel.cs:139, run in CI via game.yml:91-99); 3D MET; 3E PARTIAL unchanged (CI drives
+    ScriptedWarden, game.yml:192-201; recorded replay proven by HudSceneTest runs K and L); 3F PARTIAL (Lock OPEN asserted live
+    at ps1:360-362; Lock BROKEN never asserted on a real run, only synthetic BossRulesTests.cs:115; ps1:388 lock_broken only echoed
+    at ps1:810; a party that never breaks the Lock is plan drift against ENGINE-PLAN.md:211 and BIBLE.md:177-179: Matt decision);
+    3G MET; 3H MET (HostRunSetup.cs:78-82); 3I MET (SimDriver.cs:342-343); 3J MET (SimDriver.cs:346-347).
+  - Known LOW gaps (later lane; this lane does not own game/**): HudSceneTest.ps1:32 comment says "--ticks 3700" but the code
+    uses 7000 (ps1:156, 304); ps1:54 comment says "key 10 still wipes" but the #158 sweep shows key 10 clearing at both seeds;
+    game.yml:3-4 comments call game-test and game-e2e non-required (branch protection is the truth; note for Matt).
   - 2026-10-18 THIRD-PASS ORACLE VERDICT (read-only Haiku plan-vs-output oracle, ~21:10Z, source reads at beefb47, before
     #154; supersedes the second pass below): D10 NOT-MET, PHASE 3 EXIT NOT-MET. Decisive line:
     game/src/Host/HudSceneTest.ps1:43-50 (every swept key 2,5,8,10,12,15,20 at seeds 1 and 7 wipes in pull 2 under autorun;
@@ -235,7 +261,20 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
     (content/data/enemies/hollow-warden.json); the party dealt about 470 damage before wiping. The 3B claim that bots
     break 1 of 4 Locks at k10 is NOT reproduced. DECISION FOR MATT: boss HP, lock threshold, or bot DPS tuning before any
     Lock assertion is written (no fitted green).
-- NEXT ORDER (2026-10-18, second pass; progress recorded by the third pass; resume here, in this order):
+- NEXT ORDER (2026-10-18, fourth pass; resume here, in this order). WHY reordered: D15 (frames before feel) and #158 (boss
+  reachable in autorun) change what a human run must measure. Steps 1-3 of the second pass are kept below as the record.
+  0. SCREENS proof lane (running 2026-10-18; output C:/Users/Mattt/Desktop/keyrun-screens/) makes the first frames of run C.
+     Follow-up SCREENS-TOOL lane promotes the capture script to tools/godot/screens.ps1, adds the ffmpeg frames-to-mp4 step,
+     and documents both in game/CLAUDE.md. WHY: D15, a visible change is judged from frames, not a headless log.
+  1. Matt records a human-played run to the boss (record command above) and judges it by feel, with the D15 frames. Only this
+     moves D10 and the Phase 3 exit.
+  2. Matt decides whether bots must break the Lock or beating the boss through Lock fails is acceptable (ENGINE-PLAN.md:211 vs
+     BIBLE.md:177-179).
+  3. Small proof lane: assert boss_add_spawn (Twins) in run C; reconcile the stale ps1:32 and ps1:54 comments. Additive only, no
+     lock_broken assertion (it would fail today).
+  4. Target-ping bot reaction (runner passes ClassKitView.Empty) and cinderfield self-hit intended target (BIBLE s5) stay Matt decisions.
+  5. Only then re-run the plan-vs-output check and record PHASE 3 EXIT and D10. Phase 4 (TS deletion) stays blocked on step 5.
+  DONE 2026-10-18 since the second pass: #158 a67192a (TUNE-BOSS, D14). The second-pass steps below are kept for the record.
   Done since the first pass, each verified with `gh pr view N --repo matt82198/keyrun --json state,mergeCommit`:
   #144 MERGED ed1f2ec7 (HUD follow-up: AbilityBar banner removed; Screen.QueueCaption "Enter starts the next run at this
   key and Clause."); #145 MERGED 4b35c983 (3D-b: SimDriver.StartsOnScreen, Screen.OpenFirst; HudSceneTest run H asserts
@@ -356,6 +395,11 @@ Additional parked decisions (from the burn ledger):
   because SAC blocked lane 1A's host load while lane 1D's local run worked, so the block is intermittent. No lane touches
   security settings; a block is reported literally and the lane stops (game/CLAUDE.md, Smart App Control section).
 - D14 **Content tuned so an autorun reaches and clears the boss** (Matt, 2026-10-18 21:50Z, verbatim: "go ahead and tune the boss hp so a run reaches it"; lane TUNE-BOSS, orchestrator option (a): edit content/data, regenerate the oracle). Why: no autorun reached the boss (every key wiped on the Pair), so D10 and the Phase 3 exit could not be judged from a real run. Numbers (content/data/enemies, old -> new): boss maxHealth 60000 -> 5000; boss slam loop every 60 -> 300 (cleave stays every 160); Twins maxHealth 6000 -> 1000 each, twins.slam every 60 -> 400; Pair maxHealth 6000 -> 1200, pair.meleeSwing loop every 40 -> at 60 every 150; Seed maxHealth 6000 -> 3000; Choir unchanged. Result: HudSceneTest run C (key 2 seed 1 party autorun) reaches the boss, the Lock opens, and the run ends "Run cleared -- within par" at tick 6787; keys 2/5/8/10 at seeds 1 and 7 all clear; solo run B still wipes on pull 2. Oracle regenerated with tests/oracle (frozenSourceHash 44e0de9a -> 7a65bec7). The bot party never breaks the Lock in any sweep run (it wins through Lock fails), an observation for Matt.
+- D15 **Visible work is judged from frames** (Matt, 2026-10-18 23:31Z, verbatim: "well you need to view screenshots and videos to
+  refine the game to the objective lmfao"). Rule: every lane that changes anything visible (HUD, scenes, run flow, content pacing)
+  ships screenshots and a frame sequence of the run (PNG frames plus an mp4 made with ffmpeg, installed on this box) into a stated
+  folder, and the orchestrator views them before accepting the work. Phase 5 feel judgments use them too. A headless log alone no
+  longer closes a visible row.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
