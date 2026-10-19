@@ -94,8 +94,13 @@ public partial class RunEndRewardsProbe : Node
         return failures;
     }
 
-    // Feeds the panel's log exactly as RunEndPanel.OnStepped does after a step.
-    private static void Feed(SeedBonusLog bonus, Run run, IReadOnlyList<SimEvent> events) => bonus.Observe(events, run.Content);
+    // Feeds the panel's log exactly as RunEndPanel.OnStepped does after a step (the step's events are what the
+    // panel saw; since SEED-BONUS-REWARDS it reads only the run, so a fold over them can no longer leak into the line).
+    private static void Feed(SeedBonusLog bonus, Run run, IReadOnlyList<SimEvent> events)
+    {
+        _ = events;
+        bonus.Observe(run);
+    }
 
     private static string BonusLineOf(RunRewards rewards, ContentRegistry registry)
     {
