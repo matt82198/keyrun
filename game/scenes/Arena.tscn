@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://src/View/GreyBox.cs" id="14_greybox"]
 [ext_resource type="Script" path="res://src/View/DungeonBuilder.cs" id="15_dungeon"]
 [ext_resource type="Material" path="res://assets/kaykit-dungeon-remastered/dungeon_material.tres" id="16_kitmat"]
+[ext_resource type="Script" path="res://src/View/LockView.cs" id="17_lock"]
 
 [sub_resource type="Environment" id="Env_arena"]
 background_mode = 1
@@ -99,6 +100,9 @@ script = ExtResource("9_rings")
 [node name="Telegraphs" type="Node3D" parent="."]
 script = ExtResource("5_tgview")
 TelegraphScene = ExtResource("6_tgscene")
+
+[node name="Lock" type="Node3D" parent="."]
+script = ExtResource("17_lock")
 
 [node name="CameraRig" type="Node3D" parent="."]
 script = ExtResource("7_rig")
