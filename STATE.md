@@ -697,6 +697,8 @@ Additional parked decisions (from the burn ledger):
   b950474eff2d9967 -> b950474eff2d9967, both unchanged and regenerated with reason "D27 room lock-in" (the oracle runs have no
   layout, and the 240 replayed TICK lines measured the same in two E2eAssert runs). Why: the TS sim is frozen (D12) and the C# sim now
   carries rules the TS one never had, so a check against TS can only record, not judge.
+- D29 **lane row files: lanes write game/lanes/<branch>.md, the fold lane merges them post-squash (aesop BUILDLOG 2026-10-19 17:50Z)**
+  (orchestrator, 2026-10-19, lane LANE-ROW-FILES; reversible). Why: three keyrun PRs in one day each needed an Opus resume only to append one line to game/CLAUDE.md and BUILDLOG.md.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
