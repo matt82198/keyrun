@@ -11,7 +11,7 @@ namespace Keyrun.Sim.Tests;
 
 /// <summary>
 /// The layout run rules on the public run root (STATE.md D18, design/ART-PLAN.md section 3; new behaviour, no TS oracle):
-/// with <see cref="RunContent.Layout"/> set, a pull spawns the first tick a party member stands in its room's trigger box
+/// with <see cref="RunContent.Layout"/> set, a pull spawns the first tick the living party stands in its room box (D27)
 /// (never at run start, never on the previous clear), the corridor out of a room is a wall until the room's pull clears,
 /// and entering a room emits <c>room_enter</c>. A run without a layout is every oracle run and is unchanged.
 /// </summary>
@@ -67,7 +67,7 @@ public sealed class NavLayoutRunTests
         return (r.Run, r.Events);
     }
 
-    [Fact(DisplayName = "Nav run: no pull spawns before a party member enters its trigger box")]
+    [Fact(DisplayName = "Nav run: no pull spawns before a party member enters its room box")]
     public void No_pull_spawns_before_a_party_member_enters_its_trigger_box()
     {
         var run = Create(0);
@@ -82,7 +82,7 @@ public sealed class NavLayoutRunTests
         Assert.False(idle.State.Actors.ContainsKey(101));
         Assert.Equal(0, idle.Encounter.PullIndex);
 
-        // Walk east: the pull starts on exactly the tick the Warden first stands in the trigger box.
+        // Walk east: the pull starts on exactly the tick the Warden first stands in the room box (solo party, D27).
         var walking = run;
         int? startTick = null;
         for (var i = 0; i < 200 && startTick is null; i++)
@@ -93,13 +93,13 @@ public sealed class NavLayoutRunTests
             if (s.Events.Any(e => e.Type == "pull_start"))
             {
                 startTick = s.Run.State.Tick;
-                Assert.False(Movement.Contains(Trigger1, before), $"pull started at {after} but the Warden was already in the trigger at {before}");
-                Assert.True(Movement.Contains(Trigger1, after), $"pull started with the Warden at {after}, outside the trigger");
+                Assert.False(Movement.Contains(Room1, before), $"pull started at {after} but the Warden was already in the trigger at {before}");
+                Assert.True(Movement.Contains(Room1, after), $"pull started with the Warden at {after}, outside the trigger");
                 Assert.True(s.Run.State.Actors.ContainsKey(101));
             }
             else
             {
-                Assert.False(Movement.Contains(Trigger1, after), $"the Warden stood in the trigger at {after} with no pull_start");
+                Assert.False(Movement.Contains(Room1, after), $"the Warden stood in the trigger at {after} with no pull_start");
             }
             walking = s.Run;
         }
@@ -139,7 +139,7 @@ public sealed class NavLayoutRunTests
             if (s.Events.Any(e => e.Type == "pull_start"))
             {
                 p2Start = s.Run.State.Tick;
-                Assert.True(Movement.Contains(Trigger2, s.Run.State.Actors[1].Pos));
+                Assert.True(Movement.Contains(Room2, s.Run.State.Actors[1].Pos));
             }
             run = s.Run;
         }

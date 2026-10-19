@@ -98,7 +98,7 @@ public sealed class NavRouteTests
             {
                 var index = (int)((JsInt)e.Get("pullIndex")!).Value;
                 var pull = dungeon.Pulls[index];
-                var trigger = nav.TriggerFor(pull.Id)!;
+                var trigger = nav.RoomFor(pull.Id)!.Box;
                 var partyNow = run.State.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive).ToDictionary(a => a.Id, a => a.Pos);
                 starts.Add((e.Tick, partyNow, pull.Spawns.Select(s => s.Pos).ToList(),
                     NavLayout.PartyInside(before.State, trigger), NavLayout.PartyInside(run.State, trigger)));
@@ -145,7 +145,10 @@ public sealed class NavRouteTests
         }
     }
 
-    [Fact(DisplayName = "Nav route: no enemy spawns within 6 m of a party member")]
+    // STATE.md D27 (ROOM-LOCK-IN) supersedes the D18 trigger-tick spacing for the scripted leader: a pull now starts when
+    // the LAST living member enters, and seat 1 here walks the route (to the room's far door) while no enemy lives, so it
+    // can stand anywhere in the room at pull_start. The spacing still holds for the bots, who arrive with the start.
+    [Fact(DisplayName = "Nav route: no enemy spawns within 6 m of a bot at pull_start")]
     public void No_enemy_spawns_within_6_m_of_a_party_member()
     {
         var r = Route.Value;
@@ -154,7 +157,7 @@ public sealed class NavRouteTests
         {
             foreach (var spawn in s.Spawns)
             {
-                foreach (var (id, pos) in s.Party)
+                foreach (var (id, pos) in s.Party.Where(p => p.Key != LeaderId))
                 {
                     var d = Distance(spawn, pos);
                     Assert.True(d >= 6000, $"tick {s.Tick}: an enemy spawned at {spawn}, {d} mm from party actor {id} at {pos}");
