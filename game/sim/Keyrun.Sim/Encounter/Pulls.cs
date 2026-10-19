@@ -158,6 +158,12 @@ public sealed record NavLayout
     /// <summary>The trigger for <paramref name="pullId"/>, or null.</summary>
     public NavTrigger? TriggerFor(string pullId) => Triggers.FirstOrDefault(t => string.Equals(t.PullId, pullId, StringComparison.Ordinal));
 
+    /// <summary>RED STUB.</summary>
+    public NavBox? RoomFor(string pullId) => null;
+
+    /// <summary>RED STUB.</summary>
+    public static Vec3 GateClamp(Combat.Bounds room, Vec3 pre, Vec3 post) => post;
+
     /// <summary>The highest-index box holding <paramref name="p"/> (open or not), or -1 when none does.</summary>
     public int BoxIndexAt(Vec3 p)
     {
