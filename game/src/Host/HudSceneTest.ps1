@@ -75,7 +75,9 @@
      20. then "QUEUE consume n=1 size=0" (lane 3J: the request that started the run leaves the Queue node, so it can
          never also refill a seat).
     Run F (lane 3J, backfill in the real loop; three-seat party, key 2, no --requeue):
-        -- --autorun --ticks 3300 --abandon-seat <AbandonSeat> --joiner-key 2
+        -- --autorun --ticks 3500 --abandon-seat <AbandonSeat> --joiner-key 2
+        (3500 since PARTY-TOGETHER, was 3300: the joiner now walks into the Pair hall before it casts; on seed 1 key 2
+        the refilled Chanter enters pair-hall at tick 3268 and first casts at 3345)
         (--abandon-seat A@T: SimDriver calls AbandonSeat(A) at run tick T and, with --joiner-key K, adds one
         QueueRequest at key K straight to the Queue node at Hud/Screen/Queue; this is the scripted path, the screen's
         Queue button is not pressed mid-run)
@@ -190,7 +192,7 @@ param(
     [int]$PartyTicks = 7000,
     [int]$BossTicks = 600,
     [int]$QueueTicks = 480,
-    [int]$BackfillTicks = 3300,
+    [int]$BackfillTicks = 3500,
     [string]$AbandonSeat = '2@3000',
     [int]$ScreenFirstFrames = 240,
     [int]$WipeFrames = 6600,
