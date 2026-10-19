@@ -87,14 +87,17 @@ Layout (proposed numbers, mm, x forward along the route; final numbers belong to
 | Room | Purpose and theme | Walkable box (x; z) |
 |---|---|---|
 | Entrance | the screen and Clause pick backdrop; banners, a sealed vault door, the party's start | -6000..6000; -6000..6000 |
-| Corridor 1 | torch-lit passage | 6000..14000; -1500..1500 |
-| Choir room | a ruined chapel: pews, candles, a lectern for the lieutenant (the kick ledger) | 14000..30000; -8000..8000 |
-| Corridor 2 | | 30000..38000; -1500..1500 |
-| Pair hall | a long open hall with pillars at the edges and a clear centre for spread and stack | 38000..62000; -6000..6000 |
-| Corridor 3 | | 62000..70000; -1500..1500 |
-| Seed chamber | an overgrown crypt, roots and a cracked floor seal where the Seed's Window drops | 70000..84000; -7000..7000 |
-| Corridor 4 | descending stairs (visual only, floor stays y 0) | 84000..92000; -1500..1500 |
-| Warden arena | a round-cornered vault, 28 m square, empty centre, braziers on the rim, the boss throne | 92000..120000; -14000..14000 |
+| Corridor 1 | torch-lit passage | 5000..11000; -1500..1500 |
+| Choir room | a ruined chapel: pews, candles, a lectern for the lieutenant (the kick ledger) | 10000..26000; -8000..8000 |
+| Corridor 2 | | 25000..33000; -1500..1500 |
+| Pair hall | a long open hall with pillars at the edges and a clear centre for spread and stack | 32000..56000; -6000..6000 |
+| Corridor 3 | | 55000..63000; -1500..1500 |
+| Seed chamber | an overgrown crypt, roots and a cracked floor seal where the Seed's Window drops | 62000..76000; -7000..7000 |
+| Corridor 4 | descending stairs (visual only, floor stays y 0) | 75000..83000; -1500..1500 |
+| Warden arena | a round-cornered vault, 28 m square, empty centre, braziers on the rim, the boss throne | 82000..110000; -14000..14000 |
+
+The extents above are copied from game/content/data/layout.json (boxes, minX..maxX; minZ..maxZ) on 2026-10-19 (STATE-R9);
+layout.json is the truth and this table must follow it, not the other way round.
 
 Rules:
 - Each pull lives in its own room. Pull spawn points become room-relative (the room centre plus the spawn offset
@@ -268,13 +271,13 @@ server/**, .github/**, STATE.md (orchestrator), other lanes' files.
    game/assets/kaykit-skeletons/**, enemy wrapper scenes, the ActorView model map. Frames: each pull's spawn
    animation, the lieutenant's heal cast being kicked, the Pair spread call, the Seed's death and Window. Acceptance:
    each enemy class has its model and the clips in section 4.
-5. **Room theming: Entrance and Choir room** (render-only). Owned: theme scenes for those rooms under
+5. DONE (PR #178 MERGED c2676604, ROOM-THEMING-1). **Room theming: Entrance and Choir room** (render-only). Owned: theme scenes for those rooms under
    game/scenes/rooms/, their lights and props. Frames: the screen over the Entrance (non-autorun launch) and the Choir
    fight. Acceptance: section 2 readability rule holds in every frame of the room.
-6. **Room theming: Pair hall and Seed chamber** (render-only). Owned: game/scenes/rooms/{PairHall,SeedChamber}.tscn
+6. DONE (PR #179 MERGED 24a8d0ef, ROOM-THEMING-2). **Room theming: Pair hall and Seed chamber** (render-only). Owned: game/scenes/rooms/{PairHall,SeedChamber}.tscn
    and props. Frames: spread and stack in the hall, the Seed Window on the cracked seal. Acceptance: telegraphs
    readable over the dressed floor.
-7. **Boss arena, Hollow Warden, Twins and Lock visuals** (render-only, except the Twin offset 2000 to 4000 mm in
+7. DONE as two PRs: #180 MERGED 8b329434 (ROOM-THEMING-3, arena) and #181 MERGED 39ec4367 (LOCK-VIEW, Lock). **Boss arena, Hollow Warden, Twins and Lock visuals** (render-only, except the Twin offset 2000 to 4000 mm in
    HostRunSetup.cs:69, which is sim-affecting and moves the boss golden; the lane states it). Owned:
    game/scenes/rooms/WardenArena.tscn, boss and Twin wrapper scenes, game/src/View/LockShieldView.cs (new),
    HostRunSetup.cs:69. Frames: cleave wind-up, slam, Twins spawn and stagger, Lock open, Lock fail or break, enrage,
@@ -289,7 +292,7 @@ server/**, .github/**, STATE.md (orchestrator), other lanes' files.
    BossRulesTests.cs:115 setup): from `--pull 4`, at `lock_open` the Warden lands a Setup on the boss and the Cinder a
    Payoff inside the 60-tick Window; assert `lock_broken`. Acceptance: test green on CI game-test; no assertion is
    added that the bot party breaks the Lock (D17).
-10. **Feel and performance pass** (render-only). Owned: camera tuning in game/src/View/CameraRig.cs (wall fade, arena
+10. DONE (PR #172 8ffe1e34 CAMERA-FEEL, PR #174 36feb7e1 HOST-HEADING, PR #176 49c127c5 PLATE-HEIGHT, PR #177 7318aa64 PARTY-FRAMING). **Feel and performance pass** (render-only). Owned: camera tuning in game/src/View/CameraRig.cs (wall fade, arena
     pull-back), LOD and light budgets, the export smoke. Frames: the full run C plus an mp4 Matt can watch end to end.
     Acceptance: budget measured and reported (draw calls, fps on this box), `SMOKE ok`, frames viewed.
 
