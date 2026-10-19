@@ -113,7 +113,19 @@ public sealed record RunEndState(RunResult? Result, int? ResultTick, int? WipeSt
 /// <param name="Dungeon">The dungeon.</param>
 /// <param name="Content">The run's content with any loadouts merged.</param>
 /// <param name="RunEnd">The terminal state.</param>
-public sealed record Run(SimState State, EncounterState Encounter, DungeonDef Dungeon, RunContent Content, RunEndState RunEnd);
+public sealed record Run(SimState State, EncounterState Encounter, DungeonDef Dungeon, RunContent Content, RunEndState RunEnd)
+{
+    /// <summary>
+    /// The run's reward-side state (SEED-LOOT-AWARD, BIBLE s9 item 3): <see cref="RunRoot.StepRun"/> folds
+    /// <see cref="SeedLoot.Observe"/> over every step's events, so the Seed bonus is part of the run's own result.
+    /// <see cref="RunRewards.Empty"/> until the Seed's Window opens; no oracle field (the frozen TS has no bonus loot).
+    /// </summary>
+    public RunRewards Rewards { get; init; } = RunRewards.Empty;
+
+    /// <summary>The Seed loot rule resolved from the content at <see cref="RunRoot.CreateRun"/>, or null when no enemy's
+    /// onDeath cast opens a Window (then <see cref="Rewards"/> stays empty).</summary>
+    public SeedLootRule? SeedRule { get; init; }
+}
 
 /// <summary>Options a host may pass to one <see cref="RunRoot.StepRun"/> (sim/run-types.ts:84 StepRunOpts).</summary>
 /// <param name="AbandonRequested">An explicit human quit: ends the run "abandoned" this tick.</param>

@@ -71,7 +71,29 @@ public static class RunRoot
         var encounter = EncounterState.Create(keyLevel, content.ParTicks ?? 24000, rules);
 
         RunWiring.FixupTargeting(state);
-        return new Run(state, encounter, dungeon, effective, RunEndState.Initial);
+        return new Run(state, encounter, dungeon, effective, RunEndState.Initial) { SeedRule = SeedRuleOf(effective) };
+    }
+
+    /// <summary>
+    /// The Seed's loot rule (BIBLE s9 item 3): <see cref="SeedLoot.RuleFor"/> over the enemy scripts, lowest actor id
+    /// first, with an ability's windowId taken from its first <see cref="WindowOp"/>; null when none opens a Window.
+    /// </summary>
+    /// <param name="content">The run content.</param>
+    /// <returns>The rule, or null.</returns>
+    public static SeedLootRule? SeedRuleOf(RunContent content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        string? WindowIdOf(string abilityId) => content.Abilities.TryGetValue(abilityId, out var ability)
+            ? ability.Effects.OfType<WindowOp>().Select(w => w.WindowId).FirstOrDefault()
+            : null;
+        foreach (var (actorId, script) in content.EnemyScripts.OrderBy(kv => kv.Key))
+        {
+            if (SeedLoot.RuleFor(actorId, script, WindowIdOf) is { } rule)
+            {
+                return rule;
+            }
+        }
+        return null;
     }
 
     /// <summary>
@@ -141,7 +163,11 @@ public static class RunRoot
             emit(new SimEvent(nextState.Tick, "run_end", ("result", JsValue.Str(result.ToJs()))));
         }
 
-        return new RunStepResult(new Run(nextState, nextEncounter, run.Dungeon, run.Content, runEnd), events);
+        // SEED-LOOT-AWARD: the run root awards the Seed bonus itself (SeedLoot.cs summary: "the run root calls Observe
+        // once per tick with that tick's events").
+        var rewards = run.SeedRule is { } seedRule ? SeedLoot.Observe(run.Rewards, seedRule, events) : run.Rewards;
+        var next = new Run(nextState, nextEncounter, run.Dungeon, run.Content, runEnd) { Rewards = rewards, SeedRule = run.SeedRule };
+        return new RunStepResult(next, events);
     }
 
     // A layout run's active pull before its room is entered has no actors in the state, and pulls.ts counts a missing
