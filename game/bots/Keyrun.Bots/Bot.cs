@@ -95,6 +95,21 @@ public static class Bot
         commands.AddRange(pingCommands);
         var pingCast = pingCommands.Any(c => c is CastCommand);
 
+        // Travel between rooms (STATE.md D18; no TS counterpart, Follow.FollowCommand): on a layout run the bot walks the
+        // route to its slot behind the leader while no enemy lives, every tick and skill-dial-free like the danger dodge
+        // (the reaction delay would leave it a third of the leader's speed), and skips its role. In a fight it started
+        // outside the fight's room, it walks in the same way while its role still decides (its casts are kept, its own
+        // moves dropped). A dodge or a ping reaction wins over both. Inert in the oracle runner: its view carries no layout.
+        var follow = avoid is null && !pingCommands.Any() ? Follow.FollowCommand(view, self) : null;
+        if (follow is not null)
+        {
+            commands.Add(follow);
+            if (!Follow.AnyLivingEnemy(view.State))
+            {
+                return new BotDecision(commands, memory, prng);
+            }
+        }
+
         if (tick < memory.NextActionTick)
         {
             return new BotDecision(commands, memory, prng);
@@ -109,7 +124,8 @@ public static class Bot
 
         if (!pingCast && roles.For(self.Role) is { } role)
         {
-            commands.AddRange(role.Decide(view, self));
+            var decided = role.Decide(view, self);
+            commands.AddRange(follow is null ? decided : decided.Where(c => c is not MoveCommand and not DashCommand));
         }
 
         return new BotDecision(commands, nextMemory, roll.Next);

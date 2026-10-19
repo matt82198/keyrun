@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Bots.Shared;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
@@ -38,10 +39,11 @@ public sealed record HostRunSetup(
     /// <summary>content-dungeon.ts:39 BOSS_ACTOR_ID.</summary>
     public const int BossActorId = 900;
 
-    /// <summary>content-dungeon.ts:43 BOSS_SPAWN (the dungeon data carries no boss spawn point).</summary>
-    public static readonly Vec3 BossSpawn = new(15000, 0, 0);
-
-    /// <summary>content-dungeon.ts:44 FACE_MINUS_Z, the boss's spawn yaw.</summary>
+    /// <summary>
+    /// The boss's spawn yaw, 512 = facing -x under Facing.cs (0 = +x, 256 = +z): toward the Warden arena's entry door,
+    /// since the route runs along +x (STATE.md D18). The boss stands at the arena origin (game/content/data/layout.json);
+    /// the flat arena's content-dungeon.ts:43 BOSS_SPAWN (15000, 0) is gone with the flat arena.
+    /// </summary>
     public const int BossYaw = 512;
 
     /// <summary>content-party.ts:46 PARTY_SPAWN_Z with SPAWN_X[0] (the tank slot), mm.</summary>
@@ -64,9 +66,10 @@ public sealed record HostRunSetup(
 
     /// <summary>
     /// How far each Twin spawns from the boss along x, mm: the first at +x, the second at -x (the content carries no
-    /// twin spawn point; lane 3F's boss tests flank the boss the same way).
+    /// twin spawn point; lane 3F's boss tests flank the boss the same way). 4000 since lane NAV-CORE (design/ART-PLAN.md
+    /// section 3, was 2000): at 2000 the Twins' bodies and name plates overlapped the boss's in every frame.
     /// </summary>
-    public const int TwinOffsetMm = 2000;
+    public const int TwinOffsetMm = 4000;
 
     /// <summary>The content tag that marks the boss's Lock ability (hollowWarden.lock <c>setup:lock</c>).</summary>
     public const string LockTag = "setup:lock";
@@ -118,9 +121,18 @@ public sealed record HostRunSetup(
         var (dungeon, scripts) = ToSimDungeon(registry, dungeonDef, keyLevel);
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
 
+        // Lane NAV-CORE (STATE.md D18): the dungeon's rooms and corridors. Pulls stand in their rooms, the party in the
+        // Entrance, and the sim spawns each pull on room entry and gates each corridor on the pull before it.
+        var layout = registry.Layout;
+        if (!string.Equals(layout.Dungeon, dungeonDef.Id, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"run setup: layout.json is for dungeon \"{layout.Dungeon}\", not \"{dungeonDef.Id}\"");
+        }
+        var nav = NavLayouts.ToSim(layout);
+        dungeon = NavLayouts.PlaceDungeon(layout, dungeon);
+
         var run = registry.Run;
-        var movement = new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm,
-            new Bounds(run.ArenaBounds.MinX, run.ArenaBounds.MaxX, run.ArenaBounds.MinZ, run.ArenaBounds.MaxZ));
+        var movement = new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm, nav.Extent);
         var content = new RunContent
         {
             Abilities = abilities,
@@ -135,11 +147,32 @@ public sealed record HostRunSetup(
             Combos = combos,
             FieldCombos = fieldCombos,
             Clauses = clauses,
+            Layout = nav,
         }.WithMovement(movement);
 
-        var party = BuildParty(registry, classDef.Id, withBots);
+        var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
         var boss = BuildBossConfig(registry, Enemy(registry, dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss"), keyLevel);
-        return new HostRunSetup(party, dungeon, content, HumanId, ResolveSlots(classDef), boss);
+        return new HostRunSetup(party, dungeon, content, HumanId, ResolveSlots(classDef), boss) { Layout = layout };
+    }
+
+    /// <summary>The content layout the setup was placed with (game/content/data/layout.json).</summary>
+    public C.LayoutDef? Layout { get; init; }
+
+    /// <summary>
+    /// The party for a run over <paramref name="runDungeon"/> (the setup's dungeon, or a <c>--pull N</c> slice of it):
+    /// <see cref="Party"/> in the Entrance for a run from the first pull, else the same seats at the start of the first
+    /// pull's room, inside its trigger, so the sliced run begins in its fight as the flat arena's did.
+    /// </summary>
+    /// <param name="runDungeon">The dungeon the run is created with.</param>
+    /// <returns>The placed party.</returns>
+    public IReadOnlyList<PartyMemberSpec> PartyFor(DungeonDef runDungeon)
+    {
+        ArgumentNullException.ThrowIfNull(runDungeon);
+        if (Layout is null || runDungeon.Pulls.Count == 0 || runDungeon.Pulls[0].Id == Dungeon.Pulls[0].Id)
+        {
+            return Party;
+        }
+        return NavLayouts.PlaceParty(Layout, Party, runDungeon.Pulls[0].Id);
     }
 
     /// <summary>
@@ -417,9 +450,10 @@ public sealed record HostRunSetup(
         }
 
         var boss = Enemy(registry, dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss");
-        pulls.Add(new PullDef("boss", new[]
+        // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon stands it at the arena origin.
+        pulls.Add(new PullDef(C.LayoutDef.BossPullId, new[]
         {
-            new PullSpawn(BossActorId, boss.Id, BossSpawn, BossYaw, Tempo.ScaleHealth(boss.MaxHealth, keyLevel)),
+            new PullSpawn(BossActorId, boss.Id, Vec3.Zero, BossYaw, Tempo.ScaleHealth(boss.MaxHealth, keyLevel)),
         }));
         scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel);
         return (new DungeonDef(dungeonDef.Id, pulls), scripts);

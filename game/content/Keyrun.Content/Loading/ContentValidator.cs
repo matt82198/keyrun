@@ -45,6 +45,7 @@ public static class ContentValidator
         CheckDungeons(reg);
         CheckFacets(reg);
         CheckRun(reg.Run);
+        LayoutValidator.Check(reg);
     }
 
     private static void CheckRun(RunConfig run)

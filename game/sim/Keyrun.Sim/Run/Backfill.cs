@@ -141,8 +141,10 @@ public static class Backfill
         var applied = SeatCommands(state, commands);
         var stepped = RunRoot.StepRun(run, applied, opts);
         var next = stepped.Run;
-        var pullStarted = next.Encounter.PullIndex != run.Encounter.PullIndex && stepped.Events.Any(e => e.Type == "pull_start");
-        if (state.Open.Count == 0 || !pullStarted || next.RunEnd.Result is not null)
+        // A pull starts on its pull_start event. On the flat arena that is the step the index advances; on a layout run
+        // (STATE.md D18) the index advances on the clear and the next pull starts later, on room entry.
+        var started = stepped.Events.FirstOrDefault(e => e.Type == "pull_start");
+        if (state.Open.Count == 0 || started is null || next.RunEnd.Result is not null)
         {
             return new BackfillStep(stepped, state, applied, Array.Empty<SeatFill>(), Array.Empty<int>());
         }
@@ -152,7 +154,7 @@ public static class Backfill
         var open = new List<SeatAbandon>();
         foreach (var seat in state.Open)
         {
-            var pick = seat.PullIndex < next.Encounter.PullIndex ? PickJoiner(next.Encounter.KeyLevel, queue, consumed) : -1;
+            var pick = seat.Tick < started.Tick ? PickJoiner(next.Encounter.KeyLevel, queue, consumed) : -1;
             if (pick < 0)
             {
                 open.Add(seat);

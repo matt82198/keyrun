@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using Keyrun.Bots.Shared;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Runs;
@@ -355,6 +356,9 @@ public static class CastTargeting
 /// range, kicks the Cantor's heal once it is half cast (so the cast bar is on screen for two seconds first), and spends
 /// the GCD on his rotation against whatever is in reach: Reckoning at full Momentum, Vigil at 50, Guard Break, Strike,
 /// and Brace below half health. Every command goes through the same <see cref="CastTargeting"/> rule as a key press.
+/// On a layout run (lane NAV-CORE, STATE.md D18) with no living enemy he walks the route instead
+/// (<see cref="Follow.WalkRoute"/>: each room's far doorway in turn), so he crosses the next room's trigger and its
+/// pull spawns at the far side; then the combat script above.
 /// </summary>
 public sealed class ScriptedWarden
 {
@@ -380,6 +384,14 @@ public sealed class ScriptedWarden
         var state = run.State;
         if (!state.Actors.TryGetValue(SimDriver.WardenId, out var me) || !me.Alive)
         {
+            return;
+        }
+        if (run.Content.Layout is { } layout && !Follow.AnyLivingEnemy(state))
+        {
+            if (Follow.WalkRoute(tick, me, layout) is { } walk)
+            {
+                into.Add(walk);
+            }
             return;
         }
         var abilities = run.Content.Abilities;

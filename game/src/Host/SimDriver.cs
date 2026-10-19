@@ -864,7 +864,8 @@ public partial class SimDriver : Node
             }
             dungeon = dungeon with { Pulls = dungeon.Pulls.Skip(Options.StartPull - 1).ToList() };
         }
-        var created = RunRoot.CreateRun(Options.Seed, setup.Party, dungeon, setup.Content, request?.ToRunOptions());
+        // Lane NAV-CORE: a --pull N run starts its party in pull N's room (HostRunSetup.PartyFor), else in the Entrance.
+        var created = RunRoot.CreateRun(Options.Seed, setup.PartyFor(dungeon), dungeon, setup.Content, request?.ToRunOptions());
         // 3F's hand-off (its decision 6): arm the boss on the created run's encounter.
         var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
         Run = run;
@@ -878,8 +879,13 @@ public partial class SimDriver : Node
         var boss = run.Encounter.Boss?.Config ?? throw new InvalidOperationException("SimDriver: the run's boss is not armed");
         _log?.Line(FormattableString.Invariant(
             $"BOSS armed twins={boss.Twins.Count} lockAt={boss.LockThresholdBp / 100} window={boss.LockWindowTicks} bar={boss.TwinsBar.Id} boss={boss.BossActorId}"));
-        // createRun spawns pull 0 and drops its pull_start (it has no event sink); the log names it here.
-        _log?.PullSpawn(run.Encounter.PullIndex, dungeon);
+        // createRun spawns pull 0 and drops its pull_start (it has no event sink); the log names it here. On a layout
+        // run pull 0 spawns at creation only when the party starts in its trigger (a --pull N start); otherwise its
+        // pull_start comes on room entry and RunLog names it then.
+        if (Pulls.IsSpawned(run.State, dungeon, run.Encounter.PullIndex))
+        {
+            _log?.PullSpawn(run.Encounter.PullIndex, dungeon);
+        }
         _log?.Begin(run.State);
         RunStarted?.Invoke();
     }

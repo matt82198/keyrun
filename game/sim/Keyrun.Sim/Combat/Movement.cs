@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Combat;
@@ -145,10 +146,68 @@ public static class Movement
     /// <summary>Clamps the actor's x and z into <paramref name="bounds"/> (y untouched).</summary>
     public static void ClampToBounds(ActorState actor, Bounds bounds)
     {
-        actor.Pos = actor.Pos with
+        actor.Pos = ClampPoint(actor.Pos, bounds);
+    }
+
+    /// <summary>True when <paramref name="p"/>'s x and z lie in <paramref name="bounds"/>, edges included.</summary>
+    public static bool Contains(Bounds bounds, Vec3 p) =>
+        p.X >= bounds.MinX && p.X <= bounds.MaxX && p.Z >= bounds.MinZ && p.Z <= bounds.MaxZ;
+
+    /// <summary><paramref name="p"/> with x and z clamped into <paramref name="bounds"/> (y untouched).</summary>
+    public static Vec3 ClampPoint(Vec3 p, Bounds bounds) => p with
+    {
+        X = Math.Min(bounds.MaxX, Math.Max(bounds.MinX, p.X)),
+        Z = Math.Min(bounds.MaxZ, Math.Max(bounds.MinZ, p.Z)),
+    };
+
+    /// <summary>
+    /// The walkable-space rule (STATE.md D18; no TS counterpart, run only for a layout run): walkable space is a list of
+    /// open boxes that overlap at doorways. A move to <paramref name="post"/> is kept when <paramref name="post"/> lies
+    /// in any open box; otherwise it is clamped into the first open box that held <paramref name="pre"/>, the position
+    /// before the move. When no open box held <paramref name="pre"/> (an actor placed outside the open space), it is
+    /// clamped into the open box nearest <paramref name="post"/> (lowest index on a tie). A list of one box is exactly
+    /// <see cref="ClampToBounds(ActorState, Bounds)"/>.
+    /// </summary>
+    /// <param name="pre">Position before the move.</param>
+    /// <param name="post">Position after the move.</param>
+    /// <param name="open">The open boxes, in layout order; must not be empty.</param>
+    /// <returns>The accepted position.</returns>
+    /// <exception cref="ArgumentException"><paramref name="open"/> is empty.</exception>
+    public static Vec3 ClampToWalkable(Vec3 pre, Vec3 post, IReadOnlyList<Bounds> open)
+    {
+        ArgumentNullException.ThrowIfNull(open);
+        if (open.Count == 0)
         {
-            X = Math.Min(bounds.MaxX, Math.Max(bounds.MinX, actor.Pos.X)),
-            Z = Math.Min(bounds.MaxZ, Math.Max(bounds.MinZ, actor.Pos.Z)),
-        };
+            throw new ArgumentException("walkable space needs at least one open box", nameof(open));
+        }
+        for (var i = 0; i < open.Count; i++)
+        {
+            if (Contains(open[i], post))
+            {
+                return post;
+            }
+        }
+        for (var i = 0; i < open.Count; i++)
+        {
+            if (Contains(open[i], pre))
+            {
+                return ClampPoint(post, open[i]);
+            }
+        }
+        var best = 0;
+        long bestD2 = long.MaxValue;
+        for (var i = 0; i < open.Count; i++)
+        {
+            var c = ClampPoint(post, open[i]);
+            var dx = c.X - post.X;
+            var dz = c.Z - post.Z;
+            var d2 = (dx * dx) + (dz * dz);
+            if (d2 < bestD2)
+            {
+                best = i;
+                bestD2 = d2;
+            }
+        }
+        return ClampPoint(post, open[best]);
     }
 }

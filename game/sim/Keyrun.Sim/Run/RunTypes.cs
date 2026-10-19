@@ -71,6 +71,13 @@ public sealed record RunContent
     public IReadOnlyDictionary<string, ClauseDef>? Clauses { get; init; }
 
     /// <summary>
+    /// The rooms-and-corridors layout (STATE.md D18), or null for the flat arena. Null on every oracle run: the layout
+    /// rules (room-entry pull spawns, gated walkable boxes, <c>room_enter</c>) are new behaviour with no TS oracle and
+    /// run only when a host sets it (<see cref="RunRoot"/>).
+    /// </summary>
+    public NavLayout? Layout { get; init; }
+
+    /// <summary>
     /// This content with its movement fields taken from the host's validated <paramref name="movement"/>
     /// (the run-root side of <see cref="RulesConfig.WithMovement"/>: the host never hard-codes speed, radius or bounds).
     /// </summary>
