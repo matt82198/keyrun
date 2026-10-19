@@ -1460,7 +1460,7 @@
 {"t":1458,"h":"d4218b30","c":[{"actorId":1,"dir":{"x":998,"z":-58},"kind":"move","tick":1457,"yaw":1015}]}
 {"t":1459,"h":"474e53e9","c":[{"actorId":1,"dir":{"x":-1000,"z":0},"kind":"move","tick":1458,"yaw":512}]}
 {"t":1460,"h":"2ddc0114","p":"t=1460;pull=3;slack=620;a=1,346,6630,480,1015,1,40,-,-|2,250,-1923,3968,994,1,1,-,-|3,250,-1551,2943,826,1,25,cinder.flare,1478|4,250,-935,3452,832,1,0,cinder.flare,1478|5,250,-136,3475,512,1,0,cinder.flare,1471|100,0,-401,1411,232,0,0,-,-|101,0,399,1411,282,0,0,-,-|102,0,0,-1000,0,0,0,-,-|103,0,1139,347,454,0,0,-,-|104,0,1000,1089,464,0,0,-,-|105,0,331,1581,464,0,0,-,-|106,0,1068,1887,515,0,0,-,-|107,0,643,373,412,0,0,-,-|108,0,10000,0,0,0,0,-,-|900,5150,12852,126,503,1,0,-,-","c":[{"actorId":1,"dir":{"x":998,"z":-57},"kind":"move","tick":1459,"yaw":1015}]}
-{"t":1461,"h":"530c7df0","c":[{"actorId":1,"dir":{"x":-1000,"z":0},"kind":"move","tick":1460,"yaw":512}]}
+{"t":1461,"h":"530c7df0","c":[{"actorId":1,"dir":{"x":-1000,"z":0},"kind":"move","tick":1460,"yaw":512}],"e":[{"actorId":900,"cast":"hollowWarden.slam","leadTicks":10,"origin":{"x":12852,"y":0,"z":126},"radius":3000,"resolvesTick":1470,"shape":"circle","tick":1460,"type":"telegraph","yaw":503}]}
 {"t":1462,"h":"10120e01","c":[{"actorId":1,"dir":{"x":999,"z":-55},"kind":"move","tick":1461,"yaw":1015}]}
 {"t":1463,"h":"fd1666c7","c":[{"actorId":1,"dir":{"x":-1000,"z":0},"kind":"move","tick":1462,"yaw":512}]}
 {"t":1464,"h":"6e3cb971","c":[{"actorId":1,"dir":{"x":999,"z":-54},"kind":"move","tick":1463,"yaw":1015}]}
@@ -1470,7 +1470,7 @@
 {"t":1468,"h":"00f11119","c":[{"actorId":1,"dir":{"x":999,"z":-51},"kind":"move","tick":1467,"yaw":1016}]}
 {"t":1469,"h":"027d8fa0","c":[{"actorId":1,"dir":{"x":-1000,"z":0},"kind":"move","tick":1468,"yaw":512}]}
 {"t":1470,"h":"f27ea9e4","c":[{"actorId":1,"dir":{"x":999,"z":-49},"kind":"move","tick":1469,"yaw":1016}]}
-{"t":1471,"h":"e2aaa9c5","c":[{"actorId":1,"dir":{"x":-1000,"z":0},"kind":"move","tick":1470,"yaw":512}]}
+{"t":1471,"h":"e2aaa9c5","c":[{"actorId":1,"dir":{"x":-1000,"z":0},"kind":"move","tick":1470,"yaw":512}],"e":[{"actorIds":[],"telegraphId":8,"tick":1470,"type":"telegraph_hit"}]}
 {"t":1472,"h":"f202525c","c":[{"actorId":1,"dir":{"x":999,"z":-47},"kind":"move","tick":1471,"yaw":1016},{"abilityId":"cinder.flare","actorId":5,"kind":"cast","targetId":900,"tick":1471}],"e":[{"absorbed":0,"healthDamage":110,"modifiedAmount":110,"rawAmount":110,"sourceId":5,"targetId":900,"tick":1471,"type":"damage"},{"abilityId":"cinder.flare","actorId":5,"tick":1471,"type":"cast_complete"},{"endsTick":1531,"onTarget":true,"setupActorId":5,"setupClass":"cinder","targetId":900,"tick":1471,"type":"window_opened","windowId":"kindled"}]}
 {"t":1473,"h":"213feb37","c":[{"actorId":1,"dir":{"x":-1000,"z":0},"kind":"move","tick":1472,"yaw":512}]}
 {"t":1474,"h":"05938366","c":[{"actorId":1,"dir":{"x":999,"z":-46},"kind":"move","tick":1473,"yaw":1017}]}
@@ -1560,7 +1560,7 @@
 {"t":1558,"h":"fd29a4ed"}
 {"t":1559,"h":"f142cace"}
 {"t":1560,"h":"53cf4f82","p":"t=1560;pull=3;slack=620;a=1,346,4739,186,7,1,40,-,-|2,250,-1923,3968,994,1,1,-,-|3,250,-1551,2943,826,1,0,-,-|4,250,-935,3452,832,1,0,cinder.flare,1568|5,250,-136,3475,512,1,0,cinder.flare,1561|100,0,-401,1411,232,0,0,-,-|101,0,399,1411,282,0,0,-,-|102,0,0,-1000,0,0,0,-,-|103,0,1139,347,454,0,0,-,-|104,0,1000,1089,464,0,0,-,-|105,0,331,1581,464,0,0,-,-|106,0,1068,1887,515,0,0,-,-|107,0,643,373,412,0,0,-,-|108,0,10000,0,0,0,0,-,-|900,3080,7112,281,519,1,0,-,-"}
-{"t":1561,"h":"9ea0bce0","e":[{"actorIds":[],"telegraphId":8,"tick":1560,"type":"telegraph_hit"}]}
+{"t":1561,"h":"9ea0bce0","e":[{"actorIds":[],"telegraphId":9,"tick":1560,"type":"telegraph_hit"}]}
 {"t":1562,"h":"84cbafd2","c":[{"abilityId":"chanter.rebuke","actorId":2,"kind":"cast","targetId":900,"tick":1561},{"abilityId":"cinder.flare","actorId":5,"kind":"cast","targetId":900,"tick":1561}],"e":[{"absorbed":0,"healthDamage":110,"modifiedAmount":110,"rawAmount":110,"sourceId":5,"targetId":900,"tick":1561,"type":"damage"},{"abilityId":"cinder.flare","actorId":5,"tick":1561,"type":"cast_complete"},{"endsTick":1621,"onTarget":true,"setupActorId":5,"setupClass":"cinder","targetId":900,"tick":1561,"type":"window_opened","windowId":"kindled"},{"abilityId":"chanter.rebuke","actorId":2,"tick":1561,"type":"cast_complete"}]}
 {"t":1563,"h":"0f95246d"}
 {"t":1564,"h":"39bdfa38"}

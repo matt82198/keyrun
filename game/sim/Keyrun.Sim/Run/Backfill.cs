@@ -139,7 +139,11 @@ public static class Backfill
         ArgumentNullException.ThrowIfNull(queue);
 
         var applied = SeatCommands(state, commands);
-        var stepped = RunRoot.StepRun(run, applied, opts);
+        // STATE.md D27: an open seat's idle actor never holds a layout pull back.
+        var stepOpts = state.Open.Count == 0
+            ? opts
+            : (opts ?? new StepRunOpts()) with { OpenSeats = state.Open.Select(s => s.ActorId).ToList() };
+        var stepped = RunRoot.StepRun(run, applied, stepOpts);
         var next = stepped.Run;
         // A pull starts on its pull_start event. On the flat arena that is the step the index advances; on a layout run
         // (STATE.md D18) the index advances on the clear and the next pull starts later, on room entry.

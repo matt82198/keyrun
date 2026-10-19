@@ -357,8 +357,10 @@ public static class CastTargeting
 /// the GCD on his rotation against whatever is in reach: Reckoning at full Momentum, Vigil at 50, Guard Break, Strike,
 /// and Brace below half health. Every command goes through the same <see cref="CastTargeting"/> rule as a key press.
 /// On a layout run (lane NAV-CORE, STATE.md D18) with no living enemy he walks the route instead
-/// (<see cref="Follow.WalkRoute"/>: each room's far doorway in turn), so he crosses the next room's trigger and its
-/// pull spawns at the far side; then the combat script above.
+/// (<see cref="Follow.LeadRoute"/>: each room's far doorway in turn, but in the active pull's room he holds at the
+/// standoff point until the party is inside, LEADER-WAITS), so the pull spawns once all are in; then the combat script above. With no living lieutenant but a living enemy (lane
+/// WARDEN-ENGAGES) he targets the nearest one (lowest id on a tie), walks into melee range and faces it, so the
+/// rotation keeps landing until the pull is clear.
 /// </summary>
 public sealed class ScriptedWarden
 {
@@ -386,9 +388,9 @@ public sealed class ScriptedWarden
         {
             return;
         }
-        if (run.Content.Layout is { } layout && !Follow.AnyLivingEnemy(state))
+        if (run.Content.Layout is not null && !Follow.AnyLivingEnemy(state))
         {
-            if (Follow.WalkRoute(tick, me, layout) is { } walk)
+            if (Follow.LeadRoute(tick, me, run) is { } walk)
             {
                 into.Add(walk);
             }
@@ -405,11 +407,20 @@ public sealed class ScriptedWarden
 
         if (lieutenant is not null && Casting.RangeMm(me, lieutenant) > ApproachMm)
         {
-            var dx = lieutenant.Pos.X - me.Pos.X;
-            var dz = lieutenant.Pos.Z - me.Pos.Z;
-            var len = Movement.Isqrt((dx * dx) + (dz * dz));
-            var dir = new Dir2(IntMath.TruncDiv(dx * 1000, len), IntMath.TruncDiv(dz * 1000, len));
-            into.Add(new MoveCommand(tick, me.Id, dir, Atan.YawFromComponents(dir.X, dir.Z)));
+            into.Add(Toward(tick, me, lieutenant));
+        }
+        else if (lieutenant is null && NearestEnemy(state, me) is { } foe)
+        {
+            // Lane WARDEN-ENGAGES (KF2b): no lieutenant left to kick, so fight the pull until it is clear. Target the
+            // nearest living enemy (lowest id on a tie) so Strike and Reckoning go at it, walk into melee range, and
+            // once there turn to face it so Guard Break's cone lands (a zero-length move only sets the yaw).
+            if (me.TargetId != foe.Id)
+            {
+                into.Add(new TargetCommand(tick, me.Id, foe.Id));
+            }
+            into.Add(Casting.RangeMm(me, foe) > ApproachMm
+                ? Toward(tick, me, foe)
+                : new MoveCommand(tick, me.Id, new Dir2(0, 0), Fixed.YawBetween(me.Pos, foe.Pos)));
         }
 
         if (!Cooldowns.IsGcdReady(me, tick))
@@ -439,4 +450,37 @@ public sealed class ScriptedWarden
 
     private static bool Ready(ActorState me, AbilityDef def, int tick) =>
         Cooldowns.IsAbilityReady(me, def, tick) && (def.Cost.Resource == "none" || me.Resource >= def.Cost.Amount);
+
+    /// <summary>A full-speed move from <paramref name="me"/> straight at <paramref name="to"/>, facing it.</summary>
+    private static MoveCommand Toward(int tick, ActorState me, ActorState to)
+    {
+        var dx = to.Pos.X - me.Pos.X;
+        var dz = to.Pos.Z - me.Pos.Z;
+        var len = Movement.Isqrt((dx * dx) + (dz * dz));
+        var dir = new Dir2(IntMath.TruncDiv(dx * 1000, len), IntMath.TruncDiv(dz * 1000, len));
+        return new MoveCommand(tick, me.Id, dir, Atan.YawFromComponents(dir.X, dir.Z));
+    }
+
+    /// <summary>The living enemy nearest <paramref name="me"/> (squared XZ distance, lowest id on a tie), or null.</summary>
+    private static ActorState? NearestEnemy(SimState state, ActorState me)
+    {
+        ActorState? best = null;
+        long bestD2 = 0;
+        foreach (var a in state.Actors.Values)
+        {
+            if (!a.Alive || a.Kind != ActorKind.Enemy)
+            {
+                continue;
+            }
+            var dx = a.Pos.X - me.Pos.X;
+            var dz = a.Pos.Z - me.Pos.Z;
+            var d2 = (dx * dx) + (dz * dz);
+            if (best is null || d2 < bestD2 || (d2 == bestD2 && a.Id < best.Id))
+            {
+                best = a;
+                bestD2 = d2;
+            }
+        }
+        return best;
+    }
 }

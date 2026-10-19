@@ -82,9 +82,9 @@ public sealed class NavRouteTests
             var commands = batch.Commands.ToList();
             if (!Follow.AnyLivingEnemy(run.State) && run.State.Actors[LeaderId] is { Alive: true } leader)
             {
-                // The autorun Warden's travel (ScriptedWarden): the route, not the tank role.
+                // The autorun Warden's travel (ScriptedWarden): the route, holding for the party, not the tank role.
                 commands.RemoveAll(c => c.ActorId == LeaderId);
-                if (Follow.WalkRoute(tick, leader, nav) is { } walk)
+                if (Follow.LeadRoute(tick, leader, run) is { } walk)
                 {
                     commands.Add(walk);
                 }
@@ -98,7 +98,7 @@ public sealed class NavRouteTests
             {
                 var index = (int)((JsInt)e.Get("pullIndex")!).Value;
                 var pull = dungeon.Pulls[index];
-                var trigger = nav.TriggerFor(pull.Id)!;
+                var trigger = nav.RoomFor(pull.Id)!.Box;
                 var partyNow = run.State.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive).ToDictionary(a => a.Id, a => a.Pos);
                 starts.Add((e.Tick, partyNow, pull.Spawns.Select(s => s.Pos).ToList(),
                     NavLayout.PartyInside(before.State, trigger), NavLayout.PartyInside(run.State, trigger)));
@@ -145,7 +145,10 @@ public sealed class NavRouteTests
         }
     }
 
-    [Fact(DisplayName = "Nav route: no enemy spawns within 6 m of a party member")]
+    // Every living party member, the scripted leader included (LEADER-WAITS): under STATE.md D27 a pull starts when the
+    // LAST living member enters, so the leader holds at the room's standoff point until the party is inside instead of
+    // walking on toward the spawns.
+    [Fact(DisplayName = "Nav route: no enemy spawns within 6 m of a party member at pull_start")]
     public void No_enemy_spawns_within_6_m_of_a_party_member()
     {
         var r = Route.Value;
@@ -157,6 +160,7 @@ public sealed class NavRouteTests
                 foreach (var (id, pos) in s.Party)
                 {
                     var d = Distance(spawn, pos);
+                    _output.WriteLine($"tick {s.Tick}: actor {id} at {pos.X},{pos.Z} is {d} mm from the spawn at {spawn.X},{spawn.Z}");
                     Assert.True(d >= 6000, $"tick {s.Tick}: an enemy spawned at {spawn}, {d} mm from party actor {id} at {pos}");
                 }
             }

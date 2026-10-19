@@ -8,9 +8,10 @@
   "SCREEN ..." lines (printed under --autorun). After the run ends, Screen.cs pushes keys through the real input
   path one per frame: 1 (the run-end panel takes reward 1 and opens the screen), R, R, R, Right, 2, Enter.
 
-    -- --autorun --ticks 480 --solo (pull 1, the Choir, solo Warden; the lone Warden wipes, so the run ends
-       depleted inside the tick budget; the 3H bot party may still be fighting at tick 480):
-      1. exit 0 and "AUTORUN done ticks=480";
+    -- --autorun --ticks 600 --solo (pull 1, the Choir, solo Warden; the lone Warden wipes, so the run ends
+       depleted inside the tick budget; the 3H bot party may still be fighting at tick 600;
+       480 -> 600 by ROOM-LOCK-IN D27: the Warden dies at 390, depleted run_end at 491):
+      1. exit 0 and "AUTORUN done ticks=600";
       2. "SCREEN bank result=depleted ash=30 total=30" (Ash banked win or lose, before any reward is taken);
       3. "HUD runend take n=1 id=reward-<slot>-..." and "SCREEN open ash=30 runs=1 since="+30 Ash, <slot> tier <t> (new)"";
       4. "SCREEN character class=Warden" and five "SCREEN ability key=<1..5> name=..." lines;
@@ -29,7 +30,7 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$Ticks = 480
+    [int]$Ticks = 600
 )
 $ErrorActionPreference = 'Stop'
 

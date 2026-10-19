@@ -44,8 +44,10 @@ function tg(abilityId: string, shape: Telegraph["shape"] = "circle"): Telegraph 
 }
 
 describe("telegraph-map: render class per emitted telegraph kind", () => {
-  it("finds exactly the four telegraphed casts the content ships today", () => {
-    expect(emittedTelegraphAbilities()).toEqual(["hollowWarden.cleave", "pair.spreadMark", "pair.stackCall", "seed.slam"]);
+  it("finds exactly the six telegraphed casts the content ships today", () => {
+    expect(emittedTelegraphAbilities()).toEqual([
+      "hollowWarden.cleave", "hollowWarden.slam", "pair.spreadMark", "pair.stackCall", "seed.slam", "twins.slam",
+    ]);
   });
 
   it("every emitted telegraph has an explicit class entry (no silent fallback)", () => {
@@ -57,8 +59,15 @@ describe("telegraph-map: render class per emitted telegraph kind", () => {
     expect(telegraphClassFor("pair.stackCall")).toBe("stack");
     expect(telegraphClassFor("hollowWarden.cleave")).toBe("boss");
     expect(telegraphClassFor("seed.slam")).toBe("avoid");
-    const classes = emittedTelegraphAbilities().map(telegraphClassFor);
+    const classes = ["pair.spreadMark", "pair.stackCall", "hollowWarden.cleave", "seed.slam"].map(telegraphClassFor);
     expect(new Set(classes).size).toBe(classes.length);
+  });
+
+  it("maps the boss and Twins slams to avoid, the seed.slam circle's class (SLAM-TELEGRAPH)", () => {
+    expect(TELEGRAPH_CLASS_BY_ABILITY["hollowWarden.slam"]).toBe("avoid");
+    expect(TELEGRAPH_CLASS_BY_ABILITY["twins.slam"]).toBe("avoid");
+    expect(toTelegraphSnapshot(tg("hollowWarden.slam")).danger).toBe(true);
+    expect(toBotTelegraph(tg("twins.slam")).danger).toBe(true);
   });
 
   it("an unknown ability falls back to the generic avoid class", () => {
