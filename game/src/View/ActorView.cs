@@ -1,18 +1,23 @@
 using Godot;
+using Keyrun.Content;
 using Keyrun.Host;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.View;
 
 /// <summary>
-/// Draws one sim actor: a capsule (with a small nose showing facing) or a box, coloured per instance,
-/// placed each frame by interpolating the actor's mm position and yaw between SimDriver's previous and
-/// current state. mm become metres as floats here and only here (game/CLAUDE.md purity rule).
+/// Draws one sim actor, placed each frame by interpolating the actor's mm position and yaw between SimDriver's previous
+/// and current state. mm become metres as floats here and only here (game/CLAUDE.md purity rule). The body is the
+/// actor class's CC0 model from <see cref="ActorBinding"/> (design/ART-PLAN.md lane 3: Knight, Mage, Rogue_Hooded),
+/// scaled per its row with its feet at the root and facing local +x, animated by <see cref="ActorAnimator"/>; a class
+/// with no row, or a row whose file is missing, keeps the capsule (with a small nose showing facing) and logs
+/// <c>ACTOR fallback capsule id=N class=C</c> once.
 /// </summary>
 public partial class ActorView : Node3D
 {
     private const float MmToM = 0.001f;
     private const float RadPerYaw = Mathf.Tau / 1024f;
+    private const int MeasureAfterFrames = 10;
 
     /// <summary>The sim actor id this view follows.</summary>
     [Export]
@@ -30,7 +35,19 @@ public partial class ActorView : Node3D
     [Export]
     public NodePath DriverPath { get; set; } = new("../../SimDriver");
 
+    /// <summary>The model table; lane 4 extends <see cref="ActorBinding.Default"/> with its enemy rows.</summary>
+    public static ActorBinding Binding { get; set; } = ActorBinding.Default;
+
     private SimDriver? Driver { get; set; }
+
+    private bool _bound;
+    private Node3D? _model;
+    private ActorAnimator? _animator;
+    private SimState? _seenState;
+    private Vector3 _lastPosition;
+    private bool _hasLastPosition;
+    private int _measureIn = -1;
+    private string _classId = string.Empty;
 
     /// <inheritdoc />
     public override void _Ready()
@@ -54,11 +71,133 @@ public partial class ActorView : Node3D
             nose.MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.9f, 0.9f, 1f) };
         }
         body.MaterialOverride = material;
+        TryBind();
         Place();
     }
 
     /// <inheritdoc />
-    public override void _Process(double delta) => Place();
+    public override void _Process(double delta)
+    {
+        TryBind();
+        Place();
+        Animate((float)delta);
+        if (_measureIn > 0 && --_measureIn == 0)
+        {
+            LogModelHeight();
+        }
+    }
+
+    // Binds the body once the actor exists in the sim state (the static Warden's view is ready before any run).
+    private void TryBind()
+    {
+        if (_bound || Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var actor))
+        {
+            return;
+        }
+        _bound = true;
+        _classId = actor.ClassId;
+        var row = Binding.For(actor.ClassId);
+        var path = row.ModelFile is null ? null : ActorBinding.AdventurersDir + "/" + row.ModelFile;
+        if (path is null || !ResourceLoader.Exists(path))
+        {
+            GD.Print($"ACTOR fallback capsule id={ActorId} class={actor.ClassId}");
+            return;
+        }
+        var model = GD.Load<PackedScene>(path).Instantiate<Node3D>();
+        model.Name = "Model";
+        var s = row.ScalePermille / 1000f;
+        model.Scale = new Vector3(s, s, s);
+        model.Rotation = new Vector3(0, Mathf.Pi / 2f, 0); // the pack faces +z; views face local +x (see Place)
+        AddChild(model);
+        foreach (var hidden in row.HiddenNodes)
+        {
+            if (model.FindChild(hidden, true, false) is Node3D n)
+            {
+                n.Visible = false;
+            }
+        }
+        if (row.TintRgb is int rgb)
+        {
+            Tint(model, new Color(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f));
+        }
+        GetNode<MeshInstance3D>("Body").Visible = false;
+        GetNode<MeshInstance3D>("Nose").Visible = false;
+        _model = model;
+        _animator = ActorAnimator.TryCreate(model, row.Clips);
+        GD.Print($"ACTOR model id={ActorId} class={actor.ClassId} file={row.ModelFile} scale={s:0.000} " +
+                 (_animator is null ? "clips=static" : _animator.Matched));
+        _measureIn = MeasureAfterFrames;
+    }
+
+    private static void Tint(Node model, Color tint)
+    {
+        var copies = new System.Collections.Generic.Dictionary<Material, Material>();
+        foreach (var node in model.FindChildren("*", "MeshInstance3D", true, false))
+        {
+            if (node is not MeshInstance3D mi || mi.Mesh is null)
+            {
+                continue;
+            }
+            for (var i = 0; i < mi.Mesh.GetSurfaceCount(); i++)
+            {
+                if (mi.GetActiveMaterial(i) is not BaseMaterial3D source)
+                {
+                    continue;
+                }
+                if (!copies.TryGetValue(source, out var copy))
+                {
+                    var dup = (BaseMaterial3D)source.Duplicate();
+                    dup.AlbedoColor = source.AlbedoColor * tint;
+                    copy = dup;
+                    copies[source] = copy;
+                }
+                mi.SetSurfaceOverrideMaterial(i, copy);
+            }
+        }
+    }
+
+    // Visible height of the placed model in metres (root space), printed once so frames and logs can be checked
+    // against the 1.8 m head line LabelView's plates assume.
+    private void LogModelHeight()
+    {
+        if (_model is null)
+        {
+            return;
+        }
+        var inverse = GlobalTransform.AffineInverse();
+        var top = float.MinValue;
+        var bottom = float.MaxValue;
+        foreach (var node in _model.FindChildren("*", "MeshInstance3D", true, false))
+        {
+            if (node is not MeshInstance3D mi || !mi.IsVisibleInTree())
+            {
+                continue;
+            }
+            var box = inverse * mi.GlobalTransform * mi.GetAabb();
+            top = Mathf.Max(top, box.End.Y);
+            bottom = Mathf.Min(bottom, box.Position.Y);
+        }
+        GD.Print($"ACTOR height id={ActorId} class={_classId} top={top:0.000} bottom={bottom:0.000}");
+    }
+
+    private void Animate(float delta)
+    {
+        if (_animator is null || Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var now))
+        {
+            return;
+        }
+        var before = Driver.PreviousState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
+        var newTick = !ReferenceEquals(Driver.State, _seenState);
+        _seenState = Driver.State;
+        var speed = 0f;
+        if (_hasLastPosition && delta > 0f)
+        {
+            speed = (Position - _lastPosition).Length() / delta;
+        }
+        _lastPosition = Position;
+        _hasLastPosition = true;
+        _animator.Update(before, now, newTick, speed);
+    }
 
     private void Place()
     {
@@ -73,7 +212,7 @@ public partial class ActorView : Node3D
         var y = Mathf.Lerp((float)before.Pos.Y, (float)now.Pos.Y, t) * MmToM;
         var z = Mathf.Lerp((float)before.Pos.Z, (float)now.Pos.Z, t) * MmToM;
         Position = new Vector3(x, y, z);
-        Visible = now.Alive;
+        Visible = now.Alive || (_animator?.HoldsDeath ?? false); // a model plays its death clip instead of vanishing
         Rotation = new Vector3(0, -YawRadians(before.Yaw, now.Yaw, t), 0);
     }
 
