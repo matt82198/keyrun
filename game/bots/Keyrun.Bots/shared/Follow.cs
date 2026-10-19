@@ -299,6 +299,11 @@ public static class Follow
         {
             return null;
         }
+        if (ShutRoom(view, self) is { } shut)
+        {
+            // BACKFILL-GATE (STATE.md D27): the party is locked in behind a shut gate; wait outside it, never press it.
+            return WalkTo(view.State.Tick, self, layout, GateWaitPoint(layout, shut, self.Pos));
+        }
         if (SlotFor(layout, content.Formation, leader, self.ClassId) is not { } slot)
         {
             return null;
@@ -320,6 +325,70 @@ public static class Follow
             }
         }
         return WalkTo(view.State.Tick, self, layout, slot);
+    }
+
+    /// <summary>
+    /// How far outside a shut room a bot waits (BACKFILL-GATE), mm: the room's doorway route point, which stands 500 mm
+    /// inside the room box, moved this far back along the route, so the wait point is 2000 mm clear of the room wall
+    /// (still in the 8000 mm corridor on layout.json) and an arrival within <see cref="ArriveMm"/> never touches the gate.
+    /// </summary>
+    public const long GateWaitMm = 2500;
+
+    /// <summary>
+    /// The room whose gate shuts <paramref name="self"/> out (STATE.md D27, BACKFILL-GATE): on a layout run, while an
+    /// enemy lives and the leader (not the bot) stands in a room box, a bot outside that box is outside a shut gate. A
+    /// layout pull spawns only with every living player inside its room (ROOM-LOCK-IN) and <see cref="NavLayout.GateClamp"/>
+    /// keeps outside actors out until <c>gate_open</c> (with the <c>pull_clear</c>, after which no enemy lives), so the
+    /// bot outside is one whose seat was refilled while the party was locked in. Null otherwise; inert without a layout.
+    /// </summary>
+    /// <param name="view">This tick's view.</param>
+    /// <param name="self">The bot.</param>
+    /// <returns>The shut room, or null.</returns>
+    public static NavBox? ShutRoom(BotView view, ActorState self)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        if (view.Layout is not { } layout || Leader(view.State) is not { } leader || leader.Id == self.Id || !AnyLivingEnemy(view.State))
+        {
+            return null;
+        }
+        return RoomAt(layout, leader.Pos) is { } room && !Movement.Contains(room.Box, self.Pos) ? room : null;
+    }
+
+    /// <summary>
+    /// Where a bot shut out of <paramref name="room"/> (box k) waits, on its own side: behind the room, the entry doorway
+    /// (route point k-1) moved <see cref="GateWaitMm"/> toward route point k-2 (for k = 1, straight away from route point
+    /// k); ahead of it, the exit doorway (route point k) moved toward route point k+1. Integers only.
+    /// </summary>
+    /// <param name="layout">The layout.</param>
+    /// <param name="room">The shut room.</param>
+    /// <param name="from">The bot's position.</param>
+    /// <returns>The wait point.</returns>
+    public static Vec3 GateWaitPoint(NavLayout layout, NavBox room, Vec3 from)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(room);
+        var k = -1;
+        for (var i = 0; i < layout.Boxes.Count && k < 0; i++)
+        {
+            k = string.Equals(layout.Boxes[i].Id, room.Id, StringComparison.Ordinal) ? i : -1;
+        }
+        var (low, _) = Span(layout, from);
+        if (k > 0 && low < k)
+        {
+            var door = layout.Route[k - 1];
+            var away = k >= 2 ? layout.Route[k - 2] : new Vec3((2 * door.X) - layout.Route[k].X, door.Y, (2 * door.Z) - layout.Route[k].Z);
+            return Toward(door, away, GateWaitMm);
+        }
+        return k >= 0 && k + 1 < layout.Route.Count ? Toward(layout.Route[k], layout.Route[k + 1], GateWaitMm) : from;
+    }
+
+    private static Vec3 Toward(Vec3 from, Vec3 to, long mm)
+    {
+        var dx = to.X - from.X;
+        var dz = to.Z - from.Z;
+        var length = Movement.Isqrt((dx * dx) + (dz * dz));
+        return length <= mm ? to : new Vec3(from.X + IntMath.TruncDiv(dx * mm, length), from.Y, from.Z + IntMath.TruncDiv(dz * mm, length));
     }
 
     /// <summary>
