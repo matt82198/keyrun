@@ -261,7 +261,11 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
     (content/data/enemies/hollow-warden.json); the party dealt about 470 damage before wiping. The 3B claim that bots
     break 1 of 4 Locks at k10 is NOT reproduced. DECISION FOR MATT: boss HP, lock threshold, or bot DPS tuning before any
     Lock assertion is written (no fitted green).
-- NEXT ORDER (2026-10-18, fourth pass; resume here, in this order). WHY reordered: D15 (frames before feel) and #158 (boss
+- NEXT ORDER (2026-10-18, fourth pass; resume here, in this order). STATE-R7 (2026-10-19): lanes 1, 2 and 9 DONE; lane 8
+  HUD-POLISH (PR #167 OPEN) and lane 3 PLAYER-BOTS RUNNING. Lanes 3, 4, 8 and 10 build on lane 2's kit, walls and
+  DungeonBuilder, and on lane 9's proof. Then: lane 4 enemies (Opus, KayKit Skeletons, adds rows to ActorBinding), lanes 5 to 7
+  room theming, lane 10 feel (camera yaw Pi at start, yaw-0 camera outside walls, wall fade). GUARD-HARDEN PR pending.
+  WHY the themed run is listed first: Matt judges feel from frames (D15, D16), so the NAV-and-art run is the one to measure. WHY reordered: D15 (frames before feel) and #158 (boss
   reachable in autorun) change what a human run must measure. Steps 1-3 of the second pass are kept below as the record.
   0. SCREENS proof lane (running 2026-10-18; output C:/Users/Mattt/Desktop/keyrun-screens/) makes the first frames of run C.
      Follow-up SCREENS-TOOL lane promotes the capture script to tools/godot/screens.ps1, adds the ffmpeg frames-to-mp4 step,
@@ -269,16 +273,16 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   1. Matt records a human-played run to the boss (record command above) and judges it by feel, with the D15 frames. Only this
      moves D10 and the Phase 3 exit.
   1a. DONE 2026-10-19 00:54Z: ART-PLAN ladder lane 1 NAV-CORE, PR #163 MERGED 76c7f32 (block "Phase 3.5" below). Lanes
-     now running, per the orchestrator (dispatched about 01:05Z; this lane did not check their branches): lane 2
-     DUNGEON-SHELL (Opus, feat/dungeon-shell) and lane 9 LOCK-PROOF (Opus, test/lock-proof). Then ladder lanes 3 (player
+     dispatched about 01:05Z and both have landed: lane 2 DUNGEON-SHELL (PR #166, 49aeadb) and lane 9 LOCK-PROOF
+     (PR #165, 1e09538). Then ladder lanes 3 (player
      and bots), 4 (enemies), 5 to 7 (room theming), 8 (HUD polish; name plates overlap confirmed in nav-core frames) and
      10 (feel; camera yaw). Ladder: design/ART-PLAN.md section 8; D16, D17, D18. WHY: Matt judges
      feel from frames (D15), and the run he judges must be the themed dungeon with navigation, not capsules in one box.
   2. RESOLVED by D17 (2026-10-18 23:43Z): bots are not required to break the Lock; beating the boss through Lock fails is an
      acceptable autorun outcome; the Lock must be theoretically winnable (ENGINE-PLAN.md:211 vs BIBLE.md:177-179 closed).
-  2a. Lock winnability proof: one scripted-input run that closes the Lock (additive test lane; design/ART-PLAN.md lane 9).
-  3. Small proof lane: assert boss_add_spawn (Twins) in run C; reconcile the stale ps1:32 and ps1:54 comments. Additive only, no
-     lock_broken assertion (it would fail today).
+  2a. DONE 2026-10-19 01:27Z: Lock winnability proof, PR #165 MERGED 1e09538 (LockWinnabilityTests; design/ART-PLAN.md lane 9).
+  3. DONE via #163 (2026-10-19 00:54Z): run C asserts both boss_add_spawn events and the ps1:32 and ps1:54 comments are fixed.
+     Still no lock_broken assertion in run C (it would fail today).
   4. Target-ping bot reaction (runner passes ClassKitView.Empty) and cinderfield self-hit intended target (BIBLE s5) stay Matt decisions.
   5. Only then re-run the plan-vs-output check and record PHASE 3 EXIT and D10. Phase 4 (TS deletion) stays blocked on step 5.
   DONE 2026-10-18 since the second pass: #158 a67192a (TUNE-BOSS, D14). The second-pass steps below are kept for the record.
@@ -336,6 +340,38 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   - The camera starts at yaw Pi (CameraRig, lane 10), so a human pressing W walks across the Entrance, not along the route.
   - Pull script loops run on absolute ticks (scripts.ts), so a later spawn shifts its phase. Unchanged.
   - game/content/data/run.json arenaBounds is no longer read by the host (file left in place).
+- Lane 9 LOCK-PROOF: DONE. PR #165 MERGED, squash 1e0953842bb729ca13e55a5a9390ceb9a3a33bb4, mergedAt 2026-10-19T01:27:07Z,
+  branch test/lock-proof, title "test(game): Lock winnability proof on the real sim (ART-PLAN lane 9, D17)". Landed:
+  game/sim/Keyrun.Sim.Tests/LockWinnabilityTests.cs (ART-PLAN names LockWinnableTests; the shipped name is
+  LockWinnabilityTests) with a control test kept. PROVEN on the real run (seed 1, key 2, boss 5150 hp, Lock window 60
+  ticks): lock_open 381, Warden Strike (Setup) 382, Cinder Cold Snap (Payoff) 390, lock_broken 391; mutation (Payoff
+  withheld) ends in lock_failed 441. The proof uses Warden plus Cinder because a same-class Payoff is combo_denied
+  (Boss.cs:321-322). The run is not wired to the NAV layout (open item for Matt). Flake: the PR's e2e job failed once on
+  tests/client/e2e/window-ping.e2e.ts:137 (run 39184740861, per the orchestrator) and passed on gh run rerun --failed.
+- Lane 2 DUNGEON-SHELL: DONE. PR #166 MERGED, squash 49aeadb9debcda38abf9717377a6d30ddc68ecee, mergedAt 2026-10-19T01:39:42Z,
+  branch feat/dungeon-shell. KayKit Dungeon Remastered 1.0 (CC0; github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0
+  at commit b0ca9bd96a8072ab36a3a5464f00ed1e06a16d07); license quoted in game/assets/ATTRIBUTION.md; 1,428,402 bytes under
+  game/assets/kaykit-dungeon-remastered/ (27 .glb, shared dungeon_texture.png, LICENSE.txt, dungeon_material.tres, 28
+  .import sidecars force-added past root .gitignore line 15). Pure model game/content/Keyrun.Content/Model/DungeonPlan.cs
+  with 9 tests in Keyrun.Content.Tests/DungeonPlanTests.cs (stub 9 fail, mutation 5 fail). game/src/View/DungeonBuilder.cs
+  builds walls, floors, props and 12 OmniLights (plan said 8). GreyBox stays as the fallback ("DUNGEON fallback greybox").
+  Arena.tscn holds ambient, cool sun and colour; floors cast no shadows. Max 229 draw calls at 1280x720. Tests: Content
+  72/72, Bots 139/139; Sim.Tests blocked locally by Smart App Control (0x800711C7), CI green. Walls 1.6 m; the 3 m and 2 m
+  passes are kept as dungeon-shell-v1-3m-walls, -v2-2m-walls and -v3-floor-shadows. Frames:
+  C:/Users/Mattt/Desktop/keyrun-screens/dungeon-shell (44 PNGs, run.mp4 1,339,432 bytes). Wall fade or cut-away and the
+  yaw-0 camera outside the walls go to lane 10.
+- Lane 8 HUD-POLISH: RUNNING (Opus, branch feat/hud-polish, worktree keyrun-wt/hud-polish, dispatched 2026-10-19 01:26Z).
+  PR #167 OPEN (head feat/hud-polish) as of this checkpoint. Scope: pull title under the Slack bar, plate overlap (five Pair
+  plates), Twin plate over the boss plate, via a pure HudLayout.cs in Keyrun.Content with tests.
+- Lane 3 PLAYER-BOTS: RUNNING (Opus, branch feat/player-bots, base 49aeadb9), dispatched about 01:50Z 2026-10-19 after a
+  read-only PLAYER-RECON. Owns ActorView.cs, Actor.tscn, new ActorAnimator.cs, ActorBinding.cs and their tests, and
+  game/assets/kaykit-adventurers/**. Model heads stay at or below 1.8 m because lane 8 owns LabelView.cs (PlateHeight 2.35).
+- E2E FLAKE, resolver outcome (gate-escape-resolver, 2026-10-19 01:37Z to 01:42Z): the window-ping flake
+  (tests/client/e2e/window-ping.e2e.ts:137) went through the resolver. It pushed guard/e2e-wall-clock-wait-ratchet 0123f68
+  (tools/ci/e2e_wait_ratchet.py counts sleep and waitForTimeout per e2e spec against tools/ci/e2e-wait-baseline.json; wired
+  into the e2e job of .github/workflows/tests.yml). It opened no PR and left window-ping.e2e.ts unchanged. Its verifier
+  judged the guard INEFFECTIVE: raw setTimeout promises, nested directories and helper aliases bypass it. GUARD-HARDEN
+  (Haiku, same branch) fixes the test and the three bypasses before any PR. PR pending.
 
 ## Decisions for Matt
 Verbatim from the recon file's "Decisions for Matt / sim lanes (not client work)" list:
@@ -360,6 +396,10 @@ Additional parked decisions (from the burn ledger):
 - Hold-to-abandon for Backspace (defect l).
 - Licence MIT (#65) - landed; object if not wanted.
 - Play-feel: tank lowest HP in pull 1 at skill 100 is 22 (thin margin); balance after the fixes is Matt's call.
+- Lock test and NAV layout (2026-10-19): LockWinnabilityTests runs the flat-arena boss pull, because the Sim test csproj was
+  off-limits for lane 9. Wire the NAV layout into it, or leave it flat?
+- Lane 2 wall height (1.6 m) and light count (12, plan said 8) are reversible; say if you want other values.
+- Git LFS if game/assets exceeds 50 MB (currently 1.43 MB from the KayKit dungeon kit).
 
 ## DECISIONS FOR MATT (checkpoint 2026-10-17 23:55Z)
 1. Spot ping aim: crosshair ray to y=0 lands 0.8-2 m past the player because the camera looks 1 m above the player; alternatives are a mouse-cursor raycast or a raised aim point.
@@ -480,6 +520,15 @@ Additional parked decisions (from the burn ledger):
   ($ReplayTickDigest) and game/fixtures/input/example-enter-ping.input-log.json (regenerated golden). Future sim lanes own
   RunTypes.cs, SimDriver.cs, Backfill.cs, Types.cs, BotCommandSource.cs and Bot.cs explicitly when the change needs them.
   Why: reversible, no data loss, within D18.
+- D20 **Lane 2 dungeon-shell choices accepted** (orchestrator, 2026-10-19 01:39Z, PR #166 mergedAt): Orchestrator accepted
+  lane 2's 1.6 m walls (2 m and 3 m hid bots at doorways), 12 OmniLights against the plan's 8, and force-added .import
+  sidecars under game/assets as reversible, no-data-loss choices inside D17 and D18; wall fade or cut-away and the yaw-0
+  camera outside the walls go to lane 10. Why: the doorway readability bar (ART-PLAN section 2) is judged from frames (D15),
+  and each choice can be reverted without data loss.
+- D21 **Lock winnability is proven on the real sim** (orchestrator, 2026-10-19 01:27Z, PR #165 mergedAt): Lock winnability
+  is proven on the real sim by LockWinnabilityTests (Warden Setup plus Cinder Payoff inside a 60-tick window); the bot party
+  is still not required to close it (D17). A solo Warden cannot close the Lock by design (Boss.cs:321-322). Why: D17 requires
+  the Lock to be theoretically winnable, and only a real-sim run proves that, not the synthetic BossRulesTests.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
