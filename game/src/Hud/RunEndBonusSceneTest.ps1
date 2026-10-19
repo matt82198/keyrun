@@ -17,7 +17,12 @@
          EVENT at or before E precedes run_end and 0 otherwise, and the line ends ' label="Bonus loot: ..."' (the
          line the panel draws under the result) exactly when K is 1. At seed 1 key 2 the bots let the Window expire,
          so K is 0 and the panel draws no bonus line; the combo branch of the fold is SeedLootTests (xUnit).
-  Before the lane the panel prints no "HUD runend bonus" line: 1 and 3 fail (RED).
+    Run P (lane SEED-BONUS-REWARDS, the probe scene res://src/Hud/RunEndRewardsProbe.tscn):
+      4. exit 0 and "RUNEND-REWARDS PASS cases=3": with the run's Rewards carrying the Seed award or not, and the
+         panel's log fed the matching events, no events, or events that would fold to an award the run does not
+         carry, the panel's "HUD runend bonus" line is the one Run.Rewards gives (the sim's award, #197).
+  Before the lane the panel prints no "HUD runend bonus" line: 1 and 3 fail (RED). Before SEED-BONUS-REWARDS the
+  panel re-folds SeedLoot.Observe over the events itself: 4 fails on the carried and none cases (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Hud/RunEndBonusSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -86,6 +91,20 @@ if (-not $seedOpen) {
     if ($bonusC -notmatch $wantBonus) {
         $failures.Add("run C: want a bonus line matching '$wantBonus', got '$bonusC'")
     }
+}
+
+# ---- Run P (lane SEED-BONUS-REWARDS): the panel's bonus line follows Run.Rewards, never its own fold ------------
+# The probe scene (RunEndRewardsProbe.cs) ends a real content run three ways (agree, carried, none) and checks the
+# "HUD runend bonus" line against the run's Rewards. Silent on PASS so the lines above and the PASS line are unchanged.
+$ErrorActionPreference = 'Continue'
+$pText = & $wrapper --headless --path (Join-Path $repo 'game') --quit-after 600 'res://src/Hud/RunEndRewardsProbe.tscn' 2>&1 | Out-String
+$pCode = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+$pLines = @($pText -split "`r?`n")
+if ($pCode -ne 0) { $failures.Add("run P: godot exited $pCode (expected 0)") }
+foreach ($l in @($pLines | Where-Object { $_ -match '^RUNEND-REWARDS FAIL ' })) { $failures.Add("run P: $l") }
+if (-not (First $pLines '^RUNEND-REWARDS PASS cases=3$')) {
+    $failures.Add('run P: no "RUNEND-REWARDS PASS cases=3" line (the panel bonus line does not follow Run.Rewards)')
 }
 
 Write-Output '--- asserted lines ---'
