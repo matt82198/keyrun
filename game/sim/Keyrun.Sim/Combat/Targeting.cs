@@ -115,6 +115,10 @@ public static class Targeting
     /// <remarks>
     /// C# deviation in signature only: the TS reads the ability's Affinity from affinity.ts's module-level
     /// registry inside this call; lane 2B owns Affinity.cs, so the caller passes <c>abilityAffinity(def)</c> here.
+    /// C# deviation in behaviour (CAST-RANGE-RECHECK, D28 the C# sim is the oracle): "target" also requires the
+    /// target to be within <c>def.Range</c> NOW, so a cast that completes after its target walked out of range lands
+    /// on nothing (CompleteCastOn still emits cast_complete, exactly as for a target that died mid-cast). StartCast
+    /// checks the same range at start; moving out of a telegraphed cast is counterplay (design/BIBLE.md section 3).
     /// </remarks>
     /// <param name="state">Sim state.</param>
     /// <param name="actor">The caster.</param>
@@ -130,7 +134,7 @@ public static class Targeting
         }
         if (shape.Kind == ShapeKind.Target)
         {
-            if (actor.TargetId is int tid && state.Actors.TryGetValue(tid, out var t) && t.Alive)
+            if (actor.TargetId is int tid && state.Actors.TryGetValue(tid, out var t) && t.Alive && Casting.RangeMm(actor, t) <= def.Range)
             {
                 return new List<ActorState> { t };
             }
