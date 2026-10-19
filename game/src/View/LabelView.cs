@@ -33,25 +33,6 @@ public partial class LabelView : Node3D
     private const int PlatePad = 4;
     private const int OutlineSize = 4;
 
-    // PartyFrames.cs draws one 68 px frame per seat with an 8 px gap (FrameHeight, Gap).
-    private const int PartyFrameStride = 76;
-    private const int PartyFrameGap = 8;
-
-    // CastBarView.cs: a 150 x 16 bar at 3.0 m over the head, its 14 px label drawn 4 px above the bar.
-    private const float CastBarHeightM = 3.0f;
-    private const int CastBarSpan = 170;
-    private const int CastBarHeight = 16;
-    private const int CastBarLabel = 18;
-    private const float CastFadeSeconds = 0.9f;
-
-    // Pings.cs: SPREAD/STACK world labels in a 16 px font, 2.6 m over a marked actor or 0.3 m over a telegraph origin.
-    private const float PingMarkHeightM = 2.6f;
-    private const float PingFloorHeightM = 0.3f;
-    private const int PingFont = 16;
-    private const int CalloutTop = 100;
-    private const int CalloutStride = 36;
-    private const int CalloutWidth = 400;
-
     private static readonly Color MeleeColor = new(0.78f, 0.22f, 0.2f);
     private static readonly Color LieutenantColor = new(0.62f, 0.3f, 0.85f);
     private static readonly Color OtherEnemyColor = new(0.85f, 0.45f, 0.15f);
@@ -63,7 +44,6 @@ public partial class LabelView : Node3D
     private readonly Dictionary<int, Node3D> _spawned = new();
     private readonly List<int> _gone = new();
     private readonly List<Shown> _shown = new();
-    private readonly List<CastEnd> _castEnds = new();
 
     private Control? _canvas;
 
@@ -83,6 +63,14 @@ public partial class LabelView : Node3D
     [Export]
     public NodePath PartyFramesPath { get; set; } = new("../Hud/HudRoot/PartyFrames");
 
+    /// <summary>The over-head cast bars (CastBarView), whose placed blocks plates keep clear of.</summary>
+    [Export]
+    public NodePath CastBarsPath { get; set; } = new("../Hud/CastBars");
+
+    /// <summary>The SPREAD/STACK labels and callouts (Pings), whose placed boxes plates keep clear of.</summary>
+    [Export]
+    public NodePath PingsPath { get; set; } = new("../Hud/HudRoot/Pings");
+
     private SimDriver? Driver { get; set; }
 
     private Node3D? Actors { get; set; }
@@ -99,37 +87,6 @@ public partial class LabelView : Node3D
         _canvas.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _canvas.Draw += DrawPlates;
         layer.AddChild(_canvas);
-        if (Driver is not null)
-        {
-            Driver.Stepped += OnStepped;
-            Driver.RunStarted += _castEnds.Clear;
-        }
-    }
-
-    /// <inheritdoc />
-    public override void _ExitTree()
-    {
-        if (Driver is not null)
-        {
-            Driver.Stepped -= OnStepped;
-            Driver.RunStarted -= _castEnds.Clear;
-        }
-    }
-
-    // The casts CastBarView keeps drawing while they fade (an interrupt on its target, a completed cast on its caster).
-    private void OnStepped(int tick, IReadOnlyList<SimEvent> events)
-    {
-        foreach (var e in events)
-        {
-            if (e.Type == "interrupt" && e.Get("targetId") is JsInt target)
-            {
-                _castEnds.Add(new CastEnd((int)target.Value));
-            }
-            else if (e.Type == "cast_complete" && e.Get("actorId") is JsInt actor)
-            {
-                _castEnds.Add(new CastEnd((int)actor.Value));
-            }
-        }
     }
 
     /// <inheritdoc />
@@ -179,14 +136,6 @@ public partial class LabelView : Node3D
                 body.QueueFree();
             }
         }
-        for (var i = _castEnds.Count - 1; i >= 0; i--)
-        {
-            _castEnds[i].Age += (float)delta;
-            if (_castEnds[i].Age >= CastFadeSeconds)
-            {
-                _castEnds.RemoveAt(i);
-            }
-        }
         _canvas?.QueueRedraw();
     }
 
@@ -227,7 +176,7 @@ public partial class LabelView : Node3D
         }
         _shown.Sort((a, b) => a.Depth.CompareTo(b.Depth));
 
-        var offsets = HudLayout.Separate(_shown.Select(s => s.Rect).ToList(), width, height, Obstacles(camera, width, height));
+        var offsets = HudLayout.Separate(_shown.Select(s => s.Rect).ToList(), width, height, Obstacles(width, height));
         var font = ThemeDB.FallbackFont;
         for (var i = 0; i < _shown.Count; i++)
         {
@@ -249,62 +198,28 @@ public partial class LabelView : Node3D
 
     /// <summary>
     /// The HUD rectangles plates keep out of: the top bar band (help line, objective, Slack), the party frames, every
-    /// live cast bar over a head (CastBarView) and every SPREAD/STACK world label (Pings), so a plate never draws
-    /// under another HUD text.
+    /// live or fading cast bar over a head where CastBarView placed it (<c>CastBarView.BarRects</c>) and every
+    /// SPREAD/STACK world label and callout where Pings placed it (<c>Pings.LabelRects</c>), so a plate never draws
+    /// under another HUD text. Plates are placed last, so they yield to the bars and labels, never the other way.
     /// </summary>
-    private List<PixelRect> Obstacles(Camera3D camera, int width, int height)
+    private List<PixelRect> Obstacles(int width, int height)
     {
         var obstacles = new List<PixelRect> { HudLayout.TopBar(width, height).Band(width) };
         if (Driver is null)
         {
             return obstacles;
         }
-        var state = Driver.State;
-        if (GetNodeOrNull<Control>(PartyFramesPath) is { Visible: true } frames)
+        if (HudObstacles.PartyFrames(GetNodeOrNull<Control>(PartyFramesPath), Driver.State) is { } frames)
         {
-            var seats = state.Actors.Values.Count(a => a.Kind == ActorKind.Player);
-            if (seats > 0)
-            {
-                var at = frames.GetGlobalRect().Position;
-                obstacles.Add(new PixelRect((int)at.X, (int)at.Y, (int)frames.Size.X, (seats * PartyFrameStride) - PartyFrameGap));
-            }
+            obstacles.Add(frames);
         }
-        foreach (var (id, actor) in state.Actors)
+        if (GetNodeOrNull<CastBarView>(CastBarsPath) is { } bars)
         {
-            // An active cast, or a finished or interrupted one still fading out (CastBarView keeps those 0.9 s).
-            var fading = _castEnds.Exists(e => e.ActorId == id);
-            if (!fading && (!actor.Alive || actor.CastId is null))
-            {
-                continue;
-            }
-            var before = Driver.PreviousState.Actors.TryGetValue(id, out var prev) ? prev : actor;
-            var head = ActorView.ToMetres(before.Pos).Lerp(ActorView.ToMetres(actor.Pos), Driver.Alpha) + new Vector3(0, CastBarHeightM, 0);
-            if (!camera.IsPositionBehind(head))
-            {
-                var p = camera.UnprojectPosition(head);
-                // "Interrupted: <name>" can run wider than the bar; reserve the wider label width for every bar.
-                obstacles.Add(new PixelRect((int)p.X - (CastBarSpan / 2), (int)p.Y - CastBarLabel, CastBarSpan, CastBarLabel + CastBarHeight));
-            }
+            obstacles.AddRange(bars.BarRects);
         }
-        if (Driver.Run is { } run)
+        if (GetNodeOrNull<Pings>(PingsPath) is { } pings)
         {
-            var calls = PingCalls.Calls(run);
-            var callouts = calls.Select(c => c.Label).Distinct().Count();
-            if (callouts > 0)
-            {
-                // Pings.cs callouts: one centred 22 px line per label from y 100, 36 px apart (about 400 px wide at most).
-                obstacles.Add(new PixelRect((width / 2) - (CalloutWidth / 2), CalloutTop, CalloutWidth, callouts * CalloutStride));
-            }
-            foreach (var call in calls)
-            {
-                var world = ActorView.ToMetres(call.Pos) + new Vector3(0, call.Source == PingSource.Mark ? PingMarkHeightM : PingFloorHeightM, 0);
-                if (!camera.IsPositionBehind(world))
-                {
-                    var p = camera.UnprojectPosition(world);
-                    var w = (int)Math.Ceiling(HudNodes.Width(call.Text, PingFont));
-                    obstacles.Add(new PixelRect((int)p.X - (w / 2), (int)p.Y - PingFont, w, PingFont + 5));
-                }
-            }
+            obstacles.AddRange(pings.LabelRects);
         }
         return obstacles;
     }
@@ -362,13 +277,6 @@ public partial class LabelView : Node3D
         public Color HealthTint { get; set; } = Colors.White;
 
         public bool Targeted { get; set; }
-    }
-
-    private sealed class CastEnd(int actorId)
-    {
-        public int ActorId { get; } = actorId;
-
-        public float Age { get; set; }
     }
 
     private readonly record struct Shown(Plate Plate, string Name, PixelRect Rect, float Depth);

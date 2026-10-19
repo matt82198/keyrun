@@ -132,4 +132,81 @@ public sealed class HudLayoutTests
     {
         Assert.Throws<ArgumentNullException>(() => HudLayout.Separate(null!, 1280, 720));
     }
+
+    // HUD-POLISH-2: the SPREAD/STACK floor labels (src/Hud/Pings.cs) and the over-head cast bars (src/View/CastBarView.cs).
+
+    [Fact]
+    public void Five_floor_labels_on_one_body_are_separated_and_stay_near_it()
+    {
+        // run-041: five "STACK: group up" labels on the Pair's telegraph origins, a few pixels apart, one pile.
+        var labels = Enumerable.Range(0, 5)
+            .Select(i => HudLayout.PingLabelRect(new PixelPoint(760 + (i * 8), 427), Measure("STACK: group up")))
+            .ToArray();
+        IReadOnlyList<PixelRect> placed = HudLayout.PingLabels(labels, 1280, 720, Array.Empty<PixelRect>());
+        AssertNoOverlap(placed);
+        AssertInside(placed, 1280, 720);
+        for (var i = 0; i < labels.Length; i++)
+        {
+            var dx = Math.Abs(placed[i].X - labels[i].X);
+            var dy = Math.Abs(placed[i].Y - labels[i].Y);
+            Assert.True(dx <= HudLayout.PingLabelReach && dy <= HudLayout.PingLabelReach,
+                $"label {i} moved ({dx}, {dy}) px from its ping, more than {HudLayout.PingLabelReach} px");
+        }
+        Assert.Equal(labels[0], placed[0]);
+    }
+
+    [Fact]
+    public void Floor_labels_keep_clear_of_cast_bars_and_the_callout()
+    {
+        var bar = HudLayout.CastBarRect(new PixelPoint(700, 400));
+        var callout = new PixelRect(440, 100, 400, 32);
+        var labels = new[] { HudLayout.PingLabelRect(new PixelPoint(700, 410), Measure("SPREAD: move apart")) };
+        IReadOnlyList<PixelRect> placed = HudLayout.PingLabels(labels, 1280, 720, new[] { bar, callout });
+        Assert.False(placed[0].Intersects(bar), $"label {placed[0]} sits under the cast bar {bar}");
+    }
+
+    [Theory]
+    [InlineData(1280, 720)]
+    [InlineData(1920, 1080)]
+    public void Four_cast_bars_are_disjoint_and_inside_the_viewport(int width, int height)
+    {
+        // run-048: two casters side by side mid-screen, one at the right edge (cut to "Se..."), one at the left edge.
+        var anchors = new[]
+        {
+            new PixelPoint(width / 2, 300),
+            new PixelPoint((width / 2) + 40, 304),
+            new PixelPoint(width - 10, 260),
+            new PixelPoint(5, 420),
+        };
+        var band = HudLayout.TopBar(width, height).Band(width);
+        IReadOnlyList<PixelRect> bars = HudLayout.CastBars(anchors, width, height, new[] { band });
+        Assert.Equal(anchors.Length, bars.Count);
+        AssertNoOverlap(bars);
+        foreach (var b in bars)
+        {
+            Assert.True(b.X >= HudLayout.Margin && b.Right <= width - HudLayout.Margin && b.Y >= 0 && b.Bottom <= height,
+                $"cast bar {b} leaves the {width}x{height} viewport's {HudLayout.Margin} px gutter");
+            Assert.Equal(HudLayout.CastBarWidth, b.Width);
+            Assert.False(b.Intersects(band), $"cast bar {b} sits under the top bar {band}");
+        }
+    }
+
+    [Fact]
+    public void Long_caster_and_spell_title_never_exceeds_its_bar()
+    {
+        string fitted = HudLayout.FitCastLabel("The Hollow Warden of the Deep Vault", "Sundered Twins - the lock of ages", "  2.5s",
+            HudLayout.CastBarWidth, Measure);
+        Assert.True(Measure(fitted) <= HudLayout.CastBarWidth, $"'{fitted}' is {Measure(fitted)} px on a {HudLayout.CastBarWidth} px bar");
+        Assert.EndsWith("...  2.5s", fitted);
+        // 18 characters, exactly the 180 px bar at 10 px per character: a label that fits is kept whole.
+        Assert.Equal("Cinder: Bolt  0.4s", HudLayout.FitCastLabel("Cinder", "Bolt", "  0.4s", HudLayout.CastBarWidth, Measure));
+    }
+
+    [Fact]
+    public void A_bar_or_label_shows_only_when_part_of_it_is_on_screen()
+    {
+        Assert.True(HudLayout.Shows(HudLayout.CastBarRect(new PixelPoint(1300, 300)), 1280, 720));
+        Assert.False(HudLayout.Shows(HudLayout.CastBarRect(new PixelPoint(1500, 300)), 1280, 720));
+        Assert.False(HudLayout.Shows(HudLayout.CastBarRect(new PixelPoint(600, -40)), 1280, 720));
+    }
 }

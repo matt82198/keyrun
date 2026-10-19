@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
 using Godot;
+using Keyrun.Content;
 using Keyrun.Host;
+using Keyrun.Hud;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.View;
@@ -8,9 +11,17 @@ namespace Keyrun.View;
 /// <summary>
 /// Cast bars, drawn in screen space over the 3D view: one above every casting actor's head (the sim carries a cast as
 /// state: CastId, CastStartTick, CastEndsTick), filled by the fraction of the cast elapsed at the displayed fractional
-/// tick, with the ability's content name and the seconds left. An interruptible cast has an amber frame (kick it),
-/// an uninterruptible one grey. The Warden's own cast also shows as a wide bar above the ability bar. When the sim
-/// interrupts a cast the bar turns red and reads "Interrupted"; a completed cast flashes green; both fade out.
+/// tick, with "caster: ability" and the seconds left. An interruptible cast has an amber frame (kick it), an
+/// uninterruptible one grey. The Warden's own cast also shows as a wide bar above the ability bar. When the sim
+/// interrupts a cast the bar turns red and reads "caster: ability interrupted"; a completed cast flashes green; both
+/// fade out.
+/// <para>
+/// HUD-POLISH-2 (design/ART-PLAN.md section 2, no HUD text overlaps another): the over-head bars are laid out once a
+/// frame by <see cref="HudLayout"/>.CastBars, nearest the camera first, so two casts side by side never intersect, every
+/// bar stays inside the viewport with the top bar's 16 px side gutter, clear of the top bar and the party frames, and the
+/// label is cut with <see cref="HudLayout"/>.FitCastLabel to the bar's width. <see cref="BarRects"/> exposes this frame's
+/// blocks so <c>Pings</c> and <c>LabelView</c> keep their text clear of them.
+/// </para>
 /// </summary>
 public partial class CastBarView : Control
 {
@@ -18,7 +29,6 @@ public partial class CastBarView : Control
     private const float FadeSeconds = 0.9f;
     private const int FontSize = 14;
 
-    private static readonly Vector2 BarSize = new(150, 16);
     private static readonly Vector2 PlayerBarSize = new(320, 22);
     private static readonly Color Back = new(0.05f, 0.05f, 0.07f, 0.8f);
     private static readonly Color Fill = new(0.95f, 0.72f, 0.2f, 0.95f);
@@ -28,14 +38,34 @@ public partial class CastBarView : Control
     private static readonly Color DoneColor = new(0.35f, 0.85f, 0.4f, 1f);
 
     private readonly List<Ending> _endings = new();
+    private readonly List<Bar> _bars = new();
+    private readonly List<PixelRect> _rects = new();
+    private ulong _laidOutFrame = ulong.MaxValue;
 
     /// <summary>The driver to read state and events from.</summary>
     [Export]
     public NodePath DriverPath { get; set; } = new("../../SimDriver");
 
+    /// <summary>The party frames, a HUD obstacle the bars keep clear of (absent: no party-frame obstacle).</summary>
+    [Export]
+    public NodePath PartyFramesPath { get; set; } = new("../HudRoot/PartyFrames");
+
     /// <summary>Gap between the player's cast bar and the bottom of the screen, px (clears the ability bar).</summary>
     [Export]
     public float PlayerBarBottomGap { get; set; } = 150;
+
+    /// <summary>
+    /// This frame's over-head bar blocks (the label band plus the bar) in viewport pixels, live and fading casts alike.
+    /// Laid out on first use each frame, so every reader sees the rectangles this node draws.
+    /// </summary>
+    public IReadOnlyList<PixelRect> BarRects
+    {
+        get
+        {
+            Layout();
+            return _rects;
+        }
+    }
 
     private SimDriver? Driver { get; set; }
 
@@ -83,8 +113,60 @@ public partial class CastBarView : Control
         {
             return;
         }
-        var camera = GetViewport().GetCamera3D();
+        Layout();
         var font = ThemeDB.FallbackFont;
+        var local = GetGlobalRect().Position;
+        var size = new Vector2(HudLayout.CastBarWidth, HudLayout.CastBarHeight);
+        for (var i = 0; i < _bars.Count; i++)
+        {
+            var b = _bars[i];
+            var r = _rects[i];
+            var origin = new Vector2(r.X, r.Y + HudLayout.CastLabelHeight) - local;
+            DrawBar(font, origin, size, b.Progress, b.Fill, b.Frame, b.Label);
+        }
+
+        // The Warden's own cast also fills the wide slot over the ability bar.
+        var now = Driver.State.Tick + Driver.Alpha;
+        if (Driver.State.Actors.TryGetValue(SimDriver.WardenId, out var me) && me.Alive && me.CastId is { } castId &&
+            me.CastStartTick is { } start && me.CastEndsTick is { } end)
+        {
+            var progress = Mathf.Clamp((now - start) / Mathf.Max(1f, end - start), 0f, 1f);
+            var secondsLeft = Mathf.Max(0f, (end - now) / Tick.TickHz);
+            DrawBar(font, PlayerBarOrigin(), PlayerBarSize, progress, Fill, FrameOf(castId), $"{Driver.AbilityName(castId)}  {secondsLeft:0.0}s");
+        }
+        foreach (var e in _endings)
+        {
+            if (e.ActorId == SimDriver.WardenId)
+            {
+                var color = new Color(e.Interrupted ? InterruptedColor : DoneColor, 1f - (e.Age / FadeSeconds));
+                DrawBar(font, PlayerBarOrigin(), PlayerBarSize, 1f, color, color, e.Interrupted ? $"Interrupted: {e.Name}" : e.Name);
+            }
+        }
+    }
+
+    // Collects this frame's over-head bars (live casts, then fading endings), nearest the camera first, and places them
+    // with HudLayout.CastBars. Runs once per process frame; _Draw and every BarRects reader share the result.
+    private void Layout()
+    {
+        var frameNo = Engine.GetProcessFrames();
+        if (frameNo == _laidOutFrame)
+        {
+            return;
+        }
+        _laidOutFrame = frameNo;
+        _bars.Clear();
+        _rects.Clear();
+        var camera = GetViewport()?.GetCamera3D();
+        if (Driver is null || camera is null)
+        {
+            return;
+        }
+        var view = GetViewport().GetVisibleRect().Size;
+        var width = (int)view.X;
+        var height = (int)view.Y;
+        var font = ThemeDB.FallbackFont;
+        int Measure(string s) => (int)Math.Ceiling(font.GetStringSize(s, HorizontalAlignment.Left, -1, FontSize).X);
+
         var now = Driver.State.Tick + Driver.Alpha;
         foreach (var (id, actor) in Driver.State.Actors)
         {
@@ -93,41 +175,61 @@ public partial class CastBarView : Control
                 continue;
             }
             var progress = Mathf.Clamp((now - start) / Mathf.Max(1f, end - start), 0f, 1f);
-            var name = Driver.AbilityName(castId);
             var secondsLeft = Mathf.Max(0f, (end - now) / Tick.TickHz);
-            var interruptible = Driver.Run?.Content.Abilities.TryGetValue(castId, out var def) == true && def.Interruptible;
-            var frame = interruptible ? KickFrame : LockedFrame;
-            var label = $"{name}  {secondsLeft:0.0}s";
-            if (camera is not null && ScreenPoint(camera, id, out var p))
-            {
-                DrawBar(font, p - new Vector2(BarSize.X / 2, 0), BarSize, progress, Fill, frame, label);
-            }
-            if (id == SimDriver.WardenId)
-            {
-                DrawBar(font, PlayerBarOrigin(), PlayerBarSize, progress, Fill, frame, label);
-            }
+            var label = HudLayout.FitCastLabel(Driver.DisplayName(actor), Driver.AbilityName(castId), $"  {secondsLeft:0.0}s",
+                HudLayout.CastBarWidth, Measure);
+            AddBar(camera, id, width, height, progress, Fill, FrameOf(castId), label);
         }
         foreach (var e in _endings)
         {
-            var alpha = 1f - (e.Age / FadeSeconds);
-            var color = new Color(e.Interrupted ? InterruptedColor : DoneColor, alpha);
-            var label = e.Interrupted ? $"Interrupted: {e.Name}" : e.Name;
-            if (camera is not null && ScreenPoint(camera, e.ActorId, out var p))
-            {
-                DrawBar(font, p - new Vector2(BarSize.X / 2, 0), BarSize, 1f, color, color, label);
-            }
-            if (e.ActorId == SimDriver.WardenId)
-            {
-                DrawBar(font, PlayerBarOrigin(), PlayerBarSize, 1f, color, color, label);
-            }
+            var color = new Color(e.Interrupted ? InterruptedColor : DoneColor, 1f - (e.Age / FadeSeconds));
+            var caster = Driver.State.Actors.TryGetValue(e.ActorId, out var a) ? Driver.DisplayName(a) : string.Empty;
+            var label = HudLayout.FitCastLabel(caster, e.Interrupted ? $"{e.Name} interrupted" : e.Name, string.Empty,
+                HudLayout.CastBarWidth, Measure);
+            AddBar(camera, e.ActorId, width, height, 1f, color, color, label);
+        }
+        if (_bars.Count == 0)
+        {
+            return;
+        }
+        _bars.Sort((x, y) => x.Depth.CompareTo(y.Depth));
+
+        var obstacles = new List<PixelRect> { HudLayout.TopBar(width, height).Band(width) };
+        if (HudObstacles.PartyFrames(GetNodeOrNull<Control>(PartyFramesPath), Driver.State) is { } frames)
+        {
+            obstacles.Add(frames);
+        }
+        var anchors = new PixelPoint[_bars.Count];
+        for (var i = 0; i < _bars.Count; i++)
+        {
+            anchors[i] = _bars[i].Anchor;
+        }
+        _rects.AddRange(HudLayout.CastBars(anchors, width, height, obstacles));
+    }
+
+    private void AddBar(Camera3D camera, int actorId, int width, int height, float progress, Color fill, Color frame, string label)
+    {
+        if (!ScreenPoint(camera, actorId, out var p, out var depth))
+        {
+            return;
+        }
+        var anchor = new PixelPoint((int)Math.Round(p.X), (int)Math.Round(p.Y));
+        // Skip a bar no pixel of which would show where its caster stands (a caster well off screen).
+        if (HudLayout.Shows(HudLayout.CastBarRect(anchor), width, height))
+        {
+            _bars.Add(new Bar(anchor, depth, progress, fill, frame, label));
         }
     }
 
+    private Color FrameOf(string castId) =>
+        Driver?.Run?.Content.Abilities.TryGetValue(castId, out var def) == true && def.Interruptible ? KickFrame : LockedFrame;
+
     private Vector2 PlayerBarOrigin() => new((Size.X - PlayerBarSize.X) / 2, Size.Y - PlayerBarBottomGap);
 
-    private bool ScreenPoint(Camera3D camera, int actorId, out Vector2 point)
+    private bool ScreenPoint(Camera3D camera, int actorId, out Vector2 point, out float depth)
     {
         point = default;
+        depth = 0f;
         if (Driver is null || !Driver.State.Actors.TryGetValue(actorId, out var actor))
         {
             return false;
@@ -139,6 +241,7 @@ public partial class CastBarView : Control
             return false;
         }
         point = camera.UnprojectPosition(world);
+        depth = camera.GlobalPosition.DistanceSquaredTo(world);
         return true;
     }
 
@@ -172,6 +275,8 @@ public partial class CastBarView : Control
             }
         }
     }
+
+    private readonly record struct Bar(PixelPoint Anchor, float Depth, float Progress, Color Fill, Color Frame, string Label);
 
     private sealed class Ending
     {
