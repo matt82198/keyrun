@@ -1,0 +1,11 @@
+{
+  "description": "Wall-clock wait calls (sleep, waitForTimeout) per tests/client/e2e spec. Counts may only go down. Raising an entry fails tools/ci/e2e_wait_ratchet.py; lower it when a spec drops a wait.",
+  "total": 8,
+  "counts": {
+    "tests/client/e2e/first-run-readability.e2e.ts": 1,
+    "tests/client/e2e/run-end-overlay.e2e.ts": 2,
+    "tests/client/e2e/run-readout.e2e.ts": 1,
+    "tests/client/e2e/status-net.e2e.ts": 1,
+    "tests/client/e2e/window-ping.e2e.ts": 3
+  }
+}
