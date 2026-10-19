@@ -34,6 +34,11 @@ public readonly record struct PixelRect(int X, int Y, int Width, int Height)
 /// <param name="Dy">Pixels down (negative stacks the plate upward).</param>
 public readonly record struct PlateOffset(int Dx, int Dy);
 
+/// <summary>A screen point in whole pixels (x right, y down), such as a world anchor projected by the camera.</summary>
+/// <param name="X">Pixels from the left edge.</param>
+/// <param name="Y">Pixels from the top edge.</param>
+public readonly record struct PixelPoint(int X, int Y);
+
 /// <summary>The top bar: the objective panel's slot, the Slack bar, and the widest the title text may draw.</summary>
 /// <param name="Objective">The largest rectangle the objective panel may fill (it shrinks to its text).</param>
 /// <param name="Slack">The Slack bar.</param>
@@ -258,5 +263,133 @@ public static class HudLayout
             return down.Value;
         }
         return desired - up.Value <= down.Value - desired ? up.Value : down.Value;
+    }
+
+    // HUD-POLISH-2: the over-head cast bars (src/View/CastBarView.cs) and the SPREAD/STACK world labels (src/Hud/Pings.cs).
+
+    /// <summary>Over-head cast bar width (the label above it is fitted to this width).</summary>
+    public const int CastBarWidth = 180;
+
+    /// <summary>Over-head cast bar height.</summary>
+    public const int CastBarHeight = 16;
+
+    /// <summary>The band above a cast bar its 14 px label draws in.</summary>
+    public const int CastLabelHeight = 18;
+
+    /// <summary>The SPREAD/STACK world label font size.</summary>
+    public const int PingFont = 16;
+
+    /// <summary>A world label's box: its font size plus the descender.</summary>
+    public const int PingLabelHeight = PingFont + 5;
+
+    /// <summary>
+    /// How far (each axis) a SPREAD/STACK label may move from its ping when five pile on one body with nothing else in
+    /// the way: two label rows up or down, about one body width at run C's camera distance.
+    /// </summary>
+    public const int PingLabelReach = 48;
+
+    /// <summary>The block a cast bar and its label fill when the bar's top centre sits at <paramref name="anchor"/>.</summary>
+    /// <param name="anchor">The caster's head (3 m over the body) projected to the screen.</param>
+    /// <returns>The label band plus the bar, <see cref="CastBarWidth"/> wide; the bar's top is at Y + <see cref="CastLabelHeight"/>.</returns>
+    public static PixelRect CastBarRect(PixelPoint anchor) =>
+        new(anchor.X - (CastBarWidth / 2), anchor.Y - CastLabelHeight, CastBarWidth, CastLabelHeight + CastBarHeight);
+
+    /// <summary>The box a SPREAD/STACK world label fills when its baseline centre sits at <paramref name="anchor"/>.</summary>
+    /// <param name="anchor">The ping's world spot projected to the screen.</param>
+    /// <param name="textWidth">The label's drawn width in pixels.</param>
+    /// <returns>The label's box.</returns>
+    public static PixelRect PingLabelRect(PixelPoint anchor, int textWidth) =>
+        new(anchor.X - (textWidth / 2), anchor.Y - PingFont, Math.Max(0, textWidth), PingLabelHeight);
+
+    /// <summary>True when any pixel of <paramref name="rect"/> is inside the viewport (else the caller skips it).</summary>
+    /// <param name="rect">The bar or label where its anchor projects.</param>
+    /// <param name="viewportWidth">Viewport width in pixels.</param>
+    /// <param name="viewportHeight">Viewport height in pixels.</param>
+    /// <returns>True when part of it would draw on screen.</returns>
+    public static bool Shows(PixelRect rect, int viewportWidth, int viewportHeight) =>
+        rect.Right > 0 && rect.X < viewportWidth && rect.Bottom > 0 && rect.Y < viewportHeight;
+
+    /// <summary>
+    /// Over-head cast bars for <paramref name="anchors"/> (nearest the camera first): each <see cref="CastBarRect"/> is
+    /// pulled inside the viewport with the top bar's <see cref="Margin"/> side gutter, then moved the least distance up
+    /// or down until it shares no pixel with a bar already placed or an <paramref name="obstacles"/> rectangle
+    /// (<see cref="Separate(IReadOnlyList{PixelRect}, int, int, IReadOnlyList{PixelRect})"/>'s rule).
+    /// </summary>
+    /// <param name="anchors">Each caster's head projected to the screen, nearest first.</param>
+    /// <param name="viewportWidth">Viewport width in pixels.</param>
+    /// <param name="viewportHeight">Viewport height in pixels.</param>
+    /// <param name="obstacles">HUD rectangles the bars keep out of (the top bar band, the party frames).</param>
+    /// <returns>One bar block per anchor, in input order.</returns>
+    public static IReadOnlyList<PixelRect> CastBars(
+        IReadOnlyList<PixelPoint> anchors, int viewportWidth, int viewportHeight, IReadOnlyList<PixelRect> obstacles)
+    {
+        ArgumentNullException.ThrowIfNull(anchors);
+        var rects = new PixelRect[anchors.Count];
+        for (var i = 0; i < anchors.Count; i++)
+        {
+            rects[i] = CastBarRect(anchors[i]);
+        }
+        return SeparateInGutter(rects, viewportWidth, viewportHeight, obstacles);
+    }
+
+    /// <summary>
+    /// SPREAD/STACK world labels (in call order): each is pulled inside the viewport with the <see cref="Margin"/> side
+    /// gutter and stacked up or down off labels already placed and <paramref name="obstacles"/> (the top bar band, the
+    /// party frames, the callout banners, the cast bars), so simultaneous pings on nearby bodies read one per row next to
+    /// their spot instead of one pile. Name plates are not an obstacle here: LabelView places plates after these labels
+    /// and keeps them clear, so plates and labels still never share a pixel.
+    /// </summary>
+    /// <param name="labels">Each label's <see cref="PingLabelRect"/> where its ping projects.</param>
+    /// <param name="viewportWidth">Viewport width in pixels.</param>
+    /// <param name="viewportHeight">Viewport height in pixels.</param>
+    /// <param name="obstacles">HUD rectangles the labels keep out of.</param>
+    /// <returns>One placed label box per input, in input order.</returns>
+    public static IReadOnlyList<PixelRect> PingLabels(
+        IReadOnlyList<PixelRect> labels, int viewportWidth, int viewportHeight, IReadOnlyList<PixelRect> obstacles) =>
+        SeparateInGutter(labels, viewportWidth, viewportHeight, obstacles);
+
+    /// <summary>
+    /// A cast bar's label: "caster: spell" clipped with <see cref="FitTitle"/> so that it plus <paramref name="suffix"/>
+    /// (the seconds left) fits <paramref name="barWidth"/>; the suffix is always kept whole.
+    /// </summary>
+    /// <param name="caster">The caster's display name.</param>
+    /// <param name="spell">The ability's display name.</param>
+    /// <param name="suffix">Text kept whole after the title ("  2.5s"), or empty.</param>
+    /// <param name="barWidth">The bar's width in pixels.</param>
+    /// <param name="measure">The bar font's width of a string, in pixels.</param>
+    /// <returns>The label; <paramref name="measure"/> of it is at most <paramref name="barWidth"/> when the suffix fits.</returns>
+    public static string FitCastLabel(string caster, string spell, string suffix, int barWidth, Func<string, int> measure)
+    {
+        ArgumentNullException.ThrowIfNull(caster);
+        ArgumentNullException.ThrowIfNull(spell);
+        ArgumentNullException.ThrowIfNull(suffix);
+        ArgumentNullException.ThrowIfNull(measure);
+        var title = caster.Length == 0 ? spell : caster + ": " + spell;
+        return FitTitle(title, barWidth - measure(suffix), measure) + suffix;
+    }
+
+    // Separate inside [Margin, width - Margin]: shift into a viewport Margin narrower on each side, separate, shift back.
+    private static IReadOnlyList<PixelRect> SeparateInGutter(
+        IReadOnlyList<PixelRect> rects, int viewportWidth, int viewportHeight, IReadOnlyList<PixelRect> obstacles)
+    {
+        ArgumentNullException.ThrowIfNull(rects);
+        ArgumentNullException.ThrowIfNull(obstacles);
+        var shifted = new PixelRect[rects.Count];
+        for (var i = 0; i < rects.Count; i++)
+        {
+            shifted[i] = rects[i].Offset(-Margin, 0);
+        }
+        var blockers = new PixelRect[obstacles.Count];
+        for (var i = 0; i < obstacles.Count; i++)
+        {
+            blockers[i] = obstacles[i].Offset(-Margin, 0);
+        }
+        var offsets = Separate(shifted, Math.Max(0, viewportWidth - (2 * Margin)), viewportHeight, blockers);
+        var placed = new PixelRect[rects.Count];
+        for (var i = 0; i < rects.Count; i++)
+        {
+            placed[i] = rects[i].Offset(offsets[i].Dx, offsets[i].Dy);
+        }
+        return placed;
     }
 }

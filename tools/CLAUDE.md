@@ -19,6 +19,19 @@ dirs; no cwd pollution).
   The diff uses `--no-renames` so a move out of `game/` still reports its game-side path (`RenameBypassTest`). An
   empty or all-zero base (first push, `github.event.before` zeros) is treated as all paths changed, so the gate
   requires game-e2e success instead of crashing. A missing head or an unknown sha exits 2 (fail closed).
+- **e2e_wait_ratchet.py** - enforcement for escape `e2e-window-ping-flake`. Scans every source file under
+  `tests/client/e2e/**` (nested directories included) and counts EXECUTED wall-clock waits per file: `sleep(`,
+  `waitForTimeout(`, `delay(`, `pause(`, `wait(`, any `setTimeout(` (bare, namespaced, or raw `new Promise`), any alias
+  of `setTimeout` (an import under another name, or `const x = setTimeout`), and any local helper whose body waits on
+  the clock. Comments and string literals are blanked before counting. Each count is compared to
+  `e2e-wait-baseline.json`: a count may not rise and a new file may not add a wait. The fix is `waitForFunction` on
+  exposed state with a bounded timeout. Exit 0 pass, 1 fail, 2 cannot evaluate (missing or invalid baseline, `total`
+  not equal to the sum of `counts`, or no e2e specs found; fails closed). Wired as a step in the `e2e` job of
+  `.github/workflows/tests.yml` before `npm run test:e2e`. Tests live in `test_e2e_wait_ratchet.py`:
+  `EscapeReproductionTest` (the original escape), `RawTimerBypassTest`, `AliasedWaitBypassTest` (nested directories,
+  helpers) and `CommentAndStringTest`. The root cause is the tick-based PingRateLimiter silently dropping a G press;
+  `window-ping.e2e.ts` now re-presses G within a bounded attempt loop and holds no wall-clock wait, so its baseline
+  is 0.
 - The export/build steps in game.yml carry `timeout-minutes: 12` so a stall fails visibly instead of consuming the
   30-minute job timeout. The root cause (Godot child-process lifetime keeping the step open) is NOT fixed by this
   guard; it only makes the stall fail visibly and blocks merge.
