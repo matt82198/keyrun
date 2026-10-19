@@ -131,6 +131,48 @@
         { "x": 72500, "z": 5500, "yMm": 2200, "rangeMm": 16000 },
         { "x": 72900, "z": 0, "yMm": 2400, "rangeMm": 8000, "color": "FFB060" }
       ]
+    },
+    {
+      "id": "warden-arena",
+      "props": [
+        { "piece": "pillar_decorated", "x": 97750, "z": -4250, "turns": 0, "pct": 60 },
+        { "piece": "pillar_decorated", "x": 97750, "z": 4250, "turns": 2, "pct": 60 },
+        { "piece": "pillar_decorated", "x": 89250, "z": -4250, "turns": 0, "pct": 60 },
+        { "piece": "pillar_decorated", "x": 89250, "z": 4250, "turns": 2, "pct": 60 },
+        { "piece": "candle_triple", "x": 98700, "z": -5200, "turns": 0, "pct": 70 },
+        { "piece": "candle_triple", "x": 98700, "z": 5200, "turns": 2, "pct": 70 },
+        { "piece": "candle_triple", "x": 88300, "z": -5200, "turns": 0, "pct": 70 },
+        { "piece": "candle_triple", "x": 88300, "z": 5200, "turns": 2, "pct": 70 },
+        { "piece": "chair", "x": 108200, "z": 0, "turns": 3, "pct": 170 },
+        { "piece": "table_small_decorated_A", "x": 108200, "z": -1900, "turns": 3, "pct": 70 },
+        { "piece": "table_small_decorated_A", "x": 108200, "z": 1900, "turns": 3, "pct": 70 },
+        { "piece": "torch_lit", "x": 105000, "z": -3000, "turns": 0, "pct": 150 },
+        { "piece": "torch_lit", "x": 105000, "z": 3000, "turns": 0, "pct": 150 },
+        { "piece": "rubble_large", "x": 86000, "z": -12800, "turns": 0, "pct": 35 }
+      ],
+      "decor": [
+        { "piece": "torch_mounted", "side": "minZ", "along": 89000 },
+        { "piece": "torch_mounted", "side": "minZ", "along": 96000 },
+        { "piece": "torch_mounted", "side": "minZ", "along": 103000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": 89000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": 96000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": 103000 },
+        { "piece": "banner_shield_red", "side": "maxX", "along": -9000 },
+        { "piece": "banner_thin_red", "side": "maxX", "along": -6500 },
+        { "piece": "banner_shield_red", "side": "maxX", "along": -4000 },
+        { "piece": "banner_thin_red", "side": "maxX", "along": 0 },
+        { "piece": "banner_shield_red", "side": "maxX", "along": 4000 },
+        { "piece": "banner_thin_red", "side": "maxX", "along": 6500 },
+        { "piece": "banner_shield_red", "side": "maxX", "along": 9000 }
+      ],
+      "lights": [
+        { "x": 89000, "z": -7000, "yMm": 6000, "rangeMm": 16000, "kind": "warden" },
+        { "x": 89000, "z": 7000, "yMm": 6000, "rangeMm": 16000, "kind": "warden" },
+        { "x": 104000, "z": 0, "yMm": 6000, "rangeMm": 16000, "kind": "warden" }
+      ],
+      "cracked": [
+        { "side": "minZ", "along": 100000 }
+      ]
     }
   ]
 }

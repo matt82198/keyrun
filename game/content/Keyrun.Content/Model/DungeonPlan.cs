@@ -31,14 +31,17 @@ public enum WallSide
     [EnumMember(Value = "maxZ")] MaxZ,
 }
 
-/// <summary>The flavour of a room light; the view maps it to a colour and energy.</summary>
+/// <summary>
+/// The flavour of a room light; the view maps it to a colour and energy. JSON spelling (theme.json light <c>"kind"</c>,
+/// ROOM-THEMING-3): <c>torch</c> or <c>warden</c>.
+/// </summary>
 public enum LightKind
 {
     /// <summary>Warm torchlight (every room but the boss arena).</summary>
-    Torch,
+    [EnumMember(Value = "torch")] Torch,
 
     /// <summary>The Warden arena's colder, stronger vault light, so the boss room reads differently.</summary>
-    Warden,
+    [EnumMember(Value = "warden")] Warden,
 }
 
 /// <summary>
@@ -268,7 +271,7 @@ public static class DungeonPlan
             }
             else
             {
-                Dress(b, props, sconces, lights);
+                Dress(b, sconces, lights);
             }
         }
         var wallPieces = theme is null ? walled.WallPieces : Crack(walled.WallPieces, theme);
@@ -602,7 +605,7 @@ public static class DungeonPlan
         }
         foreach (var l in row.Lights)
         {
-            lights.Add(new LightSpot(b.Id, LightKind.Torch, l.X, l.YMm, l.Z, l.RangeMm, l.Color));
+            lights.Add(new LightSpot(b.Id, l.Kind, l.X, l.YMm, l.Z, l.RangeMm, l.Color));
         }
     }
 
@@ -653,11 +656,14 @@ public static class DungeonPlan
         return new KitPiece(b.Id, "torch_mounted", x, SconceHeightMm, z, Facing(side), n.X * KitScale / 100, sy, n.Z * KitScale / 100);
     }
 
-    private static void Dress(PlanBox b, List<KitPiece> props, List<KitPiece> sconces, List<LightSpot> lights)
+    // Every room of the real layout (entrance, Choir room, Pair hall, Seed chamber, Warden arena) is dressed from
+    // game/content/data/theme.json (DressThemed; ROOM-THEMING-1 to -3), so a room reaches this fallback only when it has
+    // no theme row (the unthemed shell plan, or a test layout): torches and two warm lights, no props. Corridors always
+    // come here (a sconce each side of the middle).
+    private static void Dress(PlanBox b, List<KitPiece> sconces, List<LightSpot> lights)
     {
         var w = b.MaxX - b.MinX;
         var hz = (b.MaxZ - b.MinZ) / 2;
-        var cz = Mid(b.MinZ, b.MaxZ);
         var x1 = b.MinX + w / 4;
         var x2 = b.MaxX - w / 4;
         if (!b.IsRoom)
@@ -675,39 +681,7 @@ public static class DungeonPlan
             sconces.Add(Sconce(b, WallSide.MaxZ, x));
         }
         var range = Math.Min(16000, 2 * hz + 3000);
-        if (b.Id != "warden-arena")
-        {
-            lights.Add(new LightSpot(b.Id, LightKind.Torch, x1, 2200, b.MinZ + 1500, range));
-            lights.Add(new LightSpot(b.Id, LightKind.Torch, x2, 2200, b.MaxZ - 1500, range));
-        }
-
-        // The entrance, the Choir room, the Pair hall and the Seed chamber are dressed from game/content/data/theme.json
-        // (DressThemed; ROOM-THEMING-1 and -2); lane 7 moves the room below into it.
-        switch (b.Id)
-        {
-            case "warden-arena":
-                // The vault: braziers on the rim, columns at the inner corners, the Warden's throne and banners at the far wall.
-                foreach (var x in new[] { b.MinX + 3000, Mid(b.MinX, b.MaxX), b.MaxX - 3000 })
-                {
-                    props.Add(Prop(b, "torch_lit", x, b.MinZ + 1500, 0, 150));
-                    props.Add(Prop(b, "torch_lit", x, b.MaxZ - 1500, 0, 150));
-                }
-                props.Add(Prop(b, "pillar", b.MinX + 5000, b.MinZ + 4000, 0, 60));
-                props.Add(Prop(b, "pillar", b.MinX + 5000, b.MaxZ - 4000, 0, 60));
-                props.Add(Prop(b, "pillar", b.MaxX - 5000, b.MinZ + 4000, 0, 60));
-                props.Add(Prop(b, "pillar", b.MaxX - 5000, b.MaxZ - 4000, 0, 60));
-                props.Add(Prop(b, "chair", b.MaxX - 1800, cz, 3, 170));
-                sconces.Add(Hanging(b, "banner_shield_red", WallSide.MaxX, cz - 4000));
-                sconces.Add(Hanging(b, "banner_shield_red", WallSide.MaxX, cz + 4000));
-                sconces.Add(Hanging(b, "banner_shield_red", WallSide.MaxX, cz - 9000));
-                sconces.Add(Hanging(b, "banner_shield_red", WallSide.MaxX, cz + 9000));
-                // Cold vault light: four high lamps over the floor quarters, stronger than the torches.
-                foreach (var x in new[] { x1, x2 })
-                {
-                    lights.Add(new LightSpot(b.Id, LightKind.Warden, x, 6000, cz - hz / 2, 16000));
-                    lights.Add(new LightSpot(b.Id, LightKind.Warden, x, 6000, cz + hz / 2, 16000));
-                }
-                break;
-        }
+        lights.Add(new LightSpot(b.Id, LightKind.Torch, x1, 2200, b.MinZ + 1500, range));
+        lights.Add(new LightSpot(b.Id, LightKind.Torch, x2, 2200, b.MaxZ - 1500, range));
     }
 }
