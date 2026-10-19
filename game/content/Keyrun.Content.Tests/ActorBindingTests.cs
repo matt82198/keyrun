@@ -156,13 +156,13 @@ public sealed class ActorBindingTests
         foreach (ActorBindingRow row in Table.Rows.Append(ActorBinding.Capsule))
         {
             int body = row.CapsuleFallback ? row.TargetHeightMm : Math.Max(row.TargetHeightMm, row.StandingHeightMm);
-            Assert.True(row.PlateHeightMm >= body + ActorBinding.PlateClearanceMm,
-                $"{row.Key}: plate at {row.PlateHeightMm} mm, body top {body} mm, clearance under {ActorBinding.PlateClearanceMm} mm");
+            Assert.True(row.PlateHeightMm >= body + PlateRule.ClearanceMm,
+                $"{row.Key}: plate at {row.PlateHeightMm} mm, body top {body} mm, clearance under {PlateRule.ClearanceMm} mm");
         }
-        // The 1.8 m rows keep the 2.35 m plate lane 8 placed (HUD-POLISH frames).
-        Assert.Equal(2350, ActorBinding.Capsule.PlateHeightMm);
-        Assert.Equal(2350, Table.For("choir.melee").PlateHeightMm);
-        Assert.True(Table.For("hollowWarden.boss").PlateHeightMm > 5000);
+        // PLATE-HEIGHT: a 1.8 m body's plate sits 250 mm over its head (2.05 m, was 2.35 m), the boss's under the 5 m cap.
+        Assert.Equal(2050, ActorBinding.Capsule.PlateHeightMm);
+        Assert.Equal(2050, Table.For("choir.melee").PlateHeightMm);
+        Assert.Equal(4937, Table.For("hollowWarden.boss").PlateHeightMm);
     }
 
     [Fact]
