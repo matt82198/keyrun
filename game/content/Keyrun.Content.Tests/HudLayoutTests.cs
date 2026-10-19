@@ -198,7 +198,8 @@ public sealed class HudLayoutTests
             HudLayout.CastBarWidth, Measure);
         Assert.True(Measure(fitted) <= HudLayout.CastBarWidth, $"'{fitted}' is {Measure(fitted)} px on a {HudLayout.CastBarWidth} px bar");
         Assert.EndsWith("...  2.5s", fitted);
-        Assert.Equal("Cinder: Flare  0.4s", HudLayout.FitCastLabel("Cinder", "Flare", "  0.4s", HudLayout.CastBarWidth, Measure));
+        // 18 characters, exactly the 180 px bar at 10 px per character: a label that fits is kept whole.
+        Assert.Equal("Cinder: Bolt  0.4s", HudLayout.FitCastLabel("Cinder", "Bolt", "  0.4s", HudLayout.CastBarWidth, Measure));
     }
 
     [Fact]
