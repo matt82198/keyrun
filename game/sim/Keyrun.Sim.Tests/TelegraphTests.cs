@@ -274,7 +274,7 @@ public sealed class TelegraphTests
                 }
             }
         }
-        Assert.Equal(37, count); // scripted-pull 6 + bots-hv k2-s7 9, k2-s11 9, k10-s7 13 (SLAM-TELEGRAPH B1: one slam telegraph each; 34 after D14)
+        Assert.Equal(42, count); // scripted-pull 6 + bots-hv k2-s7 11, k2-s11 11, k10-s7 14 (KF3-SEED-ENGAGE seed.lash; 37 after SLAM-TELEGRAPH B1, 34 after D14)
         Assert.Subset(new SortedSet<string>(new[] { "circle", "cone", "line" }), shapes);
     }
 

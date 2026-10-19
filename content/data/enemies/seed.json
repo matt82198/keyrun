@@ -4,10 +4,12 @@
     "name": "The Seed",
     "maxHealth": 3000,
     "role": "elite",
-    "abilities": ["seed.slam", "seed.deathBloom"],
+    "abilities": ["seed.slam", "seed.lash", "seed.deathBloom"],
     "script": [
       { "at": "loop", "every": 100, "cast": "seed.slam",
         "telegraph": { "shape": "circle", "radius": 2000, "leadTicks": 20 } },
+      { "at": 50, "every": 200, "cast": "seed.lash",
+        "telegraph": { "shape": "circle", "radius": 1500, "leadTicks": 20 } },
       { "at": "onDeath", "cast": "seed.deathBloom" }
     ]
   }

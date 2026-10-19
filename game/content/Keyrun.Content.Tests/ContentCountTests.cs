@@ -14,7 +14,7 @@ public sealed class ContentCountTests
     {
         ContentRegistry reg = ContentLoader.Load();
 
-        Assert.Equal(38, reg.Abilities.Count);
+        Assert.Equal(39, reg.Abilities.Count);
         Assert.Equal(22, reg.Effects.Count);
         Assert.Equal(3, reg.Classes.Count);
         Assert.Equal(13, reg.Combos.Count);

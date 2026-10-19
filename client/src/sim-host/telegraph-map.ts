@@ -42,6 +42,9 @@ export const TELEGRAPH_CLASS_BY_ABILITY: Readonly<Record<string, TelegraphClass>
   // "avoid" equals the unlisted fallback, so bots/Keyrun.Bots/View.cs (which does not list them) agrees.
   "hollowWarden.slam": "avoid",
   "twins.slam": "avoid",
+  // KF3-SEED-ENGAGE: the Seed's lash (the target-shaped cast that makes it walk to the party) is another "get out"
+  // circle; "avoid" equals the unlisted fallback, so bots/Keyrun.Bots/View.cs agrees.
+  "seed.lash": "avoid",
 };
 
 export function telegraphClassFor(abilityId: string): TelegraphClass {

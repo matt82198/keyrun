@@ -202,11 +202,13 @@ public sealed class EncounterTraceTests
     // and neither key has a telegraph on a projection tick (origins are covered by scripted-pull); each of their
     // 9 / 13 is still compared on tick, caster, cast, shape, lead, resolvesTick and geometry (SLAM-TELEGRAPH B1 added
     // one slam telegraph to each trace: 8 / 12 before; on k2 that telegraph lands right after a projection tick, so
-    // k2 now has one exact, byte-for-byte telegraph, where it had none).
+    // k2 now has one exact, byte-for-byte telegraph, where it had none). KF3-SEED-ENGAGE: the Seed now walks to the party
+    // and casts seed.lash; the re-recorded traces carry 11 / 14 telegraphs (was 9 / 13), k2 10 hits (was 9), k10 14 hits
+    // (was 13) with 3 exact (was 2), measured by this replay against the regenerated oracle.
     [Theory]
-    [InlineData("bots-hv-k2-s7", 9, 9, 7, 0, 1, 1)]
-    [InlineData("bots-hv-k2-s11", 9, 9, 7, 0, 1, 1)]
-    [InlineData("bots-hv-k10-s7", 13, 13, 7, 0, 0, 2)]
+    [InlineData("bots-hv-k2-s7", 11, 10, 7, 0, 1, 1)]
+    [InlineData("bots-hv-k2-s11", 11, 10, 7, 0, 1, 1)]
+    [InlineData("bots-hv-k10-s7", 14, 14, 7, 0, 0, 3)]
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {
