@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://src/Hud/AbilityBar.cs" id="11_abilitybar"]
 [ext_resource type="PackedScene" path="res://scenes/Hud.tscn" id="12_hud"]
 [ext_resource type="PackedScene" path="res://scenes/Screen.tscn" id="13_screen"]
+[ext_resource type="Script" path="res://src/View/GreyBox.cs" id="14_greybox"]
 
 [sub_resource type="Environment" id="Env_arena"]
 background_mode = 1
@@ -55,9 +56,6 @@ void fragment() {
 [sub_resource type="ShaderMaterial" id="Mat_grid"]
 shader = SubResource("Shader_grid")
 
-[sub_resource type="PlaneMesh" id="Mesh_floor"]
-size = Vector2(40, 40)
-
 [node name="Arena" type="Node3D"]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
@@ -67,12 +65,12 @@ environment = SubResource("Env_arena")
 transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 12, 0)
 shadow_enabled = true
 
-[node name="Floor" type="MeshInstance3D" parent="."]
-mesh = SubResource("Mesh_floor")
-surface_material_override/0 = SubResource("Mat_grid")
-
 [node name="SimDriver" type="Node" parent="."]
 script = ExtResource("1_driver")
+
+[node name="GreyBox" type="Node3D" parent="."]
+script = ExtResource("14_greybox")
+FloorMaterial = SubResource("Mat_grid")
 
 [node name="PlayerInput" type="Node" parent="."]
 script = ExtResource("2_input")

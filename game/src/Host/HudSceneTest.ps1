@@ -7,8 +7,10 @@
   Boots the real game (Main.tscn -> Arena.tscn) headless at --fixed-fps 60 twice and reads the HUD's own
   "HUD ..." lines from the engine output (the HUD prints what it draws when --autorun is on):
 
-    Run A (pull 1, the Choir, solo Warden):  -- --autorun --ticks 400 --solo
-      1. exit 0 and "AUTORUN done ticks=400";
+    Run A (pull 1, the Choir, solo Warden):  -- --autorun --ticks 600 --solo
+      (600 since lane NAV-CORE, was 400: the Warden first walks from the Entrance into the Choir room, so the wipe's
+      run_end moved from tick 374 to 413)
+      1. exit 0 and "AUTORUN done ticks=600";
       2. "HUD party seat=1 name=Warden hp=H/400 res=R/M" (the party frame reads the human's health and resource);
       3. "HUD party seat=1 ... DOWNED" after the sim's death event for actor 1 (the DOWNED chip);
       4. "HUD objective pull=1/4 id=choir name="The Choir"" (the current pull's content name);
@@ -23,13 +25,15 @@
          every autorun (A-G) titles a cleared=1 run "Run cleared -- ..." and a cleared=0 depleted run "Party wiped
          on pull <n> of <total> -- key depleted" (run C clears the dungeon since lane TUNE-BOSS, so the clear title
          is checked on it; the count of cleared runs is printed).
-    Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 400 --pull 2 --solo
+    Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 600 --pull 2 --solo
+      (600 since lane NAV-CORE, was 400: the Pair now spawns at the far side of its hall, 7 m off, run_end at tick 455)
       7. "HUD objective pull=2/4 id=pair name="The Pair"", and the wipe title "Party wiped on pull 2 of 4 -- key
          depleted" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
       8. at least one "HUD ping label=SPREAD" or "HUD ping label=STACK" line (from the Pair's mark telegraphs and
          mark effects in the sim state). The solo Warden is down before the Pair's first mark (about tick 294), so
          this line comes from enemy scripts the sim keeps stepping after run_end; run C proves a live-run call.
-    Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:  -- --autorun --ticks 3700
+    Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:  -- --autorun --ticks <PartyTicks>
+        (default 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
       9. "HUD party seat=1 name=Warden", "seat=2 name=Chanter", "seat=3 name=Cinder" (BotCommandSource drives 2, 3);
      10. in pull 1 (before the Pair spawns): a Chanter heal on a party seat and a Cinder damage hit on an enemy (at
          seed 1 the 3B healer role spends every GCD on heals and never casts Dissonance; the Cinder kit has no heal);
@@ -38,8 +42,14 @@
      12. a bot seat takes damage and every "HUD runend cause" line is seat 1's (the private run log's seat filter
          with more than one seat in the sim), and the party clears the dungeon (lane TUNE-BOSS, STATE.md D14): a
          "PULL spawn index=3 id=boss actors=900:hollowWarden.boss" line and a lockIndex 1 "lock_open" EVENT before
-         run_end, and the run-end panel titled "Run cleared -- within par" (run_end timed at tick 6787 at seed 1 key 2);
-     13. "BOTS done commands=N hash=H" with N > 0, equal across the two runs (bot determinism).
+         run_end, and the run-end panel titled "Run cleared -- within par" (run_end timed at tick 5168 at seed 1 key 2
+         since lane NAV-CORE, 6787 on the flat arena);
+     13. "BOTS done commands=N hash=H" with N > 0, equal across the two runs (bot determinism);
+     13a. lane NAV-CORE (STATE.md D18, the rooms-and-corridors route): the Warden's "room_enter" EVENTs reach
+         choir-room, pair-hall, seed-chamber and warden-arena in that order, and each room's pull spawns ("PULL spawn
+         index=i") only after the Warden entered that room (never at run start, never on the previous clear);
+     13b. both "boss_add_spawn" EVENTs (901 twinA, 902 twinB, boss 900) before run_end: the Sundered Twins spawn in the
+         full run, not only in run D (STATE.md NEXT ORDER step 3).
     Run D (lane 3I, the armed boss; from pull 4, the boss pull, three-seat party, key 10 seed 7):
         -- --autorun --ticks 600 --pull 4 --key 10 --seed 7
      14. "BOSS armed twins=2 lockAt=50" before the first TICK line (HostRunSetup builds the BossConfig from
@@ -51,7 +61,9 @@
          Why --pull 4: key 10 does not reach the boss from pull 1 under autorun. Lane 3I swept keys 2, 5, 8, 10, 12,
          15, 20 at seeds 1 and 7 for 8000 ticks: every run wiped in pull 2 (the Pair, run_end depleted at tick
          3611-5381), because the human seat is PlayerInput's ScriptedWarden, not the 3B tank bot that 3F's k10 s7
-         probe used. Since lane TUNE-BOSS (STATE.md D14) keys 2 and 5 clear from pull 1 (run C); key 10 still wipes.
+         probe used. Since lane TUNE-BOSS (STATE.md D14) every swept key (2, 5, 8, 10 at seeds 1 and 7) clears from
+         pull 1 (the D14 sweep, end ticks 6787 to 8603; re-swept on the lane NAV-CORE route, see its PR); run D keeps
+         --pull 4 because it proves the armed boss at key 10 in 600 ticks, not the route.
     Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 480 --solo --requeue
         (--requeue: an autorun starts the queued run only when asked, so runs A-D and the other scene tests stay one
         run each; an interactive game always starts it)
@@ -73,8 +85,10 @@
          tick whose commands are the joiner's), then "QUEUE consume n=1 size=0";
      23. the open seat stands idle: no cast_complete EVENT with "actorId":A between the abandon and the refill, the
          refilled seat casts again after it (the joiner's commands run from the pull start), and no party seat dies
-         before pull 2. Default A@T = 1@1000 (the human seat leaves at tick 1000; seed 1 key 2 pull 2 starts at
-         tick 3152 with all three seats alive; 2@2000 instead loses seats 1 and 2 in pull 1).
+         before pull 2. Default A@T = 2@3000 since lane NAV-CORE (the Chanter leaves at tick 3000, late in the Choir
+         fight; seed 1 key 2 pull 2 starts at tick 3180 with all three seats alive). The old 1@1000 cannot work on the
+         route: the next pull spawns only when a party member walks into its room, and an abandoned human leader stands
+         idle, so his bots never travel; 3@1000 to 3@3000 leave the Choir uncleared without the Cinder's damage.
     Run G (lane 3J, key mismatch): as F with --joiner-key 3
      24. "SEAT abandon", "QUEUE add ... key=3" and "PULL spawn index=1" appear, but no "SEAT refill" line and no
          "QUEUE consume" line (Backfill.Admits is exact key equality: a key-3 joiner is refused a key-2 run).
@@ -93,8 +107,11 @@
      27. exit 0, "SCREEN first open=1 key=2" (SimDriver opened the between-runs screen before any run), and no
          "RUN start", "BOSS armed" or "PULL spawn" line in <ScreenFirstFrames> frames (the first run waits for the
          screen's Queue, Screen.Queued -> StartQueuedRun). Before 3D-b the launch starts key 2 at once: 27 fails (RED).
-    Run I (lane 3D-c, a wipe goes back to the screen; interactive, three-seat party, from pull 4 so it wipes on the boss):
-        -- --press-enter 3 --pull 4   (--quit-after <WipeFrames>)
+    Run I (lane 3D-c, a wipe goes back to the screen; interactive, three-seat party, from pull 2 so it wipes on the Pair):
+        -- --press-enter 3 --pull 2   (--quit-after <WipeFrames>)
+        (--pull 2 since lane NAV-CORE, was --pull 4: a --pull N run now starts in its room with the boss 7 m off, and
+        the two bots kill the boss over the idle human, so the run clears instead of wiping; from pull 2 it wipes at
+        tick 896)
         (--press-enter N: SimDriver's scripted player pushes Enter through the viewport each time the game waits on
         it, the screen up or the run ended, up to N presses; the real keyboard path, not a direct call)
      28. "SCREEN first open=1 key=2", press 1 queues the first run ("RUN start ... clause=<id>", not none), the party
@@ -113,7 +130,8 @@
          (PingsPolicy.PingMoveTicks): the bot runner's batch carries that seat's ping reaction. Before 3H-c nothing
          subscribed to PlayerInput.Pinged: no "PING routed" line and 29 fails (RED).
     Run K (lane 3E-b, a recorded input log replays through the real input path; interactive, three-seat party; from
-        pull 4 so the idle-human party wipes on the boss, since the 2026-10-18 content tuning, STATE.md D14):
+        pull 4, the boss fight; since lane NAV-CORE the bots clear it over the idle human, so its run_end is timed, and
+        the fixture's post-run Enter tick moved with it):
       K1  -- --record-input <log> --press-enter 3 --press-ping 2 --pull 4 --log <k1>   (--quit-after <RecordFrames>)
       K2  -- --replay-input <log> --pull 4 --log <k2>                                  (--quit-after <RecordFrames>)
         (--record-input P: SimDriver appends every key press and release the game reads, stamped with the host's
@@ -151,13 +169,13 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$Ticks = 400,
-    [int]$PingTicks = 400,
+    [int]$Ticks = 600,
+    [int]$PingTicks = 600,
     [int]$PartyTicks = 7000,
     [int]$BossTicks = 600,
     [int]$QueueTicks = 480,
     [int]$BackfillTicks = 3300,
-    [string]$AbandonSeat = '1@1000',
+    [string]$AbandonSeat = '2@3000',
     [int]$ScreenFirstFrames = 240,
     [int]$WipeFrames = 6600,
     [int]$PingAt = 100,
@@ -369,6 +387,32 @@ if (-not $botsC) { $failures.Add('run C: no "BOTS done commands=N hash=H" line')
 elseif ($botsC -match 'commands=0 ') { $failures.Add("run C: the bots issued no commands: '$botsC'") }
 elseif ($botsC -ne $botsC2) { $failures.Add("run C: bot command stream differs across two same-seed runs: '$botsC' vs '$botsC2'") }
 $armedC = Assert-BossArmed 'C' @(FirstRun $c.Lines)
+# Lane NAV-CORE 13a (STATE.md D18): the Warden walks the route room by room, and each pull spawns only once he is in.
+$cRun = @(FirstRun $c.Lines)
+$roomOrder = @('choir-room', 'pair-hall', 'seed-chamber', 'warden-arena')
+$roomsC = @()
+$iPrevRoom = -1
+for ($r = 0; $r -lt $roomOrder.Count; $r++) {
+    $enter = First $cRun "^EVENT \{`"actorId`":1,`"room`":`"$($roomOrder[$r])`",`"tick`":\d+,`"type`":`"room_enter`"\}$"
+    $spawn = First $cRun "^PULL spawn index=$r "
+    if (-not $enter) { $failures.Add("run C: the Warden never entered $($roomOrder[$r]) (no room_enter EVENT for actor 1)"); continue }
+    $iEnter = [array]::IndexOf($cRun, $enter)
+    if ($iEnter -le $iPrevRoom) { $failures.Add("run C: the Warden entered $($roomOrder[$r]) before the room ahead of it on the route") }
+    $iPrevRoom = $iEnter
+    if (-not $spawn) { $failures.Add("run C: no 'PULL spawn index=$r' line (the pull of $($roomOrder[$r]) never spawned)") }
+    elseif ([array]::IndexOf($cRun, $spawn) -lt $iEnter) { $failures.Add("run C: pull $r spawned before the Warden entered $($roomOrder[$r]): '$spawn'") }
+    $roomsC += $enter
+}
+$startSpawn = First $cRun '^PULL spawn index=0 '
+$firstTick = First $cRun '^TICK '
+if ($startSpawn -and $firstTick -and [array]::IndexOf($cRun, $startSpawn) -lt [array]::IndexOf($cRun, $firstTick)) {
+    $failures.Add('run C: pull 1 spawned at run start, on top of the party (it must wait for the Choir room)')
+}
+# 13b: the Sundered Twins spawn in the full run (STATE.md NEXT ORDER step 3), before run_end.
+foreach ($t in @(@{ Id = 901; Class = 'hollowWarden.twinA' }, @{ Id = 902; Class = 'hollowWarden.twinB' })) {
+    $ev = First $c.Lines "^EVENT \{`"actorId`":$($t.Id),`"bossActorId`":900,`"classId`":`"$([regex]::Escape($t.Class))`",.*`"type`":`"boss_add_spawn`""
+    if (-not $ev -or [array]::IndexOf($c.Lines, $ev) -gt $iRunEnd) { $failures.Add("run C: no boss_add_spawn EVENT for $($t.Id) $($t.Class) before run_end") }
+}
 
 # ---- Run D: the armed boss (lane 3I) -----------------------------------------------------------------------------
 # From pull 4 (the boss pull): no key reaches the boss from pull 1 under autorun (see the header for the sweep).
@@ -515,7 +559,7 @@ if ($startH) { $failures.Add("run H: a run started (or failed) before any queue 
 
 # ---- Run I: Enter after a wipe opens the screen, never a Clause-less restart (lane 3D-c) --------------------------
 $ErrorActionPreference = 'Continue'
-$iText = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $WipeFrames '--' --press-enter 3 --pull 4 2>&1 | Out-String
+$iText = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $WipeFrames '--' --press-enter 3 --pull 2 2>&1 | Out-String
 $iCode = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 $iLines = @($iText -split "`r?`n")

@@ -89,4 +89,11 @@ public sealed record BotView(SimState State, IReadOnlyList<BotTelegraph> Telegra
 {
     /// <summary>The content-backed kits (the TS injected ContentRegistry).</summary>
     public KitRegistry Kits { get; init; } = KitRegistry.Empty;
+
+    /// <summary>
+    /// The run's rooms-and-corridors layout (<c>run.Content.Layout</c>, STATE.md D18) when the host runs one, else null.
+    /// Bots travel between rooms (<see cref="Shared.Follow"/>) only with a layout, so the oracle runner (null) is
+    /// unchanged: there the next pull spawns the step after a clear, leaving one enemy-free tick the bots must not act on.
+    /// </summary>
+    public Keyrun.Sim.Encounter.NavLayout? Layout { get; init; }
 }

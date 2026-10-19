@@ -50,7 +50,20 @@ public static class RunRoot
         state = RunWiring.MergeActors(state, players);
 
         var keyLevel = content.KeyLevel ?? 1;
-        state = RunWiring.MergeActors(state, Pulls.SpawnPull(dungeon, 0, state.Tick, static _ => { }));
+        if (content.Layout is { } layout)
+        {
+            // Layout run (STATE.md D18): pull 0 spawns only when a party member already stands in its trigger (a
+            // --pull N start placed inside the room), never on top of a party that starts in the Entrance.
+            layout.RequireTriggers(dungeon);
+            if (dungeon.Pulls.Count > 0 && NavLayout.PartyInside(state, layout.TriggerFor(dungeon.Pulls[0].Id)!))
+            {
+                state = RunWiring.MergeActors(state, Pulls.SpawnPull(dungeon, 0, state.Tick, static _ => { }));
+            }
+        }
+        else
+        {
+            state = RunWiring.MergeActors(state, Pulls.SpawnPull(dungeon, 0, state.Tick, static _ => { }));
+        }
 
         var abilities = RunOptions.MergeLoadoutAbilities(content.Abilities, party, options?.Loadouts);
         var effective = ReferenceEquals(abilities, content.Abilities) ? content : content with { Abilities = abilities };
@@ -82,10 +95,11 @@ public static class RunRoot
             content.BreakBarSources ?? Array.Empty<BreakBarSource>(),
             commands,
             RunWiring.AbilityTagsOf(content.Abilities));
+        var layout = content.Layout;
         var enc = EncounterStep.Step(
             run.State,
             run.Encounter,
-            run.Dungeon,
+            layout is null ? run.Dungeon : UnspawnedAsEmpty(run.State, run.Dungeon, run.Encounter.PullIndex),
             content.EnemyScripts,
             emit,
             wiring,
@@ -99,9 +113,16 @@ public static class RunRoot
 
         var nextState = RunWiring.ApplyBreakBarPatches(stepped.State, enc.EffectPatches, content.Effects);
         var nextEncounter = enc.Encounter;
-        if (nextEncounter.PullIndex != run.Encounter.PullIndex)
+        if (layout is null)
         {
-            nextState = RunWiring.MergeActors(nextState, Pulls.SpawnPull(run.Dungeon, nextEncounter.PullIndex, nextState.Tick, emit));
+            if (nextEncounter.PullIndex != run.Encounter.PullIndex)
+            {
+                nextState = RunWiring.MergeActors(nextState, Pulls.SpawnPull(run.Dungeon, nextEncounter.PullIndex, nextState.Tick, emit));
+            }
+        }
+        else
+        {
+            nextState = StepLayout(layout, run, nextState, nextEncounter, emit);
         }
         var echo = EchoSpawns.Step(nextEncounter, nextState, events, nextState.Tick, emit);
         nextEncounter = echo.Encounter;
@@ -121,5 +142,58 @@ public static class RunRoot
         }
 
         return new RunStepResult(new Run(nextState, nextEncounter, run.Dungeon, run.Content, runEnd), events);
+    }
+
+    // A layout run's active pull before its room is entered has no actors in the state, and pulls.ts counts a missing
+    // actor as dead: shown as it is, the encounter would clear it at once and cascade through every pull. The encounter
+    // step sees the unspawned pull with no spawns, which never advances (pulls.ts:82), so it clears only once fought.
+    private static DungeonDef UnspawnedAsEmpty(SimState state, DungeonDef dungeon, int pullIndex)
+    {
+        if (pullIndex < 0 || pullIndex >= dungeon.Pulls.Count || Pulls.IsSpawned(state, dungeon, pullIndex))
+        {
+            return dungeon;
+        }
+        var pulls = dungeon.Pulls.ToList();
+        pulls[pullIndex] = pulls[pullIndex] with { Spawns = Array.Empty<PullSpawn>() };
+        return dungeon with { Pulls = pulls };
+    }
+
+    /// <summary>
+    /// The layout rules after combat (STATE.md D18; no TS counterpart): (1) every actor that moved off the open boxes is
+    /// put back by <see cref="Movement.ClampToWalkable"/> against its pre-step position (a gated box opens on the tick its
+    /// pull clears); (2) <c>room_enter</c> for each living player that stepped into a room box; (3) the active pull
+    /// spawns, with its <c>pull_start</c>, on the first tick a living player stands in its trigger.
+    /// </summary>
+    private static SimState StepLayout(NavLayout layout, Run run, SimState next, EncounterState encounter, Action<SimEvent> emit)
+    {
+        var open = layout.OpenBoxes(run.Dungeon, encounter.PullIndex);
+        foreach (var actor in next.Actors.Values)
+        {
+            var pre = run.State.Actors.TryGetValue(actor.Id, out var was) ? was.Pos : actor.Pos;
+            actor.Pos = Movement.ClampToWalkable(pre, actor.Pos, open);
+        }
+
+        foreach (var actor in next.Actors.Values)
+        {
+            if (actor.Kind != ActorKind.Player || !actor.Alive || !run.State.Actors.TryGetValue(actor.Id, out var was))
+            {
+                continue;
+            }
+            foreach (var box in layout.Boxes)
+            {
+                if (box.IsRoom && !Movement.Contains(box.Box, was.Pos) && Movement.Contains(box.Box, actor.Pos))
+                {
+                    emit(new SimEvent(next.Tick, "room_enter", ("actorId", JsValue.Int(actor.Id)), ("room", JsValue.Str(box.Id))));
+                }
+            }
+        }
+
+        var index = encounter.PullIndex;
+        if (index < run.Dungeon.Pulls.Count && !Pulls.IsSpawned(next, run.Dungeon, index) &&
+            layout.TriggerFor(run.Dungeon.Pulls[index].Id) is { } trigger && NavLayout.PartyInside(next, trigger))
+        {
+            next = RunWiring.MergeActors(next, Pulls.SpawnPull(run.Dungeon, index, next.Tick, emit));
+        }
+        return next;
     }
 }

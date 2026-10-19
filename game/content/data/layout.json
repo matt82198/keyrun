@@ -1,0 +1,54 @@
+{
+  "dungeon": "hollow-vault",
+  "start": { "x": 4000, "z": 0 },
+  "boxes": [
+    { "id": "entrance", "kind": "room", "minX": -6000, "maxX": 6000, "minZ": -6000, "maxZ": 6000 },
+    { "id": "corridor-1", "kind": "corridor", "minX": 5000, "maxX": 11000, "minZ": -1500, "maxZ": 1500 },
+    {
+      "id": "choir-room", "kind": "room", "minX": 10000, "maxX": 26000, "minZ": -8000, "maxZ": 8000,
+      "pull": "choir",
+      "trigger": { "minX": 12000, "maxX": 26000, "minZ": -8000, "maxZ": 8000 },
+      "origin": { "x": 21500, "z": 0 },
+      "start": { "x": 14500, "z": 0 }
+    },
+    { "id": "corridor-2", "kind": "corridor", "minX": 25000, "maxX": 33000, "minZ": -1500, "maxZ": 1500, "gate": "choir" },
+    {
+      "id": "pair-hall", "kind": "room", "minX": 32000, "maxX": 56000, "minZ": -6000, "maxZ": 6000,
+      "pull": "pair",
+      "trigger": { "minX": 34000, "maxX": 56000, "minZ": -6000, "maxZ": 6000 },
+      "origin": { "x": 38500, "z": 0 },
+      "start": { "x": 36500, "z": 0 }
+    },
+    { "id": "corridor-3", "kind": "corridor", "minX": 55000, "maxX": 63000, "minZ": -1500, "maxZ": 1500, "gate": "pair" },
+    {
+      "id": "seed-chamber", "kind": "room", "minX": 62000, "maxX": 76000, "minZ": -7000, "maxZ": 7000,
+      "pull": "seed",
+      "trigger": { "minX": 64000, "maxX": 76000, "minZ": -7000, "maxZ": 7000 },
+      "origin": { "x": 63500, "z": 0 },
+      "start": { "x": 66500, "z": 0 }
+    },
+    { "id": "corridor-4", "kind": "corridor", "minX": 75000, "maxX": 83000, "minZ": -1500, "maxZ": 1500, "gate": "seed" },
+    {
+      "id": "warden-arena", "kind": "room", "minX": 82000, "maxX": 110000, "minZ": -14000, "maxZ": 14000,
+      "pull": "boss",
+      "trigger": { "minX": 84000, "maxX": 110000, "minZ": -14000, "maxZ": 14000 },
+      "origin": { "x": 93500, "z": 0 },
+      "start": { "x": 86500, "z": 0 }
+    }
+  ],
+  "route": [
+    { "x": 5500, "z": 0 },
+    { "x": 10500, "z": 0 },
+    { "x": 25500, "z": 0 },
+    { "x": 32500, "z": 0 },
+    { "x": 55500, "z": 0 },
+    { "x": 62500, "z": 0 },
+    { "x": 75500, "z": 0 },
+    { "x": 82500, "z": 0 },
+    { "x": 96000, "z": 0 }
+  ],
+  "formation": [
+    { "classId": "chanter", "behindMm": 2500, "sideMm": -1000 },
+    { "classId": "cinder", "behindMm": 2500, "sideMm": 1000 }
+  ]
+}

@@ -89,4 +89,7 @@ public sealed record ContentRegistry
 
     /// <summary>Run-level movement and arena config (run.json; C#-only, no TS counterpart).</summary>
     public required RunConfig Run { get; init; }
+
+    /// <summary>The dungeon's rooms, corridors, triggers, gates and route (layout.json; C#-only, STATE.md D18).</summary>
+    public required LayoutDef Layout { get; init; }
 }
