@@ -8,14 +8,23 @@ using Xunit;
 namespace Keyrun.Content.Tests;
 
 /// <summary>
-/// The party's model table (design/ART-PLAN.md section 4 and lane 3; <see cref="ActorBinding"/>): each class gets its
-/// own KayKit Adventurers body, every scaled body stays at or under the 1.8 m head line the name plates assume
-/// (LabelView PlateHeight 2.35 m), and an unknown class falls back to the capsule instead of throwing. The native
-/// heights the scales are computed from are re-measured here from the shipped .glb files (bind pose, every node the
-/// view keeps visible), so a swapped model or a wrong height constant fails this test, not a frame review.
+/// The actor model table (design/ART-PLAN.md section 4, lanes 3 and 4; <see cref="ActorBinding"/>): each party class
+/// gets its own KayKit Adventurers body, each enemy class a KayKit Skeletons body (the boss the Knight at 1.9x), every
+/// scaled body lands within 2 percent of its row's target height, every name plate sits above its body, and an unknown
+/// class falls back to the capsule instead of throwing. The native heights the scales are computed from are re-measured
+/// here from the shipped .glb files (bind pose, every node the view keeps visible), so a swapped model or a wrong height
+/// constant fails this test, not a frame review.
 /// </summary>
 public sealed class ActorBindingTests
 {
+    private const string Adventurers = "kaykit-adventurers";
+    private const string Skeletons = "kaykit-skeletons";
+
+    // A class id no lane binds, for the fallback and extension cases.
+    private const string Unbound = "test.unbound";
+
+    private static readonly string[] Party = { "warden", "cinder", "chanter" };
+
     private static ActorBinding Table => ActorBinding.Default;
 
     [Theory]
@@ -27,25 +36,78 @@ public sealed class ActorBindingTests
         ActorBindingRow row = Table.For(classId);
         Assert.False(row.CapsuleFallback, classId + " fell back to the capsule");
         Assert.Equal(file, row.ModelFile);
+        Assert.Equal(Adventurers, row.Folder);
         Assert.Equal(classId, row.Key);
     }
 
     [Fact]
     public void The_three_party_models_are_pairwise_distinct()
     {
-        string[] files = new[] { "warden", "cinder", "chanter" }.Select(c => Table.For(c).ModelFile!).ToArray();
+        string[] files = Party.Select(c => Table.For(c).ModelFile!).ToArray();
         Assert.Equal(3, files.Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
 
+    [Theory]
+    [InlineData("choir.melee", Skeletons, "Skeleton_Warrior.glb", 1800)]
+    [InlineData("choir.lieutenant", Skeletons, "Skeleton_Mage.glb", 1800)]
+    [InlineData("pair.melee", Skeletons, "Skeleton_Minion.glb", 1800)]
+    [InlineData("seed.elite", Skeletons, "Skeleton_Rogue.glb", 2340)]
+    [InlineData("hollowWarden.twinA", Skeletons, "Skeleton_Warrior.glb", 2070)]
+    [InlineData("hollowWarden.twinB", Skeletons, "Skeleton_Warrior.glb", 2070)]
+    [InlineData("hollowWarden.boss", Adventurers, "Knight.glb", 4687)]
+    public void Enemy_class_binds_its_model_at_its_target_height(string classId, string folder, string file, int targetMm)
+    {
+        ActorBindingRow row = Table.For(classId);
+        Assert.False(row.CapsuleFallback, classId + " fell back to the capsule");
+        Assert.Equal(folder, row.Folder);
+        Assert.Equal(file, row.ModelFile);
+        Assert.Equal(targetMm, row.TargetHeightMm);
+        Assert.Equal(ActorBinding.AssetsRoot + "/" + folder + "/" + file, row.ResPath);
+    }
+
     [Fact]
-    public void Every_model_row_stands_at_or_under_the_head_line()
+    public void Every_enemy_in_content_data_has_a_model_row()
+    {
+        List<string> ids = EnemyIds();
+        Assert.True(ids.Count >= 7, "vacuity guard: only " + ids.Count + " enemy ids in content/data/enemies");
+        foreach (string id in ids)
+        {
+            Assert.False(Table.For(id).CapsuleFallback, $"enemy {id} has no model row and would draw as a capsule");
+        }
+    }
+
+    [Fact]
+    public void Every_model_row_file_exists_under_game_assets()
+    {
+        string root = AssetsRoot();
+        foreach (ActorBindingRow row in Table.Rows.Where(r => !r.CapsuleFallback))
+        {
+            string path = Path.Combine(root, row.Folder, row.ModelFile!);
+            Assert.True(File.Exists(path), $"{row.Key}: missing model {path}");
+        }
+    }
+
+    [Fact]
+    public void Every_model_row_stands_within_two_percent_of_its_target()
     {
         ActorBindingRow[] models = Table.Rows.Where(r => !r.CapsuleFallback).ToArray();
-        Assert.True(models.Length >= 3, "vacuity guard: only " + models.Length + " model rows");
+        Assert.True(models.Length >= 10, "vacuity guard: only " + models.Length + " model rows");
         foreach (ActorBindingRow row in models)
         {
+            long off = Math.Abs((long)row.StandingHeightMm - row.TargetHeightMm);
+            Assert.True(off * 50 <= row.TargetHeightMm,
+                $"{row.Key}: {row.NativeHeightMm} mm x {row.ScalePermille} permille = {row.StandingHeightMm} mm, more than 2 percent from its {row.TargetHeightMm} mm target");
+        }
+    }
+
+    [Fact]
+    public void Party_rows_stand_at_or_under_the_head_line()
+    {
+        foreach (string key in Party)
+        {
+            ActorBindingRow row = Table.For(key);
             Assert.True(row.StandingHeightMm <= ActorBinding.HeadLineMm,
-                $"{row.Key}: {row.NativeHeightMm} mm x {row.ScalePermille} permille = {row.StandingHeightMm} mm, over the {ActorBinding.HeadLineMm} mm head line");
+                $"{row.Key}: {row.StandingHeightMm} mm, over the {ActorBinding.HeadLineMm} mm head line");
             Assert.True(row.StandingHeightMm >= 1600,
                 $"{row.Key}: {row.StandingHeightMm} mm is too short to read as a party member (scale {row.ScalePermille} permille)");
         }
@@ -58,8 +120,66 @@ public sealed class ActorBindingTests
         Assert.InRange(h, 1700, 1800);
     }
 
+    [Fact]
+    public void The_boss_is_the_knight_at_one_point_nine_times_its_native_height()
+    {
+        ActorBindingRow knight = Table.For("warden");
+        ActorBindingRow boss = Table.For("hollowWarden.boss");
+        Assert.Equal(knight.Folder, boss.Folder);
+        Assert.Equal(knight.ModelFile, boss.ModelFile);
+        Assert.Equal(knight.NativeHeightMm * 19 / 10, boss.TargetHeightMm);
+        Assert.NotNull(boss.TintRgb); // the hollow, darkened Knight (ART-PLAN section 4)
+    }
+
+    [Fact]
+    public void Role_sizes_follow_art_plan_section_4()
+    {
+        Assert.Equal(ActorBinding.HeadLineMm * 13 / 10, Table.For("seed.elite").TargetHeightMm);
+        Assert.Equal(ActorBinding.HeadLineMm * 115 / 100, Table.For("hollowWarden.twinA").TargetHeightMm);
+        Assert.Equal(ActorBinding.HeadLineMm * 115 / 100, Table.For("hollowWarden.twinB").TargetHeightMm);
+        Assert.Equal(ActorBinding.HeadLineMm, ActorBinding.Capsule.TargetHeightMm);
+    }
+
+    [Fact]
+    public void The_twins_are_told_apart_by_tint()
+    {
+        int? a = Table.For("hollowWarden.twinA").TintRgb;
+        int? b = Table.For("hollowWarden.twinB").TintRgb;
+        Assert.NotNull(a);
+        Assert.NotNull(b);
+        Assert.NotEqual(a, b);
+    }
+
+    [Fact]
+    public void Every_name_plate_sits_above_its_body()
+    {
+        foreach (ActorBindingRow row in Table.Rows.Append(ActorBinding.Capsule))
+        {
+            int body = row.CapsuleFallback ? row.TargetHeightMm : Math.Max(row.TargetHeightMm, row.StandingHeightMm);
+            Assert.True(row.PlateHeightMm >= body + ActorBinding.PlateClearanceMm,
+                $"{row.Key}: plate at {row.PlateHeightMm} mm, body top {body} mm, clearance under {ActorBinding.PlateClearanceMm} mm");
+        }
+        // The 1.8 m rows keep the 2.35 m plate lane 8 placed (HUD-POLISH frames).
+        Assert.Equal(2350, ActorBinding.Capsule.PlateHeightMm);
+        Assert.Equal(2350, Table.For("choir.melee").PlateHeightMm);
+        Assert.True(Table.For("hollowWarden.boss").PlateHeightMm > 5000);
+    }
+
+    [Fact]
+    public void Enemy_rows_rise_with_a_spawn_clip_and_party_rows_have_none()
+    {
+        foreach (string id in EnemyIds().Where(i => i != "hollowWarden.boss"))
+        {
+            Assert.False(string.IsNullOrEmpty(Table.For(id).Clips.Spawn), id + " has no spawn clip");
+        }
+        foreach (string key in Party)
+        {
+            Assert.Null(Table.For(key).Clips.Spawn);
+        }
+    }
+
     [Theory]
-    [InlineData("choir.melee")]
+    [InlineData(Unbound)]
     [InlineData("no-such-class")]
     [InlineData("")]
     [InlineData(null)]
@@ -68,27 +188,28 @@ public sealed class ActorBindingTests
         ActorBindingRow row = Table.For(classId);
         Assert.True(row.CapsuleFallback);
         Assert.Null(row.ModelFile);
+        Assert.Null(row.ResPath);
     }
 
     [Fact]
     public void A_later_lane_extends_the_table_by_adding_a_row()
     {
-        var enemy = new ActorBindingRow("choir.melee", "Skeleton_Warrior.glb", 2400, 700, null, Array.Empty<string>(),
-            ActorClips.Default);
-        ActorBinding extended = Table.With(enemy);
-        Assert.Equal("Skeleton_Warrior.glb", extended.For("choir.melee").ModelFile);
-        Assert.True(Table.For("choir.melee").CapsuleFallback, "With must not change the default table");
+        var extra = new ActorBindingRow(Unbound, "Skeleton_Warrior.glb", 2400, 700, null, Array.Empty<string>(),
+            ActorClips.Default, Folder: Skeletons);
+        ActorBinding extended = Table.With(extra);
+        Assert.Equal("Skeleton_Warrior.glb", extended.For(Unbound).ModelFile);
+        Assert.True(Table.For(Unbound).CapsuleFallback, "With must not change the default table");
         Assert.Equal("Knight.glb", extended.For("warden").ModelFile);
-        Assert.Throws<ArgumentException>(() => extended.With(enemy));
+        Assert.Throws<ArgumentException>(() => extended.With(extra));
     }
 
     [Fact]
     public void Native_heights_match_the_shipped_glb_bind_pose()
     {
-        string dir = AssetDir();
+        string root = AssetsRoot();
         foreach (ActorBindingRow row in Table.Rows.Where(r => !r.CapsuleFallback))
         {
-            string path = Path.Combine(dir, row.ModelFile!);
+            string path = Path.Combine(root, row.Folder, row.ModelFile!);
             Assert.True(File.Exists(path), "missing model " + path);
             int measured = GlbBindPose.TopMm(path, row.HiddenNodes);
             Assert.True(Math.Abs(measured - row.NativeHeightMm) <= 5,
@@ -103,29 +224,60 @@ public sealed class ActorBindingTests
     [Fact]
     public void Clip_names_exist_in_every_shipped_model()
     {
-        string dir = AssetDir();
+        string root = AssetsRoot();
         foreach (ActorBindingRow row in Table.Rows.Where(r => !r.CapsuleFallback))
         {
-            HashSet<string> clips = GlbBindPose.Animations(Path.Combine(dir, row.ModelFile!));
-            foreach (string clip in new[] { row.Clips.Idle, row.Clips.Move, row.Clips.Cast, row.Clips.Act, row.Clips.Hit, row.Clips.Death })
+            HashSet<string> clips = GlbBindPose.Animations(Path.Combine(root, row.Folder, row.ModelFile!));
+            var wanted = new List<string> { row.Clips.Idle, row.Clips.Move, row.Clips.Cast, row.Clips.Act, row.Clips.Hit, row.Clips.Death };
+            if (row.Clips.Spawn is { } spawn) wanted.Add(spawn);
+            foreach (string clip in wanted)
             {
                 Assert.True(clips.Contains(clip), $"{row.Key}: clip {clip} is not in {row.ModelFile}");
             }
         }
     }
 
-    private static string AssetDir()
+    // game/assets, the folder every row's Folder is relative to (kaykit-adventurers and kaykit-skeletons both).
+    private static string AssetsRoot()
     {
         var d = new DirectoryInfo(AppContext.BaseDirectory);
         while (d is not null)
         {
-            string candidate = Path.Combine(d.FullName, "game", "assets", "kaykit-adventurers");
-            if (Directory.Exists(candidate)) return candidate;
-            candidate = Path.Combine(d.FullName, "assets", "kaykit-adventurers");
-            if (Directory.Exists(candidate)) return candidate;
+            foreach (string candidate in new[] { Path.Combine(d.FullName, "game", "assets"), Path.Combine(d.FullName, "assets") })
+            {
+                if (Directory.Exists(Path.Combine(candidate, Adventurers)) && Directory.Exists(Path.Combine(candidate, Skeletons)))
+                {
+                    return candidate;
+                }
+            }
             d = d.Parent;
         }
-        throw new DirectoryNotFoundException("game/assets/kaykit-adventurers not found above " + AppContext.BaseDirectory);
+        throw new DirectoryNotFoundException("game/assets with kaykit-adventurers and kaykit-skeletons not found above " + AppContext.BaseDirectory);
+    }
+
+    // Every enemy id in the repo-root content/data/enemies/*.json (each file is a JSON array of enemy objects).
+    private static List<string> EnemyIds()
+    {
+        var d = new DirectoryInfo(AppContext.BaseDirectory);
+        while (d is not null)
+        {
+            string dir = Path.Combine(d.FullName, "content", "data", "enemies");
+            if (Directory.Exists(dir))
+            {
+                var ids = new List<string>();
+                foreach (string file in Directory.GetFiles(dir, "*.json").OrderBy(f => f, StringComparer.Ordinal))
+                {
+                    using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(file));
+                    foreach (JsonElement e in doc.RootElement.EnumerateArray())
+                    {
+                        ids.Add(e.GetProperty("id").GetString()!);
+                    }
+                }
+                return ids;
+            }
+            d = d.Parent;
+        }
+        throw new DirectoryNotFoundException("content/data/enemies not found above " + AppContext.BaseDirectory);
     }
 
     /// <summary>Reads a .glb's JSON chunk and computes the bind-pose top (max y) of every visible mesh node.</summary>

@@ -8,8 +8,9 @@ namespace Keyrun.View;
 /// <summary>
 /// Draws one sim actor, placed each frame by interpolating the actor's mm position and yaw between SimDriver's previous
 /// and current state. mm become metres as floats here and only here (game/CLAUDE.md purity rule). The body is the
-/// actor class's CC0 model from <see cref="ActorBinding"/> (design/ART-PLAN.md lane 3: Knight, Mage, Rogue_Hooded),
-/// scaled per its row with its feet at the root and facing local +x, animated by <see cref="ActorAnimator"/>; a class
+/// actor class's CC0 model from <see cref="ActorBinding"/> (design/ART-PLAN.md lane 3: Knight, Mage, Rogue_Hooded;
+/// lane 4: the KayKit Skeletons and the 1.9x Knight boss), loaded from its row's pack folder, scaled and tinted per its
+/// row with its feet at the root and facing local +x, animated by <see cref="ActorAnimator"/>; a class
 /// with no row, or a row whose file is missing, keeps the capsule (with a small nose showing facing) and logs
 /// <c>ACTOR fallback capsule id=N class=C</c> once.
 /// </summary>
@@ -48,6 +49,7 @@ public partial class ActorView : Node3D
     private bool _hasLastPosition;
     private int _measureIn = -1;
     private string _classId = string.Empty;
+    private bool _shadows = true;
 
     /// <inheritdoc />
     public override void _Ready()
@@ -97,7 +99,7 @@ public partial class ActorView : Node3D
         _bound = true;
         _classId = actor.ClassId;
         var row = Binding.For(actor.ClassId);
-        var path = row.ModelFile is null ? null : ActorBinding.AdventurersDir + "/" + row.ModelFile;
+        var path = row.ResPath; // res://assets/<pack folder>/<file>: kaykit-adventurers or kaykit-skeletons
         if (path is null || !ResourceLoader.Exists(path))
         {
             GD.Print($"ACTOR fallback capsule id={ActorId} class={actor.ClassId}");
@@ -124,6 +126,11 @@ public partial class ActorView : Node3D
         GetNode<MeshInstance3D>("Nose").Visible = false;
         _model = model;
         _animator = ActorAnimator.TryCreate(model, row.Clips);
+        // A body bound while its actor is alive rises with its spawn clip (enemies; party rows have none and idle).
+        if (actor.Alive)
+        {
+            _animator?.PlaySpawn();
+        }
         GD.Print($"ACTOR model id={ActorId} class={actor.ClassId} file={row.ModelFile} scale={s:0.000} " +
                  (_animator is null ? "clips=static" : _animator.Matched));
         _measureIn = MeasureAfterFrames;
@@ -213,7 +220,28 @@ public partial class ActorView : Node3D
         var z = Mathf.Lerp((float)before.Pos.Z, (float)now.Pos.Z, t) * MmToM;
         Position = new Vector3(x, y, z);
         Visible = now.Alive || (_animator?.HoldsDeath ?? false); // a model plays its death clip instead of vanishing
+        SetShadows(now.Alive);
         Rotation = new Vector3(0, -YawRadians(before.Yaw, now.Yaw, t), 0);
+    }
+
+    // A dead body lies on the floor as a bone pile or a fallen hero: it stops casting shadows, which take most of a
+    // skinned body's draw calls (every cascade redraws it), so the corpses of earlier pulls do not push a later pull
+    // over the 600 draw-call budget. Restored if the actor is alive again (a fresh run reuses the static Warden's view).
+    private void SetShadows(bool on)
+    {
+        if (_model is null || on == _shadows)
+        {
+            return;
+        }
+        _shadows = on;
+        var mode = on ? GeometryInstance3D.ShadowCastingSetting.On : GeometryInstance3D.ShadowCastingSetting.Off;
+        foreach (var node in _model.FindChildren("*", "MeshInstance3D", true, false))
+        {
+            if (node is MeshInstance3D mi)
+            {
+                mi.CastShadow = mode;
+            }
+        }
     }
 
     // Sim yaw theta faces (cos theta, sin theta) in (x, z). A Y rotation of -theta turns local +x onto

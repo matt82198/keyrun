@@ -14,24 +14,43 @@ namespace Keyrun.Content;
 /// <param name="Act">Played once when the actor's global cooldown restarts (an instant ability went out).</param>
 /// <param name="Hit">Played once when the actor's health drops.</param>
 /// <param name="Death">Played once when the actor dies; its last frame is held.</param>
-public sealed record ActorClips(string Idle, string Move, string Cast, string Act, string Hit, string Death)
+/// <param name="Spawn">
+/// Played once when the view first binds the body (ART-PLAN section 3: enemies rise where they spawn); null = start in
+/// <paramref name="Idle"/>.
+/// </param>
+public sealed record ActorClips(string Idle, string Move, string Cast, string Act, string Hit, string Death,
+    string? Spawn = null)
 {
     /// <summary>KayKit Rig_Medium clip names shared by every Adventurers character.</summary>
     public static ActorClips Default { get; } =
         new("Idle", "Running_A", "Spellcasting", "1H_Melee_Attack_Chop", "Hit_A", "Death_A");
+
+    /// <summary>
+    /// KayKit Skeletons clip names (the same Rig_Medium library plus the skeleton-only clips): they rise out of the
+    /// ground on spawn and collapse into a bone pile on death. The skeleton models carry no weapons, so the instant
+    /// ability plays an unarmed punch.
+    /// </summary>
+    public static ActorClips Skeleton { get; } =
+        new("Idle", "Running_A", "Spellcasting", "Unarmed_Melee_Attack_Punch_A", "Hit_A", "Death_C_Skeletons",
+            "Spawn_Ground_Skeletons");
 }
 
 /// <summary>
-/// One row of <see cref="ActorBinding"/>: which model a sim class (party class id, later enemy id) is drawn with.
+/// One row of <see cref="ActorBinding"/>: which model a sim class (party class id or enemy id) is drawn with.
 /// Integers only (game/CLAUDE.md purity rule): the view divides <see cref="ScalePermille"/> by 1000.
 /// </summary>
 /// <param name="Key">The sim <c>ActorState.ClassId</c> this row binds ("warden", "choir.melee").</param>
-/// <param name="ModelFile">File name inside the pack folder, or null for the capsule fallback.</param>
+/// <param name="ModelFile">File name inside <paramref name="Folder"/>, or null for the capsule fallback.</param>
 /// <param name="NativeHeightMm">Bind-pose height of the model's visible nodes in the pack's own units, mm.</param>
-/// <param name="ScalePermille">Uniform scale applied by the view, 1/1000.</param>
+/// <param name="ScalePermille">Uniform scale applied by the view, 1/1000 (target height / native height).</param>
 /// <param name="TintRgb">Optional 0xRRGGBB multiplied into the model's albedo (null = the pack colours).</param>
 /// <param name="HiddenNodes">Model nodes the view hides (spare weapons and shields the pack attaches by default).</param>
 /// <param name="Clips">The clips this model plays.</param>
+/// <param name="TargetHeightMm">
+/// The height this body is sized to, mm: <see cref="ActorBinding.HeadLineMm"/> by default, more for the roles ART-PLAN
+/// section 4 makes bigger (Seed 1.3x, Twins 1.15x, the boss 1.9x the Knight). The scaled model lands within 2 percent.
+/// </param>
+/// <param name="Folder">The pack folder under game/assets the model file lives in.</param>
 public sealed record ActorBindingRow(
     string Key,
     string? ModelFile,
@@ -39,46 +58,81 @@ public sealed record ActorBindingRow(
     int ScalePermille,
     int? TintRgb,
     IReadOnlyList<string> HiddenNodes,
-    ActorClips Clips)
+    ActorClips Clips,
+    int TargetHeightMm = ActorBinding.HeadLineMm,
+    string Folder = ActorBinding.AdventurersFolder)
 {
     /// <summary>True when the view keeps the capsule body (no model bound).</summary>
     public bool CapsuleFallback => ModelFile is null;
 
     /// <summary>Height of the scaled model, mm (what the name plate must clear).</summary>
     public int StandingHeightMm => (int)((long)NativeHeightMm * ScalePermille / 1000);
+
+    /// <summary>The model's res:// path (<see cref="ActorBinding.AssetsRoot"/>/Folder/ModelFile), or null for the capsule.</summary>
+    public string? ResPath => ModelFile is null ? null : ActorBinding.AssetsRoot + "/" + Folder + "/" + ModelFile;
+
+    /// <summary>
+    /// Height of this class's name plate anchor above its feet, mm: its target height (never under the head line) plus
+    /// <see cref="ActorBinding.PlateClearanceMm"/>, so a 1.8 m body keeps the 2.35 m plate and a 4.7 m boss's plate
+    /// clears its helmet instead of drawing inside it.
+    /// </summary>
+    public int PlateHeightMm => Math.Max(TargetHeightMm, ActorBinding.HeadLineMm) + ActorBinding.PlateClearanceMm;
 }
 
 /// <summary>
-/// The table from a sim class id to the body the view draws (design/ART-PLAN.md section 4, lane 3). It is a table, not
-/// a switch: lane 4 (enemies) adds its rows with <see cref="With"/> or by extending <see cref="DefaultRows"/>, and any
+/// The table from a sim class id to the body the view draws (design/ART-PLAN.md section 4, lanes 3 and 4). It is a
+/// table, not a switch: a later lane adds rows with <see cref="With"/> or by extending <see cref="DefaultRows"/>, and any
 /// class without a row gets <see cref="Capsule"/>, never an exception. Godot-free; src/View/ActorView.cs applies it.
 /// </summary>
 public sealed class ActorBinding
 {
+    /// <summary>The res:// folder every pack folder lives in (game/assets).</summary>
+    public const string AssetsRoot = "res://assets";
+
+    /// <summary>The party models' pack folder (game/assets/kaykit-adventurers; the boss reuses its Knight).</summary>
+    public const string AdventurersFolder = "kaykit-adventurers";
+
+    /// <summary>The enemy models' pack folder (game/assets/kaykit-skeletons).</summary>
+    public const string SkeletonsFolder = "kaykit-skeletons";
+
     /// <summary>The res:// folder the party models live in (game/assets/kaykit-adventurers).</summary>
-    public const string AdventurersDir = "res://assets/kaykit-adventurers";
+    public const string AdventurersDir = AssetsRoot + "/" + AdventurersFolder;
 
     /// <summary>
-    /// The highest a scaled model may reach above its feet, mm. LabelView draws name plates at 2.35 m; the capsule they
-    /// were placed for is 1.8 m tall, so every model stays at or under it.
+    /// The default target height, mm: the 1.8 m capsule the name plates were placed for. Party and ordinary enemy
+    /// bodies are sized to it; bigger roles set their own <see cref="ActorBindingRow.TargetHeightMm"/>.
     /// </summary>
     public const int HeadLineMm = 1800;
+
+    /// <summary>How far a name plate anchor sits above its body's target height, mm (2.35 m - 1.8 m).</summary>
+    public const int PlateClearanceMm = 550;
+
+    /// <summary>
+    /// The effect the sim puts on the Twins when their shared break bar empties (content hollow-warden.json
+    /// <c>onEmpty applyEffect stunned</c>); the view plays the hit clip when it appears (stagger).
+    /// </summary>
+    public const string StaggerEffectId = "stunned";
+
+    /// <summary>The Knight's bind-pose helmet top with the party Warden's hidden nodes, mm (the boss is 1.9x it).</summary>
+    public const int KnightNativeHeightMm = 2467;
 
     /// <summary>The row every unbound class gets: keep the capsule.</summary>
     public static ActorBindingRow Capsule { get; } =
         new("capsule", null, 1800, 1000, null, Array.Empty<string>(), ActorClips.Default);
 
     /// <summary>
-    /// The party rows. Native heights are the bind-pose top of the nodes left visible, measured from each .glb's node
-    /// tree and mesh POSITION bounds (ActorBindingTests re-measures them from the shipped files):
-    /// Knight 2467 mm (helmet top), Mage 3003 mm (hat tip), Rogue_Hooded 2251 mm (hood top).
+    /// The party and enemy rows. Native heights are the bind-pose top of the nodes left visible, measured from each
+    /// .glb's node tree and mesh POSITION bounds (ActorBindingTests re-measures them from the shipped files):
+    /// Knight 2467 mm (helmet top), Mage 3003 mm (hat tip), Rogue_Hooded 2251 mm (hood top); Skeleton_Warrior 2590 mm
+    /// (helmet), Skeleton_Mage 2630 mm (hat), Skeleton_Minion 2166 mm (skull), Skeleton_Rogue 2308 mm (hood). Scale
+    /// permille = target / native, rounded.
     /// </summary>
     public static IReadOnlyList<ActorBindingRow> DefaultRows { get; } = new[]
     {
         // Warden: armoured Knight with the one-handed sword and the round shield (ART-PLAN: "shield and sword").
-        new ActorBindingRow("warden", "Knight.glb", 2467, 709, null,
+        new ActorBindingRow("warden", "Knight.glb", KnightNativeHeightMm, 709, null,
             new[] { "1H_Sword_Offhand", "Badge_Shield", "Rectangle_Shield", "Spike_Shield", "2H_Sword" },
-            ActorClips.Default with { Cast = "Block", Act = "1H_Melee_Attack_Chop" }),
+            ActorClips.Default with { Cast = "Block", Act = "1H_Melee_Attack_Chop" }, TargetHeightMm: 1750),
 
         // Cinder: robed Mage with the staff; the tall hat sets the scale so the hat tip stays under the head line.
         new ActorBindingRow("cinder", "Mage.glb", 3003, 599, null,
@@ -88,7 +142,37 @@ public sealed class ActorBinding
         // Chanter: hooded Rogue, no weapons, tinted green-gold (ART-PLAN section 4).
         new ActorBindingRow("chanter", "Rogue_Hooded.glb", 2251, 777, 0xB8D890,
             new[] { "Knife_Offhand", "1H_Crossbow", "2H_Crossbow", "Knife", "Throwable" },
-            ActorClips.Default with { Cast = "Spellcasting", Act = "Spellcast_Raise" }),
+            ActorClips.Default with { Cast = "Spellcasting", Act = "Spellcast_Raise" }, TargetHeightMm: 1750),
+
+        // Choir Acolyte: Skeleton Warrior (helmet and cloak), the pack colours.
+        new ActorBindingRow("choir.melee", "Skeleton_Warrior.glb", 2590, 695, null, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
+        // Choir Cantor: robed Skeleton Mage, tinted the purple of the capsule it replaces (the kick target).
+        new ActorBindingRow("choir.lieutenant", "Skeleton_Mage.glb", 2630, 684, 0xB070E0, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
+        // Paired Warrior x5: the bare Skeleton Minion.
+        new ActorBindingRow("pair.melee", "Skeleton_Minion.glb", 2166, 831, null, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
+        // The Seed: hooded Skeleton Rogue at 1.3x, green.
+        new ActorBindingRow("seed.elite", "Skeleton_Rogue.glb", 2308, 1014, 0x88F088, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Unarmed_Melee_Attack_Kick" }, TargetHeightMm: HeadLineMm * 13 / 10,
+            Folder: SkeletonsFolder),
+
+        // Sundered Twins: Skeleton Warriors at 1.15x, one blue and one pink.
+        new ActorBindingRow("hollowWarden.twinA", "Skeleton_Warrior.glb", 2590, 799, 0x7898FF, Array.Empty<string>(),
+            ActorClips.Skeleton, TargetHeightMm: HeadLineMm * 115 / 100, Folder: SkeletonsFolder),
+        new ActorBindingRow("hollowWarden.twinB", "Skeleton_Warrior.glb", 2590, 799, 0xFF88C8, Array.Empty<string>(),
+            ActorClips.Skeleton, TargetHeightMm: HeadLineMm * 115 / 100, Folder: SkeletonsFolder),
+
+        // The Hollow Warden: the player's own Knight at 1.9x its native height, darkened (hollow), with the two-handed
+        // sword it cleaves and slams with; no spawn clip (the Adventurers have none), it starts in Idle.
+        new ActorBindingRow("hollowWarden.boss", "Knight.glb", KnightNativeHeightMm, 1900, 0x50505C,
+            new[] { "1H_Sword_Offhand", "Badge_Shield", "Rectangle_Shield", "Round_Shield", "Spike_Shield", "1H_Sword" },
+            ActorClips.Default with { Move = "Walking_A", Act = "2H_Melee_Attack_Chop" },
+            TargetHeightMm: KnightNativeHeightMm * 19 / 10),
     };
 
     /// <summary>The table the game draws with today.</summary>
