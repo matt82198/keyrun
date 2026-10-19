@@ -62,6 +62,12 @@ class FixtureCase(unittest.TestCase):
     def write_spec(self, name, text):
         (self.root / SPEC_DIR / name).write_text(text, encoding="utf-8")
 
+    def write_under_spec_dir(self, relative, text):
+        """Write any file below tests/client/e2e (nested directories are created)."""
+        path = self.root / SPEC_DIR / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
     def write_baseline(self, text):
         self.baseline.write_text(text, encoding="utf-8")
 
@@ -161,6 +167,104 @@ class FailClosedTest(FixtureCase):
         self.write_baseline(baseline_json({}))
         code, _, err = self.run_gate()
         self.assertEqual(code, 2, err)
+
+
+class RawTimerBypassTest(FixtureCase):
+    """Bypass 1: a wall-clock wait written without the sleep alias (raw setTimeout or waitForTimeout)."""
+
+    def test_raw_settimeout_promise_wait_is_flagged(self):
+        self.write_spec("raw.e2e.ts", 'it("x", async () => {\n  await new Promise((r) => setTimeout(r, 1100));\n});\n')
+        self.write_baseline(baseline_json({}))
+        code, _, err = self.run_gate()
+        self.assertEqual(code, 1, err)
+        self.assertIn("raw.e2e.ts: 0 -> 1", err)
+
+    def test_timers_promises_namespace_call_is_flagged(self):
+        self.write_spec("ns.e2e.ts", 'import * as timers from "node:timers/promises";\nawait timers.setTimeout(1100);\n')
+        self.write_baseline(baseline_json({}))
+        code, _, err = self.run_gate()
+        self.assertEqual(code, 1, err)
+        self.assertIn("ns.e2e.ts: 0 -> 1", err)
+
+    def test_page_waitForTimeout_call_is_flagged(self):
+        self.write_spec("wft.e2e.ts", 'await page.waitForTimeout(1100);\n')
+        self.write_baseline(baseline_json({}))
+        code, _, err = self.run_gate()
+        self.assertEqual(code, 1, err)
+        self.assertIn("wft.e2e.ts: 0 -> 1", err)
+
+
+class AliasedWaitBypassTest(FixtureCase):
+    """Bypass 2: a setTimeout imported under another name, or a local helper whose body waits on the clock."""
+
+    def test_aliased_settimeout_import_call_is_flagged(self):
+        self.write_spec(
+            "alias.e2e.ts",
+            'import { setTimeout as pause } from "node:timers/promises";\nawait pause(1100);\n',
+        )
+        self.write_baseline(baseline_json({}))
+        code, _, err = self.run_gate()
+        self.assertEqual(code, 1, err)
+        self.assertIn("alias.e2e.ts: 0 -> 1", err)
+
+    def test_local_delay_helper_wrapping_settimeout_is_flagged(self):
+        self.write_spec(
+            "helper.e2e.ts",
+            "function delay(ms) {\n  return new Promise((r) => setTimeout(r, ms));\n}\n"
+            "it(\"x\", async () => {\n  await delay(1100);\n});\n",
+        )
+        self.write_baseline(baseline_json({}))
+        code, _, err = self.run_gate()
+        self.assertEqual(code, 1, err)
+        self.assertIn("helper.e2e.ts: 0 -> 2", err)
+
+    def test_nested_spec_directory_is_scanned(self):
+        self.write_under_spec_dir("nested/deep.e2e.ts", "await sleep(500);\n")
+        self.write_baseline(baseline_json({}))
+        code, _, err = self.run_gate()
+        self.assertEqual(code, 1, err)
+        self.assertIn("nested/deep.e2e.ts: 0 -> 1", err)
+
+    def test_wait_helper_module_in_nested_directory_is_flagged(self):
+        self.write_under_spec_dir(
+            "helpers/wait.ts",
+            "export const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));\n",
+        )
+        self.write_spec("clean.e2e.ts", CLEAN_SPEC)
+        self.write_baseline(baseline_json({}))
+        code, _, err = self.run_gate()
+        self.assertEqual(code, 1, err)
+        self.assertIn("helpers/wait.ts: 0 -> 1", err)
+
+
+class CommentAndStringTest(FixtureCase):
+    """Bypass 3 hardening: only executed code counts. Comments and string literals never do."""
+
+    def test_wait_text_inside_comments_does_not_count(self):
+        text = (
+            "// await sleep(1100);\n"
+            "/* await page.waitForTimeout(800); setTimeout(r, 5) */\n"
+            'it("waits on exposed state", async () => {});\n'
+        )
+        self.write_spec("commented.e2e.ts", text)
+        self.write_baseline(baseline_json({}))
+        code, _, err = self.run_gate()
+        self.assertEqual(code, 0, err)
+
+    def test_wait_text_inside_string_literal_does_not_count(self):
+        self.write_spec("quoted.e2e.ts", 'const note = "await sleep(1100)";\nconst t = `page.waitForTimeout(9)`;\n')
+        self.write_baseline(baseline_json({}))
+        code, _, err = self.run_gate()
+        self.assertEqual(code, 0, err)
+
+    def test_real_wait_after_a_comment_still_counts(self):
+        self.assertEqual(ratchet.count_waits("// pacing note: sleep(1)\nawait sleep(1100);\n"), 1)
+
+    def test_wait_inside_template_expression_still_counts(self):
+        self.assertEqual(ratchet.count_waits("const x = `${await sleep(5)}`;\n"), 1)
+
+    def test_helper_declaration_itself_is_not_a_call(self):
+        self.assertEqual(ratchet.count_waits("function delay(ms) { return ms; }\n"), 0)
 
 
 class RepositoryTest(unittest.TestCase):
