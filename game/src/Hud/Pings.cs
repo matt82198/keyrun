@@ -7,6 +7,9 @@ using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Runs;
 using Keyrun.View;
+using HudLayout = Keyrun.Content.HudLayout;
+using PixelPoint = Keyrun.Content.PixelPoint;
+using PixelRect = Keyrun.Content.PixelRect;
 
 namespace Keyrun.Hud;
 
@@ -114,23 +117,82 @@ public static class PingCalls
     }
 }
 
+/// <summary>HUD rectangles several screen-space layers keep their text clear of (viewport pixels).</summary>
+public static class HudObstacles
+{
+    // PartyFrames.cs draws one 68 px frame per seat with an 8 px gap (FrameHeight, Gap).
+    private const int PartyFrameStride = 76;
+    private const int PartyFrameGap = 8;
+
+    /// <summary>The party frames' block: one frame per player seat down from the node's top left, or null.</summary>
+    /// <param name="frames">The PartyFrames node (null or hidden: no block).</param>
+    /// <param name="state">The sim state (its player count is the seat count).</param>
+    /// <returns>The block, or null when there is none.</returns>
+    public static PixelRect? PartyFrames(Control? frames, SimState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (frames is not { Visible: true })
+        {
+            return null;
+        }
+        var seats = state.Actors.Values.Count(a => a.Kind == ActorKind.Player);
+        if (seats == 0)
+        {
+            return null;
+        }
+        var at = frames.GetGlobalRect().Position;
+        return new PixelRect((int)at.X, (int)at.Y, (int)frames.Size.X, (seats * PartyFrameStride) - PartyFrameGap);
+    }
+}
+
 /// <summary>
 /// The SPREAD / STACK labels (ENGINE-PLAN 3C): each call is drawn over its spot in the world (projected through the
 /// arena camera) and listed as a callout banner under the Slack bar, so the instruction reads even off screen.
 /// Reads the sim state only.
+/// <para>
+/// HUD-POLISH-2 (design/ART-PLAN.md section 2, no HUD text overlaps another): the world labels are laid out once a
+/// frame with <see cref="HudLayout"/>.PingLabels, in call order, so simultaneous pings on nearby bodies stack one per
+/// row next to their spot (two rows at most either way for five on one body) instead of one pile, inside the 16 px side
+/// gutter and clear of the top bar, the party frames, the callout banners and the cast bars (<c>CastBarView.BarRects</c>).
+/// <see cref="LabelRects"/> exposes the placed labels and banners so LabelView's name plates keep clear of them.
+/// </para>
 /// </summary>
 public partial class Pings : Control
 {
     private const int CalloutFont = 22;
-    private const int WorldFont = 16;
     private const float CalloutTop = 100;
 
     private readonly HashSet<string> _seen = new(StringComparer.Ordinal);
+    private readonly List<Shown> _labels = new();
+    private readonly List<Callout> _callouts = new();
+    private readonly List<PixelRect> _rects = new();
+    private ulong _laidOutFrame = ulong.MaxValue;
     private SimDriver? _driver;
 
     /// <summary>The driver to read the run from.</summary>
     [Export]
     public NodePath DriverPath { get; set; } = new("../../../SimDriver");
+
+    /// <summary>The over-head cast bars, whose blocks the world labels keep clear of (absent: no cast-bar obstacle).</summary>
+    [Export]
+    public NodePath CastBarsPath { get; set; } = new("../../CastBars");
+
+    /// <summary>The party frames, a HUD obstacle the world labels keep clear of (absent: no party-frame obstacle).</summary>
+    [Export]
+    public NodePath PartyFramesPath { get; set; } = new("../PartyFrames");
+
+    /// <summary>
+    /// This frame's placed world labels and callout banners, in viewport pixels. Laid out on first use each frame, so
+    /// every reader sees the rectangles this node draws.
+    /// </summary>
+    public IReadOnlyList<PixelRect> LabelRects
+    {
+        get
+        {
+            Layout();
+            return _rects;
+        }
+    }
 
     /// <inheritdoc />
     public override void _Ready()
@@ -160,6 +222,36 @@ public partial class Pings : Control
     /// <inheritdoc />
     public override void _Draw()
     {
+        Layout();
+        var local = GetGlobalRect().Position;
+        foreach (var c in _callouts)
+        {
+            DrawRect(new Rect2(c.Back.Position - local, c.Back.Size), HudNodes.Back);
+            HudNodes.Text(this, c.Baseline - local, c.Text, CalloutFont, c.Color);
+        }
+        for (var i = 0; i < _labels.Count; i++)
+        {
+            var r = _rects[_callouts.Count + i];
+            var baseline = new Vector2(r.X, r.Y + HudLayout.PingFont) - local;
+            HudNodes.Text(this, baseline, _labels[i].Text, HudLayout.PingFont, _labels[i].Color);
+        }
+    }
+
+    private static Color ColorOf(string label) => label == "SPREAD" ? HudNodes.Rgb(0xcc79a7) : HudNodes.Rgb(0x56b4e9);
+
+    // Lays out this frame's callout banners (fixed rows under the Slack bar) and world labels (HudLayout.PingLabels),
+    // once per process frame; _rects holds the banners first, then the placed labels in call order.
+    private void Layout()
+    {
+        var frameNo = Engine.GetProcessFrames();
+        if (frameNo == _laidOutFrame)
+        {
+            return;
+        }
+        _laidOutFrame = frameNo;
+        _labels.Clear();
+        _callouts.Clear();
+        _rects.Clear();
         if (_driver?.Run is not { } run)
         {
             return;
@@ -169,21 +261,8 @@ public partial class Pings : Control
         {
             return;
         }
-        var camera = GetViewport()?.GetCamera3D();
-        foreach (var call in calls)
-        {
-            var color = call.Label == "SPREAD" ? HudNodes.Rgb(0xcc79a7) : HudNodes.Rgb(0x56b4e9);
-            if (camera is not null)
-            {
-                var world = ActorView.ToMetres(call.Pos) + new Vector3(0, call.Source == PingSource.Mark ? 2.6f : 0.3f, 0);
-                if (!camera.IsPositionBehind(world))
-                {
-                    var screen = camera.UnprojectPosition(world) - GetGlobalRect().Position;
-                    var w = HudNodes.Width(call.Text, WorldFont);
-                    HudNodes.Text(this, screen - new Vector2(w / 2, 0), call.Text, WorldFont, color);
-                }
-            }
-        }
+        var local = GetGlobalRect().Position;
+
         // One callout per distinct label, the soonest first.
         var y = CalloutTop;
         foreach (var group in calls.GroupBy(c => c.Label).OrderBy(g => g.Min(c => c.TicksLeft)))
@@ -191,11 +270,52 @@ public partial class Pings : Control
             var soonest = group.Min(c => c.TicksLeft);
             var text = FormattableString.Invariant($"{group.First().Text}  {soonest / (double)Tick.TickHz:0.0}s");
             var w = HudNodes.Width(text, CalloutFont);
-            var color = group.Key == "SPREAD" ? HudNodes.Rgb(0xcc79a7) : HudNodes.Rgb(0x56b4e9);
-            DrawRect(new Rect2(((Size.X - w) / 2) - 10, y, w + 20, CalloutFont + 10), HudNodes.Back);
-            HudNodes.Text(this, new Vector2((Size.X - w) / 2, y + CalloutFont), text, CalloutFont, color);
+            var back = new Rect2(local.X + ((Size.X - w) / 2) - 10, local.Y + y, w + 20, CalloutFont + 10);
+            _callouts.Add(new Callout(text, ColorOf(group.Key), back, new Vector2(local.X + ((Size.X - w) / 2), local.Y + y + CalloutFont)));
+            _rects.Add(new PixelRect((int)Math.Floor(back.Position.X), (int)Math.Floor(back.Position.Y), (int)Math.Ceiling(back.Size.X) + 1, (int)Math.Ceiling(back.Size.Y) + 1));
             y += CalloutFont + 14;
         }
+
+        var camera = GetViewport()?.GetCamera3D();
+        if (camera is null)
+        {
+            return;
+        }
+        var view = GetViewport().GetVisibleRect().Size;
+        var width = (int)view.X;
+        var height = (int)view.Y;
+        var wanted = new List<PixelRect>();
+        foreach (var call in calls)
+        {
+            var world = ActorView.ToMetres(call.Pos) + new Vector3(0, call.Source == PingSource.Mark ? 2.6f : 0.3f, 0);
+            if (camera.IsPositionBehind(world))
+            {
+                continue;
+            }
+            var p = camera.UnprojectPosition(world);
+            var rect = HudLayout.PingLabelRect(new PixelPoint((int)Math.Round(p.X), (int)Math.Round(p.Y)),
+                (int)Math.Ceiling(HudNodes.Width(call.Text, HudLayout.PingFont)));
+            // Skip a label no pixel of which would show at its spot (a ping well off screen).
+            if (HudLayout.Shows(rect, width, height))
+            {
+                _labels.Add(new Shown(call.Text, ColorOf(call.Label)));
+                wanted.Add(rect);
+            }
+        }
+        if (wanted.Count == 0)
+        {
+            return;
+        }
+        var obstacles = new List<PixelRect>(_rects) { HudLayout.TopBar(width, height).Band(width) };
+        if (HudObstacles.PartyFrames(GetNodeOrNull<Control>(PartyFramesPath), run.State) is { } frames)
+        {
+            obstacles.Add(frames);
+        }
+        if (GetNodeOrNull<CastBarView>(CastBarsPath) is { } bars)
+        {
+            obstacles.AddRange(bars.BarRects);
+        }
+        _rects.AddRange(HudLayout.PingLabels(wanted, width, height, obstacles));
     }
 
     private void OnRunStarted() => _seen.Clear();
@@ -214,4 +334,8 @@ public partial class Pings : Control
             }
         }
     }
+
+    private readonly record struct Shown(string Text, Color Color);
+
+    private readonly record struct Callout(string Text, Color Color, Rect2 Back, Vector2 Baseline);
 }
