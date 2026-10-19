@@ -198,7 +198,7 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
     at ps1:810; a party that never breaks the Lock is plan drift against ENGINE-PLAN.md:211 and BIBLE.md:177-179: Matt decision);
     3G MET; 3H MET (HostRunSetup.cs:78-82); 3I MET (SimDriver.cs:342-343); 3J MET (SimDriver.cs:346-347).
   - Known LOW gaps (later lane; this lane does not own game/**): HudSceneTest.ps1:32 comment says "--ticks 3700" but the code
-    uses 7000 (ps1:156, 304); ps1:54 comment says "key 10 still wipes" but the #158 sweep shows key 10 clearing at both seeds;
+    uses 7000 (ps1:156, 304); FIXED by #163. ps1:54 comment says "key 10 still wipes" but the #158 sweep shows key 10 clearing at both seeds; FIXED by #163;
     game.yml:3-4 comments call game-test and game-e2e non-required (branch protection is the truth; note for Matt).
   - 2026-10-18 THIRD-PASS ORACLE VERDICT (read-only Haiku plan-vs-output oracle, ~21:10Z, source reads at beefb47, before
     #154; supersedes the second pass below): D10 NOT-MET, PHASE 3 EXIT NOT-MET. Decisive line:
@@ -268,7 +268,11 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
      and documents both in game/CLAUDE.md. WHY: D15, a visible change is judged from frames, not a headless log.
   1. Matt records a human-played run to the boss (record command above) and judges it by feel, with the D15 frames. Only this
      moves D10 and the Phase 3 exit.
-  1a. ART-PLAN ladder, lane 1 first (design/ART-PLAN.md section 8, Phase 3.5 "Look and route"; D16, D17, D18). WHY: Matt judges
+  1a. DONE 2026-10-19 00:54Z: ART-PLAN ladder lane 1 NAV-CORE, PR #163 MERGED 76c7f32 (block "Phase 3.5" below). Lanes
+     now running, per the orchestrator (dispatched about 01:05Z; this lane did not check their branches): lane 2
+     DUNGEON-SHELL (Opus, feat/dungeon-shell) and lane 9 LOCK-PROOF (Opus, test/lock-proof). Then ladder lanes 3 (player
+     and bots), 4 (enemies), 5 to 7 (room theming), 8 (HUD polish; name plates overlap confirmed in nav-core frames) and
+     10 (feel; camera yaw). Ladder: design/ART-PLAN.md section 8; D16, D17, D18. WHY: Matt judges
      feel from frames (D15), and the run he judges must be the themed dungeon with navigation, not capsules in one box.
   2. RESOLVED by D17 (2026-10-18 23:43Z): bots are not required to break the Lock; beating the boss through Lock fails is an
      acceptable autorun outcome; the Lock must be theoretically winnable (ENGINE-PLAN.md:211 vs BIBLE.md:177-179 closed).
@@ -290,6 +294,48 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   4. Matt plays a run (Phase 5 measurement).
   5. Only then re-run the s10 plan-vs-output check and record PHASE 3 EXIT and D10 (MET / MET-WITH-TUNING-GAP / NOT-MET).
   6. Phase 4: TS deletion after parity. Blocked on step 5.
+
+## Phase 3.5 "Look and route" (design/ART-PLAN.md section 8; D16, D17, D18)
+- Lane 1 NAV-CORE: DONE. PR #163 MERGED, squash sha 76c7f3223156c1d8e50a5b72cd7eed6a3452765b, branch feat/nav-core,
+  mergedAt 2026-10-19T00:54:35Z. Title: "feat(game): lane 1 NAV-CORE - rooms, corridors, room-entry pulls, bot follow (D18)".
+- Landed: game/content/data/layout.json (nine boxes along +x: entrance, corridor-1, choir-room, corridor-2, pair-hall,
+  corridor-3, seed-chamber, corridor-4, warden-arena; trigger, spawn, pull start, gates, route points, bot slots);
+  Keyrun.Content loader and LayoutValidator (fail closed); Movement.ClampToWalkable (one box = ClampToBounds); Run.cs
+  room-entry pull spawns with forward-only gates and room_enter events; HostRunSetup party in the Entrance, boss on arena
+  entry, Twins at +/-4000 (was 2000); Follow.cs bot follow and ScriptedWarden route walk; GreyBox.cs CSG walls mounted in
+  game/scenes/Arena.tscn (replaces the 40 m floor plane).
+- Oracle: frozenSourceHash 7a65bec7 UNCHANGED; content/data/** and tests/oracle/** byte-identical; `npx vitest run
+  tests/oracle` 9/9.
+- Tests: Content 63/63, Sim 557/558 (1 skipped, as on main), Bots 139/139; HudSceneTest PASS (run C asserts room order,
+  spawn-after-entry, both boss_add_spawn events); E2eAssert PASS ticks=3700; SMOKE ok frames=3. New: NavLayoutRunTests,
+  NavRouteTests (3), WalkableTests, LayoutConfigTests (9). Mutation-proved: spawn without trigger, party on pull origin,
+  no clamp, no follow.
+- Goldens moved (old -> new, reason in PR #163):
+  - example-enter-ping.input-log.json post-run Enter ticks 1860/1863 -> 1307/1310 (run end timed at 1304).
+  - E2eAssert replay digest 94eb4f3d216477f9 -> b950474eff2d9967 (fixture unchanged; W walk now starts in the Entrance).
+  - HudSceneTest runs A and B ticks 400 -> 600 (run A run_end 374 -> 413).
+  - HudSceneTest runs F and G abandon 1@1000 -> 2@3000 (an idle abandoned leader spawns no next pull).
+  - HudSceneTest run I --pull 4 -> --pull 2 (from pull 4 the bots now win; from pull 2 the party wipes at tick 896).
+  - Unmoved: content-pull oracle trace, hollow-warden boss golden.
+  - HudSceneTest.ps1:32 and :54 stale comments FIXED.
+- D14 re-sweep after traversal (party autorun from pull 1; end tick old -> new; all cleared within par 14400):
+  - key 2: s1 6787 -> 5168; s7 6887 -> 5320.
+  - key 5: s1 7481 -> 5800; s7 7472 -> 5888.
+  - key 8: s1 8441 -> 6396; s7 7985 -> 6651.
+  - key 10: s1 8603 -> 6434; s7 8474 -> 6528.
+- D15 frames: C:/Users/Mattt/Desktop/keyrun-screens/nav-core (67 PNGs at 1 s; run.mp4 1,201,340 bytes). PR lists
+  run-001, run-039, run-040, run-047, run-058, run-066. Orchestrator viewed run-010, run-025, run-040, run-066: grey-box
+  walls and corridors visible; Pull 1 starts at 0:40 after travel; Pair x5 at the far side of the hall with the party at
+  the door; run cleared within par at 4:23 of 12:00. Enemy name plates overlap (ladder lane 8).
+- Follow-ups (recorded, NOT tuned; Matt or a later lane decides):
+  - Bots fight from doorways. In run C bots enter the Seed chamber 693 ticks and the arena 602 ticks after the leader
+    (the 600-tick bound is asserted only in the C# test, NavRouteTests). Bot combat positioning in rooms is open.
+  - Two variants that pulled bots into the room (2.5 m inside the door; a Warden holding 4 m deep) got the Warden killed
+    by the Pair STACK at tick 3294 and the run stalled. Neither landed.
+  - Pair melee (957 mm/tick) shoves the Warden back up to about 20 m along corridor 2; keys 5/s7 and 10/s1 re-enter choir-room.
+  - The camera starts at yaw Pi (CameraRig, lane 10), so a human pressing W walks across the Entrance, not along the route.
+  - Pull script loops run on absolute ticks (scripts.ts), so a later spawn shifts its phase. Unchanged.
+  - game/content/data/run.json arenaBounds is no longer read by the host (file left in place).
 
 ## Decisions for Matt
 Verbatim from the recon file's "Decisions for Matt / sim lanes (not client work)" list:
@@ -426,6 +472,14 @@ Additional parked decisions (from the burn ledger):
   D11 rules (the C# goldens always; the TS oracle too if content/data/** changes); render-only dressing is no longer the
   preferred path for the layout. Why: today pull 1 spawns 3 to 5 m from the party at tick 0 and every later pull spawns in the
   same 22 x 15 m box the tick the previous one dies (design/ART-PLAN.md section 1), so there is no dungeon to travel.
+- D19 **Out-of-brief plumbing accepted in #163** (orchestrator, 2026-10-19 00:54Z, under D18). Seven files outside the
+  NAV-CORE brief's owned list were accepted as necessary for the room layout to reach the host, bots and backfill:
+  game/sim/Keyrun.Sim/Run/RunTypes.cs (RunContent.Layout), game/src/Host/SimDriver.cs (party from setup.PartyFor; the
+  PULL spawn index=0 log line only if pull 0 spawned), game/sim/Keyrun.Sim/Run/Backfill.cs (seat fill at the next
+  pull_start), game/bots/Keyrun.Bots/Types.cs (BotView.Layout), game/src/Host/BotCommandSource.cs, game/src/Host/E2eAssert.ps1
+  ($ReplayTickDigest) and game/fixtures/input/example-enter-ping.input-log.json (regenerated golden). Future sim lanes own
+  RunTypes.cs, SimDriver.cs, Backfill.cs, Types.cs, BotCommandSource.cs and Bot.cs explicitly when the change needs them.
+  Why: reversible, no data loss, within D18.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
