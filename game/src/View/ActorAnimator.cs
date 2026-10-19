@@ -9,8 +9,9 @@ namespace Keyrun.View;
 /// <summary>
 /// Drives a model's own AnimationPlayer from sim state the view already reads (design/ART-PLAN.md section 6): a death
 /// clip once when <c>Alive</c> goes false (its last frame held), a cast loop while <c>CastId</c> is set, a one-shot
-/// when the global cooldown restarts (an instant ability) or health drops (a hit), and idle or run from the
-/// interpolated speed. Lane 4: a spawn clip once when the body is first bound (<see cref="PlaySpawn"/>; skeletons
+/// when an ability resolves (the sim's <c>cast_complete</c> for this actor, or the global cooldown restarting) or health
+/// drops (a hit), and idle or run from the interpolated speed. COMBAT-ANIM: the choice is <see cref="AnimRule"/>'s, and
+/// a one-shot plays to its end whether the actor moves or not, then returns to run or idle. Lane 4: a spawn clip once when the body is first bound (<see cref="PlaySpawn"/>; skeletons
 /// rise out of the floor, held until it ends unless the actor dies), and the hit clip as the stagger reaction when a
 /// fresh <see cref="ActorBinding.StaggerEffectId"/> effect lands (the Twins' break bar emptying). Read-only: it never
 /// writes sim state. A model without an AnimationPlayer gets no animator (<see cref="TryCreate"/> returns null), so it
@@ -87,9 +88,11 @@ public sealed class ActorAnimator
 
     /// <summary>
     /// One frame. <paramref name="newTick"/> is true on the first frame after a sim step, when
-    /// <paramref name="before"/> and <paramref name="now"/> are that step's two states.
+    /// <paramref name="before"/> and <paramref name="now"/> are that step's two states and <paramref name="events"/> its
+    /// events (the <c>cast_complete</c> for this actor is the swing signal, <see cref="AnimRule.Resolved"/>).
     /// </summary>
-    public void Update(ActorState before, ActorState now, bool newTick, float speedMps)
+    public void Update(ActorState before, ActorState now, bool newTick, float speedMps,
+        IReadOnlyList<SimEvent>? events = null)
     {
         if (!now.Alive)
         {
@@ -118,45 +121,59 @@ public sealed class ActorAnimator
             _spawning = false;
         }
 
-        var moving = speedMps > MoveSpeedMps;
-        if (newTick && StaggerLanded(before, now) && _hit is not null)
+        // COMBAT-ANIM: the clip choice is AnimRule's (Keyrun.Content, pure); this only gathers the facts and plays.
+        var playing = _oneShot is not null && _player.IsPlaying() && _player.CurrentAnimation == _oneShot
+            ? (_oneShot == _act ? AnimClip.Act : AnimClip.Hit)
+            : AnimClip.None;
+        var facts = new AnimFacts(
+            Alive: true,
+            NewTick: newTick,
+            Moving: speedMps > MoveSpeedMps,
+            Casting: now.CastId is not null && _cast is not null,
+            Acted: _act is not null && (AnimRule.Resolved(now.Id, Pairs(events)) || now.GcdReadyTick > before.GcdReadyTick),
+            Hurt: _hit is not null && now.Health < before.Health,
+            Staggered: _hit is not null && StaggerLanded(before, now),
+            Playing: playing);
+        var decision = AnimRule.Decide(facts);
+        var clip = ClipFor(decision.Clip);
+        if (decision.OneShot && clip is not null)
         {
-            // Stagger: the sim's stun effect (break bar emptied) just landed; the hit clip is the reaction.
-            _oneShot = _hit;
-            _player.Play(_hit, Blend);
-            _player.Seek(0, true);
-        }
-        else if (newTick && !moving && now.CastId is null)
-        {
-            if (now.GcdReadyTick > before.GcdReadyTick && _act is not null)
+            _oneShot = clip;
+            if (decision.Restart)
             {
-                _oneShot = _act;
-                _player.Play(_act, Blend);
+                _player.Play(clip, Blend);
                 _player.Seek(0, true);
+                // Proof line (like ACTOR): which one-shot started, on whom, and whether the body was moving.
+                GD.Print($"ANIM oneshot actor={now.Id} clip={clip} kind={decision.Clip} moving={(facts.Moving ? 1 : 0)}");
             }
-            else if (now.Health < before.Health && _hit is not null && _oneShot is null)
-            {
-                _oneShot = _hit;
-                _player.Play(_hit, Blend);
-                _player.Seek(0, true);
-            }
-        }
-
-        if (now.CastId is not null && _cast is not null)
-        {
-            _oneShot = null;
-            Play(_cast);
             return;
         }
-        if (_oneShot is not null)
+        _oneShot = null;
+        Play(clip ?? _idle);
+    }
+
+    private string? ClipFor(AnimClip clip) => clip switch
+    {
+        AnimClip.Idle => _idle,
+        AnimClip.Move => _move ?? _idle,
+        AnimClip.Cast => _cast,
+        AnimClip.Act => _act,
+        AnimClip.Hit => _hit,
+        AnimClip.Death => _death,
+        _ => null,
+    };
+
+    // One step's events as (type, actorId) pairs for AnimRule.Resolved.
+    private static IEnumerable<(string Type, int? ActorId)> Pairs(IReadOnlyList<SimEvent>? events)
+    {
+        if (events is null)
         {
-            if (!moving && _player.IsPlaying() && _player.CurrentAnimation == _oneShot)
-            {
-                return;
-            }
-            _oneShot = null;
+            yield break;
         }
-        Play(moving ? _move ?? _idle : _idle);
+        foreach (var e in events)
+        {
+            yield return (e.Type, e.Get("actorId") is JsInt id ? (int)id.Value : null);
+        }
     }
 
     // True on the step a stagger effect is applied or refreshed: its latest end tick moved later.
