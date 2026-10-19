@@ -117,7 +117,11 @@ public sealed record Run(SimState State, EncounterState Encounter, DungeonDef Du
 
 /// <summary>Options a host may pass to one <see cref="RunRoot.StepRun"/> (sim/run-types.ts:84 StepRunOpts).</summary>
 /// <param name="AbandonRequested">An explicit human quit: ends the run "abandoned" this tick.</param>
-public sealed record StepRunOpts(bool AbandonRequested = false);
+/// <param name="OpenSeats">
+/// Actor ids of abandoned, unfilled seats (C#-only, STATE.md D27; <see cref="Backfill.Step"/> passes them): an open seat's
+/// idle actor does not hold a layout pull back. Null = none.
+/// </param>
+public sealed record StepRunOpts(bool AbandonRequested = false, IReadOnlyList<int>? OpenSeats = null);
 
 /// <summary>One <see cref="RunRoot.StepRun"/> result: the advanced run and every event of the tick in emission order.</summary>
 /// <param name="Run">The advanced run (a new value; the input is not modified).</param>

@@ -6,7 +6,8 @@ cut: 4–5 rotational abilities per class, 10 keybinds total, class synergy as t
 
 ## Stack (SUPERSEDED by D12 in STATE.md, 2026-10-18)
 The engine is Godot 4.7.2 .NET with C# throughout, in `game/` (see game/CLAUDE.md). The TypeScript below is the
-browser first-paint client: frozen at main 6e1548d and kept only as the parity oracle until phase 4A deletes it.
+browser first-paint client: frozen at main 6e1548d; its oracle fixtures are recordings of the sim, regenerated when a sim
+rule changes, not an independent parity check (STATE.md D28), until phase 4A deletes it.
 Historical record of the old stack (STATE.md D1, now superseded):
 TypeScript everywhere so the simulation is one shared, deterministic package: `sim/` (headless rules engine),
 `content/` (classes, talents, gear, dungeon, boss as data + small scripts), `client/` (browser 3D via Three.js — third-person camera,

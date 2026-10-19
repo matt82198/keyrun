@@ -65,9 +65,10 @@
          probe used. Since lane TUNE-BOSS (STATE.md D14) every swept key (2, 5, 8, 10 at seeds 1 and 7) clears from
          pull 1 (the D14 sweep, end ticks 6787 to 8603; re-swept on the lane NAV-CORE route, see its PR); run D keeps
          --pull 4 because it proves the armed boss at key 10 in 600 ticks, not the route.
-    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 480 --solo --requeue
+    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 600 --solo --requeue
         (--requeue: an autorun starts the queued run only when asked, so runs A-D and the other scene tests stay one
-        run each; an interactive game always starts it)
+        run each; an interactive game always starts it; 480 -> 600 by ROOM-LOCK-IN D27: the solo Warden now dies at 390
+        and the depleted run_end lands at 491, past the old 480)
      17. the first "RUN start" says "key=2 clause=none" (no queue yet: today's run);
      18. "SCREEN queue dungeon=hollow-vault key=3 clause=<id>" (the screen's autorun script queues key 3 + Clause 2);
      19. after it, a second "RUN start ... key=3 clause=<that id>" (the key is the run content's KeyLevel and the
@@ -90,7 +91,9 @@
          refilled seat casts again after it (the joiner's commands run from the pull start), and no party seat dies
          before pull 2. Default A@T = 2@1500 since lane WARDEN-ENGAGES (the Chanter leaves at tick 1500, late in the
          Choir fight; the Warden now fights the Choir melee after the kick, so seed 1 key 2 clears the Choir at 1757 and
-         pull 2 starts at tick 1840 with all three seats alive; 2@3000 from lane NAV-CORE now falls in pull 2). The old 1@1000 cannot work on the
+         pull 2 starts at tick 1840 with all three seats alive; 2@3000 from lane NAV-CORE now falls in pull 2; 2@1500 -> 2@1700
+         by ROOM-LOCK-IN D27 (Choir pull_start 50, room locked): a Chanter leaving at 1500 lets the Warden die at 1794, before
+         the 1809 clear; at 1700 the Choir clears at 1749, pull 2 starts at 1844 and the seat refills at 1844). The old 1@1000 cannot work on the
          route: the next pull spawns only when a party member walks into its room, and an abandoned human leader stands
          idle, so his bots never travel; 3@1000 to 3@3000 leave the Choir uncleared without the Cinder's damage.
     Run G (lane 3J, key mismatch): as F with --joiner-key 3
@@ -197,9 +200,9 @@ param(
     [int]$PingTicks = 600,
     [int]$PartyTicks = 7000,
     [int]$BossTicks = 600,
-    [int]$QueueTicks = 480,
+    [int]$QueueTicks = 600,
     [int]$BackfillTicks = 3500,
-    [string]$AbandonSeat = '2@1500',
+    [string]$AbandonSeat = '2@1700',
     [int]$ScreenFirstFrames = 240,
     [int]$WipeFrames = 6600,
     [int]$PingAt = 100,

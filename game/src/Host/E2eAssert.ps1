@@ -60,7 +60,7 @@ $ErrorActionPreference = 'Stop'
 # Entrance walls stop the replayed walk, so every TICK line moved; the fixture is unchanged.
 $ReplayFrames = 900
 $ReplayTicks = 240
-$ReplayTickDigest = 'b950474eff2d9967'
+$ReplayTickDigest = 'b950474eff2d9967'  # D28 recording; re-measured for "D27 room lock-in": unchanged (2 runs)
 
 $failures = New-Object System.Collections.Generic.List[string]
 
