@@ -103,9 +103,9 @@ public sealed class PartyTogetherTests
             {
                 if (!Follow.AnyLivingEnemy(run.State))
                 {
-                    // ScriptedWarden's travel: the route, not the tank role.
+                    // ScriptedWarden's travel: the route, holding for the party, not the tank role.
                     commands.RemoveAll(c => c.ActorId == LeaderId);
-                    if (Follow.WalkRoute(tick, leader, nav) is { } walk)
+                    if (Follow.LeadRoute(tick, leader, run) is { } walk)
                     {
                         commands.Add(walk);
                     }

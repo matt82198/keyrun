@@ -82,9 +82,9 @@ public sealed class NavRouteTests
             var commands = batch.Commands.ToList();
             if (!Follow.AnyLivingEnemy(run.State) && run.State.Actors[LeaderId] is { Alive: true } leader)
             {
-                // The autorun Warden's travel (ScriptedWarden): the route, not the tank role.
+                // The autorun Warden's travel (ScriptedWarden): the route, holding for the party, not the tank role.
                 commands.RemoveAll(c => c.ActorId == LeaderId);
-                if (Follow.WalkRoute(tick, leader, nav) is { } walk)
+                if (Follow.LeadRoute(tick, leader, run) is { } walk)
                 {
                     commands.Add(walk);
                 }
@@ -145,10 +145,10 @@ public sealed class NavRouteTests
         }
     }
 
-    // STATE.md D27 (ROOM-LOCK-IN) supersedes the D18 trigger-tick spacing for the scripted leader: a pull now starts when
-    // the LAST living member enters, and seat 1 here walks the route (to the room's far door) while no enemy lives, so it
-    // can stand anywhere in the room at pull_start. The spacing still holds for the bots, who arrive with the start.
-    [Fact(DisplayName = "Nav route: no enemy spawns within 6 m of a bot at pull_start")]
+    // Every living party member, the scripted leader included (LEADER-WAITS): under STATE.md D27 a pull starts when the
+    // LAST living member enters, so the leader holds at the room's standoff point until the party is inside instead of
+    // walking on toward the spawns.
+    [Fact(DisplayName = "Nav route: no enemy spawns within 6 m of a party member at pull_start")]
     public void No_enemy_spawns_within_6_m_of_a_party_member()
     {
         var r = Route.Value;
@@ -157,9 +157,10 @@ public sealed class NavRouteTests
         {
             foreach (var spawn in s.Spawns)
             {
-                foreach (var (id, pos) in s.Party.Where(p => p.Key != LeaderId))
+                foreach (var (id, pos) in s.Party)
                 {
                     var d = Distance(spawn, pos);
+                    _output.WriteLine($"tick {s.Tick}: actor {id} at {pos.X},{pos.Z} is {d} mm from the spawn at {spawn.X},{spawn.Z}");
                     Assert.True(d >= 6000, $"tick {s.Tick}: an enemy spawned at {spawn}, {d} mm from party actor {id} at {pos}");
                 }
             }
