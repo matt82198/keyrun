@@ -357,8 +357,8 @@ public static class CastTargeting
 /// the GCD on his rotation against whatever is in reach: Reckoning at full Momentum, Vigil at 50, Guard Break, Strike,
 /// and Brace below half health. Every command goes through the same <see cref="CastTargeting"/> rule as a key press.
 /// On a layout run (lane NAV-CORE, STATE.md D18) with no living enemy he walks the route instead
-/// (<see cref="Follow.WalkRoute"/>: each room's far doorway in turn), so he crosses the next room's trigger and its
-/// pull spawns at the far side; then the combat script above. With no living lieutenant but a living enemy (lane
+/// (<see cref="Follow.LeadRoute"/>: each room's far doorway in turn, but in the active pull's room he holds at the
+/// standoff point until the party is inside, LEADER-WAITS), so the pull spawns once all are in; then the combat script above. With no living lieutenant but a living enemy (lane
 /// WARDEN-ENGAGES) he targets the nearest one (lowest id on a tie), walks into melee range and faces it, so the
 /// rotation keeps landing until the pull is clear.
 /// </summary>
@@ -388,9 +388,9 @@ public sealed class ScriptedWarden
         {
             return;
         }
-        if (run.Content.Layout is { } layout && !Follow.AnyLivingEnemy(state))
+        if (run.Content.Layout is not null && !Follow.AnyLivingEnemy(state))
         {
-            if (Follow.WalkRoute(tick, me, layout) is { } walk)
+            if (Follow.LeadRoute(tick, me, run) is { } walk)
             {
                 into.Add(walk);
             }
