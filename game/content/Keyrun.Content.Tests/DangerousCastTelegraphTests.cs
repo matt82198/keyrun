@@ -52,7 +52,7 @@ public sealed class DangerousCastTelegraphTests
         }
 
         Assert.True(failures.Count == 0, string.Join(System.Environment.NewLine, failures));
-        // Vacuity guard: seed.slam, hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam.
-        Assert.Equal(5, count);
+        // Vacuity guard: seed.slam, seed.lash (KF3-SEED-ENGAGE), hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam.
+        Assert.Equal(6, count);
     }
 }

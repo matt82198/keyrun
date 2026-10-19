@@ -159,6 +159,31 @@
     }
   },
   {
+    "id": "seed.lash",
+    "name": "Seed Lash",
+    "castTicks": 20,
+    "gcdTicks": 0,
+    "cooldownTicks": 200,
+    "charges": 1,
+    "range": 1500,
+    "shape": {
+      "kind": "target"
+    },
+    "interruptible": false,
+    "tags": [],
+    "effects": [
+      {
+        "op": "damage",
+        "amount": 70,
+        "school": "physical"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
+  },
+  {
     "id": "seed.deathBloom",
     "name": "Death Bloom",
     "castTicks": 0,

@@ -111,7 +111,7 @@ public sealed class ReferenceTests
         }
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(28, refs.Checked); // vacuity guard: exact ref count from the JSON
+        Assert.Equal(30, refs.Checked); // vacuity guard: exact ref count from the JSON (+2: seed.lash ability and script step, KF3)
     }
 
     [Fact]

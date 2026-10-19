@@ -43,6 +43,7 @@ BIBLE.md D4. Player health 2000, Choir trash health 6000, Pair 1200, Seed 3000, 
 | pair.meleeSwing | 0 | 0 | 40 | 1 | - | dmg:70 |
 | pair.spreadMark / stackCall | 40 | 0 | 400 | 1 | - | mark only |
 | seed.slam | 20 | 0 | 100 | 1 | - | dmg:150 |
+| seed.lash | 20 | 0 | 200 (script `at: 50, every: 200`) | 1 | - | dmg:70 |
 | seed.deathBloom | 0 | 0 | 0 | 1 | - | window only |
 | hollowWarden.slam | 0 | 0 | 60 | 1 | - | dmg:150 |
 | hollowWarden.cleave | 40 | 0 | 160 | 1 | - | dmg:220 |
@@ -95,3 +96,7 @@ loop every 160. The ability cooldown columns above are unchanged.
 player base, so a player fleeing at base speed is caught (tests/sim/integration/chase-speed.test.ts).
 Every other enemy omits it and walks at base. `chaseMarginMm` is unset everywhere (default 500,
 sim/encounter/chase.ts's CHASE_MARGIN_MM).
+An enemy chases only when its script casts a hostile target-shaped ability (chase.ts engage range). Since
+KF3-SEED-ENGAGE the Seed's script carries `seed.lash` (target, range 1500, inside the 2000 slam circle), so it
+walks at base to 1000 mm of its target instead of slamming from its spawn while a party parked at the
+seed-chamber doorway kills it for free.
