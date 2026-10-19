@@ -10,8 +10,11 @@ namespace Keyrun.View;
 /// Drives a model's own AnimationPlayer from sim state the view already reads (design/ART-PLAN.md section 6): a death
 /// clip once when <c>Alive</c> goes false (its last frame held), a cast loop while <c>CastId</c> is set, a one-shot
 /// when the global cooldown restarts (an instant ability) or health drops (a hit), and idle or run from the
-/// interpolated speed. Read-only: it never writes sim state. A model without an AnimationPlayer gets no animator
-/// (<see cref="TryCreate"/> returns null), so it keeps its static pose.
+/// interpolated speed. Lane 4: a spawn clip once when the body is first bound (<see cref="PlaySpawn"/>; skeletons
+/// rise out of the floor, held until it ends unless the actor dies), and the hit clip as the stagger reaction when a
+/// fresh <see cref="ActorBinding.StaggerEffectId"/> effect lands (the Twins' break bar emptying). Read-only: it never
+/// writes sim state. A model without an AnimationPlayer gets no animator (<see cref="TryCreate"/> returns null), so it
+/// keeps its static pose.
 /// </summary>
 public sealed class ActorAnimator
 {
@@ -27,8 +30,10 @@ public sealed class ActorAnimator
     private readonly string? _act;
     private readonly string? _hit;
     private readonly string? _death;
+    private readonly string? _spawn;
     private string? _oneShot;
     private bool _dead;
+    private bool _spawning;
 
     private ActorAnimator(AnimationPlayer player, ActorClips clips)
     {
@@ -40,11 +45,29 @@ public sealed class ActorAnimator
         _act = Match(names, clips.Act, loop: false);
         _hit = Match(names, clips.Hit, loop: false);
         _death = Match(names, clips.Death, loop: false);
+        _spawn = clips.Spawn is null ? null : Match(names, clips.Spawn, loop: false);
     }
 
     /// <summary>The clip names this animator resolved, for the ACTOR log line ("idle=Idle move=Running_A ...").</summary>
     public string Matched =>
-        $"idle={_idle ?? "-"} move={_move ?? "-"} cast={_cast ?? "-"} act={_act ?? "-"} hit={_hit ?? "-"} death={_death ?? "-"}";
+        $"idle={_idle ?? "-"} move={_move ?? "-"} cast={_cast ?? "-"} act={_act ?? "-"} hit={_hit ?? "-"} death={_death ?? "-"} spawn={_spawn ?? "-"}";
+
+    /// <summary>
+    /// Plays the row's spawn clip once from its first frame (the body rising where it spawned); a row without one, or
+    /// whose clip the model lacks, starts in idle instead.
+    /// </summary>
+    public void PlaySpawn()
+    {
+        if (_spawn is null)
+        {
+            Play(_idle);
+            return;
+        }
+        _spawning = true;
+        _oneShot = null;
+        _player.Play(_spawn);
+        _player.Seek(0, true);
+    }
 
     /// <summary>True while the death clip is (or has finished) playing: the view keeps the body visible.</summary>
     public bool HoldsDeath => _dead && _death is not null;
@@ -73,6 +96,7 @@ public sealed class ActorAnimator
             if (!_dead)
             {
                 _dead = true;
+                _spawning = false;
                 _oneShot = null;
                 Play(_death);
             }
@@ -84,8 +108,25 @@ public sealed class ActorAnimator
             _player.Stop();
         }
 
+        // The spawn clip is held to its end (the body slides while it rises rather than skipping the rise).
+        if (_spawning && _spawn is not null)
+        {
+            if (_player.IsPlaying() && _player.CurrentAnimation == _spawn)
+            {
+                return;
+            }
+            _spawning = false;
+        }
+
         var moving = speedMps > MoveSpeedMps;
-        if (newTick && !moving && now.CastId is null)
+        if (newTick && StaggerLanded(before, now) && _hit is not null)
+        {
+            // Stagger: the sim's stun effect (break bar emptied) just landed; the hit clip is the reaction.
+            _oneShot = _hit;
+            _player.Play(_hit, Blend);
+            _player.Seek(0, true);
+        }
+        else if (newTick && !moving && now.CastId is null)
         {
             if (now.GcdReadyTick > before.GcdReadyTick && _act is not null)
             {
@@ -116,6 +157,23 @@ public sealed class ActorAnimator
             _oneShot = null;
         }
         Play(moving ? _move ?? _idle : _idle);
+    }
+
+    // True on the step a stagger effect is applied or refreshed: its latest end tick moved later.
+    private static bool StaggerLanded(ActorState before, ActorState now) =>
+        StaggerEnds(now) > StaggerEnds(before);
+
+    private static int StaggerEnds(ActorState actor)
+    {
+        var ends = int.MinValue;
+        foreach (var e in actor.Effects)
+        {
+            if (e.EffectId == ActorBinding.StaggerEffectId && e.EndsTick > ends)
+            {
+                ends = e.EndsTick;
+            }
+        }
+        return ends;
     }
 
     private void Play(string? clip)

@@ -26,7 +26,6 @@ namespace Keyrun.View;
 /// </summary>
 public partial class LabelView : Node3D
 {
-    private const float PlateHeight = 2.35f;
     private const int NameFont = 15;
     private const int HealthFont = 12;
     private const int PlateLineGap = 2;
@@ -114,7 +113,7 @@ public partial class LabelView : Node3D
             }
             var before = Driver.PreviousState.Actors.TryGetValue(id, out var prev) ? prev : actor;
             var t = Driver.Alpha;
-            plate.Anchor = ActorView.ToMetres(before.Pos).Lerp(ActorView.ToMetres(actor.Pos), t) + new Vector3(0, PlateHeight, 0);
+            plate.Anchor = ActorView.ToMetres(before.Pos).Lerp(ActorView.ToMetres(actor.Pos), t) + new Vector3(0, PlateHeight(actor), 0);
             plate.Health = $"{actor.Health} / {actor.MaxHealth}";
             plate.HealthTint = HealthColor(actor.Health, actor.MaxHealth);
             plate.Targeted = id == targetId;
@@ -257,6 +256,10 @@ public partial class LabelView : Node3D
         _ when actor.ClassId.EndsWith(".melee", StringComparison.Ordinal) => MeleeColor,
         _ => OtherEnemyColor,
     };
+
+    // The plate anchor above the feet, metres, per class (ActorBindingRow.PlateHeightMm: 2.35 m for a 1.8 m body, above
+    // the Seed's and the boss's heads for theirs), so a tall body's plate is never drawn inside its model.
+    private static float PlateHeight(ActorState actor) => ActorView.Binding.For(actor.ClassId).PlateHeightMm * 0.001f;
 
     private static Color HealthColor(long hp, long max)
     {

@@ -67,3 +67,39 @@ section 5).
   animation clips, so no separate texture or animation pack is used.
 - Local additions (ours, not the pack's): the Godot `.import` sidecars (embedded images kept uncompressed,
   `gltf/embedded_image_handling=3`; light baking off).
+
+## KayKit Character Pack : Skeletons 1.0
+
+- Folder: `game/assets/kaykit-skeletons/`
+- Author: Kay Lousberg (www.kaylousberg.com)
+- Source used: https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0 (branch main, commit
+  15b62b9bad122f72926c10fb14d622c73819fa54, archive `api.github.com/repos/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0/zipball/15b62b9bad122f72926c10fb14d622c73819fa54`;
+  the zip comment names that commit).
+- Downloaded: 2026-10-18
+- License as written in the pack's `addons/kaykit_character_pack_skeletons/LICENSE.txt` (copied unchanged beside the
+  assets as `LICENSE.txt`):
+
+  > KayKit Character Pack : Skeletons (1.0)
+  >
+  > Created/distributed by Kay Lousberg (www.kaylousberg.com)
+  > Creation date: 02/02/2024 09:00
+  >
+  > ------------------------------
+  >
+  > License: (Creative Commons Zero, CC0)
+  > http://creativecommons.org/publicdomain/zero/1.0/
+  >
+  > This content is free to use in personal, educational and commercial projects.
+  >
+  > Support me by crediting Kay Lousberg, www.kaylousberg.com (this is not mandatory)
+
+  (The file continues with a Patreon thank-you, a supporter list and social links; it carries no further terms.)
+
+- Files copied (pack file names kept; from `addons/kaykit_character_pack_skeletons/Characters/gltf/` unless noted):
+  `Skeleton_Warrior.glb` (Choir Acolyte, both Sundered Twins), `Skeleton_Mage.glb` (Choir Cantor), `Skeleton_Minion.glb`
+  (Paired Warrior), `Skeleton_Rogue.glb` (the Seed) and `addons/kaykit_character_pack_skeletons/LICENSE.txt`. Each .glb
+  embeds its own `skeleton_texture` image and the 95 Rig_Medium plus skeleton clips (`Spawn_Ground_Skeletons`,
+  `Death_C_Skeletons` among them), so the pack's separate `skeleton_texture.png` and weapon models are not used. The Hollow
+  Warden boss reuses the Adventurers `Knight.glb` above (no copy).
+- Local additions (ours, not the pack's): the Godot `.import` sidecars (embedded images kept uncompressed,
+  `gltf/embedded_image_handling=3`; light baking off), the same settings as the Adventurers sidecars.
