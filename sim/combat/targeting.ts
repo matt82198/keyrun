@@ -119,12 +119,20 @@ export function inLine(caster: ActorState, length: number, radiusMm: number, act
  * target that died mid-cast resolves to [] (the same outcome as no targetId), and corpses do not
  * soak AoE. "self" is unchanged -- the caster acting on itself, reachable while dead only via
  * rules.ts's onDeath DEATH-CAST EXCEPTION; damage.ts already makes heal/damage on it no-ops.
+ *
+ * CAST-RANGE-RECHECK (mirrors game/sim/Keyrun.Sim/Combat/Targeting.cs; STATE.md D28, the C# sim is
+ * the source of truth and this frozen tree only records it for the oracle): a "target" also has to
+ * be within def.range NOW, so a cast whose target walked out of range before castEndsTick lands on
+ * nothing (completeCast still emits cast_complete, exactly as for a target that died mid-cast).
  */
 export function resolveTargets(state: SimState, actor: ActorState, def: AbilityDef): ActorState[] {
   if (def.shape.kind === "self") return [actor];
   if (def.shape.kind === "target") {
     const t = actor.targetId !== null ? state.actors[actor.targetId] : undefined;
-    return t && t.alive ? [t] : [];
+    if (!t || !t.alive) return [];
+    const dx = actor.pos.x - t.pos.x;
+    const dz = actor.pos.z - t.pos.z;
+    return isqrt(dx * dx + dz * dz) <= def.range ? [t] : [];
   }
   const all = Object.values(state.actors).filter((a) => a.alive);
   let ids: ActorId[];

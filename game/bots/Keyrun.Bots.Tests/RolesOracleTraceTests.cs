@@ -148,7 +148,7 @@ public sealed class RolesOracleTraceTests
     public void Key2Seed11() => AssertDrives("bots-hv-k2-s11", "902b84a7"); // KF3-SEED-ENGAGE (was 71eb4d2e)
 
     [Fact(DisplayName = "bot oracle > bots-hv-k10-s7 replays every tick from C#-generated bot commands")]
-    public void Key10Seed7() => AssertDrives("bots-hv-k10-s7", "867dee64"); // KF3-SEED-ENGAGE (was e1286ac0; SLAM-TELEGRAPH B1 was 27a3ceaf); equals the TS manifest
+    public void Key10Seed7() => AssertDrives("bots-hv-k10-s7", "8c7e9098"); // CAST-RANGE-RECHECK (the t1760 seed.lash on actor 1 at 2093 mm now misses; was 867dee64), KF3-SEED-ENGAGE (was e1286ac0; SLAM-TELEGRAPH B1 was 27a3ceaf); equals the TS manifest
 
     [Fact(DisplayName = "bot oracle > anti-vacuity: with no roles the bots diverge from the trace")]
     public void NoRolesDiverge()
