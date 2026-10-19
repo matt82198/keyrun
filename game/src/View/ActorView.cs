@@ -203,7 +203,7 @@ public partial class ActorView : Node3D
         }
         _lastPosition = Position;
         _hasLastPosition = true;
-        _animator.Update(before, now, newTick, speed);
+        _animator.Update(before, now, newTick, speed, Driver.LastEvents);
     }
 
     private void Place()

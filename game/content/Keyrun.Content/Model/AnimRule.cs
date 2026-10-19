@@ -60,12 +60,49 @@ public static class AnimRule
     public const string ResolveEvent = "cast_complete";
 
     /// <summary>The clip decision for one frame.</summary>
-    public static AnimDecision Decide(AnimFacts f) => default;
+    public static AnimDecision Decide(AnimFacts f)
+    {
+        if (!f.Alive)
+        {
+            return new AnimDecision(AnimClip.Death, true, false);
+        }
+        if (f.Casting)
+        {
+            return new AnimDecision(AnimClip.Cast, false, false);
+        }
+        if (f.NewTick)
+        {
+            if (f.Acted)
+            {
+                return new AnimDecision(AnimClip.Act, true, true);
+            }
+            if (f.Staggered || (f.Hurt && f.Playing == AnimClip.None))
+            {
+                return new AnimDecision(AnimClip.Hit, true, true);
+            }
+        }
+        if (f.Playing != AnimClip.None)
+        {
+            return new AnimDecision(f.Playing, true, false);
+        }
+        return new AnimDecision(f.Moving ? AnimClip.Move : AnimClip.Idle, false, false);
+    }
 
     /// <summary>
     /// True when <paramref name="events"/> (one sim step's events as type and <c>actorId</c>) hold a
     /// <see cref="ResolveEvent"/> for <paramref name="actorId"/>: the actor's ability resolved this step. Enemy melee
     /// (gcdTicks 0, so the GCD never restarts) is only visible through this.
     /// </summary>
-    public static bool Resolved(int actorId, IEnumerable<(string Type, int? ActorId)> events) => false;
+    public static bool Resolved(int actorId, IEnumerable<(string Type, int? ActorId)> events)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        foreach (var (type, id) in events)
+        {
+            if (id == actorId && string.Equals(type, ResolveEvent, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 }
