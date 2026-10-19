@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Serialization;
 
 namespace Keyrun.Content;
 
@@ -14,20 +15,20 @@ namespace Keyrun.Content;
 /// <param name="Gated">True when the box opens on a pull clear (a gate stands across its entry doorway).</param>
 public sealed record PlanBox(string Id, bool IsRoom, int MinX, int MaxX, int MinZ, int MaxZ, bool Gated);
 
-/// <summary>Which edge of a box a wall run or opening lies on.</summary>
+/// <summary>Which edge of a box a wall run or opening lies on (theme.json spells them minX, maxX, minZ, maxZ).</summary>
 public enum WallSide
 {
     /// <summary>The x = MinX edge (runs along z).</summary>
-    MinX,
+    [EnumMember(Value = "minX")] MinX,
 
     /// <summary>The x = MaxX edge (runs along z).</summary>
-    MaxX,
+    [EnumMember(Value = "maxX")] MaxX,
 
     /// <summary>The z = MinZ edge (runs along x).</summary>
-    MinZ,
+    [EnumMember(Value = "minZ")] MinZ,
 
     /// <summary>The z = MaxZ edge (runs along x).</summary>
-    MaxZ,
+    [EnumMember(Value = "maxZ")] MaxZ,
 }
 
 /// <summary>The flavour of a room light; the view maps it to a colour and energy.</summary>
@@ -97,7 +98,14 @@ public sealed record WallBox(string BoxId, int MinX, int MaxX, int MinZ, int Max
 public sealed record GatePiece(string BoxId, KitPiece Piece);
 
 /// <summary>A point light, mm.</summary>
-public sealed record LightSpot(string BoxId, LightKind Kind, int X, int Y, int Z, int RangeMm);
+/// <param name="BoxId">The box it lights.</param>
+/// <param name="Kind">Torch or Warden (the view's default colour and energy).</param>
+/// <param name="X">X, mm.</param>
+/// <param name="Y">Height, mm.</param>
+/// <param name="Z">Z, mm.</param>
+/// <param name="RangeMm">Omni range, mm.</param>
+/// <param name="Color">A theme.json colour (RRGGBB) overriding the kind's colour, or null.</param>
+public sealed record LightSpot(string BoxId, LightKind Kind, int X, int Y, int Z, int RangeMm, string? Color = null);
 
 /// <summary>The whole dungeon shell for one layout: everything the view instantiates, in mm.</summary>
 /// <param name="Floor">Floor tiles: every box covered exactly once.</param>
@@ -214,18 +222,21 @@ public static class DungeonPlan
 
     /// <summary>The full shell for a loaded layout.</summary>
     /// <param name="layout">The layout (game/content/data/layout.json).</param>
+    /// <param name="theme">Per-room dressing (game/content/data/theme.json, <see cref="ThemeLoader"/>); rooms it lists are
+    /// dressed from it alone, the rest from code. Null = no themed rooms (those rooms get only their torches and lights).</param>
     /// <returns>The plan.</returns>
-    public static DungeonLayoutPlan Build(LayoutDef layout)
+    public static DungeonLayoutPlan Build(LayoutDef layout, ThemeDef? theme = null)
     {
         ArgumentNullException.ThrowIfNull(layout);
-        return Build(BoxesOf(layout), layout.Route.Select(p => (p.X, p.Z)).ToList());
+        return Build(BoxesOf(layout), layout.Route.Select(p => (p.X, p.Z)).ToList(), theme);
     }
 
     /// <summary>The full shell for boxes plus the route (one point per box: the doorway into the next box).</summary>
     /// <param name="boxes">Boxes in route order.</param>
     /// <param name="route">Route points, one per box.</param>
+    /// <param name="theme">Per-room dressing, or null (see <see cref="Build(LayoutDef, ThemeDef)"/>).</param>
     /// <returns>The plan.</returns>
-    public static DungeonLayoutPlan Build(IReadOnlyList<PlanBox> boxes, IReadOnlyList<(int X, int Z)> route)
+    public static DungeonLayoutPlan Build(IReadOnlyList<PlanBox> boxes, IReadOnlyList<(int X, int Z)> route, ThemeDef? theme = null)
     {
         ArgumentNullException.ThrowIfNull(boxes);
         ArgumentNullException.ThrowIfNull(route);
@@ -250,9 +261,36 @@ public static class DungeonPlan
         var lights = new List<LightSpot>();
         foreach (var b in boxes)
         {
-            Dress(b, props, sconces, lights);
+            var row = theme?.Rooms.FirstOrDefault(r => r.Id == b.Id);
+            if (row is not null && b.IsRoom)
+            {
+                DressThemed(b, row, props, sconces, lights);
+            }
+            else
+            {
+                Dress(b, props, sconces, lights);
+            }
         }
-        return walled with { Gates = gates, Props = props, WallDecor = sconces, Lights = lights };
+        var wallPieces = theme is null ? walled.WallPieces : Crack(walled.WallPieces, theme);
+        return walled with { WallPieces = wallPieces, Gates = gates, Props = props, WallDecor = sconces, Lights = lights };
+    }
+
+    /// <summary>
+    /// A floor prop as a kit piece: <paramref name="piece"/> scaled to <paramref name="pct"/> percent of its nominal size,
+    /// its lowest point on the floor, turned <paramref name="turns"/> quarter turns, origin at (x, z).
+    /// </summary>
+    /// <param name="boxId">The room it dresses.</param>
+    /// <param name="piece">Kit stem (a key of <see cref="Nominal"/>).</param>
+    /// <param name="x">Origin x, mm.</param>
+    /// <param name="z">Origin z, mm.</param>
+    /// <param name="turns">Quarter turns about +y.</param>
+    /// <param name="pct">Scale, percent of nominal.</param>
+    /// <returns>The placed piece.</returns>
+    public static KitPiece PropPiece(string boxId, string piece, int x, int z, int turns, int pct)
+    {
+        var n = Nominal[piece];
+        var sy = n.Y * pct / 100;
+        return new KitPiece(boxId, piece, x, GroundY(piece, sy), z, turns, n.X * pct / 100, sy, n.Z * pct / 100);
     }
 
     /// <summary>
@@ -549,11 +587,41 @@ public static class DungeonPlan
 
     // ---- props, sconces and lights ---------------------------------------------------------------------------------
 
-    private static KitPiece Prop(PlanBox b, string piece, int x, int z, int turns, int pct)
+    private static KitPiece Prop(PlanBox b, string piece, int x, int z, int turns, int pct) => PropPiece(b.Id, piece, x, z, turns, pct);
+
+    // A theme.json room: every prop, wall piece of decor and light comes from its row (ROOM-THEMING-1).
+    private static void DressThemed(PlanBox b, RoomThemeDef row, List<KitPiece> props, List<KitPiece> sconces, List<LightSpot> lights)
     {
-        var n = Nominal[piece];
-        var sy = n.Y * pct / 100;
-        return new KitPiece(b.Id, piece, x, GroundY(piece, sy), z, turns, n.X * pct / 100, sy, n.Z * pct / 100);
+        foreach (var p in row.Props)
+        {
+            props.Add(Prop(b, p.Piece, p.X, p.Z, p.Turns, p.Pct));
+        }
+        foreach (var d in row.Decor ?? new ValueList<ThemeDecor>())
+        {
+            sconces.Add(d.Piece == "torch_mounted" ? Sconce(b, d.Side, d.Along) : Hanging(b, d.Piece, d.Side, d.Along));
+        }
+        foreach (var l in row.Lights)
+        {
+            lights.Add(new LightSpot(b.Id, LightKind.Torch, l.X, l.YMm, l.Z, l.RangeMm, l.Color));
+        }
+    }
+
+    // The wall pieces theme.json marks cracked show as wall_cracked; the run, length and box (so the camera's occluder
+    // boxes) are unchanged.
+    private static IReadOnlyList<WallPiece> Crack(IReadOnlyList<WallPiece> pieces, ThemeDef theme)
+    {
+        var points = theme.Rooms.SelectMany(r => (r.Cracked ?? new ValueList<ThemeWallPoint>()).Select(c => (r.Id, c.Side, c.Along))).ToList();
+        if (points.Count == 0)
+        {
+            return pieces;
+        }
+        return pieces.Select(w =>
+        {
+            var centre = AlongX(w.Run.Side) ? w.Piece.X : w.Piece.Z;
+            var hit = points.Any(c => c.Id == w.Run.BoxId && c.Side == w.Run.Side
+                && 2L * c.Along >= 2L * centre - w.Length && 2L * c.Along < 2L * centre + w.Length);
+            return hit ? w with { Piece = w.Piece with { Piece = "wall_cracked" } } : w;
+        }).ToList();
     }
 
     // A wall hanging on the inner face of one of b's walls (banners hang off a 1 m kit wall centred on its origin).
@@ -613,33 +681,10 @@ public static class DungeonPlan
             lights.Add(new LightSpot(b.Id, LightKind.Torch, x2, 2200, b.MaxZ - 1500, range));
         }
 
+        // The entrance and the Choir room are dressed from game/content/data/theme.json (DressThemed); lanes 6 and 7 move
+        // the rooms below into it.
         switch (b.Id)
         {
-            case "entrance":
-                // The party's start: banners on the back wall, the sealed vault's chest, stores in the corners.
-                sconces.Add(Hanging(b, "banner_patternA_blue", WallSide.MinX, cz - hz / 2));
-                sconces.Add(Hanging(b, "banner_patternA_blue", WallSide.MinX, cz + hz / 2));
-                props.Add(Prop(b, "chest_gold", b.MinX + 1500, cz, 1, 50));
-                props.Add(Prop(b, "barrel_large", b.MinX + 1200, b.MinZ + 1200, 0, 50));
-                props.Add(Prop(b, "barrel_small_stack", b.MinX + 1200, b.MaxZ - 1200, 2, 50));
-                props.Add(Prop(b, "crates_stacked", b.MaxX - 1600, b.MinZ + 1600, 0, 50));
-                props.Add(Prop(b, "crates_stacked", b.MaxX - 1600, b.MaxZ - 1600, 1, 50));
-                break;
-            case "choir-room":
-                // A ruined chapel: rows of pews along both sides, candles in the corners, the lieutenant's lectern.
-                for (var x = b.MinX + 4000; x <= b.MaxX - 4000; x += 3000)
-                {
-                    props.Add(Prop(b, "table_long", x, b.MinZ + 2500, 0, 50));
-                    props.Add(Prop(b, "table_long", x, b.MaxZ - 2500, 0, 50));
-                }
-                props.Add(Prop(b, "candle_triple", b.MinX + 1000, b.MinZ + 1000, 0, 70));
-                props.Add(Prop(b, "candle_triple", b.MinX + 1000, b.MaxZ - 1000, 2, 70));
-                props.Add(Prop(b, "candle_triple", b.MaxX - 1000, b.MinZ + 1000, 0, 70));
-                props.Add(Prop(b, "candle_triple", b.MaxX - 1000, b.MaxZ - 1000, 2, 70));
-                props.Add(Prop(b, "table_small_decorated_A", b.MaxX - 1500, cz - hz / 2, 3, 70));
-                sconces.Add(Hanging(b, "banner_patternC_red", WallSide.MaxX, cz - hz / 2 - 1500));
-                sconces.Add(Hanging(b, "banner_patternC_red", WallSide.MaxX, cz + hz / 2 + 1500));
-                break;
             case "pair-hall":
                 // A long open hall: pillars down both edges, the centre left clear for spread and stack.
                 for (var x = b.MinX + 4000; x <= b.MaxX - 4000; x += 4000)

@@ -9,7 +9,7 @@ namespace Keyrun.Content;
 /// <summary>
 /// Loads every content kind from the verbatim content/data JSON into a typed, validated
 /// <see cref="ContentRegistry"/>: the C# mirror of content/index.ts <c>loadContent()</c>, reading
-/// the same 19 files in the same order, plus the C#-only run.json and layout.json. Fails closed with <see cref="ContentLoadException"/> on
+/// the same 19 files in the same order, plus the C#-only run.json, layout.json and theme.json (theme.json is read by ThemeLoader). Fails closed with <see cref="ContentLoadException"/> on
 /// any unknown property, missing required field, null in a non-optional field, non-integer
 /// number, unknown enum or op, duplicate id, unresolved cross-reference, or unlisted/missing file.
 /// </summary>
@@ -34,7 +34,14 @@ public static class ContentLoader
         Facets + "warden.json", Facets + "cinder.json", Facets + "chanter.json",
         RunFile,
         LayoutFile,
+        ThemeFile,
     };
+
+    /// <summary>
+    /// C#-only per-room dressing (game/content/data/theme.json, same logical root; ROOM-THEMING-1). Listed so the file
+    /// set check accepts it, but not parsed into the registry: <see cref="ThemeLoader"/> reads it for the view only.
+    /// </summary>
+    public const string ThemeFile = "theme.json";
 
     /// <summary>
     /// C#-only dungeon layout (game/content/data/layout.json, same logical root): rooms, corridors, pull triggers,
@@ -134,7 +141,7 @@ public static class ContentLoader
         return items;
     }
 
-    private static T[] ReadOne<T>(IContentSource source, string path)
+    internal static T[] ReadOne<T>(IContentSource source, string path)
         where T : class
     {
         T item = Parse<T>(source, path);

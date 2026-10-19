@@ -25,14 +25,14 @@ public sealed class ContentCountTests
     }
 
     [Fact]
-    public void All_nineteen_ts_json_files_plus_run_json_and_layout_json_are_embedded_and_each_is_loaded()
+    public void All_nineteen_ts_json_files_plus_run_json_layout_json_and_theme_json_are_embedded_and_each_is_listed()
     {
         var embedded = EmbeddedContentSource.Instance.Paths.OrderBy(p => p, System.StringComparer.Ordinal).ToArray();
         var loaded = ContentLoader.Files.OrderBy(p => p, System.StringComparer.Ordinal).ToArray();
 
-        // 19 TS loadContent files from content/data plus the C#-only game/content/data/run.json and layout.json.
-        Assert.Equal(21, embedded.Length);
-        Assert.Equal(19, embedded.Count(p => p != "run.json" && p != "layout.json"));
+        // 19 TS loadContent files from content/data plus the C#-only game/content/data/run.json, layout.json and theme.json.
+        Assert.Equal(22, embedded.Length);
+        Assert.Equal(19, embedded.Count(p => p != "run.json" && p != "layout.json" && p != "theme.json"));
         Assert.Equal(embedded, loaded);
     }
 
