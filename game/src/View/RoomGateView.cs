@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using Keyrun.Content;
 using Keyrun.Host;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
@@ -19,6 +20,12 @@ namespace Keyrun.View;
 /// Primitive geometry only (BoxMesh posts, beam and bars; no asset, D17). Render-only: nothing it does feeds the sim.
 /// Stdout only (never the run log or any digest): <c>GATEVIEW shut|open|probe</c> lines name what is in the scene tree,
 /// for <c>game/src/Host/GateViewSceneTest.ps1</c>.
+/// Cut-away (GATE-CUTAWAY): a shut gate is an occluder like a room wall. Each frame <see cref="CameraRig"/> hands its
+/// sight lines (camera to pivot and to each living party body) to <see cref="CutAway"/>; a shut gate whose
+/// <see cref="BoxOf"/> box one of them crosses (<see cref="CameraBoom.Occluding"/>, the walls' rule) is hidden
+/// (<c>Visible</c> false) for that frame and shown again the frame it is clear, so a gate behind the party stays in view.
+/// The probe line adds <c>cut=</c> (shut gates not visible), <c>cam=</c> and <c>at=</c> (the last sight lines, mm) for
+/// <c>game/src/Host/GateCutawaySceneTest.ps1</c>.
 /// </summary>
 public partial class RoomGateView : Node3D
 {
@@ -34,7 +41,13 @@ public partial class RoomGateView : Node3D
     private static readonly Color IronColor = new(0.16f, 0.15f, 0.15f);
     private static readonly Color GlowColor = new(0.85f, 0.32f, 0.12f);
 
+    private const int GateHeightMm = 2200;
+    private const int PostHalfMm = 110;
+
     private readonly Dictionary<string, Node3D> _shut = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, WallBox> _boxes = new(StringComparer.Ordinal);
+    private readonly List<(int X, int Y, int Z)> _sightTo = new();
+    private (int X, int Y, int Z)? _sightFrom;
     private StandardMaterial3D? _iron;
 
     /// <summary>The driver to read the run, its layout and its events from.</summary>
@@ -80,6 +93,70 @@ public partial class RoomGateView : Node3D
         // The route runs along x: the previous box lies on the room's low-x side or its high-x side.
         var x = prev.MinX + prev.MaxX < room.MinX + room.MaxX ? room.MinX : room.MaxX;
         return (x, IntMath.FloorDiv(prev.MinZ + prev.MaxZ, 2), prev.MaxZ - prev.MinZ);
+    }
+
+    /// <summary>
+    /// The solid box of the gate across <paramref name="door"/>, mm: post thickness in x about the doorway x, the
+    /// doorway width in z, floor to beam top in y. The camera cut-away tests sight lines against it.
+    /// </summary>
+    /// <param name="room">The gated room id.</param>
+    /// <param name="door">The doorway from <see cref="EntryOf"/>.</param>
+    /// <returns>The gate box.</returns>
+    public static WallBox BoxOf(string room, (long X, long Z, long Width) door)
+    {
+        var x = checked((int)door.X);
+        var z = checked((int)door.Z);
+        var half = checked((int)(door.Width / 2));
+        return new WallBox(room, x - PostHalfMm, x + PostHalfMm, z - half, z + half, 0, GateHeightMm);
+    }
+
+    /// <summary>
+    /// Cuts away, for this frame, every shut gate a sight line from <paramref name="from"/> to one of
+    /// <paramref name="targets"/> crosses (hidden), and shows every other shut gate. The lines are kept, so a gate that
+    /// shuts before the next frame obeys them at once.
+    /// </summary>
+    /// <param name="from">The camera, mm.</param>
+    /// <param name="targets">Sight-line targets (pivot, party bodies), mm.</param>
+    public void CutAway((int X, int Y, int Z) from, IReadOnlyList<(int X, int Y, int Z)> targets)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        _sightFrom = from;
+        _sightTo.Clear();
+        _sightTo.AddRange(targets);
+        foreach (var room in _shut.Keys)
+        {
+            ApplyCut(room);
+        }
+    }
+
+    private void ApplyCut(string room)
+    {
+        if (!_shut.TryGetValue(room, out var node) || !_boxes.TryGetValue(room, out var box))
+        {
+            return;
+        }
+        var hidden = false;
+        if (_sightFrom is { } from)
+        {
+            var one = new[] { box };
+            foreach (var to in _sightTo)
+            {
+                if (CameraBoom.Occluding(from, to, one).Count > 0)
+                {
+                    hidden = true;
+                    break;
+                }
+            }
+        }
+        node.Visible = !hidden;
+    }
+
+    private string ProbeSight()
+    {
+        var cut = _shut.Where(kv => !kv.Value.Visible).Select(kv => kv.Key).OrderBy(r => r, StringComparer.Ordinal).ToList();
+        var cam = _sightFrom is { } f ? FormattableString.Invariant($"({f.X},{f.Y},{f.Z})") : "(0,0,0)";
+        var at = _sightTo.Count == 0 ? "none" : string.Join(";", _sightTo.Select(t => FormattableString.Invariant($"({t.X},{t.Y},{t.Z})")));
+        return $"cut={(cut.Count == 0 ? "none" : string.Join(",", cut))} cam={cam} at={at}";
     }
 
     /// <inheritdoc />
@@ -134,7 +211,7 @@ public partial class RoomGateView : Node3D
         if (layout is not null && tick % ProbeEveryTicks == 0)
         {
             var shut = ShutRooms;
-            GD.Print(FormattableString.Invariant($"GATEVIEW probe tick={tick} shut={(shut.Count == 0 ? "none" : string.Join(",", shut))}"));
+            GD.Print(FormattableString.Invariant($"GATEVIEW probe tick={tick} shut={(shut.Count == 0 ? "none" : string.Join(",", shut))} {ProbeSight()}"));
         }
     }
 
@@ -168,8 +245,11 @@ public partial class RoomGateView : Node3D
         var node = Build(room, door.X * MmToM, door.Z * MmToM, door.Width * MmToM);
         AddChild(node);
         _shut[room] = node;
+        var box = BoxOf(room, door);
+        _boxes[room] = box;
+        ApplyCut(room);
         GD.Print(FormattableString.Invariant(
-            $"GATEVIEW shut room={room} tick={tick} node={node.Name} x={door.X} z={door.Z} widthMm={door.Width} inTree={node.IsInsideTree()}"));
+            $"GATEVIEW shut room={room} tick={tick} node={node.Name} x={door.X} z={door.Z} widthMm={door.Width} box=({box.MinX},{box.MaxX},{box.MinZ},{box.MaxZ},{box.MinY},{box.MaxY}) inTree={node.IsInsideTree()}"));
     }
 
     private void Open(string room, int tick)
@@ -181,6 +261,7 @@ public partial class RoomGateView : Node3D
 
     private bool Remove(string room)
     {
+        _boxes.Remove(room);
         if (!_shut.Remove(room, out var node))
         {
             return false;
