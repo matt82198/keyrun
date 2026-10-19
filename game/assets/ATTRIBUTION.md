@@ -1,0 +1,35 @@
+# Asset attribution and provenance
+
+Every third-party asset in game/assets/ is CC0 (STATE.md D17: "no custom art", CC0 kits only). CC0 needs no
+attribution; this file exists so the provenance of each pack is on disk. One entry per pack (design/ART-PLAN.md
+section 5).
+
+## KayKit Dungeon Remastered 1.0
+
+- Folder: `game/assets/kaykit-dungeon-remastered/`
+- Author: Kay Lousberg (www.kaylousberg.com)
+- Source used: https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0 (branch main, archive
+  `codeload.github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0/zip/refs/heads/main`; the zip comment names commit
+  b0ca9bd96a8072ab36a3a5464f00ed1e06a16d07). The same pack is published at https://kaylousberg.itch.io/kaykit-dungeon-remastered.
+- Downloaded: 2026-10-18
+- License as written in the pack's `addons/kaykit_dungeon_remastered/Assets/LICENSE.txt` (copied unchanged beside the
+  assets as `LICENSE.txt`):
+
+  > License: (Creative Commons Zero, CC0)
+  > http://creativecommons.org/publicdomain/zero/1.0/
+  >
+  > This content is free to use in personal, educational and commercial projects.
+  >
+  > Support me by crediting Kay Lousberg, www.kaylousberg.com (this is not mandatory)
+
+- Files copied (pack file names kept; from `Assets/gltf/` unless noted):
+  `banner_patternA_blue.gltf.glb`, `banner_patternC_red.gltf.glb`, `banner_shield_red.gltf.glb`, `banner_thin_red.gltf.glb`,
+  `barrel_large.gltf.glb`, `barrel_small_stack.gltf.glb`, `candle_triple.gltf.glb`, `chair.gltf.glb`, `chest_gold.glb`,
+  `crates_stacked.gltf.glb`, `floor_dirt_large.gltf.glb`, `floor_tile_large.gltf.glb`, `floor_tile_small.gltf.glb`,
+  `floor_tile_small_broken_A.gltf.glb`, `floor_tile_small_weeds_A.gltf.glb`, `pillar.gltf.glb`, `pillar_decorated.gltf.glb`,
+  `rubble_large.gltf.glb`, `table_long.gltf.glb`, `table_medium_broken.gltf.glb`, `table_small_decorated_A.gltf.glb`,
+  `torch_lit.gltf.glb`, `torch_mounted.gltf.glb`, `wall.gltf.glb`, `wall_arched.gltf.glb`, `wall_cracked.gltf.glb`,
+  `wall_gated.gltf.glb` (27 meshes), `Assets/texture/dungeon_texture.png` (the shared colour atlas) and `Assets/LICENSE.txt`.
+- Local additions (ours, not the pack's): the Godot `.import` sidecars (embedded images discarded, light baking off: every
+  .glb embeds a copy of `dungeon_texture.png`, so the one shared copy is used instead) and `dungeon_material.tres` (the one
+  StandardMaterial3D every kit mesh is drawn with).
