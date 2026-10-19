@@ -57,10 +57,10 @@ public sealed class RoomThemeTests
     }
 
     [Fact]
-    public void Theme_json_parses_to_rows_for_the_entrance_and_the_choir_room_only()
+    public void Theme_json_parses_to_rows_for_the_entrance_the_choir_room_the_pair_hall_and_the_seed_chamber()
     {
         var theme = ThemeLoader.Load();
-        Assert.Equal(new[] { "entrance", "choir-room" }, theme.Rooms.Select(r => r.Id).ToArray());
+        Assert.Equal(new[] { "entrance", "choir-room", "pair-hall", "seed-chamber" }, theme.Rooms.Select(r => r.Id).ToArray());
         Assert.Contains(ContentLoader.ThemeFile, ContentLoader.Files);
         var choir = Room(theme, "choir-room");
         Assert.Equal(6, choir.Props.Count(p => p.Piece == "table_long"));
@@ -71,6 +71,23 @@ public sealed class RoomThemeTests
         Assert.DoesNotContain(entrance.Props, p => p.Piece == "chest_gold"); // saved for the Seed chamber
         Assert.Single(entrance.Decor!, d => d.Piece == "banner_patternA_blue" && d.Side == WallSide.MinX);
         Assert.Equal(2, entrance.Decor!.Count(d => d.Piece == "torch_mounted" && d.Side == WallSide.MaxX));
+        // ROOM-THEMING-2: the Pair hall is a guarded gallery, the Seed chamber a vault.
+        var pair = Room(theme, "pair-hall");
+        Assert.True(pair.Props.Count(p => p.Piece == "pillar") >= 8, "the Pair hall gallery needs two rows of pillars");
+        Assert.Contains(pair.Props, p => p.Piece == "table_medium_broken");
+        Assert.Contains(pair.Props, p => p.Piece == "crates_stacked");
+        Assert.Contains(pair.Props, p => p.Piece == "barrel_small_stack");
+        Assert.Contains(pair.Decor!, d => d.Piece == "banner_shield_red" && d.Side == WallSide.MaxX);
+        Assert.True(pair.Decor!.Count(d => d.Piece == "torch_mounted" && d.Side == WallSide.MinZ) >= 2);
+        Assert.True(pair.Decor!.Count(d => d.Piece == "torch_mounted" && d.Side == WallSide.MaxZ) >= 2);
+        var seed = Room(theme, "seed-chamber");
+        Assert.Contains(seed.Props, p => p.Piece == "chest_gold");
+        Assert.Equal(2, seed.Props.Count(p => p.Piece == "pillar_decorated"));
+        Assert.True(seed.Props.Count(p => p.Piece == "candle_triple") >= 2);
+        Assert.Contains(seed.Props, p => p.Piece == "barrel_large");
+        Assert.Contains(seed.Props, p => p.Piece == "crates_stacked");
+        Assert.Contains(seed.Decor!, d => d.Piece == "banner_patternC_red" && d.Side == WallSide.MaxX);
+        Assert.DoesNotContain(theme.Rooms.Where(r => r.Id != "seed-chamber").SelectMany(r => r.Props), p => p.Piece == "chest_gold");
     }
 
     [Fact]
@@ -152,6 +169,65 @@ public sealed class RoomThemeTests
     }
 
     [Fact]
+    public void A_prop_in_the_pair_hall_centre_lane_is_rejected()
+    {
+        var ex = LoadFails(new MutableSource().Edit(ThemeFile, n => PropsOf(n, "pair-hall").Add(PropRow("barrel_large", 46000, 600))));
+        Assert.Contains("centre lane", ex.Message);
+    }
+
+    [Fact]
+    public void A_prop_1900_mm_from_the_pair_melee_spawn_is_rejected()
+    {
+        // pair.melee spawns at the Pair hall origin (38500, 0) + (5000, 0); the barrel's footprint z -2800..-1900 is off the
+        // lane but 1900 mm from the spawn.
+        var ex = LoadFails(new MutableSource().Edit(ThemeFile, n => PropsOf(n, "pair-hall").Add(PropRow("barrel_large", 43500, -2350))));
+        Assert.Contains("spawn (43500,0)", ex.Message);
+    }
+
+    [Fact]
+    public void A_prop_1900_mm_from_the_seed_elite_spawn_is_rejected()
+    {
+        // seed.elite spawns at the Seed chamber origin (63500, 0) + (10000, 0).
+        var ex = LoadFails(new MutableSource().Edit(ThemeFile, n => PropsOf(n, "seed-chamber").Add(PropRow("barrel_large", 73000, 2350))));
+        Assert.Contains("spawn (73500,0)", ex.Message);
+    }
+
+    [Fact]
+    public void A_prop_beside_the_corridor_3_gate_is_rejected()
+    {
+        // The corridor-3 gate stands at x 55500 inside the Pair hall's far doorway.
+        var ex = LoadFails(new MutableSource().Edit(ThemeFile, n => PropsOf(n, "pair-hall").Add(PropRow("barrel_large", 54000, -2600))));
+        Assert.Contains("door", ex.Message);
+    }
+
+    [Fact]
+    public void A_prop_beside_the_corridor_4_gate_is_rejected()
+    {
+        // The corridor-4 gate stands at x 75500 inside the Seed chamber's far doorway.
+        var ex = LoadFails(new MutableSource().Edit(ThemeFile, n => PropsOf(n, "seed-chamber").Add(PropRow("barrel_large", 74000, -2900))));
+        Assert.Contains("door", ex.Message);
+    }
+
+    [Fact]
+    public void The_seed_chamber_chest_gold_sits_outside_the_lane_and_the_elite_ring_and_is_accepted()
+    {
+        var reg = ContentLoader.Load();
+        var theme = ThemeLoader.Load();
+        var site = ThemeSite.Of(reg);
+        var box = DungeonPlan.BoxesOf(reg.Layout).Single(b => b.Id == "seed-chamber");
+        var chests = Room(theme, "seed-chamber").Props.Where(p => p.Piece == "chest_gold").ToList();
+        Assert.InRange(chests.Count, 1, 2);
+        foreach (var c in chests)
+        {
+            var f = DungeonPlan.SolidOf(DungeonPlan.PropPiece("seed-chamber", c.Piece, c.X, c.Z, c.Turns, c.Pct));
+            Assert.True(f.MinZ >= RoomTheme.LaneHalfMm || f.MaxZ <= -RoomTheme.LaneHalfMm, $"chest ({c.X},{c.Z}) is in the centre lane");
+            Assert.True(RectPoint(f, 73500, 0) >= 2000, $"chest ({c.X},{c.Z}) stands in the seed elite's ring");
+            Assert.True(c.X >= box.MaxX - 4000, $"chest ({c.X},{c.Z}) is not at the far end of the vault");
+            Assert.Empty(RoomTheme.PropViolations(box, c, site));
+        }
+    }
+
+    [Fact]
     public void An_unknown_stem_is_rejected()
     {
         var ex = LoadFails(new MutableSource().Edit(ThemeFile, n => PropsOf(n, "entrance").Add(PropRow("dais_large", -3000, -4000))));
@@ -186,9 +262,11 @@ public sealed class RoomThemeTests
         var theme = ThemeLoader.Load();
         Assert.Equal(2, Room(theme, "entrance").Lights.Count);
         Assert.Equal(3, Room(theme, "choir-room").Lights.Count); // the two torches plus the chancel candle light
+        Assert.Equal(2, Room(theme, "pair-hall").Lights.Count); // the hall keeps its two torch lights
+        Assert.Equal(3, Room(theme, "seed-chamber").Lights.Count); // two torch lights plus the warm light over the chest
         Assert.All(theme.Rooms, r => Assert.InRange(r.Lights.Count, 1, RoomTheme.MaxLightsPerRoom));
         var plan = DungeonPlan.Build(ContentLoader.Load().Layout, theme);
-        Assert.InRange(plan.Lights.Count, 12, 14); // 12 before this lane, at most 2 new
+        Assert.InRange(plan.Lights.Count, 13, 15); // 13 before ROOM-THEMING-2, at most 2 new, 16 cap
     }
 
     [Fact]
@@ -198,6 +276,8 @@ public sealed class RoomThemeTests
         int Count(string id) => Room(theme, id).Props.Count + Room(theme, id).Decor!.Count(d => d.Piece != "torch_mounted");
         Assert.InRange(Count("entrance"), 6, 12);
         Assert.InRange(Count("choir-room"), 10, 20);
+        Assert.InRange(Count("pair-hall"), 10, 20);
+        Assert.InRange(Count("seed-chamber"), 8, 16);
     }
 
     [Fact]
@@ -214,13 +294,18 @@ public sealed class RoomThemeTests
             Assert.Equal(room.Lights.Count, themed.Lights.Count(l => l.BoxId == room.Id));
             Assert.DoesNotContain(bare.Props, p => p.BoxId == room.Id); // no hard-coded props left in C# for themed rooms
         }
-        foreach (var id in new[] { "pair-hall", "seed-chamber", "warden-arena" })
+        foreach (var id in new[] { "warden-arena" })
         {
             Assert.Equal(bare.Props.Where(p => p.BoxId == id), themed.Props.Where(p => p.BoxId == id));
+            Assert.Equal(bare.WallDecor.Where(p => p.BoxId == id), themed.WallDecor.Where(p => p.BoxId == id));
+            Assert.Equal(bare.Lights.Where(l => l.BoxId == id), themed.Lights.Where(l => l.BoxId == id));
             Assert.Contains(themed.Props, p => p.BoxId == id);
         }
         var light = Assert.Single(themed.Lights, l => l.BoxId == "choir-room" && l.Color is not null);
         Assert.Equal("FFB060", light.Color);
+        var vault = Assert.Single(themed.Lights, l => l.BoxId == "seed-chamber" && l.Color is not null);
+        Assert.Equal("FFB060", vault.Color);
+        Assert.True(vault.X >= 72000, "the vault light hangs over the chest at the far end");
     }
 
     [Fact]

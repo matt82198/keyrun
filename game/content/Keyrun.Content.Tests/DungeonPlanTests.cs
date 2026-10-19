@@ -232,7 +232,7 @@ public sealed class DungeonPlanTests
     }
 
     [Fact]
-    public void Every_room_is_lit_13_lights_since_the_choir_chancel_gained_a_candle_light_and_the_warden_arena_has_its_own_light_kind()
+    public void Every_room_is_lit_14_lights_since_the_choir_chancel_and_the_seed_vault_gained_a_candle_light_and_the_warden_arena_has_its_own_light_kind()
     {
         var layout = Real;
         var plan = DungeonPlan.Build(layout, ThemeLoader.Load());
@@ -242,7 +242,7 @@ public sealed class DungeonPlanTests
         }
         Assert.All(plan.Lights.Where(l => l.BoxId == "warden-arena"), l => Assert.Equal(LightKind.Warden, l.Kind));
         Assert.All(plan.Lights.Where(l => l.BoxId != "warden-arena"), l => Assert.Equal(LightKind.Torch, l.Kind));
-        Assert.Equal(13, plan.Lights.Count); // 12 before ROOM-THEMING-1, plus the Choir chancel candle light (theme.json)
+        Assert.Equal(14, plan.Lights.Count); // 12 before ROOM-THEMING-1, plus the Choir chancel and the Seed vault candle lights (theme.json)
     }
 
     private static double SegmentDistance(int px, int pz, (int X, int Z) a, (int X, int Z) b)

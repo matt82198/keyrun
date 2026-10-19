@@ -681,31 +681,10 @@ public static class DungeonPlan
             lights.Add(new LightSpot(b.Id, LightKind.Torch, x2, 2200, b.MaxZ - 1500, range));
         }
 
-        // The entrance and the Choir room are dressed from game/content/data/theme.json (DressThemed); lanes 6 and 7 move
-        // the rooms below into it.
+        // The entrance, the Choir room, the Pair hall and the Seed chamber are dressed from game/content/data/theme.json
+        // (DressThemed; ROOM-THEMING-1 and -2); lane 7 moves the room below into it.
         switch (b.Id)
         {
-            case "pair-hall":
-                // A long open hall: pillars down both edges, the centre left clear for spread and stack.
-                for (var x = b.MinX + 4000; x <= b.MaxX - 4000; x += 4000)
-                {
-                    props.Add(Prop(b, "pillar_decorated", x, b.MinZ + 1000, 0, 55));
-                    props.Add(Prop(b, "pillar_decorated", x, b.MaxZ - 1000, 2, 55));
-                }
-                sconces.Add(Hanging(b, "banner_thin_red", WallSide.MinZ, b.MinX + 2000));
-                sconces.Add(Hanging(b, "banner_thin_red", WallSide.MaxZ, b.MinX + 2000));
-                sconces.Add(Hanging(b, "banner_thin_red", WallSide.MinZ, b.MaxX - 2000));
-                sconces.Add(Hanging(b, "banner_thin_red", WallSide.MaxZ, b.MaxX - 2000));
-                break;
-            case "seed-chamber":
-                // An overgrown crypt: fallen masonry, broken furniture, weeds and dirt through the floor.
-                props.Add(Prop(b, "rubble_large", b.MinX + 4000, b.MaxZ - 1000, 0, 35));
-                props.Add(Prop(b, "rubble_large", b.MaxX - 4500, b.MinZ + 1000, 2, 35));
-                props.Add(Prop(b, "crates_stacked", b.MinX + 1500, b.MinZ + 1500, 1, 50));
-                props.Add(Prop(b, "barrel_large", b.MaxX - 1500, b.MaxZ - 1500, 0, 50));
-                props.Add(Prop(b, "table_medium_broken", Mid(b.MinX, b.MaxX), b.MaxZ - 1600, 0, 50));
-                props.Add(Prop(b, "table_medium_broken", Mid(b.MinX, b.MaxX) - 2000, b.MinZ + 1600, 2, 50));
-                break;
             case "warden-arena":
                 // The vault: braziers on the rim, columns at the inner corners, the Warden's throne and banners at the far wall.
                 foreach (var x in new[] { b.MinX + 3000, Mid(b.MinX, b.MaxX), b.MaxX - 3000 })

@@ -64,6 +64,73 @@
         { "x": 22000, "z": 6500, "yMm": 2200, "rangeMm": 16000 },
         { "x": 23800, "z": 0, "yMm": 2400, "rangeMm": 8000, "color": "FFB060" }
       ]
+    },
+    {
+      "id": "pair-hall",
+      "props": [
+        { "piece": "pillar", "x": 36000, "z": -4200, "turns": 0, "pct": 50 },
+        { "piece": "pillar", "x": 36000, "z": 4200, "turns": 0, "pct": 50 },
+        { "piece": "pillar", "x": 40000, "z": -4200, "turns": 0, "pct": 50 },
+        { "piece": "pillar", "x": 40000, "z": 4200, "turns": 0, "pct": 50 },
+        { "piece": "pillar", "x": 44000, "z": -4200, "turns": 0, "pct": 50 },
+        { "piece": "pillar", "x": 44000, "z": 4200, "turns": 0, "pct": 50 },
+        { "piece": "pillar", "x": 48000, "z": -4200, "turns": 0, "pct": 50 },
+        { "piece": "pillar", "x": 48000, "z": 4200, "turns": 0, "pct": 50 },
+        { "piece": "pillar", "x": 52000, "z": -4200, "turns": 0, "pct": 50 },
+        { "piece": "pillar", "x": 52000, "z": 4200, "turns": 0, "pct": 50 },
+        { "piece": "table_medium_broken", "x": 34200, "z": -4600, "turns": 1, "pct": 50 },
+        { "piece": "crates_stacked", "x": 34200, "z": 4600, "turns": 0, "pct": 50 },
+        { "piece": "barrel_small_stack", "x": 54200, "z": -5200, "turns": 0, "pct": 50 },
+        { "piece": "barrel_small_stack", "x": 54200, "z": 5200, "turns": 2, "pct": 50 },
+        { "piece": "rubble_large", "x": 50000, "z": 5250, "turns": 0, "pct": 35 }
+      ],
+      "decor": [
+        { "piece": "torch_mounted", "side": "minZ", "along": 38000 },
+        { "piece": "torch_mounted", "side": "minZ", "along": 46000 },
+        { "piece": "torch_mounted", "side": "minZ", "along": 54000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": 38000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": 46000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": 54000 },
+        { "piece": "banner_shield_red", "side": "maxX", "along": -3800 },
+        { "piece": "banner_shield_red", "side": "maxX", "along": 3800 }
+      ],
+      "lights": [
+        { "x": 38000, "z": -4500, "yMm": 2200, "rangeMm": 15000 },
+        { "x": 50000, "z": 4500, "yMm": 2200, "rangeMm": 15000 }
+      ],
+      "cracked": [
+        { "side": "maxZ", "along": 50000 }
+      ]
+    },
+    {
+      "id": "seed-chamber",
+      "props": [
+        { "piece": "chest_gold", "x": 72900, "z": -2700, "turns": 3, "pct": 60 },
+        { "piece": "chest_gold", "x": 72900, "z": 2700, "turns": 3, "pct": 60 },
+        { "piece": "pillar_decorated", "x": 72900, "z": -4700, "turns": 0, "pct": 50 },
+        { "piece": "pillar_decorated", "x": 72900, "z": 4700, "turns": 2, "pct": 50 },
+        { "piece": "candle_triple", "x": 71700, "z": -4700, "turns": 0, "pct": 70 },
+        { "piece": "candle_triple", "x": 74100, "z": -4700, "turns": 0, "pct": 70 },
+        { "piece": "candle_triple", "x": 71700, "z": 4700, "turns": 2, "pct": 70 },
+        { "piece": "candle_triple", "x": 74100, "z": 4700, "turns": 2, "pct": 70 },
+        { "piece": "barrel_large", "x": 65500, "z": -6100, "turns": 0, "pct": 50 },
+        { "piece": "barrel_large", "x": 70500, "z": 6100, "turns": 0, "pct": 50 },
+        { "piece": "crates_stacked", "x": 68000, "z": -6000, "turns": 1, "pct": 50 },
+        { "piece": "crates_stacked", "x": 66000, "z": 5900, "turns": 0, "pct": 50 }
+      ],
+      "decor": [
+        { "piece": "torch_mounted", "side": "minZ", "along": 66000 },
+        { "piece": "torch_mounted", "side": "minZ", "along": 71000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": 66000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": 71000 },
+        { "piece": "banner_patternC_red", "side": "maxX", "along": -3200 },
+        { "piece": "banner_patternC_red", "side": "maxX", "along": 3200 }
+      ],
+      "lights": [
+        { "x": 65500, "z": -5500, "yMm": 2200, "rangeMm": 16000 },
+        { "x": 72500, "z": 5500, "yMm": 2200, "rangeMm": 16000 },
+        { "x": 72900, "z": 0, "yMm": 2400, "rangeMm": 8000, "color": "FFB060" }
+      ]
     }
   ]
 }
