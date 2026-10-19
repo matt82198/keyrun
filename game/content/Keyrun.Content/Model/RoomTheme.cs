@@ -82,8 +82,15 @@ public sealed record ThemeLight
     /// <summary>Omni range, mm.</summary>
     public required int RangeMm { get; init; }
 
-    /// <summary>Colour as six hex digits RRGGBB, or null for the view's torch colour.</summary>
+    /// <summary>Colour as six hex digits RRGGBB, or null for the view's colour of <see cref="Kind"/>.</summary>
     public string? Color { get; init; }
+
+    /// <summary>
+    /// Light flavour, JSON <c>"torch"</c> (the default when absent) or <c>"warden"</c>: the view maps it to a colour and an
+    /// energy (DungeonBuilder TorchColor/TorchEnergy or WardenColor/WardenEnergy), so the boss arena keeps its colder, stronger
+    /// vault light from data (ROOM-THEMING-3). A <see cref="Color"/> overrides the colour only, never the energy.
+    /// </summary>
+    public LightKind Kind { get; init; } = LightKind.Torch;
 }
 
 /// <summary>A point on one of the room's walls.</summary>
@@ -102,7 +109,8 @@ public sealed record ThemeWallPoint
 /// </summary>
 /// <param name="Boxes">Layout boxes in route order.</param>
 /// <param name="Lane">The party start followed by the layout's route points.</param>
-/// <param name="Spawns">Pull origins, enemy spawns (origin plus content offset), pull-room starts and the party start.</param>
+/// <param name="Spawns">Pull origins, enemy spawns (origin plus content offset), the boss room's two Sundered Twins
+/// (<see cref="TwinOffsetMm"/>), pull-room starts and the party start.</param>
 /// <param name="Doors">Openings, door frames and gates.</param>
 /// <param name="Walls">Solid wall runs (decor must hang on one).</param>
 /// <param name="Openings">Doorway gaps (decor keeps <see cref="RoomTheme.DecorDoorClearMm"/> from them).</param>
@@ -114,8 +122,15 @@ public sealed record ThemeSite(
     IReadOnlyList<WallRun> Walls,
     IReadOnlyList<WallOpening> Openings)
 {
+    /// <summary>
+    /// How far each Sundered Twin spawns from the boss along x, mm (the first at +x, the second at -x). A mirror of
+    /// game/src/Host/HostRunSetup.cs <c>TwinOffsetMm</c>: the content layer cannot reference the Godot host, and the content
+    /// carries no Twin spawn point; RoomThemeTests pins the two values together.
+    /// </summary>
+    public const int TwinOffsetMm = 4000;
+
     /// <summary>The site for loaded content.</summary>
-    /// <param name="registry">Content (layout plus the dungeon's pulls).</param>
+    /// <param name="registry">Content (layout plus the dungeon's pulls and boss).</param>
     /// <returns>The site.</returns>
     public static ThemeSite Of(ContentRegistry registry)
     {
@@ -136,6 +151,10 @@ public sealed record ThemeSite(
                 {
                     spawns.AddRange(pull.Enemies.Select(e => (o.X + e.Spawn.X, o.Z + e.Spawn.Z)));
                 }
+                if (room.Pull == LayoutDef.BossPullId && dungeon is not null)
+                {
+                    spawns.AddRange(TwinSites(registry, dungeon.Boss.EnemyId, o.X, o.Z));
+                }
             }
             if (room.Start is { } s)
             {
@@ -148,6 +167,24 @@ public sealed record ThemeSite(
         doors.AddRange(shell.DoorFrames.Select(DungeonPlan.SolidOf));
         doors.AddRange(shell.Gates.Select(g => DungeonPlan.SolidOf(g.Piece)));
         return new ThemeSite(boxes, lane, spawns, doors, shell.Walls, shell.Openings);
+    }
+
+    // The Twins as HostRunSetup.BuildBossConfig arms them: the enemies whose breakBarId names the boss's one Break bar, in
+    // ordinal id order, the first at +TwinOffsetMm x from the boss origin and the second at -TwinOffsetMm. A boss without
+    // exactly one bar adds none (the host refuses to arm it anyway).
+    private static List<(int X, int Z)> TwinSites(ContentRegistry registry, string bossId, int x, int z)
+    {
+        if (!registry.Enemies.TryGetValue(bossId, out var boss) || boss.BreakBars is not { Count: 1 } bars)
+        {
+            return new List<(int X, int Z)>();
+        }
+        var barId = bars[0].Id;
+        return registry.Enemies.Values
+            .Where(e => string.Equals(e.BreakBarId, barId, StringComparison.Ordinal))
+            .OrderBy(e => e.Id, StringComparer.Ordinal)
+            .Take(2)
+            .Select((_, i) => (x + (i == 0 ? TwinOffsetMm : -TwinOffsetMm), z))
+            .ToList();
     }
 
     private static WallBox Segment(WallOpening o) => o.Side is WallSide.MinX or WallSide.MaxX
