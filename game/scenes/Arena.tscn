@@ -16,6 +16,7 @@
 [ext_resource type="Script" path="res://src/View/DungeonBuilder.cs" id="15_dungeon"]
 [ext_resource type="Material" path="res://assets/kaykit-dungeon-remastered/dungeon_material.tres" id="16_kitmat"]
 [ext_resource type="Script" path="res://src/View/LockView.cs" id="17_lock"]
+[ext_resource type="Script" path="res://src/View/RoomGateView.cs" id="18_roomgates"]
 
 [sub_resource type="Environment" id="Env_arena"]
 background_mode = 1
@@ -80,6 +81,9 @@ FloorMaterial = SubResource("Mat_grid")
 [node name="Dungeon" type="Node3D" parent="."]
 script = ExtResource("15_dungeon")
 KitMaterial = ExtResource("16_kitmat")
+
+[node name="RoomGates" type="Node3D" parent="."]
+script = ExtResource("18_roomgates")
 
 [node name="PlayerInput" type="Node" parent="."]
 script = ExtResource("2_input")
