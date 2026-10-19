@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Keyrun.Content;
 
@@ -329,7 +330,9 @@ public static class HudLayout
         {
             rects[i] = CastBarRect(anchors[i]);
         }
-        return SeparateInGutter(rects, viewportWidth, viewportHeight, obstacles);
+        // MUTANT: side-gutter clamp removed (plain Separate over the whole viewport).
+        var offsets = Separate(rects, viewportWidth, viewportHeight, obstacles);
+        return rects.Select((r, i) => r.Offset(offsets[i].Dx, offsets[i].Dy)).ToArray();
     }
 
     /// <summary>
@@ -346,7 +349,7 @@ public static class HudLayout
     /// <returns>One placed label box per input, in input order.</returns>
     public static IReadOnlyList<PixelRect> PingLabels(
         IReadOnlyList<PixelRect> labels, int viewportWidth, int viewportHeight, IReadOnlyList<PixelRect> obstacles) =>
-        SeparateInGutter(labels, viewportWidth, viewportHeight, obstacles);
+        labels; // MUTANT: separation removed
 
     /// <summary>
     /// A cast bar's label: "caster: spell" clipped with <see cref="FitTitle"/> so that it plus <paramref name="suffix"/>
