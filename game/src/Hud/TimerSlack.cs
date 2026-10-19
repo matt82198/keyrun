@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using Keyrun.Content;
 using Keyrun.Host;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Runs;
@@ -54,13 +55,11 @@ public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, 
 
 /// <summary>
 /// The Slack bar (BIBLE s8): the soft time bank in seconds, which a death spends 15 s of and a wipe 25 s, read from the
-/// sim's <c>Encounter.SlackTicks</c>, with the key level and the run timer against par beside it. Top centre.
+/// sim's <c>Encounter.SlackTicks</c>, with the key level and the run timer against par beside it. Top right, beside the objective panel (HudLayout.TopBar).
 /// Reads the sim state only.
 /// </summary>
 public partial class TimerSlack : Control
 {
-    private const float BarWidth = 360;
-    private const float BarHeight = 18;
     private const int Font = 14;
 
     private static readonly Color SlackFill = new(0.35f, 0.7f, 0.95f, 1f);
@@ -107,7 +106,10 @@ public partial class TimerSlack : Control
             return;
         }
         var s = SlackReading.Of(run);
-        var bar = new Rect2((Size.X - BarWidth) / 2, 0, BarWidth, BarHeight);
+        // HUD polish (ART-PLAN lane 8): top right beside the objective panel (HudLayout.TopBar), no longer centred over
+        // the pull title (at 1280 px it spanned x 460..820). This node spans the HUD root, so the slot is in viewport pixels.
+        var slot = HudLayout.TopBar((int)Size.X, (int)Size.Y).Slack;
+        var bar = new Rect2(slot.X, slot.Y, slot.Width, slot.Height);
         DrawRect(bar, HudNodes.Back);
         DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * s.Fraction, bar.Size.Y)), s.Depleted ? DepletedFill : SlackFill);
         DrawRect(bar, HudNodes.Edge, filled: false, width: 1f);
