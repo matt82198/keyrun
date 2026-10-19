@@ -51,6 +51,7 @@ public sealed record ActorClips(string Idle, string Move, string Cast, string Ac
 /// section 4 makes bigger (Seed 1.3x, Twins 1.15x, the boss 1.9x the Knight). The scaled model lands within 2 percent.
 /// </param>
 /// <param name="Folder">The pack folder under game/assets the model file lives in.</param>
+/// <param name="Boss">True for the boss row: its name plate is capped at <see cref="PlateRule.BossCapMm"/>.</param>
 public sealed record ActorBindingRow(
     string Key,
     string? ModelFile,
@@ -60,7 +61,8 @@ public sealed record ActorBindingRow(
     IReadOnlyList<string> HiddenNodes,
     ActorClips Clips,
     int TargetHeightMm = ActorBinding.HeadLineMm,
-    string Folder = ActorBinding.AdventurersFolder)
+    string Folder = ActorBinding.AdventurersFolder,
+    bool Boss = false)
 {
     /// <summary>True when the view keeps the capsule body (no model bound).</summary>
     public bool CapsuleFallback => ModelFile is null;
@@ -72,11 +74,12 @@ public sealed record ActorBindingRow(
     public string? ResPath => ModelFile is null ? null : ActorBinding.AssetsRoot + "/" + Folder + "/" + ModelFile;
 
     /// <summary>
-    /// Height of this class's name plate anchor above its feet, mm: its target height (never under the head line) plus
-    /// <see cref="ActorBinding.PlateClearanceMm"/>, so a 1.8 m body keeps the 2.35 m plate and a 4.7 m boss's plate
-    /// clears its helmet instead of drawing inside it.
+    /// Height of this class's name plate anchor above its feet, mm (<see cref="PlateRule.PlateHeightMm"/>): the higher of
+    /// its target height and its scaled model top plus <see cref="PlateRule.ClearanceMm"/> 250, the boss's capped at
+    /// <see cref="PlateRule.BossCapMm"/> 5000, so a 1.8 m body's plate sits at 2.05 m just over its head (a Mage's just
+    /// over the hat) and the 4.69 m boss's at 4.937 m just over its helmet.
     /// </summary>
-    public int PlateHeightMm => Math.Max(TargetHeightMm, ActorBinding.HeadLineMm) + ActorBinding.PlateClearanceMm;
+    public int PlateHeightMm => PlateRule.PlateHeightMm(TargetHeightMm, NativeHeightMm, ScalePermille, Boss);
 }
 
 /// <summary>
@@ -103,9 +106,6 @@ public sealed class ActorBinding
     /// bodies are sized to it; bigger roles set their own <see cref="ActorBindingRow.TargetHeightMm"/>.
     /// </summary>
     public const int HeadLineMm = 1800;
-
-    /// <summary>How far a name plate anchor sits above its body's target height, mm (2.35 m - 1.8 m).</summary>
-    public const int PlateClearanceMm = 550;
 
     /// <summary>
     /// The effect the sim puts on the Twins when their shared break bar empties (content hollow-warden.json
@@ -172,7 +172,7 @@ public sealed class ActorBinding
         new ActorBindingRow("hollowWarden.boss", "Knight.glb", KnightNativeHeightMm, 1900, 0x50505C,
             new[] { "1H_Sword_Offhand", "Badge_Shield", "Rectangle_Shield", "Round_Shield", "Spike_Shield", "1H_Sword" },
             ActorClips.Default with { Move = "Walking_A", Act = "2H_Melee_Attack_Chop" },
-            TargetHeightMm: KnightNativeHeightMm * 19 / 10),
+            TargetHeightMm: KnightNativeHeightMm * 19 / 10, Boss: true),
     };
 
     /// <summary>The table the game draws with today.</summary>

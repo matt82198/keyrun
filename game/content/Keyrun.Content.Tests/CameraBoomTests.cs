@@ -112,6 +112,110 @@ public sealed class CameraBoomTests
         Assert.Empty(hits);
     }
 
+    // PARTY-FRAMING fixtures: a level camera looking along +x from a pivot 1.4 m up; right is +z. Frustum tangents are a
+    // 70 degree vertical FOV (tan 35 = 0.700) at 16:9 (horizontal 1.244); the HUD trims the lower half in some cases.
+    private static readonly (int X, int Y, int Z) Pivot = (0, 1400, 0);
+    private static readonly (int X, int Y, int Z) Ahead = (1000, 0, 0);
+    private static readonly (int X, int Y, int Z) Up = (0, 1000, 0);
+    private const int TanH = 1244;
+    private const int TanV = 700;
+    private const int Pad = 600;
+    private const int MinBoom = 4500;
+    private const int MaxBoom = 11000;
+
+    private static PartyFit Fit(IReadOnlyList<(int X, int Y, int Z)> points, int tanDown = TanV, int maxBoom = MaxBoom, int downRoom = 780, int upRoom = 370) =>
+        CameraBoom.FitParty(Pivot, Ahead, Up, points, TanH, TanV, tanDown, Pad, MinBoom, maxBoom, downRoom, upRoom);
+
+    [Fact]
+    public void Fit_keeps_the_minimum_boom_when_every_point_is_already_inside()
+    {
+        var points = new List<(int X, int Y, int Z)> { (3000, 1400, 0), (3000, 0, 500), (4000, 2000, -800) };
+
+        var fit = Fit(points);
+
+        Assert.Equal(MinBoom, fit.BoomMm);
+        Assert.Equal(0, fit.PitchMrad);
+        Assert.True(fit.Solved);
+        Assert.Equal(-1, fit.Worst);
+    }
+
+    [Fact]
+    public void Fit_grows_the_boom_for_a_follower_far_to_the_side()
+    {
+        // At pivot depth 6 m to the right: (6000 + 600) / 1.244 = 5305.5 mm, rounded up.
+        var points = new List<(int X, int Y, int Z)> { (0, 1400, 6000) };
+
+        var fit = Fit(points);
+
+        Assert.Equal(5306, fit.BoomMm);
+        Assert.Equal(0, fit.PitchMrad);
+        Assert.True(fit.Solved);
+    }
+
+    [Fact]
+    public void Fit_lets_depth_cover_a_far_target()
+    {
+        // The same 6 m to the side, 20 m ahead of the pivot, is inside at the minimum boom: depth does the work.
+        var points = new List<(int X, int Y, int Z)> { (20000, 1400, 6000) };
+
+        var fit = Fit(points);
+
+        Assert.Equal(MinBoom, fit.BoomMm);
+        Assert.True(fit.Solved);
+    }
+
+    [Fact]
+    public void Fit_behind_the_camera_at_the_longest_boom_is_unsolvable()
+    {
+        var points = new List<(int X, int Y, int Z)> { (3000, 1400, 0), (-15000, 1400, 0) };
+
+        var fit = Fit(points);
+
+        Assert.Equal(MaxBoom, fit.BoomMm);
+        Assert.False(fit.Solved);
+        Assert.Equal(1, fit.Worst);
+    }
+
+    [Fact]
+    public void Fit_turns_the_pitch_within_the_clamp_when_the_boom_cannot_lift_a_low_follower()
+    {
+        // Feet 2 m behind the pivot under a HUD-trimmed lower half (0.385): the boom would need 7.2 m but is capped at 6 m.
+        var points = new List<(int X, int Y, int Z)> { (-2000, 0, 0) };
+
+        var fit = Fit(points, tanDown: 385, maxBoom: 6000);
+
+        Assert.Equal(6000, fit.BoomMm);
+        Assert.True(fit.Solved, $"pitch {fit.PitchMrad} mrad should bring the feet above the HUD");
+        Assert.NotEqual(0, fit.PitchMrad);
+        Assert.InRange(fit.PitchMrad, -780, 370);
+    }
+
+    [Fact]
+    public void Fit_never_turns_the_pitch_past_the_clamp()
+    {
+        var points = new List<(int X, int Y, int Z)> { (-2000, 0, 0) };
+
+        var fit = Fit(points, tanDown: 385, maxBoom: 6000, downRoom: 50, upRoom: 50);
+
+        Assert.InRange(fit.PitchMrad, -50, 50);
+        Assert.False(fit.Solved);
+        Assert.Equal(0, fit.Worst);
+    }
+
+    [Fact]
+    public void Fit_boom_still_yields_to_the_wall_clamp()
+    {
+        // The fit asks for 5306 mm behind the pivot (-x); a wall at x -3500..-3000 stops the camera its margin short.
+        var fit = Fit(new List<(int X, int Y, int Z)> { (0, 1400, 6000) });
+        var walls = new List<WallBox> { new("w", -3500, -3000, -5000, 5000, 0, DungeonPlan.WallHeightMm) };
+
+        var clamped = CameraBoom.Clamp((Pivot.X, Pivot.Z), (Pivot.X - fit.BoomMm, Pivot.Z), walls);
+
+        Assert.Equal(5306, fit.BoomMm);
+        Assert.Equal(-3000 + CameraBoom.MarginMm, clamped.X);
+        Assert.True(clamped.Ppm < CameraBoom.Whole);
+    }
+
     [Fact]
     public void Exposed_wall_boxes_match_the_layout()
     {

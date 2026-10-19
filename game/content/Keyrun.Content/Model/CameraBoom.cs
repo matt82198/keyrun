@@ -9,6 +9,14 @@ namespace Keyrun.Content;
 /// <param name="Ppm">Boom length kept, parts per <see cref="CameraBoom.Whole"/> (Whole = unchanged).</param>
 public readonly record struct BoomFit(int X, int Z, int Ppm);
 
+/// <summary>The boom and pitch that keep the party and the target inside the padded frustum (<see cref="CameraBoom.FitParty"/>).</summary>
+/// <param name="BoomMm">Boom length, mm, within the given bounds.</param>
+/// <param name="PitchMrad">Pitch change, milliradians, added to the camera's pitch (positive looks flatter, negative looks
+/// further down); 0 when the boom alone fits, never past the given room.</param>
+/// <param name="Solved">Every point is inside the padded frustum at this boom and pitch.</param>
+/// <param name="Worst">Index of the point furthest outside when not solved, else -1.</param>
+public readonly record struct PartyFit(int BoomMm, int PitchMrad, bool Solved, int Worst);
+
 /// <summary>
 /// The follow camera's pure rules (CAMERA-FEEL, design/ART-PLAN.md section 8 lane 10). No Godot types and integers only
 /// (the Keyrun.Content purity rule), unit-tested in Keyrun.Content.Tests/CameraBoomTests.cs; game/src/View/CameraRig.cs
@@ -106,6 +114,164 @@ public static class CameraBoom
         var ppm = (int)(best.N * Whole / best.D);
         return new BoomFit(x, z, ppm);
     }
+
+    /// <summary>The pitch search step of <see cref="FitParty"/>, milliradians.</summary>
+    public const int PitchStepMrad = 25;
+
+    private const long Ppm = 1_000_000;
+
+    // cos and sin of PitchStepMrad (0.025 rad), parts per million.
+    private const long StepCosPpm = 999_688;
+    private const long StepSinPpm = 24_997;
+
+    /// <summary>
+    /// The boom and pitch change that keep every point (party bodies and the current target) inside the camera's
+    /// frustum shrunk by <paramref name="padMm"/> (PARTY-FRAMING, design/ART-PLAN.md section 8 lane 10). The camera sits
+    /// at <c>pivot - B f</c> looking along <c>f</c>; for a point <c>v = p - pivot</c> with depth <c>d = v.f</c>, side
+    /// <c>l = v.r</c> (<c>r = f x u</c>) and height <c>h = v.u</c> it is inside when <c>|l| + pad &lt;= tanH (d + B)</c> and
+    /// <c>h + pad &lt;= tanUp (d + B)</c> above the axis or <c>-h + pad &lt;= tanDown (d + B)</c> below it. The boom is the
+    /// smallest B meeting all of them, clamped to [min, max]. If that still leaves a point out, the pitch is turned in
+    /// <see cref="PitchStepMrad"/> steps, smallest change first (down before up on a tie), within the given room each way;
+    /// when no step fits, the step that leaves the worst point least far out is returned with
+    /// <see cref="PartyFit.Solved"/> false. Never turns yaw. Integers only: vectors and tangents permille, lengths mm.
+    /// </summary>
+    /// <param name="pivot">The boom's root, mm.</param>
+    /// <param name="forwardPermille">The camera's unit view direction, permille.</param>
+    /// <param name="upPermille">The camera's unit up direction (perpendicular to forward), permille.</param>
+    /// <param name="points">Points to frame, mm.</param>
+    /// <param name="tanHalfHPermille">tan of the half horizontal FOV, permille.</param>
+    /// <param name="tanUpPermille">tan of the usable angle above the view axis, permille.</param>
+    /// <param name="tanDownPermille">tan of the usable angle below the view axis (the HUD may trim it), permille.</param>
+    /// <param name="padMm">Margin kept around each point, mm.</param>
+    /// <param name="minBoomMm">Shortest boom, mm.</param>
+    /// <param name="maxBoomMm">Longest boom, mm.</param>
+    /// <param name="pitchDownRoomMrad">How far the pitch may turn down before its clamp, mrad.</param>
+    /// <param name="pitchUpRoomMrad">How far the pitch may turn up (flatter) before its clamp, mrad.</param>
+    /// <returns>The fit.</returns>
+    public static PartyFit FitParty(
+        (int X, int Y, int Z) pivot,
+        (int X, int Y, int Z) forwardPermille,
+        (int X, int Y, int Z) upPermille,
+        IReadOnlyList<(int X, int Y, int Z)> points,
+        int tanHalfHPermille,
+        int tanUpPermille,
+        int tanDownPermille,
+        int padMm,
+        int minBoomMm,
+        int maxBoomMm,
+        int pitchDownRoomMrad,
+        int pitchUpRoomMrad)
+    {
+        ArgumentNullException.ThrowIfNull(points);
+        if (tanHalfHPermille <= 0 || tanUpPermille <= 0 || tanDownPermille <= 0)
+        {
+            throw new ArgumentException("frustum tangents must be positive");
+        }
+        if (minBoomMm > maxBoomMm || padMm < 0 || pitchDownRoomMrad < 0 || pitchUpRoomMrad < 0)
+        {
+            throw new ArgumentException("boom bounds, pad and pitch room must be ordered and non-negative");
+        }
+        if (points.Count == 0)
+        {
+            return new PartyFit(minBoomMm, 0, true, -1);
+        }
+        var f = (X: forwardPermille.X * 1000L, Y: forwardPermille.Y * 1000L, Z: forwardPermille.Z * 1000L);
+        var u = (X: upPermille.X * 1000L, Y: upPermille.Y * 1000L, Z: upPermille.Z * 1000L);
+        var tans = (H: (long)tanHalfHPermille, Up: (long)tanUpPermille, Down: (long)tanDownPermille);
+
+        long need = minBoomMm;
+        var r = Cross(f, u);
+        foreach (var p in points)
+        {
+            var (d, l, h) = Frame(p, pivot, f, u, r);
+            need = Math.Max(need, CeilDiv((Math.Abs(l) + padMm) * 1000, tans.H) - d);
+            need = Math.Max(need, h >= 0
+                ? CeilDiv((h + padMm) * 1000, tans.Up) - d
+                : CeilDiv((-h + padMm) * 1000, tans.Down) - d);
+        }
+        var boom = (int)Math.Clamp(need, minBoomMm, maxBoomMm);
+
+        var (over, worst) = Overflow(points, pivot, f, u, boom, tans, padMm);
+        if (over <= 0)
+        {
+            return new PartyFit(boom, 0, true, -1);
+        }
+        var best = (Over: over, Mrad: 0, Worst: worst);
+        long c = Ppm, s = 0;
+        for (var k = 1; k * PitchStepMrad <= Math.Max(pitchDownRoomMrad, pitchUpRoomMrad); k++)
+        {
+            (c, s) = ((c * StepCosPpm - s * StepSinPpm) / Ppm, (s * StepCosPpm + c * StepSinPpm) / Ppm);
+            foreach (var sign in new[] { -1, 1 })
+            {
+                if (k * PitchStepMrad > (sign < 0 ? pitchDownRoomMrad : pitchUpRoomMrad))
+                {
+                    continue;
+                }
+                // pitch + delta: f' = f cos + u sin, u' = u cos - f sin (d forward / d pitch = up).
+                var ss = sign * s;
+                var f2 = ((f.X * c + u.X * ss) / Ppm, (f.Y * c + u.Y * ss) / Ppm, (f.Z * c + u.Z * ss) / Ppm);
+                var u2 = ((u.X * c - f.X * ss) / Ppm, (u.Y * c - f.Y * ss) / Ppm, (u.Z * c - f.Z * ss) / Ppm);
+                var (o, w) = Overflow(points, pivot, f2, u2, boom, tans, padMm);
+                var mrad = sign * k * PitchStepMrad;
+                if (o <= 0)
+                {
+                    return new PartyFit(boom, mrad, true, -1);
+                }
+                if (o < best.Over)
+                {
+                    best = (o, mrad, w);
+                }
+            }
+        }
+        return new PartyFit(boom, best.Mrad, false, best.Worst);
+    }
+
+    // The largest amount any point is outside the padded frustum (mm x permille; <= 0 means all inside) and its index.
+    private static (long Over, int Worst) Overflow(
+        IReadOnlyList<(int X, int Y, int Z)> points,
+        (int X, int Y, int Z) pivot,
+        (long X, long Y, long Z) f,
+        (long X, long Y, long Z) u,
+        int boom,
+        (long H, long Up, long Down) tans,
+        int padMm)
+    {
+        var r = Cross(f, u);
+        var worst = (Over: long.MinValue, Index: -1);
+        for (var i = 0; i < points.Count; i++)
+        {
+            var (d, l, h) = Frame(points[i], pivot, f, u, r);
+            var depth = d + boom;
+            var side = (Math.Abs(l) + padMm) * 1000 - tans.H * depth;
+            var vertical = h >= 0 ? (h + padMm) * 1000 - tans.Up * depth : (-h + padMm) * 1000 - tans.Down * depth;
+            var o = Math.Max(side, vertical);
+            if (o > worst.Over)
+            {
+                worst = (o, i);
+            }
+        }
+        return worst.Over <= 0 ? (worst.Over, -1) : worst;
+    }
+
+    // Depth, side and height of a point in the camera frame (f, u, r in ppm), mm.
+    private static (long D, long L, long H) Frame(
+        (int X, int Y, int Z) p,
+        (int X, int Y, int Z) pivot,
+        (long X, long Y, long Z) f,
+        (long X, long Y, long Z) u,
+        (long X, long Y, long Z) r)
+    {
+        var v = ((long)p.X - pivot.X, (long)p.Y - pivot.Y, (long)p.Z - pivot.Z);
+        return (Dot(v, f) / Ppm, Dot(v, r) / Ppm, Dot(v, u) / Ppm);
+    }
+
+    private static long Dot((long X, long Y, long Z) a, (long X, long Y, long Z) b) => a.X * b.X + a.Y * b.Y + a.Z * b.Z;
+
+    private static (long X, long Y, long Z) Cross((long X, long Y, long Z) a, (long X, long Y, long Z) b) =>
+        ((a.Y * b.Z - a.Z * b.Y) / Ppm, (a.Z * b.X - a.X * b.Z) / Ppm, (a.X * b.Y - a.Y * b.X) / Ppm);
+
+    // Ceiling of a / b for b > 0 (for a <= 0, truncation toward zero already is the ceiling).
+    private static long CeilDiv(long a, long b) => a > 0 ? (a + b - 1) / b : a / b;
 
     /// <summary>
     /// The indices of the wall boxes the sight line from <paramref name="from"/> to <paramref name="to"/> passes through
