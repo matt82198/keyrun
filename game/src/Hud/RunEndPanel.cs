@@ -89,6 +89,66 @@ public sealed class PrivateRunLog
         e.Get(key) is JsInt v && v.Value >= int.MinValue && v.Value <= int.MaxValue ? (int)v.Value : null;
 }
 
+/// <summary>
+/// The Seed's bonus loot for the run-end panel (BIBLE s9 item 3 "drops bonus loot", lane SEED-LOOT-VIEW): folds
+/// <see cref="SeedLoot.Observe"/> over every step's events, the rule from <see cref="SeedLoot.RuleFor"/> over the
+/// run's enemy scripts (the first enemy whose onDeath cast opens a Window: the Seed). The sim defines the award and
+/// this only reads its events, as <see cref="PrivateRunLog"/> does. Godot-free.
+/// </summary>
+public sealed class SeedBonusLog
+{
+    private SeedLootRule? _rule;
+    private bool _resolved;
+
+    /// <summary>The rewards so far (<see cref="RunRewards.Empty"/> until the Seed's Window opens).</summary>
+    public RunRewards Rewards { get; private set; } = RunRewards.Empty;
+
+    /// <summary>Forgets everything (a fresh run).</summary>
+    public void Clear()
+    {
+        _rule = null;
+        _resolved = false;
+        Rewards = RunRewards.Empty;
+    }
+
+    /// <summary>Folds one step's events in.</summary>
+    /// <param name="events">The step's events.</param>
+    /// <param name="content">The run's content (enemy scripts and abilities; fixed for the run).</param>
+    public void Observe(IReadOnlyList<SimEvent> events, RunContent content)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(content);
+        if (!_resolved)
+        {
+            _rule = RuleOf(content);
+            _resolved = true;
+        }
+        if (_rule is { } rule)
+        {
+            Rewards = SeedLoot.Observe(Rewards, rule, events);
+        }
+    }
+
+    /// <summary>The Seed's loot rule in <paramref name="content"/>, or null when no enemy's onDeath opens a Window.</summary>
+    /// <param name="content">The run's content.</param>
+    /// <returns>The rule, lowest actor id first.</returns>
+    public static SeedLootRule? RuleOf(RunContent content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        string? WindowIdOf(string abilityId) => content.Abilities.TryGetValue(abilityId, out var ability)
+            ? ability.Effects.OfType<Keyrun.Sim.Combat.WindowOp>().Select(w => w.WindowId).FirstOrDefault()
+            : null;
+        foreach (var (actorId, script) in content.EnemyScripts.OrderBy(kv => kv.Key))
+        {
+            if (SeedLoot.RuleFor(actorId, script, WindowIdOf) is { } rule)
+            {
+                return rule;
+            }
+        }
+        return null;
+    }
+}
+
 /// <summary>What the run-end panel shows (Godot-free).</summary>
 /// <param name="Result">How the run ended.</param>
 /// <param name="ResultTick">The tick it ended.</param>
@@ -99,6 +159,35 @@ public sealed class PrivateRunLog
 /// <param name="Causes">The local seat's own causes.</param>
 public sealed record RunEndView(RunResult Result, int ResultTick, string Title, bool Cleared, IReadOnlyList<Item> Choices, IReadOnlyList<DeathCause> Causes)
 {
+    /// <summary>The run's bonus rewards (the Seed's loot, lane SEED-LOOT-VIEW); empty when none was earned.</summary>
+    public RunRewards Bonus { get; init; } = RunRewards.Empty;
+
+    /// <summary>The line drawn under the result, "Bonus loot: ...", or null when <see cref="Bonus"/> has none.</summary>
+    public string? BonusLabel { get; init; }
+
+    /// <summary>
+    /// "Bonus loot: Seed drop -- Death Bloom (field) Combo" for each entry (the Combo's content name, else its id),
+    /// or null when <paramref name="loot"/> is empty.
+    /// </summary>
+    /// <param name="loot">The run's bonus entries.</param>
+    /// <param name="registry">Content for the Combo names, or null.</param>
+    /// <returns>The label, or null.</returns>
+    public static string? BonusLabelOf(IReadOnlyList<BonusLootEntry> loot, ContentRegistry? registry)
+    {
+        ArgumentNullException.ThrowIfNull(loot);
+        if (loot.Count == 0)
+        {
+            return null;
+        }
+        var names = loot.Select(e =>
+        {
+            var source = e.Source.Length > 0 ? char.ToUpperInvariant(e.Source[0]) + e.Source[1..] : e.Source;
+            var combo = registry is not null && registry.Combos.TryGetValue(e.ComboId, out var entry) ? entry.Name : e.ComboId;
+            return FormattableString.Invariant($"{source} drop -- {combo} Combo");
+        });
+        return "Bonus loot: " + string.Join(", ", names);
+    }
+
     /// <summary>
     /// The view for an ended run, else null. The choices are <see cref="Rewards.RollRewardChoices(long, int, RunResult, IReadOnlyList{string}, IReadOnlyDictionary{string, IReadOnlyList{Facet}})"/>
     /// over all five slots with the reward seed server/src/run-end.ts uses (run seed x 1000003 + the ending tick), each
@@ -111,8 +200,9 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     /// <param name="log">The private run log.</param>
     /// <param name="registry">Content, or null (placeholder facets; the wipe title numbers pulls within the run's dungeon).</param>
     /// <param name="classKit">The local player's class kit ability ids (the facet pool's scope).</param>
+    /// <param name="bonus">The run's Seed bonus fold, or null (no bonus loot).</param>
     /// <returns>The view, or null while the run is live.</returns>
-    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log, ContentRegistry? registry, IReadOnlySet<string> classKit)
+    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log, ContentRegistry? registry, IReadOnlySet<string> classKit, SeedBonusLog? bonus = null)
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(log);
@@ -139,7 +229,12 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
             (RunResult.Timed, true) => "Run cleared -- within par",
             _ => "Run cleared -- key depleted",
         };
-        return new RunEndView(result, tick, title, cleared, choices, log.CausesFor(localSeat));
+        var rewards = bonus?.Rewards ?? RunRewards.Empty;
+        return new RunEndView(result, tick, title, cleared, choices, log.CausesFor(localSeat))
+        {
+            Bonus = rewards,
+            BonusLabel = BonusLabelOf(rewards.BonusLoot, registry),
+        };
     }
 
     /// <summary>The header line, the three choice lines and the cause lines, for the autorun proof.</summary>
@@ -157,6 +252,11 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         {
             yield return cause.LogLine();
         }
+        // Lane SEED-LOOT-VIEW: "HUD runend bonus count=1 seedWindowEnds=4571 label="Bonus loot: ..."" (no label when
+        // nothing was earned; seedWindowEnds=none when the run never saw the Seed's Window open).
+        var ends = Bonus.SeedWindowEndsTick is { } e ? e.ToString(CultureInfo.InvariantCulture) : "none";
+        var label = BonusLabel is { } l ? $" label=\"{l.Replace('"', '\'')}\"" : string.Empty;
+        yield return FormattableString.Invariant($"HUD runend bonus count={Bonus.BonusLoot.Count} seedWindowEnds={ends}{label}");
     }
 }
 
@@ -173,8 +273,10 @@ public partial class RunEndPanel : Control
     private const float CardGap = 16;
     private const int TitleFont = 24;
     private const int CardFont = 14;
+    private const float BonusLineHeight = 22;
 
     private readonly PrivateRunLog _log = new();
+    private readonly SeedBonusLog _bonus = new();
     private SimDriver? _driver;
     private RunEndView? _view;
     private int? _taken;
@@ -244,10 +346,16 @@ public partial class RunEndPanel : Control
         {
             return;
         }
-        var panel = new Rect2((Size.X - PanelWidth) / 2, (Size.Y * 0.37f), PanelWidth, PanelHeight);
+        // Lane SEED-LOOT-VIEW: a run that earned bonus loot gets one more line under the result; the rest moves down.
+        var bonusShift = view.BonusLabel is null ? 0f : BonusLineHeight;
+        var panel = new Rect2((Size.X - PanelWidth) / 2, (Size.Y * 0.37f), PanelWidth, PanelHeight + bonusShift);
         DrawRect(panel, new Color(0.06f, 0.07f, 0.09f, 0.94f));
         DrawRect(panel, new Color(1f, 0.85f, 0.5f), filled: false, width: 2f);
         HudNodes.Text(this, panel.Position + new Vector2(20, 34), view.Title, TitleFont, new Color(1f, 0.85f, 0.5f));
+        if (view.BonusLabel is { } bonusLabel)
+        {
+            HudNodes.Text(this, panel.Position + new Vector2(20, 34 + BonusLineHeight), bonusLabel, CardFont, new Color(1f, 0.85f, 0.5f));
+        }
         // Lane 3D-c: in the interactive game Enter opens the between-runs screen; only --solo restarts at once.
         var enter = _driver?.StartsOnScreen == true ? "Enter opens the between-runs screen" : "Enter starts a fresh run";
         var hint = _taken is null ? "1-3 take a reward    " + enter : enter;
@@ -257,7 +365,7 @@ public partial class RunEndPanel : Control
         for (var i = 0; i < view.Choices.Count && i < 3; i++)
         {
             var c = view.Choices[i];
-            var card = new Rect2(panel.Position.X + 20 + (i * (cardWidth + CardGap)), panel.Position.Y + 52, cardWidth, 136);
+            var card = new Rect2(panel.Position.X + 20 + (i * (cardWidth + CardGap)), panel.Position.Y + 52 + bonusShift, cardWidth, 136);
             var picked = _taken == i;
             var dim = _taken is not null && !picked;
             DrawRect(card, new Color(0.12f, 0.13f, 0.17f, dim ? 0.5f : 1f));
@@ -284,7 +392,7 @@ public partial class RunEndPanel : Control
         }
 
         // The private run log: only this seat's own causes.
-        var cy = panel.Position.Y + 210;
+        var cy = panel.Position.Y + 210 + bonusShift;
         HudNodes.Text(this, new Vector2(panel.Position.X + 20, cy), view.Causes.Count == 0 ? "Nothing got you this run." : "What got you (only you see this):", CardFont, new Color(0.85f, 0.88f, 0.95f));
         foreach (var cause in view.Causes.Take(3))
         {
@@ -320,6 +428,7 @@ public partial class RunEndPanel : Control
     private void OnRunStarted()
     {
         _log.Clear();
+        _bonus.Clear();
         _view = null;
         _taken = null;
     }
@@ -332,13 +441,14 @@ public partial class RunEndPanel : Control
         }
         var registry = _driver.Registry;
         _log.Observe(events, run.State, classId => Names.Actor(registry, classId));
+        _bonus.Observe(events, run.Content);
         if (_view is not null || run.RunEnd.Result is null)
         {
             return;
         }
         // The human's class kit scopes the reward facet pool (the Screen's reroll pool, Screen.SlotPool).
         var kit = new HashSet<string>(setup.Slots.Select(s => s.AbilityId), StringComparer.Ordinal);
-        if (RunEndView.Of(run, setup.HumanActorId, _log, registry, kit) is { } view)
+        if (RunEndView.Of(run, setup.HumanActorId, _log, registry, kit, _bonus) is { } view)
         {
             _view = view;
             foreach (var line in view.LogLines())
