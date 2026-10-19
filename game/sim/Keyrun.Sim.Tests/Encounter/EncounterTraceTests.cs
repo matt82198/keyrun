@@ -200,11 +200,13 @@ public sealed class EncounterTraceTests
     // exactTelegraphs / exactHits: how many fell right after a projection tick, where origin, yaw and the hit list
     // are compared byte for byte. Since the 2026-10-18 content tuning (STATE.md D14) the bot traces clear the dungeon
     // and neither key has a telegraph on a projection tick (origins are covered by scripted-pull); each of their
-    // 8 / 12 is still compared on tick, caster, cast, shape, lead, resolvesTick and geometry.
+    // 9 / 13 is still compared on tick, caster, cast, shape, lead, resolvesTick and geometry (SLAM-TELEGRAPH B1 added
+    // one slam telegraph to each trace: 8 / 12 before; on k2 that telegraph lands right after a projection tick, so
+    // k2 now has one exact, byte-for-byte telegraph, where it had none).
     [Theory]
-    [InlineData("bots-hv-k2-s7", 8, 8, 7, 0, 0, 1)]
-    [InlineData("bots-hv-k2-s11", 8, 8, 7, 0, 0, 1)]
-    [InlineData("bots-hv-k10-s7", 12, 12, 7, 0, 0, 2)]
+    [InlineData("bots-hv-k2-s7", 9, 9, 7, 0, 1, 1)]
+    [InlineData("bots-hv-k2-s11", 9, 9, 7, 0, 1, 1)]
+    [InlineData("bots-hv-k10-s7", 13, 13, 7, 0, 0, 2)]
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {
