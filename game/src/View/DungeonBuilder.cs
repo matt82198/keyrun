@@ -16,6 +16,9 @@ namespace Keyrun.View;
 /// <see cref="DungeonPlan"/> and only instantiates what that returns: one MultiMeshInstance3D per kit mesh (so the whole
 /// dungeon costs a few dozen draw calls), one gate node per gated corridor (hidden once its pull clears, the sim's own
 /// <see cref="NavLayout.IsOpen"/> rule) and one OmniLight3D per planned light.
+/// Rooms listed in game/content/data/theme.json (ROOM-THEMING-1: the entrance and the Choir room) are dressed from it:
+/// <see cref="ThemeLoader.Load()"/> reads and checks it once (fail-closed, <see cref="RoomTheme"/>'s placement rule) and the
+/// plan takes it; a theme light's RRGGBB colour overrides the torch colour.
 /// Units: the plan is in mm, Godot is 1 unit = 1 m (ActorView.MmToM), so every position and size is divided by 1000.
 /// Fallback: if the kit folder is missing (an asset-less checkout), this node switches itself off and leaves the
 /// GreyBox CSG walls on; when the kit is present it switches GreyBox off. Render-only: it never writes sim state.
@@ -32,6 +35,7 @@ public partial class DungeonBuilder : Node3D
     private readonly List<List<(MultiMesh Mesh, int Index, Transform3D Placed)>> _occluderSlots = new();
     private readonly HashSet<int> _cut = new();
     private NavLayout? _built;
+    private ThemeDef? _theme;
     private ulong _frames;
     private long _maxDrawCalls;
 
@@ -126,7 +130,8 @@ public partial class DungeonBuilder : Node3D
 
         var boxes = PlanBoxesOf(layout);
         var route = RouteOf(layout);
-        var plan = DungeonPlan.Build(boxes, route);
+        _theme ??= ThemeLoader.Load();
+        var plan = DungeonPlan.Build(boxes, route, _theme);
 
         var placed = new List<KitPiece>();
         placed.AddRange(plan.Floor.Select(Tile));
@@ -198,7 +203,7 @@ public partial class DungeonBuilder : Node3D
             {
                 Name = l.BoxId + "-light",
                 Position = new Vector3(l.X * MmToM, l.Y * MmToM, l.Z * MmToM),
-                LightColor = warden ? WardenColor : TorchColor,
+                LightColor = l.Color is not null ? Color.FromHtml("#" + l.Color) : warden ? WardenColor : TorchColor,
                 LightEnergy = warden ? WardenEnergy : TorchEnergy,
                 OmniRange = l.RangeMm * MmToM,
                 OmniAttenuation = 1.2f,
@@ -208,7 +213,7 @@ public partial class DungeonBuilder : Node3D
 
         GD.Print($"DUNGEON built boxes={boxes.Count} tiles={plan.Floor.Count} walls={plan.WallPieces.Count} " +
                  $"frames={plan.DoorFrames.Count} props={plan.Props.Count} decor={plan.WallDecor.Count} gates={plan.Gates.Count} " +
-                 $"lights={plan.Lights.Count} instances={placed.Count} multimeshes={multimeshes}");
+                 $"lights={plan.Lights.Count} instances={placed.Count} multimeshes={multimeshes} themed={string.Join(",", _theme.Rooms.Select(r => r.Id))}");
     }
 
     /// <summary>The run layout's boxes as <see cref="DungeonPlan"/> reads them (mm), in route order.</summary>

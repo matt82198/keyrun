@@ -1,0 +1,69 @@
+{
+  "rooms": [
+    {
+      "id": "entrance",
+      "props": [
+        { "piece": "pillar", "x": -5000, "z": -5000, "turns": 0, "pct": 50 },
+        { "piece": "pillar", "x": -5000, "z": 5000, "turns": 0, "pct": 50 },
+        { "piece": "crates_stacked", "x": 4500, "z": -4500, "turns": 0, "pct": 50 },
+        { "piece": "barrel_large", "x": -2500, "z": -5200, "turns": 0, "pct": 50 },
+        { "piece": "barrel_small_stack", "x": -1000, "z": -5400, "turns": 0, "pct": 50 },
+        { "piece": "barrel_large", "x": 2000, "z": 5200, "turns": 0, "pct": 50 },
+        { "piece": "barrel_small_stack", "x": 3300, "z": 5400, "turns": 2, "pct": 50 },
+        { "piece": "rubble_large", "x": -2500, "z": 5100, "turns": 0, "pct": 35 }
+      ],
+      "decor": [
+        { "piece": "torch_mounted", "side": "minZ", "along": -3000 },
+        { "piece": "torch_mounted", "side": "minZ", "along": 3000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": -3000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": 3000 },
+        { "piece": "torch_mounted", "side": "maxX", "along": -3000 },
+        { "piece": "torch_mounted", "side": "maxX", "along": 3000 },
+        { "piece": "banner_patternA_blue", "side": "minX", "along": 0 }
+      ],
+      "lights": [
+        { "x": -3000, "z": -4500, "yMm": 2200, "rangeMm": 15000 },
+        { "x": 3000, "z": 4500, "yMm": 2200, "rangeMm": 15000 }
+      ],
+      "cracked": [
+        { "side": "maxZ", "along": -2500 }
+      ]
+    },
+    {
+      "id": "choir-room",
+      "props": [
+        { "piece": "table_long", "x": 14000, "z": -5500, "turns": 0, "pct": 50 },
+        { "piece": "table_long", "x": 14000, "z": 5500, "turns": 0, "pct": 50 },
+        { "piece": "table_long", "x": 17000, "z": -5500, "turns": 0, "pct": 50 },
+        { "piece": "table_long", "x": 17000, "z": 5500, "turns": 0, "pct": 50 },
+        { "piece": "table_long", "x": 20000, "z": -5500, "turns": 0, "pct": 50 },
+        { "piece": "table_long", "x": 20000, "z": 5500, "turns": 0, "pct": 50 },
+        { "piece": "candle_triple", "x": 11000, "z": -7000, "turns": 0, "pct": 70 },
+        { "piece": "candle_triple", "x": 11000, "z": 7000, "turns": 2, "pct": 70 },
+        { "piece": "pillar_decorated", "x": 22900, "z": -3300, "turns": 0, "pct": 50 },
+        { "piece": "pillar_decorated", "x": 22900, "z": 3300, "turns": 2, "pct": 50 },
+        { "piece": "table_small_decorated_A", "x": 24100, "z": -3400, "turns": 3, "pct": 70 },
+        { "piece": "table_small_decorated_A", "x": 24100, "z": 3400, "turns": 3, "pct": 70 },
+        { "piece": "candle_triple", "x": 23500, "z": -4500, "turns": 0, "pct": 70 },
+        { "piece": "candle_triple", "x": 24700, "z": -4500, "turns": 0, "pct": 70 },
+        { "piece": "candle_triple", "x": 23500, "z": 4500, "turns": 2, "pct": 70 },
+        { "piece": "candle_triple", "x": 24700, "z": 4500, "turns": 2, "pct": 70 }
+      ],
+      "decor": [
+        { "piece": "torch_mounted", "side": "minZ", "along": 14000 },
+        { "piece": "torch_mounted", "side": "minZ", "along": 22000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": 14000 },
+        { "piece": "torch_mounted", "side": "maxZ", "along": 22000 },
+        { "piece": "banner_shield_red", "side": "maxX", "along": -3200 },
+        { "piece": "banner_shield_red", "side": "maxX", "along": 3200 },
+        { "piece": "banner_thin_red", "side": "maxX", "along": -5800 },
+        { "piece": "banner_thin_red", "side": "maxX", "along": 5800 }
+      ],
+      "lights": [
+        { "x": 14000, "z": -6500, "yMm": 2200, "rangeMm": 16000 },
+        { "x": 22000, "z": 6500, "yMm": 2200, "rangeMm": 16000 },
+        { "x": 23800, "z": 0, "yMm": 2400, "rangeMm": 8000, "color": "FFB060" }
+      ]
+    }
+  ]
+}
