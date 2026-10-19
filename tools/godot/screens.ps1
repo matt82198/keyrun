@@ -7,9 +7,11 @@
   game window by enumerating the visible top-level windows owned by the Godot
   processes, and captures that window's rectangle every IntervalSeconds to
   <OutDir>\<Name>-NNN-tSSSs.png. A capture is skipped (logged as SKIP) when no
-  game window is visible; the script never falls back to a whole-screen capture.
-  Stops when the game process exits, when the HUD run-end line appears in the
-  --log file, or when MaxSeconds passes. A process still alive at the end is
+  game window is visible; from the third consecutive miss the primary screen is
+  captured instead and named *-full.png.
+  Stops when the run-end EVENT line appears in the --log file (one more interval is
+  captured after it so the run-end panel is in the frames), when the game process
+  exits, or when MaxSeconds passes. A process still alive at the end is
   stopped by PID. Then builds <OutDir>\<Name>.mp4 from this run's frames with
   ffmpeg, unless -NoVideo is given.
 
@@ -88,6 +90,14 @@ if (-not $env:DOTNET_CLI_USE_MSBUILD_SERVER) { $env:DOTNET_CLI_USE_MSBUILD_SERVE
 
 $godotArgList = @($GodotArgs -split '\s+' | Where-Object { $_ })
 
+# --resolution WxH in -GodotArgs sets the window size the capture expects; the default above stays 1280x720.
+for ($i = 0; $i -lt ($godotArgList.Count - 1); $i++) {
+    if ($godotArgList[$i] -eq '--resolution' -and $godotArgList[$i + 1] -match '^(\d+)x(\d+)$') {
+        $windowW = [int]$matches[1]
+        $windowH = [int]$matches[2]
+    }
+}
+
 # The HUD run-end check reads the file named by --log. Godot resolves a relative --log
 # against the project folder named by --path (default game), not the repo root.
 $projRel = 'game'
@@ -151,10 +161,10 @@ Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 
 function Test-RunEndLogged {
-    # HUD lines go to the console, not to --log; this only catches a "HUD runend" line if one is written to the log.
+    # The run-end EVENT is written to the --log file by RunLog.cs: EVENT {"...","type":"run_end",...}.
     if (-not (Test-Path -LiteralPath $logPath)) { return $false }
     try {
-        return [bool](Select-String -LiteralPath $logPath -Pattern '^HUD runend' -Quiet)
+        return [bool](Select-String -LiteralPath $logPath -Pattern '^EVENT \{.*"type":"run_end"' -Quiet)
     } catch {
         return $false
     }
@@ -212,12 +222,31 @@ function Save-GameShot {
     return [pscustomobject]@{ Path = $Path; Names = $names; Size = ("{0}x{1}" -f $w, $h) }
 }
 
+# Captures the whole primary screen to $Path (the fallback when no game window is found). Returns the saved path and size.
+function Save-ScreenShot {
+    param([string]$Path)
+    $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    try {
+        $g.CopyFromScreen($b.X, $b.Y, 0, 0, $b.Size)
+        $bmp.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+    } finally {
+        $g.Dispose()
+        $bmp.Dispose()
+    }
+    return [pscustomobject]@{ Path = $Path; Size = ("{0}x{1}" -f $b.Width, $b.Height) }
+}
+
 $proc = Start-Process -FilePath $godot -ArgumentList $godotArgList -WorkingDirectory $repo -PassThru
 Write-Output ("LAUNCH pid={0} godot={1} log={2}" -f $proc.Id, $godot, $logPath)
 
 $start = Get-Date
 $index = 0
 $nextShot = 0
+$misses = 0
+$fullscreenNoted = $false
+$runEndAt = -1
 $saved = New-Object System.Collections.Generic.List[string]
 $reason = 'timeout'
 while ($true) {
@@ -228,16 +257,34 @@ while ($true) {
         $frameFile = '{0}-{1:D3}-t{2:D3}s.png' -f $Name, $nextIndex, $elapsed
         $shot = Save-GameShot -Proc $proc -Path (Join-Path $outDirFull $frameFile)
         if ($shot.Path) {
+            $misses = 0
             $index = $nextIndex
             $saved.Add($shot.Path)
             Write-Output ("SHOT {0} t={1}s size={2} windows=[{3}]" -f $frameFile, $elapsed, $shot.Size, $shot.Names)
         } else {
-            Write-Output ("SKIP t={0}s no game window; windows=[{1}]" -f $elapsed, $shot.Names)
+            $misses++
+            if ($misses -ge 3) {
+                $fullFile = '{0}-{1:D3}-t{2:D3}s-full.png' -f $Name, $nextIndex, $elapsed
+                $full = Save-ScreenShot -Path (Join-Path $outDirFull $fullFile)
+                $index = $nextIndex
+                $saved.Add($full.Path)
+                if (-not $fullscreenNoted) { Write-Output 'SCREENS fallback=fullscreen'; $fullscreenNoted = $true }
+                Write-Output ("SHOT {0} t={1}s size={2} fallback=fullscreen windows=[{3}]" -f $fullFile, $elapsed, $full.Size, $shot.Names)
+            } else {
+                Write-Output ("SKIP t={0}s no game window; miss={1} windows=[{2}]" -f $elapsed, $misses, $shot.Names)
+            }
         }
         $nextShot += $IntervalSeconds
     }
-    if ($proc.HasExited) { $reason = 'game exited'; break }
-    if (Test-RunEndLogged) { $reason = 'HUD runend logged'; break }
+    if ($runEndAt -lt 0 -and (Test-RunEndLogged)) {
+        $runEndAt = $elapsed
+        Write-Output ("RUNEND logged t={0}s; one more interval is captured" -f $elapsed)
+    }
+    if ($runEndAt -ge 0 -and $elapsed -ge ($runEndAt + $IntervalSeconds)) { $reason = 'run_end'; break }
+    if ($proc.HasExited) {
+        if ($runEndAt -ge 0) { $reason = 'run_end' } else { $reason = 'exit' }
+        break
+    }
     if ($elapsed -ge $MaxSeconds) { $reason = 'timeout'; break }
     Start-Sleep -Milliseconds 500
 }
@@ -247,6 +294,7 @@ if (-not $proc.HasExited) {
     Write-Output ("STOP pid={0} (still alive, stopped by PID)" -f $proc.Id)
 }
 Write-Output ("DONE reason='{0}' frames={1} elapsed={2}s folder={3}" -f $reason, $saved.Count, [int](((Get-Date) - $start).TotalSeconds), $outDirFull)
+Write-Output ("SCREENS stop={0}" -f $reason)
 
 if ($saved.Count -eq 0) {
     Write-Output ("SCREENS frames=0 mp4=none dir={0}" -f $outDirFull)
