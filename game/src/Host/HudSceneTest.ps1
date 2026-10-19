@@ -75,7 +75,9 @@
      20. then "QUEUE consume n=1 size=0" (lane 3J: the request that started the run leaves the Queue node, so it can
          never also refill a seat).
     Run F (lane 3J, backfill in the real loop; three-seat party, key 2, no --requeue):
-        -- --autorun --ticks 3300 --abandon-seat <AbandonSeat> --joiner-key 2
+        -- --autorun --ticks 3500 --abandon-seat <AbandonSeat> --joiner-key 2
+        (3500 since PARTY-TOGETHER, was 3300: the joiner now walks into the Pair hall before it casts; on seed 1 key 2
+        the refilled Chanter enters pair-hall at tick 3268 and first casts at 3345)
         (--abandon-seat A@T: SimDriver calls AbandonSeat(A) at run tick T and, with --joiner-key K, adds one
         QueueRequest at key K straight to the Queue node at Hud/Screen/Queue; this is the scripted path, the screen's
         Queue button is not pressed mid-run)
@@ -108,10 +110,14 @@
          "RUN start", "BOSS armed" or "PULL spawn" line in <ScreenFirstFrames> frames (the first run waits for the
          screen's Queue, Screen.Queued -> StartQueuedRun). Before 3D-b the launch starts key 2 at once: 27 fails (RED).
     Run I (lane 3D-c, a wipe goes back to the screen; interactive, three-seat party, from pull 2 so it wipes on the Pair):
-        -- --press-enter 3 --pull 2   (--quit-after <WipeFrames>)
+        -- --press-enter 3 --pull 2 --bots-hold   (--quit-after <WipeFrames>)
         (--pull 2 since lane NAV-CORE, was --pull 4: a --pull N run now starts in its room with the boss 7 m off, and
-        the two bots kill the boss over the idle human, so the run clears instead of wiping; from pull 2 it wipes at
+        the two bots kill the boss over the idle human, so the run clears instead of wiping; from pull 2 it wiped at
         tick 896)
+        (--bots-hold since PARTY-TOGETHER: the bots now walk into the fight's room and clear the Pair alone over the
+        idle human (pull_clear 1429), and no idle-human start wipes any more; held bots spawn but take no action, so
+        the wipe is real because nobody fights: seats die at 207, 354, 501, depleted run_end at tick 602. This run exercises the depleted run_end -> screen path, not whether
+        bots can win alone)
         (--press-enter N: SimDriver's scripted player pushes Enter through the viewport each time the game waits on
         it, the screen up or the run ended, up to N presses; the real keyboard path, not a direct call)
      28. "SCREEN first open=1 key=2", press 1 queues the first run ("RUN start ... clause=<id>", not none), the party
@@ -190,7 +196,7 @@ param(
     [int]$PartyTicks = 7000,
     [int]$BossTicks = 600,
     [int]$QueueTicks = 480,
-    [int]$BackfillTicks = 3300,
+    [int]$BackfillTicks = 3500,
     [string]$AbandonSeat = '2@3000',
     [int]$ScreenFirstFrames = 240,
     [int]$WipeFrames = 6600,
@@ -722,7 +728,7 @@ if ($startH) { $failures.Add("run H: a run started (or failed) before any queue 
 
 # ---- Run I: Enter after a wipe opens the screen, never a Clause-less restart (lane 3D-c) --------------------------
 $ErrorActionPreference = 'Continue'
-$iText = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $WipeFrames '--' --press-enter 3 --pull 2 2>&1 | Out-String
+$iText = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $WipeFrames '--' --press-enter 3 --pull 2 --bots-hold 2>&1 | Out-String
 $iCode = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 $iLines = @($iText -split "`r?`n")
