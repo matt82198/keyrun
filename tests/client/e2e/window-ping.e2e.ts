@@ -18,12 +18,16 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { setTimeout as sleep } from "node:timers/promises";
 import { chromium, type Browser, type Page } from "playwright";
 
 const PLAY_QUERY = "/client/index.html?key=5&dungeon=hollow-vault&class=warden";
 const REPO_ROOT = normalize(fileURLToPath(new URL("../../../", import.meta.url)));
 const SHOTS = process.env.KEYRUN_E2E_WP_SHOTS;
+// A G press is dropped silently when the actor pinged fewer than PING_RATE_LIMIT_TICKS (20) sim ticks
+// earlier (client/src/input/ping.ts derivePingEvent): no label, no signal. pingAndRead therefore re-presses
+// G after each per-attempt waitForFunction timeout. The bound is PING_ATTEMPTS, so a ping that never lands
+// still fails, after at most PING_ATTEMPTS * 3 s.
+const PING_ATTEMPTS = 10;
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -60,10 +64,20 @@ const shot = async (page: Page, name: string): Promise<void> => {
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `wp-${name}-after.png`) });
 };
 
+// Presses G and waits, on the pings label list, for the ping to be drawn. Each attempt waits up to 3 s for
+// the label; a timeout means the press was rate-limited (see PING_ATTEMPTS above), so G is pressed again.
+// The last attempt's timeout is rethrown unchanged, so a ping that never lands still fails the test.
 async function pingAndRead(page: Page): Promise<Shown> {
   const before = (await pings(page)).length;
-  await page.keyboard.press("KeyG");
-  await page.waitForFunction((n) => window.__keyrunPings!.labels().length > n, before, { timeout: 3_000 });
+  for (let attempt = 1; ; attempt++) {
+    await page.keyboard.press("KeyG");
+    try {
+      await page.waitForFunction((n) => window.__keyrunPings!.labels().length > n, before, { timeout: 3_000 });
+      break;
+    } catch (err) {
+      if (attempt >= PING_ATTEMPTS) throw err;
+    }
+  }
   const all = await pings(page);
   return all[all.length - 1]!;
 }
@@ -104,7 +118,7 @@ describe("window + ping readability (headless Chromium, real playable)", () => {
     await page.mouse.up({ button: "right" });
     const pitch1 = await page.evaluate(() => window.__keyrunCamera!.pitch);
     assert.notEqual(pitch1, pitch0, "right-drag did not tilt the camera");
-    await sleep(1_100); // ping rate limit: one per 20 ticks
+    // The rate-limit gap (one ping per 20 ticks) is absorbed by pingAndRead's bounded re-press, not by a sleep.
     const second = await pingAndRead(page);
     assert.equal(second.kind, "spot");
     await shot(page, "6-spot-ping-tilted");
@@ -113,19 +127,20 @@ describe("window + ping readability (headless Chromium, real playable)", () => {
   });
 
   it("warden's payoff keys glow while a cinder bot's Kindled Window is open on an enemy", async () => {
-    await page.keyboard.down("KeyW");
-    await sleep(600);
-    await page.keyboard.up("KeyW");
+    // Walk W until the payoff keys light, not for a fixed 600 ms: the glow is the state this test needs.
     // Read the lit ids in the same DOM pass that detects them: the HUD re-renders each frame, so a
     // separate read after the wait can race a transient clear and see [] (CI flake, PR #111 e2e).
-    const litHandle = await page.waitForFunction(
-      () => {
-        const ids = Array.from(document.querySelectorAll('.hud-ability-slot[data-payoff="ready"]')).map((e) => (e as HTMLElement).dataset.abilityId);
-        return ids.length > 0 ? ids : false;
-      },
-      undefined,
-      { timeout: 20_000 },
-    );
+    await page.keyboard.down("KeyW");
+    const litHandle = await page
+      .waitForFunction(
+        () => {
+          const ids = Array.from(document.querySelectorAll('.hud-ability-slot[data-payoff="ready"]')).map((e) => (e as HTMLElement).dataset.abilityId);
+          return ids.length > 0 ? ids : false;
+        },
+        undefined,
+        { timeout: 20_000 },
+      )
+      .finally(() => page.keyboard.up("KeyW")); // W is released even when the glow never appears
     const lit = (await litHandle.jsonValue()) as string[];
     assert.ok(lit.length > 0 && lit.every((id) => id === "warden.guardBreak" || id === "warden.reckoning"), JSON.stringify(lit));
     await shot(page, "3-window-payoff");
@@ -138,7 +153,6 @@ describe("window + ping readability (headless Chromium, real playable)", () => {
     await page.keyboard.press("Tab");
     const labels: string[] = [];
     for (let i = 0; i < 12 && !labels.includes("Window!"); i++) {
-      await sleep(1_100);
       const p = await pingAndRead(page);
       if (p.kind === "target") labels.push(p.label);
       if (p.label === "Window!") await shot(page, "4-window-ping");

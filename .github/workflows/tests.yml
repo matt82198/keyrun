@@ -24,4 +24,5 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: python tools/ci/e2e_wait_ratchet.py
       - run: npm run test:e2e
