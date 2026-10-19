@@ -42,8 +42,9 @@
      12. a bot seat takes damage and every "HUD runend cause" line is seat 1's (the private run log's seat filter
          with more than one seat in the sim), and the party clears the dungeon (lane TUNE-BOSS, STATE.md D14): a
          "PULL spawn index=3 id=boss actors=900:hollowWarden.boss" line and a lockIndex 1 "lock_open" EVENT before
-         run_end, and the run-end panel titled "Run cleared -- within par" (run_end timed at tick 5168 at seed 1 key 2
-         since lane NAV-CORE, 6787 on the flat arena);
+         run_end, and the run-end panel titled "Run cleared -- within par" (run_end timed at tick 3457 at seed 1 key 2
+         since lane WARDEN-ENGAGES, 5168 since lane NAV-CORE, 6787 on the flat arena); the autorun Warden lands damage
+         on the Choir at least every 300 ticks from pull_start to pull_clear (WardenEngagesTest.ps1, lane WARDEN-ENGAGES);
      13. "BOTS done commands=N hash=H" with N > 0, equal across the two runs (bot determinism);
      13a. lane NAV-CORE (STATE.md D18, the rooms-and-corridors route): the Warden's "room_enter" EVENTs reach
          choir-room, pair-hall, seed-chamber and warden-arena in that order, and each room's pull spawns ("PULL spawn
@@ -85,8 +86,9 @@
          tick whose commands are the joiner's), then "QUEUE consume n=1 size=0";
      23. the open seat stands idle: no cast_complete EVENT with "actorId":A between the abandon and the refill, the
          refilled seat casts again after it (the joiner's commands run from the pull start), and no party seat dies
-         before pull 2. Default A@T = 2@3000 since lane NAV-CORE (the Chanter leaves at tick 3000, late in the Choir
-         fight; seed 1 key 2 pull 2 starts at tick 3180 with all three seats alive). The old 1@1000 cannot work on the
+         before pull 2. Default A@T = 2@1500 since lane WARDEN-ENGAGES (the Chanter leaves at tick 1500, late in the
+         Choir fight; the Warden now fights the Choir melee after the kick, so seed 1 key 2 clears the Choir at 1757 and
+         pull 2 starts at tick 1840 with all three seats alive; 2@3000 from lane NAV-CORE now falls in pull 2). The old 1@1000 cannot work on the
          route: the next pull spawns only when a party member walks into its room, and an abandoned human leader stands
          idle, so his bots never travel; 3@1000 to 3@3000 leave the Choir uncleared without the Cinder's damage.
     Run G (lane 3J, key mismatch): as F with --joiner-key 3
@@ -191,7 +193,7 @@ param(
     [int]$BossTicks = 600,
     [int]$QueueTicks = 480,
     [int]$BackfillTicks = 3300,
-    [string]$AbandonSeat = '2@3000',
+    [string]$AbandonSeat = '2@1500',
     [int]$ScreenFirstFrames = 240,
     [int]$WipeFrames = 6600,
     [int]$PingAt = 100,
@@ -576,6 +578,8 @@ foreach ($t in @(@{ Id = 901; Class = 'hollowWarden.twinA' }, @{ Id = 902; Class
     $ev = First $c.Lines "^EVENT \{`"actorId`":$($t.Id),`"bossActorId`":900,`"classId`":`"$([regex]::Escape($t.Class))`",.*`"type`":`"boss_add_spawn`""
     if (-not $ev -or [array]::IndexOf($c.Lines, $ev) -gt $iRunEnd) { $failures.Add("run C: no boss_add_spawn EVENT for $($t.Id) $($t.Class) before run_end") }
 }
+# Lane WARDEN-ENGAGES (KF2b): the autorun Warden lands damage on the Choir at least every 300 ticks until it is clear.
+foreach ($f in @(& (Join-Path $PSScriptRoot 'WardenEngagesTest.ps1') -Lines $cRun -PullId 'choir' -MaxGap 300)) { $failures.Add("run C: $f") }
 
 # ---- Run D: the armed boss (lane 3I) -----------------------------------------------------------------------------
 # From pull 4 (the boss pull): no key reaches the boss from pull 1 under autorun (see the header for the sweep).
