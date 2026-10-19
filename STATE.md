@@ -302,6 +302,35 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   5. Only then re-run the s10 plan-vs-output check and record PHASE 3 EXIT and D10 (MET / MET-WITH-TUNING-GAP / NOT-MET).
   6. Phase 4: TS deletion after parity. Blocked on step 5.
 
+## STATE-R9 checkpoint (2026-10-19 05:05Z)
+WHY: #175 to #181 finished the Phase 3.5 ladder and added decisions D25 and D26; the next session must resume from disk, not
+from chat, so this block records the ladder, the decisions and the open items for Matt in one place. It supersedes the lane
+status in NEXT ORDER (the STATE-R8 text there stays as the record) and the 2.35 m plate note.
+- Main tip 39ec436 (#181 LOCK-VIEW, squash 39ec4367eec72e4bf1f66ce6377ad8f7a853cd98). Merged since STATE-R8 (#175 2dd78e05):
+  #176 49c127c5 PLATE-HEIGHT; #177 7318aa64 PARTY-FRAMING; #178 c2676604 ROOM-THEMING-1; #179 24a8d0ef ROOM-THEMING-2;
+  #180 8b329434 ROOM-THEMING-3; #181 39ec4367 LOCK-VIEW. Each verified with `git log origin/main --oneline -12`.
+- Ladder (design/ART-PLAN.md section 8): every lane is DONE. Lane 5 = #178; lane 6 = #179; lane 7 = #180 and #181; lane 10 =
+  #172, #174, #176 and #177. Lanes 1 to 4, 8 and 9 are DONE per the Phase 3.5 block above.
+- The only open Phase 3.5 item is the human-played run to the boss (Matt). It is also the sole mover of D10 and the Phase 3
+  exit. D10 verdict stays PARTIAL; PHASE 3 EXIT stays NOT-MET (no change in this checkpoint).
+- Built line on main (game/CLAUDE.md ROOM-THEMING-3 row): `props=65 decor=50 lights=13 themed=entrance,choir-room,pair-hall,
+  seed-chamber,warden-arena`; max 343 draw calls at 1280x720 (budget 600).
+- Test and gate figures (hand-back figures from the lane reports, not re-run by this docs lane): Content 210, Sim 559 plus 1
+  skipped, Bots 139; `npx vitest run tests/oracle` 9 with manifest hash 7a65bec7 unchanged; E2eAssert digest b950474eff2d9967
+  unchanged.
+- Frames (D15): C:/Users/Mattt/Desktop/keyrun-screens/room-theming-3 (67 PNGs plus run.mp4) and
+  C:/Users/Mattt/Desktop/keyrun-screens/lock-view (runc, lockrt and lock frames plus three mp4). The orchestrator D15 pass
+  accepted run-058, run-059 and run-060 (arena) and runc-247, lockrt-018, runc-249 and lockrt-020 (Lock phases), per the lane
+  hand-back.
+- Decisions D25 (room dressing from theme.json) and D26 (Lock view) are recorded in the DECISIONS list below, after D24.
+- Content and sim finding for Matt (not fixed; a fix would move the oracle hash): the boss slam (content/data/enemies/
+  hollow-warden.json, enemies.json) and the Twins slam are untelegraphed while the cleave is telegraphed.
+- Open items for Matt (listed again in the open-items list below): the human-played run to the boss; the slam telegraph; the
+  arena light cap of 3 (raise only if Matt says so); Git LFS if assets exceed 50 MB; deleting the merged keyrun branches and
+  worktrees (after pr_merged_check.py proves each merge); the ENEMIES merge commit 6fe70af and the first PARTY-FRAMING merge
+  commit lack Co-Authored-By trailers; fixture regeneration with startHeading; a solo Warden cannot close the Lock by design
+  (Boss.cs:321-322).
+
 ## Phase 3.5 "Look and route" (design/ART-PLAN.md section 8; D16, D17, D18)
 - Lane 1 NAV-CORE: DONE. PR #163 MERGED, squash sha 76c7f3223156c1d8e50a5b72cd7eed6a3452765b, branch feat/nav-core,
   mergedAt 2026-10-19T00:54:35Z. Title: "feat(game): lane 1 NAV-CORE - rooms, corridors, room-entry pulls, bot follow (D18)".
@@ -388,8 +417,8 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   13 to 28; draw calls 350 (final branch peak); 95 clips per glb. Frames: C:/Users/Mattt/Desktop/keyrun-screens/enemies.
   Findings: Sundered Twins hidden behind the Warden and boss at the arena (PARTY-FRAMING fixes); Mage plate floats about 0.55 m
   above the hat (PLATE-HEIGHT fixes). Total CC0 assets about 31.6 MB (Git LFS if over 50 MB is Matt's call). Decision D22.
-- Lane 10 feel: PARTIAL. Slices 1 and 2 DONE; PARTY-FRAMING and PLATE-HEIGHT running (Opus, disjoint files, dispatched
-  2026-10-19 03:14Z).
+- Lane 10 feel: DONE (STATE-R9). Slices 1 to 4 merged: CAMERA-FEEL #172, HOST-HEADING #174, PLATE-HEIGHT #176, PARTY-FRAMING
+  #177 (PARTY-FRAMING and PLATE-HEIGHT were dispatched 2026-10-19 03:14Z as Opus lanes on disjoint files).
   - CAMERA-FEEL: DONE. PR #172 MERGED, squash 8ffe1e34951b13df04fa1f216a30d3bb34824348, mergedAt 2026-10-19T02:42:44Z,
     branch feat/camera-feel. CameraBoom.cs pure rule with 8 tests: StartHeading faces the route (yaw -1.5707964, +x down
     corridor 1); Clamp keeps the boom inside the walls by MarginMm 300; Occluding cuts away walls that cross the sight line to
@@ -402,12 +431,21 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
     legacy heading. HudSceneTest run M (M1 to M4) covers it. K1 compares against example-enter-ping minus the startHeading line
     (fixtures unchanged; regenerating them is Matt's call). Matt's record command from Desktop/keyrun now starts a run facing
     the route. Decision D23.
-  - PARTY-FRAMING: RUNNING (Opus, branch feat/party-framing, base 36feb7e). CameraBoom.FitParty pure rule: boom and pitch fit to
-    the party and target; yaw stays player-owned. PR pending (no open PR on matt82198/keyrun at the time of this checkpoint).
-  - PLATE-HEIGHT: RUNNING (Opus, branch feat/plate-height, base 36feb7e). PlateRule.cs: plate = max(target, scaled model top)
-    + 250 mm, boss cap 5000. PR pending (same check).
-- Lanes 5, 6, 7 (room theming): NOT STARTED.
-- Lane 3 model heads stay at or below 1.8 m for the Party classes, so the 2.35 m plate (LabelView PlateHeight) did not move.
+  - PARTY-FRAMING: DONE. PR #177 MERGED, squash 7318aa64132b6fd55a9b4635982388ecc96b3168 (branch feat/party-framing,
+    base 36feb7e). CameraBoom.FitParty pure rule: boom and pitch fit to the party and target; yaw stays player-owned.
+    Known camera limits, recorded not fixed: Cinder sits low under the HUD band at the Choir; the Twins line up behind the
+    boss in the arena.
+  - PLATE-HEIGHT: DONE. PR #176 MERGED, squash 49c127c54beef25ff93de252ef1059d476c5a0f9 (branch feat/plate-height, base
+    36feb7e). PlateRule.cs: plate = max(target, scaled model top) + 250 mm, boss cap 5000. Supersedes the fixed plate
+    height of the Lane 3 note below.
+- Lane 5 ROOM-THEMING-1 (entrance and Choir room): DONE. PR #178 MERGED, squash c2676604441567095e3c88a51bdc1f3952f58b7c.
+  Data-driven dressing from game/content/data/theme.json (D25).
+- Lane 6 ROOM-THEMING-2 (Pair hall and Seed chamber): DONE. PR #179 MERGED, squash 24a8d0efd98095adf98cbef6c2752c7c9b86168b.
+- Lane 7 boss arena and Lock visuals: DONE as two PRs. ROOM-THEMING-3 (Warden arena throne room) PR #180 MERGED, squash
+  8b329434fb87a8cacebb6815aa825780014c68e5; LOCK-VIEW (Lock ring on the Hollow Warden) PR #181 MERGED, squash
+  39ec4367eec72e4bf1f66ce6377ad8f7a853cd98 (D26). Both are render-only.
+- Lane 3 model heads stay at or below 1.8 m for the Party classes; the PLATE-HEIGHT rule (#176) now sets every plate from
+  the model's native height, so the fixed 2.35 m plate of the earlier note no longer applies.
 - E2E FLAKE, resolver outcome (gate-escape-resolver, 2026-10-19 01:37Z to 01:42Z): the window-ping flake
   (tests/client/e2e/window-ping.e2e.ts:137) went through the resolver. It pushed guard/e2e-wall-clock-wait-ratchet 0123f68
   (tools/ci/e2e_wait_ratchet.py counts sleep and waitForTimeout per e2e spec against tools/ci/e2e-wait-baseline.json; wired
@@ -502,7 +540,12 @@ Additional parked decisions (from the burn ledger):
     - Fixture regeneration with startHeading: the committed fixtures predate the line; K1 skips it (D23, #174).
     - Git LFS if the CC0 assets exceed 50 MB (about 31.6 MB today; #173).
     - Delete the merged keyrun worktrees and branches (after pr_merged_check.py proves each merge).
-    - The #173 branch merge commit 6fe70af lacks a Co-Authored-By trailer (cosmetic).
+    - The #173 branch merge commit 6fe70af lacks a Co-Authored-By trailer (cosmetic). The first PARTY-FRAMING merge commit
+      lacks one too (its sha is not recorded in the lane hand-back; STATE-R9).
+    - STATE-R9 open items for Matt: the human-played run to the boss (the only mover of D10); the boss slam and the Twins
+      slam are untelegraphed while the cleave is telegraphed (content/data/enemies/hollow-warden.json, enemies.json; a fix
+      moves the oracle hash); the arena light cap of 3 stays unless Matt says raise; a solo Warden cannot close the Lock by
+      design (Boss.cs:321-322; the proof uses Warden plus Cinder, D21).
     DECISION FOR MATT: should field combos hit the caster (BIBLE section 5)? Same as defect (m) above.
   - Cast-range finding from 3I: REFUTED by source recon (range checked at ScriptTarget.cs:31-32,100-108,120-122 and
     Casting.cs:84-97). The 13-17 m figure is the spawn gap.
@@ -599,6 +642,21 @@ Additional parked decisions (from the burn ledger):
   -- BUILDLOG.md`, then re-append); the GUARD-HARDEN workaround (`git show origin/main:BUILDLOG.md > BUILDLOG.md`) is recorded as
   a finding, and the wall was built in the brain repo (claude-config #118 and #119, both MERGED). Why: an improvised rewrite of an
   append-only control file defeats the guard; the hook was fixed in the brain repo, not routed around.
+- D25 **Every room is dressed from theme.json; the arena has no dais** (orchestrator, 2026-10-19, PRs #178 to #180; reversible;
+  bound: view-only data dressing). Each room is dressed from game/content/data/theme.json rows (props, lights with an optional
+  "kind" of torch or warden, decor, optional cracked). DungeonPlan.Dress is only the fallback for a room with no theme row,
+  plus corridor sconces. The arena has no dais. MaxLightsPerRoom stays 3 (the arena went from 4 coded lamps to 3 data
+  lights; 13 lights in total). chest_gold is reserved for the Seed chamber. The placement rule lives in RoomThemeTests
+  (LaneHalfMm 1500, PropClearMm 2000). Twin sites come from the content registry via ThemeSite.Of, with ThemeSite.TwinOffsetMm
+  4000 mirroring HostRunSetup.TwinOffsetMm (a drift test pins the two). Why: D16 and D18 need the rooms read as themed
+  places, the rule is data, and each row can be retuned without data loss; judged from frames (D15).
+- D26 **The Lock is shown as a view-only ring** (orchestrator, 2026-10-19, PR #181; reversible; bound: view-only). LockRule.cs
+  is a pure integer rule (RadiusMm, AlphaPermille, Phase Idle, Open, Broken, Failed, Enraged): Open is violet 0xC77DFF
+  shrinking from 4000 to 1500 mm; Broken is green 0x60E080 in a 30-tick flash; Failed is red 0xFF5050 in a 30-tick flash;
+  Enraged is dim red 0xA03030 at 2000 mm. LockView.cs sits at the boss feet, wired as the Lock node after Telegraphs in
+  game/scenes/Arena.tscn. WindowRingView keys violet on ParsedWindowId.Alternate for the lockwindow prefix. A `LOCK view
+  phase=` stdout line exists and is not in the run log or the digest. Why: D17 needs the Lock to be a real, readable
+  mechanic, and the view must not move the sim.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as

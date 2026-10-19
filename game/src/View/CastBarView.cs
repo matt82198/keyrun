@@ -25,7 +25,7 @@ namespace Keyrun.View;
 /// </summary>
 public partial class CastBarView : Control
 {
-    private const float HeadHeightM = 3.0f; // above the nameplate (LabelView, 2.35 m)
+    private const float HeadHeightM = 3.0f; // above the nameplate (LabelView, PlateRule plate height)
     private const float FadeSeconds = 0.9f;
     private const int FontSize = 14;
 
