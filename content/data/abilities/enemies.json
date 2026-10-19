@@ -191,7 +191,7 @@
   {
     "id": "hollowWarden.slam",
     "name": "Warden Slam",
-    "castTicks": 0,
+    "castTicks": 10,
     "gcdTicks": 0,
     "cooldownTicks": 60,
     "charges": 1,
@@ -280,7 +280,7 @@
   {
     "id": "twins.slam",
     "name": "Twin Slam",
-    "castTicks": 0,
+    "castTicks": 10,
     "gcdTicks": 0,
     "cooldownTicks": 60,
     "charges": 1,

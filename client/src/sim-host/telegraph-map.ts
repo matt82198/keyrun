@@ -38,6 +38,10 @@ export const TELEGRAPH_CLASS_BY_ABILITY: Readonly<Record<string, TelegraphClass>
   "pair.stackCall": "stack",
   "hollowWarden.cleave": "boss",
   "seed.slam": "avoid",
+  // SLAM-TELEGRAPH (BIBLE section 3): the boss and Twins slams are "get out" circles like seed.slam.
+  // "avoid" equals the unlisted fallback, so bots/Keyrun.Bots/View.cs (which does not list them) agrees.
+  "hollowWarden.slam": "avoid",
+  "twins.slam": "avoid",
 };
 
 export function telegraphClassFor(abilityId: string): TelegraphClass {
