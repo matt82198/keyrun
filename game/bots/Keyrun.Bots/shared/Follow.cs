@@ -220,8 +220,10 @@ public static class Follow
     /// <summary>
     /// The bot's travel move on a layout run (<see cref="BotView.Layout"/>) with the content formation in the view and a
     /// living leader other than the bot: a walk along the route to its formation slot behind the leader while no enemy
-    /// lives, and during a fight only while the bot shares no box with the leader (it was left a room behind), so it
-    /// catches up without leaving its role's fight position. Null otherwise (the roles decide).
+    /// lives; during a fight with the leader in a room, a walk to its slot pulled <see cref="FightGoalInsetMm"/> inside
+    /// that room while the bot stands outside the room shrunk by <see cref="FightInsetMm"/> (still in the corridor or the
+    /// doorway, KF2c), and with the leader in no room only while the bot shares no box with him. Null otherwise (the
+    /// roles decide).
     /// </summary>
     /// <param name="view">This tick's view.</param>
     /// <param name="self">The bot.</param>
@@ -242,12 +244,89 @@ public static class Follow
         {
             return null;
         }
-        if (AnyLivingEnemy(view.State) && SharesBox(layout, self.Pos, leader.Pos))
+        if (AnyLivingEnemy(view.State))
         {
-            return null;
+            // KF2c (design/BIBLE.md sections 4 and 9: the party lands every pull together): in a fight the bot first
+            // closes into the room the leader fights in, past the doorway overlap, then its role takes over. A doorway
+            // or the previous corridor is not "in the room".
+            if (RoomAt(layout, leader.Pos) is { } room)
+            {
+                return Movement.Contains(Inset(room.Box, FightInsetMm), self.Pos)
+                    ? null
+                    : WalkTo(view.State.Tick, self, layout, FightGoal(room.Box, leader.Pos, slot));
+            }
+            if (SharesBox(layout, self.Pos, leader.Pos))
+            {
+                return null;
+            }
         }
         return WalkTo(view.State.Tick, self, layout, slot);
     }
+
+    /// <summary>
+    /// In a fight a bot counts as in the leader's room once it stands this far inside every wall of the room box: past
+    /// the 1000 mm doorway overlap a room shares with each corridor, so it is in the room, not in its door, mm.
+    /// </summary>
+    public const long FightInsetMm = 1500;
+
+    /// <summary>
+    /// Where a bot outside the leader's room walks in a fight: its formation slot pulled this far inside the room box
+    /// (deeper than <see cref="FightInsetMm"/> by more than <see cref="ArriveMm"/>, so it stops inside, never on the line), mm.
+    /// </summary>
+    public const long FightGoalInsetMm = 2500;
+
+    /// <summary>
+    /// Where a bot walks to join a fight in <paramref name="room"/>: its formation slot when that lies
+    /// <see cref="FightGoalInsetMm"/> inside the room; else (the leader holds the doorway, so "behind him" is the
+    /// corridor) the leader's flank on the slot's side, as far out as the slot was from him (behind plus side, so the
+    /// party never stacks on the tank), pulled <see cref="FightGoalInsetMm"/> inside the room. Integers only.
+    /// </summary>
+    /// <param name="room">The leader's room box.</param>
+    /// <param name="leader">The leader's position.</param>
+    /// <param name="slot">The bot's formation slot behind the leader.</param>
+    /// <returns>The point to walk to.</returns>
+    public static Vec3 FightGoal(Bounds room, Vec3 leader, Vec3 slot)
+    {
+        var inner = Inset(room, FightGoalInsetMm);
+        if (Movement.Contains(inner, slot))
+        {
+            return slot;
+        }
+        var side = slot.Z - leader.Z;
+        var reach = Math.Abs(leader.X - slot.X) + Math.Abs(side);
+        var flank = new Vec3(leader.X, slot.Y, leader.Z + (side < 0 ? -reach : reach));
+        return Movement.ClampPoint(flank, inner);
+    }
+
+    /// <summary>The room box holding <paramref name="p"/> (the first in layout order), or null in a corridor or outside every box.</summary>
+    /// <param name="layout">The layout.</param>
+    /// <param name="p">The point.</param>
+    /// <returns>The room, or null.</returns>
+    public static NavBox? RoomAt(NavLayout layout, Vec3 p)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        foreach (var box in layout.Boxes)
+        {
+            if (box.IsRoom && Movement.Contains(box.Box, p))
+            {
+                return box;
+            }
+        }
+        return null;
+    }
+
+    /// <summary><paramref name="b"/> shrunk by <paramref name="mm"/> on every side; an axis too short for it collapses to its centre.</summary>
+    /// <param name="b">The box.</param>
+    /// <param name="mm">The inset, mm.</param>
+    /// <returns>The inner box.</returns>
+    public static Bounds Inset(Bounds b, long mm)
+    {
+        var (minX, maxX) = b.MaxX - b.MinX >= 2 * mm ? (b.MinX + mm, b.MaxX - mm) : (Mid(b.MinX, b.MaxX), Mid(b.MinX, b.MaxX));
+        var (minZ, maxZ) = b.MaxZ - b.MinZ >= 2 * mm ? (b.MinZ + mm, b.MaxZ - mm) : (Mid(b.MinZ, b.MaxZ), Mid(b.MinZ, b.MaxZ));
+        return new Bounds(minX, maxX, minZ, maxZ);
+    }
+
+    private static long Mid(long a, long b) => a + ((b - a) / 2);
 
     /// <summary>True when <paramref name="a"/> and <paramref name="b"/> lie in a common box (a doorway overlap counts for both sides).</summary>
     /// <param name="layout">The layout.</param>

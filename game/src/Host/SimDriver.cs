@@ -86,7 +86,7 @@ public sealed class TickAccumulator
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
 /// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T</c>, <c>--joiner-key K</c>,
 /// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
-/// <c>--replay-input PATH</c>.
+/// <c>--replay-input PATH</c>, <c>--bots-hold</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -133,6 +133,9 @@ public sealed class TickAccumulator
 /// scripted player turns the CameraRig to Y radians through <see cref="Keyrun.View.CameraRig.Look"/>, the call the mouse
 /// handler makes, logged <c>INPUT yaw tick=T yaw=Y</c> (Y as the rig then reports it). Ignored under <c>--autorun</c>.
 /// Null = never.</param>
+/// <param name="BotsHold">Scene-test seam (<c>--bots-hold</c>, lane PARTY-TOGETHER): the bot seats spawn as usual but the
+/// host applies none of their commands, so they stand and take no action (HudSceneTest run I's wipe source: nobody
+/// fights). The bots library is untouched; only the host's per-step sample is skipped. Default false.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -149,7 +152,8 @@ public sealed record ArenaOptions(
     int PressPing = 0,
     string? RecordInput = null,
     string? ReplayInput = null,
-    YawPlan? PressYaw = null)
+    YawPlan? PressYaw = null,
+    bool BotsHold = false)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -175,6 +179,7 @@ public sealed record ArenaOptions(
         long seed = DefaultSeed;
         var pull = 1;
         var solo = false;
+        var botsHold = false;
         var requeue = false;
         SeatAbandonPlan? abandon = null;
         int? joinerKey = null;
@@ -192,6 +197,9 @@ public sealed record ArenaOptions(
                     break;
                 case "--solo":
                     solo = true;
+                    break;
+                case "--bots-hold":
+                    botsHold = true;
                     break;
                 case "--requeue":
                     requeue = true;
@@ -238,7 +246,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -915,7 +923,11 @@ public partial class SimDriver : Node
         _commands.Clear();
         // sim-runtime.ts step(): the human's commands first, then every bot seat's (one runBots call).
         _input?.Sample(preTick, run, _commands);
-        _bots?.Sample(preTick, run, _commands);
+        if (!Options.BotsHold)
+        {
+            // --bots-hold: the bot seats stay in the party but act on nothing (HudSceneTest run I).
+            _bots?.Sample(preTick, run, _commands);
+        }
         foreach (var reaction in _bots?.TakeReactions() ?? Array.Empty<string>())
         {
             _log?.Line(reaction);
