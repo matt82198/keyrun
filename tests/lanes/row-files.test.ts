@@ -40,8 +40,8 @@ describe("game/lanes row files", () => {
     for (const name of files) {
       const lines = nonEmptyLines(join(LANES_DIR, name));
       expect(lines.length, `${name} line count`).toBe(2);
-      expect(lines[0].startsWith("- "), `${name} line 1 is a lane bullet`).toBe(true);
-      expect(lines[1].startsWith("BUILDLOG: "), `${name} line 2 is a BUILDLOG line`).toBe(true);
+      expect(lines[0]?.startsWith("- ") ?? false, `${name} line 1 is a lane bullet`).toBe(true);
+      expect(lines[1]?.startsWith("BUILDLOG: ") ?? false, `${name} line 2 is a BUILDLOG line`).toBe(true);
     }
   });
 });
