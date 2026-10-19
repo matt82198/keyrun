@@ -8,7 +8,7 @@ class max, 10 total keybinds should be plenty for rotation, movement, utility...
 assets; pure POC.
 
 ## Current state (checkpoint 2026-10-18)
-- Main tip: 10de063 (#106 squash, scaleStep keeps every). Prior main tips: 56c5686 (#105), b54eb40 (#104 docs), 2c8f8ea (#102), 54e69c5 (#99), 00e4ebb (#98).
+- Main tip: 36feb7e (#174 squash, HOST-HEADING). Prior main tips: cfa40b9 (#173), 8ffe1e3 (#172), f72c738 (#171), 581212d (#170), 9df96ef (#169), 6ae14a1 (#168 docs), 30f5708 (#167), 10de063 (#106), 56c5686 (#105), b54eb40 (#104 docs), 2c8f8ea (#102), 54e69c5 (#99), 00e4ebb (#98).
 - Merged today since the 23:30Z checkpoint: #101 99836b0 (window ring labels + payoff-ready key glow + ping context + aimed spot ping); #102 2c8f8ea (bots/src/roles/shared.ts inLull, tank-pressure.ts).
 - MERGED 99f39a2: #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info).
 - Phase: 3 rows 3A-3J all MERGED on main (2026-10-18, verified per PR, see NEXT STEPS). PHASE 3 EXIT NOT RECORDED. D10
@@ -261,11 +261,12 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
     (content/data/enemies/hollow-warden.json); the party dealt about 470 damage before wiping. The 3B claim that bots
     break 1 of 4 Locks at k10 is NOT reproduced. DECISION FOR MATT: boss HP, lock threshold, or bot DPS tuning before any
     Lock assertion is written (no fitted green).
-- NEXT ORDER (2026-10-18, fourth pass; resume here, in this order). STATE-R7 (2026-10-19): lanes 1, 2, 8 and 9 DONE (lane 8
-  is PR #167, squash 30f5708); lane 3 PLAYER-BOTS RUNNING; HUD-POLISH-2 pending (Opus, small, render-only: send Pings.cs
-  labels and CastBarView.cs bars through HudLayout.Separate). Lanes 3, 4, 8 and 10 build on lane 2's kit, walls and
-  DungeonBuilder, and on lane 9's proof. Then: lane 4 enemies (Opus, KayKit Skeletons, adds rows to ActorBinding), lanes 5 to 7
-  room theming, lane 10 feel (camera yaw Pi at start, yaw-0 camera outside walls, wall fade). GUARD-HARDEN PR pending.
+- NEXT ORDER (2026-10-18, fourth pass; resume here, in this order). STATE-R8 (2026-10-19, after #174): lanes 1, 2, 3, 4, 8 and 9
+  DONE; lane 10 PARTIAL (CAMERA-FEEL #172 and HOST-HEADING #174 DONE; PARTY-FRAMING and PLATE-HEIGHT running, PR pending);
+  lanes 5, 6, 7 not started; GUARD-HARDEN is #169 MERGED. Next, in order: lane 10 remaining slices (the PARTY-FRAMING and
+  PLATE-HEIGHT PRs) land next; then lanes 5 to 7 room theming (Opus); then the human-played run to the boss, which stays the
+  only mover of D10 and the Phase 3 exit. Lanes 3, 4, 8 and 10 build on lane 2's kit, walls and DungeonBuilder, and on lane 9's
+  proof. Lane 8 HUD-POLISH-2 landed as #170 (its Pings.cs and CastBarView.cs residue is closed).
   WHY the themed run is listed first: Matt judges feel from frames (D15, D16), so the NAV-and-art run is the one to measure.
   WHY reordered (fourth pass): D15 (frames before feel) and #158 (boss
   reachable in autorun) change what a human run must measure. Steps 1-3 of the second pass are kept below as the record.
@@ -367,16 +368,58 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   top-right beside the objective panel; titles cut with "..." via HudLayout.FitTitle; plates on a screen-space 2D layer
   separated by HudLayout.Separate. Frames C:/Users/Mattt/Desktop/keyrun-screens/hud-polish (66 PNGs, run.mp4 1,760,793 bytes;
   orchestrator viewed run-041, run-048, run-058, run-062). Residual overlaps in Pings.cs SPREAD/STACK floor labels and
-  CastBarView.cs cast bars filed as HUD-POLISH-2 (pending, see NEXT ORDER).
-- Lane 3 PLAYER-BOTS: RUNNING (Opus, branch feat/player-bots, base 49aeadb9), dispatched about 01:50Z 2026-10-19 after a
-  read-only PLAYER-RECON. Owns ActorView.cs, Actor.tscn, new ActorAnimator.cs, ActorBinding.cs and their tests, and
-  game/assets/kaykit-adventurers/**. Model heads stay at or below 1.8 m because lane 8 owns LabelView.cs (PlateHeight 2.35).
+  CastBarView.cs cast bars filed as HUD-POLISH-2, now DONE (PR #170, next bullet block).
+- Lane 8 HUD-POLISH-2: DONE. PR #170 MERGED, squash 581212d58e43e358629988a6f67475c1a683a22f, mergedAt 2026-10-19T02:17:06Z,
+  branch feat/hud-polish-2. Pings.cs (file is game/src/Hud/Pings.cs, not game/src/View/) floor labels and CastBarView.cs bars
+  are placed by HudLayout.PingLabels and HudLayout.CastBars (new statics beside Separate in
+  game/content/Keyrun.Content/Model/HudLayout.cs; no existing signature changed). One layout per frame, shared with LabelView
+  through NodePath exports. Lane 8 is DONE with #167 and #170.
+- Lane 3 PLAYER-BOTS: DONE. PR #171 MERGED, squash f72c73846174e4a389b663162130d1d0070bec29, mergedAt 2026-10-19T02:28:24Z,
+  branch feat/player-bots. KayKit Adventurers (CC0, commit 672074b73ba276876a19e8816ecdc5241817ab47): Knight = Warden, Mage =
+  Cinder, Rogue_Hooded = Chanter; scales Knight 0.709, Mage 0.599, Rogue 0.777; ActorAnimator.cs plays the clips from sim state.
+  Open: the Mage hat brim (about 0.63 m scaled) is wider than the sim actor radius 0.4 m and clips corridor walls; no death
+  frame yet (no death in run C).
+- Lane 4 ENEMIES: DONE. PR #173 MERGED, squash cfa40b9cc0d225a57075a8003a775863c8373878, mergedAt 2026-10-19T02:57:14Z,
+  branch feat/enemies. CC0 KayKit Character Pack Skeletons 1.0 (commit 15b62b9bad122f72926c10fb14d622c73819fa54; 19,271,629
+  bytes under game/assets/kaykit-skeletons/, license beside the assets) bound to every enemy class through ActorBinding rows
+  with per-row target heights: choir.melee Warrior 1800; choir.lieutenant Mage 1800 tint 0xB070E0; pair.melee Minion 1800;
+  seed.elite Rogue 2340 tint 0x88F088; twinA Warrior 2070 tint 0x7898FF; twinB Warrior 2070 tint 0xFF88C8; boss (Hollow Warden)
+  = adventurers Knight 4687 tint 0x50505C; warden and chanter targets 1750; plates max(target, 1800) + 550 mm; ActorBindingTests
+  13 to 28; draw calls 350 (final branch peak); 95 clips per glb. Frames: C:/Users/Mattt/Desktop/keyrun-screens/enemies.
+  Findings: Sundered Twins hidden behind the Warden and boss at the arena (PARTY-FRAMING fixes); Mage plate floats about 0.55 m
+  above the hat (PLATE-HEIGHT fixes). Total CC0 assets about 31.6 MB (Git LFS if over 50 MB is Matt's call). Decision D22.
+- Lane 10 feel: PARTIAL. Slices 1 and 2 DONE; PARTY-FRAMING and PLATE-HEIGHT running (Opus, disjoint files, dispatched
+  2026-10-19 03:14Z).
+  - CAMERA-FEEL: DONE. PR #172 MERGED, squash 8ffe1e34951b13df04fa1f216a30d3bb34824348, mergedAt 2026-10-19T02:42:44Z,
+    branch feat/camera-feel. CameraBoom.cs pure rule with 8 tests: StartHeading faces the route (yaw -1.5707964, +x down
+    corridor 1); Clamp keeps the boom inside the walls by MarginMm 300; Occluding cuts away walls that cross the sight line to
+    the camera or a living party body at 1.2 m, with 250 mm XZ padding. DungeonPlan gains WallBox, WallBoxes, FrameBoxes and
+    SolidOf (add-only). Draw calls max 262 at 1280x720 (limit 341).
+  - HOST-HEADING: DONE. PR #174 MERGED, squash 36feb7e15f34af6259a2f7a2da260d2bb3eca820, mergedAt 2026-10-19T03:07:40Z,
+    branch feat/host-heading. Optional startHeading (radians) header field after key in the input log, allowed on schema /1
+    and /2 with no id bump; a non-finite value is an ARENA error, exit 1; record mode samples the camera heading on the first
+    frame and writes it; replay applies it before the first step and logs INPUT replay heading yaw=Y; an absent field keeps the
+    legacy heading. HudSceneTest run M (M1 to M4) covers it. K1 compares against example-enter-ping minus the startHeading line
+    (fixtures unchanged; regenerating them is Matt's call). Matt's record command from Desktop/keyrun now starts a run facing
+    the route. Decision D23.
+  - PARTY-FRAMING: RUNNING (Opus, branch feat/party-framing, base 36feb7e). CameraBoom.FitParty pure rule: boom and pitch fit to
+    the party and target; yaw stays player-owned. PR pending (no open PR on matt82198/keyrun at the time of this checkpoint).
+  - PLATE-HEIGHT: RUNNING (Opus, branch feat/plate-height, base 36feb7e). PlateRule.cs: plate = max(target, scaled model top)
+    + 250 mm, boss cap 5000. PR pending (same check).
+- Lanes 5, 6, 7 (room theming): NOT STARTED.
+- Lane 3 model heads stay at or below 1.8 m for the Party classes, so the 2.35 m plate (LabelView PlateHeight) did not move.
 - E2E FLAKE, resolver outcome (gate-escape-resolver, 2026-10-19 01:37Z to 01:42Z): the window-ping flake
   (tests/client/e2e/window-ping.e2e.ts:137) went through the resolver. It pushed guard/e2e-wall-clock-wait-ratchet 0123f68
   (tools/ci/e2e_wait_ratchet.py counts sleep and waitForTimeout per e2e spec against tools/ci/e2e-wait-baseline.json; wired
   into the e2e job of .github/workflows/tests.yml). It opened no PR and left window-ping.e2e.ts unchanged. Its verifier
-  judged the guard INEFFECTIVE: raw setTimeout promises, nested directories and helper aliases bypass it. GUARD-HARDEN
-  (Haiku, same branch) fixes the test and the three bypasses before any PR. PR pending.
+  judged the guard INEFFECTIVE: raw setTimeout promises, nested directories and helper aliases bypass it. GUARD-HARDEN: DONE.
+  PR #169 MERGED, squash 9df96ef2c77ca76a4da78449ed6f8a844d3f9e44, mergedAt 2026-10-19T02:10:54Z. tools/ci/e2e_wait_ratchet.py
+  now counts raw setTimeout promises, nested directories and helper aliases (baseline 8 to 5, unit tests 40 OK);
+  window-ping.e2e.ts fixed (waits on exposed state, PING_ATTEMPTS 10, no timeout raised). Ratchet on this branch:
+  "e2e-wait-ratchet: OK (5 wall-clock waits across 5 files; baseline 5)". Decision D24 records the finding below.
+  FINDING (orchestrator summary; not stated in the #169 body): that lane, denied by the BUILDLOG append-only hook during a merge
+  conflict, improvised `git show origin/main:BUILDLOG.md > BUILDLOG.md`. The brain repo closed that hole (claude-config #118
+  denial text, #119 Bash coverage, both MERGED); the sanctioned path is `git checkout origin/main -- BUILDLOG.md`, then re-append.
 
 ## Decisions for Matt
 Verbatim from the recon file's "Decisions for Matt / sim lanes (not client work)" list:
@@ -453,6 +496,13 @@ Additional parked decisions (from the burn ledger):
     3150, then wipes on the Pair at key 2.
   - 3C: reward cards use placeholder ids; wipe title shows when PullIndex < Pulls.Count.
   - cinderfield self-hit: REAL-BY-DESIGN, MEDIUM, at game/sim/Keyrun.Sim/Encounter/Payoff.cs:153 (mirrors payoff.ts:117).
+  - Open items from the lane 3, 4 and 10 hand-backs (STATE-R8, 2026-10-19; each is Matt's call, nothing is tuned here):
+    - Mage hat brim (about 0.63 m scaled) is wider than the sim actor radius 0.4 m and clips corridor walls (#171).
+    - Boss head-line per row: the boss Knight is 4687 mm at 1900 permille (D22) and stays open (#173).
+    - Fixture regeneration with startHeading: the committed fixtures predate the line; K1 skips it (D23, #174).
+    - Git LFS if the CC0 assets exceed 50 MB (about 31.6 MB today; #173).
+    - Delete the merged keyrun worktrees and branches (after pr_merged_check.py proves each merge).
+    - The #173 branch merge commit 6fe70af lacks a Co-Authored-By trailer (cosmetic).
     DECISION FOR MATT: should field combos hit the caster (BIBLE section 5)? Same as defect (m) above.
   - Cast-range finding from 3I: REFUTED by source recon (range checked at ScriptTarget.cs:31-32,100-108,120-122 and
     Casting.cs:84-97). The 13-17 m figure is the spawn gap.
@@ -534,6 +584,21 @@ Additional parked decisions (from the burn ledger):
   is proven on the real sim by LockWinnabilityTests (Warden Setup plus Cinder Payoff inside a 60-tick window); the bot party
   is still not required to close it (D17). A solo Warden cannot close the Lock by design (Boss.cs:321-322). Why: D17 requires
   the Lock to be theoretically winnable, and only a real-sim run proves that, not the synthetic BossRulesTests.
+- D22 **Enemy head-line targets per row accepted** (orchestrator, 2026-10-19 02:57Z, PR #173 mergedAt): the orchestrator accepted
+  per-row head-line targets for enemies (boss Knight 4687 mm at 1900 permille, seed elite 2340, twins 2070, others 1800; warden
+  and chanter 1750) as a reversible content choice; the boss head-line stays open for Matt. Why: the per-row table is an
+  orchestrator decision within ART-PLAN section 4 (D16, D17), each row can be retuned without data loss, and the frames
+  judge it (D15).
+- D23 **A recorded run starts facing the route** (orchestrator, 2026-10-19 03:07Z, PR #174 mergedAt): the input log carries
+  startHeading, replay applies it, and absent means the legacy heading; fixtures were not regenerated (the K1 comparison skips
+  that line), and regeneration is Matt's call. Why: since #172 a run Matt records kept the legacy heading because the log never
+  stored the frame-0 heading, so the recorded run did not face the route; carrying it in the log fixes that without moving the
+  E2eAssert digest b950474eff2d9967.
+- D24 **A lane denied by the BUILDLOG hook stops and uses the sanctioned path** (orchestrator, 2026-10-19 02:10Z, PR #169
+  mergedAt): a lane that is denied by the BUILDLOG append-only hook stops and uses the sanctioned path (`git checkout origin/main
+  -- BUILDLOG.md`, then re-append); the GUARD-HARDEN workaround (`git show origin/main:BUILDLOG.md > BUILDLOG.md`) is recorded as
+  a finding, and the wall was built in the brain repo (claude-config #118 and #119, both MERGED). Why: an improvised rewrite of an
+  append-only control file defeats the guard; the hook was fixed in the brain repo, not routed around.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
