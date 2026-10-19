@@ -672,6 +672,31 @@ Additional parked decisions (from the burn ledger):
   game/scenes/Arena.tscn. WindowRingView keys violet on ParsedWindowId.Alternate for the lockwindow prefix. A `LOCK view
   phase=` stdout line exists and is not in the run log or the digest. Why: D17 needs the Lock to be a real, readable
   mechanic, and the view must not move the sim.
+- D27 **ROOM-LOCK-IN: a pull starts when the living party is inside its room, and the gate shuts behind them**
+  (Matt 2026-10-19, verbatim: "I think the party should have to enter the room to see the pull, not cheese from doorways
+  lol, door should shut behind them"; lane ROOM-LOCK-IN; reversible; bound: layout runs only, every oracle run has no
+  layout and is unchanged). A pull's pull_start fires on the first tick at least one living player and EVERY living player
+  (human and bots) stands inside the pull's room box (`NavLayout.RoomFor`: the layout.json room that holds the pull's
+  trigger; choir-room, pair-hall, seed-chamber, warden-arena). Until then the pull's enemies are not in the state, so they
+  cannot be targeted or damaged and deal no damage. On that tick the sim emits `gate_closed {room}`; from the next tick
+  until the pull's pull_clear `NavLayout.GateClamp` holds every actor: one inside the room box cannot leave it (clamped to
+  the edge), one outside cannot enter it (move refused). `gate_open {room}` is emitted with the pull_clear. Dead members and
+  abandoned unfilled seats (`StepRunOpts.OpenSeats`, passed by Backfill.Step) never hold a pull back. Integer math, no
+  randomness. Consequences: the scripted autorun Warden walks to a room's far door while no enemy lives, so it can stand
+  near the spawn at pull_start (NavRouteTests' 6 m spacing now covers the bots only; a host lane may make the leader wait);
+  a backfill joiner outside a locked room waits for the clear. Run C: run_end timed 5117 -> 5282, BOTS hash
+  4b010d9f413e63de -> 986fa6e7666d7ab0. Why: design/BIBLE.md sections 4 and 9 build each pull on the party landing together
+  inside the room; before this a pull could be started and fought from the corridor (the Seed elite was killed from the
+  doorway in the run Matt watched).
+- D28 **ORACLE POLICY: the C# sim is the source of truth; the oracle fixtures and the replay digest are recordings**
+  (orchestrator, 2026-10-19, lane ROOM-LOCK-IN; reversible). The TS parity oracle fixtures (tests/oracle, frozen-source hash
+  in game/sim/Keyrun.Sim.Tests/Fixtures/oracle/manifest.json) and the E2eAssert replay digest (game/src/Host/E2eAssert.ps1
+  `$ReplayTickDigest`) record the sim. From D27 on they are regenerated whenever a sim rule changes (`ORACLE_WRITE=1 npx
+  vitest run tests/oracle`; the digest edited to the newly measured value), with the reason written next to the new value;
+  they are no longer an independent parity check. D27 values: manifest hash 7a65bec7 -> 7a65bec7 and replay digest
+  b950474eff2d9967 -> b950474eff2d9967, both unchanged and regenerated with reason "D27 room lock-in" (the oracle runs have no
+  layout, and the 240 replayed TICK lines measured the same in two E2eAssert runs). Why: the TS sim is frozen (D12) and the C# sim now
+  carries rules the TS one never had, so a check against TS can only record, not judge.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
