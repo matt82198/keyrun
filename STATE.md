@@ -1,5 +1,20 @@
 # STATE.md - Keyrun
 
+## INTENT (pinned; the orchestrator reads this first after every compaction)
+Why pinned: Matt 2026-10-19, verbatim: "there seems to be a misunderstaning with your responsiblity now, the workers context are small scope, your context is intent... over and over we are losing intent for context... even though its enforced with code" and "i think you've built a good start, it just does not align with the bible lmfao". Every lane is judged against design/BIBLE.md below, not against its own PR text.
+- Goal, design/BIBLE.md section 1, verbatim: "Screen -> Queue -> Dungeon (timed, one boss) -> End-of-run choice of three -> Screen." "Nothing exists outside this loop in the POC: no world, no quests, no shop, no stash."
+- The three tests, section 0, verbatim headings, each with its first sentence. Every lane's deliverable is judged against these three, not against its own PR description.
+  - "**Depth and difficulty.** Classes with real decisions on five buttons; keys that are genuinely hard because of what enemies *do*, not how much health they have."
+  - "**A high key inside a minute.** Open the screen, pick a key, press Queue, be in the dungeon."
+  - "**Strangers are chill by default.** The systems remove the reasons people are not: no shareable score to judge by, no run ruined by one mistake, backfill instead of abandonment, pings instead of typing."
+- Combat contract, section 3, verbatim: "**Cast bars are the enemy's language.** Every dangerous enemy action is a cast with a visible bar and a floor telegraph (circle, cone, line) drawn ahead of resolution. Shape plus colour, never colour alone (research/06)." Also: "Interrupts resolve by intended tick with a fixed tiebreak, never arrival order"; "Damage is a pipeline of integers".
+- The design's centre, section 4, verbatim: "This is the design's centre and the answer to "more creative than Blizzard": synergy is not a buff you press, it is a *timing game between two people*."
+- POC dungeon, section 9, verbatim: "Three pulls and a boss, forward-only, no backtracking (research/02). Each pull teaches one thing." Pulls: "**The Choir**" teaches the kick ledger (must-kick 4-second heal cast); "**The Pair**" teaches reading shape (spread ring, then stack circle); "**The Seed**" teaches the boss's core rule with no stakes. Boss "the Hollow Warden": Cleave, The Sundered Twins, The Lock.
+- Gear, section 7, verbatim: "**Five slots**: Weapon, Armor, Charm, Ring, Keystone." "Tier is power and it is capped at 10." "**Facets change function**" "**End of every run: choose one of three**" "Ash buys only cosmetics and titles." "**After the cap: Ascension.** ... and Ascension marks on the character."
+- Current milestone, STATE.md D10 (verbatim): "**MVP = 3D gameplay**" ... "the MVP deliverable is one complete 3D run Matt can play end to end and judge by feel, not a test count." Phase 3 exit waits on Matt's human-played run. OPEN QUESTION FOR MATT: D10 covers the dungeon only, while section 1 includes the screen, the queue and the end-of-run choice; which is the MVP line?
+- Acceptance is Matt watching (D15): frames and video viewed before a visible row closes. Demo verdict 2026-10-19 (default run C at 75da3ef): KF1 combat animation reads badly; KF2 bots idle in the first room (the Choir is meant to teach the kick); KF3 the Seed elite spawns on entry and the bots cheese it. Known section 3 gaps: boss slam and Twins slam untelegraphed.
+- Art and gear models: CC0 packs only (D17). How gear shows on the CC0 models is an open design question; a BIBLE-ALIGN recon on 2026-10-19 is mapping the bible against main.
+
 **Intent (Matt, 2026-09-18):** "isolating m+ from WoW and just making it an open and queue game like Dark and Darker,
 and let people manage their characters from a simple screen... study other mmos, dungeon games, gear progression, and
 find specifically what people find exciting/fun, build talent trees, classes, the dungeon POC with initial enemies,

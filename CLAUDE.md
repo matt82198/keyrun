@@ -2,8 +2,7 @@
 
 **What**: a proof-of-concept co-op dungeon game that isolates the Mythic+ loop from WoW — queue up, run a timed
 dungeon with a small party, kill a boss, come back to a simple character screen and get stronger — with the bloat
-cut: 4–5 rotational abilities per class, 10 keybinds total, class synergy as the design goal. No art assets: 3D
-placeholder geometry (capsules, boxes, planes), text, and colour only. Public repo (MIT, since 2026-10-17). Working name; rename later.
+cut: 4–5 rotational abilities per class, 10 keybinds total, class synergy as the design goal. Art is CC0 asset packs only (D17; game/assets/ATTRIBUTION.md), no custom art. Public repo (MIT, since 2026-10-17). Working name; rename later.
 
 ## Stack (SUPERSEDED by D12 in STATE.md, 2026-10-18)
 The engine is Godot 4.7.2 .NET with C# throughout, in `game/` (see game/CLAUDE.md). The TypeScript below is the
