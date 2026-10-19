@@ -117,15 +117,18 @@ public sealed class TickAccumulator
 /// release the game reads is stamped with the host tick and written to PATH as <c>keyrun.input-log/1</c> (see
 /// <see cref="InputLog"/>) at each run end and at quit, logged <c>INPUT record done events=N path=P</c>. Lane 3E-c: the
 /// CameraRig heading WASD is relative to is sampled before each step and recorded whenever it changes; a log holding a
-/// heading is written as <c>keyrun.input-log/2</c> and logged <c>INPUT record done events=N cam=M path=P</c>. Ignored
-/// under <c>--autorun</c>. Null = no recording.</param>
+/// heading is written as <c>keyrun.input-log/2</c> and logged <c>INPUT record done events=N cam=M path=P</c>. Lane
+/// HOST-HEADING: the rig first turns down the route as on every other launch, and that start heading is written as the
+/// log's <c>startHeading</c> (while a replay is also recorded, the replayed log's own value, none when it has none).
+/// Ignored under <c>--autorun</c>. Null = no recording.</param>
 /// <param name="ReplayInput">Interactive input replayer (<c>--replay-input PATH</c>, lane 3E-b): the log's events go back
 /// through <see cref="Input.ParseInputEvent"/> at their host ticks, so PlayerInput's polled keys and every node's
 /// <c>_UnhandledInput</c> see them as keyboard input; logged <c>INPUT replay tick=T key=K pressed=B</c> per event and
 /// <c>INPUT replay done events=N last=T</c>. Lane 3E-c: a <c>/2</c> log's headings are put back on the CameraRig
 /// (<see cref="Keyrun.View.CameraRig.RestoreYaw"/>) before the step at their tick, logged
-/// <c>INPUT replay cam tick=T yaw=Y</c>, and the summary ends <c>cam=M</c>. Ignored under <c>--autorun</c>. Null = no
-/// replay.</param>
+/// <c>INPUT replay cam tick=T yaw=Y</c>, and the summary ends <c>cam=M</c>. Lane HOST-HEADING: a log's
+/// <c>startHeading</c> is put on the rig before the first step, logged <c>INPUT replay heading yaw=Y</c>; a log without
+/// one keeps the legacy heading. Ignored under <c>--autorun</c>. Null = no replay.</param>
 /// <param name="PressYaw">Interactive scene-test seam (<c>--press-yaw T:Y</c>, lane 3E-c): once the run reaches tick T a
 /// scripted player turns the CameraRig to Y radians through <see cref="Keyrun.View.CameraRig.Look"/>, the call the mouse
 /// handler makes, logged <c>INPUT yaw tick=T yaw=Y</c> (Y as the rig then reports it). Ignored under <c>--autorun</c>.
@@ -395,6 +398,7 @@ public partial class SimDriver : Node
     private InputReplayer? _replayer;
     private int _replayTotal;
     private int _replayCameraTotal;
+    private float? _replayStartHeading;
     private bool _replayDoneLogged;
     private CameraRig? _rig;
     private bool _cameraBaselined;
@@ -524,11 +528,23 @@ public partial class SimDriver : Node
     public override void _Process(double delta)
     {
         // Lane 3E-c: the heading the rig starts at (every _Ready has run, PlayerInput has turned it to the spawn facing)
-        // is the recorder's baseline, never an event: a replay starts from the same heading.
-        if (!_cameraBaselined && _recorder is not null && _rig is not null)
+        // is the recorder's baseline, never an event. Lane HOST-HEADING: a plain recording faces the route first
+        // (CameraRig.EnsureStartHeading) and writes that baseline as the log's startHeading; a replay puts the file's
+        // startHeading back on the rig here, before the first step, and keeps the legacy heading when it has none.
+        if (!_cameraBaselined && _rig is not null && (_recorder is not null || _replayer is not null))
         {
             _cameraBaselined = true;
-            _recorder.BaselineCamera(_rig.Yaw);
+            _rig.EnsureStartHeading();
+            if (_replayStartHeading is { } heading)
+            {
+                _rig.RestoreYaw(heading);
+                _log?.Line(FormattableString.Invariant($"INPUT replay heading yaw={InputLog.FormatYaw(heading)}"));
+            }
+            if (_recorder is not null)
+            {
+                _recorder.BaselineCamera(_rig.Yaw);
+                _recorder.StartHeading = _replayer is null ? _rig.Yaw : _replayStartHeading;
+            }
         }
         MaybeScriptedEnter();
         MaybeReplay();
@@ -631,11 +647,12 @@ public partial class SimDriver : Node
                 throw new ArgumentException(FormattableString.Invariant(
                     $"--replay-input {path} was recorded at seed={log.Seed} key={log.KeyLevel}, this launch is seed={Options.Seed} key={Options.KeyLevel}"));
             }
-            if (log.Camera.Count > 0 && _rig is null)
+            if ((log.Camera.Count > 0 || log.StartHeading is not null) && _rig is null)
             {
                 throw new ArgumentException($"--replay-input {path} holds camera headings but the scene has no CameraRig at {CameraRigPath}");
             }
             _replayer = new InputReplayer(log);
+            _replayStartHeading = log.StartHeading;
             _replayTotal = log.Events.Count;
             _replayCameraTotal = log.Camera.Count;
         }

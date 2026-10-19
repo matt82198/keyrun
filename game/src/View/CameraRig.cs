@@ -15,9 +15,11 @@ namespace Keyrun.View;
 /// CAMERA-FEEL (design/ART-PLAN.md section 8 lane 10), all rules in the pure, tested <see cref="CameraBoom"/>:
 /// <list type="bullet">
 /// <item>Start facing: once the run layout is known, the heading turns to <see cref="CameraBoom.StartHeading"/> (down the
-/// first corridor), unless the launch records or replays an input log (<c>--record-input</c>/<c>--replay-input</c>): those
-/// logs never write the first-frame heading (lane 3E-c baseline), so their baseline stays the legacy heading and every
-/// committed fixture, the E2eAssert digest and HudSceneTest runs K and L replay unchanged.</item>
+/// first corridor), unless the launch replays an input log (<c>--replay-input</c>): SimDriver then puts the log's own
+/// <c>startHeading</c> on the rig before the first step, and a log without one (every log written before HOST-HEADING,
+/// the committed fixtures among them) keeps the legacy heading, so the E2eAssert digest and HudSceneTest run L replay
+/// unchanged. A <c>--record-input</c> launch faces the route like any other and the log records that heading (lane
+/// HOST-HEADING).</item>
 /// <item>Boom clamp: each frame the boom is shortened (<see cref="CameraBoom.Clamp"/>) so the camera stays
 /// <see cref="CameraBoom.MarginMm"/> inside the walls of the plan (<see cref="DungeonBuilder.OccluderBoxes"/>), the same
 /// boxes in the GreyBox fallback.</item>
@@ -108,6 +110,19 @@ public partial class CameraRig : Node3D
     /// <param name="yaw">A heading in [-Pi, Pi], radians, as <see cref="Yaw"/> reported it.</param>
     public void RestoreYaw(float yaw) => Yaw = yaw;
 
+    /// <summary>
+    /// Turns to the start heading now if the run layout is known and it has not happened yet (lane HOST-HEADING):
+    /// SimDriver calls it before it samples the recording baseline, so a recording's <c>startHeading</c> is the route
+    /// heading whatever order the nodes' first frames run in. Idempotent; the same rule as the first <c>Apply</c>.
+    /// </summary>
+    public void EnsureStartHeading()
+    {
+        if (CurrentLayout() is { } layout)
+        {
+            HeadDownTheRoute(layout);
+        }
+    }
+
     /// <inheritdoc />
     public override void _Process(double delta) => Apply();
 
@@ -153,7 +168,8 @@ public partial class CameraRig : Node3D
         }
     }
 
-    // Start facing: once, when the first layout is known, and never over a recorded-log baseline (see the class doc).
+    // Start facing: once, when the first layout is known, and never on a replay, whose heading is the log's (see the
+    // class doc).
     private void HeadDownTheRoute(NavLayout layout)
     {
         if (_headed)
@@ -161,8 +177,7 @@ public partial class CameraRig : Node3D
             return;
         }
         _headed = true;
-        var options = Driver?.Options;
-        if (options is not null && (options.ReplayInput is not null || options.RecordInput is not null))
+        if (Driver?.Options?.ReplayInput is not null)
         {
             GD.Print(FormattableString.Invariant($"CAMERA start heading kept yaw={Yaw} reason=input-log"));
             return;

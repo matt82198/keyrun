@@ -164,6 +164,22 @@
          least 20 of them): position equality is the proof the replayed yaw is the recorded one (positions are integer
          mm, so there is no float noise to round). Before 3E-c SimDriver ignores --press-yaw and records no camera: no
          "INPUT yaw" or "cam=" line and 33 fails (RED).
+    Run M (lane HOST-HEADING, a recorded human run starts facing the route and the input log carries that heading):
+      M1  -- --record-input <log> --press-enter 1 --log <m1>       (--quit-after <HeadingFrames>)
+      M2  -- --replay-input <log> --log <m2>                       (--quit-after <HeadingFrames>)
+      M3  -- --replay-input <walk> --log <m3>                      (<walk>: M1's startHeading, Enter at 0, W from 1)
+      M4  -- --replay-input <bad> --log <m4>                       (<bad>: "startHeading": "east")
+     36. M1: exit 0, a "CAMERA start heading=(dx,dz) yaw=Y" line WITHOUT "reason=input-log", and the file is
+         keyrun.input-log/1 (the heading is not a camera event) whose "startHeading" equals Y and faces +x (-Pi/2);
+     37. M2: exit 0, "INPUT replay heading yaw=Y" with M1's Y, and every TICK warden line both logs hold is identical
+         (at least 20);
+     38. M3: exit 0, "INPUT replay heading yaw=Y", and W walks the Warden down +x (x up by more than 100 mm in 20 ticks,
+         z within 100 mm): the replayed heading is the one movement reads;
+     39. M4: exit 1 with an "ARENA error" naming startHeading (the reader fails closed on a mistyped heading).
+     Before HOST-HEADING a recording keeps the legacy heading (reason=input-log), writes no startHeading, and a replay
+     ignores the field: 36-39 fail (RED). -HeadingOnly runs the source checks and run M alone.
+     Run K1's byte comparison with the committed example ignores the one "startHeading" header line (the example
+     predates the field and fixtures are not regenerated); K1 asserts that line separately.
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -183,7 +199,9 @@ param(
     [int]$RecordFrames = 6600,
     [int]$YawAt = 60,
     [string]$YawTo = '1.5',
-    [int]$YawFrames = 900
+    [int]$YawFrames = 900,
+    [int]$HeadingFrames = 420,
+    [switch]$HeadingOnly
 )
 $ErrorActionPreference = 'Stop'
 
@@ -238,6 +256,151 @@ if ($barSrc -match 'Run over') { $failures.Add('AbilityBar.cs still draws a "Run
 if ($barSrc -match '\bRunEnd\b') { $failures.Add('AbilityBar.cs still reads run.RunEnd (only the stale run-over banner did)') }
 if ($panelSrc -notmatch 'Enter starts a fresh run') { $failures.Add('RunEndPanel.cs no longer draws "Enter starts a fresh run" (the only Enter hint once the bar banner is gone)') }
 if ($screenSrc -match 'does not read the queued') { $failures.Add('Screen.cs still says the host does not read the queued key and Clause (false since 3I/3J)') }
+
+# ---- Run M: a recorded human run starts facing the route; the input log carries the heading (lane HOST-HEADING) ---
+# The "startHeading" header value of an input log file, as its text, or $null.
+function Get-StartHeadingText([string]$path) {
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
+    $hit = [regex]::Match([IO.File]::ReadAllText($path), '(?m)^  "startHeading": ([^,\r\n]+),$')
+    if ($hit.Success) { return $hit.Groups[1].Value }
+    return $null
+}
+
+# One interactive launch for run M: exit code and output lines.
+function Invoke-Interactive([int]$frames, [string[]]$userArgs) {
+    $ErrorActionPreference = 'Continue'
+    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $frames '--' @userArgs 2>&1 | Out-String
+    $rc = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($rc -eq 2 -and $text -match 'Godot binary not found') {
+        Write-Output $text
+        Write-Output 'HudSceneTest: CANNOT RUN (Godot binary not found)'
+        exit 2
+    }
+    return [pscustomobject]@{ Code = $rc; Lines = @($text -split "`r?`n") }
+}
+
+# "TICK n warden=(x,z)" lines of a --log file by tick (the first run's line for each tick).
+function Get-WardenTickLines([string]$path) {
+    $out = New-Object 'System.Collections.Generic.Dictionary[int,string]'
+    if (-not (Test-Path -LiteralPath $path)) { return ,$out }
+    foreach ($l in [IO.File]::ReadAllLines($path)) {
+        if ($l -match '^(TICK (\d+) warden=\((-?\d+),(-?\d+)\))' -and -not $out.ContainsKey([int]$Matches[2])) { $out[[int]$Matches[2]] = $Matches[1] }
+    }
+    return ,$out
+}
+
+function Invoke-RunM {
+    $shown = New-Object System.Collections.Generic.List[string]
+    $tag = [Guid]::NewGuid().ToString('N')
+    $tmp = [IO.Path]::GetTempPath()
+    $mRec = Join-Path $tmp "keyrun-hud-heading-$tag.input-log.json"
+    $mWalk = Join-Path $tmp "keyrun-hud-heading-walk-$tag.input-log.json"
+    $mBad = Join-Path $tmp "keyrun-hud-heading-bad-$tag.input-log.json"
+    $m1Log = Join-Path $tmp "keyrun-hud-m1-$tag.txt"
+    $m2Log = Join-Path $tmp "keyrun-hud-m2-$tag.txt"
+    $m3Log = Join-Path $tmp "keyrun-hud-m3-$tag.txt"
+    $m4Log = Join-Path $tmp "keyrun-hud-m4-$tag.txt"
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $inv = [Globalization.CultureInfo]::InvariantCulture
+
+    # 36. M1: a plain recording heads down the route and writes that heading.
+    $m1 = Invoke-Interactive $HeadingFrames @('--record-input', $mRec, '--press-enter', '1', '--log', $m1Log)
+    if ($m1.Code -ne 0) { $failures.Add("run M1: godot exited $($m1.Code) (expected 0)") }
+    $head1 = First $m1.Lines '^CAMERA start heading'
+    $headYaw = $null
+    if (-not $head1) {
+        $failures.Add("run M1: no 'CAMERA start heading' line")
+    } elseif ($head1 -match 'reason=input-log') {
+        $failures.Add("run M1: '$head1' (a --record-input launch kept the legacy heading instead of facing the route)")
+    } elseif ($head1 -match ' yaw=(\S+)$') {
+        $headYaw = $Matches[1]
+    }
+    [void]$shown.Add($head1)
+    $sh1 = Get-StartHeadingText $mRec
+    if (-not (Test-Path -LiteralPath $mRec)) {
+        $failures.Add("run M1: --record-input wrote no file at $mRec")
+    } else {
+        $recM = Get-Content -Raw -LiteralPath $mRec | ConvertFrom-Json
+        if ($recM.schema -ne 'keyrun.input-log/1') { $failures.Add("run M1: input log schema is '$($recM.schema)' (want keyrun.input-log/1: the start heading is a header field, not a camera event)") }
+        if ($null -eq $sh1) {
+            $failures.Add("run M1: the input log has no `"startHeading`" header line")
+        } else {
+            [void]$shown.Add("M1 startHeading=$sh1")
+            $shF = [single]::Parse($sh1, $inv)
+            if ($headYaw -and $shF -ne [single]::Parse($headYaw, $inv)) { $failures.Add("run M1: startHeading $sh1 is not the camera's start yaw $headYaw") }
+            if ([math]::Abs($shF + [math]::PI / 2) -gt 0.001) { $failures.Add("run M1: startHeading $sh1 does not face +x (want -Pi/2)") }
+        }
+    }
+
+    # 37. M2: replaying M1's file restores the heading and gives the same TICK lines.
+    $m2 = Invoke-Interactive $HeadingFrames @('--replay-input', $mRec, '--log', $m2Log)
+    if ($m2.Code -ne 0) { $failures.Add("run M2: godot exited $($m2.Code) (expected 0)") }
+    $rh2 = First $m2.Lines '^INPUT replay heading yaw=\S+$'
+    [void]$shown.Add($rh2)
+    if (-not $rh2) {
+        $failures.Add("run M2: no 'INPUT replay heading yaw=Y' line (the replay did not apply the file's startHeading)")
+    } elseif ($sh1 -and $rh2 -ne "INPUT replay heading yaw=$sh1") {
+        $failures.Add("run M2: '$rh2' (want 'INPUT replay heading yaw=$sh1')")
+    }
+    $t1 = Get-WardenTickLines $m1Log
+    $t2 = Get-WardenTickLines $m2Log
+    $comparedM = 0
+    foreach ($t in @($t1.Keys | Sort-Object)) {
+        if (-not $t2.ContainsKey($t)) { continue }
+        if ($t2[$t] -ne $t1[$t]) { $failures.Add("run M2: '$($t2[$t])' but M1 had '$($t1[$t])'"); break }
+        $comparedM++
+    }
+    if ($comparedM -lt 20) { $failures.Add("run M2: only $comparedM TICK warden lines compared between M1 and M2 (want >= 20)") }
+    [void]$shown.Add("M2 compared=$comparedM")
+
+    # 38. M3: the recorded heading is the one W walks along (+x down corridor 1).
+    $walkHeading = if ($sh1) { $sh1 } else { '-1.5707964' }
+    $walk = "{`n  `"schema`": `"keyrun.input-log/1`",`n  `"seed`": 1,`n  `"key`": 2,`n  `"startHeading`": $walkHeading,`n  `"events`": [`n" +
+        "    { `"tick`": 0, `"key`": `"Enter`", `"pressed`": true },`n    { `"tick`": 1, `"key`": `"W`", `"pressed`": true }`n  ]`n}`n"
+    [IO.File]::WriteAllText($mWalk, $walk, $utf8)
+    $m3 = Invoke-Interactive $HeadingFrames @('--replay-input', $mWalk, '--log', $m3Log)
+    if ($m3.Code -ne 0) { $failures.Add("run M3: godot exited $($m3.Code) (expected 0)") }
+    $rh3 = First $m3.Lines '^INPUT replay heading yaw=\S+$'
+    if ($rh3 -ne "INPUT replay heading yaw=$walkHeading") { $failures.Add("run M3: heading line '$rh3' (want 'INPUT replay heading yaw=$walkHeading')") }
+    $t3 = Get-WardenTickLines $m3Log
+    $first3 = @($t3.Keys | Where-Object { $_ -ge 1 } | Sort-Object | Select-Object -First 1)
+    if ($first3.Count -lt 1 -or -not $t3.ContainsKey($first3[0] + 20)) {
+        $failures.Add("run M3: the run log has no TICK warden lines 20 ticks apart after the W press")
+    } else {
+        $a3 = $t3[$first3[0]]
+        $b3 = $t3[$first3[0] + 20]
+        [void]$shown.Add("M3 $a3 -> $b3")
+        $null = $a3 -match 'warden=\((-?\d+),(-?\d+)\)'; $ax = [int]$Matches[1]; $az = [int]$Matches[2]
+        $null = $b3 -match 'warden=\((-?\d+),(-?\d+)\)'; $bx = [int]$Matches[1]; $bz = [int]$Matches[2]
+        if ($bx -le ($ax + 100) -or [math]::Abs($bz - $az) -gt 100) { $failures.Add("run M3: W moved the Warden $a3 -> $b3 (want x up by more than 100 mm, z within 100 mm: down +x)") }
+    }
+
+    # 39. M4: a mistyped startHeading is refused.
+    [IO.File]::WriteAllText($mBad, ($walk -replace '"startHeading": [^,]+,', '"startHeading": "east",'), $utf8)
+    $m4 = Invoke-Interactive 120 @('--replay-input', $mBad, '--log', $m4Log)
+    # The error comes on stderr, which PowerShell may wrap across lines: match it with the whitespace taken out.
+    $err4 = $null
+    if ((($m4.Lines -join '') -replace '\s', '') -match 'ARENAerror:[^\r\n]*?startHeadingmustbeafinitenumber') { $err4 = 'ARENA error ... startHeading must be a finite number' }
+    [void]$shown.Add("M4 exit=$($m4.Code) $err4")
+    if ($m4.Code -ne 1 -or -not $err4) { $failures.Add("run M4: exit $($m4.Code), error '$err4' (want exit 1 and an 'ARENA error' naming startHeading)") }
+
+    foreach ($p in @($mRec, $mWalk, $mBad, $m1Log, $m2Log, $m3Log, $m4Log)) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p } }
+    return ,$shown.ToArray()
+}
+
+$mShown = @(Invoke-RunM)
+if ($HeadingOnly) {
+    Write-Output '--- run M (recorded start heading), lane HOST-HEADING ---'
+    foreach ($l in $mShown) { if ($l) { Write-Output $l } }
+    if ($failures.Count -gt 0) {
+        Write-Output "HudSceneTest: FAIL ($($failures.Count))"
+        $failures | ForEach-Object { Write-Output "  - $_" }
+        exit 1
+    }
+    Write-Output "HudSceneTest: PASS (run M only) headingFrames=$HeadingFrames"
+    exit 0
+}
 
 # ---- Run A: pull 1 ---------------------------------------------------------------------------------------------
 $a = Invoke-Arena $Ticks @('--solo')
@@ -688,9 +851,14 @@ if (-not $recDone) {
         }
         if (@($recEvents | Where-Object { $_.key -eq 'Enter' -and $_.pressed }).Count -ne 3) { $failures.Add('run K1: the input log does not hold the three scripted Enter presses') }
         if (@($recEvents | Where-Object { $_.key -eq 'G' -and $_.pressed }).Count -ne 1) { $failures.Add('run K1: the input log does not hold the scripted G press') }
+        # HOST-HEADING: a plain recording carries one "startHeading" header line the committed example predates; it
+        # is asserted here and left out of the byte comparison (the fixture is not regenerated).
+        $kHeading = Get-StartHeadingText $recPath
+        if ($null -eq $kHeading) { $failures.Add("run K1: the input log has no `"startHeading`" header line") }
+        $recText = ([IO.File]::ReadAllText($recPath)) -replace '(?m)^  "startHeading": [^,\r\n]+,\n', ''
         if (-not (Test-Path -LiteralPath $examplePath)) {
             $failures.Add("run K1: no committed example at $examplePath")
-        } elseif ([Convert]::ToBase64String([IO.File]::ReadAllBytes($recPath)) -ne [Convert]::ToBase64String([IO.File]::ReadAllBytes($examplePath))) {
+        } elseif ($recText -cne [IO.File]::ReadAllText($examplePath)) {
             $failures.Add("run K1: the recorded log differs from the committed example $examplePath (regenerate it from run K1 with a stated reason)")
         }
     }
@@ -872,6 +1040,10 @@ foreach ($l in @($recDone) + $replayed + @($replayDone) + $m1) {
 }
 Write-Output '--- run L (camera yaw record -> replay), lane 3E-c ---'
 foreach ($l in @($yawL1, $recDoneL, $turnL1) + $camReplayed + @($replayDoneL, "compared=$comparedL")) {
+    if ($l) { Write-Output $l }
+}
+Write-Output '--- run M (recorded start heading), lane HOST-HEADING ---'
+foreach ($l in $mShown) {
     if ($l) { Write-Output $l }
 }
 

@@ -39,6 +39,10 @@ public sealed record InputLogCamera(int Tick, float Yaw);
 /// run whose camera never turned writes the same <c>/1</c> bytes as before 3E-c; both shapes are read (a <c>/1</c> file
 /// has no camera list). UTF-8, no BOM, LF, one event per line. Seed and key are the launch's <c>--seed</c> and
 /// <c>--key</c>; a replay under a different seed or key is refused, because the same keys would not produce the same run.
+/// Lane HOST-HEADING: either shape may carry an optional <c>"startHeading": Y</c> header line after <c>key</c>, the
+/// CameraRig heading (radians, the <see cref="FormatYaw"/> text) the run started at. It is optional on <c>/1</c> too,
+/// because a recording whose camera never turned is a <c>/1</c> file and still starts at a heading. A file without it
+/// (every log written before HOST-HEADING, including the committed fixtures) replays from the legacy heading, unchanged.
 /// </summary>
 public sealed class InputLog
 {
@@ -53,11 +57,19 @@ public sealed class InputLog
     /// <param name="keyLevel">The launch key level.</param>
     /// <param name="events">The key events, ticks never decreasing.</param>
     /// <param name="camera">The camera headings, ticks never decreasing; null or empty for a key-only log.</param>
-    /// <exception cref="ArgumentException">A tick is negative or goes down, or a yaw is not finite.</exception>
-    public InputLog(long seed, int keyLevel, IReadOnlyList<InputLogEvent> events, IReadOnlyList<InputLogCamera>? camera = null)
+    /// <param name="startHeading">The heading the run started at (radians), or null when the log does not say (the
+    /// legacy baseline).</param>
+    /// <exception cref="ArgumentException">A tick is negative or goes down, or a yaw or the start heading is not
+    /// finite.</exception>
+    public InputLog(long seed, int keyLevel, IReadOnlyList<InputLogEvent> events, IReadOnlyList<InputLogCamera>? camera = null,
+        float? startHeading = null)
     {
         ArgumentNullException.ThrowIfNull(events);
         camera ??= Array.Empty<InputLogCamera>();
+        if (startHeading is { } heading && !float.IsFinite(heading))
+        {
+            throw new ArgumentException($"input log: startHeading {heading} is not finite");
+        }
         for (var i = 0; i < events.Count; i++)
         {
             if (events[i].Tick < 0 || (i > 0 && events[i].Tick < events[i - 1].Tick))
@@ -76,7 +88,12 @@ public sealed class InputLog
         KeyLevel = keyLevel;
         Events = events;
         Camera = camera;
+        StartHeading = startHeading;
     }
+
+    /// <summary>The CameraRig heading the recorded run started at (radians), or null: the file has no
+    /// <c>startHeading</c> and a replay keeps the legacy heading.</summary>
+    public float? StartHeading { get; }
 
     /// <summary>The run seed the log was recorded at.</summary>
     public long Seed { get; }
@@ -103,6 +120,10 @@ public sealed class InputLog
         sb.Append(CultureInfo.InvariantCulture, $"  \"schema\": \"{Schema}\",\n");
         sb.Append(CultureInfo.InvariantCulture, $"  \"seed\": {Seed},\n");
         sb.Append(CultureInfo.InvariantCulture, $"  \"key\": {KeyLevel},\n");
+        if (StartHeading is { } heading)
+        {
+            sb.Append(CultureInfo.InvariantCulture, $"  \"startHeading\": {FormatYaw(heading)},\n");
+        }
         sb.Append("  \"events\": [");
         for (var i = 0; i < Events.Count; i++)
         {
@@ -156,7 +177,8 @@ public sealed class InputLog
     }
 
     /// <summary>Parses file text, fail-closed: an unknown schema, a missing or mistyped field, an unknown key name, a tick
-    /// that goes down, a camera list in a <c>/1</c> file or a <c>/2</c> file without one are all refused.</summary>
+    /// that goes down, a camera list in a <c>/1</c> file or a <c>/2</c> file without one, and a <c>startHeading</c> that
+    /// is present but not a finite number are all refused.</summary>
     /// <param name="json">The text.</param>
     /// <param name="source">Where it came from (error messages).</param>
     /// <returns>The log.</returns>
@@ -176,6 +198,15 @@ public sealed class InputLog
             var schema = schemaEl.GetString()!;
             var seed = Field(root, "seed", source, schema).GetInt64();
             var key = Field(root, "key", source, schema).GetInt32();
+            float? startHeading = null;
+            if (root.TryGetProperty("startHeading", out var headingEl))
+            {
+                if (headingEl.ValueKind != JsonValueKind.Number || !headingEl.TryGetSingle(out var heading) || !float.IsFinite(heading))
+                {
+                    throw new ArgumentException($"{source}: {schema} startHeading must be a finite number (radians)");
+                }
+                startHeading = heading;
+            }
             if (!root.TryGetProperty("events", out var list) || list.ValueKind != JsonValueKind.Array)
             {
                 throw new ArgumentException($"{source}: {schema} needs an events array");
@@ -214,7 +245,7 @@ public sealed class InputLog
                     camera.Add(new InputLogCamera(tick.GetInt32(), yaw.GetSingle()));
                 }
             }
-            return new InputLog(seed, key, events, camera);
+            return new InputLog(seed, key, events, camera, startHeading);
         }
         catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException)
         {
@@ -306,9 +337,14 @@ public sealed class InputRecorder
     }
 
     /// <summary>The heading the rig starts at, sampled once before anything can turn it (SimDriver's first frame, after
-    /// every node's <c>_Ready</c>). It is not recorded: a replay starts from the same scene and so the same heading.</summary>
+    /// every node's <c>_Ready</c>). It is never a camera event; lane HOST-HEADING writes it as the log's
+    /// <see cref="StartHeading"/> instead (SimDriver sets that).</summary>
     /// <param name="yaw">The rig's heading, radians.</param>
     public void BaselineCamera(float yaw) => _lastYaw ??= yaw;
+
+    /// <summary>The <see cref="InputLog.StartHeading"/> the log is written with (lane HOST-HEADING): the sampled baseline
+    /// on a plain recording, the replayed log's own value (null when it has none) while a replay is also recorded.</summary>
+    public float? StartHeading { get; set; }
 
     /// <summary>Records the heading when it differs from the last recorded one (or the baseline). Called before each
     /// step with the value PlayerInput is about to read.</summary>
@@ -328,7 +364,7 @@ public sealed class InputRecorder
     /// <param name="seed">The run seed.</param>
     /// <param name="keyLevel">The launch key level.</param>
     /// <returns>The log.</returns>
-    public InputLog ToLog(long seed, int keyLevel) => new(seed, keyLevel, _events.ToArray(), _camera.ToArray());
+    public InputLog ToLog(long seed, int keyLevel) => new(seed, keyLevel, _events.ToArray(), _camera.ToArray(), StartHeading);
 }
 
 /// <summary>
