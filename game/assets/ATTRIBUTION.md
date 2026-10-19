@@ -33,3 +33,37 @@ section 5).
 - Local additions (ours, not the pack's): the Godot `.import` sidecars (embedded images discarded, light baking off: every
   .glb embeds a copy of `dungeon_texture.png`, so the one shared copy is used instead) and `dungeon_material.tres` (the one
   StandardMaterial3D every kit mesh is drawn with).
+
+## KayKit Adventurers Character Pack 1.0
+
+- Folder: `game/assets/kaykit-adventurers/`
+- Author: Kay Lousberg (www.kaylousberg.com)
+- Source used: https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0 (branch main, commit
+  672074b73ba276876a19e8816ecdc5241817ab47, files fetched from `raw.githubusercontent.com` at that commit). The same pack is
+  published at https://kaylousberg.itch.io/kaykit-adventurers.
+- Downloaded: 2026-10-18
+- License as written in the pack's `addons/kaykit_character_pack_adventures/LICENSE.txt` (byte-identical to the repo-root
+  `LICENSE.txt`; copied unchanged beside the assets as `LICENSE.txt`):
+
+  > KayKit : Adventurers Character Pack (1.0)
+  >
+  > Created/distributed by Kay Lousberg (www.kaylousberg.com)
+  > Creation date: 13/03/2023 09:00
+  >
+  > ------------------------------
+  >
+  > License: (Creative Commons Zero, CC0)
+  > http://creativecommons.org/publicdomain/zero/1.0/
+  >
+  > This content is free to use in personal, educational and commercial projects.
+  >
+  > Support me by using a brand resource provided in this pack or by crediting Kay Lousberg, www.kaylousberg.com (this is not mandatory)
+
+  (The file continues with a Patreon thank-you, a supporter list and social links; it carries no further terms.)
+
+- Files copied (pack file names kept; from `addons/kaykit_character_pack_adventures/Characters/gltf/` unless noted):
+  `Knight.glb` (the Warden), `Mage.glb` (Cinder), `Rogue_Hooded.glb` (the Chanter) and
+  `addons/kaykit_character_pack_adventures/LICENSE.txt`. Each .glb embeds its own colour texture and the 76 Rig_Medium
+  animation clips, so no separate texture or animation pack is used.
+- Local additions (ours, not the pack's): the Godot `.import` sidecars (embedded images kept uncompressed,
+  `gltf/embedded_image_handling=3`; light baking off).
