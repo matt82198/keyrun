@@ -257,8 +257,8 @@ public partial class LabelView : Node3D
         _ => OtherEnemyColor,
     };
 
-    // The plate anchor above the feet, metres, per class (ActorBindingRow.PlateHeightMm: 2.35 m for a 1.8 m body, above
-    // the Seed's and the boss's heads for theirs), so a tall body's plate is never drawn inside its model.
+    // The plate anchor above the feet, metres, per class (ActorBindingRow.PlateHeightMm via PlateRule: 250 mm over the
+    // higher of the target height and the scaled model top, the boss capped at 5 m), so a plate sits just over its head.
     private static float PlateHeight(ActorState actor) => ActorView.Binding.For(actor.ClassId).PlateHeightMm * 0.001f;
 
     private static Color HealthColor(long hp, long max)
