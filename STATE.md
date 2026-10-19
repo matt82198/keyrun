@@ -684,8 +684,8 @@ Additional parked decisions (from the burn ledger):
   abandoned unfilled seats (`StepRunOpts.OpenSeats`, passed by Backfill.Step) never hold a pull back. Integer math, no
   randomness. Consequences: the scripted autorun Warden walks to a room's far door while no enemy lives, so it can stand
   near the spawn at pull_start (NavRouteTests' 6 m spacing now covers the bots only; a host lane may make the leader wait);
-  a backfill joiner outside a locked room waits for the clear. Run C: run_end timed 5117 -> 5282, BOTS hash
-  4b010d9f413e63de -> 986fa6e7666d7ab0. Why: design/BIBLE.md sections 4 and 9 build each pull on the party landing together
+  a backfill joiner outside a locked room waits for the clear. Run C (with WARDEN-ENGAGES): run_end timed 3457 -> 3522, BOTS hash
+  6bffd4e6188d81b4 (986fa6e7666d7ab0 on the #187 base); run F abandons at 2@1700. Why: design/BIBLE.md sections 4 and 9 build each pull on the party landing together
   inside the room; before this a pull could be started and fought from the corridor (the Seed elite was killed from the
   doorway in the run Matt watched).
 - D28 **ORACLE POLICY: the C# sim is the source of truth; the oracle fixtures and the replay digest are recordings**
