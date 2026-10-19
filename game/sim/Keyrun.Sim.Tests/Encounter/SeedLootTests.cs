@@ -10,7 +10,7 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// Seed Window loot (BIBLE s9 item 3, ENGINE-PLAN s5 lane 2C): the Seed elite drops a Window on death; a Combo
 /// landed in that Window sets a bonus-loot entry in the run's rewards. This is NEW behaviour (the frozen TS has no
 /// bonus loot), so it has no oracle trace of its own. It is checked against the real key-2 oracle trace's pull 3
-/// (the Seed pull: deathBloom opens "seedbloom" at t1447, ends t1547 since the 2026-10-18 content tuning, STATE.md D14; was t2706 to t2806): the oracle stream as recorded has no Combo in
+/// (the Seed pull: deathBloom opens "seedbloom" at t1440, ends t1540 since KF3-SEED-ENGAGE (the Seed walks to the party; t1447 to t1547 after the 2026-10-18 content tuning, STATE.md D14; t2706 to t2806 before it): the oracle stream as recorded has no Combo in
 /// that Window, so the entry is absent; the same stream with one field Combo injected, shaped exactly as
 /// sim/combat/payoff.ts:118-129 emits it, has the entry.
 /// </summary>
@@ -66,8 +66,8 @@ public sealed class SeedLootTests
         var (rule, records) = Pull3();
         var rewards = Observe(rule, records);
         Assert.Empty(rewards.BonusLoot);
-        // The rule did see the oracle's Seed Window open (window_opened seedbloom, setupActorId 108, endsTick 1547).
-        Assert.Equal(1547, rewards.SeedWindowEndsTick);
+        // The rule did see the oracle's Seed Window open (window_opened seedbloom, setupActorId 108, endsTick 1540).
+        Assert.Equal(1540, rewards.SeedWindowEndsTick);
     }
 
     [Fact]
@@ -98,8 +98,8 @@ public sealed class SeedLootTests
         // Before the Window opened, after it ended, in another actor's Window, and in another Window id.
         var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]>
         {
-            [1441] = new[] { FieldCombo(1440) },
-            [1549] = new[] { FieldCombo(1548) },
+            [1434] = new[] { FieldCombo(1433) },
+            [1542] = new[] { FieldCombo(1541) },
             [1463] = new[] { FieldCombo(1462, setupActorId: 3), FieldCombo(1462, windowId: "kindled") },
         });
         Assert.Empty(rewards.BonusLoot);

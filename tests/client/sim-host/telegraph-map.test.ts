@@ -44,9 +44,9 @@ function tg(abilityId: string, shape: Telegraph["shape"] = "circle"): Telegraph 
 }
 
 describe("telegraph-map: render class per emitted telegraph kind", () => {
-  it("finds exactly the six telegraphed casts the content ships today", () => {
+  it("finds exactly the seven telegraphed casts the content ships today", () => {
     expect(emittedTelegraphAbilities()).toEqual([
-      "hollowWarden.cleave", "hollowWarden.slam", "pair.spreadMark", "pair.stackCall", "seed.slam", "twins.slam",
+      "hollowWarden.cleave", "hollowWarden.slam", "pair.spreadMark", "pair.stackCall", "seed.lash", "seed.slam", "twins.slam",
     ]);
   });
 
@@ -68,6 +68,12 @@ describe("telegraph-map: render class per emitted telegraph kind", () => {
     expect(TELEGRAPH_CLASS_BY_ABILITY["twins.slam"]).toBe("avoid");
     expect(toTelegraphSnapshot(tg("hollowWarden.slam")).danger).toBe(true);
     expect(toBotTelegraph(tg("twins.slam")).danger).toBe(true);
+  });
+
+  it("maps the Seed lash to avoid, like the seed.slam circle (KF3-SEED-ENGAGE)", () => {
+    expect(TELEGRAPH_CLASS_BY_ABILITY["seed.lash"]).toBe("avoid");
+    expect(toTelegraphSnapshot(tg("seed.lash")).danger).toBe(true);
+    expect(toBotTelegraph(tg("seed.lash")).danger).toBe(true);
   });
 
   it("an unknown ability falls back to the generic avoid class", () => {

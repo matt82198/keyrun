@@ -11,10 +11,11 @@ describe("content registries", () => {
     expect(() => loadContent()).not.toThrow();
   });
 
-  it("has 3 classes, 38 abilities, 22 effects, 13 combos, 7 enemies, 1 dungeon, 4 clauses", () => {
+  it("has 3 classes, 39 abilities, 22 effects, 13 combos, 7 enemies, 1 dungeon, 4 clauses", () => {
     const reg = loadContent();
     expect(reg.classes.size).toBe(3);
-    expect(reg.abilities.size).toBe(38);
+    // 39 since KF3-SEED-ENGAGE added seed.lash (was 38).
+    expect(reg.abilities.size).toBe(39);
     expect(reg.effects.size).toBe(22);
     // 9 pair-class combos + 4 added aligning to the real sim: lock-warden/lock-cinder/lock-chanter
     // (The Lock's boss pseudo-class row, sim/combat/combos.ts) and seedbloom-field (The Seed's
