@@ -261,11 +261,13 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
     (content/data/enemies/hollow-warden.json); the party dealt about 470 damage before wiping. The 3B claim that bots
     break 1 of 4 Locks at k10 is NOT reproduced. DECISION FOR MATT: boss HP, lock threshold, or bot DPS tuning before any
     Lock assertion is written (no fitted green).
-- NEXT ORDER (2026-10-18, fourth pass; resume here, in this order). STATE-R7 (2026-10-19): lanes 1, 2 and 9 DONE; lane 8
-  HUD-POLISH (PR #167 OPEN) and lane 3 PLAYER-BOTS RUNNING. Lanes 3, 4, 8 and 10 build on lane 2's kit, walls and
+- NEXT ORDER (2026-10-18, fourth pass; resume here, in this order). STATE-R7 (2026-10-19): lanes 1, 2, 8 and 9 DONE (lane 8
+  is PR #167, squash 30f5708); lane 3 PLAYER-BOTS RUNNING; HUD-POLISH-2 pending (Opus, small, render-only: send Pings.cs
+  labels and CastBarView.cs bars through HudLayout.Separate). Lanes 3, 4, 8 and 10 build on lane 2's kit, walls and
   DungeonBuilder, and on lane 9's proof. Then: lane 4 enemies (Opus, KayKit Skeletons, adds rows to ActorBinding), lanes 5 to 7
   room theming, lane 10 feel (camera yaw Pi at start, yaw-0 camera outside walls, wall fade). GUARD-HARDEN PR pending.
-  WHY the themed run is listed first: Matt judges feel from frames (D15, D16), so the NAV-and-art run is the one to measure. WHY reordered: D15 (frames before feel) and #158 (boss
+  WHY the themed run is listed first: Matt judges feel from frames (D15, D16), so the NAV-and-art run is the one to measure.
+  WHY reordered (fourth pass): D15 (frames before feel) and #158 (boss
   reachable in autorun) change what a human run must measure. Steps 1-3 of the second pass are kept below as the record.
   0. SCREENS proof lane (running 2026-10-18; output C:/Users/Mattt/Desktop/keyrun-screens/) makes the first frames of run C.
      Follow-up SCREENS-TOOL lane promotes the capture script to tools/godot/screens.ps1, adds the ffmpeg frames-to-mp4 step,
@@ -360,9 +362,12 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   passes are kept as dungeon-shell-v1-3m-walls, -v2-2m-walls and -v3-floor-shadows. Frames:
   C:/Users/Mattt/Desktop/keyrun-screens/dungeon-shell (44 PNGs, run.mp4 1,339,432 bytes). Wall fade or cut-away and the
   yaw-0 camera outside the walls go to lane 10.
-- Lane 8 HUD-POLISH: RUNNING (Opus, branch feat/hud-polish, worktree keyrun-wt/hud-polish, dispatched 2026-10-19 01:26Z).
-  PR #167 OPEN (head feat/hud-polish) as of this checkpoint. Scope: pull title under the Slack bar, plate overlap (five Pair
-  plates), Twin plate over the boss plate, via a pure HudLayout.cs in Keyrun.Content with tests.
+- Lane 8 HUD-POLISH: DONE. PR #167 MERGED, squash 30f57080949f0d9de0d31a6891c68da7c92252b9, mergedAt 2026-10-19T01:52:08Z,
+  branch feat/hud-polish. Pure layout game/content/Keyrun.Content/Model/HudLayout.cs with 17 HudLayoutTests; Slack bar moved
+  top-right beside the objective panel; titles cut with "..." via HudLayout.FitTitle; plates on a screen-space 2D layer
+  separated by HudLayout.Separate. Frames C:/Users/Mattt/Desktop/keyrun-screens/hud-polish (66 PNGs, run.mp4 1,760,793 bytes;
+  orchestrator viewed run-041, run-048, run-058, run-062). Residual overlaps in Pings.cs SPREAD/STACK floor labels and
+  CastBarView.cs cast bars filed as HUD-POLISH-2 (pending, see NEXT ORDER).
 - Lane 3 PLAYER-BOTS: RUNNING (Opus, branch feat/player-bots, base 49aeadb9), dispatched about 01:50Z 2026-10-19 after a
   read-only PLAYER-RECON. Owns ActorView.cs, Actor.tscn, new ActorAnimator.cs, ActorBinding.cs and their tests, and
   game/assets/kaykit-adventurers/**. Model heads stay at or below 1.8 m because lane 8 owns LabelView.cs (PlateHeight 2.35).

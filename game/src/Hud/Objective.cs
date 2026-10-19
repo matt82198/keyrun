@@ -137,11 +137,20 @@ public partial class Objective : Control
             return;
         }
         var line = ObjectiveModel.Build(run, _driver.Registry);
-        var width = Math.Max(HudNodes.Width(line.Title, TitleFont), HudNodes.Width(line.Task, TaskFont)) + 20;
-        DrawRect(new Rect2(0, 0, width, 50), HudNodes.Back);
-        HudNodes.Text(this, new Vector2(10, 21), line.Title, TitleFont, new Color(1f, 0.9f, 0.55f));
-        HudNodes.Text(this, new Vector2(10, 42), line.Task, TaskFont, Colors.White);
+        // HUD polish (ART-PLAN lane 8): the panel lives in its HudLayout.TopBar slot, left of the Slack bar, and its
+        // lines are clipped with "..." to the slot instead of running under the bar. This node spans the HUD root, so
+        // the slot is in viewport pixels.
+        var bar = HudLayout.TopBar((int)Size.X, (int)Size.Y);
+        var title = HudLayout.FitTitle(line.Title, bar.TitleMaxWidth, s => Measure(s, TitleFont));
+        var task = HudLayout.FitTitle(line.Task, bar.TitleMaxWidth, s => Measure(s, TaskFont));
+        var slot = bar.Objective;
+        var width = HudLayout.PanelWidth(Measure(title, TitleFont), Measure(task, TaskFont), bar);
+        DrawRect(new Rect2(slot.X, slot.Y, width, slot.Height), HudNodes.Back);
+        HudNodes.Text(this, new Vector2(slot.X + HudLayout.PanelPad, slot.Y + 19), title, TitleFont, new Color(1f, 0.9f, 0.55f));
+        HudNodes.Text(this, new Vector2(slot.X + HudLayout.PanelPad, slot.Y + 38), task, TaskFont, Colors.White);
     }
+
+    private static int Measure(string text, int size) => (int)Math.Ceiling(HudNodes.Width(text, size));
 
     private void OnRunStarted()
     {
