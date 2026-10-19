@@ -5,7 +5,7 @@
   "events": [
     { "tick": 0, "key": "Enter", "pressed": true },
     { "tick": 2, "key": "G", "pressed": true },
-    { "tick": 1307, "key": "Enter", "pressed": true },
-    { "tick": 1310, "key": "Enter", "pressed": true }
+    { "tick": 1304, "key": "Enter", "pressed": true },
+    { "tick": 1307, "key": "Enter", "pressed": true }
   ]
 }
