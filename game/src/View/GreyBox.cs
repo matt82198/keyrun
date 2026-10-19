@@ -10,7 +10,8 @@ namespace Keyrun.View;
 /// <summary>
 /// Grey-box walls for the dungeon layout (lane NAV-CORE, STATE.md D18): plain CSG boxes built from the run's
 /// <see cref="NavLayout"/> (game/content/data/layout.json), so the frames show rooms, corridors and doorways before the
-/// kit pieces arrive (design/ART-PLAN.md lane 2 owns DungeonBuilder.cs and replaces this). One floor slab per box, a
+/// kit pieces arrive. Since ART-PLAN lane 2 this is the FALLBACK: DungeonBuilder.cs (the KayKit shell, same layout) switches
+/// this node off when game/assets/kaykit-dungeon-remastered/ is present and leaves it on when it is missing. One floor slab per box, a
 /// low wall along every box edge except where another box continues through it (the doorways), and a gate slab across
 /// each gated corridor's doorway while its pull is uncleared (the sim's own open rule, <see cref="NavLayout.IsOpen"/>).
 /// Render-only: it reads <see cref="SimDriver.Run"/> and never writes sim state.
