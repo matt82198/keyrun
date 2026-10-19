@@ -52,10 +52,10 @@ public static class RunRoot
         var keyLevel = content.KeyLevel ?? 1;
         if (content.Layout is { } layout)
         {
-            // Layout run (STATE.md D18): pull 0 spawns only when a party member already stands in its trigger (a
+            // Layout run (STATE.md D18, D27): pull 0 spawns only when the living party already stands in its room (a
             // --pull N start placed inside the room), never on top of a party that starts in the Entrance.
             layout.RequireTriggers(dungeon);
-            if (dungeon.Pulls.Count > 0 && NavLayout.PartyInside(state, layout.TriggerFor(dungeon.Pulls[0].Id)!))
+            if (dungeon.Pulls.Count > 0 && NavLayout.PartyInside(state, layout.RoomFor(dungeon.Pulls[0].Id)!.Box))
             {
                 state = RunWiring.MergeActors(state, Pulls.SpawnPull(dungeon, 0, state.Tick, static _ => { }));
             }
@@ -122,7 +122,7 @@ public static class RunRoot
         }
         else
         {
-            nextState = StepLayout(layout, run, nextState, nextEncounter, emit);
+            nextState = StepLayout(layout, run, nextState, nextEncounter, emit, opts?.OpenSeats);
         }
         var echo = EchoSpawns.Step(nextEncounter, nextState, events, nextState.Tick, emit);
         nextEncounter = echo.Encounter;
@@ -161,16 +161,34 @@ public static class RunRoot
     /// <summary>
     /// The layout rules after combat (STATE.md D18; no TS counterpart): (1) every actor that moved off the open boxes is
     /// put back by <see cref="Movement.ClampToWalkable"/> against its pre-step position (a gated box opens on the tick its
-    /// pull clears); (2) <c>room_enter</c> for each living player that stepped into a room box; (3) the active pull
-    /// spawns, with its <c>pull_start</c>, on the first tick a living player stands in its trigger.
+    /// pull clears) and, while the active pull is fought, by its room's closed gate (STATE.md D27,
+    /// <see cref="NavLayout.GateClamp"/>; <c>gate_open {room}</c> on the tick the pull clears); (2) <c>room_enter</c> for
+    /// each living player that stepped into a room box; (3) the active pull spawns, with its <c>pull_start</c> and
+    /// <c>gate_closed {room}</c>, on the first tick every living player stands in its room box.
     /// </summary>
-    private static SimState StepLayout(NavLayout layout, Run run, SimState next, EncounterState encounter, Action<SimEvent> emit)
+    private static SimState StepLayout(NavLayout layout, Run run, SimState next, EncounterState encounter, Action<SimEvent> emit, IReadOnlyList<int>? openSeats)
     {
+        // ROOM-LOCK-IN (STATE.md D27): the active pull's room is gated from its pull_start until its pull_clear. The gate
+        // holds this tick when the pull was already spawned before the step and did not clear during it.
+        var priorIndex = run.Encounter.PullIndex;
+        var priorFought = priorIndex < run.Dungeon.Pulls.Count && Pulls.IsSpawned(run.State, run.Dungeon, priorIndex);
+        var locked = priorFought && priorIndex == encounter.PullIndex ? layout.RoomFor(run.Dungeon.Pulls[priorIndex].Id) : null;
+
         var open = layout.OpenBoxes(run.Dungeon, encounter.PullIndex);
         foreach (var actor in next.Actors.Values)
         {
             var pre = run.State.Actors.TryGetValue(actor.Id, out var was) ? was.Pos : actor.Pos;
             actor.Pos = Movement.ClampToWalkable(pre, actor.Pos, open);
+            if (locked is not null)
+            {
+                actor.Pos = NavLayout.GateClamp(locked.Box, pre, actor.Pos);
+            }
+        }
+
+        if (priorFought && priorIndex != encounter.PullIndex && layout.RoomFor(run.Dungeon.Pulls[priorIndex].Id) is { } cleared)
+        {
+            // Stamped like the pull_clear it follows (the encounter step's tick).
+            emit(new SimEvent(run.State.Tick, "gate_open", ("room", JsValue.Str(cleared.Id))));
         }
 
         foreach (var actor in next.Actors.Values)
@@ -190,9 +208,10 @@ public static class RunRoot
 
         var index = encounter.PullIndex;
         if (index < run.Dungeon.Pulls.Count && !Pulls.IsSpawned(next, run.Dungeon, index) &&
-            layout.TriggerFor(run.Dungeon.Pulls[index].Id) is { } trigger && NavLayout.PartyInside(next, trigger))
+            layout.RoomFor(run.Dungeon.Pulls[index].Id) is { } room && NavLayout.PartyInside(next, room.Box, openSeats))
         {
             next = RunWiring.MergeActors(next, Pulls.SpawnPull(run.Dungeon, index, next.Tick, emit));
+            emit(new SimEvent(next.Tick, "gate_closed", ("room", JsValue.Str(room.Id))));
         }
         return next;
     }

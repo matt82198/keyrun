@@ -102,7 +102,10 @@ public static class Pulls
 /// <param name="GatePullId">The pull whose clear opens this box (forward-only), or null = always open.</param>
 public sealed record NavBox(string Id, Combat.Bounds Box, bool IsRoom, string? GatePullId);
 
-/// <summary>A pull's room-entry trigger: the pull spawns the first tick a living party member stands in <paramref name="Box"/>.</summary>
+/// <summary>
+/// A pull's room-entry trigger. Since STATE.md D27 it names the pull's room (the room box holding <paramref name="Box"/>,
+/// <see cref="NavLayout.RoomFor"/>); the pull spawns the first tick every living party member stands in that room box.
+/// </summary>
 /// <param name="PullId">The pull id.</param>
 /// <param name="Box">The trigger box, mm.</param>
 public sealed record NavTrigger(string PullId, Combat.Bounds Box);
@@ -158,11 +161,42 @@ public sealed record NavLayout
     /// <summary>The trigger for <paramref name="pullId"/>, or null.</summary>
     public NavTrigger? TriggerFor(string pullId) => Triggers.FirstOrDefault(t => string.Equals(t.PullId, pullId, StringComparison.Ordinal));
 
-    /// <summary>RED STUB.</summary>
-    public NavBox? RoomFor(string pullId) => null;
+    /// <summary>
+    /// The room of <paramref name="pullId"/> (STATE.md D27): the first room box that holds the pull's whole trigger box,
+    /// or null when the pull has no trigger or no room holds it (<see cref="RequireTriggers"/> rejects that layout).
+    /// </summary>
+    /// <param name="pullId">The pull id.</param>
+    /// <returns>The room box, or null.</returns>
+    public NavBox? RoomFor(string pullId)
+    {
+        if (TriggerFor(pullId) is not { } trigger)
+        {
+            return null;
+        }
+        var t = trigger.Box;
+        return Boxes.FirstOrDefault(b => b.IsRoom &&
+            b.Box.MinX <= t.MinX && t.MaxX <= b.Box.MaxX && b.Box.MinZ <= t.MinZ && t.MaxZ <= b.Box.MaxZ);
+    }
 
-    /// <summary>RED STUB.</summary>
-    public static Vec3 GateClamp(Combat.Bounds room, Vec3 pre, Vec3 post) => post;
+    /// <summary>
+    /// The closed entry gate of <paramref name="room"/> (STATE.md D27; integers, no randomness): an actor that stood
+    /// inside the room box before the move stays inside it (its move is clamped to the room edge), an actor that stood
+    /// outside cannot step into it (its move is refused, it stays at <paramref name="pre"/>); any other move is kept.
+    /// </summary>
+    /// <param name="room">The locked room box.</param>
+    /// <param name="pre">The actor's position before the move.</param>
+    /// <param name="post">The position the move reached (already walkable-clamped).</param>
+    /// <returns>The gated position.</returns>
+    public static Vec3 GateClamp(Combat.Bounds room, Vec3 pre, Vec3 post)
+    {
+        var wasIn = Combat.Movement.Contains(room, pre);
+        var isIn = Combat.Movement.Contains(room, post);
+        if (wasIn && !isIn)
+        {
+            return Combat.Movement.ClampPoint(post, room);
+        }
+        return !wasIn && isIn ? pre : post;
+    }
 
     /// <summary>The highest-index box holding <paramref name="p"/> (open or not), or -1 when none does.</summary>
     public int BoxIndexAt(Vec3 p)
@@ -215,14 +249,37 @@ public sealed record NavLayout
             {
                 throw new ArgumentException($"layout has no room trigger for pull \"{pull.Id}\"", nameof(dungeon));
             }
+            if (RoomFor(pull.Id) is null)
+            {
+                throw new ArgumentException($"layout has no room box holding the trigger of pull \"{pull.Id}\"", nameof(dungeon));
+            }
         }
     }
 
-    /// <summary>True when a living player actor stands in <paramref name="trigger"/>.</summary>
-    public static bool PartyInside(SimState state, NavTrigger trigger)
+    /// <summary>
+    /// True when the living party is inside the pull's room (STATE.md D27): at least one living player actor, and every
+    /// living player actor stands in <paramref name="room"/> (the pull's room box, <see cref="RoomFor"/>). Dead players and
+    /// the actors of <paramref name="openSeats"/> (abandoned, unfilled seats) are ignored.
+    /// </summary>
+    /// <param name="state">The state.</param>
+    /// <param name="room">The pull's room box.</param>
+    /// <param name="openSeats">Open seats' actor ids, or null.</param>
+    public static bool PartyInside(SimState state, Combat.Bounds room, IReadOnlyList<int>? openSeats = null)
     {
         ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(trigger);
-        return state.Actors.Values.Any(a => a.Alive && a.Kind == ActorKind.Player && Combat.Movement.Contains(trigger.Box, a.Pos));
+        var anyLiving = false;
+        foreach (var a in state.Actors.Values)
+        {
+            if (!a.Alive || a.Kind != ActorKind.Player || (openSeats is not null && openSeats.Contains(a.Id)))
+            {
+                continue;
+            }
+            if (!Combat.Movement.Contains(room, a.Pos))
+            {
+                return false;
+            }
+            anyLiving = true;
+        }
+        return anyLiving;
     }
 }

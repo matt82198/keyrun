@@ -11,8 +11,8 @@ namespace Keyrun.Sim.Tests;
 
 /// <summary>
 /// ROOM-LOCK-IN (keyrun STATE.md D27; design/BIBLE.md sections 4 and 9; new behaviour, no TS oracle): on a layout run a
-/// pull's <c>pull_start</c> fires on the first tick every LIVING party member stands inside the pull's room (its trigger
-/// box, the room minus the door strip); until then the pull's enemies are not in the state, so they cannot be targeted,
+/// pull's <c>pull_start</c> fires on the first tick every LIVING party member stands inside the pull's room box (the
+/// room box holding its trigger); until then the pull's enemies are not in the state, so they cannot be targeted,
 /// damaged or deal damage. At <c>pull_start</c> the room's entry gate closes (<c>gate_closed {room}</c>): an actor inside
 /// the room box cannot leave it and an actor outside cannot enter it. It reopens on the pull's <c>pull_clear</c>
 /// (<c>gate_open {room}</c>). A dead member never holds a pull back.
@@ -59,7 +59,7 @@ public sealed class RoomLockInTests
         new[]
         {
             RunTestKit.Member(1, "warden", ActorRole.Tank, 0, 0, 400, 100),
-            RunTestKit.Member(2, "chanter", ActorRole.Healer, 0, -2000, 250, 100),
+            RunTestKit.Member(2, "chanter", ActorRole.Healer, -2000, 0, 250, 100),
         },
         Dungeon,
         Content());
@@ -93,7 +93,7 @@ public sealed class RoomLockInTests
     public void A_pull_does_not_start_while_a_living_member_is_outside()
     {
         var (run, events) = WardenInside(CreateTwo());
-        Assert.True(Movement.Contains(Trigger1, run.State.Actors[1].Pos), $"the Warden should stand inside room-1, at {run.State.Actors[1].Pos}");
+        Assert.True(Movement.Contains(Room1, run.State.Actors[1].Pos), $"the Warden should stand inside room-1, at {run.State.Actors[1].Pos}");
         Assert.True(Movement.Contains(Entrance, run.State.Actors[2].Pos));
         Assert.DoesNotContain(events, e => e.Type is "pull_start" or "gate_closed" or "pull_clear");
         Assert.False(run.State.Actors.ContainsKey(101));
@@ -113,8 +113,8 @@ public sealed class RoomLockInTests
             if (s.Events.Any(e => e.Type == "pull_start"))
             {
                 startTick = s.Run.State.Tick;
-                Assert.False(Movement.Contains(Trigger1, before), $"pull started late: the Chanter was already inside at {before}");
-                Assert.True(Movement.Contains(Trigger1, after), $"pull started with the Chanter at {after}, outside the room");
+                Assert.False(Movement.Contains(Room1, before), $"pull started late: the Chanter was already inside at {before}");
+                Assert.True(Movement.Contains(Room1, after), $"pull started with the Chanter at {after}, outside the room");
                 Assert.True(s.Run.State.Actors.ContainsKey(101));
                 var gate = Assert.Single(s.Events, e => e.Type == "gate_closed");
                 Assert.Equal("room-1", Room(gate));
@@ -122,7 +122,7 @@ public sealed class RoomLockInTests
             }
             else
             {
-                Assert.False(Movement.Contains(Trigger1, after), $"the Chanter stood inside at {after} with no pull_start");
+                Assert.False(Movement.Contains(Room1, after), $"the Chanter stood inside at {after} with no pull_start");
             }
             run = s.Run;
         }
@@ -165,7 +165,8 @@ public sealed class RoomLockInTests
             Assert.True(Movement.Contains(Room1, run.State.Actors[1].Pos), $"the Warden left the locked room: {run.State.Actors[1].Pos}");
             Assert.True(Movement.Contains(Room1, run.State.Actors[2].Pos), $"the Chanter left the locked room: {run.State.Actors[2].Pos}");
         }
-        Assert.Equal(Room1.MinX, run.State.Actors[1].Pos.X);
+        // The front walker stands on the room edge (the other is held behind it by actor spacing).
+        Assert.Equal(Room1.MinX, Math.Min(run.State.Actors[1].Pos.X, run.State.Actors[2].Pos.X));
 
         var killed = Step(run, new CastCommand(run.State.Tick, 1, "nuke", 101));
         var cleared = Step(killed.Run);
@@ -211,7 +212,7 @@ public sealed class RoomLockInTests
             if (s.Events.Any(e => e.Type == "pull_start"))
             {
                 startTick = s.Run.State.Tick;
-                Assert.True(Movement.Contains(Trigger1, s.Run.State.Actors[1].Pos));
+                Assert.True(Movement.Contains(Room1, s.Run.State.Actors[1].Pos));
                 Assert.True(Movement.Contains(Entrance, s.Run.State.Actors[2].Pos));
                 Assert.Contains(s.Events, e => e.Type == "gate_closed" && Room(e) == "room-1");
             }
