@@ -103,7 +103,8 @@ public partial class WindowRingView : Node3D
                 var key = FormattableString.Invariant($"a{id}:{e.EffectId}:{e.EndsTick}");
                 var left = Remaining(key, state.Tick, e.EndsTick, now);
                 var width = parsed.Alternate ? RingWidthM * 2 : RingWidthM;
-                DrawRing(centre, ActorRingRadiusM + (ring * 0.2f), width, left, ColorOf(parsed.WindowId));
+                // LOCK-VIEW: a Lock Window draws in the fixed Lock violet (LockRule.OpenColor, LockView's ring), not its id's hash.
+                DrawRing(centre, ActorRingRadiusM + (ring * 0.2f), width, left, parsed.Alternate ? LockView.ToColor(Keyrun.Content.LockRule.OpenColor, 850) : ColorOf(parsed.WindowId));
                 ring++;
             }
         }
