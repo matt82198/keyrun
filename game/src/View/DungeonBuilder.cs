@@ -26,6 +26,11 @@ public partial class DungeonBuilder : Node3D
 
     private readonly Dictionary<string, List<(Mesh Mesh, Transform3D Local)>> _meshes = new(StringComparer.Ordinal);
     private readonly List<(NavBox Box, Node3D Node)> _gates = new();
+
+    // CAMERA-FEEL (lane 10): every MultiMesh instance of occluder k (wall piece k, then door-frame pillar k - walls),
+    // with its placed transform, so CameraRig can cut it away (zero-scale) and put it back.
+    private readonly List<List<(MultiMesh Mesh, int Index, Transform3D Placed)>> _occluderSlots = new();
+    private readonly HashSet<int> _cut = new();
     private NavLayout? _built;
     private ulong _frames;
     private long _maxDrawCalls;
@@ -115,12 +120,12 @@ public partial class DungeonBuilder : Node3D
             child.QueueFree();
         }
         _gates.Clear();
+        _occluderSlots.Clear();
+        _cut.Clear();
         _built = layout;
 
-        var boxes = layout.Boxes.Select(b => new PlanBox(b.Id, b.IsRoom,
-            checked((int)b.Box.MinX), checked((int)b.Box.MaxX), checked((int)b.Box.MinZ), checked((int)b.Box.MaxZ),
-            b.GatePullId is not null)).ToList();
-        var route = layout.Route.Select(p => (checked((int)p.X), checked((int)p.Z))).ToList();
+        var boxes = PlanBoxesOf(layout);
+        var route = RouteOf(layout);
         var plan = DungeonPlan.Build(boxes, route);
 
         var placed = new List<KitPiece>();
@@ -129,6 +134,14 @@ public partial class DungeonBuilder : Node3D
         placed.AddRange(plan.DoorFrames);
         placed.AddRange(plan.Props);
         placed.AddRange(plan.WallDecor);
+
+        // Occluder k = wall piece k, then door frame k - walls: the order OccluderBoxes (and so CameraRig) uses.
+        var occluderOf = new Dictionary<KitPiece, int>(ReferenceEqualityComparer.Instance);
+        foreach (var piece in plan.WallPieces.Select(w => w.Piece).Concat(plan.DoorFrames))
+        {
+            occluderOf[piece] = _occluderSlots.Count;
+            _occluderSlots.Add(new List<(MultiMesh, int, Transform3D)>());
+        }
 
         var multimeshes = 0;
         foreach (var group in placed.GroupBy(p => p.Piece, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal))
@@ -146,7 +159,12 @@ public partial class DungeonBuilder : Node3D
                 var i = 0;
                 foreach (var p in group)
                 {
-                    mm.SetInstanceTransform(i++, Placement(p) * local);
+                    var xf = Placement(p) * local;
+                    if (occluderOf.TryGetValue(p, out var k))
+                    {
+                        _occluderSlots[k].Add((mm, i, xf));
+                    }
+                    mm.SetInstanceTransform(i++, xf);
                 }
                 AddChild(new MultiMeshInstance3D
                 {
@@ -191,6 +209,69 @@ public partial class DungeonBuilder : Node3D
         GD.Print($"DUNGEON built boxes={boxes.Count} tiles={plan.Floor.Count} walls={plan.WallPieces.Count} " +
                  $"frames={plan.DoorFrames.Count} props={plan.Props.Count} decor={plan.WallDecor.Count} gates={plan.Gates.Count} " +
                  $"lights={plan.Lights.Count} instances={placed.Count} multimeshes={multimeshes}");
+    }
+
+    /// <summary>The run layout's boxes as <see cref="DungeonPlan"/> reads them (mm), in route order.</summary>
+    /// <param name="layout">The run's layout.</param>
+    /// <returns>Plan boxes.</returns>
+    public static IReadOnlyList<PlanBox> PlanBoxesOf(NavLayout layout) =>
+        layout.Boxes.Select(b => new PlanBox(b.Id, b.IsRoom,
+            checked((int)b.Box.MinX), checked((int)b.Box.MaxX), checked((int)b.Box.MinZ), checked((int)b.Box.MaxZ),
+            b.GatePullId is not null)).ToList();
+
+    /// <summary>The run layout's route points (mm), one per box.</summary>
+    /// <param name="layout">The run's layout.</param>
+    /// <returns>Route points.</returns>
+    public static IReadOnlyList<(int X, int Z)> RouteOf(NavLayout layout) =>
+        layout.Route.Select(p => (checked((int)p.X), checked((int)p.Z))).ToList();
+
+    /// <summary>
+    /// The solid boxes the camera keeps out of and cuts away (CAMERA-FEEL): every wall piece, then every door-frame
+    /// pillar, in the plan's order (occluder k here is occluder k in <see cref="CutAway"/>).
+    /// </summary>
+    /// <param name="layout">The run's layout.</param>
+    /// <returns>Wall and pillar boxes, mm.</returns>
+    public static IReadOnlyList<WallBox> OccluderBoxes(NavLayout layout)
+    {
+        var boxes = PlanBoxesOf(layout);
+        return DungeonPlan.WallBoxes(boxes).Concat(DungeonPlan.FrameBoxes(boxes)).ToList();
+    }
+
+    /// <summary>
+    /// Cuts away exactly the given occluders (wall pieces and pillars, <see cref="OccluderBoxes"/> indices) for this
+    /// frame: each one's instances get a zero-scale transform, and any occluder cut last frame but not now gets its placed
+    /// transform back. Floors, props, sconces, gates and lights are never touched. Returns false (and does nothing) when the
+    /// kit shell is not built for <paramref name="layout"/> (GreyBox fallback, or a layout not built yet).
+    /// </summary>
+    /// <param name="layout">The layout the indices refer to.</param>
+    /// <param name="occluders">Occluder indices to hide.</param>
+    /// <returns>True when applied.</returns>
+    public bool CutAway(NavLayout layout, IReadOnlySet<int> occluders)
+    {
+        if (!KitAvailable || !ReferenceEquals(layout, _built))
+        {
+            return false;
+        }
+        foreach (var k in _cut.Where(k => !occluders.Contains(k)).ToList())
+        {
+            foreach (var (mesh, index, placed) in _occluderSlots[k])
+            {
+                mesh.SetInstanceTransform(index, placed);
+            }
+            _cut.Remove(k);
+        }
+        foreach (var k in occluders)
+        {
+            if (k < 0 || k >= _occluderSlots.Count || !_cut.Add(k))
+            {
+                continue;
+            }
+            foreach (var (mesh, index, placed) in _occluderSlots[k])
+            {
+                mesh.SetInstanceTransform(index, new Transform3D(new Basis(Vector3.Zero, Vector3.Zero, Vector3.Zero), placed.Origin));
+            }
+        }
+        return true;
     }
 
     // A floor tile as a kit piece: the tile rectangle, its slab top just under y 0, at the kit scale.

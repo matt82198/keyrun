@@ -80,6 +80,19 @@ public sealed record WallOpening(string BoxId, WallSide Side, int Line, int Lo, 
 /// <summary>One kit wall piece of a run; the run's pieces sum to its length.</summary>
 public sealed record WallPiece(WallRun Run, int Length, KitPiece Piece);
 
+/// <summary>
+/// The solid volume one wall piece (or door-frame pillar) fills, axis-aligned, mm (CAMERA-FEEL, design/ART-PLAN.md lane
+/// 10): the follow camera keeps its boom out of these and cuts away any that still stand between it and a body.
+/// </summary>
+/// <param name="BoxId">The layout box whose edge the piece walls.</param>
+/// <param name="MinX">Lowest x.</param>
+/// <param name="MaxX">Highest x.</param>
+/// <param name="MinZ">Lowest z.</param>
+/// <param name="MaxZ">Highest z.</param>
+/// <param name="MinY">Bottom, mm (floor level is 0).</param>
+/// <param name="MaxY">Top, mm.</param>
+public sealed record WallBox(string BoxId, int MinX, int MaxX, int MinZ, int MaxZ, int MinY, int MaxY);
+
 /// <summary>The gate across a gated box's entry doorway; the view hides it while the box is open.</summary>
 public sealed record GatePiece(string BoxId, KitPiece Piece);
 
@@ -346,6 +359,38 @@ public static class DungeonPlan
         }
         return new DungeonLayoutPlan(Tiles(boxes), walls, openings, pieces, frames,
             Array.Empty<GatePiece>(), Array.Empty<KitPiece>(), Array.Empty<KitPiece>(), Array.Empty<LightSpot>());
+    }
+
+    /// <summary>
+    /// The solid box of every wall piece of <see cref="Walled"/>, in <see cref="DungeonLayoutPlan.WallPieces"/> order (so
+    /// box i is wall piece i): the piece's footprint (length along its run, <see cref="WallThickMm"/> outward from the box
+    /// edge) from the floor to <see cref="WallHeightMm"/>. Lane 10's camera reads these (<see cref="CameraBoom"/>).
+    /// </summary>
+    /// <param name="boxes">Boxes in route order.</param>
+    /// <returns>One box per wall piece.</returns>
+    public static IReadOnlyList<WallBox> WallBoxes(IReadOnlyList<PlanBox> boxes)
+    {
+        ArgumentNullException.ThrowIfNull(boxes);
+        return Walled(boxes).WallPieces.Select(w => SolidOf(w.Piece)).ToList();
+    }
+
+    /// <summary>The solid box of every door-frame pillar of <see cref="Walled"/>, in <see cref="DungeonLayoutPlan.DoorFrames"/> order.</summary>
+    /// <param name="boxes">Boxes in route order.</param>
+    /// <returns>One box per pillar.</returns>
+    public static IReadOnlyList<WallBox> FrameBoxes(IReadOnlyList<PlanBox> boxes)
+    {
+        ArgumentNullException.ThrowIfNull(boxes);
+        return Walled(boxes).DoorFrames.Select(SolidOf).ToList();
+    }
+
+    /// <summary>The axis-aligned box a placed piece fills: its target size about its origin, turned by its quarter turns.</summary>
+    /// <param name="p">A wall piece or pillar (origin at the footprint centre, on the floor).</param>
+    /// <returns>Its box, mm.</returns>
+    public static WallBox SolidOf(KitPiece p)
+    {
+        ArgumentNullException.ThrowIfNull(p);
+        var (sx, sz) = p.QuarterTurns % 2 == 0 ? (p.SizeX, p.SizeZ) : (p.SizeZ, p.SizeX);
+        return new WallBox(p.BoxId, p.X - sx / 2, p.X + sx - sx / 2, p.Z - sz / 2, p.Z + sz - sz / 2, p.Y, p.Y + p.SizeY);
     }
 
     /// <summary>The y (mm) that puts a scaled piece's lowest point on <paramref name="floorMm"/>.</summary>
