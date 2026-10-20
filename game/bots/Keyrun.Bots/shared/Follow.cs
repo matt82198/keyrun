@@ -281,8 +281,10 @@ public static class Follow
     /// living leader other than the bot: a walk along the route to its formation slot behind the leader while no enemy
     /// lives; during a fight with the leader in a room, a walk to its slot pulled <see cref="FightGoalInsetMm"/> inside
     /// that room while the bot stands outside the room shrunk by <see cref="FightInsetMm"/> (still in the corridor or the
-    /// doorway, KF2c), and with the leader in no room only while the bot shares no box with him. Null otherwise (the
-    /// roles decide).
+    /// doorway, KF2c), and with the leader in no room only while the bot shares no box with him. A bot already in the
+    /// leader's room whose slot falls outside it (the leader near the entry wall) walks to that slot pulled
+    /// <see cref="FightInsetMm"/> inside the room instead, so it never steps back out to re-enter (JOINER-DOORWAY). Null
+    /// otherwise (the roles decide).
     /// </summary>
     /// <param name="view">This tick's view.</param>
     /// <param name="self">The bot.</param>
@@ -323,6 +325,12 @@ public static class Follow
             {
                 return null;
             }
+        }
+        if (RoomAt(layout, leader.Pos) is { } leaderRoom && Movement.Contains(leaderRoom.Box, self.Pos) && !Movement.Contains(leaderRoom.Box, slot))
+        {
+            // JOINER-DOORWAY: a bot already in the leader's room never steps back out through the doorway to a slot behind
+            // a leader standing near the entry wall (it would re-enter, a second room_enter); it waits inside instead.
+            return WalkTo(view.State.Tick, self, layout, Movement.ClampPoint(slot, Inset(leaderRoom.Box, FightInsetMm)));
         }
         return WalkTo(view.State.Tick, self, layout, slot);
     }

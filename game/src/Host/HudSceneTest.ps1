@@ -52,6 +52,10 @@
          index=i") only after the Warden entered that room (never at run start, never on the previous clear);
      13b. both "boss_add_spawn" EVENTs (901 twinA, 902 twinB, boss 900) before run_end: the Sundered Twins spawn in the
          full run, not only in run D (STATE.md NEXT ORDER step 3).
+     13c. lane HUD-DECLUTTER (src/Hud/HudDeclutterTest.ps1 on run C's first run): party casts show in the party
+         frames and never over a party member's head, only seat 1's damage spawns a world number, name plates draw
+         the name only, a target frame and a boss frame carry enemy health, and enemy cast bars stay over the head
+         and on the unit frame. Before HUD-DECLUTTER none of its proof lines exist: 13c fails (RED).
     Run D (lane 3I, the armed boss; from pull 4, the boss pull, three-seat party, key 10 seed 7):
         -- --autorun --ticks 600 --pull 4 --key 10 --seed 7
      14. "BOSS armed twins=2 lockAt=50" before the first TICK line (HostRunSetup builds the BossConfig from
@@ -192,6 +196,10 @@
      ignores the field: 36-39 fail (RED). -HeadingOnly runs the source checks and run M alone.
      Run K1's byte comparison with the committed example ignores the one "startHeading" header line (the example
      predates the field and fixtures are not regenerated); K1 asserts that line separately.
+    Run A also carries the ability bar icons (lane ABILITY-ICONS; the bar prints one line per slot under --autorun):
+     40. nine "HUD bar slot=<key> ability=warden.<id> icon=res://assets/kenney-board-game-icons/<file>.png tex=64x64"
+         lines, one per slot 1-5, Q, E, R, F (tex is the loaded Texture2D's size, so a missing file or an unmapped id
+         reads icon=none tex=none and fails). Before ABILITY-ICONS the bar draws only text: no "HUD bar" line, 40 RED.
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -478,6 +486,15 @@ if ($causes.Count -eq 0) {
 }
 $foreign = @($causes | Where-Object { $_ -notmatch '^HUD runend cause seat=1 ' })
 if ($foreign.Count -gt 0) { $failures.Add("run A: the run-end panel shows another seat's cause: '$($foreign[0])'") }
+# 40 (lane ABILITY-ICONS): every Warden bar slot resolved an icon and loaded a 64x64 texture.
+$barIcons = @($aRun1 | Where-Object { $_ -match '^HUD bar slot=' })
+foreach ($k in @('1', '2', '3', '4', '5', 'Q', 'E', 'R', 'F')) {
+    $row = $barIcons | Where-Object { $_ -match "^HUD bar slot=$k " } | Select-Object -First 1
+    if (-not $row) { $failures.Add("run A: no 'HUD bar slot=$k' line (the ability bar printed no icon for slot $k)") }
+    elseif ($row -notmatch '^HUD bar slot=\w ability=warden\.[A-Za-z]+ icon=res://assets/kenney-board-game-icons/[a-z0-9_]+\.png tex=64x64$') {
+        $failures.Add("run A: ability bar slot $k has no loaded icon: '$row'")
+    }
+}
 
 # ---- Run B: from pull 2 -----------------------------------------------------------------------------------------
 $b = Invoke-Arena $PingTicks @('--pull', '2', '--solo')
@@ -590,6 +607,9 @@ foreach ($t in @(@{ Id = 901; Class = 'hollowWarden.twinA' }, @{ Id = 902; Class
 }
 # Lane WARDEN-ENGAGES (KF2b): the autorun Warden lands damage on the Choir at least every 300 ticks until it is clear.
 foreach ($f in @(& (Join-Path $PSScriptRoot 'WardenEngagesTest.ps1') -Lines $cRun -PullId 'choir' -MaxGap 300)) { $failures.Add("run C: $f") }
+# 13c. Lane HUD-DECLUTTER: friendly casts in the party frames, only the human's damage numbers, enemy health in unit
+# frames, enemy cast bars kept (src/Hud/HudDeclutterTest.ps1 holds the four checks and their RED on main).
+foreach ($f in @(& (Join-Path $PSScriptRoot '../Hud/HudDeclutterTest.ps1') -Lines $cRun)) { $failures.Add("run C: $f") }
 
 # ---- Run D: the armed boss (lane 3I) -----------------------------------------------------------------------------
 # From pull 4 (the boss pull): no key reaches the boss from pull 1 under autorun (see the header for the sweep).
