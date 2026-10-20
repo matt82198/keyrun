@@ -148,6 +148,16 @@ jobs:
           if ($code -ne 0) { throw "GateCutawaySceneTest exited $code" }
           if ($out -notmatch '(?m)^GateCutawaySceneTest: PASS') { throw 'GateCutaway scene test did not print PASS' }
 
+      - name: Nameplate declutter test (must print PASS)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & ./game/src/Hud/NameplateDeclutterTest.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "NameplateDeclutterTest exited $code" }
+          if ($out -notmatch '(?m)^NameplateDeclutterTest: PASS') { throw 'NameplateDeclutter test did not print PASS' }
+
       - name: Boot smoke (headless, must print SMOKE ok)
         shell: pwsh
         run: |
