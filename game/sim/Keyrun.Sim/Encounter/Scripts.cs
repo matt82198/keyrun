@@ -132,6 +132,79 @@ public static class Scripts
         return ability.Def is not { } def || Casting.StartError(state, actor, def, cmd.TargetId, fireTick) is null;
     }
 
+    /// <summary>
+    /// TELEGRAPH-HONEST (BIBLE s3; wrong data shown is P0): the index of the script step whose cast the actor is left
+    /// holding once combat has run every scheduled cast due on <paramref name="fireTick"/>, or -1 when none starts.
+    /// STARTCAST-BUSY: StartCast refuses a busy caster and <see cref="CastDeferral"/> holds a step that fires while its
+    /// caster is busy, so nothing due on <paramref name="fireTick"/> starts before <paramref name="freeTick"/> (the
+    /// first tick the caster is free of the cast in flight and of the casts already held for it), and the first step
+    /// whose cast stays in flight (castTicks &gt; 0) claims the caster: every later step that tick is held, not started
+    /// (the Hollow Warden's Lock on a slam tick lands when the slam ends). An earlier step that starts a GCD
+    /// (gcdTicks &gt; 0) refuses every later one, and a second step of an ability already started that tick is refused
+    /// when that took its only charge. Each step's own start is <see cref="WillStart"/>; a step with no ability view
+    /// starts whenever its target resolves. Without this a spansCast telegraph was drawn for every step that could
+    /// start on its own, and on a shared tick every one but the cast the actor kept announced a cast that never came.
+    /// </summary>
+    private static int CastHeldAt(SimState state, int actorId, ActorState actor, IReadOnlyList<ScriptStep> script, IReadOnlyDictionary<string, ScriptAbility> abilities, int fireTick, int freeTick)
+    {
+        if (fireTick < freeTick)
+        {
+            return -1;
+        }
+        var held = -1;
+        var gcdStarted = false;
+        var started = new HashSet<string>(StringComparer.Ordinal);
+        for (var j = 0; j < script.Count && !gcdStarted; j++)
+        {
+            var s = script[j];
+            if (s.Trigger == StepTrigger.OnDeath || !FiresAt(s, fireTick))
+            {
+                continue;
+            }
+            var def = abilities.TryGetValue(s.Cast, out var ability) ? ability.Def : null;
+            if (def is not null && started.Contains(s.Cast) && def.CooldownTicks > 0 && def.Charges <= 1)
+            {
+                continue;
+            }
+            var starts = ability is not null
+                ? WillStart(state, actorId, actor, s, ability, abilities, fireTick)
+                : CastCommandFor(state, actorId, actor, s, abilities) is not null;
+            if (starts)
+            {
+                held = j;
+                if (CastDeferral.LeavesCastInFlight(s.Cast, abilities))
+                {
+                    break;
+                }
+                started.Add(s.Cast);
+                gcdStarted = def is not null && def.GcdTicks > 0;
+            }
+        }
+        return held;
+    }
+
+    /// <summary>
+    /// STARTCAST-BUSY x TELEGRAPH-HONEST: the first tick the caster is free to start a step's cast, judged now: the end
+    /// of the cast in flight (rules complete it before commands on its end tick), of a cast-time cast issued for it
+    /// earlier this call (<paramref name="issuedUntil"/>), and of each cast-time cast held for it, issued in turn.
+    /// </summary>
+    private static int FreeTick(int actorId, ActorState actor, int tick, int issuedUntil, IReadOnlyList<DeferredCast> nextHeld, IReadOnlyDictionary<string, ScriptAbility> abilities)
+    {
+        var free = Math.Max(tick, issuedUntil);
+        if (actor.CastId is not null && actor.CastEndsTick is { } ends)
+        {
+            free = Math.Max(free, ends);
+        }
+        foreach (var h in nextHeld)
+        {
+            if (h.ActorId == actorId && abilities.TryGetValue(h.Step.Cast, out var a) && a.CastTicks > 0)
+            {
+                free += a.CastTicks;
+            }
+        }
+        return free;
+    }
+
     /// <summary>scripts.ts:132 stepEnemyScripts (rules in the class summary). Never mutates <paramref name="state"/>.</summary>
     /// <param name="state">The tick's state.</param>
     /// <param name="scripts">Actor id to script.</param>
@@ -168,7 +241,8 @@ public static class Scripts
                 continue;
             }
             // STARTCAST-BUSY (scripts.ts / deferred-casts.ts): held casts are issued or re-held here; fire gates the
-            // tick's own steps.
+            // tick's own steps and says whether the step's cast was issued now.
+            var issuedUntil = tick;
             var fire = CastDeferral.CasterGate(actorId, actor, tick, abil, held, nextHeld, (step, redraw) =>
             {
                 if (CastCommandFor(state, actorId, actor, step, abil) is not { } cmd)
@@ -176,14 +250,22 @@ public static class Scripts
                     return false;
                 }
                 commands.Add(cmd);
+                var hasCast = abil.TryGetValue(step.Cast, out var issued) && issued.CastTicks > 0;
+                if (hasCast)
+                {
+                    issuedUntil = Math.Max(issuedUntil, tick + issued!.CastTicks);
+                }
                 if (redraw && step.Telegraph is { } htg)
                 {
-                    telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, htg));
+                    // A held spansCast cast starts now, so its re-drawn shape resolves on the tick it lands.
+                    var drawn = htg.SpansCast && hasCast ? htg with { LeadTicks = issued!.CastTicks } : htg;
+                    telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, drawn));
                 }
                 return true;
             });
-            foreach (var step in script)
+            for (var i = 0; i < script.Count; i++)
             {
+                var step = script[i];
                 if (step.Trigger == StepTrigger.OnDeath)
                 {
                     if (actor.Alive)
@@ -216,10 +298,7 @@ public static class Scripts
                 {
                     continue;
                 }
-                if (FiresAt(step, tick))
-                {
-                    fire(step);
-                }
+                var issuedNow = FiresAt(step, tick) && fire(step);
                 if (step.Telegraph is not { } tg)
                 {
                     continue;
@@ -230,7 +309,12 @@ public static class Scripts
                     // did to it) and resolves on the landing tick; it is drawn only when its cast will start.
                     var lead = Math.Max(tg.LeadTicks, spanned.CastTicks);
                     var fireTick = tick + lead - spanned.CastTicks;
-                    if (FiresAt(step, fireTick) && WillStart(state, actorId, actor, step, spanned, abil, fireTick))
+                    // On its own fire tick the step was either issued now or held (STARTCAST-BUSY); ahead of it, the
+                    // caster's free tick and the steps due with it decide (TELEGRAPH-HONEST).
+                    var kept = fireTick == tick
+                        ? issuedNow && CastHeldAt(state, actorId, actor, script, abil, fireTick, tick) == i
+                        : CastHeldAt(state, actorId, actor, script, abil, fireTick, FreeTick(actorId, actor, tick, issuedUntil, nextHeld, abil)) == i;
+                    if (FiresAt(step, fireTick) && kept)
                     {
                         telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, tg with { LeadTicks = lead }));
                     }

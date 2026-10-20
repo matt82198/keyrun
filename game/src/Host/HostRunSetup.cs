@@ -449,6 +449,7 @@ public sealed record HostRunSetup(
         C.ComboOp c => new ComboOp(c.ComboTable),
         C.PartyEffectOp p => new PartyEffectOp(p.EffectId, p.DurationTicks, p.Stacks),
         C.CloudOp c => new CloudOp(c.EffectId, c.DurationTicks, c.RadiusMm),
+        C.CloserBurnOp b => new CloserBurnOp(b.MaxHealthBp, b.CapBp, b.School),
         _ => throw new InvalidOperationException($"run setup: {where} has an op the sim does not run ({op.GetType().Name})"),
     };
 

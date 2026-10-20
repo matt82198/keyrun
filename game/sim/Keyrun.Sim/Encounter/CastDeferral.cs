@@ -37,10 +37,12 @@ public static class CastDeferral
 
     /// <summary>
     /// deferred-casts.ts casterGate: issues (or re-holds into <paramref name="nextHeld"/>) this caster's held casts now
-    /// and returns <c>fire(step)</c> for the tick's own steps. <paramref name="issue"/> builds and adds the cast command
-    /// (and, when its second argument is true, the step's telegraph) and returns false when targeting blocked it.
+    /// and returns <c>fire(step)</c> for the tick's own steps, true when the step's cast was issued now (false when it
+    /// was held or targeting blocked it; TELEGRAPH-HONEST draws a spansCast shape on its fire tick only for an issued
+    /// cast). <paramref name="issue"/> builds and adds the cast command (and, when its second argument is true, the
+    /// step's telegraph) and returns false when targeting blocked it.
     /// </summary>
-    public static Action<ScriptStep> CasterGate(
+    public static Func<ScriptStep, bool> CasterGate(
         int actorId,
         ActorState actor,
         int tick,
@@ -54,7 +56,7 @@ public static class CastDeferral
         ArgumentNullException.ThrowIfNull(nextHeld);
         ArgumentNullException.ThrowIfNull(issue);
         var claimed = actor.Alive && BusyAt(actor, tick);
-        void Fire(ScriptStep step, bool redraw)
+        bool Fire(ScriptStep step, bool redraw)
         {
             if (claimed)
             {
@@ -62,12 +64,14 @@ public static class CastDeferral
                 {
                     nextHeld.Add(new DeferredCast(actorId, step));
                 }
-                return;
+                return false;
             }
-            if (issue(step, redraw))
+            if (!issue(step, redraw))
             {
-                claimed = LeavesCastInFlight(step.Cast, abilities);
+                return false;
             }
+            claimed = LeavesCastInFlight(step.Cast, abilities);
+            return true;
         }
         if (actor.Alive)
         {
