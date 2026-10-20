@@ -9,9 +9,9 @@
     "script": [
       { "at": 60, "every": 150, "cast": "pair.meleeSwing" },
       { "at": "loop", "every": 400, "cast": "pair.spreadMark",
-        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 100 } },
+        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 100, "spansCast": true } },
       { "at": 600, "every": 400, "cast": "pair.stackCall",
-        "telegraph": { "shape": "circle", "radius": 1500, "leadTicks": 100 } }
+        "telegraph": { "shape": "circle", "radius": 1500, "leadTicks": 100, "spansCast": true } }
     ]
   }
 ]
