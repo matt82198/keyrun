@@ -286,7 +286,8 @@ public static class HudNodes
 
 /// <summary>
 /// Party frames (BIBLE s10 party, ENGINE-PLAN 3C): one frame per player seat down the left edge with health,
-/// the class resource, and status chips; a downed member's frame greys out under a DOWNED chip. Reads the sim state
+/// the class resource, and status chips; a downed member's frame greys out under a DOWNED chip. A member's live cast
+/// shows in its frame, right of the name (HUD-DECLUTTER: no cast bar over a party member's head). Reads the sim state
 /// the SimDriver exposes and never writes it.
 /// </summary>
 public partial class PartyFrames : Control
@@ -301,7 +302,15 @@ public partial class PartyFrames : Control
     private static readonly Color ResourceFill = new(0.95f, 0.65f, 0.15f, 1f);
     private static readonly Color DownedTint = new(0.6f, 0.62f, 0.65f, 1f);
 
+    // The in-frame cast bar (HUD-DECLUTTER): CastBarView's fill and frame colours, right of the class name.
+    private const float CastBarLeft = 96;
+    private const int CastFont = 11;
+    private static readonly Color CastFill = new(0.95f, 0.72f, 0.2f, 0.95f);
+    private static readonly Color CastKickFrame = new(1f, 0.6f, 0.1f, 1f);
+    private static readonly Color CastLockedFrame = new(0.55f, 0.55f, 0.6f, 1f);
+
     private readonly Dictionary<int, string> _logged = new();
+    private readonly Dictionary<int, int> _castLogged = new();
     private SimDriver? _driver;
 
     /// <summary>The driver to read the run from.</summary>
@@ -345,9 +354,41 @@ public partial class PartyFrames : Control
         var y = 0f;
         foreach (var f in frames)
         {
-            DrawFrame(new Rect2(0, y, FrameWidth, FrameHeight), f);
+            var rect = new Rect2(0, y, FrameWidth, FrameHeight);
+            DrawFrame(rect, f);
+            if (run.State.Actors.TryGetValue(f.Seat, out var member))
+            {
+                DrawCast(rect, member, run);
+            }
             y += FrameHeight + Gap;
         }
+    }
+
+    // HUD-DECLUTTER (Matt 2026-10-19, "move friendly casts into party frames"): a member's live cast fills the right
+    // of its name row, with the ability name and seconds left; amber frame when interruptible, grey when not.
+    private void DrawCast(Rect2 frame, ActorState member, Run run)
+    {
+        if (_driver is null || !member.Alive || member.CastId is not { } castId || member.CastStartTick is not { } start ||
+            member.CastEndsTick is not { } end)
+        {
+            return;
+        }
+        var now = run.State.Tick + _driver.Alpha;
+        var progress = Mathf.Clamp((now - start) / Mathf.Max(1f, end - start), 0f, 1f);
+        var secondsLeft = Mathf.Max(0f, (end - now) / Tick.TickHz);
+        var bar = new Rect2(frame.Position.X + CastBarLeft, frame.Position.Y + 5, frame.Size.X - CastBarLeft - 8, 15);
+        var interruptible = run.Content.Abilities.TryGetValue(castId, out var def) && def.Interruptible;
+        DrawRect(bar, new Color(0.05f, 0.05f, 0.07f, 0.85f));
+        DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * progress, bar.Size.Y)), CastFill);
+        DrawRect(bar, interruptible ? CastKickFrame : CastLockedFrame, filled: false, width: 1f);
+        var label = FormattableString.Invariant($"{_driver.AbilityName(castId)} {secondsLeft:0.0}s");
+        var font = ThemeDB.FallbackFont;
+        var room = bar.Size.X - 6;
+        while (label.Length > 1 && HudNodes.Width(label, CastFont) > room)
+        {
+            label = label[..^1];
+        }
+        DrawString(font, new Vector2(bar.Position.X + 4, bar.End.Y - 3), label, HorizontalAlignment.Left, -1, CastFont, Colors.White);
     }
 
     private void DrawFrame(Rect2 rect, PartyFrame f)
@@ -394,10 +435,38 @@ public partial class PartyFrames : Control
     private void OnRunStarted()
     {
         _logged.Clear();
+        _castLogged.Clear();
         LogFrames();
     }
 
-    private void OnStepped(int tick, IReadOnlyList<SimEvent> events) => LogFrames();
+    private void OnStepped(int tick, IReadOnlyList<SimEvent> events)
+    {
+        LogFrames();
+        LogCasts();
+    }
+
+    // "HUD party cast seat=S ability=X" once per cast start of a party member: the cast DrawCast puts in that frame.
+    private void LogCasts()
+    {
+        if (_driver?.Run is not { } run)
+        {
+            return;
+        }
+        foreach (var actor in run.State.Actors.Values)
+        {
+            if (actor.Kind != ActorKind.Player || !actor.Alive || actor.CastId is not { } castId || actor.CastStartTick is not { } start ||
+                actor.CastEndsTick is null)
+            {
+                continue;
+            }
+            if (_castLogged.TryGetValue(actor.Id, out var last) && last == start)
+            {
+                continue;
+            }
+            _castLogged[actor.Id] = start;
+            HudNodes.Proof(_driver, FormattableString.Invariant($"HUD party cast seat={actor.Id} ability={castId}"));
+        }
+    }
 
     private void LogFrames()
     {
