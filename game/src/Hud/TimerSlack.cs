@@ -13,7 +13,7 @@ namespace Keyrun.Hud;
 /// <param name="SlackTicks">Slack left (<c>Encounter.SlackTicks</c>).</param>
 /// <param name="BankTicks">The full bank for this key (<see cref="SimTimer.InitialSlackTicks"/>).</param>
 /// <param name="Depleted">The sim's depleted flag (the bank hit 0 at least once).</param>
-/// <param name="RunTimerTicks">Run time so far (<c>State.RunTimerTicks</c>).</param>
+/// <param name="RunTimerTicks">Run time so far (<see cref="RunClock.ShownTicks"/>: frozen at the end tick once the run has ended).</param>
 /// <param name="ParTicks">Par (<c>Encounter.ParTicks</c>).</param>
 /// <param name="KeyLevel">The key level.</param>
 public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, int RunTimerTicks, int ParTicks, int KeyLevel)
@@ -49,7 +49,8 @@ public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, 
     {
         ArgumentNullException.ThrowIfNull(run);
         var e = run.Encounter;
-        return new SlackReading(e.SlackTicks, SimTimer.InitialSlackTicks(e.KeyLevel), e.Depleted, run.State.RunTimerTicks, e.ParTicks, e.KeyLevel);
+        // RUN-TIMER-STOP: RunClock, not State.RunTimerTicks, which StepRun keeps advancing after run_end.
+        return new SlackReading(e.SlackTicks, SimTimer.InitialSlackTicks(e.KeyLevel), e.Depleted, RunClock.ShownTicks(run), e.ParTicks, e.KeyLevel);
     }
 }
 
