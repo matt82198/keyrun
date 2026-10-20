@@ -65,10 +65,13 @@ public sealed class EncounterTraceTests
         var setup = EncounterTestKit.Setup(OracleRun.SetupNameOf(trace));
         var content = (JsObject)setup.Get("content")!;
         var dungeon = EncounterJson.ParseDungeon(setup.Get("dungeon")!);
-        // A frozen-TS replay, as RunSetup loads one: the TS drew every scheduled telegraph (TelegraphSpec.TsUnchecked).
+        // A frozen-TS replay, as RunSetup loads one: the TS drew every scheduled telegraph (TelegraphSpec.TsUnchecked)
+        // and fired every step on schedule, mid-cast or not (ScriptStep.TsCastReplace).
         var scripts = EncounterJson.ParseScripts(content.Get("enemyScripts")!).ToDictionary(
             kv => kv.Key,
-            kv => (IReadOnlyList<ScriptStep>)kv.Value.Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { TsUnchecked = true } } : s).ToList());
+            kv => (IReadOnlyList<ScriptStep>)kv.Value
+                .Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { TsUnchecked = true } } : s)
+                .Select(s => s with { TsCastReplace = true }).ToList());
         var abilities = EncounterJson.ParseAbilities(content.Get("abilities")!);
         var keyLevel = OracleRun.KeyLevel(setup);
         var records = OracleRun.Records(trace);
