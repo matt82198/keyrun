@@ -159,6 +159,20 @@ public static class HudDeclutter
     /// <returns>True when the call draws a world label.</returns>
     public static bool WorldPingLabel(string label) => !string.Equals(label, "SPREAD", StringComparison.Ordinal);
 
+    /// <summary>
+    /// HUD-STACK-ONCE (Matt 2026-10-19, "reduce screen clutter"): the text a SPREAD/STACK call draws in the world, or
+    /// null for none. The call's sentence ("STACK: group up") is drawn once, by its callout banner; a call that keeps a
+    /// world label (<see cref="WorldPingLabel"/>) draws only its marker word ("STACK") on the spot to group up on, never
+    /// the sentence a second time.
+    /// </summary>
+    /// <param name="label">"SPREAD" or "STACK".</param>
+    /// <returns>The world marker text, or null when the call draws nothing in the world.</returns>
+    public static string? WorldPingText(string label)
+    {
+        ArgumentNullException.ThrowIfNull(label);
+        return WorldPingLabel(label) ? label : null;
+    }
+
     /// <summary>"player" or "enemy", as the proof lines print an actor's side.</summary>
     /// <param name="actor">The actor.</param>
     /// <returns>The side word.</returns>
