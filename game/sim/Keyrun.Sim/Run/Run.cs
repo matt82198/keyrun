@@ -61,7 +61,7 @@ public static class RunRoot
             // PRESPAWN-AGGRO (BIBLE section 9.1): on a layout run every group, the boss included, stands idle in
             // formation from tick 0, and each engages on its own aggro radius (StepLayout), never on room entry.
             layout.RequireTriggers(dungeon);
-            state = RunWiring.MergeActors(state, Pulls.SpawnAllIdle(dungeon));
+            state = RunWiring.MergeActors(state, Pulls.SpawnAllIdle(dungeon, content.ActorRadiusMm));
         }
         else
         {

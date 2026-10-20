@@ -46,8 +46,17 @@ public static class Pulls
     /// <summary>
     /// PRESPAWN-AGGRO (BIBLE section 9.1): every pull's actors, idle (<see cref="ActorState.Idle"/>) at their spawn
     /// points, the boss pull included. Emits nothing: a group's <c>pull_start</c> comes on its engage tick.
+    /// <para>
+    /// A stack (k of a pull's spawns on one x and z, a content <c>count</c>) is placed as one row along x centred on that
+    /// point, neighbours <c>2 * actorRadiusMm</c> apart, so no two bodies overlap. Push-out never shoves an idle body
+    /// (Rules), so without this the stack would stand on one point until its engage and reach the party as one block.
+    /// This is placement, once, before tick 0: nothing moves, nothing is logged, and the ring centre still comes from the
+    /// content points (<see cref="RingCenter"/>). Integers in spawn order: deterministic.
+    /// </para>
     /// </summary>
-    public static IReadOnlyList<ActorState> SpawnAllIdle(DungeonDef dungeon)
+    /// <param name="dungeon">The (layout-placed) dungeon.</param>
+    /// <param name="actorRadiusMm">The run's actor radius (<c>RunContent.ActorRadiusMm</c>); 0 or less leaves stacks as authored.</param>
+    public static IReadOnlyList<ActorState> SpawnAllIdle(DungeonDef dungeon, long actorRadiusMm)
     {
         ArgumentNullException.ThrowIfNull(dungeon);
         var actors = new List<ActorState>();
@@ -57,10 +66,36 @@ public static class Pulls
             {
                 var actor = SpawnActor(spawn);
                 actor.Idle = true;
+                actor.Pos = RowSlot(pull.Spawns, spawn, actorRadiusMm);
                 actors.Add(actor);
             }
         }
         return actors;
+    }
+
+    // Where `spawn` stands in its stack's row: slot i of k at x + (2i - (k - 1)) * r, so neighbours stand exactly 2r
+    // apart (the push-out distance) and the row is centred on the content point. A lone body stays on its point.
+    private static Vec3 RowSlot(IReadOnlyList<PullSpawn> spawns, PullSpawn spawn, long radiusMm)
+    {
+        var k = 0;
+        var i = 0;
+        foreach (var s in spawns)
+        {
+            if (s.Pos.X != spawn.Pos.X || s.Pos.Z != spawn.Pos.Z)
+            {
+                continue;
+            }
+            if (s.ActorId == spawn.ActorId)
+            {
+                i = k;
+            }
+            k++;
+        }
+        if (k <= 1 || radiusMm <= 0)
+        {
+            return spawn.Pos;
+        }
+        return spawn.Pos with { X = spawn.Pos.X + (((2L * i) - (k - 1)) * radiusMm) };
     }
 
     /// <summary>True once group <paramref name="groupId"/> (a pull or pack id) has engaged.</summary>
