@@ -207,12 +207,8 @@
     "id": "cinder.ring.overflowValve",
     "slot": "ring",
     "abilityId": "cinder.coldSnap",
-    "text": "Cold Snap dumps an extra 30 Heat and is tagged Partial Dump.",
+    "text": "Cold Snap keeps 40 more Heat banked after its dump and is tagged Partial Dump.",
     "patch": {
-      "cost": {
-        "resource": "heat",
-        "amount": 0
-      },
       "tagAdd": [
         "partial-dump"
       ],
@@ -220,7 +216,7 @@
         {
           "op": "resource",
           "resource": "heat",
-          "delta": -30
+          "delta": 40
         }
       ]
     }

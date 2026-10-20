@@ -212,12 +212,9 @@
     "id": "chanter.ring.cheapDissonance",
     "slot": "ring",
     "abilityId": "chanter.dissonance",
-    "text": "Dissonance is tagged Cheap Cast; it already costs no Verse.",
+    "text": "Dissonance's cooldown falls and it is tagged Cheap Cast.",
     "patch": {
-      "cost": {
-        "resource": "verse",
-        "amount": 0
-      },
+      "cooldownTicks": 40,
       "tagAdd": [
         "cheap-cast"
       ]
