@@ -35,8 +35,16 @@
          (Scripts.WillStart), so the floor and the HUD must not call SPREAD/STACK for it. Before SLAM-TELEGRAPH this
          check asserted the opposite: a ping from the telegraph the sim drew after run_end for that dead-target cast.
          Run C (check 11) proves the live-run call.
-    Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:  -- --autorun --ticks <PartyTicks>
+    Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:
+        -- --autorun --ticks <PartyTicks> --careless-seat <CarelessSeat>
         (default 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
+        (--careless-seat S@T:GROUP, CARELESS-SEAT, default 3@300:pair; Matt 2026-10-20, verbatim: "no a bad player will
+        accidentally aggro more groups, just test it naturally", STATE.md D43: under PRESPAWN-AGGRO the Warden walks
+        into every ring first, so no enemy ever picked a bot seat. Bot seat S (the Cinder) plays carelessly from run tick
+        T, mid-Choir: it strays off the party toward the idle Pair, waits at the Choir room's shut far doorway, runs on
+        when the Choir clears, and walks into the Pair's aggro ring ahead of the Warden. The sim's own aggro rule engages
+        the Pair on it and the Pair's own targeting (no threat yet, so the nearest living player) goes for it. Nothing
+        makes an enemy hit a bot; check 12's bot-damage line comes from that pull.)
       9. "HUD party seat=1 name=Warden", "seat=2 name=Chanter", "seat=3 name=Cinder" (BotCommandSource drives 2, 3);
      10. in pull 1 (before the Pair spawns): a Chanter heal on a party seat and a Cinder damage hit on an enemy (at
          seed 1 the 3B healer role spends every GCD on heals and never casts Dissonance; the Cinder kit has no heal);
@@ -224,6 +232,7 @@ param(
     [int]$Ticks = 600,
     [int]$PingTicks = 600,
     [int]$PartyTicks = 7000,
+    [string]$CarelessSeat = '3@300:pair',
     [int]$BossTicks = 600,
     [int]$QueueTicks = 600,
     [int]$BackfillTicks = 3500,
@@ -549,8 +558,9 @@ if (-not $runEndB) { $failures.Add("run B: no 'HUD runend ... title=""Party wipe
 # ---- Run C: the three-seat bot party (lane 3H) -------------------------------------------------------------------
 # The human Warden (seat 1) plus a Chanter (healer) and a Cinder (damage) driven by Keyrun.Bots through
 # BotCommandSource. Run twice with the same seed: the bot command streams must hash equal (determinism).
-$c = Invoke-Arena $PartyTicks @()
-$c2 = Invoke-Arena $PartyTicks @()
+# CARELESS-SEAT (STATE.md D43): one bot seat plays carelessly and pulls the Pair itself (header, run C).
+$c = Invoke-Arena $PartyTicks @('--careless-seat', $CarelessSeat)
+$c2 = Invoke-Arena $PartyTicks @('--careless-seat', $CarelessSeat)
 if ($c.Code -ne 0) { $failures.Add("run C: godot exited $($c.Code) (expected 0)") }
 $seats = @()
 foreach ($s in @(@{ Seat = 1; Name = 'Warden' }, @{ Seat = 2; Name = 'Chanter' }, @{ Seat = 3; Name = 'Cinder' })) {

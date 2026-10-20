@@ -713,6 +713,16 @@ Additional parked decisions (from the burn ledger):
   Cost: about $0.0035 per decision at Haiku list price, cap 3M input tokens per experiment; any recurring loop is NEEDS
   MATT. NEXT STEPS (smallest first): merge #305; fold the guide into GUIDE.md; traceHash + buildSha; provenance check;
   verify --replay; first-run failure measurement; report script; one cohort experiment; recurring loop NEEDS MATT.
+- D43 **CARELESS-SEAT: a bot seat is hit because a careless player pulls a group, never because a test makes an enemy
+  hit it** (Matt 2026-10-20, verbatim: "no a bad player will accidentally aggro more groups, just test it naturally";
+  PR #308, PRESPAWN-AGGRO; D34-D42 are claimed by open PRs #338 and #342; reversible). Under PRESPAWN-AGGRO the Warden
+  walks into every aggro ring first and an enemy with no threat goes for the nearest living player, so no enemy ever
+  picked a bot seat and HudSceneTest run C's private-log seat filter check (a bot seat takes damage) had nothing to
+  read. Matt ruled out making enemies target bots, loosening the check, or retuning its constants. Instead a bot seat
+  can play carelessly (`Keyrun.Bots.Careless`, host flag `--careless-seat S@T:GROUP`): from tick T it strays off the
+  party toward the idle group GROUP until that group engages, and the sim's own aggro and targeting rules do the rest.
+  Run C runs with `--careless-seat 3@300:pair`. Why: the bot-damage check proves a real path (a bot pulls, the pack it
+  pulled goes for it), not a scripted one.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as

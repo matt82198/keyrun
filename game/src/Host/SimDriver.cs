@@ -86,7 +86,7 @@ public sealed class TickAccumulator
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
 /// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T</c>, <c>--joiner-key K</c>,
 /// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
-/// <c>--replay-input PATH</c>, <c>--bots-hold</c>.
+/// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -136,6 +136,9 @@ public sealed class TickAccumulator
 /// <param name="BotsHold">Scene-test seam (<c>--bots-hold</c>, lane PARTY-TOGETHER): the bot seats spawn as usual but the
 /// host applies none of their commands, so they stand and take no action (HudSceneTest run I's wipe source: nobody
 /// fights). The bots library is untouched; only the host's per-step sample is skipped. Default false.</param>
+/// <param name="CarelessSeat">CARELESS-SEAT (<c>--careless-seat S@T:GROUP</c>; Matt 2026-10-20 "a bad player will
+/// accidentally aggro more groups, just test it naturally"): bot seat S plays carelessly from run tick T, straying toward
+/// the idle group GROUP (a pull id) until it engages (<see cref="Careless"/>). Null = every bot seat plays normally.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -153,7 +156,8 @@ public sealed record ArenaOptions(
     string? RecordInput = null,
     string? ReplayInput = null,
     YawPlan? PressYaw = null,
-    bool BotsHold = false)
+    bool BotsHold = false,
+    CarelessSeatPlan? CarelessSeat = null)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -188,6 +192,7 @@ public sealed record ArenaOptions(
         string? recordInput = null;
         string? replayInput = null;
         YawPlan? pressYaw = null;
+        CarelessSeatPlan? careless = null;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -231,6 +236,9 @@ public sealed record ArenaOptions(
                 case "--press-yaw":
                     pressYaw = YawPlan.Parse(Value(args, ref i));
                     break;
+                case "--careless-seat":
+                    careless = CarelessSeatPlan.Parse(Value(args, ref i));
+                    break;
                 case "--record-input":
                     recordInput = Value(args, ref i);
                     break;
@@ -246,7 +254,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -292,6 +300,44 @@ public sealed record SeatAbandonPlan(int ActorId, int Tick)
             throw new ArgumentException($"--abandon-seat needs actorId@tick, got '{raw}'");
         }
         return new SeatAbandonPlan(actor, tick);
+    }
+}
+
+/// <summary>A careless bot seat (<c>--careless-seat S@T:GROUP</c>, CARELESS-SEAT): bot actor <paramref name="ActorId"/>
+/// strays toward the idle group <paramref name="GroupId"/> from run tick <paramref name="Tick"/> (<see cref="Careless"/>).</summary>
+/// <param name="ActorId">The bot seat's player actor (2 and 3 in the three-seat party).</param>
+/// <param name="Tick">The run tick (pre-step) from which the seat strays, 0 or more.</param>
+/// <param name="GroupId">The group's id: a pull id of the run's dungeon (choir, pair, seed, boss).</param>
+public sealed record CarelessSeatPlan(int ActorId, int Tick, string GroupId)
+{
+    /// <summary>Parses <c>S@T:GROUP</c> (S a positive actor id, T a tick of 0 or more, GROUP a non-empty id).</summary>
+    /// <param name="raw">The flag value.</param>
+    /// <returns>The plan.</returns>
+    /// <exception cref="ArgumentException">Not of the form S@T:GROUP.</exception>
+    public static CarelessSeatPlan Parse(string raw)
+    {
+        ArgumentNullException.ThrowIfNull(raw);
+        var at = raw.Split('@');
+        var rest = at.Length == 2 ? at[1].Split(':') : Array.Empty<string>();
+        if (at.Length != 2 || rest.Length != 2 || rest[1].Length == 0 ||
+            !int.TryParse(at[0], NumberStyles.None, CultureInfo.InvariantCulture, out var actor) || actor <= 0 ||
+            !int.TryParse(rest[0], NumberStyles.None, CultureInfo.InvariantCulture, out var tick))
+        {
+            throw new ArgumentException($"--careless-seat needs actorId@tick:groupId, got '{raw}'");
+        }
+        return new CarelessSeatPlan(actor, tick, rest[1]);
+    }
+
+    /// <summary>The bots' plan: this seat strays toward the actors of <see cref="GroupId"/>'s pull in <paramref name="dungeon"/>.</summary>
+    /// <param name="dungeon">The run's dungeon.</param>
+    /// <returns>The plan by seat.</returns>
+    /// <exception cref="ArgumentException">The dungeon has no pull with that id (fail closed: a typo never runs a normal party).</exception>
+    public IReadOnlyDictionary<int, CarelessPlan> For(Keyrun.Sim.Encounter.DungeonDef dungeon)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        var pull = dungeon.Pulls.FirstOrDefault(p => string.Equals(p.Id, GroupId, StringComparison.Ordinal))
+            ?? throw new ArgumentException($"--careless-seat: dungeon {dungeon.Id} has no group '{GroupId}'");
+        return new Dictionary<int, CarelessPlan> { [ActorId] = new CarelessPlan(Tick, pull.Spawns.Select(s => s.ActorId).ToList()) };
     }
 }
 
@@ -498,7 +544,9 @@ public partial class SimDriver : Node
             _player = GetNode<PlayerInput>(InputPath);
             _rig = GetNodeOrNull<CameraRig>(CameraRigPath);
             _input = _player;
-            _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed);
+            // CARELESS-SEAT: --careless-seat S@T:GROUP makes bot seat S stray toward GROUP's idle pull from tick T.
+            var careless = Options.CarelessSeat?.For(Setup.Dungeon);
+            _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed, BotCommandSource.DefaultSkillDial, careless);
             // Lane 3H-c: the human's G reaches the bot seats (hud-wiring.ts derivePingEvent -> simHost.applyCommand).
             _player.Pinged += RoutePing;
             // Lane 3E-b: --record-input / --replay-input, interactive only (an autorun's input is ScriptedWarden).
@@ -914,6 +962,12 @@ public partial class SimDriver : Node
         var boss = run.Encounter.Boss?.Config ?? throw new InvalidOperationException("SimDriver: the run's boss is not armed");
         _log?.Line(FormattableString.Invariant(
             $"BOSS armed twins={boss.Twins.Count} lockAt={boss.LockThresholdBp / 100} window={boss.LockWindowTicks} bar={boss.TwinsBar.Id} boss={boss.BossActorId}"));
+        if (Options.CarelessSeat is { } careless)
+        {
+            // CARELESS-SEAT: name the careless seat and the group it strays toward, so a scene test can tie a pull to it.
+            var group = string.Join(",", careless.For(setup.Dungeon)[careless.ActorId].GroupActorIds.Select(id => id.ToString(CultureInfo.InvariantCulture)));
+            _log?.Line(FormattableString.Invariant($"BOTS careless seat={careless.ActorId} from={careless.Tick} group={careless.GroupId} actors={group}"));
+        }
         // createRun spawns pull 0 and drops its pull_start (it has no event sink); the log names it here. On a layout
         // run every group stands idle from tick 0 (PRESPAWN-AGGRO) and none is engaged at creation except a --pull N start's
         // (EngageStartPull above): each other pull_start comes on its aggro-radius engage and RunLog names it then.
