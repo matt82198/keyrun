@@ -42,7 +42,7 @@
     "effects": [
       {
         "op": "heal",
-        "amount": 300
+        "amount": 1800
       }
     ],
     "cost": {
