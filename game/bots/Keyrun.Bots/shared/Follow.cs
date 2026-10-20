@@ -235,6 +235,45 @@ public static class Follow
     }
 
     /// <summary>
+    /// The leader seat's travel when that seat is a bot (KF2, BOTS-ENGAGE-CHOIR): on a layout run, while no enemy lives,
+    /// the bot in the party's lowest player seat (alive or dead, so a human leader's death never hands the lead to a bot)
+    /// walks the route like the scripted leader (<see cref="LeadRoute"/>): in a pull room whose pull has not spawned
+    /// (no enemy actor, living or dead, stands in that room) it walks to <see cref="HoldPoint"/> and waits there for the
+    /// party, whose arrival starts the pull; anywhere else it walks the route forward (<see cref="WalkRoute"/>). The bot
+    /// sees only the view (positions, the layout); it never reads the run's pull index. Null for any other bot, off a
+    /// layout run, in a fight, or while it holds at the point.
+    /// </summary>
+    /// <param name="view">This tick's view.</param>
+    /// <param name="self">The bot.</param>
+    /// <returns>The move, or null.</returns>
+    public static MoveCommand? LeadCommand(BotView view, ActorState self)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        if (view.Layout is not { } layout || AnyLivingEnemy(view.State))
+        {
+            return null;
+        }
+        var seat = view.State.Actors.Values.Where(a => a.Kind == ActorKind.Player).Select(a => a.Id).DefaultIfEmpty(-1).Min();
+        if (seat != self.Id)
+        {
+            return null;
+        }
+        var tick = view.State.Tick;
+        var (_, high) = Span(layout, self.Pos);
+        if (high > 0 && layout.Boxes[high] is { IsRoom: true } room && HasPull(layout, room) &&
+            !view.State.Actors.Values.Any(a => a.Kind == ActorKind.Enemy && Movement.Contains(room.Box, a.Pos)))
+        {
+            var hold = HoldPoint(layout, high);
+            return Distance2(self.Pos, hold) <= ArriveMm * ArriveMm ? null : Moves.MoveToward(tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(hold));
+        }
+        return WalkRoute(tick, self, layout);
+    }
+
+    private static bool HasPull(NavLayout layout, NavBox room) =>
+        layout.Triggers.Any(t => layout.RoomFor(t.PullId) is { } r && string.Equals(r.Id, room.Id, StringComparison.Ordinal));
+
+    /// <summary>
     /// Where the leader waits in box <paramref name="k"/> (k &gt; 0): route point k-1 (the doorway into the box) moved
     /// <see cref="HoldPastDoorMm"/> toward route point k (the far doorway). Integers only.
     /// </summary>
