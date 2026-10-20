@@ -70,6 +70,12 @@ public sealed record RunContent
     /// </summary>
     public IReadOnlyDictionary<string, OverheatRule>? Overheat { get; init; }
 
+    /// <summary>
+    /// The Pair's spread and stack mark rules (<see cref="PairMarks"/>), or null for none. Null on every oracle run; a
+    /// host builds it from content (game/content/data/run.json pairMarks).
+    /// </summary>
+    public MarkRules? Marks { get; init; }
+
     /// <summary>Break-bar sources in their JS key order, or null for none (stepRun then drains none).</summary>
     public IReadOnlyList<BreakBarSource>? BreakBarSources { get; init; }
 
