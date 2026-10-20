@@ -94,6 +94,27 @@ public static class PairMarks
         }
     }
 
+    /// <summary>
+    /// The floor rings a view draws for the live marks (BIBLE section 3: "a floor telegraph ... drawn ahead of
+    /// resolution. Shape plus colour, never colour alone"). One ring per living marked actor and mark kind, centred
+    /// on that actor (it follows them), with the mark's damage radius, from the tick the mark lands until the tick it
+    /// resolves (<see cref="MarkRing.EndsTick"/>, the earliest live instance's end; the ring is gone on the tick after,
+    /// once <see cref="Effects.ExpireEffects"/> drops it). The two kinds differ in shape: spread is ONE DASHED ring
+    /// (<see cref="SpreadDashes"/> dashes, a broken ring: stand apart); stack is TWO SOLID concentric rings, the outer
+    /// at the stack radius and the inner at half of it (a target: gather in). Empty when <paramref name="rules"/> is null.
+    /// </summary>
+    /// <param name="state">The sim state (after a step: marks still live have <c>EndsTick &gt;= state.Tick</c>).</param>
+    /// <param name="rules">The run's mark rules, or null.</param>
+    /// <returns>The rings, actors ascending, spread before stack.</returns>
+    public static List<MarkRing> Rings(SimState state, MarkRules? rules)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return new List<MarkRing>();
+    }
+
+    /// <summary>Dashes in a spread ring.</summary>
+    public const int SpreadDashes = 8;
+
     /// <summary>Each actor carrying <paramref name="effectId"/> that ends now, once, with its first such instance's source.</summary>
     private static List<(ActorState Holder, int SourceId)> DueHolders(SimState state, string effectId, int now)
     {
@@ -135,3 +156,27 @@ public static class PairMarks
         Mitigation.DealDamage(state.Tick, source, target, amount, effectDefs, emit, sourceId, weighting);
     }
 }
+
+/// <summary>Which Pair mark a ring shows.</summary>
+public enum MarkKind
+{
+    /// <summary>spreadMarked: stand apart.</summary>
+    Spread,
+
+    /// <summary>stackMarked: stand together.</summary>
+    Stack,
+}
+
+/// <summary>One arc of a mark ring: radius and the span of a full turn it covers, permille clockwise from 12 o'clock.</summary>
+/// <param name="RadiusMm">Ring radius, mm.</param>
+/// <param name="FromPermille">Start of the arc, 0..1000.</param>
+/// <param name="ToPermille">End of the arc, 0..1000 (greater than the start).</param>
+public sealed record MarkStroke(long RadiusMm, int FromPermille, int ToPermille);
+
+/// <summary>A floor ring around a marked actor (<see cref="PairMarks.Rings"/>).</summary>
+/// <param name="ActorId">The marked actor; the ring is centred on it.</param>
+/// <param name="Kind">Spread or stack.</param>
+/// <param name="RadiusMm">The mark's damage radius, mm (the outermost stroke).</param>
+/// <param name="EndsTick">The tick the mark resolves; the ring is drawn through it.</param>
+/// <param name="Strokes">The ring's shape: dashes for spread, two solid concentric circles for stack.</param>
+public sealed record MarkRing(int ActorId, MarkKind Kind, long RadiusMm, int EndsTick, IReadOnlyList<MarkStroke> Strokes);

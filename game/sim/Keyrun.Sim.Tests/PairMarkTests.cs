@@ -131,6 +131,83 @@ public sealed class PairMarkTests
         Assert.Equal(PlayerHealth - 150, state.Actors[P2].Health);
     }
 
+    // BIBLE section 3: "Every dangerous enemy action is a cast with a visible bar and a floor telegraph (circle, cone,
+    // line) drawn ahead of resolution. Shape plus colour, never colour alone." The marks resolve when they run out, so
+    // each marked player carries a floor ring of the mark's damage radius from landing to resolution.
+
+    [Fact]
+    public void A_spread_mark_rings_the_marked_player_with_the_spread_radius_until_it_resolves()
+    {
+        var state = Arena(Player(P1, 0, 0), Player(P2, 1000, 0), Warrior(WarriorA, 0, 5000));
+        var rings = RingsAfterEachStep(state, Shipped, SpreadEnds + 1, Cast(WarriorA, "pair.spreadMark", P1));
+
+        Assert.Empty(rings[40]); // the cast is still on its bar: no mark yet
+        var ring = Assert.Single(rings[41]); // landed on tick 40
+        Assert.Equal(P1, ring.ActorId);
+        Assert.Equal(MarkKind.Spread, ring.Kind);
+        Assert.Equal(3000, ring.RadiusMm);
+        Assert.Equal(SpreadEnds, ring.EndsTick);
+        Assert.Single(rings[SpreadEnds]); // still down on the tick it resolves
+        Assert.Empty(rings[SpreadEnds + 1]); // gone once it has
+    }
+
+    [Fact]
+    public void A_stack_mark_rings_the_marked_player_with_the_stack_radius_until_it_resolves()
+    {
+        var state = Arena(Player(P1, 1000, 0), Player(P2, -6000, 0), Warrior(WarriorA, 0, 0));
+        var rings = RingsAfterEachStep(state, Shipped, StackEnds + 1, Cast(WarriorA, "pair.stackCall"));
+
+        Assert.Empty(rings[40]);
+        var ring = Assert.Single(rings[41]);
+        Assert.Equal(P1, ring.ActorId);
+        Assert.Equal(MarkKind.Stack, ring.Kind);
+        Assert.Equal(1500, ring.RadiusMm);
+        Assert.Equal(StackEnds, ring.EndsTick);
+        Assert.Single(rings[StackEnds]);
+        Assert.Empty(rings[StackEnds + 1]);
+    }
+
+    [Fact]
+    public void Spread_and_stack_rings_differ_in_shape_not_just_colour()
+    {
+        var spreadState = Arena(Player(P1, 0, 0), Warrior(WarriorA, 0, 5000));
+        var spread = Assert.Single(RingsAfterEachStep(spreadState, Shipped, 41, Cast(WarriorA, "pair.spreadMark", P1))[41]);
+        var stackState = Arena(Player(P1, 1000, 0), Warrior(WarriorA, 0, 0));
+        var stack = Assert.Single(RingsAfterEachStep(stackState, Shipped, 41, Cast(WarriorA, "pair.stackCall"))[41]);
+
+        // Spread: one broken ring at the spread radius, dashes with gaps (stand apart).
+        Assert.Equal(PairMarks.SpreadDashes, spread.Strokes.Count);
+        Assert.All(spread.Strokes, s => Assert.Equal(3000, s.RadiusMm));
+        Assert.All(spread.Strokes, s => Assert.True(s.ToPermille > s.FromPermille));
+        Assert.True(spread.Strokes.Sum(s => s.ToPermille - s.FromPermille) < 1000);
+        Assert.DoesNotContain(spread.Strokes, s => s.ToPermille - s.FromPermille == 1000);
+
+        // Stack: two unbroken concentric circles, the outer at the stack radius (gather in).
+        Assert.Equal(2, stack.Strokes.Count);
+        Assert.All(stack.Strokes, s => Assert.Equal((0, 1000), (s.FromPermille, s.ToPermille)));
+        Assert.Equal(new long[] { 1500, 750 }, stack.Strokes.Select(s => s.RadiusMm).ToArray());
+    }
+
+    [Fact]
+    public void A_player_marked_by_several_warriors_carries_one_ring()
+    {
+        var state = Arena(Player(P1, 0, 0), Warrior(WarriorA, 0, 5000), Warrior(WarriorB, 1000, 5000));
+        var rings = RingsAfterEachStep(state, Shipped, 41, Cast(WarriorA, "pair.spreadMark", P1), Cast(WarriorB, "pair.spreadMark", P1));
+
+        Assert.Equal(2, state.Actors[P1].Effects.Count(e => e.EffectId == "spreadMarked"));
+        Assert.Single(rings[41]);
+    }
+
+    [Fact]
+    public void Without_mark_rules_no_ring_is_drawn()
+    {
+        var state = Arena(Player(P1, 0, 0), Warrior(WarriorA, 0, 5000));
+        var rings = RingsAfterEachStep(state, null, 41, Cast(WarriorA, "pair.spreadMark", P1));
+
+        Assert.Contains(state.Actors[P1].Effects, e => e.EffectId == "spreadMarked");
+        Assert.Empty(rings[41]);
+    }
+
     [Fact]
     public void Without_mark_rules_the_marks_do_nothing_as_on_every_oracle_run()
     {
@@ -166,6 +243,24 @@ public sealed class PairMarkTests
             Tick(state, rules, Cmds(), events.Add);
         }
         return events;
+    }
+
+    /// <summary>
+    /// As <see cref="Run"/>, recording <see cref="PairMarks.Rings"/> after every step, keyed by the state's tick then
+    /// (what a view draws between steps): entry t is the rings after the step that ran tick t - 1.
+    /// </summary>
+    private static Dictionary<int, List<MarkRing>> RingsAfterEachStep(SimState state, MarkRules? marks, int lastTick, params Command[] first)
+    {
+        var rules = Rules.Make(Config(PairAbilities(), PairEffects()) with { Marks = marks });
+        var rings = new Dictionary<int, List<MarkRing>>();
+        Tick(state, rules, first, _ => { });
+        rings[state.Tick] = PairMarks.Rings(state, marks);
+        while (state.Tick <= lastTick - 1)
+        {
+            Tick(state, rules, Cmds(), _ => { });
+            rings[state.Tick] = PairMarks.Rings(state, marks);
+        }
+        return rings;
     }
 
     /// <summary>content/data/abilities/enemies.json pair.spreadMark and pair.stackCall.</summary>
