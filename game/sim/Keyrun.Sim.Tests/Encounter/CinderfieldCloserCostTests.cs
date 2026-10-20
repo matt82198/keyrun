@@ -80,6 +80,7 @@ public sealed class CinderfieldCloserCostTests
             o.TryGetProperty("multiplierBp", out var m) ? m.GetInt64() : null),
         "partyEffect" => new PartyEffectOp(o.GetProperty("effectId").GetString()!, o.GetProperty("durationTicks").GetInt32(), o.GetProperty("stacks").GetInt64()),
         "cloud" => new CloudOp(o.GetProperty("effectId").GetString()!, o.GetProperty("durationTicks").GetInt32(), o.GetProperty("radiusMm").GetInt64()),
+        "closerBurn" => new CloserBurnOp(o.GetProperty("maxHealthBp").GetInt64(), o.GetProperty("capBp").GetInt64(), o.GetProperty("school").GetString()!),
         var k => throw new InvalidOperationException($"{where}: op {k} not mapped by this test"),
     })).ToList();
 

@@ -699,6 +699,15 @@ Additional parked decisions (from the burn ledger):
   carries rules the TS one never had, so a check against TS can only record, not judge.
 - D29 **lane row files: lanes write game/lanes/<branch>.md, the fold lane merges them post-squash (aesop BUILDLOG 2026-10-19 17:50Z)**
   (orchestrator, 2026-10-19, lane LANE-ROW-FILES; reversible). Why: three keyrun PRs in one day each needed an Opus resume only to append one line to game/CLAUDE.md and BUILDLOG.md.
+- D34 **CINDERFIELD CLOSER COST: closing a Cinderfield still burns the closer, as a capped share of its max health**
+  (Matt, 2026-10-20, asked "should closing a Cinderfield burn the closer?", verbatim: "probably, but as damage scales
+  this will turn into a one shot, so abilities and damage reduction stuff needs to be considered lol"; lane
+  CINDERFIELD-CLOSER-COST, finding f-17c18460; reversible). Implemented: the game/content/data/combo-riders.json rider
+  for `cinderfield-field` replaces the frozen 80 fire with a C#-only `closerBurn` op: 15% of the closer's max health,
+  then the Pact and the closer's own modifiers (so Brace, Vigil and any damage reduction still lower it), hard-capped
+  at 20% of max health after every amplifier. The validator requires cap < 100%, so the burn alone can never kill a
+  closer at full health at any key or gear Tier. Why: the closer is both source and target of a field Combo, so the
+  Pact's comboDamageBp and any future gear power riding damageDoneBp scaled a raw number with no ceiling.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
