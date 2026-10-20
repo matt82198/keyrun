@@ -41,6 +41,7 @@ public static class RunWiring
             Combos = content.Combos,
             FieldCombos = content.FieldCombos,
             Clause = encounterRules is null ? null : new EncounterClause(encounterRules),
+            Overheat = content.Overheat,
         };
     }
 
