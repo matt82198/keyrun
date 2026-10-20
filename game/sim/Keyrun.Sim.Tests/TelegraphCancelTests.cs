@@ -153,13 +153,20 @@ public sealed class TelegraphCancelTests
         AssertLands(events, pending, firstId,Short);
     }
 
-    [Fact(DisplayName = "A cast overwritten on the tick it starts cancels its telegraph that same tick")]
-    public void Cast_overwritten_on_its_start_tick_cancels_its_telegraph()
+    [Fact(DisplayName = "A cast overwritten on the tick it starts never draws a telegraph, so there is nothing to cancel")]
+    public void Cast_overwritten_on_its_start_tick_draws_no_telegraph()
     {
         // Both fire on 20, short first in script order: e.short starts and e.long replaces it on the same tick.
+        // TELEGRAPH-HONEST (#351, Scripts.CastHeldAt) telegraphs only the step left holding the cast on its fire tick,
+        // so e.short is never drawn at all: no telegraph, no telegraph_cancel, no hit. #323 was written on a base without
+        // #351 and expected draw-then-cancel on tick 20; the merged contract is stronger (never shown, not shown and
+        // retracted), and the cancel path itself stays covered by the kick, stop and mid-bar overwrite cases.
         var run = BuildRun(At(20, Short, 10), At(20, Long, 40));
         var (events, pending, firstId) = Play(run, 90);
-        AssertCancelled(events, pending, firstId,Short, 20);
+        Assert.DoesNotContain(events, e => e.Type == "telegraph" && Str(e, "cast") == Short);
+        Assert.DoesNotContain(events, e => e.Type == "telegraph_cancel");
+        Assert.DoesNotContain(events, e => e.Type == "cast_complete" && Str(e, "abilityId") == Short);
+        Assert.All(pending.Values, tgs => Assert.DoesNotContain(tgs, tg => tg.AbilityId == Short));
         AssertLands(events, pending, firstId,Long);
     }
 
