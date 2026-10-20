@@ -570,7 +570,7 @@ public sealed record HostRunSetup(
         return step with
         {
             Telegraph = s.Telegraph is { } t
-                ? new TelegraphSpec(ShapeName(t.Shape), t.LeadTicks) { Radius = t.Radius, Angle1024 = t.Angle1024, Length = t.Length, Width = t.Width }
+                ? new TelegraphSpec(ShapeName(t.Shape), t.LeadTicks) { Radius = t.Radius, Angle1024 = t.Angle1024, Length = t.Length, Width = t.Width, SpansCast = t.SpansCast ?? false }
                 : null,
             Target = s.Target switch
             {

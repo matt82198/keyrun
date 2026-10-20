@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
@@ -14,7 +16,8 @@ public sealed record StepEnemyScriptsResult(IReadOnlyList<Command> Commands, IRe
 /// Enemy behaviour as data-driven state machines (sim/encounter/scripts.ts). Each tick, for every scripted actor in
 /// ascending id order and each step in script order: a living actor casts when the step fires on this tick, and
 /// announces the step's telegraph <c>leadTicks</c> ahead, with origin and yaw snapshotted from the caster now and
-/// <c>resolvesTick</c> on the cast tick. An onDeath step fires once, the first call that sees its actor dead (one
+/// <c>resolvesTick</c> on the cast tick (a <see cref="TelegraphSpec.SpansCast"/> telegraph: on the tick the cast lands,
+/// lead at least the cast time, and only when <see cref="WillStart"/>). An onDeath step fires once, the first call that sees its actor dead (one
 /// tick after the death event), with its telegraph on that same tick; the fire-once guarantee rides on
 /// <see cref="StepEnemyScriptsResult.FiredOnDeath"/>. Chase moves follow the casts.
 /// </summary>
@@ -112,6 +115,22 @@ public static class Scripts
 
     private static readonly IReadOnlyDictionary<string, ScriptAbility> NoAbilities = new Dictionary<string, ScriptAbility>();
 
+    /// <summary>
+    /// SLAM-TELEGRAPH (wrong data shown is P0): would the step's cast, fired on <paramref name="fireTick"/>, start? Its
+    /// target must resolve (<see cref="CastCommandFor"/>) and <see cref="Casting.StartError"/>, the checks StartCast
+    /// itself makes, must pass on that tick (cooldown and charges, GCD, cost, school lockout, range). Enemies are never
+    /// silenced (Rules hands them no Clause), so no silence check. An ability with no definition in the view passes.
+    /// Judged on the tick's pre-combat state: the cast command this tick is the next thing combat runs.
+    /// </summary>
+    private static bool WillStart(SimState state, int actorId, ActorState actor, ScriptStep step, ScriptAbility ability, IReadOnlyDictionary<string, ScriptAbility> abilities, int fireTick)
+    {
+        if (CastCommandFor(state, actorId, actor, step, abilities) is not { } cmd)
+        {
+            return false;
+        }
+        return ability.Def is not { } def || Casting.StartError(state, actor, def, cmd.TargetId, fireTick) is null;
+    }
+
     /// <summary>scripts.ts:139 stepEnemyScripts (rules in the class summary). Never mutates <paramref name="state"/>.</summary>
     /// <param name="state">The tick's state.</param>
     /// <param name="scripts">Actor id to script.</param>
@@ -181,7 +200,22 @@ public static class Scripts
                 {
                     commands.Add(cast);
                 }
-                if (step.Telegraph is { } tg && FiresAt(step, tick + tg.LeadTicks))
+                if (step.Telegraph is not { } tg)
+                {
+                    continue;
+                }
+                if (tg.SpansCast && abil.TryGetValue(step.Cast, out var spanned) && spanned.CastTicks > 0)
+                {
+                    // SLAM-TELEGRAPH: the shape never starts after the bar (lead at least the cast time, whatever Tempo
+                    // did to it) and resolves on the landing tick; it is drawn only when its cast will start.
+                    var lead = Math.Max(tg.LeadTicks, spanned.CastTicks);
+                    var fireTick = tick + lead - spanned.CastTicks;
+                    if (FiresAt(step, fireTick) && WillStart(state, actorId, actor, step, spanned, abil, fireTick))
+                    {
+                        telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, tg with { LeadTicks = lead }));
+                    }
+                }
+                else if (FiresAt(step, tick + tg.LeadTicks))
                 {
                     telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, tg));
                 }
