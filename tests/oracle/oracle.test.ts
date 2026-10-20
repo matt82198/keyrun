@@ -12,11 +12,18 @@
  * Usage: `npx vitest run tests/oracle`
  */
 import { beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { canonicalJson, fmtInt, fnv1a32, projectionLine } from "./format";
-import { NON_GENERATED, ORACLE_FIXTURE_DIR, buildFixtures, frozenSourceHash, writeFixtures } from "./generate";
+import {
+  FROZEN_ROOTS,
+  NON_GENERATED,
+  ORACLE_FIXTURE_DIR,
+  buildFixtures,
+  frozenSourceHash,
+  writeFixtures,
+} from "./generate";
 import { SOURCE_SHA } from "./traces";
 
 describe("oracle wire format", () => {
@@ -47,6 +54,46 @@ describe("oracle wire format", () => {
   it("canonicalJson sorts keys, drops undefined members, refuses non-finite numbers", () => {
     expect(canonicalJson({ b: 1, a: [true, null, "x"], c: undefined })).toBe('{"a":[true,null,"x"],"b":1}');
     expect(() => canonicalJson({ a: Number.POSITIVE_INFINITY })).toThrow(/non-finite/);
+  });
+});
+
+/** Writes a throwaway tree holding every FROZEN_ROOTS entry plus `overrides` (path -> text); returns its root. */
+function frozenTree(overrides: Record<string, string>): string {
+  const root = mkdtempSync(join(tmpdir(), "keyrun-frozen-"));
+  const files: Record<string, string> = {};
+  for (const r of FROZEN_ROOTS) files[r.endsWith(".ts") ? r : `${r}/anchor.ts`] = "export {};\n";
+  Object.assign(files, overrides);
+  for (const [rel, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, rel)), { recursive: true });
+    writeFileSync(join(root, rel), text);
+  }
+  return root;
+}
+
+describe("frozen-source hash ignores documentation (.md) files", () => {
+  it("a .md-only edit under a frozen root leaves frozenSourceHash unchanged", () => {
+    const root = frozenTree({ "sim/engine.ts": "export const x = 1;\n", "content/CLAUDE.md": "docs v1\n" });
+    try {
+      const before = frozenSourceHash(root).hash;
+      writeFileSync(join(root, "content/CLAUDE.md"), "docs v2, prose only\n");
+      expect(frozenSourceHash(root).hash).toBe(before);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("a non-.md edit under a frozen root still changes frozenSourceHash", () => {
+    const root = frozenTree({ "sim/engine.ts": "export const x = 1;\n", "content/data/tuning.json": "{}\n" });
+    try {
+      const before = frozenSourceHash(root).hash;
+      writeFileSync(join(root, "content/data/tuning.json"), '{"hp":2}\n');
+      expect(frozenSourceHash(root).hash).not.toBe(before);
+      const beforeSim = frozenSourceHash(root).hash;
+      writeFileSync(join(root, "sim/engine.ts"), "export const x = 2;\n");
+      expect(frozenSourceHash(root).hash).not.toBe(beforeSim);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
