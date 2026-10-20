@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <Compile Include="../../game/src/Host/HostRunSetup.cs" Link="Host/HostRunSetup.cs" />
+    <Compile Include="../../game/src/Host/QueuedKit.cs" Link="Host/QueuedKit.cs" />
     <EmbeddedResource Include="GUIDE.md" LogicalName="Keyrun.Playtest.GUIDE.md" />
   </ItemGroup>
 

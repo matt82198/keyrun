@@ -178,6 +178,30 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     public IReadOnlyList<ComboBlameLine> LateCombos { get; init; } = Array.Empty<ComboBlameLine>();
 
     /// <summary>
+    /// Each card's tier bonus line, index-aligned with <see cref="Choices"/> ("Tier 2: +2% damage dealt", from the
+    /// content gear table via <see cref="GearItems.CardLines"/>; f-e880cd4c), or empty when content is not loaded.
+    /// </summary>
+    public IReadOnlyList<string> ChoiceBonuses { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// The cards' tier bonus lines from <paramref name="registry"/>'s gear table, or empty without content.
+    /// </summary>
+    /// <param name="choices">The cards.</param>
+    /// <param name="registry">Content, or null.</param>
+    /// <returns>One line per card, or empty.</returns>
+    public static IReadOnlyList<string> ChoiceBonusesOf(IReadOnlyList<Item> choices, ContentRegistry? registry)
+    {
+        ArgumentNullException.ThrowIfNull(choices);
+        if (registry is null || registry.Gear.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+        return choices
+            .Select(c => GearItems.CardLines(registry.Gear, Enum.Parse<GearSlot>(c.Slot, ignoreCase: true), c.Tier, c.Facet.Text)[0])
+            .ToList();
+    }
+
+    /// <summary>
     /// "Bonus loot: Seed drop -- Death Bloom (field) Combo" for each entry (the Combo's content name, else its id),
     /// or null when <paramref name="loot"/> is empty.
     /// </summary>
@@ -246,6 +270,7 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
             BonusLabel = BonusLabelOf(rewards.BonusLoot, registry),
             LateCombos = combos?.LinesFor(localSeat) ?? Array.Empty<ComboBlameLine>(),
             Key = KeyMove.ForRun(run),
+            ChoiceBonuses = ChoiceBonusesOf(choices, registry),
         };
     }
 
@@ -264,6 +289,11 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
             var c = Choices[i];
             yield return FormattableString.Invariant(
                 $"HUD runend choice n={i + 1} slot={c.Slot} tier={c.Tier} facet=\"{c.Facet.Text.Replace('"', '\'')}\" ability={c.Facet.AbilityId} charges={c.Charges} id={c.Id}");
+            if (i < ChoiceBonuses.Count)
+            {
+                // f-e880cd4c: "HUD runend choice-bonus n=1 slot=charm tier=2 bonus="Tier 2: +2% damage dealt"".
+                yield return FormattableString.Invariant($"HUD runend choice-bonus n={i + 1} slot={c.Slot} tier={c.Tier} bonus=\"{ChoiceBonuses[i]}\"");
+            }
         }
         foreach (var cause in Causes)
         {
@@ -445,7 +475,15 @@ public partial class RunEndPanel : Control
                 HudNodes.Text(this, card.Position + new Vector2(10, 42), abilityDef.Name, CardFont, new Color(0.7f, 0.85f, 1f, alpha));
             }
             var y = card.Position.Y + 62;
-            foreach (var line in Wrap(c.Facet.Text, card.Size.X - 20, CardFont).Take(4))
+            // f-e880cd4c: what this card's tier gives, from the content gear table (no numbers live here).
+            var facetLines = 4;
+            if (i < view.ChoiceBonuses.Count)
+            {
+                HudNodes.Text(this, new Vector2(card.Position.X + 10, y), view.ChoiceBonuses[i], CardFont, new Color(0.55f, 1f, 0.65f, alpha));
+                y += CardFont + 4;
+                facetLines = 3;
+            }
+            foreach (var line in Wrap(c.Facet.Text, card.Size.X - 20, CardFont).Take(facetLines))
             {
                 HudNodes.Text(this, new Vector2(card.Position.X + 10, y), line, CardFont, new Color(1, 1, 1, alpha));
                 y += CardFont + 4;
