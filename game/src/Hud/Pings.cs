@@ -163,7 +163,8 @@ public static class HudObstacles
 /// <para>
 /// NAMEPLATE-DECLUTTER (Matt 2026-10-19, "reduce screen clutter"): a SPREAD call draws its banner only, never a second
 /// "SPREAD: move apart" in the world (<see cref="HudDeclutter"/>.WorldPingLabel); STACK keeps its world label, the spot
-/// to group up on.
+/// to group up on. HUD-STACK-ONCE: that world label is the marker word alone (<see cref="HudDeclutter"/>.WorldPingText,
+/// "STACK"), so "STACK: group up" is drawn once, by the banner.
 /// </para>
 /// <para>
 /// PING-FEEDBACK (design/BIBLE.md s10, "the game turns it into the party's language ("kick", "stack here",
@@ -325,10 +326,12 @@ public partial class Pings : Control
         var texts = new List<string>();
         var colors = new List<Color>();
         var spots = new List<PixelRect>();
+        var callLabels = new List<string?>();
         foreach (var call in calls)
         {
             // NAMEPLATE-DECLUTTER: SPREAD's one text is its callout banner; only STACK marks a spot in the world.
-            if (!HudDeclutter.WorldPingLabel(call.Label))
+            // HUD-STACK-ONCE: the world shows the marker word, never the banner's sentence a second time.
+            if (HudDeclutter.WorldPingText(call.Label) is not { } marker)
             {
                 continue;
             }
@@ -339,13 +342,14 @@ public partial class Pings : Control
             }
             var p = camera.UnprojectPosition(world);
             var rect = HudLayout.PingLabelRect(new PixelPoint((int)Math.Round(p.X), (int)Math.Round(p.Y)),
-                (int)Math.Ceiling(HudNodes.Width(call.Text, HudLayout.PingFont)));
+                (int)Math.Ceiling(HudNodes.Width(marker, HudLayout.PingFont)));
             // Skip a label no pixel of which would show at its spot (a ping well off screen).
             if (HudLayout.Shows(rect, width, height))
             {
-                texts.Add(call.Text);
+                texts.Add(marker);
                 colors.Add(ColorOf(call.Label));
                 spots.Add(rect);
+                callLabels.Add(call.Label);
             }
         }
         // PING-FEEDBACK: the human's ping word over the pinged target or spot, placed with the call labels.
@@ -362,6 +366,7 @@ public partial class Pings : Control
                     texts.Add(s.Text);
                     colors.Add(SaidColor);
                     spots.Add(rect);
+                    callLabels.Add(null);
                 }
             }
         }
@@ -369,7 +374,7 @@ public partial class Pings : Control
         var wanted = new List<PixelRect>();
         foreach (var i in HudLayout.DistinctPings(texts, spots))
         {
-            _labels.Add(new Shown(texts[i], colors[i]));
+            _labels.Add(new Shown(texts[i], colors[i], callLabels[i]));
             wanted.Add(spots[i]);
         }
         if (wanted.Count == 0)
@@ -410,6 +415,22 @@ public partial class Pings : Control
             if (banner + world > 0)
             {
                 HudNodes.Proof(_driver, FormattableString.Invariant($"HUD pingtext label={label} banner={banner} world={world}"));
+            }
+        }
+        // HUD-STACK-ONCE proof: "HUD pingmarker label=L world=M", how many world markers (no sentence) a call draws.
+        foreach (var label in new[] { "SPREAD", "STACK" })
+        {
+            var markers = _labels.Count(l => string.Equals(l.CallLabel, label, StringComparison.Ordinal));
+            var key = "marker:" + label;
+            var value = markers.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (_textLogged.TryGetValue(key, out var last) && last == value)
+            {
+                continue;
+            }
+            _textLogged[key] = value;
+            if (markers > 0)
+            {
+                HudNodes.Proof(_driver, FormattableString.Invariant($"HUD pingmarker label={label} world={markers}"));
             }
         }
     }
@@ -471,7 +492,7 @@ public partial class Pings : Control
         }
     }
 
-    private readonly record struct Shown(string Text, Color Color);
+    private readonly record struct Shown(string Text, Color Color, string? CallLabel);
 
     private readonly record struct Callout(string Text, Color Color, Rect2 Back, Vector2 Baseline);
 }
