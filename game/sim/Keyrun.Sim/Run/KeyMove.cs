@@ -47,7 +47,10 @@ public sealed record KeyMove(int From, int To, int Tier)
     public static KeyMove Of(RunResult result, int keyLevel, int finishTick, int parTicks)
     {
         var tier = Timer.UpgradeTier(result, finishTick, parTicks);
-        var to = tier == 0 ? keyLevel : Math.Clamp(Timer.NextKeyLevel(keyLevel, tier), ScreenState.MinKey, ScreenState.MaxKey);
+        // Timer.KeyAfterRun is the one sim rule for the key after a run (f-7c7abdf4: an untimed key keeps its level);
+        // a timed raise is then held inside the screen's band. Tier 0 is exactly the untimed case (a timed run is tier 1+).
+        var after = Timer.KeyAfterRun(keyLevel, result, finishTick, parTicks);
+        var to = tier == 0 ? after : Math.Clamp(after, ScreenState.MinKey, ScreenState.MaxKey);
         return new KeyMove(keyLevel, Math.Max(keyLevel, to), tier);
     }
 
