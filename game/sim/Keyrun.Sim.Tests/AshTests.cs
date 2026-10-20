@@ -29,17 +29,18 @@ public sealed class AshTests
         new("reward-weapon-weapon-edge-t3-0", "weapon", tier, new Facet("weapon-edge", "Strike also applies Sundered", "ability-1"), Rewards.StartingCharges);
 
     [Fact]
-    public void Ash_is_banked_for_every_result_win_or_lose()
+    public void Ash_is_banked_for_every_finished_run_win_or_lose_and_none_for_a_left_run()
     {
         Assert.Equal(Ash.Timed, Ash.ForResult(RunResult.Timed));
         Assert.Equal(Ash.Depleted, Ash.ForResult(RunResult.Depleted));
         Assert.Equal(Ash.Abandoned, Ash.ForResult(RunResult.Abandoned));
-        Assert.True(Ash.Timed > Ash.Depleted && Ash.Depleted > Ash.Abandoned && Ash.Abandoned > 0);
+        // STATE.md D45: "a player who leaves mid-run gets nothing" (superseded progression.ts ASH_ABANDONED = 10).
+        Assert.True(Ash.Timed > Ash.Depleted && Ash.Depleted > 0 && Ash.Abandoned == 0);
 
         var p = Progression.Start(1).BankRun(RunResult.Timed).BankRun(RunResult.Depleted).BankRun(RunResult.Abandoned);
-        Assert.Equal(Ash.Timed + Ash.Depleted + Ash.Abandoned, p.AshTotal);
+        Assert.Equal(Ash.Timed + Ash.Depleted, p.AshTotal);
         Assert.Equal(3, p.Runs);
-        Assert.Equal(Ash.Abandoned, p.LastRun!.AshGained);
+        Assert.Equal(0, p.LastRun!.AshGained);
         Assert.Equal(RunResult.Abandoned, p.LastRun.Result);
     }
 
@@ -160,6 +161,7 @@ public sealed class AshTests
 
         var first = Progression.Start(1).BankRun(RunResult.Timed).Take(Fresh(2));
         Assert.Equal("+50 Ash, weapon tier 2 (new)", first.LastRun!.Text());
-        Assert.Equal("+10 Ash", Progression.Start(1).BankRun(RunResult.Abandoned).LastRun!.Text());
+        Assert.Equal("+30 Ash", Progression.Start(1).BankRun(RunResult.Depleted).LastRun!.Text());
+        Assert.Equal(EndOfRun.NothingLine, Progression.Start(1).BankRun(RunResult.Abandoned).LastRun!.Text());
     }
 }
