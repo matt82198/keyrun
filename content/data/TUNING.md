@@ -44,6 +44,7 @@ BIBLE.md D4. Player health 2000, Choir trash health 6000, Pair 1200, Seed 3000, 
 | pair.spreadMark / stackCall | 40 | 0 | 400 | 1 | - | mark only |
 | seed.slam | 20 | 0 | 100 | 1 | - | dmg:150 |
 | seed.lash | 20 | 0 | 200 (script `at: 50, every: 200`) | 1 | - | dmg:70 |
+| seed.lock | 0 | 0 | 0 (script `at: 20`, once per pull) | 1 | - | window on self only (seedlock, 60 ticks, alternate, no shield) |
 | seed.deathBloom | 0 | 0 | 0 | 1 | - | window only |
 | hollowWarden.slam | 0 | 0 | 60 | 1 | - | dmg:150 |
 | hollowWarden.cleave | 40 | 0 | 160 | 1 | - | dmg:220 |

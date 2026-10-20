@@ -1139,6 +1139,9 @@
     "abilities/seed.lash": {
       "fnv": "cc8f1ac8"
     },
+    "abilities/seed.lock": {
+      "fnv": "2db4d17e"
+    },
     "abilities/seed.slam": {
       "fnv": "be78290d"
     },
@@ -1320,7 +1323,7 @@
       "fnv": "7e7ecb56"
     },
     "enemies/seed.elite": {
-      "fnv": "cbb48473"
+      "fnv": "ee27b0b9"
     },
     "facets/chanter.armor.cleansingChord": {
       "fnv": "1164b4b5"
