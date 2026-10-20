@@ -21,7 +21,8 @@
          on, numbered as the objective line numbers it: lane 3C-d), three "HUD runend choice n=<1..3> slot=<slot>
          tier=<t> facet=... ability=warden.<id> charges=<c> id=reward-<slot>-warden.<slot>.<facet>-t<t>-<i>" lines
          (Rewards.RollRewardChoices over the Warden's content facet pool, lane 3C-d: no placeholder "ability-<n>"
-         id), and "HUD runend cause seat=1" lines naming only seat 1's own causes; every "HUD runend result=" line of
+         id), "HUD runend key from=2 to=2 tier=0" (an untimed key holds its level, KeyMove), and "HUD runend cause
+         seat=1" lines naming only seat 1's own causes; every "HUD runend result=" line of
          every autorun (A-G) titles a cleared=1 run "Run cleared -- ..." and a cleared=0 depleted run "Party wiped
          on pull <n> of <total> -- key depleted" (run C clears the dungeon since lane TUNE-BOSS, so the clear title
          is checked on it; the count of cleared runs is printed).
@@ -493,6 +494,9 @@ if ($slackLines.Count -eq 0) {
 
 $runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 1 of 4 -- key depleted"$'
 if (-not $runEnd) { $failures.Add("run A: no 'HUD runend result=depleted choices=3 cleared=0 ... title=""Party wiped on pull 1 of 4 -- key depleted""' line (got '$(First $a.Lines '^HUD runend result=')')") }
+# Key progression (BIBLE s8, Matt 2026-10-20): the wiped key-2 run holds its key, no depletion drop, and the panel says so.
+$keyLine = First $a.Lines '^HUD runend key from=2 to=2 tier=0$'
+if (-not $keyLine) { $failures.Add("run A: no 'HUD runend key from=2 to=2 tier=0' line (an untimed key holds its level; got '$(First $a.Lines '^HUD runend key ')')") }
 $choices = @($a.Lines | Where-Object { $_ -match '^HUD runend choice n=[123] slot=(weapon|armor|charm|ring|keystone) tier=\d+ facet="[^"]+"' })
 if ($choices.Count -ne 3) { $failures.Add("run A: expected 3 'HUD runend choice' lines, got $($choices.Count)") }
 # Lane 3C-d: the cards roll over the Warden's content facet pool, so each names a real facet id and its kit ability.
