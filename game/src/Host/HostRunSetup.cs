@@ -181,7 +181,8 @@ public sealed record HostRunSetup(
     /// Twins (ids from <see cref="TwinActorIdStart"/> in content id order, Tempo-scaled health and scripts, flanking the
     /// boss at +/-<see cref="TwinOffsetMm"/> x), and the boss ability tagged <see cref="LockTag"/> gives the Lock its
     /// Window length (its window op), shield effect (its applyEffect op) and the script cast the armed rules suppress.
-    /// The 50% gate, 30 s repeat, three-fail enrage and its Tempo spike are BIBLE s9 structure (the
+    /// The Lock is cast (<see cref="BossConfig.CastLock"/>, LOCK-TELEGRAPH): its castTicks and its script step's
+    /// telegraph give it a cast bar and a floor circle before the Window opens. The 50% gate, 30 s repeat, three-fail enrage and its Tempo spike are BIBLE s9 structure (the
     /// <see cref="BossConfig"/> defaults; content has no field for them). Fails closed on any missing or extra piece.
     /// </summary>
     /// <param name="registry">The content.</param>
@@ -240,6 +241,7 @@ public sealed record HostRunSetup(
             LockWindowTicks = window[0].DurationTicks,
             ShieldEffectId = shield[0].EffectId,
             SuppressedBossCasts = new[] { lockAbility.Id },
+            CastLock = true,
         };
     }
 

@@ -210,7 +210,7 @@ public sealed class EncounterTraceTests
     // values are tallied from the re-recorded TS traces with this replay's rules (the same tally reproduces the old ones).
     [InlineData("bots-hv-k2-s7", 12, 12, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
     [InlineData("bots-hv-k2-s11", 12, 12, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 16, 16, 7, 0, 0, 3)]
+    [InlineData("bots-hv-k10-s7", 17, 17, 7, 0, 0, 3)] // LOCK-TELEGRAPH re-record: the Lock circle (drawn t2015, resolves t2032) and its hit (was 16, 16, 7, 0, 0, 3; tallied from the trace, the same tally reproduces the old row)
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

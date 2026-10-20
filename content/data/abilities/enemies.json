@@ -268,7 +268,7 @@
   {
     "id": "hollowWarden.lock",
     "name": "The Lock",
-    "castTicks": 0,
+    "castTicks": 20,
     "gcdTicks": 0,
     "cooldownTicks": 0,
     "charges": 1,

@@ -145,7 +145,13 @@ public static class RunRoot
             RunWiring.ScriptAbilitiesOf(content.Abilities));
 
         // The run's Clause rides in its rules for exactly this step (clause-hooks.ts withEncounterRules).
-        var rules = Rules.Make(RunWiring.RulesConfigOf(content, run.Encounter.Rules));
+        var rulesConfig = RunWiring.RulesConfigOf(content, run.Encounter.Rules);
+        if (run.Encounter.Boss is { } armedBoss)
+        {
+            // LOCK-TELEGRAPH: an armed boss's Lock cast is a cast bar only; the boss rules own its shield and Window.
+            rulesConfig = rulesConfig with { Abilities = BossRules.CombatAbilities(armedBoss.Config, rulesConfig.Abilities) };
+        }
+        var rules = Rules.Make(rulesConfig);
         var merged = commands.Concat(enc.Commands).ToList();
         // BIBLE.md:156 Tide: floor patches drift with the telegraphs, before combat reads them this tick.
         var stepped = Tick.Step(Clauses.DriftFloorWindows(run.State, run.Encounter.Rules), merged, rules);
