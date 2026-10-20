@@ -43,8 +43,10 @@ public static class RunEndTitle
     }
 
     /// <summary>
-    /// The run-end panel's title for <paramref name="run"/>, or null while it is live. RED STUB: mirrors the panel's
-    /// current inline switch (every timed clear reads "within par").
+    /// The run-end panel's title for <paramref name="run"/>, or null while it is live: <see cref="Of"/> over the run's
+    /// result, whether every pull was cleared (the sim finishes a lasting wipe as depleted with completed forced, so
+    /// the pull index is what tells a cleared run from a wipe), and the run clock at the end tick (the clock keeps
+    /// advancing after the end, RUN-END-FREEZE). The one source both RunEndView.Of and the sim use.
     /// </summary>
     /// <param name="run">The run.</param>
     /// <param name="lostNumber">1-based pull lost on, used only when not cleared.</param>
@@ -58,12 +60,6 @@ public static class RunEndTitle
             return null;
         }
         var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
-        return (result, cleared) switch
-        {
-            (RunResult.Abandoned, _) => Abandoned,
-            (_, false) => FormattableString.Invariant($"Party wiped on pull {lostNumber} of {lostTotal} -- key depleted"),
-            (RunResult.Timed, true) => WithinPar,
-            _ => Depleted,
-        };
+        return Of(result, cleared, run.RunEnd.ResultTick ?? run.State.RunTimerTicks, run.Encounter, lostNumber, lostTotal);
     }
 }

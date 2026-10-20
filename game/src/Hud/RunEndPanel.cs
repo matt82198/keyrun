@@ -235,13 +235,9 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         // the full content dungeon, so a --pull 2 start that wipes in the Pair reads "pull 2 of 4", not the sliced
         // run dungeon's "1 of 3").
         var lost = cleared ? null : ObjectiveModel.Build(run, registry);
-        var title = (result, cleared) switch
-        {
-            (RunResult.Abandoned, _) => "Run abandoned",
-            (_, false) => FormattableString.Invariant($"Party wiped on pull {lost!.Number} of {lost.Total} -- key depleted"),
-            (RunResult.Timed, true) => "Run cleared -- within par",
-            _ => "Run cleared -- key depleted",
-        };
+        // One source with the sim (RunEndTitle.ForRun -> RunEndTitle.Of): a timed clear that finished past par but
+        // inside its Slack reads "over par", never "within par".
+        var title = RunEndTitle.ForRun(run, lost?.Number ?? 0, lost?.Total ?? 0)!;
         var rewards = bonus?.Rewards ?? RunRewards.Empty;
         return new RunEndView(result, tick, title, cleared, choices, log.CausesFor(localSeat))
         {

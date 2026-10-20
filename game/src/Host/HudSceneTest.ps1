@@ -790,7 +790,10 @@ $clearedTitles = 0
 foreach ($t in $titleLines) {
     if ($t -match ' cleared=1 ') {
         $clearedTitles++
-        if ($t -notmatch ' title="Run cleared -- (within par|key depleted)"$') { $failures.Add("a cleared run lost the clear title: '$t'") }
+        if ($t -notmatch ' title="Run cleared -- (within par|over par|key depleted)"$') { $failures.Add("a cleared run lost the clear title: '$t'") }
+        # RunEndTitle.ForRun (one source with the sim): "within par" only for a timed run, "key depleted" only for a depleted one.
+        if ($t -match ' title="Run cleared -- (within par|over par)"$' -and $t -notmatch '^HUD runend result=timed ') { $failures.Add("a non-timed clear has a timed title: '$t'") }
+        if ($t -match ' title="Run cleared -- key depleted"$' -and $t -notmatch '^HUD runend result=depleted ') { $failures.Add("a timed clear is titled key depleted: '$t'") }
     } elseif ($t -match '^HUD runend result=depleted ' -and $t -notmatch ' title="Party wiped on pull \d+ of \d+ -- key depleted"$') {
         $failures.Add("a wiped run's title does not name the pull it was lost on: '$t'")
     }
