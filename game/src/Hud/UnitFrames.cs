@@ -172,8 +172,13 @@ public partial class UnitFrames : Control
         DrawRect(cast, new Color(0.05f, 0.05f, 0.07f, 0.85f));
         DrawRect(new Rect2(cast.Position, new Vector2(cast.Size.X * progress, cast.Size.Y)), CastFill);
         DrawRect(cast, interruptible ? KickFrame : LockedFrame, filled: false, width: 2f);
-        HudNodes.Text(this, new Vector2(cast.Position.X + 4, cast.End.Y - 3),
-            FormattableString.Invariant($"{_driver.AbilityName(castId)}  {secondsLeft:0.0}s"), SmallFont, Colors.White);
+        // NAMEPLATE-DECLUTTER: the frame's cast label is the spell name (never "<enemy name>..."), cut to the bar with the
+        // seconds kept whole.
+        var suffix = FormattableString.Invariant($"  {secondsLeft:0.0}s");
+        var room = (int)cast.Size.X - 8 - (int)Math.Ceiling(HudNodes.Width(suffix, SmallFont));
+        var spell = Keyrun.Content.HudLayout.FitTitle(_driver.AbilityName(castId), room,
+            s => (int)Math.Ceiling(HudNodes.Width(s, SmallFont)));
+        HudNodes.Text(this, new Vector2(cast.Position.X + 4, cast.End.Y - 3), spell + suffix, SmallFont, Colors.White);
     }
 
     private void OnRunStarted()
