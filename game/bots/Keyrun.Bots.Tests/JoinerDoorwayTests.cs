@@ -27,7 +27,9 @@ public sealed class JoinerDoorwayTests
     private const int LeaderId = 1;
     private const int JoinerId = 2;
     private const int MaxTicks = 12000;
-    private const int HealthCap = 1500;
+    // Scenario setup, not an assertion. 1500 -> 1000 (prespawn aggro), the same drive as BackfillGateTests (see the
+    // reason there): the healerless Warden died at 1273 in the Pair, so nobody led the joiner on.
+    private const int HealthCap = 1000;
     private const string GatedRoom = "pair-hall";
 
     private sealed record Drive(List<SimEvent> Events, int? FillTick, Run Final);

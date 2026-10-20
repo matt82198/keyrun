@@ -35,7 +35,12 @@ public sealed class BackfillGateTests
     private const int LeaderId = 1;
     private const int JoinerId = 2;
     private const int MaxTicks = 12000;
-    private const int HealthCap = 1500;
+    // Scenario setup, not an assertion. 1500 -> 1000 (prespawn aggro): the healerless Warden now engages the Pair at
+    // its 4000 mm aggro ring (tick 772, x 39560) instead of spawning it 8600 mm off on room entry. He died at 1273,
+    // 21 ticks before the Pair's last kill at 1294 (CI run 39473823641, "1273 death actor 1"). After that the refilled
+    // joiner was the lowest living seat, so it led itself and never walked in. The cap keeps the precondition that the
+    // Warden and the Cinder clear the Pair.
+    private const int HealthCap = 1000;
     private const string GatedRoom = "pair-hall";
 
     private sealed record Tick(int At, Vec3 Joiner, bool JoinerMoved);
