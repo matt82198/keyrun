@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Keyrun.Playtest: the headless playtest harness for agent playtesters (the playtester guide: GUIDE.md here, printed by `playtest guide`).
+    `playtest run` plays one Hollow Vault key with three bot seats under a playtester's policy file and writes
+    summary.json plus the full event log; `playtest kit` prints the class kits from content data. Not part of the sim:
+    it may read and write files. HostRunSetup.cs (Godot-free) is compiled in by link so the run is built exactly as the
+    host builds it.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Keyrun.Playtest</RootNamespace>
+    <AssemblyName>Keyrun.Playtest</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>12.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../game/src/Host/HostRunSetup.cs" Link="Host/HostRunSetup.cs" />
+    <EmbeddedResource Include="GUIDE.md" LogicalName="Keyrun.Playtest.GUIDE.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../game/sim/Keyrun.Sim/Keyrun.Sim.csproj" />
+    <ProjectReference Include="../../game/content/Keyrun.Content/Keyrun.Content.csproj" />
+    <ProjectReference Include="../../game/bots/Keyrun.Bots/Keyrun.Bots.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -52,6 +52,15 @@ public static class RunRoot
                 return actor;
             })
             .ToList();
+        if (options?.Gear is { } gear)
+        {
+            foreach (var (actorId, stats) in gear.OrderBy(kv => kv.Key))
+            {
+                var wearer = players.FirstOrDefault(a => a.Id == actorId)
+                    ?? throw new ArgumentException(FormattableString.Invariant($"createRun: options.gear has an entry for actorId {actorId}, which is not in party"), nameof(options));
+                GearPower.Apply(wearer, stats);
+            }
+        }
         state = RunWiring.MergeActors(state, players);
 
         var keyLevel = content.KeyLevel ?? 1;

@@ -244,7 +244,7 @@
         {
           "id": "overkill",
           "name": "Overkill",
-          "text": "Adds a cooldown; hits far harder.",
+          "text": "Longer cooldown; hits harder.",
           "patch": {
             "cooldownTicks": 100,
             "effects": [
