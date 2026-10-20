@@ -16,11 +16,25 @@ public static class RunEndTitle
     /// <summary>A cleared run with Slack left that finished strictly past par.</summary>
     public const string OverPar = "Run cleared -- over par";
 
-    /// <summary>A cleared run whose Slack bank ran out.</summary>
-    public const string Depleted = "Run cleared -- key depleted";
-
     /// <summary>A run the party gave up on.</summary>
     public const string Abandoned = "Run abandoned";
+
+    /// <summary>
+    /// A cleared run whose Slack bank ran out. An untimed key stays at its level (Matt 2026-10-20, f-7c7abdf4), and a
+    /// WoW player reads "key depleted" as the key losing a level, so the title states the kept level.
+    /// </summary>
+    /// <param name="keyLevel">The run's key level.</param>
+    /// <returns>"Run cleared -- key stays at +N".</returns>
+    public static string ClearedUntimed(int keyLevel) =>
+        FormattableString.Invariant($"Run cleared -- key stays at +{keyLevel}");
+
+    /// <summary>A lasting wipe (finished as depleted): the pull it was lost on and the level the key keeps.</summary>
+    /// <param name="lostNumber">1-based pull lost on.</param>
+    /// <param name="lostTotal">Pull count of the full dungeon.</param>
+    /// <param name="keyLevel">The run's key level.</param>
+    /// <returns>"Party wiped on pull N of T -- key stays at +K".</returns>
+    public static string Wiped(int lostNumber, int lostTotal, int keyLevel) =>
+        FormattableString.Invariant($"Party wiped on pull {lostNumber} of {lostTotal} -- key stays at +{keyLevel}");
 
     /// <summary>The title for a finished run.</summary>
     /// <param name="result">The sim's run result.</param>
@@ -36,9 +50,9 @@ public static class RunEndTitle
         return (result, cleared) switch
         {
             (RunResult.Abandoned, _) => Abandoned,
-            (_, false) => FormattableString.Invariant($"Party wiped on pull {lostNumber} of {lostTotal} -- key depleted"),
+            (_, false) => Wiped(lostNumber, lostTotal, encounter.KeyLevel),
             (RunResult.Timed, true) => Timer.IsOverPar(runTicks, encounter) ? OverPar : WithinPar,
-            _ => Depleted,
+            _ => ClearedUntimed(encounter.KeyLevel),
         };
     }
 }
