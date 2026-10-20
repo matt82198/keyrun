@@ -342,7 +342,8 @@ public interface ICommandSource
 /// <c>--autorun --ticks N</c> replaces the keyboard with PlayerInput's scripted Warden, prints one
 /// <c>AUTORUN done ticks=N frames=F frame_ms=M</c> line, then <c>BOTS done commands=C hash=H</c> (the bot command
 /// stream's count and FNV-1a 64 fingerprint), and quits with exit code 0 once N ticks have run.
-/// <c>--write-movie DIR</c> saves three proof frames (Choir chase, lieutenant heal cast bar, after the kick).
+/// <c>--write-movie DIR</c> saves three proof frames (Choir chase, lieutenant heal cast bar, after the kick), each on
+/// the tick its trace event picks (<see cref="MovieDirector"/>), logged <c>FRAME path tick=T event="..." event_tick=E</c>.
 /// Interactive: once the run ends, Enter opens the between-runs screen (lane 3D-c, <see cref="Screen.OpenFirst"/>,
 /// logged <c>SCREEN reopen result=R open=1 key=K</c>) unless it is already up (a reward take opened it; it owns Enter
 /// then), so the next run is always the one its Queue hands to <see cref="StartQueuedRun"/>. Under <c>--solo</c> Enter
@@ -379,16 +380,6 @@ public partial class SimDriver : Node
     // --press-enter: frames the scripted player waits on each Enter prompt before pressing.
     private const int EnterWaitFrames = 10;
 
-    // Proof frames: the post-step tick at which to capture, and file name. Timings follow ScriptedWarden at key 2: the
-    // Choir closes in the first second, the lieutenant's 80-tick heal starts at tick 196, and the Warden kicks it once
-    // it is half cast (tick 236 or the first tick after that his Shield Bash is in range).
-    private static readonly (int Tick, string Name)[] MovieFrames =
-    {
-        (8, "01-choir-chase.png"),
-        (220, "02-lieutenant-cast-bar.png"),
-        (246, "03-after-kick.png"),
-    };
-
     private readonly TickAccumulator _accumulator = new(Tick.TickHz, MaxStepsPerFrame);
     private readonly List<Command> _commands = new();
     private ICommandSource? _input;
@@ -399,6 +390,8 @@ public partial class SimDriver : Node
     private BackfillState _backfill = BackfillState.Empty;
     private RunLog? _log;
     private int _pendingCaptures;
+    // f-50d8099e: --write-movie frames are picked from the trace (MovieDirector), one director per run.
+    private MovieDirector? _movie;
     private int _enterPresses;
     private int _enterWait;
     private bool _pingPressed;
@@ -901,6 +894,7 @@ public partial class SimDriver : Node
         State = run.State;
         PreviousState = run.State;
         LastEvents = Array.Empty<SimEvent>();
+        _movie = Options.MovieDir is null ? null : new MovieDirector(WardenId, run.Content.Abilities);
         _bots?.Reset();
         _log?.Line(FormattableString.Invariant(
             $"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} dungeon={setup.Dungeon.Id} key={setup.Content.KeyLevel} clause={run.Encounter.Rules.ActiveClauseId ?? "none"} seed={Options.Seed} actors={run.State.Actors.Count}"));
@@ -961,32 +955,31 @@ public partial class SimDriver : Node
             SaveRecording(final: false);
         }
         Stepped?.Invoke(preTick, result.Events);
-        MaybeCapture(State.Tick);
+        MaybeCapture(run.State, State, result.Events);
     }
 
-    private void MaybeCapture(int tickReached)
+    private void MaybeCapture(SimState before, SimState after, IReadOnlyList<SimEvent> events)
     {
-        if (Options.MovieDir is not { } dir)
+        if (Options.MovieDir is not { } dir || _movie is null)
         {
             return;
         }
-        foreach (var (tick, name) in MovieFrames)
+        foreach (var shot in _movie.Observe(before, after, events))
         {
-            if (tick == tickReached)
-            {
-                _pendingCaptures++;
-                CaptureAfterDraw(Path.Combine(dir, name));
-            }
+            _pendingCaptures++;
+            CaptureAfterDraw(Path.Combine(dir, shot.Name), after.Tick, shot);
         }
     }
 
-    private async void CaptureAfterDraw(string path)
+    private async void CaptureAfterDraw(string path, int tick, MovieShot shot)
     {
-        // Wait for the frame that shows this tick to finish drawing, then save it.
+        // Wait for the frame that shows this tick to finish drawing, then save it. The FRAME line names the trace
+        // event the frame was taken for and that event's tick (f-50d8099e).
         await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
         var image = GetViewport().GetTexture().GetImage();
         var err = image.SavePng(path);
-        _log?.Line($"FRAME {path} tick={State.Tick} {(err == Error.Ok ? "ok" : "error " + err)}");
+        _log?.Line(FormattableString.Invariant(
+            $"FRAME {path} tick={tick} event=\"{shot.Event}\" event_tick={shot.EventTick} {(err == Error.Ok ? "ok" : "error " + err)}"));
         _pendingCaptures--;
     }
 

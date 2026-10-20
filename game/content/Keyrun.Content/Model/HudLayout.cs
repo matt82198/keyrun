@@ -122,6 +122,24 @@ public static class HudLayout
         return new TopBarLayout(objective, slack, Math.Max(0, objective.Width - (2 * PanelPad)));
     }
 
+    /// <summary>Enemy Forces bar height (HUD-FORCES).</summary>
+    public const int ForcesHeight = 16;
+
+    /// <summary>Gap between the Slack bar and the Enemy Forces bar under it.</summary>
+    public const int ForcesGap = 4;
+
+    /// <summary>
+    /// The Enemy Forces bar (HUD-FORCES, BIBLE s9.2): directly under the Slack/timer bar, same left edge and width, the
+    /// way WoW's tracker lists Enemy Forces under the key timer.
+    /// </summary>
+    /// <param name="bar">The top bar.</param>
+    /// <returns>The forces bar slot.</returns>
+    public static PixelRect ForcesBar(TopBarLayout bar)
+    {
+        ArgumentNullException.ThrowIfNull(bar);
+        return new PixelRect(bar.Slack.X, bar.Slack.Bottom + ForcesGap, bar.Slack.Width, ForcesHeight);
+    }
+
     /// <summary>The objective panel's drawn width: its widest line plus the inset, never wider than its slot.</summary>
     /// <param name="titleWidth">The fitted title's width in pixels.</param>
     /// <param name="taskWidth">The fitted task line's width in pixels.</param>
