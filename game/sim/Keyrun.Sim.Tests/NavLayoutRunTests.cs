@@ -133,6 +133,37 @@ public sealed class NavLayoutRunTests
         Assert.DoesNotContain(s.Events, e => e.Type is "pull_start" or "gate_closed");
     }
 
+    [Fact(DisplayName = "Nav run: a host fight start (--pull N) engages the active pull at creation; the gate holds from the first step and the next pull stays idle")]
+    public void A_fight_start_engages_the_active_pull_at_creation()
+    {
+        // The party stands in room-1 but outside p1's aggro ring (the --pull N placement): nothing engages by itself.
+        var created = Create(14000);
+        Assert.False(InRing(0, created.State.Actors[1].Pos));
+        Assert.Empty(created.Encounter.Engaged);
+
+        var run = RunRoot.EngageStartPull(created);
+        Assert.True(created.State.Actors[101].Idle, "EngageStartPull modified its input run");
+        Assert.Equal(new[] { "p1" }, run.Encounter.Engaged);
+        Assert.False(run.State.Actors[101].Idle);
+        Assert.Equal(1, run.State.Actors[101].TargetId);
+        Assert.True(run.State.Actors[201].Idle, "p2 engaged with p1");
+
+        // ROOM-LOCK-IN from the first step: walking west for 20 s never leaves room-1 while p1 lives.
+        for (var i = 0; i < 400; i++)
+        {
+            var s = Step(run, new MoveCommand(run.State.Tick, 1, new Dir2(-1000, 0), 0));
+            Assert.DoesNotContain(s.Events, e => e.Type == "pull_start");
+            run = s.Run;
+        }
+        Assert.Equal(Room1.MinX, run.State.Actors[1].Pos.X);
+        Assert.True(run.State.Actors[201].Idle);
+
+        // Idempotent, and inert without a layout (every oracle run).
+        Assert.Same(run, RunRoot.EngageStartPull(run));
+        var flat = Create(14000) with { Content = Content(null) };
+        Assert.Same(flat, RunRoot.EngageStartPull(flat));
+    }
+
     [Fact(DisplayName = "Nav run: the corridor out of a room is a wall until the room's pull clears")]
     public void The_corridor_out_of_a_room_opens_on_pull_clear()
     {
