@@ -93,7 +93,7 @@ public partial class UnitFrames : Control
             var frames = UnitFrameModel.Build(_driver.State, HumanId);
             for (var i = 0; i < frames.Count; i++)
             {
-                var r = FrameRect(i);
+                var r = FrameRect(frames, i);
                 rects.Add(new PixelRect((int)(origin.X + r.Position.X), (int)(origin.Y + r.Position.Y), (int)r.Size.X, (int)r.Size.Y));
             }
             return rects;
@@ -139,13 +139,47 @@ public partial class UnitFrames : Control
         {
             if (run.State.Actors.TryGetValue(frames[i].ActorId, out var actor))
             {
-                DrawFrame(FrameRect(i), frames[i], actor, run);
+                DrawFrame(FrameRect(frames, i), frames[i], actor, run);
             }
         }
     }
 
-    private Rect2 FrameRect(int index) =>
-        new(Size.X - RightGutter - FrameWidth, Top + (index * (FrameHeight + Gap)), FrameWidth, FrameHeight);
+    /// <summary>The boss frame's Break bar row in this control's pixels (BREAK-BAR, drawn by <see cref="BreakBar"/>), or null when no boss frame has a bar.</summary>
+    public Rect2? BossBreakRow
+    {
+        get
+        {
+            if (_driver?.Run is not { } run || !Visible)
+            {
+                return null;
+            }
+            var frames = UnitFrameModel.Build(run.State, HumanId);
+            for (var i = 0; i < frames.Count; i++)
+            {
+                if (FrameHeightOf(frames[i]) > FrameHeight)
+                {
+                    var r = FrameRect(frames, i);
+                    return new Rect2(r.Position.X + 8, r.Position.Y + FrameHeight - 2, r.Size.X - 16, BreakBar.RowHeight - 4);
+                }
+            }
+            return null;
+        }
+    }
+
+    // BREAK-BAR: a boss frame whose boss has a Break bar (BossBreakBarReadout) grows by BreakBar.RowHeight for it.
+    private Rect2 FrameRect(IReadOnlyList<UnitFrame> frames, int index)
+    {
+        var y = Top;
+        for (var j = 0; j < index; j++)
+        {
+            y += FrameHeightOf(frames[j]) + Gap;
+        }
+        return new Rect2(Size.X - RightGutter - FrameWidth, y, FrameWidth, FrameHeightOf(frames[index]));
+    }
+
+    private float FrameHeightOf(UnitFrame frame) =>
+        FrameHeight + (frame.Kind == "boss" && _driver?.Run is { } run &&
+            Keyrun.Sim.Encounter.BossBreakBarReadout.For(run.Encounter, frame.ActorId) is not null ? BreakBar.RowHeight : 0);
 
     private void DrawFrame(Rect2 rect, UnitFrame frame, ActorState actor, Run run)
     {
