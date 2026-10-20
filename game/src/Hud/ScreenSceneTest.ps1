@@ -24,7 +24,12 @@
       9. "SCREEN queue caption="Enter starts the next run at this key and Clause."" (lane HUD-FU: the one line drawn
          under the Queue box, Screen.QueueCaption, says what the host does since 3I; never "the host does not read
          the queued key and Clause").
+     10. "SCREEN help visible=0" between the open and Queue, "SCREEN help visible=1" after Queue (lane SCREEN-OVERFLOW:
+         the in-run help line no longer shows through the screen);
+     11. "SCREEN fit clause n=<1..3> lines=<n> widest=<px> box=<px>" with widest <= box (each Clause description is
+         wrapped inside its card), and "SCREEN fit caption lines=<n> right=<px> viewport=<px>" with right <= viewport.
   Before 3D there is no screen and none of 2-8 appear (RED). Before HUD-FU there is no caption line: 9 fails (RED).
+  Before SCREEN-OVERFLOW 10-11 fail (RED); with the wrap removed the fit lines report widest > box (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Hud/ScreenSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -146,8 +151,41 @@ if (-not $caption) {
 $stale = $captions | Where-Object { $_ -match 'does not read|no Clause' } | Select-Object -First 1
 if ($stale) { $failures.Add("the Queue caption still says the host ignores the queue: '$stale'") }
 
+# Lane SCREEN-OVERFLOW (1280x720 visual audit): the in-run help line is hidden while the screen is up and shown again
+# after Queue; every Clause description fits inside its card (widest wrapped line <= the card's text width); the Queue
+# caption's right edge is at or inside the viewport.
+$helpHidden = $null
+$helpShown = $null
+if ($open -and $queue) {
+    $iOpen = IndexOf $open
+    $iQueue = IndexOf $queue
+    $helpHidden = $lines[$iOpen..$iQueue] | Where-Object { $_ -match '^SCREEN help visible=0$' } | Select-Object -First 1
+    $helpShown = $lines[$iQueue..($lines.Count - 1)] | Where-Object { $_ -match '^SCREEN help visible=1$' } | Select-Object -First 1
+}
+if (-not $helpHidden) { $failures.Add('no "SCREEN help visible=0" line between the screen opening and Queue (the in-run help line shows through the screen)') }
+if (-not $helpShown) { $failures.Add('no "SCREEN help visible=1" line after Queue (the help line does not come back for the run)') }
+
+$fits = @($lines | Where-Object { $_ -match '^SCREEN fit clause n=[123] ' })
+if ($fits.Count -lt 3) { $failures.Add("expected 'SCREEN fit clause n=<1..3> lines=<n> widest=<px> box=<px>' lines, got $($fits.Count)") }
+foreach ($f in $fits) {
+    if ($f -notmatch '^SCREEN fit clause n=[123] lines=(\d+) widest=(\d+) box=(\d+)$') {
+        $failures.Add("malformed clause fit line: '$f'")
+    } elseif ([int]$Matches[2] -gt [int]$Matches[3]) {
+        $failures.Add("a Clause description runs past its card: '$f'")
+    }
+}
+
+$capFit = First '^SCREEN fit caption '
+if (-not $capFit) {
+    $failures.Add("no 'SCREEN fit caption lines=<n> right=<px> viewport=<px>' line")
+} elseif ($capFit -notmatch '^SCREEN fit caption lines=(\d+) right=(\d+) viewport=(\d+)$') {
+    $failures.Add("malformed caption fit line: '$capFit'")
+} elseif ([int]$Matches[2] -gt [int]$Matches[3]) {
+    $failures.Add("the Queue caption is cut off at the window edge: '$capFit'")
+}
+
 Write-Output '--- asserted SCREEN lines ---'
-foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $picked, $queue, $caption)) {
+foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $picked, $queue, $caption, $helpHidden, $helpShown) + $fits + @($capFit)) {
     if ($l) { Write-Output $l }
 }
 
