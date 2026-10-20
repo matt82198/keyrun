@@ -171,12 +171,29 @@ public static class RoleShared
         {
             return null;
         }
-        var eligible = view.State.Actors.Values
-            .Where(a => a.Kind == ActorKind.Player && a.Alive)
-            .Where(a => string.Equals(KitOf(view, a.ClassId).InterruptAbilityId, interruptId, StringComparison.Ordinal))
-            .Select(a => a.Id)
-            .ToList();
-        var assignment = Ledger.ResolveInterrupt(view.State.Actors, interruptId, eligible, tick, view.Kits.PriorityInterruptAbilityIds());
+        InterruptAssignment? assignment;
+        if (view.Layout is not null)
+        {
+            // CROSS-CLASS-KICK-ORDER: in the dungeon (a layout run) the ledger is the party's, across classes, so a mixed
+            // party kicks a cast once and rotates kicks across seats (Ledger.ResolvePartyInterrupt). The oracle runner (no
+            // layout) keeps the frozen per-class TS ledger below.
+            var seats = view.State.Actors.Values
+                .Where(a => a.Kind == ActorKind.Player && a.Alive)
+                .Select(a => (a.Id, Interrupt: KitOf(view, a.ClassId).InterruptAbilityId))
+                .Where(s => !string.IsNullOrEmpty(s.Interrupt))
+                .Select(s => (s.Id, s.Interrupt!, InterruptRangeMm(view, s.Interrupt!)))
+                .ToList();
+            assignment = Ledger.ResolvePartyInterrupt(view.State.Actors, seats, tick, view.Kits.PriorityInterruptAbilityIds());
+        }
+        else
+        {
+            var eligible = view.State.Actors.Values
+                .Where(a => a.Kind == ActorKind.Player && a.Alive)
+                .Where(a => string.Equals(KitOf(view, a.ClassId).InterruptAbilityId, interruptId, StringComparison.Ordinal))
+                .Select(a => a.Id)
+                .ToList();
+            assignment = Ledger.ResolveInterrupt(view.State.Actors, interruptId, eligible, tick, view.Kits.PriorityInterruptAbilityIds());
+        }
         if (assignment is null || assignment.KickerId != self.Id)
         {
             return null;
@@ -189,4 +206,11 @@ public static class RoleShared
         }
         return new CastCommand(tick, self.Id, interruptId, assignment.TargetId);
     }
+
+    /// <summary>The interrupt's content range, mm; unbounded when the view carries no content registry.</summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="abilityId">Interrupt ability.</param>
+    /// <returns>Range, mm.</returns>
+    private static long InterruptRangeMm(BotView view, string abilityId) =>
+        view.Kits.Content is { } reg && reg.Abilities.TryGetValue(abilityId, out var def) ? def.Range : long.MaxValue;
 }
