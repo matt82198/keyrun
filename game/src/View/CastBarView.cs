@@ -55,6 +55,10 @@ public partial class CastBarView : Control
     [Export]
     public NodePath PartyFramesPath { get; set; } = new("../HudRoot/PartyFrames");
 
+    /// <summary>The enemy unit frames (HUD-DECLUTTER), a HUD obstacle the bars keep clear of.</summary>
+    [Export]
+    public NodePath UnitFramesPath { get; set; } = new("../HudRoot/UnitFrames");
+
     /// <summary>Gap between the player's cast bar and the bottom of the screen, px (clears the ability bar).</summary>
     [Export]
     public float PlayerBarBottomGap { get; set; } = 150;
@@ -212,6 +216,10 @@ public partial class CastBarView : Control
         if (HudObstacles.PartyFrames(GetNodeOrNull<Control>(PartyFramesPath), Driver.State) is { } frames)
         {
             obstacles.Add(frames);
+        }
+        if (GetNodeOrNull<UnitFrames>(UnitFramesPath) is { } units)
+        {
+            obstacles.AddRange(units.FrameRects);
         }
         var anchors = new PixelPoint[_bars.Count];
         for (var i = 0; i < _bars.Count; i++)
