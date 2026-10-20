@@ -488,7 +488,8 @@ public partial class Screen : Control
         {
             return;
         }
-        var (locked, request) = s.Queue(s.Locked ? null : TalentLoadouts());
+        var loadout = s.Locked ? null : RunLoadout(withFacets: true);
+        var (locked, request) = s.Queue(loadout?.Loadouts);
         _state = locked;
         if (request is null)
         {
@@ -496,46 +497,91 @@ public partial class Screen : Control
         }
         LastRequest = request;
         Proof(FormattableString.Invariant($"SCREEN queue dungeon={request.DungeonId} key={request.KeyLevel} clause={request.ClauseId}"));
-        ProofQueuedTalents(request);
+        ProofQueuedTalents(request, loadout?.TalentIds);
+        ProofQueuedFacets(request, loadout?.Facets);
+        var before = _driver?.Run;
         Queued?.Invoke(request);
+        if (_driver?.Run is { } started && !ReferenceEquals(started, before))
+        {
+            ProofRunFacets(started, loadout?.Facets);
+        }
         Close();
     }
 
+    // The human's patched kit for the next run plus what each layer contributed: the talent ability ids and the gear
+    // layer's resolution (null when the facet layer was not asked for or content is not loaded).
+    private sealed record HumanLoadout(
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>>? Loadouts,
+        IReadOnlySet<string> TalentIds,
+        Keyrun.Content.FacetResolution? Facets);
+
     /// <summary>
     /// The human's talent-resolved kit for the next run (BIBLE s6), keyed by the human's actor id, or null when no fork
-    /// is picked or content is not loaded. The picks are resolved on the content abilities with
-    /// <see cref="TalentPicks.Resolve"/>, and the patched content is converted to sim AbilityDefs by the same
-    /// <see cref="HostRunSetup.Build"/> conversion the run itself is built with, so a talented ability is exactly what
-    /// the host would build if the talent were the base definition.
+    /// is picked or content is not loaded. The talent count the panel shows; Queue hands the run
+    /// <see cref="RunLoadout"/> with the gear layer as well.
     /// </summary>
-    /// <returns>The loadouts for <see cref="ScreenState.Queue"/>, or null.</returns>
-    private IReadOnlyDictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>>? TalentLoadouts()
+    /// <returns>The talent-only loadouts, or null.</returns>
+    private IReadOnlyDictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>>? TalentLoadouts() =>
+        RunLoadout(withFacets: false)?.Loadouts;
+
+    /// <summary>
+    /// The human's kit for the next run in content/apply.ts applyLoadout order (BIBLE s6 then s7): the talent picks are
+    /// resolved on the content abilities with <see cref="TalentPicks.Resolve"/>, then (with <paramref name="withFacets"/>)
+    /// every equipped item's Facet is applied on top with <see cref="Keyrun.Content.GearFacets.Resolve"/> in slot order.
+    /// The patched content is converted to sim AbilityDefs by the same <see cref="HostRunSetup.Build"/> conversion the
+    /// run itself is built with, so a talented or Facet-patched ability is exactly what the host would build if the
+    /// patch were the base definition. A Facet whose patched shape the conversion cannot play (a line width: facet
+    /// patches only, not in the sim shape) is skipped and reported, never a refused Queue.
+    /// </summary>
+    /// <param name="withFacets">True to apply the gear layer.</param>
+    /// <returns>The loadout, or null when content or the Key band is not there.</returns>
+    private HumanLoadout? RunLoadout(bool withFacets)
     {
-        if (_talents is not { Count: > 0 } picks || _driver?.Registry is not { } reg || _state is not { } s)
+        if (_driver?.Registry is not { } reg || _state is not { } s)
         {
             return null;
         }
-        var patched = picks.Resolve(reg.Abilities);
+        var talented = _talents is { Count: > 0 } picks ? picks.Resolve(reg.Abilities) : new Keyrun.Content.ValueMap<Keyrun.Content.AbilityDef>();
+        var patched = new Dictionary<string, Keyrun.Content.AbilityDef>(talented, StringComparer.Ordinal);
+        Keyrun.Content.FacetResolution? facets = null;
+        if (withFacets && reg.Classes.TryGetValue(SimDriver.HumanClassId, out var cls))
+        {
+            facets = Keyrun.Content.GearFacets.Resolve(
+                reg.Facets,
+                Merge(reg.Abilities, talented),
+                cls,
+                Rewards.GearSlots.Where(_progression.Equipped.ContainsKey).Select(slot => (slot, _progression.Equipped[slot].Facet.Id)),
+                a => a.Shape.Width is not null ? "line width is not in the sim shape" : null);
+            foreach (var (id, def) in facets.Abilities)
+            {
+                patched[id] = def;
+            }
+        }
+        var talentIds = new HashSet<string>(talented.Keys, StringComparer.Ordinal);
         if (patched.Count == 0)
         {
-            return null;
+            return new HumanLoadout(null, talentIds, facets);
         }
-        var abilities = new Keyrun.Content.ValueMap<Keyrun.Content.AbilityDef>(reg.Abilities.Select(kv =>
-            patched.TryGetValue(kv.Key, out var p) ? new KeyValuePair<string, Keyrun.Content.AbilityDef>(kv.Key, p) : kv));
-        var setup = HostRunSetup.Build(reg with { Abilities = abilities }, s.DungeonId, s.KeyLevel, SimDriver.HumanClassId, withBots: false);
+        var setup = HostRunSetup.Build(reg with { Abilities = Merge(reg.Abilities, patched) }, s.DungeonId, s.KeyLevel, SimDriver.HumanClassId, withBots: false);
         var kit = patched.Keys.ToDictionary(id => id, id => setup.Content.Abilities[id], StringComparer.Ordinal);
-        return new Dictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>> { [setup.HumanActorId] = kit };
+        return new HumanLoadout(new Dictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>> { [setup.HumanActorId] = kit }, talentIds, facets);
     }
+
+    private static Keyrun.Content.ValueMap<Keyrun.Content.AbilityDef> Merge(
+        IReadOnlyDictionary<string, Keyrun.Content.AbilityDef> abilities, IReadOnlyDictionary<string, Keyrun.Content.AbilityDef> patched) =>
+        new(abilities.Select(kv => patched.TryGetValue(kv.Key, out var p) ? new KeyValuePair<string, Keyrun.Content.AbilityDef>(kv.Key, p) : kv));
 
     private static int AppliedCount(IReadOnlyDictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>>? loadouts) =>
         loadouts?.Values.Sum(kit => kit.Count) ?? 0;
 
-    // One line for the count the request hands the run, then one per talented ability: the queued value next to the base
-    // the run would otherwise play (read from the request's own RunOptions, the object SimDriver passes to CreateRun).
-    private void ProofQueuedTalents(QueueRequest request)
+    // One line for the talent count the request hands the run, then one per talented ability: the queued value next to
+    // the base the run would otherwise play (read from the request's own RunOptions, the object SimDriver passes to
+    // CreateRun). An ability a Facet also patched shows both layers.
+    private void ProofQueuedTalents(QueueRequest request, IReadOnlySet<string>? talentIds)
     {
         var loadouts = request.ToRunOptions().Loadouts;
-        Proof(FormattableString.Invariant($"SCREEN queue talents applied={AppliedCount(loadouts)}"));
+        var talents = loadouts?.Values.Sum(kit => kit.Keys.Count(id => talentIds?.Contains(id) == true)) ?? 0;
+        Proof(FormattableString.Invariant($"SCREEN queue talents applied={talents}"));
         if (loadouts is null)
         {
             return;
@@ -543,13 +589,63 @@ public partial class Screen : Control
         var baseKit = _driver?.Setup?.Content.Abilities;
         foreach (var (actor, kit) in loadouts.OrderBy(kv => kv.Key))
         {
-            foreach (var (id, def) in kit)
+            foreach (var (id, def) in kit.Where(kv => talentIds?.Contains(kv.Key) == true))
             {
                 var b = baseKit is not null && baseKit.TryGetValue(id, out var bd) ? bd : null;
                 Proof($"SCREEN queue talent actor={actor.ToString(System.Globalization.CultureInfo.InvariantCulture)} ability={id} {Stats(def)} base {Stats(b)}");
             }
         }
     }
+
+    // BIBLE s7: one line for the Facets the request hands the run (and how many equipped Facets were skipped), then one
+    // per applied Facet with its ability's queued value next to the base (read from the request's RunOptions), and one
+    // per skipped Facet with the reason.
+    private void ProofQueuedFacets(QueueRequest request, Keyrun.Content.FacetResolution? facets)
+    {
+        Proof(FormattableString.Invariant($"SCREEN queue facets applied={facets?.Applied.Count ?? 0} skipped={facets?.Skipped.Count ?? 0}"));
+        if (facets is null)
+        {
+            return;
+        }
+        var loadouts = request.ToRunOptions().Loadouts;
+        var baseKit = _driver?.Setup?.Content.Abilities;
+        foreach (var f in facets.Applied)
+        {
+            foreach (var (actor, kit) in (loadouts ?? new Dictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>>()).OrderBy(kv => kv.Key))
+            {
+                var queued = kit.TryGetValue(f.AbilityId, out var q) ? q : null;
+                var b = baseKit is not null && baseKit.TryGetValue(f.AbilityId, out var bd) ? bd : null;
+                Proof($"SCREEN queue facet actor={actor.ToString(System.Globalization.CultureInfo.InvariantCulture)} {FacetKey(f)} {FacetStats(queued)} base {FacetStats(b)}");
+            }
+        }
+        foreach (var k in facets.Skipped)
+        {
+            Proof($"SCREEN queue facet skipped slot={k.Slot} facet={k.FacetId} reason=\"{k.Reason}\"");
+        }
+    }
+
+    // Only when Queued started a run (SimDriver.StartQueuedRun; plain --autorun does not): each applied Facet's ability
+    // as the started run plays it (Run.Content, the merged ability map CreateRun built from the request's loadouts).
+    private void ProofRunFacets(Keyrun.Sim.Runs.Run run, Keyrun.Content.FacetResolution? facets)
+    {
+        if (facets is null || _driver?.Setup is not { } setup)
+        {
+            return;
+        }
+        foreach (var f in facets.Applied)
+        {
+            var def = run.Content.Abilities.TryGetValue(f.AbilityId, out var d) ? d : null;
+            Proof($"SCREEN run facet actor={setup.HumanActorId.ToString(System.Globalization.CultureInfo.InvariantCulture)} {FacetKey(f)} {FacetStats(def)}");
+        }
+    }
+
+    private static string FacetKey(Keyrun.Content.AppliedFacet f) =>
+        $"slot={Keyrun.Content.GearFacets.SlotId(f.Slot)} facet={f.FacetId} ability={f.AbilityId}";
+
+    private static string FacetStats(Keyrun.Sim.Combat.AbilityDef? d) => d is null
+        ? "shape=- range=- cast=- cooldown=- charges=- cost=- effects=- tags=-"
+        : FormattableString.Invariant(
+            $"shape={d.Shape.Kind}/{d.Shape.Radius}/{d.Shape.Angle1024}/{d.Shape.Length} range={d.Range} cast={d.CastTicks} cooldown={d.CooldownTicks} charges={d.Charges} cost={d.Cost.Amount} effects={d.Effects.Count}+{d.Variants?.Values.Sum(v => v.Count) ?? 0} tags={(d.Tags is { Count: > 0 } t ? string.Join(',', t) : "-")}");
 
     private static string Stats(Keyrun.Sim.Combat.AbilityDef? d) => d is null
         ? "shape=- cooldown=- cost=- damage=-"
