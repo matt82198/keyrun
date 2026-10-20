@@ -58,14 +58,16 @@ public sealed class TempoTests
     }
 
     [Fact]
-    public void Unlocks_one_extra_mechanic_at_each_of_keys_5_10_15()
+    public void Fortified_and_Tyrannical_supersede_the_key_5_10_15_mechanic_unlocks()
     {
-        Assert.Equal(0, Tempo.UnlockedMechanicCount(4));
-        Assert.Equal(1, Tempo.UnlockedMechanicCount(5));
-        Assert.Equal(1, Tempo.UnlockedMechanicCount(9));
-        Assert.Equal(2, Tempo.UnlockedMechanicCount(10));
-        Assert.Equal(3, Tempo.UnlockedMechanicCount(15));
-        Assert.Equal(3, Tempo.UnlockedMechanicCount(20));
+        // Plan M5: the extra mechanic at keys 5, 10 and 15 is gone; from key 5 one affix rotates, from key 10 both.
+        var table = AffixesTests.BibleTable;
+        Assert.Equal(KeyAffixes.None, Affixes.AffixesFor(table, 4, 0));
+        Assert.Single(Affixes.AffixesFor(table, 5, 0).Names);
+        Assert.Single(Affixes.AffixesFor(table, 9, 1).Names);
+        Assert.Equal(2, Affixes.AffixesFor(table, 10, 0).Names.Count);
+        Assert.Equal(2, Affixes.AffixesFor(table, 15, 1).Names.Count);
+        Assert.Equal(2, Affixes.AffixesFor(table, 20, 0).Names.Count);
     }
 
     [Fact]
