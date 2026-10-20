@@ -119,7 +119,7 @@ offset_left = 16.0
 offset_top = 16.0
 offset_right = 1264.0
 offset_bottom = 48.0
-text = "Hollow Vault - WASD move, mouse look, 1-5 abilities, Q kick, E defensive, R utility, F charge, Tab target, G ping, Esc frees the mouse"
+text = "Hollow Vault - WASD move, hold right mouse to look, 1-5 abilities, Q kick (hover a foe), E defensive, R utility, F charge, Tab target, G ping"
 script = ExtResource("19_helphint")
 
 [node name="CastBars" type="Control" parent="Hud"]

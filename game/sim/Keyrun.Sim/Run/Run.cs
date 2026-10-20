@@ -52,6 +52,15 @@ public static class RunRoot
                 return actor;
             })
             .ToList();
+        if (options?.Gear is { } gear)
+        {
+            foreach (var (actorId, stats) in gear.OrderBy(kv => kv.Key))
+            {
+                var wearer = players.FirstOrDefault(a => a.Id == actorId)
+                    ?? throw new ArgumentException(FormattableString.Invariant($"createRun: options.gear has an entry for actorId {actorId}, which is not in party"), nameof(options));
+                GearPower.Apply(wearer, stats);
+            }
+        }
         state = RunWiring.MergeActors(state, players);
 
         var keyLevel = content.KeyLevel ?? 1;
@@ -179,8 +188,12 @@ public static class RunRoot
         var stepped = Tick.Step(Clauses.DriftFloorWindows(run.State, run.Encounter.Rules), merged, rules);
         events.AddRange(stepped.Events);
 
+        // TELEGRAPH-CANCEL (BIBLE s3): a floor telegraph whose cast this tick's combat kicked, stopped or replaced is
+        // cancelled on this tick and never resolves (no telegraph_hit for a hit that cannot come).
+        var cancel = Telegraphs.CancelUnlanded(stepped.State, enc.Encounter.Telegraphs, run.State.Tick, emit);
+
         var nextState = RunWiring.ApplyBreakBarPatches(stepped.State, enc.EffectPatches, content.Effects);
-        var nextEncounter = enc.Encounter;
+        var nextEncounter = cancel.Cancelled.Count == 0 ? enc.Encounter : enc.Encounter with { Telegraphs = cancel.Telegraphs };
         var activeScripts = run.ActiveScripts;
         if (layout is null)
         {

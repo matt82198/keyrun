@@ -15,6 +15,16 @@ harness 2. Cap: `KEYRUN_GODOT_TIMEOUT_SEC` (default 300; game-e2e sets 660), the
 whole tree, exit 124. Tests: `powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/launch-lock-test.ps1`
 (stub binary only; never launches Godot). Lanes never launch the game; the orchestrator does.
 
+## tools/Keyrun.Playtest/ (+ Keyrun.Playtest.Tests)
+Agent playtesters: headless Hollow Vault runs driven by a playtester's plan file, so agents can fail, learn and push
+keys (Matt 2026-10-20). GUIDE.md is the playtester's how-to-play guide (embedded, `playtest guide`); it names no enemy
+and no enemy ability (GuideTests). PolicyBot does only what the plan says (no plan field = never done) with seeded human
+Hands; PlaytestSession plays the ledger's key (game/playtest/ledger.json), requires a plan file, and appends the run to
+game/playtest/players/ID.json (PlaytesterMemory: runs, recap lines, lessons that cite a run, SHA-256 receipts of the
+summary and plan). KeyLedger: timed +1/+2/+3 (par, 80%, 60%), untimed stays. No policy at all (off-ledger) is the
+scripted party, byte-identical to the host bot run (NoPolicyParityTests). Both projects are in game/Keyrun.sln, so
+game-test runs them; they read sim/content/bots public APIs only and never edit them.
+
 ## tools/fastcheck.ps1
 Per-step lane check: incremental `dotnet build game/Keyrun.sln`, then `dotnet test --no-build` for only the test
 projects the path table at the top of the script maps the diff (vs `git merge-base origin/main HEAD`, plus uncommitted
