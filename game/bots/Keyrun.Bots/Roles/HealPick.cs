@@ -21,6 +21,15 @@ public static class HealPick
     private static double RangeOf(BotView view, string abilityId) =>
         view.Kits.Content is { } reg && reg.Abilities.TryGetValue(abilityId, out var def) ? def.Range : HealRangeMm;
 
+    /// <summary>
+    /// A heal that is a verse swap playing no heal from the healer's current verse (Chanter Refrain cast from Mend) is
+    /// not a heal: casting it would flip the Chanter out of its verse for a shield (<see cref="KitHeals.SwapsVerseWithoutHealing"/>).
+    /// </summary>
+    private static bool LeavesVerseUnhealed(BotView view, ActorState self, string abilityId) =>
+        view.Kits.Content is { } reg
+        && reg.Abilities.TryGetValue(abilityId, out var def)
+        && KitHeals.SwapsVerseWithoutHealing(def, Keyrun.Sim.Combat.Actors.Verse(self), reg.Effects);
+
     /// <summary>heal-pick.ts healCommands.</summary>
     /// <param name="view">Bot view.</param>
     /// <param name="self">The healer.</param>
@@ -34,7 +43,7 @@ public static class HealPick
         ArgumentNullException.ThrowIfNull(kit);
         ArgumentNullException.ThrowIfNull(target);
         var tick = view.State.Tick;
-        bool Ready(string? id) => id is not null && RoleShared.ReadyAndAffordable(self, id, tick, kit);
+        bool Ready(string? id) => id is not null && RoleShared.ReadyAndAffordable(self, id, tick, kit) && !LeavesVerseUnhealed(view, self, id);
         var heals = kit.Heals;
         var d = RoleShared.Dist(self, target);
 
