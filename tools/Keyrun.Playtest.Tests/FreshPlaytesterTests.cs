@@ -116,8 +116,13 @@ public sealed class FreshPlaytesterTests : IDisposable
         // The session records through KeyLedger.Record; seed a known history and check the next run plays from it.
         var ledgerPath = Path.Combine(_root, "ledger.json");
         var ledger = new KeyLedger();
-        ledger.Record("vet-01", 2, 7, KeyOutcome.Of(true, true, false, 1000, 14400), "old/summary.json");
+        var prior = ledger.Record("vet-01", 2, 7, KeyOutcome.Of(true, true, false, 1000, 14400), "old/summary.json");
         ledger.Save(ledgerPath);
+        // A returning playtester's memory holds the same history as the ledger (PlaytestSession refuses a mismatch).
+        var memory = new PlaytesterMemory("vet-01");
+        memory.Append(new MemoryEntry(prior.Run, prior.Key, prior.Seed, prior.Result, prior.KeyAfter,
+            new MemoryReceipt(prior.Summary, string.Empty, null, null), Array.Empty<string>(), Array.Empty<string>()));
+        memory.Save(PlaytesterMemory.PathFor(Path.Combine(_root, "players"), "vet-01"));
         Assert.Equal(5, KeyLedger.Load(ledgerPath).KeyOf("vet-01"));
 
         var empty = Policy("empty.json", "{}");
