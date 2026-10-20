@@ -45,6 +45,12 @@ public sealed class WindowsContext
 
     /// <summary>The step's Clause hooks.</summary>
     public ClauseHooks Hooks { get; }
+
+    /// <summary>
+    /// Class id to its Heat/Overheat rule, or null for none (every oracle run; <see cref="RulesConfig.Overheat"/>).
+    /// A burst Combo's removeEffect of the Payoff actor's own Chill clears the Payoff actor (Flashfire, f-9efbee75).
+    /// </summary>
+    public IReadOnlyDictionary<string, OverheatRule>? Overheat { get; init; }
 }
 
 /// <summary>
@@ -249,7 +255,7 @@ public static class Windows
         var table = comboOp is null ? ctx.Combos : TableNamed(ctx, comboOp.ComboTable);
         if (primary is not null)
         {
-            var outcome = Payoff.TryClosePayoff(state, primary, actor, table, ctx.Effects, emit, ctx.Hooks);
+            var outcome = Payoff.TryClosePayoff(state, primary, actor, table, ctx.Effects, emit, ctx.Hooks, ctx.Overheat);
             if (outcome != PayoffOutcome.NoWindow)
             {
                 return;

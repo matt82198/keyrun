@@ -125,6 +125,9 @@ public sealed class HudLayoutTests
     {
         var plates = new[] { new PixelRect(100, 300, 120, 30), new PixelRect(600, 300, 120, 30) };
         Assert.All(HudLayout.Separate(plates, 1280, 720), o => Assert.Equal(new PlateOffset(0, 0), o));
+        // Assert.All passes vacuously on an empty result, so pin one offset per plate: a Separate() that returned
+        // nothing would otherwise read as "nobody moved".
+        Assert.Equal(plates.Length, HudLayout.Separate(plates, 1280, 720).Count);
     }
 
     [Fact]
@@ -225,11 +228,64 @@ public sealed class HudLayoutTests
     public void Long_caster_and_spell_title_never_exceeds_its_bar()
     {
         string fitted = HudLayout.FitCastLabel("The Hollow Warden of the Deep Vault", "Sundered Twins - the lock of ages", "  2.5s",
-            HudLayout.CastBarWidth, Measure);
+            HudLayout.CastBarWidth, Measure, casterPlateShown: false);
         Assert.True(Measure(fitted) <= HudLayout.CastBarWidth, $"'{fitted}' is {Measure(fitted)} px on a {HudLayout.CastBarWidth} px bar");
         Assert.EndsWith("...  2.5s", fitted);
         // 18 characters, exactly the 180 px bar at 10 px per character: a label that fits is kept whole.
-        Assert.Equal("Cinder: Bolt  0.4s", HudLayout.FitCastLabel("Cinder", "Bolt", "  0.4s", HudLayout.CastBarWidth, Measure));
+        Assert.Equal("Cinder: Bolt  0.4s",
+            HudLayout.FitCastLabel("Cinder", "Bolt", "  0.4s", HudLayout.CastBarWidth, Measure, casterPlateShown: false));
+    }
+
+    // f-b78d1567 (BIBLE s3 "Cast bars are the enemy's language"): the caster's plate already names it, so its cast label
+    // spends the bar on the ability alone.
+    [Fact]
+    public void A_caster_with_a_drawn_plate_gets_the_ability_alone()
+    {
+        Assert.Equal("Bolt  0.4s",
+            HudLayout.FitCastLabel("Cinder", "Bolt", "  0.4s", HudLayout.CastBarWidth, Measure, casterPlateShown: true));
+        Assert.Equal("Bolt interrupted",
+            HudLayout.FitCastLabel("Cinder", "Bolt interrupted", string.Empty, HudLayout.CastBarWidth, Measure, casterPlateShown: true));
+    }
+
+    // With a plate drawn, a too-long ability is cut on its own; the caster's name never comes back.
+    [Fact]
+    public void A_plated_caster_long_ability_is_cut_without_the_caster()
+    {
+        string fitted = HudLayout.FitCastLabel("Cinder", "Sundered Twins - the lock of ages", "  2.5s", HudLayout.CastBarWidth,
+            Measure, casterPlateShown: true);
+        Assert.Equal("Sundered...  2.5s", fitted);
+        Assert.True(Measure(fitted) <= HudLayout.CastBarWidth);
+    }
+
+    // No plate drawn for the caster (off its plate, crowd edge, dead mid-cast): "Name: Ability" keeps it identifiable.
+    [Fact]
+    public void A_caster_without_a_plate_keeps_its_name()
+    {
+        Assert.Equal("Cinder: Bolt  0.4s",
+            HudLayout.FitCastLabel("Cinder", "Bolt", "  0.4s", HudLayout.CastBarWidth, Measure, casterPlateShown: false));
+        Assert.Equal("Bolt  0.4s",
+            HudLayout.FitCastLabel(string.Empty, "Bolt", "  0.4s", HudLayout.CastBarWidth, Measure, casterPlateShown: false));
+    }
+
+    // Truncation favours the ability: the caster's name is cut first, so the whole ability survives beside it.
+    [Fact]
+    public void A_plateless_label_cuts_the_caster_before_the_ability()
+    {
+        // 120 px for the title at 10 px per character: ": Lock" takes 60, so the caster gets "The..." (60).
+        string fitted = HudLayout.FitCastLabel("The Hollow Warden of the Deep Vault", "Lock", "  2.5s", HudLayout.CastBarWidth,
+            Measure, casterPlateShown: false);
+        Assert.Equal("The...: Lock  2.5s", fitted);
+        Assert.True(Measure(fitted) <= HudLayout.CastBarWidth);
+    }
+
+    // When not one character of the caster fits beside the whole ability, the caster is dropped, not the ability.
+    [Fact]
+    public void A_plateless_label_drops_the_caster_when_the_ability_needs_the_bar()
+    {
+        Assert.Equal("Lock of Ages  2.5s",
+            HudLayout.FitCastLabel("Warden", "Lock of Ages", "  2.5s", HudLayout.CastBarWidth, Measure, casterPlateShown: false));
+        Assert.Equal("Sundered...  2.5s",
+            HudLayout.FitCastLabel("Hollow Warden", "Sundered Twins", "  2.5s", HudLayout.CastBarWidth, Measure, casterPlateShown: false));
     }
 
     [Fact]

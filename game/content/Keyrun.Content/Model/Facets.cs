@@ -107,4 +107,9 @@ public sealed record ContentRegistry
 
     /// <summary>Room hazards by id (hazards.json; C#-only, BIBLE section 9.4).</summary>
     public required ValueMap<HazardDef> Hazards { get; init; }
+
+    /// <summary>
+    /// Base gear items by id (gear.json; C#-only, BIBLE section 7 "Five slots"). Empty when a registry is built by hand.
+    /// </summary>
+    public ValueMap<GearItemDef> Gear { get; init; } = new();
 }

@@ -228,6 +228,14 @@ public sealed class ActorState
     /// <summary>Per-actor chase margin override; null = encounter/chase.ts CHASE_MARGIN_MM.</summary>
     public long? ChaseMarginMm { get; set; }
 
+    /// <summary>
+    /// The wearer's summed gear damageDoneBp (BIBLE s7 "Tier is power"; Runs.GearPower). C#-only: 0 on every oracle run.
+    /// </summary>
+    public long GearDamageDoneBp { get; set; }
+
+    /// <summary>The wearer's summed gear damageTakenBp (negative reduces damage taken). C#-only: 0 on every oracle run.</summary>
+    public long GearDamageTakenBp { get; set; }
+
     /// <summary>A deep copy (effects, cooldowns and threat are copied, not shared).</summary>
     public ActorState Clone()
     {
