@@ -143,6 +143,8 @@ public partial class LabelView : Node3D
         var state = Driver.State;
         var targetId = state.Actors.TryGetValue(SimDriver.WardenId, out var me) ? me.TargetId : null;
         var frames = UnitFrameModel.Build(state, Driver.Setup?.HumanActorId ?? SimDriver.WardenId);
+        // f-07f1b477: the enemy the boss unit frame names draws no over-head plate (PlateRule.DrawsOverhead).
+        var bossFrameId = frames.FirstOrDefault(f => f.Kind == "boss")?.ActorId;
         foreach (var (id, actor) in state.Actors)
         {
             EnsureBody(id, actor);
@@ -151,8 +153,9 @@ public partial class LabelView : Node3D
                 plate = new Plate(id, Driver.DisplayName(actor));
                 _plates[id] = plate;
             }
-            // The Warden's own name and health live on the ability bar's meters, not over his head.
-            plate.Visible = actor.Alive && id != SimDriver.WardenId;
+            // The Warden's own name and health live on the ability bar's meters, not over his head; the boss's name
+            // lives on its unit frame.
+            plate.Visible = PlateRule.DrawsOverhead(id, actor.Alive, id == SimDriver.WardenId, bossFrameId);
             if (!plate.Visible)
             {
                 continue;
@@ -307,7 +310,9 @@ public partial class LabelView : Node3D
         var progress = Mathf.Clamp((now - start) / Mathf.Max(1f, end - start), 0f, 1f);
         var secondsLeft = Mathf.Max(0f, (end - now) / Tick.TickHz);
         var label = HudLayout.FitCastLabel(string.Empty, Driver.AbilityName(castId), FormattableString.Invariant($"  {secondsLeft:0.0}s"),
-            PlateStack.CastWidth, s => (int)Math.Ceiling(HudNodes.Width(s, CastFont)));
+            PlateStack.CastWidth, s => (int)Math.Ceiling(HudNodes.Width(s, CastFont)),
+            // The bar sits inside the caster's own on-screen plate, whose text already names the caster.
+            casterPlateShown: true);
         return new PlateCast(MarkOf(castId), progress, label);
     }
 

@@ -2951,7 +2951,7 @@
             "windowId": "sundered"
           }
         ],
-        "gcdTicks": 0,
+        "gcdTicks": 30,
         "id": "warden.strike",
         "interruptible": false,
         "name": "Strike",

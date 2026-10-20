@@ -36,8 +36,21 @@ public sealed record EncounterState
     /// <summary>Key level.</summary>
     public int KeyLevel { get; init; }
 
-    /// <summary>True once the Slack bank has hit 0 (or the run ended depleted).</summary>
+    /// <summary>True once an unrecovered full wipe ended the run depleted (STATE.md D46: deaths never set it).</summary>
     public bool Depleted { get; init; }
+
+    /// <summary>
+    /// Player deaths this run (MPLUS-DEATH-PENALTY, BIBLE s8): one per player death, same-tick deaths each counted, as
+    /// the Mythic+ timer counts them. <see cref="Timer.DeathPenaltyTicks"/> turns it into the time the deaths cost.
+    /// </summary>
+    public int Deaths { get; init; }
+
+    /// <summary>
+    /// Time the run's deaths and wipes have added to the run clock, ticks (STATE.md D46, Mythic+): each death adds
+    /// <see cref="Timer.DeathCostTicks"/>, each full wipe <see cref="Timer.WipeCostTicks"/> on top.
+    /// <see cref="Timer.ClockTicks"/> is the elapsed run timer plus this.
+    /// </summary>
+    public int PenaltyTicks { get; init; }
 
     /// <summary>Encounter tunables and the active Clause.</summary>
     public EncounterRules Rules { get; init; } = Clauses.DefaultEncounterRules(1);
