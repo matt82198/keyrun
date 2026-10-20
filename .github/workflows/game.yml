@@ -122,6 +122,16 @@ jobs:
           if ($code -ne 0) { throw "Screen scene test exited $code" }
           if ($out -notmatch '(?m)^ScreenSceneTest: PASS') { throw 'Screen scene test did not print PASS' }
 
+      - name: Progression save scene test (between-runs save/load across two launches, must print PASS)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & ./game/src/Hud/ProgressionSaveSceneTest.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "ProgressionSaveSceneTest exited $code" }
+          if ($out -notmatch '(?m)^ProgressionSaveSceneTest: PASS') { throw 'ProgressionSave scene test did not print PASS' }
+
       - name: Run-end bonus loot scene test (end-of-run panel, must print PASS)
         shell: pwsh
         run: |

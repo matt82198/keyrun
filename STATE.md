@@ -250,6 +250,9 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
     Record: `powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/godot.ps1 --path game '--' --record-input
     game/fixtures/input/my-run.input-log.json --log build/my-run.txt`. Replay with `--replay-input` on the same path. Camera
     yaw is recorded, pitch is not.
+  - Launch lock (keyrun PR #301, merged as 69a0e1e2): every game launch now goes through the single-instance launch lock.
+    A second launch exits with code 4. Each run is capped at 300 seconds (override with KEYRUN_GODOT_TIMEOUT_SEC), and the
+    process tree is killed when the cap is hit.
   - 2026-10-18 SECOND-PASS ORACLE VERDICT (SUPERSEDED by the third pass above; read-only Haiku oracle, ~19:08Z, source reads at 4b35c98): D10
     MET-WITH-TUNING-GAP. Supersedes the first-pass NOT-MET in DECISIONS AND OBSERVATIONS (d). Code path exists for every
     Phase 3 row and the screen-to-run path is wired; the gap is balance, not wiring. Decisive line:
@@ -288,6 +291,8 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   0. SCREENS proof lane (running 2026-10-18; output C:/Users/Mattt/Desktop/keyrun-screens/) makes the first frames of run C.
      Follow-up SCREENS-TOOL lane promotes the capture script to tools/godot/screens.ps1, adds the ffmpeg frames-to-mp4 step,
      and documents both in game/CLAUDE.md. WHY: D15, a visible change is judged from frames, not a headless log.
+     Frame and video captures are taken by the orchestrator, not by lanes. Lanes never launch Godot, keyrun.exe,
+     *SceneTest.ps1, screens.ps1, or E2eAssert replays. WHY: parallel game launches froze the host on 2026-10-20.
   1. Matt records a human-played run to the boss (record command above) and judges it by feel, with the D15 frames. Only this
      moves D10 and the Phase 3 exit.
   1a. DONE 2026-10-19 00:54Z: ART-PLAN ladder lane 1 NAV-CORE, PR #163 MERGED 76c7f32 (block "Phase 3.5" below). Lanes
@@ -327,6 +332,32 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
        E/R/F rows they patch in content/data/abilities/*.json, and any fork rows in content/data/classes/*.json.
      - Parity: the BIBLE section 6 fork check needs a saves measure (runs survived after a tank death) before a
        toolkit option is compared with a damage option; that lives in the bots suite (game/bots/).
+  D32. Gear depth (NOT implemented; rules 1 and 3 depend on D31, PR #311, and D30, PR #306; rule 2 on PR #304; the
+     BIBLE wording waits for Matt in the D32 PR body; research/13-gear-depth.md is the reason). Increments, smallest first:
+     1. All five slots exist end to end (sim, content, loader, view readout). Today the sim (`Rewards.GearSlots`,
+        game/sim/Keyrun.Sim/Encounter/Rewards.cs), content (content/data/facets/*.json, 4 Facets per slot per class),
+        loader (`GearFacets.Resolve`, game/content/Keyrun.Content/Model/GearFacets.cs) and the screen readout
+        (game/src/Hud/Screen.cs) all name five, but the character starts empty and fills one slot per run, two Facets
+        (warden.weapon.twinStrike, cinder.keystone.infernoBolt) are skipped because a line width is not in the sim
+        shape, and only the human seat's gear reaches the run. Done means: a new character's first screen shows five
+        slots with a starter Facet each, every shipped Facet applies in a run, and the run-end card and the screen agree.
+     2. Strict-upgrade guarantee on the choice of three (BIBLE s7, Matt 2026-10-20 "every clear moves something
+        visible"): `Rewards.RollRewardChoices` takes the equipped set and guarantees one card is a higher Tier in a slot
+        or a Facet not owned; missing on main.
+     3. The armory (D32 rule 4): `Progression` keeps every owned Facet with its best Tier; ProgressionSave version 2
+        reads version 1. Screen: equip from the armory per slot before Queue.
+     4. Remembered loadout per affix: one key press on the screen equips the loadout last used under this key's
+        affix and Clause. Needs PR #304's affix readout on the screen.
+     5. Facet audit against rule 1: list each of the 60 Facets with the verb or tag it changes; rewrite the ones that
+        only add a number (the ring "banks bonus Heat/Momentum/Verse" rows are the candidates). Content only.
+     6. Toolkit and pair Facets: one D31 toolkit Facet and one pair Facet per class (content plus the D30 threat ops).
+     7. Parity per affix and Clause: the BIBLE s6 bots parity check over Facet loadouts, keys 2 and 10, Fortified and
+        Tyrannical separately (game/bots/).
+     8. Ascension marks (rule 5): `Ascension` records timed clears above key 10 per affix and Clause; today
+        game/sim/Keyrun.Sim/Run/Ascension.cs says marks are "not exposed" because Progression records no key levels.
+     9. Tier as power: Tier changes no combat number on main (no read of `Item.Tier` outside rewards, progression and
+        the HUD). Matt decides what a Tier does (for example a small integer scale on the patched ability's
+        numbers, or no combat effect at all) before this lands.
 
 ## STATE-R9 checkpoint (2026-10-19 05:05Z)
 WHY: #175 to #181 finished the Phase 3.5 ladder and added decisions D25 and D26; the next session must resume from disk, not
@@ -613,6 +644,8 @@ Additional parked decisions (from the burn ledger):
   ships screenshots and a frame sequence of the run (PNG frames plus an mp4 made with ffmpeg, installed on this box) into a stated
   folder, and the orchestrator views them before accepting the work. Phase 5 feel judgments use them too. A headless log alone no
   longer closes a visible row.
+  Acceptance flow (2026-10-20): a lane flags the visible change in its PR. The orchestrator captures the frames one at a
+  time under the launch lock. Matt watching is still the acceptance.
 - D16 **The demo gets a real dungeon and real character models** (Matt, 2026-10-18 23:35Z, verbatim: "we need to design an actual
   dungeon and character models for the demo lmfao"; "it cant be just kovakks"). Rule: the art and navigation pass in
   design/ART-PLAN.md (Phase 3.5 "Look and route", a ten-lane ladder, lane 1 first) turns the capsules on a grey grid into a
@@ -732,6 +765,39 @@ Additional parked decisions (from the burn ledger):
      BIBLE section 0.
   Why: Matt names Outlaw Rogue's toolkit as the skill bar for late game, and the five-button cap means that depth has to
   live in build choices and timing on the existing keys (research/12-skill-toolkit.md, 2026-10-20).
+- D32 **GEAR DEPTH: "best" depends on the key, the party and the build, so the endgame is not one best-in-slot set**
+  (Matt 2026-10-20, verbatim: "my biggest concern with keyrun is there is not enough gear... like the end game will just
+  be hunting BiS lmfao... and we have 1 gear slot"). Numbered D32 after D31 (PR #311, docs/skill-toolkit-direction) and
+  D30 (PR #306, docs/aggro-taunt-direction), neither merged when this was written; rules 1 and 3 depend on D31's toolkit
+  verbs and D30 rule 3's threat ops, rule 2 on the Fortified/Tyrannical affixes of PR #304 (open). Direction recorded;
+  design/BIBLE.md is NOT amended (the conflicts and proposed wording wait for Matt in the D32 PR body;
+  research/13-gear-depth.md is the reason). The budget holds: five slots (Weapon, Armor, Charm, Ring, Keystone), one
+  Facet per item, Tier 1-10, four to five rotational abilities and ten keys, and no stat-only power past the cap.
+  The rules:
+  1. **Facets are sidegrades that change function.** Every Facet changes what an ability does: a Window/Payoff tag, a
+     shape, a resource loop, or a D31 toolkit verb (threat take, hand-off, kite, save). A Facet that only adds a number
+     is a defect. Tier is the only power number, and it stops at 10.
+  2. **Key-specific correctness.** The key's affix (Fortified: trash harder; Tyrannical: boss harder; both from +10),
+     its Clause and the dungeon's enemy kits change which Facet is right: a cleave or kite Facet for Fortified packs, a
+     Payoff or save Facet for a Tyrannical boss, a kick-tagged Facet under Hush. The BIBLE s6 parity check runs per
+     affix and per Clause: a Facet that wins on every key is a dominance defect, the same as a talent fork.
+  3. **Party-synergy Facets (BIBLE s4).** Some Facets pay off only through a partner: they open a Window only another
+     class's Payoff can close, or retag an ability so it closes a named partner's Window. Their value depends on who
+     queued, so no global best exists for them.
+  4. **A loadout swap between keys, not one set.** Every Facet the character has owned stays in an armory with its best
+     Tier; on the screen, before Queue, the player equips five (one per slot) for this key. The swap is free and fast
+     (test 2: Queue inside a minute; a remembered loadout per affix is one key press). Crafting's two charges per item
+     stay. The armory is storage, not a sixth slot.
+  5. **The chase.** The endgame is not one BiS set. It is (a) owning every Facet of the class, (b) each at Tier 10,
+     where the last two tiers come only from boss mechanics done right on high keys (BIBLE s7), and (c) clearing harder
+     keys under each affix and Clause with the right loadout. After the cap the chase is Ascension marks, earned per
+     affix and Clause cleared timed above key 10 and shown on the character, never power and never a public score.
+  Judged and kept: all five candidates, with two limits. Swapping is per key on the screen, never inside a run. Pair
+  Facets never require a specific partner to finish a key (BIBLE s4 "a tag, never a class by name").
+  Why: Matt's concern is that a single best Facet set at Tier 10 ends the game; BIBLE s7 currently says exactly that
+  ("Best-in-slot is a specific Facet set at Tier 10 for your build"). Games that keep gear chasing alive make the right
+  item depend on context (WoW per-dungeon trinkets, Hades Duo boons, PoE build-enabling uniques), and the one that
+  collapsed into BiS used large set multipliers (D3 six-piece sets) (research/13-gear-depth.md, 2026-10-20).
 - D33 **AGENT PLAYTESTERS: dispatched agents play keys headless, fail first, and learn through receipts and memory**
   (Matt 2026-10-20, verbatim: "the bots are your gametesters, they should learn and progress keys as well, they should be
   given an understanding of how to play the game, just use agent playtesters" and "ensure the bots can fail lol, they
@@ -746,6 +812,16 @@ Additional parked decisions (from the burn ledger):
   Cost: about $0.0035 per decision at Haiku list price, cap 3M input tokens per experiment; any recurring loop is NEEDS
   MATT. NEXT STEPS (smallest first): merge #305; fold the guide into GUIDE.md; traceHash + buildSha; provenance check;
   verify --replay; first-run failure measurement; report script; one cohort experiment; recurring loop NEEDS MATT.
+- D34 **CINDERFIELD CLOSER COST: closing a Cinderfield still burns the closer, as a capped share of its max health**
+  (Matt, 2026-10-20, asked "should closing a Cinderfield burn the closer?", verbatim: "probably, but as damage scales
+  this will turn into a one shot, so abilities and damage reduction stuff needs to be considered lol"; lane
+  CINDERFIELD-CLOSER-COST, finding f-17c18460; reversible). Implemented: the game/content/data/combo-riders.json rider
+  for `cinderfield-field` replaces the frozen 80 fire with a C#-only `closerBurn` op: 15% of the closer's max health,
+  amplified by the Pact, the closer's damageDoneBp and any damage-taken increase, hard-capped at 20% of max health,
+  and then lowered by the closer's damage reduction (Brace, Vigil, ...), which applies after the cap so defensive play
+  always counts. The validator requires 0 < base <= cap < 100%, so the burn alone can never kill a
+  closer at full health at any key or gear Tier. Why: the closer is both source and target of a field Combo, so the
+  Pact's comboDamageBp and any future gear power riding damageDoneBp scaled a raw number with no ceiling.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
