@@ -145,6 +145,21 @@ public sealed class StrictnessTests
     }
 
     [Fact]
+    public void Spans_cast_telegraph_on_an_instant_cast_is_rejected()
+    {
+        // SLAM-TELEGRAPH: hollowWarden.slam's telegraph spans its cast; with castTicks 0 there is no cast to span.
+        var ex = LoadFails(new MutableSource().Edit("abilities/enemies.json", n =>
+        {
+            foreach (var a in n.AsArray())
+            {
+                if ((string?)a!["id"] == "hollowWarden.slam") a["castTicks"] = 0;
+            }
+        }));
+        Assert.Contains("spansCast", ex.Message);
+        Assert.Contains("hollowWarden.slam", ex.Message);
+    }
+
+    [Fact]
     public void Json_comments_are_rejected()
     {
         LoadFails(new MutableSource().EditText("clauses.json", t => "// note" + Environment.NewLine + t));

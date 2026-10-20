@@ -17,8 +17,7 @@ public sealed class RunEndFreezeTests
     /// <summary>Steps past the Twins' spawn, kills the boss, and steps once so the run ends timed with both Twins up.</summary>
     private static (Run Run, int EndTick) EndWithTwinsStanding()
     {
-        var (run, _) = BossTestKit.StepUntil(BossTestKit.BuildRun(), 3);
-        Assert.True(run.State.Actors[BossTestKit.TwinA].Alive);
+        var run = TwinsUp();
         run.State.Actors[BossTestKit.Boss].Alive = false;
         run.State.Actors[BossTestKit.Boss].Health = 0;
         var stepped = RunRoot.StepRun(run, System.Array.Empty<Command>());
@@ -26,6 +25,14 @@ public sealed class RunEndFreezeTests
         Assert.Contains(stepped.Events, e => e.Type == "run_end");
         Assert.True(stepped.Run.State.Actors[BossTestKit.TwinA].Alive);
         return (stepped.Run, stepped.Run.State.Tick);
+    }
+
+    /// <summary>The live boss run stepped past the Twins' spawn (tick 3), Twin A up: the state the run is ended from.</summary>
+    private static Run TwinsUp()
+    {
+        var (run, _) = BossTestKit.StepUntil(BossTestKit.BuildRun(), 3);
+        Assert.True(run.State.Actors[BossTestKit.TwinA].Alive);
+        return run;
     }
 
     /// <summary>The Warden strikes Twin A every tick from <paramref name="from"/> until <paramref name="until"/>.</summary>
@@ -77,5 +84,25 @@ public sealed class RunEndFreezeTests
         Assert.Contains(events, e => e.Type == "death" && e.Get("actorId") is JsInt { Value: BossTestKit.TwinA });
         Assert.False(after.State.Actors[BossTestKit.TwinA].Alive);
         Assert.Null(after.RunEnd.Result);
+    }
+
+    [Fact(DisplayName = "Control: in the freeze tests' own harness, before run_end, the Warden's strike damages Twin A")]
+    public void Control_the_strike_damages_a_live_twin_before_run_end()
+    {
+        // Positive control for Twin_901_cannot_die_after_run_end: the same state the run is ended from (TwinsUp), the
+        // same StrikeTwinA commands over the same 200-tick span, the run still live. If the strike could not reach or
+        // hurt Twin A here, "no damage after run_end" would hold whether or not the run-end freeze exists.
+        var run = TwinsUp();
+        var start = run.State.Tick;
+        var before = run.State.Actors[BossTestKit.TwinA].Health;
+
+        var (after, events) = BossTestKit.StepUntil(run, start + 200, StrikeTwinA(start, start + 200));
+
+        Assert.Null(after.RunEnd.Result);
+        Assert.Contains(events, e => e.Type == "damage"
+            && e.Get("sourceId") is JsInt { Value: BossTestKit.Warden }
+            && e.Get("targetId") is JsInt { Value: BossTestKit.TwinA }
+            && e.Get("healthDamage") is JsInt { Value: > 0 });
+        Assert.True(after.State.Actors[BossTestKit.TwinA].Health < before);
     }
 }

@@ -1,0 +1,3 @@
+- TEST-HYGIENE-3 empty-collection guards on reward rolls (tests only, no sim, content or host change): `game/sim/Keyrun.Sim.Tests/Encounter/RewardsTests.cs` (the three tier-cap tests) and `RewardsContentPoolTests.cs` (owned-slot draw) now assert exactly 3 items before their `Assert.All`, so a roll that returns an empty list turns them red instead of passing vacuously; the pool-loader, SeedEngage empty-party and CameraBoom no-walls suspects were refuted (already red under their mutants) and left unchanged.
+
+BUILDLOG: TEST-HYGIENE-3 added exact Count==3 guards to four Assert.All reward-roll tests that stayed green when RollRewardChoices returned nothing, and refuted three other empty-collection suspects that already went red.

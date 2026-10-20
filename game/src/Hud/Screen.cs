@@ -66,6 +66,8 @@ public partial class Screen : Control
     private SimDriver? _driver;
     private Progression _progression = Progression.Start(1);
     private ProgressionStore? _store;
+    private Keyrun.Content.PrivateRecord _rating = Keyrun.Content.PrivateRecord.Empty;
+    private PrivateRatingStore? _ratingStore;
     private ScreenState? _state;
     private string? _selected;
     private bool _banked;
@@ -324,6 +326,7 @@ public partial class Screen : Control
         }
         Proof(FormattableString.Invariant(
             $"SCREEN open ash={_progression.AshTotal} runs={_progression.Runs} since=\"{_progression.LastRun?.Text() ?? string.Empty}\""));
+        Proof(_rating.LogLine()); // never the rating's value: it is drawn on this screen only (f-a3230c59)
         SetHelpVisible(false);
         Proof($"SCREEN character class={ClassName()}");
         foreach (var (keyLabel, name) in Abilities())
@@ -334,6 +337,7 @@ public partial class Screen : Control
         {
             ProofItem(slot);
         }
+        ProofGear();
         ProofKeyBand();
         Proof($"SCREEN queue caption=\"{QueueCaption}\"");
         // Measured at the design viewport (project.godot 1280x720): headless runs have a tiny dummy window.
@@ -494,6 +498,13 @@ public partial class Screen : Control
         if (request is null)
         {
             return;
+        }
+        // BIBLE s7 "Tier is power": the five slots' summed stats ride the request onto the human's actor.
+        if (_driver?.Setup is { } gearSetup && GearTotal() is { } gear)
+        {
+            request = request with { Gear = new Dictionary<int, GearStats> { [gearSetup.HumanActorId] = gear } };
+            Proof(FormattableString.Invariant(
+                $"SCREEN queue gear actor={gearSetup.HumanActorId} damageDoneBp={gear.DamageDoneBp} damageTakenBp={gear.DamageTakenBp}"));
         }
         LastRequest = request;
         Proof(FormattableString.Invariant($"SCREEN queue dungeon={request.DungeonId} key={request.KeyLevel} clause={request.ClauseId}"));
@@ -659,18 +670,19 @@ public partial class Screen : Control
             return;
         }
         _banked = true;
+        RecordRating(_driver.Run, result);
         _progression = _progression.BankRun(result);
         Proof(FormattableString.Invariant($"SCREEN bank result={result.ToJs()} ash={Ash.ForResult(result)} total={_progression.AshTotal}"));
         SaveProgression("bank");
 
         // M1 TIMER-TIERS (BIBLE s8): a timed run raises the key by its tier (+1, +2 within 80% of par, +3 within 60%);
         // a depleted or abandoned run keeps the key at the level it was played at (Matt 2026-10-20: no drop).
-        var ended = _driver.Run;
-        var played = ended.Encounter.KeyLevel;
-        var finish = ended.RunEnd.ResultTick ?? ended.State.RunTimerTicks;
-        var tier = Keyrun.Sim.Encounter.Timer.UpgradeTier(result, finish, ended.Encounter.ParTicks);
-        _state = ScreenState.Open(SimDriver.DungeonId, _state?.ClauseIds ?? ClauseIds(), Keyrun.Sim.Encounter.Timer.KeyAfterRun(played, result, finish, ended.Encounter.ParTicks));
-        Proof(FormattableString.Invariant($"SCREEN key from={played} to={_state.KeyLevel} tier={tier}"));
+        // KeyMove is the one read of that move, shared with the run-end panel's key line, so the panel and the reopened
+        // screen never disagree about the level. It uses the same tick fallback (ResultTick ?? RunTimerTicks) as main's
+        // tier read, and clamps the raise to the key range.
+        var move = KeyMove.ForRun(_driver.Run)!;
+        _state = ScreenState.Open(SimDriver.DungeonId, _state?.ClauseIds ?? ClauseIds(), move.To);
+        Proof(FormattableString.Invariant($"SCREEN key from={move.From} to={_state.KeyLevel} tier={move.Tier}"));
         if (_driver.Options.Autorun)
         {
             _autorunStep = 0;
@@ -734,8 +746,29 @@ public partial class Screen : Control
         }
         _store = new ProgressionStore(dir);
         _progression = _store.Load(seed);
+        _ratingStore = new PrivateRatingStore(dir);
+        _rating = _ratingStore.Load();
         Proof(FormattableString.Invariant(
             $"SCREEN progression load store=1 ash={_progression.AshTotal} runs={_progression.Runs} items={EquippedText()} path=\"{_store.FilePath}\""));
+    }
+
+    // The private M+ rating (f-a3230c59): a timed run's result is read, never changed (the key level is not touched),
+    // and the record is saved beside the progression save. Nothing about it is printed but LogLine (no value).
+    private void RecordRating(Keyrun.Sim.Runs.Run run, RunResult result)
+    {
+        var timed = Keyrun.Content.PrivateRating.FromResult(
+            result == RunResult.Timed, run.RunEnd.ResultTick, run.Dungeon.Id, run.Encounter.KeyLevel, run.Encounter.ParTicks);
+        if (timed is null)
+        {
+            return;
+        }
+        var next = _rating.Add(timed);
+        if (ReferenceEquals(next, _rating))
+        {
+            return;
+        }
+        _rating = next;
+        _ratingStore?.Save(_rating);
     }
 
     private void SaveProgression(string reason)
@@ -760,6 +793,65 @@ public partial class Screen : Control
             })
             .ToList();
         return parts.Count == 0 ? "none" : string.Join(",", parts);
+    }
+
+    // BIBLE s7 "Tier is power": one equipped item's stats from the content gear table, or null when content is not
+    // loaded (the screen still lists the slot, with no numbers).
+    private GearStats? SlotStats(string slot, int tier)
+    {
+        if (_driver?.Registry is not { } reg || reg.Gear.Count == 0)
+        {
+            return null;
+        }
+        var s = Keyrun.Content.GearItems.StatsAt(reg.Gear, Enum.Parse<Keyrun.Content.GearSlot>(slot, ignoreCase: true), tier);
+        return new GearStats(s.DamageDoneBp, s.DamageTakenBp);
+    }
+
+    // The five slots' summed stats (GearPower.Sum), or null when content is not loaded.
+    private GearStats? GearTotal()
+    {
+        if (_driver?.Registry is not { } reg || reg.Gear.Count == 0)
+        {
+            return null;
+        }
+        return GearPower.Sum(_progression.Equipped, (slot, tier) => SlotStats(slot, tier) ?? default);
+    }
+
+    // The character readout's five slots (equipped or empty) with their stats, then the summed total.
+    private void ProofGear()
+    {
+        foreach (var slot in Rewards.GearSlots)
+        {
+            if (_progression.Equipped.TryGetValue(slot, out var item) && SlotStats(slot, item.Tier) is { } st)
+            {
+                Proof(FormattableString.Invariant(
+                    $"SCREEN gear slot={slot} state=equipped tier={item.Tier} damageDoneBp={st.DamageDoneBp} damageTakenBp={st.DamageTakenBp}"));
+            }
+            else
+            {
+                Proof(FormattableString.Invariant(
+                    $"SCREEN gear slot={slot} state={(_progression.Equipped.ContainsKey(slot) ? "equipped" : "empty")}"));
+            }
+        }
+        var total = GearTotal() ?? default;
+        Proof(FormattableString.Invariant(
+            $"SCREEN gear total damageDoneBp={total.DamageDoneBp} damageTakenBp={total.DamageTakenBp}"));
+    }
+
+    // "+5% damage dealt, -2.5% damage taken" (basis points; empty when there is nothing).
+    private static string GearTotalText(GearStats t)
+    {
+        static string Pct(long bp) => (Math.Abs(bp) / 100m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+        var parts = new List<string>();
+        if (t.DamageDoneBp != 0)
+        {
+            parts.Add((t.DamageDoneBp > 0 ? "+" : "-") + Pct(t.DamageDoneBp) + " damage dealt");
+        }
+        if (t.DamageTakenBp != 0)
+        {
+            parts.Add((t.DamageTakenBp < 0 ? "-" : "+") + Pct(t.DamageTakenBp) + " damage taken");
+        }
+        return string.Join(", ", parts);
     }
 
     private void ProofItem(string slot)
@@ -982,6 +1074,7 @@ public partial class Screen : Control
         var y = r.Position.Y + 50;
         HudNodes.Text(this, new Vector2(x, y), ClassName(), 18, Colors.White);
         HudNodes.Text(this, new Vector2(x + 140, y), FormattableString.Invariant($"Ash {_progression.AshTotal}"), BodyFont, Gold);
+        HudNodes.Text(this, new Vector2(x + 240, y), _rating.ScreenText(), BodyFont, Calm);
         y += 22;
         var since = _progression.LastRun?.Text() ?? "First run";
         HudNodes.Text(this, new Vector2(x, y), "Since last run: " + since, BodyFont, Calm);
@@ -995,6 +1088,10 @@ public partial class Screen : Control
         }
         y += 10;
         HudNodes.Text(this, new Vector2(x, y), "Gear", 16, Gold);
+        if (GearTotal() is { } total && GearTotalText(total) is { Length: > 0 } totalText)
+        {
+            HudNodes.Text(this, new Vector2(x + 52, y), Clip(totalText, r.Size.X - 70, SmallFont), SmallFont, Calm);
+        }
         y += 22;
         foreach (var slot in Rewards.GearSlots)
         {

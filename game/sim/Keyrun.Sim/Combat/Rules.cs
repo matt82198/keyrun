@@ -118,7 +118,7 @@ public static class Rules
             var hooks = new ClauseHooks(cfg.Clause);
             var noClause = new ClauseHooks(null);
             var ctx = new CastContext(cfg.Abilities, cfg.Effects, cfg.LockoutTicks) { Hooks = hooks, Overheat = cfg.Overheat };
-            var wctx = new WindowsContext(cfg.Effects, combos, fieldCombos, new FloorWindowRegistry(state.FloorWindows), hooks);
+            var wctx = new WindowsContext(cfg.Effects, combos, fieldCombos, new FloorWindowRegistry(state.FloorWindows), hooks) { Overheat = cfg.Overheat };
 
             foreach (var actor in state.Actors.Values.ToList())
             {
