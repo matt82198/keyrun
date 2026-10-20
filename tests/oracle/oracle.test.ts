@@ -21,9 +21,12 @@ import {
   NON_GENERATED,
   ORACLE_FIXTURE_DIR,
   buildFixtures,
-  frozenSourceHash,
+  frozenSourceHashes,
+  hashMapDrift,
+  renderManifest,
   writeFixtures,
 } from "./generate";
+import { gitMergeFile } from "./merge-file";
 import { SOURCE_SHA } from "./traces";
 
 describe("oracle wire format", () => {
@@ -70,27 +73,91 @@ function frozenTree(overrides: Record<string, string>): string {
   return root;
 }
 
-describe("frozen-source hash ignores documentation (.md) files", () => {
-  it("a .md-only edit under a frozen root leaves frozenSourceHash unchanged", () => {
+describe("frozen-source hashes ignore documentation (.md) files", () => {
+  it("a .md-only edit under a frozen root leaves frozenSourceHashes unchanged", () => {
     const root = frozenTree({ "sim/engine.ts": "export const x = 1;\n", "content/CLAUDE.md": "docs v1\n" });
     try {
-      const before = frozenSourceHash(root).hash;
+      const before = frozenSourceHashes(root);
       writeFileSync(join(root, "content/CLAUDE.md"), "docs v2, prose only\n");
-      expect(frozenSourceHash(root).hash).toBe(before);
+      expect(hashMapDrift(before, frozenSourceHashes(root))).toEqual([]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it("a non-.md edit under a frozen root still changes frozenSourceHash", () => {
+  it("a non-.md edit under a frozen root still changes frozenSourceHashes", () => {
     const root = frozenTree({ "sim/engine.ts": "export const x = 1;\n", "content/data/tuning.json": "{}\n" });
     try {
-      const before = frozenSourceHash(root).hash;
+      const before = frozenSourceHashes(root);
       writeFileSync(join(root, "content/data/tuning.json"), '{"hp":2}\n');
-      expect(frozenSourceHash(root).hash).not.toBe(before);
-      const beforeSim = frozenSourceHash(root).hash;
+      expect(hashMapDrift(before, frozenSourceHashes(root))).toEqual(["changed content/data/tuning.json"]);
+      const beforeSim = frozenSourceHashes(root);
       writeFileSync(join(root, "sim/engine.ts"), "export const x = 2;\n");
-      expect(frozenSourceHash(root).hash).not.toBe(beforeSim);
+      expect(hashMapDrift(beforeSim, frozenSourceHashes(root))).toEqual(["changed sim/engine.ts"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("frozen-source drift gate: per file, fail-closed, merge-friendly", () => {
+  const twoContentFiles = { "content/data/a.json": '{"hp":1}\n', "content/data/b.json": '{"hp":1}\n' };
+
+  it("a content edit with stale (not regenerated) fixtures still fails the drift check", () => {
+    const root = frozenTree(twoContentFiles);
+    try {
+      const recorded = frozenSourceHashes(root); // what the committed manifest was generated from
+      writeFileSync(join(root, "content/data/a.json"), '{"hp":2}\n'); // a content edit, no ORACLE_WRITE
+      expect(hashMapDrift(recorded, frozenSourceHashes(root))).toEqual(["changed content/data/a.json"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("an added or a removed frozen source file also fails the drift check", () => {
+    const root = frozenTree(twoContentFiles);
+    try {
+      const recorded = frozenSourceHashes(root);
+      writeFileSync(join(root, "content/data/c.json"), "{}\n");
+      rmSync(join(root, "content/data/b.json"));
+      expect(hashMapDrift(recorded, frozenSourceHashes(root))).toEqual([
+        "removed content/data/b.json",
+        "added content/data/c.json",
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("the derived content-pull golden is not a frozen source (golden.test.ts gates it against live content)", () => {
+    const root = frozenTree({ "tests/sim/golden/content-pull.json": "{}\n", "tests/sim/golden/scripted-pull.json": "{}\n" });
+    try {
+      const listed = Object.keys(frozenSourceHashes(root));
+      expect(listed).toContain("tests/sim/golden/scripted-pull.json"); // an input the traces read
+      expect(listed).not.toContain("tests/sim/golden/content-pull.json");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("two independent content edits on separate branches merge manifest.json without a conflict", () => {
+    const root = frozenTree({ ...twoContentFiles, "content/data/m.json": "{}\n" });
+    try {
+      const manifestFor = (): string =>
+        renderManifest({ kind: "keyrun-oracle-manifest", source: { frozenSources: frozenSourceHashes(root) }, version: 1 });
+      const base = manifestFor();
+      writeFileSync(join(root, "content/data/a.json"), '{"hp":2}\n'); // branch A edits a.json
+      const ours = manifestFor();
+      writeFileSync(join(root, "content/data/a.json"), '{"hp":1}\n');
+      writeFileSync(join(root, "content/data/b.json"), '{"hp":3}\n'); // branch B edits b.json
+      const theirs = manifestFor();
+      writeFileSync(join(root, "content/data/a.json"), '{"hp":2}\n');
+      const both = manifestFor(); // what regenerating on the merged tree writes
+      expect(ours).not.toBe(base);
+      expect(theirs).not.toBe(base);
+      const merged = gitMergeFile(base, ours, theirs);
+      expect(merged.clean, merged.text).toBe(true);
+      expect(merged.text).toBe(both);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -109,15 +176,16 @@ describe("oracle fixtures match the frozen TypeScript sim byte for byte", () => 
     return () => rmSync(tempDir, { recursive: true, force: true });
   }, 300_000);
 
-  it("the frozen sources hash to the value the committed fixtures were generated from", () => {
+  it("the frozen sources hash to the values the committed fixtures were generated from", () => {
     const committed = JSON.parse(readFileSync(join(ORACLE_FIXTURE_DIR, "manifest.json"), "utf8")) as {
-      source: { sha: string; frozenSourceHash: string };
+      source: { sha: string; frozenSources: Record<string, { fnv: string }> };
     };
     expect(committed.source.sha).toBe(SOURCE_SHA);
+    expect(Object.keys(committed.source.frozenSources ?? {}).length).toBeGreaterThan(100);
     expect(
-      frozenSourceHash().hash,
-      "a file under the frozen TS roots (manifest.json source.frozenRoots) changed since the oracle was recorded; the TS is FROZEN (ENGINE-PLAN s3)",
-    ).toBe(committed.source.frozenSourceHash);
+      hashMapDrift(committed.source.frozenSources, frozenSourceHashes()),
+      "these files under the frozen TS roots (manifest.json source.frozenRoots) changed since the oracle was recorded; the TS is FROZEN (ENGINE-PLAN s3)",
+    ).toEqual([]);
   });
 
   it("the committed fixture set is exactly the generated set", () => {
