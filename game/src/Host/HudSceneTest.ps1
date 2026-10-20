@@ -652,6 +652,9 @@ foreach ($f in @(& (Join-Path $PSScriptRoot 'WardenEngagesTest.ps1') -Lines $cRu
 # 13c. Lane HUD-DECLUTTER: friendly casts in the party frames, only the human's damage numbers, enemy health in unit
 # frames, enemy cast bars kept (src/Hud/HudDeclutterTest.ps1 holds the four checks and their RED on main).
 foreach ($f in @(& (Join-Path $PSScriptRoot '../Hud/HudDeclutterTest.ps1') -Lines $cRun)) { $failures.Add("run C: $f") }
+# 13d. Lane fix/target-frame-after-death (P0): a cleared run's objective counts the enemies still alive at run_end (a
+# Sundered Twin that outlives the boss), never "No enemies remain" over a live target frame (src/Hud/ObjectiveClearTest.ps1).
+foreach ($f in @(& (Join-Path $PSScriptRoot '../Hud/ObjectiveClearTest.ps1') -Lines $cRun)) { $failures.Add("run C: $f") }
 
 # ---- Run D: the armed boss (lane 3I) -----------------------------------------------------------------------------
 # From pull 4 (the boss pull): no key reaches the boss from pull 1 under autorun (see the header for the sweep).
