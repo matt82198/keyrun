@@ -93,9 +93,10 @@ public sealed class SlamTelegraphTests
 
     /// <summary>
     /// For every <paramref name="cast"/> by <paramref name="actor"/> that lands (cast_complete): a telegraph resolves on
-    /// the landing tick, and it is on the floor (pending in the registry) for the last <c>min(castTicks, lead)</c> ticks
-    /// before it, where lead is the step's Tempo-scaled telegraph lead. With lead &gt;= castTicks that is the whole cast
-    /// bar; Tempo may shrink the lead below the cast time (BIBLE s8), never the warning before the hit.
+    /// the landing tick, it is drawn no later than the tick the cast bar starts (<c>landing - castTicks</c>), even after
+    /// Tempo shrinks the content lead below the cast time, and it is on the floor (pending) on every tick of the cast.
+    /// And the reverse (wrong data shown is P0): every telegraph drawn for <paramref name="cast"/> resolves on a tick
+    /// the cast actually lands, so a cast that never starts (on cooldown, no target) draws nothing.
     /// </summary>
     private static void AssertSpansCast(
         List<SimEvent> events, Dictionary<int, IReadOnlyList<Telegraph>> pending, Run run, int actor, string cast,
@@ -103,9 +104,18 @@ public sealed class SlamTelegraphTests
     {
         var castTicks = run.Content.Abilities[cast].CastTicks;
         Assert.True(castTicks > 0, $"{cast}: castTicks {castTicks}, no cast bar");
-        var lead = script.Single(s => s.Cast == cast).Telegraph?.LeadTicks ?? 0;
-        Assert.True(lead > 0, $"{cast}: no floor telegraph in the script");
-        var window = Math.Min(castTicks, lead);
+        Assert.True(script.Single(s => s.Cast == cast).Telegraph is not null, $"{cast}: no floor telegraph in the script");
+        var window = castTicks;
+
+        var drawn = events.Where(e => e.Type == "telegraph" && Int(e, "actorId") == actor && Str(e, "cast") == cast).ToList();
+        Assert.True(drawn.Count >= minLanded, $"{cast} by {actor}: {drawn.Count} telegraphs drawn, expected at least {minLanded}");
+        foreach (var tg in drawn)
+        {
+            var resolves = Int(tg, "resolvesTick");
+            Assert.True(
+                events.Any(e => e.Type == "cast_complete" && e.Tick == resolves && Int(e, "actorId") == actor && Str(e, "abilityId") == cast),
+                $"{cast} by {actor}: telegraph drawn on tick {tg.Tick} resolves on {resolves}, but no {cast} lands then (a cast that never happened)");
+        }
 
         var landed = events.Where(e => e.Type == "cast_complete" && Int(e, "actorId") == actor && Str(e, "abilityId") == cast).ToList();
         Assert.True(landed.Count >= minLanded, $"{cast} by {actor}: {landed.Count} casts landed, expected at least {minLanded}");
