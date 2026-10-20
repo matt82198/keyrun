@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Keyrun.Sim.Runs;
 
@@ -14,7 +15,25 @@ public partial class ClausePick : Control
     private const float CardHeight = 64;
     private const float CardGap = 8;
     private const int NameFont = 16;
-    private const int TextFont = 12;
+    private const float TextInset = 10;
+    private const float TextLineHeight = 14;
+
+    /// <summary>The Clause description's font size.</summary>
+    public const int TextFont = 12;
+
+    /// <summary>The width a Clause description may use inside a card: the card width less the inset on each side.</summary>
+    /// <param name="cardWidth">The card's width (the control's width).</param>
+    /// <returns>The text bound in pixels.</returns>
+    public static float TextWidthFor(float cardWidth) => Math.Max(0f, cardWidth - (2 * TextInset));
+
+    /// <summary>
+    /// A Clause description wrapped to <paramref name="width"/> in at most two lines (lane SCREEN-OVERFLOW: the text
+    /// stays inside its card at 1280x720). The draw and the Screen's "SCREEN fit clause" proof line share it.
+    /// </summary>
+    /// <param name="text">The description.</param>
+    /// <param name="width">The text bound, <see cref="TextWidthFor"/> of the card width.</param>
+    /// <returns>The lines to draw.</returns>
+    public static IReadOnlyList<string> TextLines(string text, float width) => Screen.Wrap(text, width, TextFont, 2);
 
     private static readonly Color Picked = new(0.5f, 1f, 0.6f);
 
@@ -60,7 +79,11 @@ public partial class ClausePick : Control
             DrawRect(card, picked ? Picked : HudNodes.Edge, filled: false, width: picked ? 3f : 1f);
             HudNodes.Text(this, card.Position + new Vector2(10, 22), FormattableString.Invariant($"{i + 1}  {name}"), NameFont,
                 picked ? Picked : new Color(1f, 0.9f, 0.55f));
-            HudNodes.Text(this, card.Position + new Vector2(10, 44), text, TextFont, Colors.White);
+            var lines = TextLines(text, TextWidthFor(Size.X));
+            for (var j = 0; j < lines.Count; j++)
+            {
+                HudNodes.Text(this, card.Position + new Vector2(TextInset, 44 + (j * TextLineHeight)), lines[j], TextFont, Colors.White);
+            }
         }
     }
 }
