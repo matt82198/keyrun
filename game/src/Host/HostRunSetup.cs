@@ -159,6 +159,70 @@ public sealed record HostRunSetup(
     public C.LayoutDef? Layout { get; init; }
 
     /// <summary>
+    /// The human's equipped gear as a run loadout (BIBLE s7): every equipped item carried, and each Facet's content
+    /// patch applied to the human's kit (<see cref="GearLoadout.Of"/> over <see cref="GearPatches"/>). Pass
+    /// <see cref="GearLoadout.ToRunOptions"/> of it to <see cref="RunRoot.CreateRun"/>; with nothing equipped that
+    /// returns the options unchanged, so the run is created exactly as before.
+    /// </summary>
+    /// <param name="progression">The character's progression.</param>
+    /// <param name="registry">The content.</param>
+    /// <param name="humanClassId">The human's class (scopes the Facets and fills an appended Window's setupClass).</param>
+    /// <returns>The loadout.</returns>
+    public GearLoadout GearFor(Progression progression, C.ContentRegistry registry, string humanClassId) =>
+        GearLoadout.Of(progression, HumanActorId, Content.Abilities, GearPatches(registry, humanClassId));
+
+    /// <summary>
+    /// The sim patch of every content Facet on <paramref name="classId"/>'s kit (content/schema/facet.ts FacetPatch to
+    /// <see cref="GearPatch"/>, ops through the same <c>ToSim</c> the base abilities use). An appended Window op without
+    /// a setupClass is the wearer's class Window (every base Window op of a class carries that class id), so it gets
+    /// <paramref name="classId"/>. A Facet whose shape has a line width is left out (the sim
+    /// <see cref="AbilityShape"/> has no width), so it is carried but unapplied.
+    /// </summary>
+    /// <param name="registry">The content.</param>
+    /// <param name="classId">The wearer's class.</param>
+    /// <returns>Patches by Facet id.</returns>
+    /// <exception cref="InvalidOperationException">The class is unknown, or a Facet op is one the sim does not run.</exception>
+    public static IReadOnlyDictionary<string, GearPatch> GearPatches(C.ContentRegistry registry, string classId)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        if (!registry.Classes.TryGetValue(classId, out var classDef))
+        {
+            throw new InvalidOperationException($"run setup: unknown class \"{classId}\"");
+        }
+        var kit = new HashSet<string>(ResolveSlots(classDef).Select(s => s.AbilityId), StringComparer.Ordinal);
+        var patches = new Dictionary<string, GearPatch>(StringComparer.Ordinal);
+        foreach (var facet in registry.Facets.Values.Where(f => kit.Contains(f.AbilityId)).OrderBy(f => f.Id, StringComparer.Ordinal))
+        {
+            var p = facet.Patch;
+            if (p.Shape?.Width is not null)
+            {
+                continue;
+            }
+            var where = $"facet \"{facet.Id}\"";
+            IReadOnlyList<EffectOp>? Ops(IEnumerable<C.EffectOp>? ops) => ops?.Select(o => ToSim(
+                o is C.WindowOp { SetupClass: null } w ? w with { SetupClass = classId } : o, where)).ToList();
+            patches[facet.Id] = new GearPatch
+            {
+                CastTicks = p.CastTicks,
+                GcdTicks = p.GcdTicks,
+                CooldownTicks = p.CooldownTicks,
+                Charges = p.Charges,
+                Cost = p.Cost is { } c ? new AbilityCost(c.Resource, c.Amount) : null,
+                Range = p.Range,
+                Shape = p.Shape is { } s ? new AbilityShape(ToSim(s.Kind), s.Radius, s.Angle1024, s.Length) : null,
+                Interruptible = p.Interruptible,
+                Tags = p.Tags?.ToList(),
+                Effects = Ops(p.Effects),
+                Variants = p.Variants?.ToDictionary(kv => kv.Key, kv => Ops(kv.Value)!, StringComparer.Ordinal),
+                TagAdd = p.TagAdd?.ToList(),
+                TagRemove = p.TagRemove?.ToList(),
+                EffectsAppend = Ops(p.EffectsAppend),
+            };
+        }
+        return patches;
+    }
+
+    /// <summary>
     /// The party for a run over <paramref name="runDungeon"/> (the setup's dungeon, or a <c>--pull N</c> slice of it):
     /// <see cref="Party"/> in the Entrance for a run from the first pull, else the same seats at the start of the first
     /// pull's room, inside its trigger, so the sliced run begins in its fight as the flat arena's did.
