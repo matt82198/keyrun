@@ -18,6 +18,8 @@ namespace Keyrun.View;
 /// <para>
 /// HUD-DECLUTTER (Matt 2026-10-19): only enemies get an over-head bar. A party member's cast (the human's and the
 /// bots') is drawn inside its party frame (<c>PartyFrames</c>); the Warden's wide bar over the ability bar stays.
+/// NAMEPLATE-DECLUTTER: an enemy a unit frame shows (the boss, the Warden's target) has its cast drawn on that frame
+/// only, so no cast reads twice (<see cref="HudDeclutter"/>.OverheadCast with <c>UnitFrameModel.Build</c>).
 /// </para>
 /// <para>
 /// HUD-POLISH-2 (design/ART-PLAN.md section 2, no HUD text overlaps another): the over-head bars are laid out once a
@@ -177,14 +179,16 @@ public partial class CastBarView : Control
         int Measure(string s) => (int)Math.Ceiling(font.GetStringSize(s, HorizontalAlignment.Left, -1, FontSize).X);
 
         var now = Driver.State.Tick + Driver.Alpha;
+        var unitFrames = Frames();
         foreach (var (id, actor) in Driver.State.Actors)
         {
             if (!actor.Alive || actor.CastId is not { } castId || actor.CastStartTick is not { } start || actor.CastEndsTick is not { } end)
             {
                 continue;
             }
-            // HUD-DECLUTTER: a party member's cast is drawn in its party frame, never over its head.
-            if (!HudDeclutter.OverheadCast(actor))
+            // HUD-DECLUTTER: a party member's cast is drawn in its party frame, never over its head; NAMEPLATE-DECLUTTER:
+            // an enemy on a unit frame has its cast on that frame only.
+            if (!HudDeclutter.OverheadCast(actor, unitFrames))
             {
                 continue;
             }
@@ -196,7 +200,7 @@ public partial class CastBarView : Control
         }
         foreach (var e in _endings)
         {
-            if (Driver.State.Actors.TryGetValue(e.ActorId, out var ender) && !HudDeclutter.OverheadCast(ender))
+            if (Driver.State.Actors.TryGetValue(e.ActorId, out var ender) && !HudDeclutter.OverheadCast(ender, unitFrames))
             {
                 continue;
             }
@@ -242,6 +246,10 @@ public partial class CastBarView : Control
             _bars.Add(new Bar(anchor, depth, progress, fill, frame, label));
         }
     }
+
+    // The enemy unit frames this frame shows (NAMEPLATE-DECLUTTER: their enemies' casts draw there, not over the head).
+    private IReadOnlyList<UnitFrame> Frames() =>
+        Driver is null ? Array.Empty<UnitFrame>() : UnitFrameModel.Build(Driver.State, Driver.Setup?.HumanActorId ?? SimDriver.WardenId);
 
     private Color FrameOf(string castId) =>
         Driver?.Run?.Content.Abilities.TryGetValue(castId, out var def) == true && def.Interruptible ? KickFrame : LockedFrame;
@@ -313,6 +321,7 @@ public partial class CastBarView : Control
         {
             return;
         }
+        var unitFrames = Frames();
         foreach (var (id, actor) in Driver.State.Actors)
         {
             if (!actor.Alive || actor.CastId is not { } castId || actor.CastStartTick is not { } start)
@@ -325,7 +334,7 @@ public partial class CastBarView : Control
             }
             _castLogged[id] = start;
             HudNodes.Proof(Driver, FormattableString.Invariant(
-                $"HUD castbar actor={id} kind={HudDeclutter.Side(actor)} where={HudDeclutter.CastPlacement(actor)} ability={castId}"));
+                $"HUD castbar actor={id} kind={HudDeclutter.Side(actor)} where={HudDeclutter.CastPlacement(actor, unitFrames)} ability={castId}"));
         }
     }
 
