@@ -192,6 +192,17 @@ public static class RunRoot
         nextEncounter = echo.Encounter;
         nextState = RunWiring.MergeActors(nextState, echo.Spawned);
 
+        // BOSS-DEATH-ENDS-ENCOUNTER (f-77fcfca4, Matt 2026-10-20: "boss death ends the encounter, adds despawn, like
+        // WoW"): the step the armed boss dies, its adds have just despawned above, so its pull is cleared on this same
+        // step rather than on the next step's pre-combat check, and run-end detection below sees the encounter over.
+        // Unarmed runs (every oracle trace) never take this path.
+        if (nextEncounter.Boss is { } armedBoss
+            && events.Any(e => e.Type == "death" && e.Get("actorId") is JsInt id && id.Value == armedBoss.Config.BossActorId))
+        {
+            var dungeonView = layout is null ? run.Dungeon : UnspawnedAsEmpty(run.State, run.Dungeon, nextEncounter.PullIndex);
+            nextEncounter = Pulls.CheckPullAdvance(nextState, dungeonView, nextEncounter, run.State.Tick, emit);
+        }
+
         RunWiring.FixupTargeting(nextState);
         nextEncounter = RunWiring.ApplyDeathsAndWipe(nextState, nextEncounter, events, nextState.Tick, emit);
 
