@@ -8,5 +8,9 @@
     "maxX": 18000,
     "minZ": -6000,
     "maxZ": 9000
+  },
+  "heatOverheat": {
+    "chillEffectId": "chill",
+    "chillTicks": 60
   }
 }
