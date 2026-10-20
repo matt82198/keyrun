@@ -890,7 +890,10 @@ public partial class SimDriver : Node
             dungeon = dungeon with { Pulls = dungeon.Pulls.Skip(Options.StartPull - 1).ToList() };
         }
         // Lane NAV-CORE: a --pull N run starts its party in pull N's room (HostRunSetup.PartyFor), else in the Entrance.
-        var created = RunRoot.CreateRun(Options.Seed, setup.PartyFor(dungeon), dungeon, setup.Content, request?.ToRunOptions());
+        // Finding f-f9b80112 (BIBLE s7): the screen's equipped gear, keystone included, reaches the run on top of the
+        // request's Clause and talents (RunStart.Of; no screen yet means the request's options alone).
+        var start = setup.StartFor(request, _screen?.Progression, registry, HumanClassId);
+        var created = RunRoot.CreateRun(Options.Seed, setup.PartyFor(dungeon), dungeon, setup.Content, start.Options);
         // 3F's hand-off (its decision 6): arm the boss on the created run's encounter.
         var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
         Run = run;
@@ -901,6 +904,11 @@ public partial class SimDriver : Node
         _bots?.Reset();
         _log?.Line(FormattableString.Invariant(
             $"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} dungeon={setup.Dungeon.Id} key={setup.Content.KeyLevel} clause={run.Encounter.Rules.ActiveClauseId ?? "none"} seed={Options.Seed} actors={run.State.Actors.Count}"));
+        if (start.Gear is { } gear)
+        {
+            _log?.Line(FormattableString.Invariant(
+                $"GEAR run items={gear.Gear.Count} facets={(gear.Gear.Count == 0 ? "none" : string.Join(",", gear.Facets.Select(f => f.Id)))} patched={gear.Abilities.Count} unapplied={gear.UnappliedFacetIds.Count}"));
+        }
         var boss = run.Encounter.Boss?.Config ?? throw new InvalidOperationException("SimDriver: the run's boss is not armed");
         _log?.Line(FormattableString.Invariant(
             $"BOSS armed twins={boss.Twins.Count} lockAt={boss.LockThresholdBp / 100} window={boss.LockWindowTicks} bar={boss.TwinsBar.Id} boss={boss.BossActorId}"));
