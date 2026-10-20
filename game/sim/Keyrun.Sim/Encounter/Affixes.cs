@@ -70,6 +70,8 @@ public static class Affixes
     /// The rotation index a run seeded with <paramref name="seed"/> carries (finding f-319aced5): the seed's low 31 bits,
     /// so the index is non-negative, a replay with the same seed rebuilds the same affixes and Clause, and consecutive
     /// seeds alternate Fortified and Tyrannical on keys 5-9 the way WoW's weeks do. Pure integer math, no clock.
+    /// The game host no longer uses it: it takes the ISO week of the run's start date (Keyrun.Host.AffixWeek, outside
+    /// the sim) and records that index, so every run in one week shares its affixes.
     /// </summary>
     /// <param name="seed">The run seed.</param>
     /// <returns>The rotation index for <see cref="AffixesFor"/> and the key-set Clause.</returns>

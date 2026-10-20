@@ -139,7 +139,8 @@ public sealed class AffixesTests
 
     // Finding f-319aced5 (Matt 2026-10-20, "affixes follow current WoW"): the game's run must actually rotate. The host
     // derives the rotation index from the run seed (Affixes.RotationIndexFor), so a replay with the same seed and key
-    // rebuilds the same affixes and Clause, and consecutive seeds take turns, as WoW's weeks do.
+    // rebuilds the same affixes and Clause, and consecutive seeds take turns, as WoW's weeks do. The host now takes the
+    // ISO week instead (Keyrun.Host.AffixWeek, Host/AffixWeekTests.cs); these pin the seed function itself.
     [Theory]
     [InlineData(1L, 4, false, false)]
     [InlineData(1L, 5, false, true)]
