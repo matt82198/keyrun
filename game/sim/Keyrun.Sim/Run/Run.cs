@@ -147,7 +147,8 @@ public static class RunRoot
         // The run's Clause rides in its rules for exactly this step (clause-hooks.ts withEncounterRules).
         var rules = Rules.Make(RunWiring.RulesConfigOf(content, run.Encounter.Rules));
         var merged = commands.Concat(enc.Commands).ToList();
-        var stepped = Tick.Step(run.State, merged, rules);
+        // BIBLE.md:156 Tide: floor patches drift with the telegraphs, before combat reads them this tick.
+        var stepped = Tick.Step(Clauses.DriftFloorWindows(run.State, run.Encounter.Rules), merged, rules);
         events.AddRange(stepped.Events);
 
         var nextState = RunWiring.ApplyBreakBarPatches(stepped.State, enc.EffectPatches, content.Effects);
