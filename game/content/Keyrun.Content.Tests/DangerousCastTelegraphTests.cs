@@ -55,4 +55,18 @@ public sealed class DangerousCastTelegraphTests
         // Vacuity guard: seed.slam, seed.lash (KF3-SEED-ENGAGE), hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam.
         Assert.Equal(6, count);
     }
+
+    [Fact]
+    public void Every_dangerous_cast_telegraph_spans_the_cast()
+    {
+        // SLAM-TELEGRAPH: the floor shape stays down for the whole cast bar and resolves when the cast lands
+        // (seed.slam, seed.lash, hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam).
+        var slams = DangerousSteps().ToList();
+        Assert.Equal(6, slams.Count);
+        Assert.All(slams, s =>
+        {
+            Assert.True(s.Step.Telegraph?.SpansCast == true, s.Enemy.Id + " -> " + s.Ability.Id + " telegraph does not span its cast");
+            Assert.True(s.Step.Telegraph!.LeadTicks >= s.Ability.CastTicks, s.Enemy.Id + ": lead " + s.Step.Telegraph.LeadTicks + " < cast " + s.Ability.CastTicks);
+        });
+    }
 }

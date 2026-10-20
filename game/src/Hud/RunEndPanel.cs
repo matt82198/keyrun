@@ -236,7 +236,8 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         // run dungeon's "1 of 3").
         var lost = cleared ? null : ObjectiveModel.Build(run, registry);
         // One source with the sim (RunEndTitle.ForRun -> RunEndTitle.Of): a timed clear that finished past par but
-        // inside its Slack reads "over par", never "within par".
+        // inside its Slack reads "over par", never "within par"; an untimed key names the level it keeps (Of ->
+        // RunEndTitle.Wiped / ClearedUntimed: Matt 2026-10-20, f-7c7abdf4).
         var title = RunEndTitle.ForRun(run, lost?.Number ?? 0, lost?.Total ?? 0)!;
         var rewards = bonus?.Rewards ?? RunRewards.Empty;
         return new RunEndView(result, tick, title, cleared, choices, log.CausesFor(localSeat))

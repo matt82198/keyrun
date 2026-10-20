@@ -73,11 +73,12 @@ public sealed class RunEndTitleForRunTests
     }
 
     [Fact]
-    public void A_clear_one_tick_past_the_Slack_reads_key_depleted()
+    public void A_clear_one_tick_past_the_Slack_reads_key_stays()
     {
         var run = EndedRun(EndTick() - Timer.InitialSlackTicks(2) - 1);
         Assert.Equal(RunResult.Depleted, run.RunEnd.Result);
-        Assert.Equal(RunEndTitle.Depleted, RunEndTitle.ForRun(run, 0, 0));
+        // An untimed key keeps its level (Matt 2026-10-20, f-7c7abdf4): the depleted clear names the kept level.
+        Assert.Equal(RunEndTitle.ClearedUntimed(run.Encounter.KeyLevel), RunEndTitle.ForRun(run, 0, 0));
         Assert.Equal(SimTitle(run), RunEndTitle.ForRun(run, 0, 0));
     }
 
