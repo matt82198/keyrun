@@ -37,8 +37,14 @@ public enum AnimClip
 /// <param name="Hurt">This step dropped the actor's health.</param>
 /// <param name="Staggered">This step applied or refreshed the stagger effect (<see cref="ActorBinding.StaggerEffectId"/>).</param>
 /// <param name="Playing">The one-shot still playing from an earlier frame, or <see cref="AnimClip.None"/>.</param>
+/// <param name="Released">
+/// This step's events hold the actor's own <see cref="AnimRule.ResolveEvent"/> (a cast or instant resolved), as opposed
+/// to <paramref name="Acted"/>, which also fires when a cast merely starts (the GCD restarts on cast start).
+/// </param>
+/// <param name="InRelease">The playing swing one-shot is still inside <see cref="AnimRule.ReleaseEndsMs"/>.</param>
 public readonly record struct AnimFacts(
-    bool Alive, bool NewTick, bool Moving, bool Casting, bool Acted, bool Hurt, bool Staggered, AnimClip Playing);
+    bool Alive, bool NewTick, bool Moving, bool Casting, bool Acted, bool Hurt, bool Staggered, AnimClip Playing,
+    bool Released = false, bool InRelease = false);
 
 /// <summary>What the animator does this frame.</summary>
 /// <param name="Clip">The clip to start or keep.</param>
@@ -72,6 +78,18 @@ public static class AnimRule
     /// blow with the number and keeps a short wind-up.
     /// </summary>
     public const int SwingLeadMs = 100;
+
+    /// <summary>KF1-READABLE: how long a release keeps playing past its contact frame over a chained cast, in ms.</summary>
+    public const int ReleaseTailMs = 250;
+
+    /// <summary>RED STUB (KF1-READABLE): where the release window ends, in ms into the swing clip.</summary>
+    public static int ReleaseEndsMs(string clip) => 0;
+
+    /// <summary>RED STUB (KF1-READABLE): true while <paramref name="playedMs"/> is inside the release window.</summary>
+    public static bool InRelease(string clip, int playedMs) => false;
+
+    /// <summary>RED STUB (KF1-READABLE): the engine proof line for a clip start.</summary>
+    public static string ViewLine(int actorId, string clip, int tick) => string.Empty;
 
     /// <summary>KF1 hit flash: a health drop lights the victim for this many sim ticks, fading linearly.</summary>
     public const int FlashTicks = 3;
