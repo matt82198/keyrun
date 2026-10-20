@@ -48,6 +48,17 @@ pings, so secondary systems can never balloon past the core kit.
   without a "healer" class is harder, never blocked from queueing. The queue matches on key level only.
 - **Damage is a pipeline of integers**: base → source modifiers → target modifiers → absorbs → health. Mitigation
   and buffs are basis points. No hidden multipliers.
+- **The sim runs at 20 Hz** (one tick is 50 ms; STATE.md D9, measured in research/11). Every duration in this
+  document is in ticks at that rate.
+- **The kick window is sized in ticks, with a lag margin.** A kick counts when its intended tick falls inside the
+  cast. The last 6 ticks (300 ms) of every interruptible cast are the named kick window that pings and bots aim
+  for. When networking arrives (phase 4), the window must stay larger than the expected round trip plus 2 ticks, and
+  a kick is judged on the tick the player intended, never on the tick its packet arrived (research/07:150-156).
+- **Discrete outcomes snap to ticks.** Cast started, interrupt landed, aura applied and death show on the tick they
+  happen and are never blended between ticks. Only motion is interpolated (research/07:131-133).
+- **Telegraph contrast and outline.** Every floor telegraph has a solid, high-contrast outline. Its fill colour is
+  checked against the room's floor colour so it never sinks into the background. Each telegraph type keeps its own
+  shape and edge pattern, so it still reads with the colour removed (research/06:100-104, :147-151).
 
 ## 4. Synergy: Windows and Combos (Keyrun's own system)
 
@@ -128,6 +139,13 @@ pair combo, so there is always something to close even when the enemy Window was
 - Example (Warden `Strike`): *Rend* (Sundered lasts 5 s instead of 3) / *Riposte* (Strike after a Brace is free)
   / *Warcry* (Strike also applies the Window to two adjacent enemies).
 - Respec is free on the screen, always. The screen is a build lab (research/04, /09).
+- **Decision (Matt, 2026-10-20), recorded verbatim:** "talents = keep per-ability forks + add a balance/dominance
+  check". Forks stay. No option of a fork may dominate the others. **Parity check:** the bots suite runs each fork's
+  options through the same seeded Hollow Vault runs at keys 2 and 10, measuring clear time, deaths and Combos landed.
+  An option that is at least as good on every measure, and strictly better on one, is a defect that blocks the
+  content change, the same way a red test does. The aim is Blizzard's own stated goal that options "feel similarly
+  effective" and none becomes "required" (research/04:30-34). A tree shape alone does not stop cookie-cutter
+  convergence (research/04:125-127).
 
 ## 7. Gear and progression: bounded, with a real end (D7)
 
@@ -139,7 +157,15 @@ pair combo, so there is always something to close even when the enemy Window was
   second Payoff to a neutral ability, changes a floor patch's shape, or alters the resource loop. Facets are the
   chase; numbers are just the tier.
 - **End of every run: choose one of three** (a vault-lite, per run, not per week — research/01): the options are
-  shown with their Facet text and tier; there is never a trap choice (research/05).
+  shown with their Facet text and tier; there is never a trap choice (research/05). **Decision (Matt, 2026-10-20),
+  recorded verbatim:** "vault = every run". The per-run cadence stands, and the weekly vault of research/05:9-11 is
+  rejected.
+- **Every clear moves something visible.** **Decision (Matt, 2026-10-20), recorded verbatim:** "rewards = keep
+  Tier-10 cap, cosmetic Ash, no public score, but every clear moves something visible: choose-one-of-three always
+  includes an upgrade or Ascension progress, plus private last-3-runs strip". So at least one of the three options on
+  every clear is a strict upgrade for the character: a higher tier in some slot, or a Facet the character does not
+  own yet. At the cap, that option is Ascension progress instead. Fellowship's top complaint was that most drops
+  upgrade nothing (research/09:60-62). The private **last-3-runs strip** is on the screen (section 10).
 - **Crafting is two charges per item**: reroll the Facet from that slot's listed pool, twice, then it is what it is
   (Last Epoch scaled down — research/05).
 - **Every run banks Ash, win or lose** (Hades — research/05). Ash buys only cosmetics and titles.
@@ -151,8 +177,13 @@ pair combo, so there is always something to close even when the enemy Window was
 - **The key** is a number, 2–20 for the POC. It scales **Tempo**, not health: enemies cast more often, telegraphs
   resolve faster, and pulls gain one extra mechanic at fixed thresholds (research/06 and Blizzard's own scaling
   lessons in research/01). Health scales gently so kills still happen.
-- **The Clause**: before queueing, the party is offered three modifiers and picks **one**; exactly one Clause runs
-  at a time, never stacked (research/01). Clauses change plans, not stats: *Echo* (every interrupted cast spawns a
+- **The Clause**: **Decision (Matt, 2026-10-20), recorded verbatim:** "Clause = no pre-queue pick, the key sets it
+  (rotating) and Clauses start at a higher key (e.g. +5)". Nobody picks a Clause. The key carries it: the Clause is
+  set by the key level and a fixed rotation, and the screen shows the key's Clause before Queue is pressed, so no
+  lobby negotiation remains (test 2; research/08:122-124). Below the starting key no Clause runs. Matt's example of
+  the starting key is +5, and the exact key is tuned. Modifiers start at a higher tier, as Fellowship's curses start
+  at Adept (research/09:29-31). Exactly one Clause runs at a time, never stacked (research/01). Clauses change plans,
+  not stats: *Echo* (every interrupted cast spawns a
   weak add), *Tide* (floor patches drift), *Hush* (silence pulses every 45 s; save the kicks), *Pact* (Combos deal
   more, uncombo'd hits deal less). Every Clause is tested against every class before it ships.
 - **The timer and Slack.** The run has a par time. Deaths and wipes cost **Slack** (a soft time bank shown as a
@@ -195,6 +226,22 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
   once when a living party member enters its ring, or when party damage or a hazard hits any of its members.
   Walking the far wall past an untouched ring is a **skip**. Walking into two rings together is a **chain pull**. The
   read is visual, a radius on the floor, not memorised geography (research/01:106-107).
+- **Branches rejoin before the next teaching pull.** Both branches end at the Seed chamber, so every route plays all
+  three teaching pulls in order, and the run stays forward-only apart from the in-branch walk back above. The branch
+  is a choice of packs, not a different dungeon. Fellowship's 100% kill-score across branching paths is the
+  precedent (research/09:22-24).
+- **Pull size is a decision, read from the floor.** How many packs to take at once is the run's main skill axis
+  (research/01:29-34, research/06:42-46). The aggro ring is the visible pull radius. Every ring along a branch can be
+  seen from that branch's doorway, so the tank can plan a chain pull (two rings entered together) or a single pull
+  before stepping in, and adjust it live (research/01:106-107).
+- **Density rule.** No stretch of the walking line runs more than 160 ticks (8 s at the party's 180 mm/tick) from
+  one engage (a teaching pull or a pack ring) to the next, and no room on the walking line is empty. A skip means
+  walking past enemies, never through an empty room. Dead travel is the most-cited killer of a run's fun
+  (research/02:50-54).
+- **What an optional pack pays.** Fellowship's trash pays nothing (research/09:60-61). Here, every optional pack
+  killed adds Ash to the run's bank, shown on the run-end panel. A run that opens the Hollow Door at 110% forces or
+  more raises one of the three end-of-run options by one tier, never past 10. That overflow upgrade is the reward
+  for pulling more than the bar needs, against the timer.
 - **Backfill** (section 10): a joiner arrives at the next teaching pull or pack engage, inside the party's taken
   branch.
 
@@ -309,15 +356,30 @@ example 104%) and do nothing else. The fight beyond the door is unchanged.
 ## 10. The screen, the queue, and being chill (research/08, /09)
 
 - One screen, three bands: **Character** (auto-equipped, "since last run" delta line, the five abilities with
-  keybinds), **Key** (stepper, Clause pick, locks on queue), **Queue** (one button; while queued, a role-scarcity
-  readout; ready check on pop; a short lock only after a mid-run abandon).
-- **Backfill is in the first playable** (Fellowship's named defect — research/09): a slot that empties mid-run is
-  offered to the queue at the same key; a joiner arrives at the next pull start (a teaching pull or a pack engage,
-  section 9.1) with the run's Slack.
+  keybinds), **Key** (stepper, the key's Clause shown and never picked (section 8), locks on queue), **Queue** (one
+  button; while queued, a role-scarcity readout; ready check on pop; a short lock only after a mid-run abandon).
+- **The queue screen is honest.** While queued, the screen shows the real expected wait, not a spinner, so players
+  can self-select (research/08:28-32). Under the key stepper a single **readiness line** reads "Ready" or
+  "Under-geared for this key". It is information and never blocks Queue (research/08:122-124). The ready check on
+  pop times out (10 seconds) and returns everyone to the queue, with no penalty for declining or timing out
+  (research/08:127-128).
+- **Last-3-runs strip.** A collapsed, private strip under the queue state shows the character's last three runs:
+  time, result, and what the clear moved (section 7). It lives on the screen, not in a separate menu
+  (research/08:131-132), and no one else can see it.
+- **Backfill is in the first playable** (Fellowship's named defect, research/09:65, :112, :125): a slot that empties
+  mid-run is offered to the queue at the same key. A joiner arrives at the next pull start (a teaching pull or a
+  pack engage, section 9.1) with the run's Slack.
+- **Vote to leave keeps the key for those who stay.** A player who leaves alone costs only their own attempt (the
+  short lock above). If the party votes to abandon together, nobody's key is depleted or downgraded and nobody gets
+  the lock. One player leaving never costs the players who stay their key (test 3; research/08:37-42, :85-88).
+- **Kick-ready readout on the party frames.** Each party frame shows its player's Q cooldown as a ready pip and a
+  draining arc, so "who has a kick" is visible without a ping. This stops the double kick that wastes two
+  interrupts on one cast, which the Choir punishes (research/03:111-113, research/06:117-121).
 - **No exported score.** Run history is private to the character. Matching uses key level and completion, nothing
   a stranger can read to reject you.
 - **Pings are the communication.** G marks a target or a spot; the game turns it into the party's language
-  ("kick", "stack here", "Window!"). No chat in the POC.
+  ("kick", "stack here", "Window!"). No chat in the POC. Strangers by default need day-one signalling, and
+  Fellowship's weak pings were a named complaint (research/09:76, :139-140).
 - **Death is not a scolding.** The run log privately shows each player what got them; nobody else's screen does.
 
 ## 11. Out of scope for the POC
@@ -331,12 +393,20 @@ narrative. The sim, content, bots and client are built so none of these require 
 depth from modifiers on a frozen kit; forks not trees; facets not item level; per-run choice of three; transparent
 drop sources; bounded crafting; Ash on every run; telegraph readability rules; sequenced not layered mechanics;
 no single-mistake wipes; the one-screen hub; backfill; no exported score; fixed-tick determinism; route choice
-and pull size against a required enemy-forces percentage; mixed melee and caster packs with priority kicks.
+and pull size against a required enemy-forces percentage; mixed melee and caster packs with priority kicks;
+Clauses starting at a higher key; the kick window in ticks with a lag margin; tick-snapped outcomes; the
+kick-ready party-frame readout; vote-to-leave keeping the key; the honest queue screen.
+
+**Matt's 2026-10-20 decisions** (recorded verbatim in sections 6, 7 and 8): forks kept, with a dominance check; the
+Clause set by the key, never picked; every clear moves something visible; the vault every run.
 
 **Keyrun's own judgment**: Windows and Combos as the synergy core; the six named pair-combos; the three classes'
-loops and kits; the Clause pick; Slack instead of flat death penalties; Tempo as the key's scaling axis; the Lock
+loops and kits; the Clause carried by the key; Slack instead of flat death penalties; Tempo as the key's scaling axis; the Lock
 as the boss's combo gate; the ten-key table including the ping; the branch seal (no backtracking past a taken
 branch); the forces point table; hazards as environment casters that hit enemies too; the Hollow Door rule.
 
 `[DECIDE]` for Matt: the three class identities and names; the combo effects table; key range and par time; whether
 Ascension is visible to other players or private.
+
+Not yet decided, and not specified here: tank swap, a puzzle beat, a boss vulnerability window, Rally, Cinder field
+payoffs, a solo or low-population path, balance cadence, a control-feel bar, and replay depth past one dungeon.

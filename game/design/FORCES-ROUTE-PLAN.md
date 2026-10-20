@@ -19,7 +19,7 @@ Standing rules for every increment:
 - Never fit green. A test that pins the old linear layout is re-derived for the new one by the increment that
   changes the behaviour, never loosened.
 
-Parallel waves (from the dependencies): A = 1, 2, 5. B = 3, 6. C = 4. D = 7, 9. E = 8, 10. F = 11.
+Parallel waves (from the dependencies): A = 1, 2, 5. B = 3, 6. C = 4, 12. D = 7, 9. E = 8, 10. F = 11.
 
 ## 1. FORCES-SIM: the forces counter
 
@@ -79,7 +79,9 @@ Parallel waves (from the dependencies): A = 1, 2, 5. B = 3, 6. C = 4. D = 7, 9. 
   rest of the run, and an actor pushed at either is clamped. Walking back from the Seed chamber into West rooms is
   allowed, and the East stair stays shut. The door stays shut when the Seed is cleared at 999 points, and opens on the
   tick forces reach 1000 with the Seed cleared (in either order). The validator rejects a branching layout with no
-  door, with a seal naming an unknown box, or with a branch that has no stair to the Seed chamber.
+  door, with a seal naming an unknown box, or with a branch that has no stair to the Seed chamber. It also enforces
+  the density rule (bible 9.1): the validator rejects any walking-line stretch longer than 28800 mm (160 ticks at
+  180 mm/tick) between engages, and any room on the walking line with no teaching pull and no pack ring.
 - **Depends on:** 1, 2 (ContentLoader.cs), 3 (Run.cs).
 - **Wait for:** none.
 
@@ -146,7 +148,9 @@ Parallel waves (from the dependencies): A = 1, 2, 5. B = 3, 6. C = 4. D = 7, 9. 
   ring), `game/content/Keyrun.Content.Tests/DungeonPlanTests.cs`, `game/src/Host/GateViewSceneTest.ps1`.
 - **Red test:** DungeonPlan.Build on the branching layout gives a gate piece for each sealed doorway and the Hollow
   Door, floor tiles for every branch room, and no wall across the Fork landing's two exits. The gate scene test
-  shows the sealed doorway closed after the seal tick and the door label with the shortfall percent.
+  shows the sealed doorway closed after the seal tick and the door label with the shortfall percent. Pull size is
+  read from the floor (bible 9.1): from each branch's doorway camera, every aggro ring in that branch is inside the
+  view, which the scene test asserts by projecting each ring's centre to the screen.
 - **Depends on:** 4.
 - **Wait for:** #257 (edits `game/src/View/TelegraphView.cs` beside this view work; circles must draw before the
   hazard rooms are judged).
@@ -182,3 +186,36 @@ Parallel waves (from the dependencies): A = 1, 2, 5. B = 3, 6. C = 4. D = 7, 9. 
   re-measured digest (two runs measured equal).
 - **Depends on:** 8, 9, 10.
 - **Wait for:** #233 (edits `game/src/Host/HostRunSetup.cs`).
+
+## 12. PACK-REWARD: what an optional pack pays (bible 9.1)
+
+- **Files:** `game/sim/Keyrun.Sim/Run/Ash.cs` (Ash per optional pack killed), `game/sim/Keyrun.Sim/Encounter/Rewards.cs`
+  (at 1100 points or more when the Hollow Door opens, one of the three end-of-run options is raised by one tier,
+  capped at 10), `game/sim/Keyrun.Sim.Tests/Encounter/PackRewardTests.cs` (new).
+- **Red test:** a run that kills two optional packs banks exactly two packs' Ash more than the same run with none.
+  At 1099 points when the door opens no option is raised. At 1100, exactly one option is one tier higher. An option
+  already at Tier 10 is never raised past it.
+- **Depends on:** 1, 3.
+- **Wait for:** #233 (edits `game/sim/Keyrun.Sim/Run/Ash.cs`), #250 (edits the Rewards tests).
+
+## Next increments (outside the dungeon; from the same 2026-10-20 bible amendment)
+
+These are not part of the forces + route build and get their own plan when they are dispatched. The file lists
+are guesses.
+
+- **CLAUSE-BY-KEY** (bible 8): the key sets and rotates the Clause, with none below the starting key, and the
+  screen shows it. Files: `game/sim/Keyrun.Sim/Run/Clause.cs`, `game/sim/Keyrun.Sim/Run/RunOptions.cs`,
+  `game/src/Hud/ClausePick.cs` (becomes a read-only readout), `game/sim/Keyrun.Sim.Tests/ClausePickTests.cs`.
+- **REWARD-GUARANTEE** (bible 7): one of the three options is always an upgrade, or Ascension progress at the cap.
+  Files: `game/sim/Keyrun.Sim/Encounter/Rewards.cs`, `game/sim/Keyrun.Sim/Run/Ascension.cs`,
+  `game/sim/Keyrun.Sim.Tests/Encounter/RewardsTests.cs`.
+- **FORK-PARITY** (bible 6): the bots-suite dominance check over every fork. Files:
+  `game/bots/Keyrun.Bots.Tests/ForkParityTests.cs` (new).
+- **KICK-READY-READOUT** (bible 10): a Q ready pip and arc on each party frame. Files: `game/src/Hud/PartyFrames.cs`,
+  `game/src/Hud/KickReadySceneTest.ps1` (new).
+- **VOTE-TO-LEAVE** (bible 10): a party vote to abandon keeps everyone's key. Files:
+  `game/sim/Keyrun.Sim/Run/Backfill.cs`, `game/sim/Keyrun.Sim/Run/ProgressionSave.cs`,
+  `game/sim/Keyrun.Sim.Tests/VoteToLeaveTests.cs` (new).
+- **QUEUE-SCREEN** (bible 10): the real wait, the readiness line, the 10-second ready-check timeout with no penalty,
+  and the private last-3-runs strip. Files: `game/src/Hud/Queue.cs`, `game/src/Hud/Screen.cs`,
+  `game/src/Hud/ScreenSceneTest.ps1`. Wait for #229 (Queue.cs) and #266/#268 (Screen.cs).
