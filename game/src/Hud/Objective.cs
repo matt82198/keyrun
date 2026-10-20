@@ -14,18 +14,18 @@ namespace Keyrun.Hud;
 /// <param name="Total">Pulls in the dungeon, boss included.</param>
 /// <param name="PullId">The sim pull id ("choir", ..., "boss").</param>
 /// <param name="Name">The pull's content display name (the boss's enemy name for the boss pull).</param>
-/// <param name="Teaches">What the pull teaches (content), or empty.</param>
 /// <param name="Remaining">Enemies of this pull still alive.</param>
 /// <param name="Count">Enemies the pull spawned.</param>
 /// <param name="Complete">True once the pull index is past the last pull (the run is cleared).</param>
-public sealed record ObjectiveLine(int Number, int Total, string PullId, string Name, string Teaches, int Remaining, int Count, bool Complete)
+public sealed record ObjectiveLine(int Number, int Total, string PullId, string Name, int Remaining, int Count, bool Complete)
 {
-    /// <summary>The line a player reads: "Pull 1/4  The Choir - the kick ledger".</summary>
+    /// <summary>
+    /// The line a player reads: "Pull 1/4  The Choir" (<see cref="PullHeader.Title"/>; the content <c>teaches</c> note
+    /// is designer intent and is never shown).
+    /// </summary>
     public string Title => Complete
         ? FormattableString.Invariant($"{Name} cleared")
-        : Teaches.Length > 0
-            ? FormattableString.Invariant($"Pull {Number}/{Total}  {Name} - {Teaches}")
-            : FormattableString.Invariant($"Pull {Number}/{Total}  {Name}");
+        : new PullHeader(Number, Total, Name).Title;
 
     /// <summary>The task under it: "Defeat the pull: 3 of 3 remain".</summary>
     public string Task => Complete ? "No enemies remain" : FormattableString.Invariant($"Defeat the pull: {Remaining} of {Count} remain");
@@ -55,7 +55,7 @@ public static class ObjectiveModel
         var index = run.Encounter.PullIndex;
         if (index >= pulls.Count)
         {
-            return new ObjectiveLine(total, total, "done", content?.Name ?? run.Dungeon.Id, string.Empty, 0, 0, true);
+            return new ObjectiveLine(total, total, "done", content?.Name ?? run.Dungeon.Id, 0, 0, true);
         }
         var pull = pulls[index];
         var number = contentIds.IndexOf(pull.Id) + 1;
@@ -63,33 +63,18 @@ public static class ObjectiveModel
         {
             number = index + 1;
         }
-        var name = pull.Id;
-        var teaches = string.Empty;
-        if (content is not null)
-        {
-            var authored = content.Pulls.FirstOrDefault(p => p.Id == pull.Id);
-            if (authored is not null)
-            {
-                name = authored.Name;
-                teaches = authored.Teaches;
-            }
-            else if (pull.Id == "boss" && registry!.Enemies.TryGetValue(content.Boss.EnemyId, out var boss))
-            {
-                name = boss.Name;
-                teaches = string.Join(", ", content.Boss.Mechanics);
-            }
-        }
+        var name = content is not null && PullHeader.Of(registry!, content, pull.Id) is { } header ? header.Name : pull.Id;
         var ids = pull.Spawns.Select(s => s.ActorId).ToHashSet();
         var remaining = run.State.Actors.Values.Count(a => ids.Contains(a.Id) && a.Alive && a.Kind == ActorKind.Enemy);
         // An actor not spawned yet is still owed: count the spawns the state does not hold yet.
         remaining += ids.Count(id => !run.State.Actors.ContainsKey(id));
-        return new ObjectiveLine(number, total, pull.Id, name, teaches, remaining, ids.Count, false);
+        return new ObjectiveLine(number, total, pull.Id, name, remaining, ids.Count, false);
     }
 }
 
 /// <summary>
-/// The objective line (ENGINE-PLAN 3C): the current pull's number, content name and what it teaches, and how many of
-/// its enemies remain, top left under the key help. Reads the sim state only.
+/// The objective line (ENGINE-PLAN 3C): the current pull's number and content name (never its designer teaches note),
+/// and how many of its enemies remain, top left under the key help. Reads the sim state only.
 /// </summary>
 public partial class Objective : Control
 {
