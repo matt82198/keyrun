@@ -32,7 +32,9 @@ public sealed class RolesHealPickTests
     [Fact(DisplayName = "Chanter shape-aware heals > heals itself with the self heal")]
     public void SelfHeal()
     {
-        var healer = Healer(health: 50);
+        // Ward verse (resource 0): Refrain cast from Ward is the burst heal. Was the Mend default, where Refrain swaps
+        // to Ward without healing (HealerVerseTests); re-recorded: healer no longer swaps verse to self-heal.
+        var healer = Actor(id: 3, classId: "chanter", role: ActorRole.Healer, health: 50, maxHealth: 250, resource: 0, maxResource: 1);
         Assert.Equal(new Command[] { new CastCommand(10, 3, "chanter.refrain") }, HealerRole.HealerDecide(View(healer), healer));
     }
 
