@@ -225,7 +225,7 @@
     "id": "cinder.ring.stokedCoals",
     "slot": "ring",
     "abilityId": "cinder.flare",
-    "text": "Flare also banks bonus Heat, tagged for Overheat synergies.",
+    "text": "Flare also banks bonus Heat.",
     "patch": {
       "tagAdd": [
         "heat-surge"
