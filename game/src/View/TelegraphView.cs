@@ -114,7 +114,7 @@ public partial class TelegraphView : Node3D
             {
                 _leadStart[((int)src.Value, (int)due.Value)] = e.Tick;
             }
-            else if (e.Type == "telegraph_hit" && e.Get("telegraphId") is JsInt id && _shown.TryGetValue((int)id.Value, out var s))
+            else if (TelegraphEnd.Of(e.Type) == TelegraphEndKind.Flash && e.Get("telegraphId") is JsInt id && _shown.TryGetValue((int)id.Value, out var s))
             {
                 s.ResolvedAge ??= 0f;
             }
