@@ -317,7 +317,7 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   5. Only then re-run the s10 plan-vs-output check and record PHASE 3 EXIT and D10 (MET / MET-WITH-TUNING-GAP / NOT-MET).
   6. Phase 4: TS deletion after parity. Blocked on step 5.
   D31. Skill toolkit (NOT implemented; depends on D30, PR #306; the per-class table and the BIBLE wording wait for Matt in
-     the D31 PR body; research/03 addendum "the Outlaw Rogue toolkit" is the reason). First increment, data before sim:
+     the D31 PR body; research/12-skill-toolkit.md is the reason). First increment, data before sim:
      - Ops: three generic threat ops any ability may carry (take to self, give to a target ally, drop to the next
        holder), the "explicit take-threat ability op" of D30 rule 3. Sim: game/sim/Keyrun.Sim/Combat/Threat.cs,
        Combat/Effects.cs and Combat/Abilities.cs, read by Encounter/ScriptTarget.cs (file names from the D30 list, not
@@ -731,7 +731,7 @@ Additional parked decisions (from the burn ledger):
   5. A dying run has a way back one player can execute (kite the pack, hand threat back, reset), which serves test 3 of
      BIBLE section 0.
   Why: Matt names Outlaw Rogue's toolkit as the skill bar for late game, and the five-button cap means that depth has to
-  live in build choices and timing on the existing keys (research/03 addendum, 2026-10-20).
+  live in build choices and timing on the existing keys (research/12-skill-toolkit.md, 2026-10-20).
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
