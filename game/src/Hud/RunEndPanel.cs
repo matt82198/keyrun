@@ -11,9 +11,9 @@ using Keyrun.Sim.Runs;
 
 namespace Keyrun.Hud;
 
-/// <summary>One thing that hurt or downed a seat, aggregated per enemy (Godot-free).</summary>
+/// <summary>One thing that hurt or downed a seat, aggregated per enemy kind (display name; Godot-free).</summary>
 /// <param name="Seat">The player seat it hit.</param>
-/// <param name="SourceId">The enemy actor id.</param>
+/// <param name="SourceId">The enemy actor id (the lowest of its kind when several actors share the name).</param>
 /// <param name="SourceName">The enemy's display name.</param>
 /// <param name="Damage">Health damage dealt to the seat (the damage events' <c>healthDamage</c>).</param>
 /// <param name="Hits">Damage events.</param>
@@ -73,16 +73,17 @@ public sealed class PrivateRunLog
     }
 
     /// <summary>
-    /// <paramref name="seat"/>'s own causes: the killing blow first, then by damage descending, then by source id.
+    /// <paramref name="seat"/>'s own causes, one row per enemy kind (lane WHAT-GOT-YOU: actors sharing a display name
+    /// merge, damage and hits summed, <see cref="CauseRows.MergeByName"/>): the killing blow first, then by damage
+    /// descending, then by the kind's lowest source id.
     /// </summary>
     /// <param name="seat">The local player's seat.</param>
     /// <returns>Only entries whose seat is <paramref name="seat"/>.</returns>
-    public IReadOnlyList<DeathCause> CausesFor(int seat) => _entries
-        .Where(kv => kv.Key.Seat == seat)
-        .Select(kv => new DeathCause(kv.Key.Seat, kv.Key.Source, kv.Value.Name, kv.Value.Damage, kv.Value.Hits, kv.Value.Killing))
-        .OrderByDescending(c => c.KillingBlow)
-        .ThenByDescending(c => c.Damage)
-        .ThenBy(c => c.SourceId)
+    public IReadOnlyList<DeathCause> CausesFor(int seat) => CauseRows.MergeByName(_entries
+            .Where(kv => kv.Key.Seat == seat)
+            .OrderBy(kv => kv.Key.Source)
+            .Select(kv => new CauseRow(kv.Key.Seat, kv.Key.Source, kv.Value.Name, kv.Value.Damage, kv.Value.Hits, kv.Value.Killing)))
+        .Select(c => new DeathCause(c.Seat, c.SourceId, c.SourceName, c.Damage, c.Hits, c.KillingBlow))
         .ToList();
 
     private static int? Int(SimEvent e, string key) =>
