@@ -202,6 +202,10 @@ public static class Rules
                 Movement.ClampToBounds(actor, cfg.Bounds);
             }
 
+            // C#-only (null on every oracle run): the Pair's spread and stack marks resolve on the tick they run out,
+            // after movement and before the generic expiry below drops them.
+            PairMarks.Resolve(state, cfg.Marks, cfg.Effects, emit, hooks.Weighting);
+
             foreach (var actor in actors)
             {
                 foreach (var inst in Effects.DuePeriodicInstances(actor, state.Tick))

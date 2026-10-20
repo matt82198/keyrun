@@ -160,6 +160,7 @@ public sealed record HostRunSetup(
             FieldCombos = fieldCombos,
             Clauses = clauses,
             Layout = nav,
+            Marks = MarkRulesOf(run.PairMarks),
         }.WithMovement(movement);
 
         var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
@@ -181,6 +182,15 @@ public sealed record HostRunSetup(
 
     /// <summary>The affix rotation index the setup was built with.</summary>
     public int RotationIndex { get; init; }
+
+    /// <summary>The sim's Pair mark rules from content run.json <c>pairMarks</c> (BIBLE section 9.6 item 2).</summary>
+    /// <param name="m">The content block (validated at load).</param>
+    /// <returns>The rules.</returns>
+    public static MarkRules MarkRulesOf(C.PairMarksConfig m)
+    {
+        ArgumentNullException.ThrowIfNull(m);
+        return new MarkRules(m.SpreadEffectId, m.SpreadRadiusMm, m.SpreadDamage, m.StackEffectId, m.StackRadiusMm, m.StackDamage);
+    }
 
     /// <summary>The sim affix table from content run.json <c>affixes</c> (the values are data, pending Matt).</summary>
     /// <param name="a">The content block.</param>
