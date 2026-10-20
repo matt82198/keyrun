@@ -103,6 +103,15 @@ public static class Bot
         // moves dropped). A dodge or a ping reaction wins over both. Inert in the oracle runner: its view carries no layout.
         // Shut out of the party's locked room (BACKFILL-GATE, Follow.ShutRoom), its role's moves stay dropped while it
         // waits at the gate, so nothing presses into the gate clamp.
+        // KF2 (BOTS-ENGAGE-CHOIR): a bot in the leader seat walks the route between fights, so a party with no human
+        // leading reaches the next pull instead of idling at the Entrance. Skill-dial-free like the follow walk.
+        var lead = avoid is null && !pingCommands.Any() ? Follow.LeadCommand(view, self) : null;
+        if (lead is not null)
+        {
+            commands.Add(lead);
+            return new BotDecision(commands, memory, prng);
+        }
+
         var follow = avoid is null && !pingCommands.Any() ? Follow.FollowCommand(view, self) : null;
         var travelling = follow is not null || (avoid is null && !pingCommands.Any() && Follow.ShutRoom(view, self) is not null);
         if (follow is not null)
