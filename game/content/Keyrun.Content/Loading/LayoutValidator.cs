@@ -126,6 +126,80 @@ public static class LayoutValidator
             if (slot.BehindMm <= 0 || d2 < (long)MinFormationMm * MinFormationMm || d2 > (long)MaxFormationMm * MaxFormationMm)
                 Fail("formation slot \"" + slot.ClassId + "\" must be behind the leader and 2 to 3 m from it");
         }
+
+        CheckPacks(reg, dungeon, layout, pullOrder, ids);
+    }
+
+    /// <summary>
+    /// SKIPPABLE-PACKS: every pack has a unique id that is no pull or box id (so no gate can name it), stands with all its
+    /// members inside its room, has a positive ring and members that are known enemies with a forces value. An optional
+    /// pack's ring clears the walking line (start then every route point) by more than the widest formation slot, so a
+    /// party in formation passes it without a pull. The teaching pulls plus every pack fill the forces bar, and they still
+    /// fill it with any one optional pack skipped.
+    /// </summary>
+    private static void CheckPacks(ContentRegistry reg, DungeonDef dungeon, LayoutDef layout, List<string> pullOrder, HashSet<string> boxIds)
+    {
+        ForcesTable forces = reg.Forces;
+        var packIds = new HashSet<string>(System.StringComparer.Ordinal);
+        long widestSlot = layout.Formation.Select(s => (long)System.Math.Abs(s.SideMm)).DefaultIfEmpty(0).Max();
+        var line = new List<LayoutPoint> { layout.Start };
+        line.AddRange(layout.Route);
+        foreach (LayoutPack pack in layout.Packs)
+        {
+            string where = "pack \"" + pack.Id + "\"";
+            if (!packIds.Add(pack.Id)) Fail("duplicate pack id \"" + pack.Id + "\"");
+            if (pullOrder.Contains(pack.Id) || boxIds.Contains(pack.Id)) Fail(where + " reuses a pull or box id");
+            LayoutBox? room = layout.Boxes.FirstOrDefault(b => b.Id == pack.Room);
+            if (room is null || room.Kind != LayoutBoxKind.Room) Fail(where + " stands in unknown room \"" + pack.Room + "\"");
+            if (pack.AggroMm <= 0) Fail(where + " aggroMm must be positive, got " + pack.AggroMm);
+            if (!Inside(room!, pack.Center)) Fail(where + " centre (" + pack.Center.X + ", " + pack.Center.Z + ") is outside room \"" + pack.Room + "\"");
+            if (pack.Enemies.Count == 0) Fail(where + " has no enemies");
+            foreach (PullEnemy member in pack.Enemies)
+            {
+                if (!reg.Enemies.ContainsKey(member.EnemyId)) Fail(where + " references unknown enemy \"" + member.EnemyId + "\"");
+                if (member.Count <= 0) Fail(where + " enemy \"" + member.EnemyId + "\" count must be positive, got " + member.Count);
+                if (!forces.Has(member.EnemyId)) Fail(where + " enemy \"" + member.EnemyId + "\" has no forces value");
+                var at = new LayoutPoint { X = pack.Center.X + member.Spawn.X, Z = pack.Center.Z + member.Spawn.Z };
+                if (!Inside(room!, at)) Fail(where + " member \"" + member.EnemyId + "\" at (" + at.X + ", " + at.Z + ") is outside room \"" + pack.Room + "\"");
+            }
+            if (pack.Optional)
+            {
+                long clear = pack.AggroMm + widestSlot;
+                for (int k = 0; k + 1 < line.Count; k++)
+                {
+                    if (!SegmentClears(line[k], line[k + 1], pack.Center, clear))
+                        Fail(where + " is optional but its " + pack.AggroMm + " mm ring plus the " + widestSlot + " mm formation reaches the walking line on leg " + k);
+                }
+            }
+        }
+
+        int total = RouteForces.CriticalPathPoints(forces, dungeon) + layout.Packs.Sum(p => RouteForces.LayoutPackPoints(forces, p));
+        if (layout.Packs.Count > 0 && total < forces.Required)
+            Fail("the teaching pulls plus every pack reach " + total + " of the " + forces.Required + " forces required");
+        foreach (LayoutPack pack in layout.Packs.Where(p => p.Optional))
+        {
+            int without = total - RouteForces.LayoutPackPoints(forces, pack);
+            if (without < forces.Required)
+                Fail("the route reaches " + without + " of the " + forces.Required + " forces required without optional pack \"" + pack.Id + "\" (an optional pack must be skippable)");
+        }
+    }
+
+    /// <summary>True when every point of segment a-b is more than <paramref name="clearMm"/> from <paramref name="p"/> (exact integers).</summary>
+    private static bool SegmentClears(LayoutPoint a, LayoutPoint b, LayoutPoint p, long clearMm)
+    {
+        long abx = b.X - a.X, abz = b.Z - a.Z, apx = p.X - a.X, apz = p.Z - a.Z;
+        long len2 = (abx * abx) + (abz * abz);
+        long dot = (apx * abx) + (apz * abz);
+        long c2 = clearMm * clearMm;
+        if (len2 == 0 || dot <= 0) return (apx * apx) + (apz * apz) > c2;
+        if (dot >= len2)
+        {
+            long bpx = p.X - b.X, bpz = p.Z - b.Z;
+            return (bpx * bpx) + (bpz * bpz) > c2;
+        }
+        // Perpendicular foot inside the segment: distance^2 = cross^2 / len2.
+        System.Int128 cross = ((System.Int128)abx * apz) - ((System.Int128)abz * apx);
+        return cross * cross > (System.Int128)c2 * len2;
     }
 
     private static void CheckPullRoom(DungeonDef dungeon, LayoutBox room)

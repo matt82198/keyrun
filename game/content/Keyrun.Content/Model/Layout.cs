@@ -29,6 +29,14 @@ public sealed record LayoutDef
     /// </summary>
     public required ValueList<LayoutPoint> Route { get; init; }
 
+    /// <summary>
+    /// SKIPPABLE-PACKS (Mythic+ route choice, BIBLE section 9.1): trash packs that stand in a room beside the walking line,
+    /// each with its own forces value. An optional pack's aggro ring clears the route, so a party in formation walks past
+    /// it without a pull; no gate ever names a pack, so the boss never waits on one. The forces bar decides which packs a
+    /// route needs. Empty when the key is absent.
+    /// </summary>
+    public ValueList<LayoutPack> Packs { get; init; } = new();
+
     /// <summary>Where each bot class stands behind the leader while the party travels.</summary>
     public required ValueList<FormationSlot> Formation { get; init; }
 }
@@ -127,4 +135,36 @@ public sealed record FormationSlot
 
     /// <summary>Sideways offset in z, mm.</summary>
     public required int SideMm { get; init; }
+}
+
+/// <summary>
+/// One trash pack placed in the layout (SKIPPABLE-PACKS): its members stand at <see cref="Center"/> plus each group's
+/// spawn offset and engage, whole, when a party member comes within <see cref="AggroMm"/> of the centre. Every member
+/// needs a forces value.
+/// </summary>
+public sealed record LayoutPack
+{
+    /// <summary>Pack id (unique; never a pull id, so no gate can name it).</summary>
+    public required string Id { get; init; }
+
+    /// <summary>Display name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>The room box it stands in.</summary>
+    public required string Room { get; init; }
+
+    /// <summary>
+    /// True for a pack the route can skip: its ring clears the walking line by more than the widest formation slot, and
+    /// the route still reaches the forces bar without it.
+    /// </summary>
+    public required bool Optional { get; init; }
+
+    /// <summary>Aggro ring centre, mm.</summary>
+    public required LayoutPoint Center { get; init; }
+
+    /// <summary>Aggro ring radius, mm (positive).</summary>
+    public required int AggroMm { get; init; }
+
+    /// <summary>Member groups; each group's <c>spawn</c> is its offset from <see cref="Center"/>, mm.</summary>
+    public required ValueList<PullEnemy> Enemies { get; init; }
 }

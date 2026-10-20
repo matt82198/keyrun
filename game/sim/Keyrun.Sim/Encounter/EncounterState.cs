@@ -58,6 +58,13 @@ public sealed record EncounterState
     /// <summary>Actor id to the onDeath casts already fired for it (the scripts' fire-once contract).</summary>
     public IReadOnlyDictionary<int, IReadOnlyList<string>> FiredOnDeath { get; init; } = new SortedDictionary<int, IReadOnlyList<string>>();
 
+    /// <summary>
+    /// CAST-FINISH: actor id to the indices of its script steps that came due while it was casting and wait for that
+    /// cast to land, in the order they will fire (<see cref="StepEnemyScriptsResult.PendingSteps"/>). Always empty on a
+    /// frozen-TS replay (<see cref="ScriptStep.TsCastReplace"/>).
+    /// </summary>
+    public IReadOnlyDictionary<int, IReadOnlyList<int>> PendingSteps { get; init; } = new SortedDictionary<int, IReadOnlyList<int>>();
+
     /// <summary>Echo adds queued but not yet spawned.</summary>
     public IReadOnlyList<EchoSpawnRequest> PendingEchoSpawns { get; init; } = Array.Empty<EchoSpawnRequest>();
 

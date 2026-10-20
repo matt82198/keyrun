@@ -66,6 +66,13 @@ public static class Chase
             }
             if (ScriptTarget.RangeMm(actor, target) <= Math.Max(0, engage.Value - (actor.ChaseMarginMm ?? ChaseMarginMm)))
             {
+                // ENEMY-ENGAGE: in reach, the chaser still turns to face its target (a zero-direction move only
+                // turns), so a pack the tank walks into, or a target that sidesteps, is faced and not swung past.
+                var face = Fixed.YawBetween(actor.Pos, target.Pos);
+                if (face != actor.Yaw)
+                {
+                    output.Add(new MoveCommand(state.Tick, actorId, new Dir2(0, 0), face));
+                }
                 continue;
             }
             var delta = new Vec3(target.Pos.X - actor.Pos.X, 0, target.Pos.Z - actor.Pos.Z);
