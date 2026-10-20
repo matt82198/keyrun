@@ -157,4 +157,29 @@ public sealed class SeedPullTeachesTests
         var shown = slams.Where(c => tgs.Any(t => S(t, "cast") == "seed.slam" && t.Tick >= r.PullStartTick && I(t, "resolvesTick") < c.Tick)).ToList();
         Assert.True(shown.Count >= 1, $"no telegraphed seed.slam completed between pull_start {r.PullStartTick} and the Seed's death at {death}");
     }
+
+    /// <summary>
+    /// SEED-LOCK-TEACHES (KF3 "the bots cheese it", f-70c82aca; BIBLE s9: the Seed "teaches the boss's core rule", and
+    /// the Lock is a Window the boss opens on itself that only a Combo closes). Before the fix the Seed's only Window was
+    /// its onDeath floor bloom, so the party burst it with no rule in play and the rule showed up after the fight, closed
+    /// by one lone Payoff. The Seed must open its own Window on itself while it lives, and the party must close it with
+    /// a Combo before the Seed dies.
+    /// </summary>
+    [Fact(DisplayName = "Seed pull: the Seed opens a Window on itself while it lives and the party closes it with a Combo before it dies")]
+    public void The_party_closes_the_seeds_own_window_with_a_combo_while_it_lives()
+    {
+        var r = Run.Value;
+        var death = DeathTick(r);
+        bool OnSeed(SimEvent e, string key) => e.Get(key) is JsInt a && a.Value == r.SeedId;
+        var opened = r.Events.Where(e => e.Type == "window_opened" && OnSeed(e, "setupActorId") && OnSeed(e, "targetId") &&
+            e.Tick >= r.PullStartTick && e.Tick < death).ToList();
+        var closed = r.Events.Where(e => e.Type == "combo" && OnSeed(e, "setupActorId") && OnSeed(e, "targetId") &&
+            e.Tick >= r.PullStartTick && e.Tick < death).ToList();
+        foreach (var e in opened.Concat(closed).OrderBy(e => e.Tick))
+        {
+            _output.WriteLine($"tick {e.Tick} {e.Type} window {S(e, "windowId")} payoff {e.Get("payoffActorId")} combo {e.Get("comboId")}");
+        }
+        Assert.True(opened.Count >= 1, $"the Seed opened no Window on itself between pull_start {r.PullStartTick} and its death at {death}");
+        Assert.True(closed.Count >= 1, $"no Combo closed a Window the Seed opened on itself before it died at {death} ({opened.Count} opened)");
+    }
 }

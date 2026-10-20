@@ -1,6 +1,6 @@
 {
   "contentCounts": {
-    "abilities": 39,
+    "abilities": 40,
     "classes": 3,
     "clauses": 4,
     "combos": 13,
@@ -31,8 +31,8 @@
       "fnv": "4903ed4f"
     },
     "content-pull.setup.json": {
-      "bytes": 22518,
-      "fnv": "b6333f34"
+      "bytes": 22908,
+      "fnv": "104b3503"
     },
     "content-pull.trace.jsonl": {
       "bytes": 30554,
@@ -43,12 +43,12 @@
       "fnv": "766fb4de"
     },
     "hollow-vault-k10.setup.json": {
-      "bytes": 24797,
-      "fnv": "19c4eb4d"
+      "bytes": 25187,
+      "fnv": "c1ba59be"
     },
     "hollow-vault-k2.setup.json": {
-      "bytes": 24795,
-      "fnv": "83014d87"
+      "bytes": 25185,
+      "fnv": "06dc4fec"
     },
     "intdiv.vectors.json": {
       "bytes": 371573,
@@ -260,19 +260,19 @@
         "fnv": "b7eb7a89"
       },
       "content/data/abilities/enemies.json": {
-        "fnv": "c03baca3"
+        "fnv": "fd177487"
       },
       "content/data/abilities/warden.json": {
         "fnv": "36ffc9d9"
       },
       "content/data/classes/chanter.json": {
-        "fnv": "552638b1"
+        "fnv": "ae0e1426"
       },
       "content/data/classes/cinder.json": {
-        "fnv": "faf44c3c"
+        "fnv": "755d4a74"
       },
       "content/data/classes/warden.json": {
-        "fnv": "dccec4da"
+        "fnv": "d9042eee"
       },
       "content/data/clauses.json": {
         "fnv": "66ee123f"
@@ -299,7 +299,7 @@
         "fnv": "bb7076ab"
       },
       "content/data/enemies/seed.json": {
-        "fnv": "b51d7262"
+        "fnv": "156280f3"
       },
       "content/data/facets/chanter.json": {
         "fnv": "2ccba987"

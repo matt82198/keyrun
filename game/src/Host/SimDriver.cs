@@ -86,7 +86,7 @@ public sealed class TickAccumulator
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
 /// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T</c>, <c>--joiner-key K</c>,
 /// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
-/// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>.
+/// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>, <c>--rotation N</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -139,6 +139,10 @@ public sealed class TickAccumulator
 /// <param name="CarelessSeat">CARELESS-SEAT (<c>--careless-seat S@T:GROUP</c>; Matt 2026-10-20 "a bad player will
 /// accidentally aggro more groups, just test it naturally"): bot seat S plays carelessly from run tick T, straying toward
 /// the idle group GROUP (a pull id) until it engages (<see cref="Careless"/>). Null = every bot seat plays normally.</param>
+/// <param name="Rotation">Weekly affix rotation override (<c>--rotation N</c>, N &gt;= 0): pins a live run's rotation
+/// index (<see cref="AffixWeek.ForRun"/>) instead of the week since the last Tuesday 15:00 UTC reset, so an
+/// <c>--autorun</c> or <c>--record-input</c> scene test at keys 5-9 never depends on the date. On a replay the log's
+/// recorded index wins. Null = the clock.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -157,7 +161,8 @@ public sealed record ArenaOptions(
     string? ReplayInput = null,
     YawPlan? PressYaw = null,
     bool BotsHold = false,
-    CarelessSeatPlan? CarelessSeat = null)
+    CarelessSeatPlan? CarelessSeat = null,
+    int? Rotation = null)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -186,6 +191,7 @@ public sealed record ArenaOptions(
         var pull = 1;
         var solo = false;
         var botsHold = false;
+        int? rotation = null;
         var requeue = false;
         SeatAbandonPlan? abandon = null;
         int? joinerKey = null;
@@ -204,6 +210,9 @@ public sealed record ArenaOptions(
                     break;
                 case "--solo":
                     solo = true;
+                    break;
+                case "--rotation":
+                    rotation = AffixWeek.ParseOverride(Value(args, ref i));
                     break;
                 case "--bots-hold":
                     botsHold = true;
@@ -261,7 +270,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -450,6 +459,7 @@ public partial class SimDriver : Node
     private bool _pingPressed;
     private InputRecorder? _recorder;
     private InputReplayer? _replayer;
+    private InputLog? _replayLog;
     private int _replayTotal;
     private int _replayCameraTotal;
     private float? _replayStartHeading;
@@ -479,6 +489,15 @@ public partial class SimDriver : Node
 
     /// <summary>The run's setup (party, dungeon, content, the human's ability slots).</summary>
     public HostRunSetup? Setup { get; private set; }
+
+    /// <summary>
+    /// The weekly affix rotation index every run of this launch is built with (<see cref="AffixWeek"/>): the week
+    /// since the last US reset (Tuesday 15:00 UTC), taken once at launch from the UTC clock, or <c>--rotation N</c>, or the
+    /// replayed input log's recorded index. It goes into the
+    /// setup (the screen's affix line reads it there), the run's <see cref="RunOptions.RotationIndex"/> and the
+    /// <c>--record-input</c> log header.
+    /// </summary>
+    public int RotationIndex { get; private set; }
 
     /// <summary>
     /// True when the launch opens the between-runs screen instead of starting a run (lane 3D-b): the interactive game,
@@ -539,8 +558,14 @@ public partial class SimDriver : Node
         {
             Options = ArenaOptions.Parse(OS.GetCmdlineUserArgs());
             Registry = ContentLoader.Load();
-            // Finding f-319aced5: the run's affix rotation comes from its seed, so keys 5-9 rotate and a replay matches.
-            Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: Affixes.RotationIndexFor(Options.Seed));
+            // The weekly affix rotation (AffixWeek, Matt 2026-10-20 "lean into m+ design"): a live run takes the index
+            // of the week since the last US reset (Tuesday 15:00 UTC), read from the UTC clock here in the host, never in
+            // the sim, unless --rotation N pins it; a --replay-input run takes the index its log recorded, never the
+            // clock. Read the log first so the setup is built at the recorded index.
+            _replayLog = !Options.Autorun && Options.ReplayInput is { } replayPath ? InputLog.Load(replayPath) : null;
+            RotationIndex = AffixWeek.ForRun(
+                _replayLog is not null, _replayLog?.RotationIndex, Options.Rotation, DateTime.UtcNow, AffixWeek.RotationLength(Registry.Clauses.Count));
+            Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: RotationIndex);
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _player = GetNode<PlayerInput>(InputPath);
             _rig = GetNodeOrNull<CameraRig>(CameraRigPath);
@@ -698,7 +723,7 @@ public partial class SimDriver : Node
         }
         if (Options.ReplayInput is { } path)
         {
-            var log = InputLog.Load(path);
+            var log = _replayLog ?? InputLog.Load(path);
             if (log.Seed != Options.Seed || log.KeyLevel != Options.KeyLevel)
             {
                 throw new ArgumentException(FormattableString.Invariant(
@@ -755,7 +780,7 @@ public partial class SimDriver : Node
         }
         try
         {
-            _recorder.ToLog(Options.Seed, Options.KeyLevel).Save(path);
+            _recorder.ToLog(Options.Seed, Options.KeyLevel, RotationIndex).Save(path);
             if (final)
             {
                 var cam = _recorder.Camera.Count > 0 ? FormattableString.Invariant($" cam={_recorder.Camera.Count}") : string.Empty;
@@ -929,7 +954,7 @@ public partial class SimDriver : Node
         var keyLevel = request?.KeyLevel ?? Options.KeyLevel;
         if (Setup is null || Setup.Dungeon.Id != dungeonId || Setup.Content.KeyLevel != keyLevel)
         {
-            Setup = HostRunSetup.Build(registry, dungeonId, keyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: Affixes.RotationIndexFor(Options.Seed));
+            Setup = HostRunSetup.Build(registry, dungeonId, keyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: RotationIndex);
         }
         var setup = Setup;
         var dungeon = setup.Dungeon;
@@ -945,7 +970,9 @@ public partial class SimDriver : Node
         // Finding f-f9b80112 (BIBLE s7): the screen's equipped gear, keystone included, reaches the run on top of the
         // request's Clause and talents (RunStart.Of; no screen yet means the request's options alone).
         var start = setup.StartFor(request, _screen?.Progression, registry, HumanClassId);
-        var created = RunRoot.CreateRun(Options.Seed, setup.PartyFor(dungeon), dungeon, setup.Content, start.Options);
+        // The run's options record the weekly rotation index the setup was built with (the sim reads it as an input).
+        var options = (start.Options ?? new RunOptions()) with { RotationIndex = setup.RotationIndex };
+        var created = RunRoot.CreateRun(Options.Seed, setup.PartyFor(dungeon), dungeon, setup.Content, options);
         if (Options.StartPull > 1)
         {
             // A --pull N start begins in pull N's fight (NavLayouts.PlaceParty; STATE.md D27 spawned it at creation).
