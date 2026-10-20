@@ -6,8 +6,8 @@ using Xunit;
 namespace Keyrun.Sim.Tests.Encounter;
 
 /// <summary>
-/// FORCES-ROUTE-PLAN M1 TIMER-TIERS (BIBLE s8): a run is timed when it finishes no later than par plus the Slack still
-/// left, and a timed run upgrades the key by +1, +2 within 80% of par, and +3 within 60% of par. Untimed keeps the key.
+/// FORCES-ROUTE-PLAN M1 TIMER-TIERS (BIBLE s8) under STATE.md D35: a run is timed when its clock (elapsed plus death and
+/// wipe time) finishes no later than par, and a timed run upgrades the key by +1, +2 within 80% of par, and +3 within 60% of par. Untimed keeps the key.
 /// </summary>
 public sealed class UpgradeTierTests
 {
@@ -17,10 +17,10 @@ public sealed class UpgradeTierTests
         EncounterTestKit.BaseEncounter(slack: Timer.InitialSlackTicks(keyLevel), par: Par, keyLevel: keyLevel);
 
     [Fact]
-    public void A_clean_run_finishing_one_tick_past_par_plus_its_initial_Slack_is_depleted()
+    public void A_clean_run_finishing_one_tick_past_par_is_depleted()
     {
         var encounter = AtKey(10);
-        var deadline = Par + Timer.InitialSlackTicks(10);
+        var deadline = Par;
         Assert.Equal(RunResult.Timed, Timer.FinishRun(encounter, deadline, completed: true, _ => { }));
         var events = new List<SimEvent>();
         Assert.Equal(RunResult.Depleted, Timer.FinishRun(encounter, deadline + 1, completed: true, events.Add));
@@ -30,11 +30,11 @@ public sealed class UpgradeTierTests
     }
 
     [Fact]
-    public void A_death_pulls_the_deadline_in_by_its_Slack_cost_but_one_death_at_par_is_still_timed()
+    public void A_death_pulls_the_deadline_in_by_its_cost_so_one_death_at_par_less_15s_is_still_timed()
     {
-        var encounter = Timer.SpendSlackOnDeath(AtKey(2), 1, _ => { });
-        Assert.Equal(Par + Timer.InitialSlackTicks(2) - Timer.DeathSlackCostTicks, Timer.DeadlineTicks(encounter));
-        Assert.Equal(RunResult.Timed, Timer.FinishRun(encounter, Par, completed: true, _ => { }));
+        var encounter = Timer.ChargeDeath(AtKey(2));
+        Assert.Equal(Par - Timer.DeathSlackCostTicks, Timer.DeadlineTicks(encounter));
+        Assert.Equal(RunResult.Timed, Timer.FinishRun(encounter, Par - Timer.DeathSlackCostTicks, completed: true, _ => { }));
         Assert.Equal(RunResult.Depleted, Timer.FinishRun(encounter, (int)Timer.DeadlineTicks(encounter) + 1, completed: true, _ => { }));
     }
 

@@ -46,6 +46,12 @@ export interface EncounterState {
   keyLevel: number;
   depleted: boolean;
   rules: EncounterRules;
+  /** Player deaths this run, each counted (MPLUS-DEATH-PENALTY, STATE.md D35). Optional, defaults
+   * to 0 wherever read (timer.ts), same convention as `firedOnDeath` below. */
+  deaths?: number;
+  /** Time deaths and wipes have added to the run clock, ticks (STATE.md D35). Optional, defaults
+   * to 0 wherever read (timer.ts). */
+  penaltyTicks?: number;
   /** [actorId] -> ability ids whose "onDeath" script step has already fired for that actor
    * (death-trigger-wiring): threaded into sim/encounter/scripts.ts's `stepEnemyScripts` each tick
    * so an "onDeath" step's FIRE-ONCE CONTRACT (see that file's docstring) survives across ticks
