@@ -143,7 +143,7 @@ public static class Targeting
         var all = state.Actors.Values.Where(a => a.Alive).ToList();
         var ids = shape.Kind switch
         {
-            ShapeKind.Circle => InCircle(actor.Pos, shape.Radius ?? 0, all),
+            ShapeKind.Circle => InCircle(CircleOrigin(state, actor, def, affinity), shape.Radius ?? 0, all),
             ShapeKind.Cone => InCone(actor, shape.Angle1024 ?? 0, shape.Radius ?? 0, all),
             _ => InLine(actor, shape.Length ?? 0, shape.Radius ?? 0, all),
         };
@@ -155,6 +155,39 @@ public static class Targeting
             kept.Add(actor.Id);
         }
         return kept.Where(state.Actors.ContainsKey).Select(id => state.Actors[id]).ToList();
+    }
+
+    /// <summary>The ability tag that marks a single-target spell turned into an area burst (content talent/facet patches).</summary>
+    public const string AreaBurstTag = "aoe";
+
+    /// <summary>
+    /// Where a circle is centred. The TS (targeting.ts:130) always centres on the caster. C# deviation in behaviour
+    /// (WILDFIRE-NEVER-ENDS, D28 the C# sim is the oracle): a HOSTILE circle tagged <see cref="AreaBurstTag"/> with a
+    /// live enemy target within <c>def.Range</c> bursts AT that target. Only the patches that turn a ranged
+    /// single-target spell into an area carry the tag on a hostile ability (Cinder Wildfire, "Flare becomes a small
+    /// area instead of single target", and the Widening Flare facet); centred on the caster, Wildfire's 1.5 m burst
+    /// landed on nothing from Flare's 25 m range, so it dealt no damage and opened no Kindled, and an all-Cinder bot
+    /// party never finished the run. Untagged circles (Cinderfield, enemy slams) and friendly circles (Group Song,
+    /// heals) still centre on the caster, and with no valid target the burst falls back to the caster.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <param name="actor">The caster.</param>
+    /// <param name="def">The circle ability.</param>
+    /// <param name="affinity">The ability's affinity.</param>
+    /// <returns>The circle's centre.</returns>
+    public static Vec3 CircleOrigin(SimState state, ActorState actor, AbilityDef def, Affinity affinity)
+    {
+        if (affinity == Affinity.Hostile &&
+            def.Tags is { } tags && tags.Contains(AreaBurstTag) &&
+            actor.TargetId is int tid &&
+            state.Actors.TryGetValue(tid, out var t) &&
+            t.Alive &&
+            t.Kind != actor.Kind &&
+            Casting.RangeMm(actor, t) <= def.Range)
+        {
+            return t.Pos;
+        }
+        return actor.Pos;
     }
 
     /// <summary>
