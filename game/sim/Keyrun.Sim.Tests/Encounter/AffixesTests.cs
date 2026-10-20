@@ -138,44 +138,32 @@ public sealed class AffixesTests
     }
 
     // Finding f-319aced5 (Matt 2026-10-20, "affixes follow current WoW"): the game's run must actually rotate. The host
-    // derives the rotation index from the run seed (Affixes.RotationIndexFor), so a replay with the same seed and key
-    // rebuilds the same affixes and Clause, and consecutive seeds take turns, as WoW's weeks do.
+    // takes the rotation index of the week since the last US reset (Keyrun.Host.AffixWeek, Tuesday 15:00 UTC; a replay
+    // takes its recorded index), so consecutive weeks take turns, as WoW's do. The seed-derived index this finding first
+    // shipped (Affixes.RotationIndexFor) is superseded by the reset week (#387, "almost exact to wow").
     [Theory]
-    [InlineData(1L, 4, false, false)]
-    [InlineData(1L, 5, false, true)]
-    [InlineData(1L, 9, false, true)]
-    [InlineData(1L, 10, true, true)]
-    [InlineData(2L, 4, false, false)]
-    [InlineData(2L, 5, true, false)]
-    [InlineData(2L, 9, true, false)]
-    [InlineData(2L, 10, true, true)]
-    public void A_seeds_rotation_gives_none_below_5_one_from_5_to_9_and_both_from_10(long seed, int key, bool fortified, bool tyrannical)
+    [InlineData(1, 4, false, false)]
+    [InlineData(1, 5, false, true)]
+    [InlineData(1, 9, false, true)]
+    [InlineData(1, 10, true, true)]
+    [InlineData(2, 4, false, false)]
+    [InlineData(2, 5, true, false)]
+    [InlineData(2, 9, true, false)]
+    [InlineData(2, 10, true, true)]
+    public void A_weeks_rotation_gives_none_below_5_one_from_5_to_9_and_both_from_10(int rotation, int key, bool fortified, bool tyrannical)
     {
-        Assert.Equal(new KeyAffixes(fortified, tyrannical), Affixes.AffixesFor(BibleTable, key, Affixes.RotationIndexFor(seed)));
-    }
-
-    [Theory]
-    [InlineData(1L, 1)]
-    [InlineData(2L, 2)]
-    [InlineData(7L, 7)]
-    [InlineData(0L, 0)]
-    [InlineData(-1L, int.MaxValue)]
-    [InlineData(long.MaxValue, int.MaxValue)]
-    [InlineData(0x1_0000_0003L, 3)]
-    public void The_rotation_index_is_a_pure_non_negative_function_of_the_seed(long seed, int expected)
-    {
-        Assert.Equal(expected, Affixes.RotationIndexFor(seed));
-        Assert.Equal(Affixes.RotationIndexFor(seed), Affixes.RotationIndexFor(seed));
+        Assert.Equal(new KeyAffixes(fortified, tyrannical), Affixes.AffixesFor(BibleTable, key, rotation));
     }
 
     [Fact]
-    public void Consecutive_seeds_alternate_Fortified_and_Tyrannical_on_a_key_7_and_cycle_every_Clause()
+    public void Consecutive_reset_weeks_alternate_Fortified_and_Tyrannical_on_a_key_7_and_cycle_every_Clause()
     {
         var seen = new List<string>();
         var clauses = new HashSet<string>(StringComparer.Ordinal);
-        for (long seed = 1; seed <= 8; seed++)
+        var length = Keyrun.Host.AffixWeek.RotationLength(ClauseIds.Length);
+        for (var week = 1; week <= 8; week++)
         {
-            var rotation = Affixes.RotationIndexFor(seed);
+            var rotation = Keyrun.Host.AffixWeek.IndexFor(Keyrun.Host.AffixWeek.EpochReset.AddDays(7 * week), length);
             seen.Add(string.Join("+", Affixes.AffixesFor(BibleTable, 7, rotation).Names));
             clauses.Add(RunOptions.ForKey(ClauseIds, 7, rotation, 5).ClauseId!);
         }
