@@ -164,6 +164,10 @@ PURPOSE: Keyrun is a Windows desktop 3D dungeon game per design/BIBLE.md; the Ty
 TS feature work is FROZEN at main 6e1548d (sim/ bots/ client/ server/ screen/). Former items 1-7 (Slack delta, cast-bar
 names, bot balance pull 2, Twins/Break bar, floor Windows, rewards/clause UI, Blink/F vs Space) move to the C# build
 after parity (ENGINE-PLAN phase 5) and stay listed in Decisions for Matt.
+- Land keyrun #396 "integrate: playable dungeon (one PR)", branch integrate/playable-dungeon, opened as a draft 2026-10-20T23:44Z at d9cb7c2b. It folds #308 #388 #333 #369 #335 #244 and reverts #325 #326 #344 (oracle/parity went red when folded; each stays open on its own branch). Still to fold: feat/no-push-rule 7334a6c8 (renumber its D50, #395 took D50) and the #326 path-pack scripts. WHY: one integrated PR is the only shape Matt can play and judge (D10, D15); folding one PR at a time with a push after each is the receipt-first rule.
+  - After #396 is MERGED (verify with gh, never from narration): fast-forward the primary tree, run tools/godot/screens.ps1 capture, orchestrator views frames (D15), then close or retarget #308 #375 #333 #369 #335 #344 #325 #326 #244.
+- #370 (healer cadence parity) is DEFERRED until #396 is MERGED. WHY: option 3 made parity green but slowed base clear about 30 percent and needed an assertion narrowing (fitted green, refused); the TS and C# sims disagree on whether a Cadence HoT can land on an enemy (frozen TS allows, C# HEAL-NEVER-HOSTILE refuses). The TS/C# divergence is its own later finding.
+- Receipt-first rule now governs every keyrun build lane (aesop LANE-CONTRACT 8d): draft PR within 20 minutes of first commit, push at least every 45 minutes, state self-reverts in the PR body.
 Phase 1 lanes (Opus per D11 unless noted; owned files in ENGINE-PLAN s5). Status as of 2026-10-18:
 1. 1A scaffold - DONE, PR #109 (59d45d1). game/ Godot 4.7.2 .NET project, Keyrun.Sim lib + purity test, tools/godot
    wrapper + export templates, .gitignore/.gitattributes, .github/workflows/game.yml.
