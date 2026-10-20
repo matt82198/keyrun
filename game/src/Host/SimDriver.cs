@@ -381,8 +381,11 @@ public partial class SimDriver : Node
     /// <summary>The dungeon played.</summary>
     public const string DungeonId = "hollow-vault";
 
-    /// <summary>The human's class.</summary>
-    public const string HumanClassId = "warden";
+    /// <summary>
+    /// The human's class for a run with no queued class (the CLI, <c>--autorun</c> and <c>--solo</c> runs); a queued run
+    /// plays the class picked on the screen's Character tab (<see cref="Lobby.ClassFor"/>).
+    /// </summary>
+    public const string HumanClassId = Lobby.DefaultClassId;
 
     private const int MaxStepsPerFrame = 5;
 
@@ -894,9 +897,13 @@ public partial class SimDriver : Node
         var registry = Registry ?? throw new InvalidOperationException("SimDriver started a run before content loaded");
         var dungeonId = request?.DungeonId ?? DungeonId;
         var keyLevel = request?.KeyLevel ?? Options.KeyLevel;
-        if (Setup is null || Setup.Dungeon.Id != dungeonId || Setup.Content.KeyLevel != keyLevel)
+        // LOBBY-TABS: the class picked on the screen's Character tab builds the party (the human takes that class's
+        // roster seat, bots fill the other two); a CLI run (no request) plays the default Warden. The class is read from
+        // the screen, never from the queue payload (Lobby.ClassFor).
+        var classId = Lobby.ClassFor(request, _screen?.CurrentLobby);
+        if (Setup is null || Setup.Dungeon.Id != dungeonId || Setup.Content.KeyLevel != keyLevel || Setup.HumanClassId != classId)
         {
-            Setup = HostRunSetup.Build(registry, dungeonId, keyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: RotationIndex);
+            Setup = HostRunSetup.Build(registry, dungeonId, keyLevel, classId, withBots: !Options.Solo, rotationIndex: RotationIndex);
         }
         var setup = Setup;
         var dungeon = setup.Dungeon;
@@ -911,7 +918,7 @@ public partial class SimDriver : Node
         // Lane NAV-CORE: a --pull N run starts its party in pull N's room (HostRunSetup.PartyFor), else in the Entrance.
         // Finding f-f9b80112 (BIBLE s7): the screen's equipped gear, keystone included, reaches the run on top of the
         // request's Clause and talents (RunStart.Of; no screen yet means the request's options alone).
-        var start = setup.StartFor(request, _screen?.Progression, registry, HumanClassId);
+        var start = setup.StartFor(request, _screen?.Progression, registry, classId);
         // The run's options record the weekly rotation index the setup was built with (the sim reads it as an input).
         var options = (start.Options ?? new RunOptions()) with { RotationIndex = setup.RotationIndex };
         var created = RunRoot.CreateRun(Options.Seed, setup.PartyFor(dungeon), dungeon, setup.Content, options);

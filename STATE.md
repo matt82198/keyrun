@@ -851,6 +851,19 @@ Additional parked decisions (from the burn ledger):
   in WoW Mythic+ a death only costs time, it never fails the key on its own; under the bank, three deaths at +2 (900
   ticks against a 620-tick bank) depleted a key that was far ahead of par. The HUD bar now reads the run clock and
   "Deaths N (+Xs)" (TimerSlack.cs). Tune later: the 15 s / 25 s costs and whether the HUD bar keeps its shape.
+- D50 **LOBBY-TABS: the between-runs screen is one lobby with three tabs, Character / Build / Play** (orchestrator,
+  2026-10-20, from Matt's verbatim "anything else like progression, builds, classes, lobby stuff more like dark and
+  darker... character management screen, quests, progression, score, follow the bible but you get what im saying, just
+  one screen with tabs should be enough before entering a game/queue"; reversible). Character picks the class (the
+  three roster classes) and shows the five gear slots with tier; Build is the class's talent forks; Play is the key,
+  its Clause and Queue. The run end's choice of three returns to the Play tab, unlocked, class and build kept. The pure
+  state is `Lobby` (game/src/Host/Lobby.cs). The class stays on the host and never rides the queue payload
+  (`Lobby.ClassFor` reads the screen; QueueRequest is unchanged, BIBLE s3 "the queue matches on key level only"). The
+  human takes the picked class's roster seat and bots fill the other two. WHY: BIBLE s1 names the screen as the loop's
+  start and end, and s0 test 2 wants Queue inside a minute; one tabbed screen keeps every pre-run choice on it. No
+  quests, shop, stash or shareable score (BIBLE s1, s10, s11), so "quests" and "score" from the quote are out. Not yet:
+  the class pick is not saved across launches (the progression save format is unchanged); the private rating already
+  shows on the screen.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
