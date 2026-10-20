@@ -219,8 +219,31 @@ if ($picks.Count -ne $expectPicks.Count) {
         if ($picks[$i] -notmatch $expectPicks[$i]) { $failures.Add("talent step $($i + 1) is '$($picks[$i])', expected /$($expectPicks[$i])/") }
     }
 }
-$tClose = $talentLines | Where-Object { $_ -match '^SCREEN talents open=0 class=warden forks=5 picks=1 applied=0$' } | Select-Object -First 1
-if (-not $tClose) { $failures.Add("no 'SCREEN talents open=0 class=warden forks=5 picks=1 applied=0' line (the build is not kept when the panel closes)") }
+# Lane TALENT-PICKS: applied= is the number of talented abilities the next Queue hands the run. It was pinned at 0
+# while the picks never reached the run (the bug); with the one kept pick it is 1.
+$tClose = $talentLines | Where-Object { $_ -match '^SCREEN talents open=0 class=warden forks=5 picks=1 applied=1$' } | Select-Object -First 1
+if (-not $tClose) { $failures.Add("no 'SCREEN talents open=0 class=warden forks=5 picks=1 applied=1' line (the build is not kept when the panel closes, or its pick is not applied)") }
+
+# Lane TALENT-PICKS (BIBLE s6): Queue hands the kept pick to the run. Right after the queue line the request's own
+# RunOptions (what SimDriver passes to RunRoot.CreateRun) carries one talented ability for the human (actor 1): the
+# fork-2 ability, its queued stats differing from the base the run would otherwise play. Before the lane the request
+# had no loadout and none of these lines exist (RED).
+$qTalents = $null
+$qTalent = $null
+if ($queue) {
+    $qi = IndexOf $queue
+    if ($qi + 1 -lt $lines.Count) { $qTalents = $lines[$qi + 1] }
+    $qTalent = $lines | Where-Object { $_ -match '^SCREEN queue talent actor=' } | Select-Object -First 1
+}
+if ($qTalents -notmatch '^SCREEN queue talents applied=1$') { $failures.Add("the line after Queue is '$qTalents', expected 'SCREEN queue talents applied=1'") }
+$talentStats = '(shape=\S+ cooldown=\S+ cost=\S+ damage=\S+)'
+if (-not $qTalent) {
+    $failures.Add("no 'SCREEN queue talent actor=1 ability=...' line (the picked talent is not in the queued run options)")
+} elseif ($qTalent -notmatch "^SCREEN queue talent actor=1 ability=$([regex]::Escape([string]$f2ability)) $talentStats base $talentStats$") {
+    $failures.Add("malformed or wrong queued talent line: '$qTalent' (expected actor=1 ability=$f2ability)")
+} elseif ($Matches[1] -eq $Matches[2] -or $Matches[2] -match '=-') {
+    $failures.Add("the queued talent does not change the ability from its base: '$qTalent'")
+}
 $cardFits = @($talentLines | Where-Object { $_ -match '^SCREEN fit talent fork=' })
 if ($cardFits.Count -ne $optionCount -or $cardFits.Count -eq 0) { $failures.Add("expected one 'SCREEN fit talent' line per option ($optionCount), got $($cardFits.Count)") }
 foreach ($f in $cardFits) {
@@ -240,7 +263,7 @@ if (-not $panelFit) {
 }
 
 Write-Output '--- asserted SCREEN lines ---'
-foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $picked, $queue, $caption, $helpHidden, $helpShown) + $fits + @($capFit, $tOpen) + $forkRows + $picks + @($tClose) + $cardFits + @($panelFit)) {
+foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $picked, $queue, $caption, $helpHidden, $helpShown) + $fits + @($capFit, $tOpen) + $forkRows + $picks + @($tClose, $qTalents, $qTalent) + $cardFits + @($panelFit)) {
     if ($l) { Write-Output $l }
 }
 
