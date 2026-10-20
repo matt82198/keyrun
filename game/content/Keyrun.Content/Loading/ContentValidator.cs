@@ -116,6 +116,10 @@ public static class ContentValidator
                 earners.Add(member.EnemyId);
             }
         }
+        // SKIPPABLE-PACKS: a layout pack's members earn too (LayoutValidator checks each has a value).
+        foreach (LayoutPack pack in reg.Layout.Packs)
+            foreach (PullEnemy member in pack.Enemies)
+                earners.Add(member.EnemyId);
 
         foreach (ForcesValue value in forces.Values)
             if (value.Points > 0 && !earners.Contains(value.EnemyId))
