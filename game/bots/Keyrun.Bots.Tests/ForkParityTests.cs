@@ -54,7 +54,7 @@ public sealed class ForkParityTests
     internal static readonly IReadOnlyDictionary<string, string> KnownDominatedForks = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["warden.guardBreak:surge"] = "Surge is dominated by Focused and Pin: slower at both keys (k2 2048 vs 1705/1838, k10 2289 vs 2257/2170) with no more Combos and no fewer deaths.",
-        ["cinder.flare:wildfire"] = "Wildfire is dominated by Lingering and Efficient: the bot run never ends within 24000 ticks at k2 or k10 (5 and 8 Combos) while both siblings time the key.",
+        ["cinder.flare:efficient"] = "Efficient is dominated by Wildfire (re-measured on origin/main 704c6af, after #296): slower with fewer Combos at both keys (k2 1664/26 vs 1533/30, k10 1906/35 vs 1865/37), no deaths either side (finding f-e7e6461c).",
         ["cinder.detonate:cheapShot"] = "Cheap Shot is dominated by Overkill: slower at both keys (k2 1868 vs 1648, k10 2380 vs 2014) with equal or fewer Combos (32/32, 43/44).",
         ["chanter.cadence:swift"] = "Swift is dominated by Resonance and Group Song: identical at k2, 91 ticks slower at k10 (2261 vs 2170), same Combos.",
         ["chanter.hymn:staccato"] = "Staccato is dominated by Round Robin: one Combo fewer at k2 (32 vs 33) and slower with fewer Combos at k10 (2289/38 vs 2170/40).",
