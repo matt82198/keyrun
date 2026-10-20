@@ -131,9 +131,19 @@
         {
           "id": "discipline",
           "name": "Discipline",
-          "text": "Longer cooldown.",
+          "text": "Longer cooldown; Mend's Chorus heals far more.",
           "patch": {
-            "cooldownTicks": 160
+            "cooldownTicks": 160,
+            "variants": {
+              "mend": [
+                { "op": "heal", "amount": 200 },
+                { "op": "payoff" }
+              ],
+              "ward": [
+                { "op": "applyEffect", "effectId": "wardPulse", "durationTicks": 60, "stacks": 1 },
+                { "op": "payoff" }
+              ]
+            }
           }
         },
         {
