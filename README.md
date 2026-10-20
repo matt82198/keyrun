@@ -71,6 +71,12 @@ tools/godot/godot.ps1 --headless --path game --build-solutions --quit
 tools/godot/godot.ps1 --headless --path game --export-release "Windows Desktop" ../build/keyrun.exe
 ```
 
+**Fresh checkout or worktree.** A new checkout or worktree fails its first Godot/C# build until the solution build has run once there. Before that run, make `dotnet` resolvable: put the .NET 8 SDK folder on `PATH`, or set `DOTNET_ROOT` to it (`tools/godot/godot.ps1` falls back to `%USERPROFILE%\.dotnet` when `DOTNET_ROOT` is unset). Then run this once:
+
+```
+tools/godot/godot.ps1 --headless --path game --build-solutions --quit
+```
+
 The export lands at `build/keyrun.exe` (the `build/` folder is gitignored). The Godot binary path is resolved by
 `tools/godot/godot.ps1`, or set `KEYRUN_GODOT`. The engine plan and phase status are in
 [design/ENGINE-PLAN.md](design/ENGINE-PLAN.md); the build's domain notes are in [game/CLAUDE.md](game/CLAUDE.md).
