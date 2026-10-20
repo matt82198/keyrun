@@ -110,7 +110,8 @@ public static class Tempo
     /// <param name="baseCooldownTicks">The authored cooldown.</param>
     /// <param name="keyLevel">The key level.</param>
     /// <returns>The scaled cooldown, ticks.</returns>
-    public static int ScaleCooldownTicks(int baseCooldownTicks, int keyLevel) => baseCooldownTicks;
+    public static int ScaleCooldownTicks(int baseCooldownTicks, int keyLevel) =>
+        checked((int)IntMath.TruncDiv((long)baseCooldownTicks * BpDenom, TempoMultiplierBp(keyLevel)));
 
     /// <summary>TEMPO-CAST-FLOOR: <see cref="CastFloorTicks"/> of the key-scaled cooldown (<see cref="ScaleCooldownTicks"/>) and the unscaled cast time.</summary>
     /// <param name="cooldownTicks">The authored cooldown.</param>
