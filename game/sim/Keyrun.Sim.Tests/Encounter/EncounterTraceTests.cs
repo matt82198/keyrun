@@ -105,6 +105,40 @@ public sealed class EncounterTraceTests
             tally.Projections++;
         }
 
+        // TELEGRAPH-HONEST: the scheduler judges a telegraphed cast's cooldown clock, which the projection does not
+        // carry, so the replay rebuilds each caster's clock from the oracle's own cast outcomes: a cast_complete at T
+        // started at T - castTicks, and an interrupt ends the cast the projection last showed; either consumed a
+        // charge at its start (Casting.StartCast -> Cooldowns.ConsumeCharge arithmetic).
+        var abilityJson = ((JsObject)content.Get("abilities")!).Members.ToDictionary(m => m.Key, m => (JsObject)m.Value, StringComparer.Ordinal);
+        long AbilityLong(string id, string key) => abilityJson.TryGetValue(id, out var o) && o.Get(key) is JsInt v ? v.Value : 0;
+        void Consume(ActorState actor, string abilityId, int start)
+        {
+            var cd = AbilityLong(abilityId, "cooldownTicks");
+            if (cd == 0)
+            {
+                return;
+            }
+            var nextReady = actor.Cooldowns.TryGetValue(abilityId, out var nr) ? nr : 0;
+            actor.Cooldowns[abilityId] = (int)((start >= nextReady ? start : nextReady) + cd);
+        }
+        void SyncCooldowns(OracleRecord r)
+        {
+            foreach (var e in r.Events)
+            {
+                if (e.Type == "cast_complete" && e.Get("abilityId") is JsString { } ab &&
+                    state.Actors.TryGetValue((int)((JsInt)e.Get("actorId")!).Value, out var caster))
+                {
+                    Consume(caster, ab.Value, e.Tick - (int)AbilityLong(ab.Value, "castTicks"));
+                }
+                else if (e.Type == "interrupt" && e.Get("abilityId") is JsString { } ib &&
+                    state.Actors.TryGetValue((int)((JsInt)e.Get("targetId")!).Value, out var victim) &&
+                    victim.CastId == ib.Value && victim.CastEndsTick is int end)
+                {
+                    Consume(victim, ib.Value, end - (int)AbilityLong(ib.Value, "castTicks"));
+                }
+            }
+        }
+
         Sync(records[0]);
         for (var i = 1; i < records.Count; i++)
         {
@@ -167,6 +201,7 @@ public sealed class EncounterTraceTests
             tally.PullEvents += expected.Count(e => e.Type is "pull_clear" or "pull_start");
             tally.Depleted += expected.Count(e => e.Type == "depleted");
 
+            SyncCooldowns(r);
             if (r.P is not null)
             {
                 Sync(r);
@@ -206,9 +241,9 @@ public sealed class EncounterTraceTests
     // and casts seed.lash; the re-recorded traces carry 11 / 14 telegraphs (was 9 / 13), k2 10 hits (was 9), k10 14 hits
     // (was 13) with 3 exact (was 2), measured by this replay against the regenerated oracle.
     [Theory]
-    [InlineData("bots-hv-k2-s7", 13, 12, 7, 0, 0, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k2-s11", 13, 12, 7, 0, 0, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 14, 13, 7, 0, 0, 2)] // QUENCH-REFUND re-record: was 14, 14, 7, 0, 0, 3 (the t1293 Quench whiff no longer refunds 20 Heat; measured by this replay)
+    [InlineData("bots-hv-k2-s7", 10, 10, 7, 0, 1, 1)] // DUNGEON-FEEL re-record (D28): was 13, 12, 7, 0, 0, 1; telegraph-honest drops refused-cast telegraphs, engage, slam circle that the boss closes for, pair swing 25 move the run (measured by this replay)
+    [InlineData("bots-hv-k2-s11", 10, 10, 7, 0, 1, 1)] // DUNGEON-FEEL re-record (D28): was 13, 12, 7, 0, 0, 1 (measured by this replay)
+    [InlineData("bots-hv-k10-s7", 9, 9, 7, 0, 0, 3)] // DUNGEON-FEEL re-record (D28): was 14, 13, 7, 0, 0, 2 (QUENCH-REFUND); telegraph-honest, engage, slam circle that the boss closes for, pair swing 25 (measured by this replay)
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

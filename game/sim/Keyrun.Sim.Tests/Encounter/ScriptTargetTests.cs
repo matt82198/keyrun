@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
 using Xunit;
@@ -158,17 +159,29 @@ public sealed class ScriptTargetTests
         return Chase.ChaseCommands(state, EncounterTestKit.Scripts(7, ScriptStep.Loop(40, "swing")), Swing).Count;
     }
 
+    // ENEMY-ENGAGE (D28 ruling 2026-10-20, twin of chase-tuning.test.ts lines 73/77): in reach the chaser still
+    // emits a turn-only move (Dir 0,0) to face its target, so "stops at the margin" means no command that WALKS.
+    private static int WalksAt(long distance, long? margin = null)
+    {
+        var enemy = EncounterTestKit.Actor(7, ActorKind.Enemy, health: 1);
+        enemy.ChaseMarginMm = margin;
+        var player = EncounterTestKit.Actor(1, ActorKind.Player, new Vec3(0, 0, distance), health: 1);
+        var state = EncounterTestKit.State(0, new PrngState(0, 0, 0, 0), enemy, player);
+        return Chase.ChaseCommands(state, EncounterTestKit.Scripts(7, ScriptStep.Loop(40, "swing")), Swing)
+            .Count(c => c is MoveCommand m && (m.Dir.X != 0 || m.Dir.Z != 0));
+    }
+
     [Fact]
     public void Chase_defaults_to_CHASE_MARGIN_MM()
     {
-        Assert.Equal(0, ChaseAt(3000 - Chase.ChaseMarginMm));
+        Assert.Equal(0, WalksAt(3000 - Chase.ChaseMarginMm));
         Assert.Equal(1, ChaseAt(3000 - Chase.ChaseMarginMm + 1));
     }
 
     [Fact]
     public void Chase_honours_ActorState_chaseMarginMm()
     {
-        Assert.Equal(0, ChaseAt(2900, 100));
+        Assert.Equal(0, WalksAt(2900, 100));
         Assert.Equal(1, ChaseAt(2901, 100));
         Assert.Equal(1, ChaseAt(2600));
     }

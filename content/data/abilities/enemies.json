@@ -66,7 +66,7 @@
     "effects": [
       {
         "op": "damage",
-        "amount": 70,
+        "amount": 25,
         "school": "physical"
       }
     ],
@@ -220,7 +220,7 @@
     "gcdTicks": 0,
     "cooldownTicks": 60,
     "charges": 1,
-    "range": 0,
+    "range": 3000,
     "shape": {
       "kind": "circle",
       "radius": 3000
@@ -310,7 +310,7 @@
     "gcdTicks": 0,
     "cooldownTicks": 60,
     "charges": 1,
-    "range": 0,
+    "range": 3000,
     "shape": {
       "kind": "circle",
       "radius": 3000

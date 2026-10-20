@@ -34,17 +34,24 @@ import { resolveScriptTarget } from "./script-target";
 /** How far inside its engage range a chaser stops, in mm. */
 export const CHASE_MARGIN_MM = 500;
 
-function isHostileTargeted(ability: AbilityDef | undefined): ability is AbilityDef {
-  return ability !== undefined && ability.shape.kind === "target" && !ability.effects.some((op) => op.op === "heal");
+/**
+ * A hostile target-shaped cast reaches its range; a hostile caster-centred circle with a range above 0 engages at
+ * that range (DUNGEON-FEEL: the Warden and Twins slams); a range-0 circle is an aura that never chases.
+ */
+function reachMm(ability: AbilityDef | undefined): number | null {
+  if (ability === undefined || ability.effects.some((op) => op.op === "heal")) return null;
+  if (ability.shape.kind === "target") return ability.range;
+  if (ability.shape.kind === "circle" && ability.range > 0) return ability.range;
+  return null;
 }
 
-/** Shortest range among `script`'s hostile target-shaped casts, or null when it has none. */
+/** Shortest reach among `script`'s hostile target-shaped casts and ranged circles, or null when it has none. */
 export function engageRangeMm(script: EnemyScript, abilities: Record<string, AbilityDef>): number | null {
   let best: number | null = null;
   for (const step of script) {
     if (step.at === "onDeath") continue;
-    const ability = abilities[step.cast];
-    if (isHostileTargeted(ability) && (best === null || ability.range < best)) best = ability.range;
+    const reach = reachMm(abilities[step.cast]);
+    if (reach !== null && (best === null || reach < best)) best = reach;
   }
   return best;
 }

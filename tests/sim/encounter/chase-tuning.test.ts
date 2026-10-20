@@ -69,12 +69,20 @@ describe("chase.ts: per-enemy margin", () => {
     const player = createActor({ id: 1, kind: "player", classId: "w", role: "tank", pos: { x: 0, y: 0, z: distance }, maxHealth: 1, maxResource: 0 });
     return chaseCommands(stateWith([enemy, player]), { 7: [{ at: "loop", every: 40, cast: "swing" }] }, { swing: SWING }).length;
   }
+  // ENEMY-ENGAGE (D28 ruling 2026-10-20): in reach the chaser still emits a turn-only move (dir 0,0) to face its
+  // target, so "stops at the margin" means no command that WALKS, not no command at all.
+  function walksAt(distance: number, margin?: number): number {
+    const enemy = { ...walker(), ...(margin !== undefined ? { chaseMarginMm: margin } : {}) };
+    const player = createActor({ id: 1, kind: "player", classId: "w", role: "tank", pos: { x: 0, y: 0, z: distance }, maxHealth: 1, maxResource: 0 });
+    return chaseCommands(stateWith([enemy, player]), { 7: [{ at: "loop", every: 40, cast: "swing" }] }, { swing: SWING })
+      .filter((c) => c.kind === "move" && (c.dir.x !== 0 || c.dir.z !== 0)).length;
+  }
   it("defaults to CHASE_MARGIN_MM", () => {
-    expect(chaseAt(3000 - CHASE_MARGIN_MM)).toBe(0);
+    expect(walksAt(3000 - CHASE_MARGIN_MM)).toBe(0);
     expect(chaseAt(3000 - CHASE_MARGIN_MM + 1)).toBe(1);
   });
   it("honours ActorState.chaseMarginMm", () => {
-    expect(chaseAt(2900, 100)).toBe(0);
+    expect(walksAt(2900, 100)).toBe(0);
     expect(chaseAt(2901, 100)).toBe(1);
     expect(chaseAt(2600)).toBe(1); // the same gap still chases under the 500 default
   });

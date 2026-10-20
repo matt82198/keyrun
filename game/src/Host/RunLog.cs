@@ -64,6 +64,10 @@ public sealed class RunLog : IDisposable
         {
             Line(line);
         }
+        if (CombatNarrator.PackLine(pullIndex, dungeon) is { } pack)
+        {
+            Line(pack);
+        }
     }
 
     /// <summary>Resets the per-run narration (chase and cast tracking) for a fresh run.</summary>
@@ -161,6 +165,65 @@ public sealed class CombatNarrator
         return FormattableString.Invariant($"PULL spawn index={pullIndex} id={pull.Id} actors={actors}");
     }
 
+    /// <summary>
+    /// DUNGEON-FEEL proof line: <c>PACK index=i id=p bodies=n minGapMm=g</c>, the smallest centre-to-centre distance
+    /// between two of the pull's spawns as placed (0 = two bodies stacked on one point); null for a lone body.
+    /// </summary>
+    /// <param name="pullIndex">The pull index.</param>
+    /// <param name="dungeon">The dungeon.</param>
+    /// <returns>The line, or null.</returns>
+    public static string? PackLine(int pullIndex, SimDungeon dungeon)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        if (pullIndex < 0 || pullIndex >= dungeon.Pulls.Count || dungeon.Pulls[pullIndex].Spawns.Count < 2)
+        {
+            return null;
+        }
+        var spawns = dungeon.Pulls[pullIndex].Spawns;
+        long? min = null;
+        for (var i = 0; i < spawns.Count; i++)
+        {
+            for (var j = i + 1; j < spawns.Count; j++)
+            {
+                var dx = spawns[i].Pos.X - spawns[j].Pos.X;
+                var dz = spawns[i].Pos.Z - spawns[j].Pos.Z;
+                var d = Fixed.Isqrt((dx * dx) + (dz * dz));
+                min = min is null || d < min ? d : min;
+            }
+        }
+        return FormattableString.Invariant(
+            $"PACK index={pullIndex} id={dungeon.Pulls[pullIndex].Id} bodies={spawns.Count} minGapMm={min}");
+    }
+
+    /// <summary>
+    /// DUNGEON-FEEL proof lines: <c>HIT actor=id ability=x target=t dist=d facing=f</c> for every damage event an enemy
+    /// deals: the centre distance to its target and how far (1/1024 turns) its yaw is off the bearing to the target,
+    /// both read off the state the step started from; <c>ability</c> is the cast it completed that step, else "?".
+    /// </summary>
+    /// <param name="before">The state before the step.</param>
+    /// <param name="events">The step's events.</param>
+    /// <returns>The lines.</returns>
+    public static IEnumerable<string> HitLines(SimState before, IReadOnlyList<SimEvent> events)
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(events);
+        foreach (var e in events)
+        {
+            if (e.Type != "damage" || e.Get("sourceId") is not JsInt src || e.Get("targetId") is not JsInt tgt ||
+                !before.Actors.TryGetValue((int)src.Value, out var a) || a.Kind != ActorKind.Enemy ||
+                !before.Actors.TryGetValue((int)tgt.Value, out var t))
+            {
+                continue;
+            }
+            var done = events.FirstOrDefault(c => c.Type == "cast_complete" && c.Get("actorId") is JsInt ca && ca.Value == src.Value);
+            var ability = done?.Get("abilityId") is JsString s ? s.Value : "?";
+            var err = Math.Abs(a.Yaw - Fixed.YawBetween(a.Pos, t.Pos)) % 1024;
+            err = Math.Min(err, 1024 - err);
+            yield return FormattableString.Invariant(
+                $"HIT actor={src.Value} ability={ability} target={tgt.Value} dist={Casting.RangeMm(a, t)} facing={err}");
+        }
+    }
+
     /// <summary>The host lines for one step.</summary>
     /// <param name="before">The state before the step.</param>
     /// <param name="after">The state after the step.</param>
@@ -178,8 +241,13 @@ public sealed class CombatNarrator
             if (e.Type == "pull_start" && e.Get("pullIndex") is JsInt idx && PullSpawnLine((int)idx.Value, dungeon) is { } spawn)
             {
                 lines.Add(spawn);
+                if (PackLine((int)idx.Value, dungeon) is { } pack)
+                {
+                    lines.Add(pack);
+                }
             }
         }
+        lines.AddRange(HitLines(before, events));
 
         if (before.Actors.TryGetValue(SimDriver.WardenId, out var w0) && after.Actors.TryGetValue(SimDriver.WardenId, out var w1))
         {

@@ -142,13 +142,13 @@ public sealed class RolesOracleTraceTests
     }
 
     [Fact(DisplayName = "bot oracle > bots-hv-k2-s7 replays every tick from C#-generated bot commands")]
-    public void Key2Seed7() => AssertDrives("bots-hv-k2-s7", "1f9fd280"); // QUENCH-REFUND (the t1200 Quench whiff refunds no Heat; was c3d7a583), was 4df1e3f1; re-recorded: healer no longer swaps verse to self-heal. DEAD-CASTER-TELEGRAPH (was 902b84a7), KF3-SEED-ENGAGE (was 71eb4d2e)
+    public void Key2Seed7() => AssertDrives("bots-hv-k2-s7", "4fa4261f"); // DUNGEON-FEEL (telegraph-honest, engage facing, melee chaseMarginMm 2000, slam circle the boss closes for, pair swing 25; was 1f9fd280), QUENCH-REFUND (the t1200 Quench whiff refunds no Heat; was c3d7a583), was 4df1e3f1; re-recorded: healer no longer swaps verse to self-heal. DEAD-CASTER-TELEGRAPH (was 902b84a7), KF3-SEED-ENGAGE (was 71eb4d2e)
 
     [Fact(DisplayName = "bot oracle > bots-hv-k2-s11 replays every tick from C#-generated bot commands")]
-    public void Key2Seed11() => AssertDrives("bots-hv-k2-s11", "1f9fd280"); // QUENCH-REFUND (the t1200 Quench whiff refunds no Heat; was c3d7a583), was 4df1e3f1; re-recorded: healer no longer swaps verse to self-heal. DEAD-CASTER-TELEGRAPH (was 902b84a7), KF3-SEED-ENGAGE (was 71eb4d2e)
+    public void Key2Seed11() => AssertDrives("bots-hv-k2-s11", "4fa4261f"); // DUNGEON-FEEL (was 1f9fd280), QUENCH-REFUND (the t1200 Quench whiff refunds no Heat; was c3d7a583), was 4df1e3f1; re-recorded: healer no longer swaps verse to self-heal. DEAD-CASTER-TELEGRAPH (was 902b84a7), KF3-SEED-ENGAGE (was 71eb4d2e)
 
     [Fact(DisplayName = "bot oracle > bots-hv-k10-s7 replays every tick from C#-generated bot commands")]
-    public void Key10Seed7() => AssertDrives("bots-hv-k10-s7", "15f41e2e"); // QUENCH-REFUND (the t1293 Quench whiff refunds no Heat; was 3b33f4ad), DEAD-CASTER-TELEGRAPH (was 8c7e9098), CAST-RANGE-RECHECK (the t1760 seed.lash on actor 1 at 2093 mm now misses; was 867dee64), KF3-SEED-ENGAGE (was e1286ac0; SLAM-TELEGRAPH B1 was 27a3ceaf); equals the TS manifest
+    public void Key10Seed7() => AssertDrives("bots-hv-k10-s7", "8f3a2a55"); // DUNGEON-FEEL (was 15f41e2e), QUENCH-REFUND (the t1293 Quench whiff refunds no Heat; was 3b33f4ad), DEAD-CASTER-TELEGRAPH (was 8c7e9098), CAST-RANGE-RECHECK (the t1760 seed.lash on actor 1 at 2093 mm now misses; was 867dee64), KF3-SEED-ENGAGE (was e1286ac0; SLAM-TELEGRAPH B1 was 27a3ceaf); equals the TS manifest
 
     [Fact(DisplayName = "bot oracle > anti-vacuity: with no roles the bots diverge from the trace")]
     public void NoRolesDiverge()

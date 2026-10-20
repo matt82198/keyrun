@@ -62,6 +62,7 @@ import type { ActorId, ActorState, Command, SimEvent, SimState, Tick } from "./t
 import type { AbilityDef } from "../combat/abilities";
 import { resolveScriptTarget, type ScriptTargetOverride } from "./script-target";
 import { chaseCommands } from "./chase";
+import { firesAt, willCast } from "./telegraph-honest";
 
 export interface TelegraphSpec {
   shape: "circle" | "cone" | "line";
@@ -82,19 +83,6 @@ export interface ScriptStep {
 }
 
 export type EnemyScript = ScriptStep[];
-
-function firesAt(step: ScriptStep, tick: Tick): boolean {
-  if (step.at === "loop") {
-    const every = step.every ?? 0;
-    return every > 0 && tick > 0 && tick % every === 0;
-  }
-  if (step.at === "onDeath") return false; // handled directly in stepEnemyScripts
-  const at = step.at;
-  if (step.every !== undefined && step.every > 0) {
-    return tick >= at && (tick - at) % step.every === 0;
-  }
-  return tick === at;
-}
 
 function telegraphEventAt(tick: Tick, actorId: ActorId, actor: ActorState, cast: string, tg: TelegraphSpec): SimEvent {
   const event: SimEvent = {
@@ -156,7 +144,8 @@ export function stepEnemyScripts(
     const actor = state.actors[actorId];
     if (!script || !actor) continue;
 
-    for (const step of script) {
+    for (let i = 0; i < script.length; i++) {
+      const step = script[i]!;
       if (step.at === "onDeath") {
         if (actor.alive) continue;
         const fired = nextFired[actorId] ?? (nextFired[actorId] = []);
@@ -176,7 +165,7 @@ export function stepEnemyScripts(
         if (cmd) commands.push(cmd);
       }
       const tg = step.telegraph;
-      if (tg && firesAt(step, tick + tg.leadTicks)) {
+      if (tg && firesAt(step, tick + tg.leadTicks) && willCast(actor, script, i, tick + tg.leadTicks, abilities)) {
         telegraphEvents.push(telegraphEventAt(tick, actorId, actor, step.cast, tg));
       }
     }

@@ -5,6 +5,7 @@
     "maxHealth": 1200,
     "role": "melee",
     "speedMmPerTick": 207,
+    "chaseMarginMm": 2000,
     "abilities": ["pair.meleeSwing", "pair.spreadMark", "pair.stackCall"],
     "script": [
       { "at": 60, "every": 150, "cast": "pair.meleeSwing" },

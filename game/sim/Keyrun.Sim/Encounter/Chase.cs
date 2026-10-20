@@ -17,11 +17,27 @@ public static class Chase
     /// <summary>How far inside its engage range a chaser stops, mm (chase.ts:35).</summary>
     public const long ChaseMarginMm = 500;
 
-    // chase.ts:37 isHostileTargeted.
-    private static bool IsHostileTargeted(ScriptAbility? ability) =>
-        ability is not null && ability.ShapeKind == "target" && !ability.Heals;
+    // chase.ts:37 reachMm: a hostile target-shaped cast reaches its range; a hostile circle (always centred on the
+    // caster, Targeting.InCircle) with a range above 0 engages at that range, the distance its caster closes to before
+    // it slams (DUNGEON-FEEL: the Warden and Twins slams); a range-0 circle is an aura that never chases; else null.
+    private static long? ReachMm(ScriptAbility? ability)
+    {
+        if (ability is null || ability.Heals)
+        {
+            return null;
+        }
+        return ability.ShapeKind switch
+        {
+            "target" => ability.Range,
+            "circle" when ability.Range > 0 => ability.Range,
+            _ => null,
+        };
+    }
 
-    /// <summary>chase.ts:42 engageRangeMm: the shortest range among the script's hostile target-shaped casts (onDeath skipped).</summary>
+    /// <summary>
+    /// chase.ts:42 engageRangeMm: the shortest range among the script's hostile target-shaped casts and its hostile
+    /// circles with a range above 0, onDeath skipped; null when it has none.
+    /// </summary>
     public static long? EngageRangeMm(IReadOnlyList<ScriptStep> script, IReadOnlyDictionary<string, ScriptAbility> abilities)
     {
         long? best = null;
@@ -32,9 +48,9 @@ public static class Chase
                 continue;
             }
             abilities.TryGetValue(step.Cast, out var ability);
-            if (IsHostileTargeted(ability) && (best is null || ability!.Range < best.Value))
+            if (ReachMm(ability) is { } reach && (best is null || reach < best.Value))
             {
-                best = ability!.Range;
+                best = reach;
             }
         }
         return best;

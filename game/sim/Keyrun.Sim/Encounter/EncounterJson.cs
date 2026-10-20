@@ -142,8 +142,8 @@ public static class EncounterJson
     }
 
     /// <summary>
-    /// An id-keyed object of AbilityDefs reduced to <see cref="ScriptAbility"/>: id, range, shape.kind, and whether
-    /// any effect op is "heal".
+    /// An id-keyed object of AbilityDefs reduced to <see cref="ScriptAbility"/>: id, range, shape.kind, whether
+    /// any effect op is "heal", and its cooldownTicks and charges.
     /// </summary>
     public static IReadOnlyDictionary<string, ScriptAbility> ParseAbilities(JsValue json)
     {
@@ -162,7 +162,13 @@ public static class EncounterJson
                 Str(Req(o, "id", what), what + ".id"),
                 Long(Req(o, "range", what), what + ".range"),
                 Str(Req(shape, "kind", what + ".shape"), what + ".shape.kind"),
-                heals));
+                heals)
+            {
+                // TELEGRAPH-HONEST: the scheduler judges a telegraphed cast's cooldown clock, so the JSON view carries
+                // cooldownTicks and charges exactly as RunWiring.ScriptAbilitiesOf does (absent = 0 and 1).
+                CooldownTicks = (int)(OptLong(o, "cooldownTicks", what) ?? 0),
+                Charges = OptLong(o, "charges", what) ?? 1,
+            });
         }
         return result;
     }

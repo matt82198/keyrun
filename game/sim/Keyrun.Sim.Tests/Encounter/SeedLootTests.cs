@@ -66,8 +66,8 @@ public sealed class SeedLootTests
         var (rule, records) = Pull3();
         var rewards = Observe(rule, records);
         Assert.Empty(rewards.BonusLoot);
-        // The rule did see the oracle's Seed Window open (window_opened seedbloom, setupActorId 108, endsTick 1569).
-        Assert.Equal(1569, rewards.SeedWindowEndsTick); // DEAD-CASTER-TELEGRAPH re-record: was 1540
+        // The rule did see the oracle's Seed Window open (window_opened seedbloom, setupActorId 108, endsTick 1618).
+        Assert.Equal(1618, rewards.SeedWindowEndsTick); // DUNGEON-FEEL re-record (D28): was 1569 (DEAD-CASTER-TELEGRAPH: was 1540)
     }
 
     [Fact]
@@ -75,9 +75,10 @@ public sealed class SeedLootTests
     {
         var (rule, records) = Pull3();
         // DEAD-CASTER-TELEGRAPH re-record: was a Combo at t1461 (Window t1440..1540); now t1490 (Window t1469..1569).
-        var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]> { [1491] = new[] { FieldCombo(1490) } });
+        // DUNGEON-FEEL re-record (D28): the Seed dies 49 ticks later (deathBloom t1518, Window t1518..1618): now t1539.
+        var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]> { [1540] = new[] { FieldCombo(1539) } });
         var entry = Assert.Single(rewards.BonusLoot);
-        Assert.Equal(new BonusLootEntry("seed", "seedbloom", "seedbloom-field", 1490, SeedActorId, 1), entry);
+        Assert.Equal(new BonusLootEntry("seed", "seedbloom", "seedbloom-field", 1539, SeedActorId, 1), entry);
     }
 
     [Fact]
@@ -87,10 +88,11 @@ public sealed class SeedLootTests
         var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]>
         {
             // DEAD-CASTER-TELEGRAPH re-record: was Combos at t1461 and t1491; now t1490 and t1520.
-            [1491] = new[] { FieldCombo(1490) },
-            [1521] = new[] { FieldCombo(1520) },
+            // DUNGEON-FEEL re-record (D28): now t1539 and t1569 (Window t1518..1618).
+            [1540] = new[] { FieldCombo(1539) },
+            [1570] = new[] { FieldCombo(1569) },
         });
-        Assert.Equal(1490, Assert.Single(rewards.BonusLoot).Tick);
+        Assert.Equal(1539, Assert.Single(rewards.BonusLoot).Tick);
     }
 
     [Fact]
@@ -101,9 +103,10 @@ public sealed class SeedLootTests
         var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]>
         {
             // DEAD-CASTER-TELEGRAPH re-record: was t1433 / t1541 / t1462; now t1462 / t1570 / t1491 (Window t1469..1569).
-            [1463] = new[] { FieldCombo(1462) },
-            [1571] = new[] { FieldCombo(1570) },
-            [1492] = new[] { FieldCombo(1491, setupActorId: 3), FieldCombo(1491, windowId: "kindled") },
+            // DUNGEON-FEEL re-record (D28): now t1511 / t1619 / t1540 (Window t1518..1618).
+            [1512] = new[] { FieldCombo(1511) },
+            [1620] = new[] { FieldCombo(1619) },
+            [1541] = new[] { FieldCombo(1540, setupActorId: 3), FieldCombo(1540, windowId: "kindled") },
         });
         Assert.Empty(rewards.BonusLoot);
     }
