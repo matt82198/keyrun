@@ -193,12 +193,22 @@ public static class Kits
         };
     }
 
-    private static List<string> OffGcdIds(ClassAbilitySlots slots, IReadOnlyDictionary<string, AbilityDef> abilities)
+    private static List<string> OffGcdIds(ClassAbilitySlots slots, IReadOnlyDictionary<string, AbilityDef> abilities) =>
+        OffGcdIds(slots, id => abilities.TryGetValue(id, out var def) ? def.GcdTicks == 0 : null);
+
+    /// <summary>
+    /// The slotted abilities (five rotational, then interrupt, defensive, utility, movement; no duplicates) that
+    /// <paramref name="isOffGcd"/> says are off the GCD; an id it answers null for is left out.
+    /// </summary>
+    /// <param name="slots">The class's ability slots.</param>
+    /// <param name="isOffGcd">Whether an ability id is off the GCD, or null when it is unknown.</param>
+    /// <returns>The off-GCD ids, slot order.</returns>
+    internal static List<string> OffGcdIds(ClassAbilitySlots slots, Func<string, bool?> isOffGcd)
     {
         var ids = new List<string>();
         foreach (var id in new[] { slots.Rot1, slots.Rot2, slots.Rot3, slots.Rot4, slots.Rot5, slots.Interrupt, slots.Defensive, slots.Utility, slots.Movement })
         {
-            if (abilities.TryGetValue(id, out var def) && def.GcdTicks == 0 && !ids.Contains(id))
+            if (isOffGcd(id) == true && !ids.Contains(id))
             {
                 ids.Add(id);
             }

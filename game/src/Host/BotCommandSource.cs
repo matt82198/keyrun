@@ -142,7 +142,8 @@ public sealed class BotCommandSource : ICommandSource
             run.State,
             run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph),
             ClassKitView.Empty,
-            _kits) with { Layout = run.Content.Layout };
+            // f-80b5cf16: the run's own (loadout- and Facet-patched) ability map judges which abilities are off the GCD.
+            _kits.ForRun(run.Content.Abilities)) with { Layout = run.Content.Layout };
         // sim-runtime.ts step(): drop pings older than the reaction window, then hand the rest to runBots.
         _pings.RemoveAll(p => tick - p.Tick > Pings.PingReactionWindowTicks);
         var batch = Bot.RunBots(view, _bots, _memories, _prng, _pings);

@@ -3,6 +3,7 @@ using Keyrun.Bots.Roles;
 using Keyrun.Bots.Shared;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
+using Keyrun.Sim.Runs;
 using Xunit;
 
 namespace Keyrun.Bots.Tests;
@@ -21,7 +22,9 @@ public sealed class ZeroGcdOffGcdTests
 
     private static readonly AbilityDef Quench = Def("test.quench", 0, 0, new EffectOp[] { new InterruptOp() });
     private static readonly AbilityDef Bolt = Def("test.bolt", 0, GcdTicks, new EffectOp[] { new DamageOp(5, "fire") });
-    private static readonly AbilityDef Mending = Def("test.mending", 80, 0, new EffectOp[] { new HealOp(50) }, interruptible: true);
+    private const int ChannelTicks = 30;
+    private static readonly AbilityDef Channel = Def("test.channel", ChannelTicks, GcdTicks, new EffectOp[] { new DamageOp(5, "fire") });
+    private static readonly AbilityDef Mending =Def("test.mending", 80, 0, new EffectOp[] { new HealOp(50) }, interruptible: true);
 
     [Fact]
     public void A_zero_gcd_interrupt_pressed_during_an_active_gcd_lands_on_that_tick()
@@ -88,9 +91,99 @@ public sealed class ZeroGcdOffGcdTests
         Assert.Equal(cantor.Id, kick.TargetId);
     }
 
+    [Fact]
+    public void A_zero_gcd_instant_pressed_during_its_own_cast_is_refused_and_the_cast_completes()
+    {
+        var (state, rules) = Arena();
+        var kicker = state.Actors[KickerId];
+        var events = new List<SimEvent>();
+        Tick(state, rules, new Command[] { new CastCommand(0, KickerId, Channel.Id, CantorId), new CastCommand(0, CantorId, Mending.Id, KickerId) }, events.Add);
+        Assert.Equal(Channel.Id, kicker.CastId);
+
+        Tick(state, rules, new Command[] { new CastCommand(1, KickerId, Quench.Id, CantorId) }, events.Add);
+
+        Assert.DoesNotContain(events, e => e.Type == "interrupt");
+        Assert.DoesNotContain(events, e => e.Type == "cast_stopped");
+        Assert.Equal(Mending.Id, state.Actors[CantorId].CastId);
+        Assert.Equal(Channel.Id, kicker.CastId); // the press did not replace the cast under way
+        while (state.Tick <= ChannelTicks)
+        {
+            Tick(state, rules, System.Array.Empty<Command>(), events.Add);
+        }
+        Assert.Contains(events, e => e.Type == "cast_complete" && e.Tick == ChannelTicks && ((JsString)e.Get("abilityId")!).Value == Channel.Id);
+        Assert.DoesNotContain(events, e => e.Type == "cast_stopped");
+    }
+
+    [Fact]
+    public void An_on_gcd_ability_pressed_after_the_gcd_but_during_its_own_cast_is_refused()
+    {
+        var (state, rules) = Arena();
+        var kicker = state.Actors[KickerId];
+        var events = new List<SimEvent>();
+        Tick(state, rules, new Command[] { new CastCommand(0, KickerId, Channel.Id, CantorId) }, events.Add);
+        while (state.Tick < GcdTicks + 1)
+        {
+            Tick(state, rules, System.Array.Empty<Command>(), events.Add);
+        }
+        Assert.True(kicker.GcdReadyTick <= state.Tick, "the GCD is over; only the cast under way blocks");
+
+        Tick(state, rules, new Command[] { new CastCommand(state.Tick, KickerId, Bolt.Id, CantorId) }, events.Add);
+
+        Assert.Equal(Channel.Id, kicker.CastId);
+        Assert.DoesNotContain(events, e => e.Type == "cast_complete" && ((JsString)e.Get("abilityId")!).Value == Bolt.Id);
+    }
+
+    [Fact]
+    public void Bot_readiness_says_not_ready_while_the_bot_is_casting()
+    {
+        var kit = RealContent.Kits.GetClassKit("cinder")!;
+        var effective = EffectiveKit.FromClassKit(kit);
+        var self = BotTestKit.MakeActor(id: 3, classId: "cinder", castId: kit.Rotation[0]);
+        self.GcdReadyTick = 0;
+        Assert.False(Readiness.AbilityReady(self, "cinder.quench", 100, effective));
+        Assert.False(Readiness.AbilityReady(self, kit.Rotation[1], 100, effective));
+        Assert.False(Readiness.AbilityReady(self, kit.Rotation[1], 100));
+        self.CastId = null;
+        Assert.True(Readiness.AbilityReady(self, "cinder.quench", 100, effective));
+    }
+
+    [Fact]
+    public void The_kick_ledger_never_assigns_a_kicker_who_is_casting()
+    {
+        var cinder = BotTestKit.MakeActor(id: 3, classId: "cinder", castId: RealContent.Kits.GetClassKit("cinder")!.Rotation[0]);
+        var cantor = BotTestKit.MakeActor(id: 9, kind: ActorKind.Enemy, classId: "choir.cantor", role: ActorRole.None, castId: "choir.healCast");
+        cantor.CastStartTick = 95;
+        cantor.CastEndsTick = 175;
+        var view = BotTestKit.View(BotTestKit.MakeState(100, cinder, cantor)) with { Kits = RealContent.Kits };
+
+        Assert.Null(RoleShared.LedgerKickCommand(view, cinder, RoleShared.KitOf(view, "cinder")));
+    }
+
+    [Fact]
+    public void A_facet_that_zeroes_an_abilitys_gcd_makes_bot_readiness_treat_it_off_the_gcd()
+    {
+        var baseKit = RealContent.Kits.GetClassKit("cinder")!;
+        var rot = baseKit.Rotation[0];
+        Assert.DoesNotContain(rot, baseKit.OffGcdAbilityIds);
+        var run = new Dictionary<string, AbilityDef>
+        {
+            [rot] = new GearPatch { GcdTicks = 0 }.ApplyTo(Def(rot, 0, GcdTicks, new EffectOp[] { new DamageOp(5, "fire") })),
+            ["cinder.quench"] = Def("cinder.quench", 0, GcdTicks, new EffectOp[] { new InterruptOp() }),
+        };
+
+        var kit = RealContent.Kits.ForRun(run).ResolveKit("cinder", ClassKitView.Empty);
+
+        Assert.Contains(rot, kit.OffGcdAbilityIds);
+        Assert.DoesNotContain("cinder.quench", kit.OffGcdAbilityIds); // the run's def is authoritative both ways
+        var self = BotTestKit.MakeActor(id: 3, classId: "cinder");
+        self.GcdReadyTick = 110;
+        Assert.True(Readiness.AbilityReady(self, rot, 100, kit));
+        Assert.False(Readiness.AbilityReady(self, "cinder.quench", 100, kit));
+    }
+
     private static (SimState State, StepRules Rules) Arena()
     {
-        var abilities = new Dictionary<string, AbilityDef> { [Quench.Id] = Quench, [Bolt.Id] = Bolt, [Mending.Id] = Mending };
+        var abilities = new Dictionary<string, AbilityDef> { [Quench.Id] = Quench, [Bolt.Id] = Bolt, [Mending.Id] = Mending, [Channel.Id] = Channel };
         var rules = Rules.Make(new RulesConfig
         {
             Abilities = abilities,

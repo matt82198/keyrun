@@ -64,7 +64,8 @@ public static class Casting
     }
 
     /// <summary>
-    /// sim/combat/casting.ts:54-81 startCast. Checks in order: silenced (an active Hush pulse), not_ready,
+    /// sim/combat/casting.ts:54-81 startCast. Checks in order: silenced (an active Hush pulse), casting (a player
+    /// already mid-cast, <see cref="IsCastingPlayer"/>), not_ready,
     /// insufficient_resource, school_locked, then for a target shape target_required / invalid_target (missing or
     /// dead) / out_of_range. On success spends the cost, consumes a charge, starts the GCD, sets the cast fields and,
     /// when a target was given, the actor's target.
@@ -132,6 +133,10 @@ public static class Casting
         {
             return "silenced";
         }
+        if (IsCastingPlayer(actor))
+        {
+            return "casting";
+        }
         if (!Cooldowns.IsAbilityReady(actor, def, now))
         {
             return "not_ready";
@@ -161,6 +166,17 @@ public static class Casting
         }
         return null;
     }
+
+    /// <summary>
+    /// Finding f-80b5cf16 follow-up (orchestrator decision): a player's ability is never usable while that player is
+    /// already casting. A press mid-cast (a gcdTicks-0 instant included, now that it skips the GCD) is refused and the
+    /// cast under way continues: no silent replacement, no cast_stopped. Enemies are exempt: their scripts rely on a
+    /// later same-tick step taking the cast over (Scripts.CastHeldAt, the Hollow Warden's Lock loop). A cast ending on
+    /// this tick was already completed (and its CastId cleared) before commands run.
+    /// </summary>
+    /// <param name="actor">The caster.</param>
+    /// <returns>True when the press must be refused.</returns>
+    private static bool IsCastingPlayer(ActorState actor) => actor.Kind == ActorKind.Player && actor.CastId is not null;
 
     private static OverheatRule? OverheatRuleOf(CastContext? ctx, ActorState actor) =>
         ctx?.Overheat is { } rules && rules.TryGetValue(actor.ClassId, out var rule) ? rule : null;

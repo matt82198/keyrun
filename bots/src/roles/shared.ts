@@ -10,7 +10,7 @@
  * Usage: `import { abilityReady, readyAndAffordable, ledgerKickCommand, inLull } from "./shared.js"`
  */
 import type { ActorState, BotView, Command, Tick } from "../types.js";
-import { resolveInterrupt } from "../shared/ledger.js";
+import { resolveInterrupt, isCasting } from "../shared/ledger.js";
 import { resolveKit, priorityInterruptAbilityIds, type EffectiveKit } from "../kits.js";
 
 /**
@@ -33,9 +33,12 @@ export function isOffGcd(kit: Pick<EffectiveKit, "offGcdAbilityIds"> | undefined
   return kit?.offGcdAbilityIds?.includes(abilityId) ?? false;
 }
 
-/** Off cooldown and off the GCD; an ability in the kit's offGcdAbilityIds only waits for its own cooldown. */
+/**
+ * Not mid-cast (the sim refuses a press then), off cooldown and off the GCD; an ability in the kit's offGcdAbilityIds
+ * only waits for its own cooldown.
+ */
 export function abilityReady(self: ActorState, abilityId: string, tick: Tick, kit?: Pick<EffectiveKit, "offGcdAbilityIds">): boolean {
-  return (self.cooldowns[abilityId] ?? 0) <= tick && (isOffGcd(kit, abilityId) || self.gcdReadyTick <= tick);
+  return !isCasting(self, tick) && (self.cooldowns[abilityId] ?? 0) <= tick && (isOffGcd(kit, abilityId) || self.gcdReadyTick <= tick);
 }
 
 export function affordable(self: ActorState, abilityId: string, kit: EffectiveKit): boolean {

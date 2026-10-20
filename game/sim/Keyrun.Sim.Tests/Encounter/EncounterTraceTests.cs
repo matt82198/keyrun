@@ -211,9 +211,9 @@ public sealed class EncounterTraceTests
     // Merged with QUENCH-REFUND (main: k2 13, 12, 7, 0, 0, 1; k10 14, 13, 7, 0, 0, 2) and re-recorded on the merged
     // tree: the same tally of the merged traces gives the SLAM-TELEGRAPH rows below unchanged (it reproduces both
     // parents' rows from their own traces).
-    [InlineData("bots-hv-k2-s7", 10, 9, 7, 0, 1, 1)] // ZERO-GCD f-80b5cf16 re-record: was 12, 12 (measured by this replay); DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k2-s11", 10, 9, 7, 0, 1, 1)] // ZERO-GCD f-80b5cf16 re-record: was 12, 12 (measured by this replay); DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 15, 15, 7, 0, 0, 3)] // ZERO-GCD f-80b5cf16 re-record: was 16, 16 (measured by this replay)
+    [InlineData("bots-hv-k2-s7", 10, 10, 7, 0, 0, 0)] // NO-PRESS-MID-CAST re-record: was 10, 9, 7, 0, 1, 1 (measured by this replay); ZERO-GCD f-80b5cf16 re-record: was 12, 12 (measured by this replay); DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k2-s11", 10, 10, 7, 0, 0, 0)] // NO-PRESS-MID-CAST re-record: was 10, 9, 7, 0, 1, 1 (measured by this replay); ZERO-GCD f-80b5cf16 re-record: was 12, 12 (measured by this replay); DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k10-s7", 15, 14, 7, 0, 0, 3)] // NO-PRESS-MID-CAST re-record: was 15, 15 (measured by this replay); ZERO-GCD f-80b5cf16 re-record: was 16, 16 (measured by this replay)
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

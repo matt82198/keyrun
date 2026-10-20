@@ -72,6 +72,14 @@ export interface InterruptAssignment {
  * mixed-class party calls this once per distinct interrupt ability id present in the party (see
  * roles.ts's ledgerKickCommand).
  */
+/**
+ * True when `a` is mid-cast at `tick`: the sim refuses every press then (casting.ts startCast "casting"). A cast ending
+ * on `tick` completes before that tick's commands run, so it does not block. Mirrors Readiness.cs IsCasting.
+ */
+export function isCasting(a: ActorState, tick: Tick): boolean {
+  return a.castId !== null && (a.castEndsTick ?? Number.MAX_SAFE_INTEGER) > tick;
+}
+
 export function resolveInterrupt(
   actors: Record<ActorId, ActorState>,
   interruptAbilityId: string,
@@ -84,7 +92,7 @@ export function resolveInterrupt(
   if (targetId === null) return null;
   const ready = eligibleClassmates.filter((id) => {
     const a = actors[id];
-    return a && a.alive && (a.cooldowns[interruptAbilityId] ?? 0) <= tick && (interruptOffGcd || a.gcdReadyTick <= tick);
+    return a && a.alive && !isCasting(a, tick) && (a.cooldowns[interruptAbilityId] ?? 0) <= tick && (interruptOffGcd || a.gcdReadyTick <= tick);
   });
   const kickerId = selectKicker(ready);
   if (kickerId === null) return null;

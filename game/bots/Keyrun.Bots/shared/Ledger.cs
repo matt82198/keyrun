@@ -108,6 +108,7 @@ public static class Ledger
         var ready = eligibleClassmates.Where(id =>
             actors.TryGetValue(id, out var a)
             && a.Alive
+            && !Readiness.IsCasting(a, tick)
             && Readiness.CooldownReadyTick(a, interruptAbilityId) <= tick
             && (interruptOffGcd || a.GcdReadyTick <= tick)).ToList();
         var kickerId = SelectKicker(ready);

@@ -20,7 +20,7 @@ public static class Readiness
         return self.Cooldowns.TryGetValue(abilityId, out var ready) ? ready : 0;
     }
 
-    /// <summary>roles/shared.ts abilityReady: off cooldown and off the GCD at <paramref name="tick"/>.</summary>
+    /// <summary>roles/shared.ts abilityReady: not mid-cast, off cooldown and off the GCD at <paramref name="tick"/>.</summary>
     /// <param name="self">Actor.</param>
     /// <param name="abilityId">Ability.</param>
     /// <param name="tick">Current tick.</param>
@@ -59,9 +59,23 @@ public static class Readiness
         return false;
     }
 
+    /// <summary>
+    /// True when <paramref name="self"/> is mid-cast at <paramref name="tick"/>: the sim refuses every press then
+    /// (Casting.StartError "casting"). A cast ending on <paramref name="tick"/> completes before that tick's commands
+    /// run, so it does not block.
+    /// </summary>
+    /// <param name="self">Actor.</param>
+    /// <param name="tick">Current tick.</param>
+    /// <returns>True while a cast is under way.</returns>
+    public static bool IsCasting(ActorState self, int tick)
+    {
+        ArgumentNullException.ThrowIfNull(self);
+        return self.CastId is not null && (self.CastEndsTick ?? int.MaxValue) > tick;
+    }
+
     private static bool AbilityReady(ActorState self, string abilityId, int tick, bool offGcd)
     {
         ArgumentNullException.ThrowIfNull(self);
-        return CooldownReadyTick(self, abilityId) <= tick && (offGcd || self.GcdReadyTick <= tick);
+        return !IsCasting(self, tick) && CooldownReadyTick(self, abilityId) <= tick && (offGcd || self.GcdReadyTick <= tick);
     }
 }
