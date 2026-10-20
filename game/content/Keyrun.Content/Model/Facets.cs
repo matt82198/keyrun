@@ -92,4 +92,10 @@ public sealed record ContentRegistry
 
     /// <summary>The dungeon's rooms, corridors, triggers, gates and route (layout.json; C#-only, STATE.md D18).</summary>
     public required LayoutDef Layout { get; init; }
+
+    /// <summary>
+    /// Replacement effects by combo id (combo-riders.json; C#-only, BIBLE section 4 Anthem and Steam). Empty when a
+    /// registry is built by hand.
+    /// </summary>
+    public ValueMap<ComboRider> ComboRiders { get; init; } = new();
 }

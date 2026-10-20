@@ -104,3 +104,49 @@ public sealed record ComboOp : EffectOp
     /// <summary>ComboTable name, e.g. "combos".</summary>
     public required string ComboTable { get; init; }
 }
+
+/// <summary>
+/// <c>{"op":"partyEffect"}</c>: C#-only combo op (BIBLE section 4 Anthem) applying <see cref="EffectId"/> to every
+/// living party member of the Payoff actor. <see cref="ContentValidator"/> allows it only in combo-riders.json.
+/// </summary>
+public sealed record PartyEffectOp : EffectOp
+{
+    /// <summary>Id of an <see cref="EffectDef"/>.</summary>
+    public required string EffectId { get; init; }
+
+    /// <summary>Duration in sim ticks.</summary>
+    public required int DurationTicks { get; init; }
+
+    /// <summary>Stacks applied.</summary>
+    public required int Stacks { get; init; }
+}
+
+/// <summary>
+/// <c>{"op":"cloud"}</c>: C#-only combo op (BIBLE section 4 Steam) opening a floor cloud on the Window's carrier that
+/// gives <see cref="EffectId"/> to each enemy inside it while it lasts. Allowed only in combo-riders.json.
+/// </summary>
+public sealed record CloudOp : EffectOp
+{
+    /// <summary>Id of an <see cref="EffectDef"/>.</summary>
+    public required string EffectId { get; init; }
+
+    /// <summary>Cloud lifetime in sim ticks.</summary>
+    public required int DurationTicks { get; init; }
+
+    /// <summary>Cloud radius, mm.</summary>
+    public required int RadiusMm { get; init; }
+}
+
+/// <summary>
+/// One row of the C#-only game/content/data/combo-riders.json: the effects that replace those of combo <see cref="Id"/>
+/// when the host builds its ComboTables. It exists because content/data/combos.json is a frozen oracle root and
+/// cannot carry the BIBLE section 4 party and cloud effects; oracle runs read their own setup and never see a rider.
+/// </summary>
+public sealed record ComboRider : IContentItem
+{
+    /// <summary>Id of the combo (combos.json) whose effects this replaces.</summary>
+    public required string Id { get; init; }
+
+    /// <summary>The replacement effects.</summary>
+    public required ValueList<EffectOp> Effects { get; init; }
+}
