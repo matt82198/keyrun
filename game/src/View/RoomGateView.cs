@@ -24,6 +24,10 @@ namespace Keyrun.View;
 /// sight lines (camera to pivot and to each living party body) to <see cref="CutAway"/>; a shut gate whose
 /// <see cref="BoxOf"/> box one of them crosses (<see cref="CameraBoom.Occluding"/>, the walls' rule) is hidden
 /// (<c>Visible</c> false) for that frame and shown again the frame it is clear, so a gate behind the party stays in view.
+/// Foreground (GATE-FOREGROUND): a shut gate whose screen rect (its box projected through the viewport camera) overlaps
+/// the ability bar footprint (<see cref="Keyrun.Hud.AbilityBar.Footprint"/>), or holds a party body it stands nearer the
+/// camera than, is cut the same way: a camera behind the doorway (the Choir entry) sees over the gate, which would
+/// otherwise fill the bottom of the screen under the bar. The probe adds <c>scr=</c>, <c>bar=</c> and <c>party=</c>.
 /// The probe line adds <c>cut=</c> (shut gates not visible), <c>cam=</c> and <c>at=</c> (the last sight lines, mm) for
 /// <c>game/src/Host/GateCutawaySceneTest.ps1</c>.
 /// </summary>
@@ -47,6 +51,9 @@ public partial class RoomGateView : Node3D
     private readonly Dictionary<string, Node3D> _shut = new(StringComparer.Ordinal);
     private readonly Dictionary<string, WallBox> _boxes = new(StringComparer.Ordinal);
     private readonly List<(int X, int Y, int Z)> _sightTo = new();
+    private readonly Dictionary<string, (int X0, int Y0, int X1, int Y1, int Near)?> _screen = new(StringComparer.Ordinal);
+    private readonly List<(int X, int Y, int Depth)> _partyScreen = new();
+    private (int X0, int Y0, int X1, int Y1)? _bar;
     private (int X, int Y, int Z)? _sightFrom;
     private StandardMaterial3D? _iron;
 
@@ -123,6 +130,7 @@ public partial class RoomGateView : Node3D
         _sightFrom = from;
         _sightTo.Clear();
         _sightTo.AddRange(targets);
+        ProjectHud();
         foreach (var room in _shut.Keys)
         {
             ApplyCut(room);
@@ -148,15 +156,131 @@ public partial class RoomGateView : Node3D
                 }
             }
         }
+        var screen = ScreenOf(box);
+        _screen[room] = screen;
+        if (screen is { } r && InForeground(r))
+        {
+            hidden = true;
+        }
         node.Visible = !hidden;
     }
+
+    // GATE-FOREGROUND: the ability bar footprint and the sight targets (party bodies) projected through the viewport
+    // camera this frame, px (rounded), the targets with their view depth, mm; a target behind the camera is left out.
+    private void ProjectHud()
+    {
+        _bar = null;
+        _partyScreen.Clear();
+        var viewport = GetViewport();
+        if (viewport?.GetCamera3D() is not { } camera)
+        {
+            return;
+        }
+        var bar = Keyrun.Hud.AbilityBar.Footprint(viewport.GetVisibleRect().Size, (Driver?.Setup?.Slots.Count ?? 0) + 1);
+        _bar = (Mathf.RoundToInt(bar.Position.X), Mathf.RoundToInt(bar.Position.Y), Mathf.RoundToInt(bar.End.X), Mathf.RoundToInt(bar.End.Y));
+        foreach (var t in _sightTo)
+        {
+            var p = new Vector3(t.X * MmToM, t.Y * MmToM, t.Z * MmToM);
+            if (camera.IsPositionBehind(p))
+            {
+                continue;
+            }
+            var s = camera.UnprojectPosition(p);
+            _partyScreen.Add((Mathf.RoundToInt(s.X), Mathf.RoundToInt(s.Y), DepthMm(camera, p)));
+        }
+    }
+
+    // The screen rect of a gate box through the viewport camera (its 8 corners projected, px, rounded) and its nearest
+    // corner's view depth, mm. A box straddling the camera plane is the whole screen at depth 0; one wholly behind the
+    // camera is not on screen (null).
+    private (int X0, int Y0, int X1, int Y1, int Near)? ScreenOf(WallBox b)
+    {
+        var viewport = GetViewport();
+        if (viewport?.GetCamera3D() is not { } camera)
+        {
+            return null;
+        }
+        float x0 = float.MaxValue, y0 = float.MaxValue, x1 = float.MinValue, y1 = float.MinValue;
+        var near = int.MaxValue;
+        var behind = 0;
+        foreach (var cx in new[] { b.MinX, b.MaxX })
+        {
+            foreach (var cy in new[] { b.MinY, b.MaxY })
+            {
+                foreach (var cz in new[] { b.MinZ, b.MaxZ })
+                {
+                    var p = new Vector3(cx * MmToM, cy * MmToM, cz * MmToM);
+                    near = Math.Min(near, DepthMm(camera, p));
+                    if (camera.IsPositionBehind(p))
+                    {
+                        behind++;
+                        continue;
+                    }
+                    var s = camera.UnprojectPosition(p);
+                    x0 = Math.Min(x0, s.X);
+                    y0 = Math.Min(y0, s.Y);
+                    x1 = Math.Max(x1, s.X);
+                    y1 = Math.Max(y1, s.Y);
+                }
+            }
+        }
+        if (behind == 8)
+        {
+            return null;
+        }
+        if (behind > 0)
+        {
+            var size = viewport.GetVisibleRect().Size;
+            return (0, 0, Mathf.RoundToInt(size.X), Mathf.RoundToInt(size.Y), 0);
+        }
+        return (Mathf.RoundToInt(x0), Mathf.RoundToInt(y0), Mathf.RoundToInt(x1), Mathf.RoundToInt(y1), near);
+    }
+
+    // A gate in the foreground (GATE-FOREGROUND): its screen rect overlaps the ability bar footprint, or holds a party
+    // body it is nearer the camera than. Such a gate is cut for the frame like one a sight line crosses.
+    private bool InForeground((int X0, int Y0, int X1, int Y1, int Near) r)
+    {
+        if (_bar is { } bar && r.X0 < bar.X1 && r.X1 > bar.X0 && r.Y0 < bar.Y1 && r.Y1 > bar.Y0)
+        {
+            return true;
+        }
+        foreach (var q in _partyScreen)
+        {
+            if (q.X >= r.X0 && q.X <= r.X1 && q.Y >= r.Y0 && q.Y <= r.Y1 && r.Near < q.Depth)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int DepthMm(Camera3D camera, Vector3 p) =>
+        Mathf.RoundToInt((p - camera.GlobalPosition).Dot(-camera.GlobalBasis.Z) / MmToM);
 
     private string ProbeSight()
     {
         var cut = _shut.Where(kv => !kv.Value.Visible).Select(kv => kv.Key).OrderBy(r => r, StringComparer.Ordinal).ToList();
         var cam = _sightFrom is { } f ? FormattableString.Invariant($"({f.X},{f.Y},{f.Z})") : "(0,0,0)";
         var at = _sightTo.Count == 0 ? "none" : string.Join(";", _sightTo.Select(t => FormattableString.Invariant($"({t.X},{t.Y},{t.Z})")));
-        return $"cut={(cut.Count == 0 ? "none" : string.Join(",", cut))} cam={cam} at={at}";
+        return $"cut={(cut.Count == 0 ? "none" : string.Join(",", cut))} cam={cam} at={at} {ProbeScreen()}";
+    }
+
+    // GATE-FOREGROUND proof fields (stdout only), exactly what the last cut decided on: scr= every shut gate on screen
+    // with its rect and nearest view depth (cut or drawn; cut= says which), bar= the ability bar footprint, party= each
+    // sight target on screen with its view depth.
+    private string ProbeScreen()
+    {
+        var rects = _shut.Keys.OrderBy(r => r, StringComparer.Ordinal)
+            .Where(r => _screen.TryGetValue(r, out var s) && s is not null)
+            .Select(r =>
+            {
+                var s = _screen[r]!.Value;
+                return FormattableString.Invariant($"{r}:({s.X0},{s.Y0},{s.X1},{s.Y1},{s.Near})");
+            })
+            .ToList();
+        var bar = _bar is { } b ? FormattableString.Invariant($"({b.X0},{b.Y0},{b.X1},{b.Y1})") : "none";
+        var party = _partyScreen.Count == 0 ? "none" : string.Join(";", _partyScreen.Select(q => FormattableString.Invariant($"({q.X},{q.Y},{q.Depth})")));
+        return $"scr={(rects.Count == 0 ? "none" : string.Join(";", rects))} bar={bar} party={party}";
     }
 
     /// <inheritdoc />
@@ -262,6 +386,7 @@ public partial class RoomGateView : Node3D
     private bool Remove(string room)
     {
         _boxes.Remove(room);
+        _screen.Remove(room);
         if (!_shut.Remove(room, out var node))
         {
             return false;
