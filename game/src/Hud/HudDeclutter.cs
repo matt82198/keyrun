@@ -36,12 +36,14 @@ public static class HudDeclutter
     /// </summary>
     /// <param name="e">One sim event of the step.</param>
     /// <param name="humanActorId">The played character's actor id.</param>
+    /// <param name="sourceId">The hitting actor (the event's sourceId).</param>
     /// <param name="targetId">The hit actor.</param>
     /// <param name="amount">The number to show.</param>
     /// <returns>True when a number is shown.</returns>
-    public static bool WorldDamageNumber(SimEvent e, int humanActorId, out int targetId, out long amount)
+    public static bool WorldDamageNumber(SimEvent e, int humanActorId, out int sourceId, out int targetId, out long amount)
     {
         ArgumentNullException.ThrowIfNull(e);
+        sourceId = e.Get("sourceId") is JsInt s ? (int)s.Value : 0;
         targetId = 0;
         amount = 0;
         if (e.Type != "damage" || e.Get("sourceId") is not JsInt source || source.Value != humanActorId ||

@@ -107,13 +107,13 @@ public partial class CombatText : Control
         var human = _driver.Setup?.HumanActorId ?? SimDriver.WardenId;
         foreach (var e in events)
         {
-            if (!HudDeclutter.WorldDamageNumber(e, human, out var targetId, out var amount))
+            if (!HudDeclutter.WorldDamageNumber(e, human, out var sourceId, out var targetId, out var amount))
             {
                 continue;
             }
             var world = _driver.State.Actors.TryGetValue(targetId, out var target) ? ActorView.ToMetres(target.Pos) : Vector3.Zero;
             _numbers.Add(new Number(targetId, amount, world));
-            HudNodes.Proof(_driver, FormattableString.Invariant($"HUD fct source={human} target={targetId} amount={amount}"));
+            HudNodes.Proof(_driver, FormattableString.Invariant($"HUD fct source={sourceId} target={targetId} amount={amount}"));
         }
     }
 
