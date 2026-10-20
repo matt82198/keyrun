@@ -58,20 +58,11 @@ internal static class EncounterTestKit
     public static EncounterState BaseEncounter(int slack = 0, int par = 0, int keyLevel = 1) =>
         EncounterState.Create(keyLevel, par, Clauses.DefaultEncounterRules(keyLevel)) with { SlackTicks = slack };
 
-    /// <summary>Repo root (the directory holding content/data), found by walking up from the oracle fixtures.</summary>
-    public static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(OracleFixtures.Directory);
-        while (dir is not null)
-        {
-            if (Directory.Exists(Path.Combine(dir.FullName, "content", "data", "enemies")))
-            {
-                return dir.FullName;
-            }
-            dir = dir.Parent;
-        }
-        throw new DirectoryNotFoundException("content/data/enemies not found above " + OracleFixtures.Directory);
-    }
+    /// <summary>
+    /// Repo root (the directory holding content/data and game/content/data), found by walking up from the oracle
+    /// fixtures through <see cref="ContentRoots.RepoRootAbove"/>, so a game/content/data/enemies folder cannot capture it.
+    /// </summary>
+    public static string RepoRoot() => ContentRoots.RepoRootAbove(OracleFixtures.Directory);
 
     /// <summary>A setup fixture parsed as a JsObject.</summary>
     public static JsObject Setup(string fileName) =>
