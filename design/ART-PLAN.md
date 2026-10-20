@@ -34,7 +34,7 @@ seed 1, Warden plus Cinder and Chanter bots), window 1280x720 titled "Keyrun (DE
   as floor labels (game-016). The Lock and the Window rings read as more rings of the same kind.
 - Camera: third person behind and above the Warden (CameraRig.cs:21 Distance 7.5 m, :25 pivot 1.4 m), so the
   Warden's capsule fills the lower centre of every frame and partly hides the fight.
-- HUD (works, stays): top help line; pull banner "Pull N/4 <name> - <teaches>" with the objective line; Slack bar
+- HUD (works, stays): top help line; pull banner "Pull N/4 <name>" with the objective line (the content teaches note is designer intent, not shown); Slack bar
   with timer and par ("Slack 31.0s +2 0:11 / par 12:00"); party frames with status chips (BRACED, HOT); Warden
   health and Momentum bars; ten-slot ability bar with cooldown numbers; run-end panel "Run cleared -- within par"
   with the choice of three and the private "What got you" log (game-024-t092s).
