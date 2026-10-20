@@ -39,15 +39,20 @@ public sealed class ProgressionStore
         {
             WarnOnce(error);
         }
+        Talents = loaded.Talents;
         return loaded.Progression;
     }
 
-    /// <summary>Saves <paramref name="progression"/>; a failure is warned once and the run carries on.</summary>
+    /// <summary>The talent picks the last <see cref="Load"/> read (BIBLE s6), or none before a load.</summary>
+    public SavedTalents Talents { get; private set; } = SavedTalents.None;
+
+    /// <summary>Saves <paramref name="progression"/> and the talent picks; a failure is warned once and the run carries on.</summary>
     /// <param name="progression">The progression to bank.</param>
+    /// <param name="talents">The talent picks per class to keep with it, or null for none.</param>
     /// <returns>True when it was written.</returns>
-    public bool Save(Progression progression)
+    public bool Save(Progression progression, SavedTalents? talents = null)
     {
-        var error = ProgressionSave.SaveFile(FilePath, progression);
+        var error = ProgressionSave.SaveFile(FilePath, progression, talents);
         if (error is null)
         {
             return true;

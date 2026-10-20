@@ -11,11 +11,67 @@ namespace Keyrun.Sim.Runs;
 /// <summary>A loaded progression and, when the save could not be used, why.</summary>
 /// <param name="Progression">The progression: the saved one, or a fresh character when there was none or it was bad.</param>
 /// <param name="Error">Why the save was not used, or null when it loaded (or there simply was no save).</param>
-public sealed record ProgressionLoad(Progression Progression, string? Error);
+public sealed record ProgressionLoad(Progression Progression, string? Error)
+{
+    /// <summary>The saved talent picks (<see cref="SavedTalents.None"/> for no save, an old save or a bad one).</summary>
+    public SavedTalents Talents { get; init; } = SavedTalents.None;
+}
+
+/// <summary>
+/// The talent picks kept in the progression save (BIBLE s6: the talents are the player's build, so a restart must not
+/// reset them): per class id, forked ability id to picked option id. Plain ids only, because the sim never sees a
+/// ClassDef; the host turns them back into a TalentPicks (see <see cref="TalentRestore"/>). Immutable; a class with
+/// no picks is simply absent.
+/// </summary>
+public sealed record SavedTalents
+{
+    private static readonly IReadOnlyDictionary<string, string> NoChoices = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    private SavedTalents(IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> classes)
+    {
+        Classes = classes;
+    }
+
+    /// <summary>No picks for any class.</summary>
+    public static SavedTalents None { get; } = new(new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal));
+
+    /// <summary>Class id to that class's picks (forked ability id to option id); only classes with a pick.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Classes { get; }
+
+    /// <summary>Number of classes with at least one pick.</summary>
+    public int Count => Classes.Count;
+
+    /// <summary>The picks of <paramref name="classId"/>, empty when it has none.</summary>
+    /// <param name="classId">The class id.</param>
+    /// <returns>Forked ability id to option id.</returns>
+    public IReadOnlyDictionary<string, string> For(string classId) =>
+        Classes.TryGetValue(classId, out var c) ? c : NoChoices;
+
+    /// <summary>These picks with <paramref name="classId"/>'s replaced by <paramref name="choices"/>; empty removes it.</summary>
+    /// <param name="classId">The class id.</param>
+    /// <param name="choices">Forked ability id to option id.</param>
+    /// <returns>The new picks.</returns>
+    public SavedTalents With(string classId, IReadOnlyDictionary<string, string> choices)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(classId);
+        ArgumentNullException.ThrowIfNull(choices);
+        var next = new Dictionary<string, IReadOnlyDictionary<string, string>>(Classes, StringComparer.Ordinal);
+        if (choices.Count == 0)
+        {
+            next.Remove(classId);
+        }
+        else
+        {
+            next[classId] = new Dictionary<string, string>(choices, StringComparer.Ordinal);
+        }
+        return new SavedTalents(next);
+    }
+}
 
 /// <summary>
 /// Persists the character's banked progression across runs (BIBLE s7 "Every run banks Ash, win or lose"; the gear the
-/// end-of-run choice equips): Ash total, runs, the five gear slots, the crafting PRNG and the "since last run" delta.
+/// end-of-run choice equips): Ash total, runs, the five gear slots, the crafting PRNG and the "since last run" delta,
+/// plus the talent picks per class (BIBLE s6, <see cref="SavedTalents"/>, in the versioned optional <c>talents</c> field).
 /// The codec is pure and deterministic (canonical JSON, slots in <see cref="Rewards.GearSlots"/> order), so the same
 /// progression always writes the same text. Loading never throws: a missing save is a fresh character, and a corrupt
 /// one is a fresh character plus the reason, so a bad file can never block or crash a run.
@@ -30,10 +86,18 @@ public static class ProgressionSave
 
     private static readonly UTF8Encoding Utf8NoBom = new(false);
 
-    /// <summary>The canonical JSON text of <paramref name="progression"/>.</summary>
+    /// <summary>
+    /// The version of the save's optional <c>talents</c> field. It is versioned on its own so that adding it did not
+    /// change <see cref="Version"/>: a save written before the field existed is still a valid version-1 save (it loads
+    /// with no picks), and a save with no picks is byte-identical to one from before the field.
+    /// </summary>
+    public const int TalentsVersion = 1;
+
+    /// <summary>The canonical JSON text of <paramref name="progression"/> and the talent picks.</summary>
     /// <param name="progression">The progression.</param>
+    /// <param name="talents">The talent picks per class, or null for none; with none no <c>talents</c> field is written.</param>
     /// <returns>The text.</returns>
-    public static string Serialize(Progression progression)
+    public static string Serialize(Progression progression, SavedTalents? talents = null)
     {
         ArgumentNullException.ThrowIfNull(progression);
         var p = progression.Prng;
@@ -47,14 +111,27 @@ public static class ProgressionSave
                 ("taken", d.Taken is { } t ? ItemJs(t) : JsValue.Null),
                 ("was", d.PreviousTier is { } w ? JsValue.Int(w) : JsValue.Null))
             : JsValue.Null;
-        return JsValue.Obj(
+        var members = new List<(string, JsValue)>
+        {
             ("v", JsValue.Int(Version)),
             ("ash", JsValue.Int(progression.AshTotal)),
             ("runs", JsValue.Int(progression.Runs)),
             ("prng", JsValue.Arr(JsValue.Int(p.S0), JsValue.Int(p.S1), JsValue.Int(p.S2), JsValue.Int(p.S3))),
             ("equipped", JsValue.Arr(equipped)),
-            ("last", last)).ToCanonicalJson();
+            ("last", last),
+        };
+        if (talents is { Count: > 0 })
+        {
+            members.Add(("talents", TalentsJs(talents)));
+        }
+        return JsValue.Obj(members.ToArray()).ToCanonicalJson();
     }
+
+    private static JsObject TalentsJs(SavedTalents talents) => JsValue.Obj(
+        ("v", JsValue.Int(TalentsVersion)),
+        ("classes", JsValue.Obj(talents.Classes.Select(c => new KeyValuePair<string, JsValue>(
+            c.Key,
+            JsValue.Obj(c.Value.Select(kv => new KeyValuePair<string, JsValue>(kv.Key, JsValue.Str(kv.Value)))))))));
 
     /// <summary>
     /// Loads a progression from save text. Null text (no save yet) is a fresh character with no error; text that is
@@ -71,7 +148,8 @@ public static class ProgressionSave
         }
         try
         {
-            return new ProgressionLoad(Parse(text), null);
+            var (progression, talents) = Parse(text);
+            return new ProgressionLoad(progression, null) { Talents = talents };
         }
         catch (Exception e)
         {
@@ -106,8 +184,9 @@ public static class ProgressionSave
     /// </summary>
     /// <param name="path">The save file.</param>
     /// <param name="progression">The progression.</param>
+    /// <param name="talents">The talent picks per class to keep with it, or null for none.</param>
     /// <returns>Null on success, else why it was not saved.</returns>
-    public static string? SaveFile(string path, Progression progression)
+    public static string? SaveFile(string path, Progression progression, SavedTalents? talents = null)
     {
         var temp = path + ".tmp";
         try
@@ -117,7 +196,7 @@ public static class ProgressionSave
             {
                 Directory.CreateDirectory(dir);
             }
-            File.WriteAllText(temp, Serialize(progression), Utf8NoBom);
+            File.WriteAllText(temp, Serialize(progression, talents), Utf8NoBom);
             PreserveIfUnreadable(path);
             File.Move(temp, path, overwrite: true);
             return null;
@@ -189,7 +268,7 @@ public static class ProgressionSave
             ("text", JsValue.Str(item.Facet.Text)),
             ("ability", JsValue.Str(item.Facet.AbilityId)))));
 
-    private static Progression Parse(string text)
+    private static (Progression Progression, SavedTalents Talents) Parse(string text)
     {
         if (JsValue.Parse(text) is not JsObject root)
         {
@@ -227,7 +306,7 @@ public static class ProgressionSave
                 throw new FormatException($"slot \"{item.Slot}\" equipped twice");
             }
         }
-        return new Progression
+        var progression = new Progression
         {
             AshTotal = ash,
             Runs = (int)runs,
@@ -235,6 +314,47 @@ public static class ProgressionSave
             Equipped = equipped,
             LastRun = ParseDelta(root.Get("last") ?? throw new FormatException("missing \"last\"")),
         };
+        return (progression, root.Get("talents") is { } t ? ParseTalents(t) : SavedTalents.None);
+    }
+
+    // The optional talents field: {"v":TalentsVersion,"classes":{classId:{abilityId:optionId}}}. Absent (a save from
+    // before the field) is no picks. Anything else this build cannot read throws, so the whole save is unreadable and
+    // SaveFile moves it aside instead of writing a build without the player's picks over it. Whether each id still
+    // exists in the content is not checked here (the sim has no ClassDef); TalentRestore drops stale ones on load.
+    private static SavedTalents ParseTalents(JsValue v)
+    {
+        if (v is not JsObject o)
+        {
+            throw new FormatException("\"talents\" must be an object");
+        }
+        var version = Int(o, "v");
+        if (version != TalentsVersion)
+        {
+            throw new FormatException($"talents version {version}, this build reads {TalentsVersion}");
+        }
+        if (o.Get("classes") is not JsObject classes)
+        {
+            throw new FormatException("\"talents.classes\" must be an object");
+        }
+        var talents = SavedTalents.None;
+        foreach (var (classId, picks) in classes.Members)
+        {
+            if (classId.Length == 0 || picks is not JsObject p)
+            {
+                throw new FormatException("talents: each class must be a non-empty id mapped to an object");
+            }
+            var choices = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (abilityId, option) in p.Members)
+            {
+                if (abilityId.Length == 0 || option is not JsString { Value.Length: > 0 } s)
+                {
+                    throw new FormatException($"talents: class \"{classId}\" picks must map ability ids to option ids");
+                }
+                choices[abilityId] = s.Value;
+            }
+            talents = talents.With(classId, choices);
+        }
+        return talents;
     }
 
     private static RunDelta? ParseDelta(JsValue v)

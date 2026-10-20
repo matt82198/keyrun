@@ -31,8 +31,10 @@ namespace Keyrun.Hud;
 /// <see cref="TalentPicks.Resolve"/>, converted to sim AbilityDefs by the host's own content conversion
 /// (<see cref="HostRunSetup.Build"/>), and queued on the <see cref="QueueRequest"/> as the human's loadout, which
 /// <see cref="QueueRequest.ToRunOptions"/> passes to the run as RunOptions.Loadouts. The panel's <c>applied=</c> count is
-/// the number of talented abilities the next Queue hands over. The build lives only in this node (it is not saved
-/// across restarts).</para>
+/// the number of talented abilities the next Queue hands over. The build survives a restart (lane TALENT-SAVE): every
+/// pick and respec is saved with the progression (<see cref="SavedTalents"/>, per class), and the first open after a
+/// load restores the saved picks into the panel through <see cref="TalentRestore"/>, which drops (and logs) a pick the
+/// content no longer has; the restored build is what the next Queue hands the run, keyed by HumanActorId as above.</para>
 /// </summary>
 public partial class Screen : Control
 {
@@ -73,6 +75,7 @@ public partial class Screen : Control
     private int _autorunWait;
     private string _status = string.Empty;
     private Keyrun.Content.TalentPicks? _talents;
+    private SavedTalents _savedTalents = SavedTalents.None;
 
     /// <summary>The human's talent build, or null before the first open (or with no content).</summary>
     public Keyrun.Content.TalentPicks? Talents => _talents;
@@ -250,6 +253,7 @@ public partial class Screen : Control
         var f = _talents.Forks[fork];
         Proof(FormattableString.Invariant(
             $"SCREEN talent pick fork={fork + 1} ability={f.AbilityId} option={f.Options[option].Id} picks={_talents.Count}"));
+        SaveTalents();
     }
 
     /// <summary>Clears every talent pick for free (BIBLE s6 "Respec is free on the screen, always"): Ash is untouched.</summary>
@@ -262,7 +266,50 @@ public partial class Screen : Control
         var ash = _progression.AshTotal;
         _talents = picks.Respec();
         Proof(FormattableString.Invariant($"SCREEN talent respec picks={_talents.Count} ash={ash} ash_after={_progression.AshTotal}"));
+        SaveTalents();
     }
+
+    // BIBLE s6 (lane TALENT-SAVE): the build is the player's, so each change is kept in the progression save at once,
+    // under the class it belongs to; other classes' saved picks are carried along untouched.
+    private void SaveTalents()
+    {
+        if (_talents is not { } picks)
+        {
+            return;
+        }
+        _savedTalents = _savedTalents.With(picks.ClassId, picks.Choices);
+        SaveProgression("talent");
+    }
+
+    // The first build of a launch: the class's empty build with its saved picks restored. A saved pick whose fork or
+    // option the content no longer has is dropped with one line each (TalentRestore); the line after them is the
+    // restored count and the applied= count of the loadout the next Queue would hand the run.
+    private Keyrun.Content.TalentPicks RestoreTalents(Keyrun.Content.ClassDef cls)
+    {
+        var picks = Keyrun.Content.TalentPicks.Start(cls);
+        var forks = picks.Forks.Select(f => new TalentForkIds(f.AbilityId, f.Options.Select(o => o.Id).ToList())).ToList();
+        var restore = TalentRestore.Match(_savedTalents.For(cls.Id), forks);
+        foreach (var (fork, option) in restore.Picks)
+        {
+            picks = picks.Pick(fork, option);
+        }
+        if (_store is null)
+        {
+            return picks;
+        }
+        foreach (var line in restore.Dropped)
+        {
+            Proof($"SCREEN talents dropped class={cls.Id} {line}");
+            GD.PushWarning($"PROGRESSION talent pick dropped: class={cls.Id} {line}");
+        }
+        _talents = picks;
+        Proof(FormattableString.Invariant(
+            $"SCREEN talents restored class={cls.Id} picks={picks.Count} dropped={restore.Dropped.Count} applied={AppliedCount(TalentLoadouts())} choices={ChoicesText(picks)}"));
+        return picks;
+    }
+
+    private static string ChoicesText(Keyrun.Content.TalentPicks picks) =>
+        picks.Count == 0 ? "none" : string.Join(",", picks.Choices.Select(kv => $"{kv.Key}:{kv.Value}"));
 
     /// <summary>The human class's display name (the talent panel's title).</summary>
     /// <returns>The name.</returns>
@@ -310,7 +357,7 @@ public partial class Screen : Control
         _status = string.Empty;
         if (_talents is null && _driver?.Registry is { } talentReg && talentReg.Classes.TryGetValue(SimDriver.HumanClassId, out var talentClass))
         {
-            _talents = Keyrun.Content.TalentPicks.Start(talentClass);
+            _talents = RestoreTalents(talentClass);
         }
         IsOpen = true;
         MouseFilter = MouseFilterEnum.Stop;
@@ -629,6 +676,7 @@ public partial class Screen : Control
         }
         _store = new ProgressionStore(dir);
         _progression = _store.Load(seed);
+        _savedTalents = _store.Talents;
         Proof(FormattableString.Invariant(
             $"SCREEN progression load store=1 ash={_progression.AshTotal} runs={_progression.Runs} items={EquippedText()} path=\"{_store.FilePath}\""));
     }
@@ -639,7 +687,7 @@ public partial class Screen : Control
         {
             return;
         }
-        var ok = _store.Save(_progression);
+        var ok = _store.Save(_progression, _savedTalents);
         Proof(FormattableString.Invariant(
             $"SCREEN progression save reason={reason} ok={(ok ? 1 : 0)} ash={_progression.AshTotal} runs={_progression.Runs} items={EquippedText()}"));
     }

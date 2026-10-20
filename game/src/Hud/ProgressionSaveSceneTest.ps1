@@ -24,6 +24,14 @@
   Before PROGRESSION-SAVE Screen calls Progression.Start every launch and never saves: no "SCREEN progression" line
   exists and launch 2 opens at ash=30 runs=1 (RED).
 
+  Talent picks (lane TALENT-SAVE, BIBLE s6: the talents are the player's build, so a restart must not reset them):
+      7. launch 1 opens with "SCREEN talents restored class=warden picks=0 dropped=0 applied=0 choices=none" (nothing
+         saved yet), and each talent pick and the respec is followed by "SCREEN progression save reason=talent ok=1";
+      8. launch 2 opens with "SCREEN talents restored class=warden picks=1 dropped=0 applied=1 choices=<A>:<O>" where
+         <A>/<O> are the ability and option of launch 1's last "SCREEN talent pick" line (the respec cleared the rest).
+  Before TALENT-SAVE the picks lived only in the Screen node: no "SCREEN talents restored" line exists and launch 2
+  starts every fork unpicked (RED).
+
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Hud/ProgressionSaveSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
@@ -107,10 +115,30 @@ if (-not $openB) {
     $failures.Add("launch 2: no 'SCREEN open ash=60 runs=2' line (got: '$(First $b '^SCREEN open ')')")
 }
 
+# Talent picks survive the restart (lane TALENT-SAVE).
+$restoreA = First $a '^SCREEN talents restored '
+if ($restoreA -notmatch '^SCREEN talents restored class=warden picks=0 dropped=0 applied=0 choices=none$') {
+    $failures.Add("launch 1 with no saved picks did not restore an empty build: '$restoreA'")
+}
+$talentChanges = @($a | Where-Object { $_ -match '^SCREEN talent (pick|respec) ' })
+$talentSaves = @($a | Where-Object { $_ -match '^SCREEN progression save reason=talent ok=1 ' })
+if ($talentChanges.Count -eq 0 -or $talentSaves.Count -ne $talentChanges.Count) {
+    $failures.Add("launch 1: expected one 'SCREEN progression save reason=talent ok=1' per talent change ($($talentChanges.Count)), got $($talentSaves.Count)")
+}
+$lastPick = $a | Where-Object { $_ -match '^SCREEN talent pick ' } | Select-Object -Last 1
+$expectChoice = $null
+if ($lastPick -and $lastPick -match ' ability=(\S+) option=(\S+) ') { $expectChoice = "$($Matches[1]):$($Matches[2])" }
+$restoreB = First $b '^SCREEN talents restored '
+if (-not $expectChoice) {
+    $failures.Add("launch 1: no 'SCREEN talent pick' line to restore")
+} elseif ($restoreB -ne "SCREEN talents restored class=warden picks=1 dropped=0 applied=1 choices=$expectChoice") {
+    $failures.Add("launch 2 did not restore launch 1's pick $expectChoice into the panel and the queued loadout: '$restoreB'")
+}
+
 Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
 
 Write-Output '--- asserted SCREEN lines ---'
-foreach ($l in @($loadA, $bankA, $saveBank, $take, $saveTake) + $saveRerolls + @($lastSave, $loadB, $openB)) {
+foreach ($l in @($loadA, $bankA, $saveBank, $take, $saveTake) + $saveRerolls + @($lastSave, $loadB, $openB, $restoreA) + $talentSaves + @($lastPick, $restoreB)) {
     if ($l) { Write-Output $l }
 }
 
