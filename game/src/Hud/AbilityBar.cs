@@ -67,7 +67,40 @@ public partial class AbilityBar : Control
     public override void _Process(double delta)
     {
         RefreshIcons();
+        if (Driver?.Options.Autorun == true)
+        {
+            PrintRangeTint();
+        }
         QueueRedraw();
+    }
+
+    // The last "HUD bar range" line printed, so the line prints only when the tinted-slot count or the run-over state
+    // changes (lane TINT-RUNOVER, HudSceneTest check 41).
+    private string? _lastRangeLine;
+
+    // Under --autorun: "HUD bar range tinted=N over=0|1 tick=T", N the slots the bar draws with the out-of-range tint,
+    // over 1 once the run has ended for any result. Printed on change only.
+    private void PrintRangeTint()
+    {
+        if (Driver?.Setup is not { } setup || Driver.Run is not { } run || !run.State.Actors.TryGetValue(setup.HumanActorId, out var me))
+        {
+            return;
+        }
+        var tinted = 0;
+        foreach (var slot in setup.Slots)
+        {
+            if (run.Content.Abilities.TryGetValue(slot.AbilityId, out var def) && OutOfRange(run, me, def))
+            {
+                tinted++;
+            }
+        }
+        var line = FormattableString.Invariant($"HUD bar range tinted={tinted} over={(run.RunEnd.Result is not null ? 1 : 0)}");
+        if (line == _lastRangeLine)
+        {
+            return;
+        }
+        _lastRangeLine = line;
+        GD.Print(FormattableString.Invariant($"{line} tick={run.State.Tick}"));
     }
 
     // Loads each slot's icon once per run setup (not per frame) and, under --autorun, prints what each slot resolved.
@@ -166,15 +199,16 @@ public partial class AbilityBar : Control
     }
 
     // Lane RANGE-TINT-NOTARGET: the tint reads off the player's own selected target, never the cast's nearest-enemy
-    // fallback (CastTargeting.For), so no target or a dead or friendly one leaves every slot untinted; a cleared run has
-    // no living hostile left to target. The bar reads no run-over state: that is the run-end panel's (HudSceneTest 25).
+    // fallback (CastTargeting.For), so no target or a dead or friendly one leaves every slot untinted. Lane TINT-RUNOVER:
+    // once the run has ended for any result the tint is off too, since a depleted run can end with the player's target
+    // alive and out of range. The bar only reads that the run ended; the run-end panel draws the result (HudSceneTest 25).
     private static bool OutOfRange(Run run, ActorState me, AbilityDef def)
     {
         Keyrun.Content.RangeTarget? target = me.TargetId is { } id && id != me.Id && run.State.Actors.TryGetValue(id, out var t)
             ? new Keyrun.Content.RangeTarget(t.Alive, t.Kind != me.Kind, Casting.RangeMm(me, t))
             : null;
         var hostileAbility = def.Shape.Kind == ShapeKind.Target && Affinities.Of(def, run.Content.Effects) == Affinity.Hostile;
-        return Keyrun.Content.AbilitySlotLook.ShowsOutOfRange(target, hostileAbility, def.Range);
+        return Keyrun.Content.AbilitySlotLook.ShowsOutOfRange(target, hostileAbility, def.Range, runOver: run.RunEnd.Result is not null);
     }
 
     private void DrawSlot(Font font, Rect2 rect, string key, string name, float alpha, bool outOfRange, bool dashed, Texture2D? icon = null, float iconAlpha = 1f)
