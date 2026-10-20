@@ -156,6 +156,11 @@ public static class HudObstacles
 /// gutter and clear of the top bar, the party frames, the callout banners and the cast bars (<c>CastBarView.BarRects</c>).
 /// <see cref="LabelRects"/> exposes the placed labels and banners so LabelView's name plates keep clear of them.
 /// </para>
+/// <para>
+/// NAMEPLATE-DECLUTTER (Matt 2026-10-19, "reduce screen clutter"): a SPREAD call draws its banner only, never a second
+/// "SPREAD: move apart" in the world (<see cref="HudDeclutter"/>.WorldPingLabel); STACK keeps its world label, the spot
+/// to group up on.
+/// </para>
 /// </summary>
 public partial class Pings : Control
 {
@@ -163,6 +168,7 @@ public partial class Pings : Control
     private const float CalloutTop = 100;
 
     private readonly HashSet<string> _seen = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _textLogged = new(StringComparer.Ordinal);
     private readonly List<Shown> _labels = new();
     private readonly List<Callout> _callouts = new();
     private readonly List<PixelRect> _rects = new();
@@ -217,7 +223,13 @@ public partial class Pings : Control
     }
 
     /// <inheritdoc />
-    public override void _Process(double delta) => QueueRedraw();
+    public override void _Process(double delta)
+    {
+        // Lay out every process frame (not only when drawn), so the proof line below reports what this frame shows.
+        Layout();
+        LogPingTexts();
+        QueueRedraw();
+    }
 
     /// <inheritdoc />
     public override void _Draw()
@@ -289,6 +301,11 @@ public partial class Pings : Control
         var spots = new List<PixelRect>();
         foreach (var call in calls)
         {
+            // NAMEPLATE-DECLUTTER: SPREAD's one text is its callout banner; only STACK marks a spot in the world.
+            if (!HudDeclutter.WorldPingLabel(call.Label))
+            {
+                continue;
+            }
             var world = ActorView.ToMetres(call.Pos) + new Vector3(0, call.Source == PingSource.Mark ? 2.6f : 0.3f, 0);
             if (camera.IsPositionBehind(world))
             {
@@ -328,7 +345,37 @@ public partial class Pings : Control
         _rects.AddRange(HudLayout.PingLabels(wanted, width, height, obstacles));
     }
 
-    private void OnRunStarted() => _seen.Clear();
+    // NAMEPLATE-DECLUTTER proof (autorun only): "HUD pingtext label=L banner=B world=W", how many callout banners and
+    // world labels draw a call's text this frame, printed whenever the pair changes for that label.
+    private void LogPingTexts()
+    {
+        if (_driver is null || !_driver.Options.Autorun)
+        {
+            return;
+        }
+        foreach (var label in new[] { "SPREAD", "STACK" })
+        {
+            var prefix = label + ":";
+            var banner = _callouts.Count(c => c.Text.StartsWith(prefix, StringComparison.Ordinal));
+            var world = _labels.Count(l => l.Text.StartsWith(prefix, StringComparison.Ordinal));
+            var key = FormattableString.Invariant($"{banner}/{world}");
+            if (_textLogged.TryGetValue(label, out var last) && last == key)
+            {
+                continue;
+            }
+            _textLogged[label] = key;
+            if (banner + world > 0)
+            {
+                HudNodes.Proof(_driver, FormattableString.Invariant($"HUD pingtext label={label} banner={banner} world={world}"));
+            }
+        }
+    }
+
+    private void OnRunStarted()
+    {
+        _seen.Clear();
+        _textLogged.Clear();
+    }
 
     private void OnStepped(int tick, IReadOnlyList<SimEvent> events)
     {
