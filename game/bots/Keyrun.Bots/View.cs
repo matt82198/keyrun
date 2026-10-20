@@ -15,8 +15,10 @@ namespace Keyrun.Bots;
 public static class BotViews
 {
     /// <summary>
-    /// telegraph-map.ts TELEGRAPH_CLASS_BY_ABILITY: the render class of every telegraphed cast the shipped content
-    /// emits. Only "stack" is not danger (you stand in it); an unknown ability falls back to "avoid" (danger).
+    /// telegraph-map.ts TELEGRAPH_CLASS_BY_ABILITY, the entries the bots read. Slams: seed.slam is listed as "avoid".
+    /// hollowWarden.slam and twins.slam (SLAM-TELEGRAPH B1, get-out circles) are NOT listed here and resolve to
+    /// "avoid" through the fallback, which is the class telegraph-map.ts gives them, so the bots and the render
+    /// layer agree without an entry. Only "stack" is not danger (you stand in it); an unknown ability falls back to "avoid" (danger).
     /// </summary>
     private static readonly Dictionary<string, string> TelegraphClassByAbility = new(StringComparer.Ordinal)
     {
