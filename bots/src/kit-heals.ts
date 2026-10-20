@@ -51,6 +51,17 @@ function heals(def: AbilityDef, effects: ReadonlyMap<string, EffectDef> | undefi
   return castOps(def).some((op) => opHeals(op, effects));
 }
 
+/** Mirror of Keyrun.Bots KitHeals.SwapsVerseWithoutHealing: a verse swap (every variant has a resource op) whose
+ * destination variant (the other verse) plays no heal. */
+export function swapsVerseWithoutHealing(def: AbilityDef, verse: "mend" | "ward", effects: ReadonlyMap<string, EffectDef> | undefined): boolean {
+  const variants = def.variants as Record<string, Op[]> | undefined;
+  if (!variants || Object.keys(variants).length === 0) return false;
+  if (!Object.values(variants).every((ops) => ops.some((op) => op.op === "resource"))) return false;
+  const destination = verse === "mend" ? "ward" : "mend";
+  const played = variants[destination] ?? def.effects;
+  return !played.some((op) => opHeals(op, effects));
+}
+
 export function classifyHeals(defs: readonly AbilityDef[], effects?: ReadonlyMap<string, EffectDef>): HealKit {
   const kit: HealKit = { selfHealAbilityId: null, groupHealAbilityId: null, groupHealRadiusMm: 0, targetHealAbilityId: null };
   for (const def of defs) {

@@ -52,6 +52,30 @@ public static class KitHeals
     private static bool Heals(AbilityDef def, IReadOnlyDictionary<string, EffectDef>? effects) => CastOps(def).Any(op => OpHeals(op, effects));
 
     /// <summary>
+    /// True when <paramref name="def"/> is a verse swap (every variant moves the verse resource, the rule
+    /// Keyrun.Sim Abilities.ResolveVerse uses) whose cast from <paramref name="verse"/> plays no heal. The sim plays a
+    /// swap's DESTINATION variant, so Chanter Refrain cast from Mend shields and flips into Ward: classified as the
+    /// self heal through its "mend" variant, it is only a heal when cast from Ward. A non-swap ability is never one.
+    /// </summary>
+    /// <param name="def">The ability.</param>
+    /// <param name="verse">The caster's current verse ("mend" or "ward", Keyrun.Sim Actors.Verse).</param>
+    /// <param name="effects">Effect registry (for periodic heals), or null.</param>
+    /// <returns>Whether casting it now would swap verse without healing.</returns>
+    public static bool SwapsVerseWithoutHealing(AbilityDef def, string verse, IReadOnlyDictionary<string, EffectDef>? effects)
+    {
+        ArgumentNullException.ThrowIfNull(def);
+        if (def.Variants is not { Count: > 0 } variants || !variants.Values.All(ops => ops.Any(op => op is ResourceOp)))
+        {
+            return false;
+        }
+        var destination = string.Equals(verse, Keyrun.Sim.Combat.Abilities.MendVerse, StringComparison.Ordinal)
+            ? Keyrun.Sim.Combat.Abilities.WardVerse
+            : Keyrun.Sim.Combat.Abilities.MendVerse;
+        IReadOnlyList<EffectOp> played = variants.TryGetValue(destination, out var resolved) ? resolved : def.Effects;
+        return !played.Any(op => OpHeals(op, effects));
+    }
+
+    /// <summary>
     /// kit-heals.ts classifyHeals: walks the rotational abilities in slot order; the first self heal, the first and
     /// second circle heals, and the first target heal win.
     /// </summary>
