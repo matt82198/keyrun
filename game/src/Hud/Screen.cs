@@ -670,6 +670,14 @@ public partial class Screen : Control
         _progression = _progression.BankRun(result);
         Proof(FormattableString.Invariant($"SCREEN bank result={result.ToJs()} ash={Ash.ForResult(result)} total={_progression.AshTotal}"));
         SaveProgression("bank");
+
+        // M1 TIMER-TIERS (BIBLE s8): a timed run raises the key by its tier (+1, +2 within 80% of par, +3 within 60%);
+        // a depleted or abandoned run keeps the key at the level it was played at (Matt 2026-10-20: no drop).
+        var ended = _driver.Run;
+        var played = ended.Encounter.KeyLevel;
+        var tier = Keyrun.Sim.Encounter.Timer.UpgradeTier(result, ended.RunEnd.ResultTick ?? ended.State.RunTimerTicks, ended.Encounter.ParTicks);
+        _state = ScreenState.Open(SimDriver.DungeonId, _state?.ClauseIds ?? ClauseIds(), Keyrun.Sim.Encounter.Timer.NextKeyLevel(played, tier));
+        Proof(FormattableString.Invariant($"SCREEN key from={played} to={_state.KeyLevel} tier={tier}"));
         if (_driver.Options.Autorun)
         {
             _autorunStep = 0;
@@ -837,6 +845,7 @@ public partial class Screen : Control
             return;
         }
         Proof(FormattableString.Invariant($"SCREEN key level={s.KeyLevel} locked={(s.Locked ? 1 : 0)}"));
+        Proof(FormattableString.Invariant($"SCREEN affixes key={s.KeyLevel} line=\"{AffixLine(s.KeyLevel)}\""));
         for (var i = 0; i < s.Clause.Offers.Count; i++)
         {
             var id = s.Clause.Offers[i];
@@ -1093,7 +1102,25 @@ public partial class Screen : Control
             HudNodes.Text(this, rect.Position + new Vector2(14, 27), glyph, 20, Colors.White);
         }
         HudNodes.Text(this, new Vector2(r.Position.X + 74, r.Position.Y + 76), FormattableString.Invariant($"Key {state.KeyLevel}"), TitleFont, Colors.White);
+        HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 98), AffixLine(state.KeyLevel), SmallFont, Calm);
         HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 116), state.Locked ? "Clause (locked)" : "Clause: pick one", BodyFont, Gold);
+    }
+
+    /// <summary>
+    /// Plan M5 (BIBLE s8): the key's affixes as the run will be built with them, "Affixes: Fortified" or "Affixes: none",
+    /// from content run.json and the setup's rotation index (the same <see cref="Affixes.AffixesFor"/> the host scales
+    /// spawns with), so the screen never shows an affix the run does not carry.
+    /// </summary>
+    /// <param name="keyLevel">The key on the band.</param>
+    /// <returns>The line.</returns>
+    public string AffixLine(int keyLevel)
+    {
+        if (_driver?.Registry is not { } reg)
+        {
+            return "Affixes: none";
+        }
+        var affixes = Affixes.AffixesFor(HostRunSetup.AffixTableOf(reg.Run.Affixes), keyLevel, _driver.Setup?.RotationIndex ?? 0);
+        return affixes.Names.Count == 0 ? "Affixes: none" : "Affixes: " + string.Join(" + ", affixes.Names);
     }
 
     private void DrawQueue(Rect2 r, ScreenState state)
