@@ -30,9 +30,15 @@ public sealed class ContentCountTests
         var embedded = EmbeddedContentSource.Instance.Paths.OrderBy(p => p, System.StringComparer.Ordinal).ToArray();
         var loaded = ContentLoader.Files.OrderBy(p => p, System.StringComparer.Ordinal).ToArray();
 
-        // 19 TS loadContent files from content/data plus the C#-only game/content/data/run.json, layout.json, theme.json and combo-riders.json.
-        Assert.Equal(23, embedded.Length);
-        Assert.Equal(19, embedded.Count(p => p != "run.json" && p != "layout.json" && p != "theme.json" && p != "combo-riders.json"));
+        // 19 TS loadContent files from content/data plus the C#-only game/content/data/run.json, layout.json, theme.json,
+        // combo-riders.json and the forces + route files forces.json, packs.json and hazards.json (FORCES-ROUTE-PLAN
+        // increment 2).
+        string[] csharpOnly =
+        {
+            "run.json", "layout.json", "theme.json", "combo-riders.json", "forces.json", "packs.json", "hazards.json",
+        };
+        Assert.Equal(26, embedded.Length);
+        Assert.Equal(19, embedded.Count(p => !csharpOnly.Contains(p)));
         Assert.Equal(embedded, loaded);
     }
 
