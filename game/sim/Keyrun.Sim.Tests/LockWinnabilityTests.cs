@@ -347,8 +347,13 @@ public sealed class LockWinnabilityTests
         foreach (var kv in content.EnemyScripts)
         {
             var authored = raw[classOf[kv.Key]];
-            // The id-to-class mapping is right: the two-argument rebuild is exactly what the setup recorded.
-            Assert.Equal(Tempo.ScaleScript(authored, keyLevel), kv.Value);
+            // The id-to-class mapping is right: the two-argument rebuild is exactly what the setup recorded, once it carries
+            // the frozen-TS replay marks RunSetup.TsScripts adds on load (SLAM-TELEGRAPH, TELEGRAPH-READY, CAST-FINISH).
+            var recorded = Tempo.ScaleScript(authored, keyLevel)
+                .Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { SpansCast = false, TsUnchecked = true } } : s)
+                .Select(s => s with { TsCastReplace = true })
+                .ToList();
+            Assert.Equal(recorded, kv.Value);
             scripts[kv.Key] = Tempo.ScaleScript(authored, keyLevel, floors);
         }
         var abilities = Tempo.ScaleEnemyCooldowns(content.Abilities, scripts.Values.Concat(boss.Twins.Select(t => t.Script)), keyLevel);

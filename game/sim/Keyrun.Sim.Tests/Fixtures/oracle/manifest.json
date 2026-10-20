@@ -19,8 +19,8 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 290466,
-      "fnv": "728cda2b"
+      "bytes": 304170,
+      "fnv": "39b764e1"
     },
     "bots-hv-k2-s11.trace.jsonl": {
       "bytes": 238930,
@@ -356,7 +356,7 @@
         "fnv": "5018f7d9"
       },
       "sim/combat/casting.ts": {
-        "fnv": "8b597c27"
+        "fnv": "c70c2b48"
       },
       "sim/combat/clause-hooks.ts": {
         "fnv": "43aaf28e"
@@ -537,13 +537,13 @@
       "traceHash": "d5c20907"
     },
     {
-      "finalTick": 2071,
+      "finalTick": 2172,
       "name": "bots-hv-k10-s7",
-      "records": 2072,
+      "records": 2173,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "6f856fd1"
+      "traceHash": "e90cdc28"
     }
   ],
   "version": 1
