@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Combat;
 
@@ -21,6 +22,38 @@ public static class Abilities
 
     /// <summary>The <see cref="ComboOp"/> table name for the floor-patch field table.</summary>
     public const string FieldCombosTable = "fieldCombos";
+
+    /// <summary>The Mend verse's variant key (BIBLE section 5 Chanter).</summary>
+    public const string MendVerse = "mend";
+
+    /// <summary>The Ward verse's variant key (BIBLE section 5 Chanter).</summary>
+    public const string WardVerse = "ward";
+
+    /// <summary>
+    /// BIBLE section 5 (Chanter): "Every other ability behaves differently per verse", and "Refrain swaps verse;
+    /// burst heal (to Mend) or burst shield (to Ward)". An ability with <see cref="AbilityDef.Variants"/> plays the
+    /// variant of the caster's current verse (<see cref="Actors.Verse"/>). The verse SWAP is the ability whose every
+    /// variant moves the verse resource (a resource op): it plays the variant of the verse it swaps TO, so the burst
+    /// matches the destination and the variant's resource op performs the swap. No variants = the def unchanged.
+    /// </summary>
+    /// <param name="def">The ability.</param>
+    /// <param name="caster">The caster, before the cast's own resource ops are credited.</param>
+    /// <returns>The def with <see cref="AbilityDef.Effects"/> replaced by the resolved variant, or the def itself.</returns>
+    public static AbilityDef ResolveVerse(AbilityDef def, ActorState caster)
+    {
+        ArgumentNullException.ThrowIfNull(def);
+        ArgumentNullException.ThrowIfNull(caster);
+        if (def.Variants is not { Count: > 0 } variants)
+        {
+            return def;
+        }
+        var verse = Actors.Verse(caster);
+        if (variants.Values.All(ops => ops.Any(op => op is ResourceOp)))
+        {
+            verse = verse == MendVerse ? WardVerse : MendVerse;
+        }
+        return variants.TryGetValue(verse, out var resolved) ? def with { Effects = resolved } : def;
+    }
 
     /// <summary>
     /// sim/combat/abilities.ts:62-98 validateAbilityDef, message for message. The TS <c>Number.isInteger</c> halves
@@ -118,6 +151,13 @@ public static class Abilities
                     break;
             }
             errs.AddRange(OpKindErrors(op));
+        }
+        foreach (var variant in def.Variants ?? new Dictionary<string, IReadOnlyList<EffectOp>>())
+        {
+            foreach (var op in variant.Value)
+            {
+                errs.AddRange(OpKindErrors(op).Select(e => $"variant {variant.Key}: {e}"));
+            }
         }
         return errs;
     }
