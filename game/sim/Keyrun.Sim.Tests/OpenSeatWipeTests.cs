@@ -44,9 +44,12 @@ public sealed class OpenSeatWipeTests
         new[] { new NavTrigger("p1", Trigger1), new NavTrigger("p2", Trigger2) },
         new[] { new Vec3(4500, 0, 0), new Vec3(11500, 0, 0), new Vec3(24500, 0, 0), new Vec3(29500, 0, 0), new Vec3(35000, 0, 0) });
 
+    // p1 stands 2000 mm off the z = 0 walk line, so its 4000 mm aggro ring (Pulls.DefaultAggroMm) crosses that line and
+    // the walkers engage it near x 18536. At z 4000 the ring was only tangent to the line at x 22000, which a 180 mm/tick
+    // walk steps over (21960 to 22140), so the pull never engaged.
     private static readonly DungeonDef Dungeon = new("nav", new[]
     {
-        new PullDef("p1", new[] { RunTestKit.Spawn(Enemy, "dummy", 22000, 4000, 10) }),
+        new PullDef("p1", new[] { RunTestKit.Spawn(Enemy, "dummy", 22000, 2000, 10) }),
         new PullDef("p2", new[] { RunTestKit.Spawn(201, "dummy", 38000, 4000, 10) }),
     });
 

@@ -20,8 +20,9 @@ namespace Keyrun.Bots.Tests;
 /// aggro radius, and content may set the radius per group. With the default 4000 mm ring around the arena origin the
 /// boss pull started only when the Warden reached x ~89926; on main (room-entry spawn) it started at the arena entry,
 /// x ~86418. The shipped layout must give the boss a ring that engages at about that same point, through
-/// <see cref="NavLayouts.PlaceDungeon"/> (the path the host's HostRunSetup also takes), and the boss must never engage
-/// before the Hollow Door (corridor-4, gated on the Seed) opens (BIBLE 9.1/9.5).
+/// <see cref="NavLayouts.PlaceDungeon"/> (the path the host's HostRunSetup also takes), and its ring must not reach the
+/// Seed chamber, so a party fighting the Seed never pulls the boss with it. PATH-TO-BOSS (STATE.md D44) removed the
+/// Hollow Door (no corridor is gated), so the check is the ring's reach from the chamber's east wall, not a shut door.
 /// </summary>
 public sealed class BossAggroRingTests
 {
@@ -106,38 +107,40 @@ public sealed class BossAggroRingTests
         Assert.Equal(Pulls.DefaultAggroMm, placed.Pulls.Single(p => p.Id == "seed").AggroMm);
     }
 
-    // The party presses on the closed Hollow Door from the Seed chamber's east wall for 300 ticks; true if the boss engaged.
-    private static bool BossEngagesBeforeTheDoorOpens(Func<SimDungeon, SimDungeon>? edit, ITestOutputHelper output)
+    // The party stands at the Seed chamber's east wall (x 75800, the chamber ends at 76000) for 300 ticks with the Seed
+    // alive and fighting it; true if the boss engaged. With no Hollow Door (D44) nothing holds a walker here, so the
+    // party stands rather than walking east: the check is how far the boss ring reaches, not whether a door holds.
+    private static bool BossEngagesFromTheSeedChamber(Func<SimDungeon, SimDungeon>? edit, ITestOutputHelper output)
     {
         var (run, dungeon) = ShippedRun(new[] { "seed", "boss" }, startX: 75800, edit);
         var bossIds = dungeon.Pulls.Single(p => p.Id == "boss").Spawns.Select(s => s.ActorId).ToList();
         var seedIds = dungeon.Pulls.Single(p => p.Id == "seed").Spawns.Select(s => s.ActorId).ToList();
         for (var i = 0; i < 300; i++)
         {
-            var stepped = RunRoot.StepRun(run, WalkEast(run));
+            var stepped = RunRoot.StepRun(run, Array.Empty<Command>());
             run = stepped.Run;
-            Assert.True(seedIds.Any(id => run.State.Actors[id].Alive), "the Seed died, so the door test no longer tests a closed door");
+            Assert.True(seedIds.Any(id => run.State.Actors[id].Alive), "the Seed died, so the party is no longer fighting it in its chamber");
             Assert.All(new[] { 1, 2, 3 }, id => Assert.True(run.State.Actors[id].Pos.X <= 76000,
-                $"seat {id} at x {run.State.Actors[id].Pos.X} walked through the closed Hollow Door"));
+                $"seat {id} at x {run.State.Actors[id].Pos.X} left the Seed chamber"));
             if (stepped.Events.Any(e => e.Type == "pull_start" && e.Get("pullId") is JsString s && s.Value == "boss") ||
                 bossIds.Any(id => !run.State.Actors[id].Idle))
             {
-                output.WriteLine($"boss engaged at tick {run.State.Tick - 1} with the door closed");
+                output.WriteLine($"boss engaged at tick {run.State.Tick - 1} from the Seed chamber");
                 return true;
             }
         }
         return false;
     }
 
-    [Fact(DisplayName = "Boss aggro ring (BIBLE 9.1/9.5): with the Seed alive the party at the closed Hollow Door never engages the boss; a ring reaching the Seed chamber would")]
-    public void The_boss_never_engages_before_the_door_opens()
+    [Fact(DisplayName = "Boss aggro ring (BIBLE 9.1, D44): with the Seed alive a party at the Seed chamber's east wall never engages the boss; a ring reaching the chamber would")]
+    public void The_boss_never_engages_from_the_seed_chamber()
     {
-        Assert.False(BossEngagesBeforeTheDoorOpens(null, _output), "the shipped boss ring engages the boss through the closed Hollow Door");
+        Assert.False(BossEngagesFromTheSeedChamber(null, _output), "the shipped boss ring reaches the Seed chamber");
 
-        // Control: a ring that reaches the Seed chamber (93500 - 18000 = 75500) does engage through the closed door, so the
-        // assertion above can see a ring that is too large.
-        Assert.True(BossEngagesBeforeTheDoorOpens(
+        // Control: a ring that reaches the Seed chamber (93500 - 18000 = 75500) does engage from it, so the assertion
+        // above can see a ring that is too large.
+        Assert.True(BossEngagesFromTheSeedChamber(
             d => d with { Pulls = d.Pulls.Select(p => p.Id == "boss" ? p with { AggroMm = 18000 } : p).ToList() }, _output),
-            "control: an 18000 mm boss ring did not engage from the Seed chamber; the door test is vacuous");
+            "control: an 18000 mm boss ring did not engage from the Seed chamber; the check is vacuous");
     }
 }
