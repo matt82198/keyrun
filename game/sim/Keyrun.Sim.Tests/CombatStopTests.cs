@@ -99,6 +99,26 @@ public class CombatStopTests
         Assert.Equal(50, run.Cinder.Resource);
     }
 
+    /// <summary>
+    /// BIBLE section 3, "Interrupts resolve by intended tick with a fixed tiebreak, never arrival order": a kick and a
+    /// stop landing on the same tick resolve the same way whichever actor acts first. The kick wins (it locks the
+    /// school), and the stop finds no cast left to end. Cinder (id 2) acts before Chanter (id 3), so the two rows put
+    /// the kick first in one and the stop first in the other.
+    /// </summary>
+    [Theory]
+    [InlineData("cinder.quench", CinderId, "chanter.dissonance", ChanterId)]
+    [InlineData("chanter.rebuke", ChanterId, "cinder.coldSnap", CinderId)]
+    public void A_kick_and_a_stop_on_the_same_tick_resolve_as_the_kick_whichever_actor_acts_first(string kick, int kickerId, string stop, int stopperId)
+    {
+        var run = Arrange("choir.healCast");
+        var events = run.Step(Cast(kickerId, kick, CantorId), Cast(stopperId, stop, CantorId));
+        Assert.Null(run.Cantor.CastId);
+        var interrupt = Assert.Single(events, e => e.Type == "interrupt");
+        Assert.Equal(kickerId, Int(interrupt, "sourceId"));
+        Assert.Null(interrupt.Get("by"));
+        Assert.Contains(run.Cantor.Effects, e => e.EffectId.StartsWith("lockout:", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void A_control_the_caster_already_carried_does_not_stop_a_later_cast()
     {
