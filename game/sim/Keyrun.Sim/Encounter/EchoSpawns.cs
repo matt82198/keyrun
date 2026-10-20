@@ -29,7 +29,15 @@ public static class EchoSpawns
     {
         ArgumentNullException.ThrowIfNull(encounter);
         var materialized = events as IReadOnlyCollection<SimEvent> ?? events.ToList();
-        var echo = StepEcho(encounter, state, materialized, tick, emit);
+        // ADDS-DIE-WITH-BOSS (Matt 2026-10-20, BIBLE s9: the boss's death ends the encounter and any adds still alive
+        // despawn, as in WoW): on the armed boss's death step no Echo add realises, the queue is dropped, and every
+        // Echo add still standing dies on the boss's death tick. The Twins fall in BossRules.AfterCombat below.
+        var bossDeath = encounter.Boss is { } armed
+            ? materialized.FirstOrDefault(e => e.Type == "death" && e.Get("actorId") is JsInt id && id.Value == armed.Config.BossActorId)
+            : null;
+        var echo = bossDeath is null
+            ? StepEcho(encounter, state, materialized, tick, emit)
+            : EndEcho(encounter, state, bossDeath, encounter.Boss!.Config.BossActorId, emit);
         if (echo.Encounter.Boss is not { } boss)
         {
             return echo;
@@ -37,6 +45,32 @@ public static class EchoSpawns
         var post = BossRules.AfterCombat(boss, state, materialized, tick, emit);
         var spawned = post.Spawned.Count == 0 ? echo.Spawned : echo.Spawned.Concat(post.Spawned).ToList();
         return new EchoSpawnResult(echo.Encounter with { Boss = post.Boss }, spawned);
+    }
+
+    /// <summary>
+    /// The boss died this step: drops every queued Echo request (none realises) and kills each Echo add still standing
+    /// on the boss's death tick, with its own <c>death</c> event (<c>sourceId</c> the boss, <c>reason: "boss_death"</c>).
+    /// The fallen adds return as Spawned (Health 0, not Alive) so the run root's merge replaces them by id.
+    /// </summary>
+    private static EchoSpawnResult EndEcho(EncounterState encounter, SimState state, SimEvent bossDeath, int bossActorId, Action<SimEvent> emit)
+    {
+        var fallen = new List<ActorState>();
+        foreach (var add in state.Actors.Values)
+        {
+            if (add.Id < EchoActorIdBase || add.Kind != ActorKind.Enemy || !add.Alive)
+            {
+                continue;
+            }
+            var dead = add.Clone();
+            dead.Health = 0;
+            dead.Alive = false;
+            fallen.Add(dead);
+            emit(new SimEvent(bossDeath.Tick, "death",
+                ("actorId", JsValue.Int(add.Id)),
+                ("sourceId", JsValue.Int(bossActorId)),
+                ("reason", JsValue.Str("boss_death"))));
+        }
+        return new EchoSpawnResult(encounter with { PendingEchoSpawns = Array.Empty<EchoSpawnRequest>() }, fallen);
     }
 
     private static EchoSpawnResult StepEcho(EncounterState encounter, SimState state, IEnumerable<SimEvent> events, int tick, Action<SimEvent> emit)
