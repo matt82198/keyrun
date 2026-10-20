@@ -109,6 +109,9 @@ public static class RunWiring
             var def = kv.Value;
             views[kv.Key] = new ScriptAbility(def.Id, def.Range, ShapeKindJs(def.Shape.Kind), def.Effects.Any(op => op is HealOp))
             {
+                AreaReachMm = def.Shape.Kind is ShapeKind.Circle or ShapeKind.Cone && def.Effects.Any(op => op is DamageOp)
+                    ? def.Shape.Radius
+                    : null,
                 CastTicks = def.CastTicks,
                 Def = def,
             };

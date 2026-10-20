@@ -7,7 +7,8 @@
  * (tests/sim/integration/enemy-melee-reach.test.ts is the public-path repro).
  *
  * Rule: a living enemy that is not mid-cast, whose script casts at least one hostile (no "heal"
- * op) target-shaped ability, has an engage range = the SHORTEST such ability's `range`. If its
+ * op) target-shaped ability or caster-centred damage area (circle/cone with a "damage" op), has an
+ * engage range = the SHORTEST such reach (a target cast's `range`, an area's `shape.radius`). If its
  * target (script-target.ts's default: highest-threat living player, else nearest) is farther than
  * `engageRange - CHASE_MARGIN_MM`, it emits one integer `move` command straight at that target,
  * facing it. The margin keeps a chaser from parking on the exact range boundary, where collision
@@ -34,17 +35,29 @@ import { resolveScriptTarget } from "./script-target";
 /** How far inside its engage range a chaser stops, in mm. */
 export const CHASE_MARGIN_MM = 500;
 
-function isHostileTargeted(ability: AbilityDef | undefined): ability is AbilityDef {
-  return ability !== undefined && ability.shape.kind === "target" && !ability.effects.some((op) => op.op === "heal");
+/**
+ * How close `ability` must be to land on its target, or null when it does not engage: a hostile
+ * (no "heal" op) target-shaped cast reaches its `range`; a caster-centred damage area (a circle or
+ * cone carrying a "damage" op, e.g. hollowWarden.slam since MECHANICS-PUNISH G1) reaches its
+ * `shape.radius`. An area with no damage op (a stack call, a death-bloom Window) does not engage.
+ */
+function engageReachMm(ability: AbilityDef | undefined): number | null {
+  if (ability === undefined || ability.effects.some((op) => op.op === "heal")) return null;
+  if (ability.shape.kind === "target") return ability.range;
+  if ((ability.shape.kind === "circle" || ability.shape.kind === "cone") && ability.shape.radius !== undefined &&
+    ability.effects.some((op) => op.op === "damage")) {
+    return ability.shape.radius;
+  }
+  return null;
 }
 
-/** Shortest range among `script`'s hostile target-shaped casts, or null when it has none. */
+/** Shortest reach among `script`'s engaging casts (see engageReachMm), or null when it has none. */
 export function engageRangeMm(script: EnemyScript, abilities: Record<string, AbilityDef>): number | null {
   let best: number | null = null;
   for (const step of script) {
     if (step.at === "onDeath") continue;
-    const ability = abilities[step.cast];
-    if (isHostileTargeted(ability) && (best === null || ability.range < best)) best = ability.range;
+    const reach = engageReachMm(abilities[step.cast]);
+    if (reach !== null && (best === null || reach < best)) best = reach;
   }
   return best;
 }
