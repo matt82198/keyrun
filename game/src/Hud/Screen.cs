@@ -66,6 +66,8 @@ public partial class Screen : Control
     private SimDriver? _driver;
     private Progression _progression = Progression.Start(1);
     private ProgressionStore? _store;
+    private Keyrun.Content.PrivateRecord _rating = Keyrun.Content.PrivateRecord.Empty;
+    private PrivateRatingStore? _ratingStore;
     private ScreenState? _state;
     private string? _selected;
     private bool _banked;
@@ -324,6 +326,7 @@ public partial class Screen : Control
         }
         Proof(FormattableString.Invariant(
             $"SCREEN open ash={_progression.AshTotal} runs={_progression.Runs} since=\"{_progression.LastRun?.Text() ?? string.Empty}\""));
+        Proof(_rating.LogLine()); // never the rating's value: it is drawn on this screen only (f-a3230c59)
         SetHelpVisible(false);
         Proof($"SCREEN character class={ClassName()}");
         foreach (var (keyLabel, name) in Abilities())
@@ -667,17 +670,19 @@ public partial class Screen : Control
             return;
         }
         _banked = true;
+        RecordRating(_driver.Run, result);
         _progression = _progression.BankRun(result);
         Proof(FormattableString.Invariant($"SCREEN bank result={result.ToJs()} ash={Ash.ForResult(result)} total={_progression.AshTotal}"));
         SaveProgression("bank");
 
         // M1 TIMER-TIERS (BIBLE s8): a timed run raises the key by its tier (+1, +2 within 80% of par, +3 within 60%);
         // a depleted or abandoned run keeps the key at the level it was played at (Matt 2026-10-20: no drop).
-        var ended = _driver.Run;
-        var played = ended.Encounter.KeyLevel;
-        var tier = Keyrun.Sim.Encounter.Timer.UpgradeTier(result, ended.RunEnd.ResultTick ?? ended.State.RunTimerTicks, ended.Encounter.ParTicks);
-        _state = ScreenState.Open(SimDriver.DungeonId, _state?.ClauseIds ?? ClauseIds(), Keyrun.Sim.Encounter.Timer.NextKeyLevel(played, tier));
-        Proof(FormattableString.Invariant($"SCREEN key from={played} to={_state.KeyLevel} tier={tier}"));
+        // KeyMove is the one read of that move, shared with the run-end panel's key line, so the panel and the reopened
+        // screen never disagree about the level. It uses the same tick fallback (ResultTick ?? RunTimerTicks) as main's
+        // tier read, and clamps the raise to the key range.
+        var move = KeyMove.ForRun(_driver.Run)!;
+        _state = ScreenState.Open(SimDriver.DungeonId, _state?.ClauseIds ?? ClauseIds(), move.To);
+        Proof(FormattableString.Invariant($"SCREEN key from={move.From} to={_state.KeyLevel} tier={move.Tier}"));
         if (_driver.Options.Autorun)
         {
             _autorunStep = 0;
@@ -741,8 +746,29 @@ public partial class Screen : Control
         }
         _store = new ProgressionStore(dir);
         _progression = _store.Load(seed);
+        _ratingStore = new PrivateRatingStore(dir);
+        _rating = _ratingStore.Load();
         Proof(FormattableString.Invariant(
             $"SCREEN progression load store=1 ash={_progression.AshTotal} runs={_progression.Runs} items={EquippedText()} path=\"{_store.FilePath}\""));
+    }
+
+    // The private M+ rating (f-a3230c59): a timed run's result is read, never changed (the key level is not touched),
+    // and the record is saved beside the progression save. Nothing about it is printed but LogLine (no value).
+    private void RecordRating(Keyrun.Sim.Runs.Run run, RunResult result)
+    {
+        var timed = Keyrun.Content.PrivateRating.FromResult(
+            result == RunResult.Timed, run.RunEnd.ResultTick, run.Dungeon.Id, run.Encounter.KeyLevel, run.Encounter.ParTicks);
+        if (timed is null)
+        {
+            return;
+        }
+        var next = _rating.Add(timed);
+        if (ReferenceEquals(next, _rating))
+        {
+            return;
+        }
+        _rating = next;
+        _ratingStore?.Save(_rating);
     }
 
     private void SaveProgression(string reason)
@@ -1048,6 +1074,7 @@ public partial class Screen : Control
         var y = r.Position.Y + 50;
         HudNodes.Text(this, new Vector2(x, y), ClassName(), 18, Colors.White);
         HudNodes.Text(this, new Vector2(x + 140, y), FormattableString.Invariant($"Ash {_progression.AshTotal}"), BodyFont, Gold);
+        HudNodes.Text(this, new Vector2(x + 240, y), _rating.ScreenText(), BodyFont, Calm);
         y += 22;
         var since = _progression.LastRun?.Text() ?? "First run";
         HudNodes.Text(this, new Vector2(x, y), "Since last run: " + since, BodyFont, Calm);
