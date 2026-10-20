@@ -18,6 +18,9 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
 
 - .NET SDK 8.0.426 at `C:/Users/Mattt/.dotnet/dotnet.exe` (not on PATH); `dotnet` on PATH also works.
 - Build: `dotnet build game/Keyrun.sln`
+- Signed local build: `dotnet build game/Keyrun.sln -p:KeyrunSign=true` runs `KeyrunSignOutputs` (game/Directory.Build.targets):
+  Keyrun*.dll/exe in each OutDir get SHA256 Authenticode + DigiCert timestamp via Set-AuthenticodeSignature, using the
+  CurrentUser\My cert `CN=Keyrun Dev (Matt Culliton)` (picked by subject; no key in the repo). Off by default; CI unchanged.
 - Headless tests (no engine): `dotnet test game/Keyrun.sln`
 - Per-step lane check (seconds): `powershell -NoProfile -ExecutionPolicy Bypass -File tools/fastcheck.ps1` builds the solution, then tests only the projects the diff vs origin/main maps to (table in the script; unmapped path = all); `-All` forces every project. Never replaces the full suites or CI.
 - Godot 4.7.2 .NET console binary: `C:/Users/Mattt/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_console.exe`

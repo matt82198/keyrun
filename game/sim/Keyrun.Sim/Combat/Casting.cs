@@ -166,6 +166,24 @@ public static class Casting
         ctx?.Overheat is { } rules && rules.TryGetValue(actor.ClassId, out var rule) ? rule : null;
 
     /// <summary>
+    /// Who a non-dispel removeEffect op clears (finding f-9efbee75): the caster when the effect is the caster's own
+    /// Overheat Chill (BIBLE section 5 Cold Snap "dumps Heat, clears Chill"; section 4 Flashfire "refunds Cinder 30 Heat
+    /// and clears Chill"), else the target. C#-only: with no Overheat rule (every oracle run) it is always the target,
+    /// as the TS.
+    /// </summary>
+    /// <param name="source">The caster (or the Payoff actor of a combo).</param>
+    /// <param name="target">The op's target.</param>
+    /// <param name="effectId">The effect being removed.</param>
+    /// <param name="overheat">The step's Overheat rules, or null.</param>
+    /// <returns>The actor whose instances of <paramref name="effectId"/> are removed.</returns>
+    public static ActorState RemoveEffectHolder(ActorState source, ActorState target, string effectId, IReadOnlyDictionary<string, OverheatRule>? overheat)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return overheat is not null && overheat.TryGetValue(source.ClassId, out var rule)
+            && string.Equals(rule.ChillEffectId, effectId, StringComparison.Ordinal) ? source : target;
+    }
+
+    /// <summary>
     /// BIBLE section 5 Chill, "slower casts": while the caster holds its rule's Chill, a cast takes
     /// castTicks * 10000 / (10000 + hasteBp) ticks (floor; Chill's hasteBp -3000 makes 20 ticks 28). An instant cast
     /// stays instant. No rule, no Chill, or a Chill with no haste penalty leaves the content cast time unchanged.
@@ -324,7 +342,7 @@ public static class Casting
                     }
                     else
                     {
-                        Effects.RemoveEffectInstances(target, r.EffectId);
+                        Effects.RemoveEffectInstances(RemoveEffectHolder(source, target, r.EffectId, ctx.Overheat), r.EffectId);
                     }
                     break;
                 case ThreatOp t:
