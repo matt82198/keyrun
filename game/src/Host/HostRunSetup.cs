@@ -33,6 +33,12 @@ public sealed record HostRunSetup(
     /// <summary>run-setup.ts:52 INTERRUPT_LOCKOUT_TICKS (4 s at 20 Hz).</summary>
     public const int InterruptLockoutTicks = 80;
 
+    /// <summary>
+    /// BIBLE s9.3 "Stops as well as kicks": the effects that stop an interruptible cast when they land (Shatter's and Cold
+    /// Snap's freeze and the Twins' Break-bar stagger apply <c>stunned</c>; Ward Dissonance applies <c>silenced</c>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> StopEffectIds = new[] { "stunned", "silenced" };
+
     /// <summary>content-dungeon.ts:38 PULL_ACTOR_ID_START.</summary>
     public const int PullActorIdStart = 100;
 
@@ -148,6 +154,7 @@ public sealed record HostRunSetup(
             FieldCombos = fieldCombos,
             Clauses = clauses,
             Layout = nav,
+            StopEffectIds = StopEffectIds,
         }.WithMovement(movement);
 
         var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
