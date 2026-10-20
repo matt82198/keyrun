@@ -159,6 +159,7 @@ public sealed record HostRunSetup(
             BaseSpeedMmPerTick = 0,
             ActorRadiusMm = 0,
             Bounds = movement.Bounds,
+            Overheat = OverheatRulesOf(registry),
             EnemyScripts = scripts,
             KeyLevel = keyLevel,
             ParTicks = dungeonDef.ParTicks,
@@ -200,6 +201,22 @@ public sealed record HostRunSetup(
             new AffixScale(a.Tyrannical.HealthBp, a.Tyrannical.DamageBp),
             a.OneAffixKey,
             a.BothAffixKey);
+    }
+
+    /// <summary>
+    /// The sim's Heat/Overheat rules (BIBLE section 5 Cinder): one <see cref="OverheatRule"/> per class whose loop is
+    /// heat-overheat, its threshold that loop's max, its Chill the content run.json <c>heatOverheat</c> block. A class
+    /// with a rule opens the run at 0 Heat and its cast at the threshold is the free Overheat (Combat/Casting.cs).
+    /// </summary>
+    /// <param name="registry">The loaded content (validated at load).</param>
+    /// <returns>Class id to its rule.</returns>
+    public static IReadOnlyDictionary<string, OverheatRule> OverheatRulesOf(C.ContentRegistry registry)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        var chill = registry.Run.HeatOverheat;
+        return registry.Classes.Values
+            .Where(c => c.Loop.Kind == C.LoopKind.HeatOverheat)
+            .ToDictionary(c => c.Id, c => new OverheatRule(c.Loop.Max, chill.ChillEffectId, chill.ChillTicks), StringComparer.Ordinal);
     }
 
     /// <summary>
