@@ -83,4 +83,27 @@ public sealed class BreakBarRuleTests
         Assert.Equal(BreakBarPhase.Filling, look.Phase);
         Assert.Equal(0, look.FillPermille);
     }
+
+    [Fact]
+    public void The_broken_label_contrasts_with_the_full_bar_and_the_flash()
+    {
+        // At least half the 0..255 luma range apart from both the gold fill and the white flash behind "BROKEN".
+        BreakBarLook look = BreakBarRule.For(0, 100, 500, 300, Reset);
+        int label = BreakBarRule.Luma(look.LabelColor);
+        Assert.True(System.Math.Abs(label - BreakBarRule.Luma(look.Color)) >= 128, $"label luma {label} vs fill {BreakBarRule.Luma(look.Color)}");
+        Assert.True(System.Math.Abs(label - BreakBarRule.Luma(0xFFFFFF)) >= 128, $"label luma {label} vs white flash");
+    }
+
+    [Fact]
+    public void The_filling_label_contrasts_with_the_dark_bar_behind_it()
+    {
+        BreakBarLook look = BreakBarRule.For(100, 100, 0, 50, Reset);
+        Assert.True(BreakBarRule.Luma(look.LabelColor) - BreakBarRule.Luma(0x0D0D12) >= 128);
+    }
+
+    [Theory]
+    [InlineData(0x000000, 0)]
+    [InlineData(0xFFFFFF, 255)]
+    [InlineData(0xFF0000, 76)]
+    public void Luma_uses_rec601_weights(int rgb, int luma) => Assert.Equal(luma, BreakBarRule.Luma(rgb));
 }

@@ -83,7 +83,7 @@ public partial class BreakBar : Control
         var label = look.Phase == BreakBarPhase.Broken
             ? "BROKEN"
             : FormattableString.Invariant($"BREAK {look.FillPermille / 10}%");
-        HudNodes.Text(this, new Vector2(rect.Position.X + 4, rect.End.Y - 2), label, LabelFont, Colors.White);
+        HudNodes.Text(this, new Vector2(rect.Position.X + 4, rect.End.Y - 2), label, LabelFont, HudNodes.Rgb(look.LabelColor));
     }
 
     private (int BossId, BossBreakBar Bar, BreakBarLook Look)? Current()
