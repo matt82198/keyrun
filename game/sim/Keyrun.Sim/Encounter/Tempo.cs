@@ -88,7 +88,7 @@ public static class Tempo
         };
     }
 
-    /// <summary>content-dungeon.ts:57 scaleScript: <see cref="ScaleStep"/> over every step, in order.</summary>
+    /// <summary>content-dungeon.ts:57 scaleScript: <see cref="ScaleStep(ScriptStep, int)"/> over every step, in order.</summary>
     public static IReadOnlyList<ScriptStep> ScaleScript(IReadOnlyList<ScriptStep> script, int keyLevel) =>
         script.Select(s => ScaleStep(s, keyLevel)).ToList();
 
