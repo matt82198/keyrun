@@ -244,6 +244,12 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
 $wrapper = Join-Path $repo 'tools/godot/godot.ps1'
 $failures = New-Object System.Collections.Generic.List[string]
 
+# One launch lock for the whole sequence (tools/godot/launch-lock.ps1): no other launch can interleave, and every
+# launch below runs one after another through godot.ps1. Exit 2 when another Godot instance holds the lock.
+. (Join-Path $repo 'tools/godot/launch-lock.ps1')
+$launchLock = Enter-KeyrunLaunchLock -Owner 'HudSceneTest.ps1' -ExitCodeOnBusy 2
+try {
+
 function Invoke-Arena([int]$n, [string[]]$extra) {
     # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
     $guard = (3 * $n) + 240
@@ -1137,3 +1143,6 @@ if ($failures.Count -gt 0) {
 }
 Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks backfillTicks=$BackfillTicks abandonSeat=$AbandonSeat wipeFrames=$WipeFrames pingAt=$PingAt pingFrames=$PingFrames recordFrames=$RecordFrames recordEvents=$recN yawAt=$YawAt yawTo=$YawTo yawFrames=$YawFrames yawCompared=$comparedL"
 exit 0
+} finally {
+    Exit-KeyrunLaunchLock $launchLock
+}
