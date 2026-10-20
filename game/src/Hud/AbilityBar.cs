@@ -14,10 +14,17 @@ namespace Keyrun.Hud;
 /// a dark sweep with seconds left while on cooldown, a light sweep during the global cooldown, dimmed when the
 /// class resource is short, a red edge when the cast's target is out of range. Above it: the Warden's health and
 /// Momentum. The run-over state (result, rewards, the Enter hint) is the run-end panel's (<see cref="RunEndPanel"/>).
+/// Each ability slot draws its CC0 icon (<see cref="Keyrun.Content.AbilityIcons"/>, lane ABILITY-ICONS) in place of the
+/// name text; a slot whose ability has no icon row keeps the name. Under --autorun it prints one "HUD bar slot=K
+/// ability=ID icon=PATH tex=WxH" line per slot when a run's setup arrives (HudSceneTest check 40).
 /// </summary>
 public partial class AbilityBar : Control
 {
     private const float Slot = 78;
+    private const float IconSize = 46;
+    private const float CooldownIconAlpha = 0.35f; // the icon fades under the cooldown sweep so the seconds stay readable
+    private static readonly Color IconTint = new(0.92f, 0.93f, 0.97f, 1f);
+    private static readonly Color KeyShadow = new(0f, 0f, 0f, 0.85f);
     private const float Gap = 8;
     private const float BottomMargin = 24;
     private const int KeyFont = 18;
@@ -43,6 +50,10 @@ public partial class AbilityBar : Control
 
     private PlayerInput? KeyInput { get; set; }
 
+    // The setup the icons below were resolved for, and one texture (or null) per setup slot.
+    private HostRunSetup? _iconSetup;
+    private Texture2D?[] _icons = Array.Empty<Texture2D?>();
+
     /// <inheritdoc />
     public override void _Ready()
     {
@@ -53,7 +64,34 @@ public partial class AbilityBar : Control
     }
 
     /// <inheritdoc />
-    public override void _Process(double delta) => QueueRedraw();
+    public override void _Process(double delta)
+    {
+        RefreshIcons();
+        QueueRedraw();
+    }
+
+    // Loads each slot's icon once per run setup (not per frame) and, under --autorun, prints what each slot resolved.
+    private void RefreshIcons()
+    {
+        if (Driver?.Setup is not { } setup || ReferenceEquals(setup, _iconSetup))
+        {
+            return;
+        }
+        _iconSetup = setup;
+        _icons = new Texture2D?[setup.Slots.Count];
+        for (var i = 0; i < setup.Slots.Count; i++)
+        {
+            var slot = setup.Slots[i];
+            var path = Keyrun.Content.AbilityIcons.Default.ResPathFor(slot.AbilityId);
+            var tex = path is not null && ResourceLoader.Exists(path) ? GD.Load<Texture2D>(path) : null;
+            _icons[i] = tex;
+            if (Driver.Options.Autorun)
+            {
+                var size = tex is null ? "none" : $"{tex.GetWidth()}x{tex.GetHeight()}";
+                GD.Print($"HUD bar slot={slot.Key} ability={slot.AbilityId} icon={path ?? "none"} tex={size}");
+            }
+        }
+    }
 
     /// <summary>
     /// The screen rect the bar draws in (its health and momentum meters on top, the slot row below), pixels, for a
@@ -92,9 +130,10 @@ public partial class AbilityBar : Control
             var slot = setup.Slots[i];
             var rect = new Rect2(origin.X + (i * (Slot + Gap)), origin.Y, Slot, Slot);
             var key = KeyInput is not null ? KeyBinds.Label(KeyInput.Binds.KeyFor(slot.Action)) : slot.Key;
+            var icon = ReferenceEquals(setup, _iconSetup) && i < _icons.Length ? _icons[i] : null;
             if (!run.Content.Abilities.TryGetValue(slot.AbilityId, out var def))
             {
-                DrawSlot(font, rect, key, slot.AbilityId, 1f, false, false);
+                DrawSlot(font, rect, key, slot.AbilityId, 1f, false, false, icon);
                 continue;
             }
             var cdFraction = 0f;
@@ -109,7 +148,7 @@ public partial class AbilityBar : Control
             var gcd = def.GcdTicks > 0 && me.GcdReadyTick > now ? Mathf.Clamp((float)(me.GcdReadyTick - now) / def.GcdTicks, 0f, 1f) : 0f;
             var shortResource = def.Cost.Resource != "none" && me.Resource < def.Cost.Amount;
             var outOfRange = def.Shape.Kind == ShapeKind.Target && def.Range > 0 && OutOfRange(run, me, def);
-            DrawSlot(font, rect, key, Driver.AbilityName(def.Id), shortResource ? 0.45f : 1f, outOfRange, false);
+            DrawSlot(font, rect, key, Driver.AbilityName(def.Id), shortResource ? 0.45f : 1f, outOfRange, false, icon, cdFraction > 0f ? CooldownIconAlpha : 1f);
             if (cdFraction > 0f)
             {
                 DrawRect(new Rect2(rect.Position, new Vector2(rect.Size.X, rect.Size.Y * cdFraction)), CooldownShade);
@@ -132,11 +171,23 @@ public partial class AbilityBar : Control
         return target != me.Id && run.State.Actors.TryGetValue(target, out var t) && Casting.RangeMm(me, t) > def.Range;
     }
 
-    private void DrawSlot(Font font, Rect2 rect, string key, string name, float alpha, bool outOfRange, bool dashed)
+    private void DrawSlot(Font font, Rect2 rect, string key, string name, float alpha, bool outOfRange, bool dashed, Texture2D? icon = null, float iconAlpha = 1f)
     {
         DrawRect(rect, new Color(SlotBack, SlotBack.A * alpha));
+        if (icon is not null)
+        {
+            // The icon sits centred, nudged down so the key label keeps the top-left corner clear.
+            var iconRect = new Rect2(rect.Position + new Vector2((rect.Size.X - IconSize) / 2, ((rect.Size.Y - IconSize) / 2) + 4), new Vector2(IconSize, IconSize));
+            DrawTextureRect(icon, iconRect, false, new Color(IconTint, IconTint.A * alpha * iconAlpha));
+        }
         DrawRect(rect, outOfRange ? OutOfRangeEdge : new Color(SlotEdge, dashed ? 0.5f : 1f), filled: false, width: outOfRange ? 3f : 2f);
+        // The key label has a dark drop shadow so it stays readable over the white icon glyph.
+        DrawString(font, rect.Position + new Vector2(7, 21), key, HorizontalAlignment.Left, -1, KeyFont, new Color(KeyShadow, KeyShadow.A * alpha));
         DrawString(font, rect.Position + new Vector2(6, 20), key, HorizontalAlignment.Left, -1, KeyFont, new Color(1f, 0.9f, 0.55f, alpha));
+        if (icon is not null)
+        {
+            return; // the icon replaces the name text (reduce screen clutter); the name stays for an unmapped ability
+        }
         // Name wraps onto two lines at the bottom of the slot.
         var words = name.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var lines = words.Length == 2 && font.GetStringSize(name, HorizontalAlignment.Left, -1, NameFont).X > rect.Size.X - 8
@@ -163,7 +214,7 @@ public partial class AbilityBar : Control
     {
         var s = font.GetStringSize(text, HorizontalAlignment.Left, -1, size);
         var p = rect.Position + new Vector2((rect.Size.X - s.X) / 2, (rect.Size.Y + (size * 0.7f)) / 2);
-        DrawString(font, p + new Vector2(1, 1), text, HorizontalAlignment.Left, -1, size, Colors.Black);
+        DrawStringOutline(font, p, text, HorizontalAlignment.Left, -1, size, 5, Colors.Black);
         DrawString(font, p, text, HorizontalAlignment.Left, -1, size, color);
     }
 }
