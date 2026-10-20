@@ -19,7 +19,7 @@ Standing rules for every increment:
 - Never fit green. A test that pins the old linear layout is re-derived for the new one by the increment that
   changes the behaviour, never loosened.
 
-Parallel waves (from the dependencies): A = 0, 2, 5. A2 = 1. B = 3, 6. C = 4, 12. D = 7, 9. E = 8, 10. F = 11.
+Parallel waves (from the dependencies): A = 0, 2, M1, M2. A2 = 1, 5. B = 3, 6. M3 follows 0 and KICK-READY-READOUT. C = 4, 12. D = 7, 9. E = 8, 10. F = 11.
 
 ## 0. PRESPAWN-AGGRO: every group exists from tick 0 and engages on its aggro radius (bible 9.1)
 
@@ -63,6 +63,42 @@ Parallel waves (from the dependencies): A = 0, 2, 5. A2 = 1. B = 3, 6. C = 4, 12
     merge on its own).
   - #283 and #274 hold the oracle fixtures and manifest, so land after them and measure the D28 regeneration once.
 
+## M1. TIMER-TIERS: Mythic+ timer, upgrade tiers and Slack as grace (bible 8)
+
+- **Files:** `game/sim/Keyrun.Sim/Encounter/Timer.cs` (`FinishRun`: timed when the finish tick is no later than par
+  plus remaining Slack; upgrade +1, +2 within 8000 bp of par, +3 within 6000 bp), `game/sim/Keyrun.Sim/Encounter/RunEndTitle.cs`,
+  `game/sim/Keyrun.Sim/Run/ProgressionSave.cs` (the key level moves by the tier), `game/src/Hud/TimerSlack.cs` (+2
+  and +3 marks on the timer bar), `game/sim/Keyrun.Sim.Tests/Encounter/TimerTests.cs`,
+  `game/sim/Keyrun.Sim.Tests/Encounter/UpgradeTierTests.cs` (new).
+- **Red test:** a run with no deaths that finishes 1 tick past par plus its initial Slack is depleted, while today it
+  reads timed. One death on a run finishing at par is still timed (test 3). Finishes at exactly 6000, 8000 and
+  10000 bp of par upgrade by +3, +2 and +1. A depleted run does not upgrade.
+- **Depends on:** none (no file shared with 0).
+- **Wait for:** #253 (edits `game/src/Hud/TimerSlack.cs` and adds RunClock), plus #283 and #274 if the oracle
+  digest moves (D28).
+
+## M2. STOPS: control ends an interruptible cast (bible 9.3)
+
+- **Files:** `game/sim/Keyrun.Sim/Combat/Casting.cs` (a stun, freeze or silence applied during an interruptible cast
+  ends it with an `interrupt {by: "stop"}` event), `game/sim/Keyrun.Sim/Combat/ClauseHooks.cs` (Echo spawns on a stop),
+  `game/sim/Keyrun.Sim.Tests/CombatStopTests.cs` (new).
+- **Red test:** Shatter's stun, Cold Snap's freeze and Ward Dissonance's silence each end a live Choral Mending, and
+  each is a no-op on a cast that is not interruptible. Under Echo a stop spawns the add. A stop does not refund
+  Quench's Heat.
+- **Depends on:** none.
+- **Wait for:** #283 (edits `Casting.cs`; the Quench refund rule lands there).
+
+## M3. KICK-ORDER-CASTBAR: the suggested kick order and the shielded cast bar (bible 9.3)
+
+- **Files:** `game/content/Keyrun.Content/Model/KickOrder.cs` (new, Godot-free: order the casters by which party
+  kick comes off cooldown first), `game/src/View/CastBarView.cs` (shield edge on casts that cannot be interrupted),
+  `game/src/View/LabelView.cs` (the order number on the nameplate), `game/content/Keyrun.Content.Tests/KickOrderTests.cs`
+  (new), `game/src/Host/CombatViewSceneTest.ps1`.
+- **Red test:** with kicks ready at ticks 0, 100 and 300 and three casters engaged, the order is 1, 2, 3 by cooldown
+  and by caster id on ties. A non-interruptible cast's bar shows the shield edge and an interruptible one does not.
+- **Depends on:** 0 (engage tick), and the next-increments KICK-READY-READOUT (party-frame cooldown model).
+- **Wait for:** #263 (edits `game/src/View/LabelView.cs`).
+
 ## 1. FORCES-SIM: the forces counter
 
 - **Files:** `game/sim/Keyrun.Sim/Encounter/Forces.cs` (new), `game/sim/Keyrun.Sim/Encounter/EncounterTypes.cs`
@@ -103,7 +139,9 @@ Parallel waves (from the dependencies): A = 0, 2, 5. A2 = 1. B = 3, 6. C = 4, 12
 - **Red test:** every pack exists idle from tick 0. It engages whole on the first tick a living party member is
   within its aggro radius, or when party damage or a hazard hits a member, and never otherwise. Walking past outside
   the ring leaves it idle (a skip). Entering two rings on one tick engages both (a chain pull). `Encounter.PullIndex`
-  never moves for a pack. Pack kills credit forces through increment 1.
+  never moves for a pack. Pack kills credit forces through increment 1. A patrol pack (`PackDef.patrol`, a closed
+  loop of points at a fixed mm per tick) is at the same position on the same tick in every run, and its ring
+  engages from wherever it has walked to (bible 9.1, Patrols).
 - **Depends on:** 0 (engage model), 1 (EncounterTypes.cs, forces credit).
 - **Wait for:** none.
 
@@ -135,8 +173,9 @@ Parallel waves (from the dependencies): A = 0, 2, 5. A2 = 1. B = 3, 6. C = 4, 12
   `game/content/Keyrun.Content/Model/EffectOps.cs`, `game/sim/Keyrun.Sim.Tests/CasterOpsTests.cs` (new).
 - **Red test:** Undertow moves its target 5000 mm toward the caster, stopping at a wall, and roots it for 20 ticks.
   Stoked raises an enemy's damage by 3000 bp and shortens its casts by 2000 bp for 160 ticks, then ends. Searing Hex's
-  burn is removed by Cinder's Purge and by Chanter's Cleanse. Drenched slows movement by 3000 bp for 60 ticks.
-- **Depends on:** none.
+  burn is removed by Cinder's Purge and by Chanter's Cleanse. Drenched slows movement by 3000 bp for 60 ticks. Cinder's
+  Purge cast on a Stoked enemy removes Stoked (the Mythic+ soothe/purge, bible 9.3).
+- **Depends on:** M2 (both edit `Casting.cs`).
 - **Wait for:** #283 (edits `game/sim/Keyrun.Sim/Combat/Casting.cs`).
 
 ## 6. PACK-CONTENT: the five packs and their kits
@@ -150,7 +189,9 @@ Parallel waves (from the dependencies): A = 0, 2, 5. A2 = 1. B = 3, 6. C = 4, 12
   route totals come to West 1220 and East 1180. The minimum fills hold: W2 alone 1000, E3 plus E1 1000, and W1 alone,
   E1 plus E2 and E3 alone all under 1000. Exactly four distinct interruptible enemy casts exist (Choral Mending,
   Searing Hex, Stoke, Undertow) with the cast times and cooldowns in section 9.3. Every dangerous cast has a circle or
-  cone telegraph, and the existing DangerousCastTelegraphTests pass over the new files.
+  cone telegraph, and the existing DangerousCastTelegraphTests pass over the new files. The Ash Hexer has an onDeath
+  step that leaves Cinders (a 2000 mm circle telegraphed 40 ticks ahead, burning for 120 ticks). W1's pack entry
+  carries its patrol loop on the Undercroft Steps.
 - **Depends on:** 2 (the files and loader), 5 (the ops).
 - **Wait for:** #280 (tooltip text-matches-data guard; land after it so the new ability text is checked by the
   merged guard).

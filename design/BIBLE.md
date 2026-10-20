@@ -186,11 +186,30 @@ pair combo, so there is always something to close even when the enemy Window was
   not stats: *Echo* (every interrupted cast spawns a
   weak add), *Tide* (floor patches drift), *Hush* (silence pulses every 45 s; save the kicks), *Pact* (Combos deal
   more, uncombo'd hits deal less). Every Clause is tested against every class before it ships.
-- **The timer and Slack.** The run has a par time. Deaths and wipes cost **Slack** (a soft time bank shown as a
-  second bar), not a flat penalty; when Slack is gone the key is *depleted*: you may still finish for the run reward
-  and Ash, but not the key upgrade. One mistake never flips a clearable run by itself (research/01).
+- **The timer and Slack.** The run has a par time, and the run timer counts against it from the first tick, as in
+  Mythic+ (section 9 principle). **Slack** is a grace bank shown as a second bar: 30 s plus 1 s per key level above 1.
+  A death costs 15 s of Slack and a full wipe 25 s, the same 15 s a death costs a Mythic+ timer. The run is
+  **timed** when it finishes no later than par plus the Slack still left. Otherwise the key is *depleted*: the party
+  may still finish for the run reward and Ash, but not the key upgrade. A timed run upgrades the key by **+1**,
+  **+2** if it finishes within 80% of par, and **+3** within 60% of par. These are Mythic+'s upgrade tiers, measured
+  against par, and they do not change the par value (a `[DECIDE]`, section 12). **Test 3 holds with a death penalty:**
+  the bank always covers at least two deaths, so one death never depletes a run that was on pace, and only repeated
+  mistakes or a slow route can. One mistake never flips a clearable run by itself (research/01).
 
 ## 9. The POC dungeon: Hollow Vault
+
+- **Principle: lean into Mythic+ inside the dungeon.** **Direction (Matt, 2026-10-20), recorded verbatim:**
+  "honestly just lean into m+ design heavily while in the dungeon". Inside the dungeon, World of Warcraft Mythic+ is
+  the reference design. Where this section, or the timer rules of section 8, diverges from a Mythic+ in-dungeon
+  convention, Mythic+ wins unless a section 0 test or a recorded Matt decision says otherwise, and every such
+  divergence names its reason. This applies to the dungeon only. The screen, the queue, gear, the end-of-run choice
+  and the social rules (sections 7 and 10) stay as written.
+- **Divergences kept, with their reason.** No invisibility or skip consumables: the ten-keybind budget (section 2,
+  D4) has no slot for them. One Clause at a time, never stacked affixes: research/01:108-110 and Matt's Clause
+  decision (section 8). Slack as a grace bank on top of the Mythic+ death cost: test 3. Still for Matt to decide:
+  mapping the key 5/10/15 unlocks to Mythic+'s alternating Fortified/Tyrannical, the key range and par, whether a
+  depleted key drops a level, and the Mythic+ score and chest size, which touch his no-public-score and
+  choose-one-of-three decisions.
 
 Three teaching pulls, optional trash packs on two branching paths, an enemy-forces bar, and a boss behind a door
 the bar opens. Each teaching pull still teaches one thing. The packs and the bar make route choice and pull size
@@ -219,8 +238,11 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
   appears when the party walks in. Each group has an **aggro radius**, an integer number of mm set per group in
   content (4000 mm unless the content says otherwise) and drawn on the floor as its aggro ring (below). A group
   **engages** on the first tick a living party member is inside its radius, or when party damage or a hazard hits any
-  of its members, and then the whole group engages at once. An idle group casts nothing, moves nothing and runs no
-  script.
+  of its members, and then the whole group engages at once. An idle group casts nothing and runs no script, and it
+  does not move unless it is a **patrol**.
+  - **Patrols.** As in Mythic+, a patrol walks a fixed loop in its room at a fixed pace (deterministic per tick), and
+    its aggro ring travels with it. Timing a pull or a skip around a patrol is part of the route. In the POC, the W1
+    Hound Kennel patrols a loop on the Undercroft Steps. No other group patrols.
   - **Scripts start at engage.** Every scripted timer of a group (a teaching pull's spread and stack, the Seed's
     opener, the boss's cleave) counts from its own engage tick, never from the run start or room entry. A group's
     first telegraph therefore always follows its engage, whatever tick the party arrives on.
@@ -318,7 +340,7 @@ cast bar and a floor telegraph that differs from the others by shape and colour 
 |---|---|---|---|---|---|
 | Choir Cantor (existing) | **Choral Mending** | 80 ticks (4 s) | 200 ticks | unchanged from the Choir | Heals its pack. Left uncovered, the pack outheals the timer. |
 | Ash Hexer | **Searing Hex** | 50 ticks (2.5 s) | 200 ticks | 1200 mm violet circle under the target, with an inner ring | A magic burn of 25% of the target's max health over 6 s. Cinder's Purge and Chanter's Cleanse remove it, so a missed kick costs an R, not a death. |
-| Bellows Keeper | **Stoke** | 70 ticks (3.5 s) | 240 ticks | 4000 mm ember-orange circle centred on the Keeper, with a toothed edge | Enemies inside gain 30% damage and 20% cast speed for 8 s (**Stoked**). |
+| Bellows Keeper | **Stoke** | 70 ticks (3.5 s) | 240 ticks | 4000 mm ember-orange circle centred on the Keeper, with a toothed edge | Enemies inside gain 30% damage and 20% cast speed for 8 s (**Stoked**). Stoked is an enrage: Cinder's Purge removes it from an enemy, as a Mythic+ soothe or purge does. |
 | Drowned Chorister | **Undertow** | 60 ticks (3 s) | 180 ticks | 30-degree sea-green cone from the Chorister toward the target | Pulls the target 5000 mm toward the Chorister and roots it for 1 s. Small damage, but in the Sluice Gallery it drags the target into the next jet. |
 
 **Melee** (not kickable; the dangerous swing is telegraphed and avoided, not kicked):
@@ -326,6 +348,20 @@ cast bar and a floor telegraph that differs from the others by shape and colour 
 - **Hollow Hound**: fast (260 mm/tick), fragile melee. The Kennel's four test cleave and peel for the backline.
 - **Vault Brute**: **Crushing Slam**, a 40-tick (2 s) cast, a 90-degree 3500 mm stone-grey frontal cone, 40% of max
   health, not interruptible. The tank turns it away from the party (research/06:30).
+
+**Mythic+ pack conventions** (section 9 principle):
+- **Stops as well as kicks.** A stun, freeze or silence that lands on a caster during an interruptible cast also ends
+  the cast, as a Mythic+ stop does: Shatter's stun, Cold Snap's freeze, Ward Dissonance's silence. A stop counts as an
+  interrupt for Echo, but it does not refund Quench's Heat. The kick plan becomes a kick-and-stop plan
+  (research/01:23-26).
+- **On-death effects.** When an Ash Hexer dies it leaves **Cinders**: a 2000 mm violet-and-ash circle, telegraphed 40
+  ticks ahead, that burns players standing in it for 6 s. Kill order is then also a question of where a Hexer dies.
+  The Seed elite's death Window stays the dungeon's other on-death effect.
+- **Cast bars say whether they can be stopped.** On a nameplate, an interruptible cast shows an open bar. A cast that
+  cannot be interrupted shows the same bar with a shield edge, so the difference is a shape, not a colour.
+- **A suggested kick order.** When a pack engages, each of its kickable casters shows a small number on its nameplate:
+  the order in which the party's kicks come off cooldown, taken from the kick-ready readout (section 10). It stands in
+  for the kick assignment Mythic+ groups make. Players may ignore it (research/06:117-121).
 
 Kill order, kick assignment and dispel are the pack puzzle. The Choir's lieutenant framing carries over
 (research/06:51-54). The key's Tempo makes every caster cast more often and every telegraph lead less (section 8),
