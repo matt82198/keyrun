@@ -41,6 +41,7 @@ public static class ContentValidator
         CheckAbilities(reg);
         CheckClasses(reg);
         CheckCombos(reg);
+        CheckComboRiders(reg);
         CheckEnemies(reg);
         CheckDungeons(reg);
         CheckFacets(reg);
@@ -59,15 +60,25 @@ public static class ContentValidator
 
     private static void Fail(string message) => throw new ContentLoadException("content: " + message);
 
-    private static void CheckOps(IEnumerable<EffectOp>? ops, ContentRegistry reg, string where, bool requireSetupClass)
+    private static void CheckOps(IEnumerable<EffectOp>? ops, ContentRegistry reg, string where, bool requireSetupClass, bool riderOps = false)
     {
         if (ops is null) return;
         foreach (EffectOp op in ops)
         {
+            if (!riderOps && op is PartyEffectOp or CloudOp)
+                Fail(where + " uses the C#-only combo op \"" + (op is CloudOp ? "cloud" : "partyEffect") + "\", allowed only in " + ContentLoader.ComboRidersFile);
+            if (op is PartyEffectOp party && party.DurationTicks <= 0)
+                Fail(where + " partyEffect durationTicks must be positive, got " + party.DurationTicks);
+            if (op is CloudOp cloud && cloud.DurationTicks <= 0)
+                Fail(where + " cloud durationTicks must be positive, got " + cloud.DurationTicks);
+            if (op is CloudOp sized && sized.RadiusMm <= 0)
+                Fail(where + " cloud radiusMm must be positive, got " + sized.RadiusMm);
             string? effectId = op switch
             {
                 ApplyEffectOp apply => apply.EffectId,
                 RemoveEffectOp remove => remove.EffectId,
+                PartyEffectOp party2 => party2.EffectId,
+                CloudOp cloud2 => cloud2.EffectId,
                 _ => null,
             };
             if (effectId is not null && effectId != "*" && !reg.Effects.ContainsKey(effectId))
@@ -131,6 +142,17 @@ public static class ContentValidator
             if (combo.PayoffClass == combo.SetupClass)
                 Fail(where + " has matching setupClass/payoffClass \"" + combo.SetupClass + "\"");
             CheckOps(combo.Effects, reg, where, requireSetupClass: true);
+        }
+    }
+
+    private static void CheckComboRiders(ContentRegistry reg)
+    {
+        foreach (ComboRider rider in reg.ComboRiders.Values)
+        {
+            string where = "combo rider \"" + rider.Id + "\"";
+            if (!reg.Combos.ContainsKey(rider.Id))
+                Fail(where + " references unknown combo \"" + rider.Id + "\"");
+            CheckOps(rider.Effects, reg, where, requireSetupClass: true, riderOps: true);
         }
     }
 

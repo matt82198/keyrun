@@ -87,4 +87,28 @@ public static class FloorTelegraphs
     /// <param name="fw">The patch.</param>
     /// <returns>Its telegraph.</returns>
     public static FloorTelegraph FloorWindowOpenedTelegraph(SimState state, FloorWindow fw) => ToFloorTelegraph(state, fw);
+
+    /// <summary>Id prefix of a combo cloud's telegraph (<c>cloud:&lt;cloudId&gt;</c>).</summary>
+    public const string CloudPrefix = "cloud:";
+
+    /// <summary>
+    /// One circle telegraph per open combo cloud (<see cref="SimState.FloorClouds"/>, <c>endsTick &gt; tick</c>), in
+    /// opening order, for views to draw. Kept apart from <see cref="DeriveFloorTelegraphs"/> on purpose: bots flee
+    /// every non-Window floor patch, and a friendly cloud must not pull them off their targets.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <returns>The telegraphs.</returns>
+    public static List<FloorTelegraph> DeriveCloudTelegraphs(SimState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var output = new List<FloorTelegraph>();
+        foreach (var cloud in state.FloorClouds)
+        {
+            if (cloud.EndsTick > state.Tick)
+            {
+                output.Add(new FloorTelegraph(CloudPrefix + cloud.Id, cloud.Pos.X, cloud.Pos.Z, cloud.RadiusMm, cloud.EndsTick));
+            }
+        }
+        return output;
+    }
 }

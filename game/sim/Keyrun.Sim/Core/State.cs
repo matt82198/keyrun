@@ -121,6 +121,39 @@ public sealed class FloorWindow
 }
 
 /// <summary>
+/// A combo's floor cloud (BIBLE section 4 Steam: "a cloud that blinds enemies inside"), opened by the C#-only
+/// <c>cloud</c> combo op. While it lasts, every living actor of another faction than <see cref="SourceKind"/> inside
+/// the circle carries <see cref="EffectId"/> until <see cref="EndsTick"/>. NEW behaviour with no TS counterpart: no
+/// oracle run opens one.
+/// </summary>
+public sealed class FloorCloud
+{
+    /// <summary>Unique id: effectId, source actor id and opening tick.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>The effect it applies, e.g. "blinded".</summary>
+    public string EffectId { get; set; } = string.Empty;
+
+    /// <summary>The Payoff actor that opened it (the effect's source).</summary>
+    public int SourceId { get; set; }
+
+    /// <summary>The opener's faction; actors of any other faction are the cloud's enemies.</summary>
+    public ActorKind SourceKind { get; set; }
+
+    /// <summary>Cloud centre, mm.</summary>
+    public Vec3 Pos { get; set; }
+
+    /// <summary>Cloud radius, mm.</summary>
+    public long RadiusMm { get; set; }
+
+    /// <summary>Tick at which it ends.</summary>
+    public int EndsTick { get; set; }
+
+    /// <summary>A field-for-field copy.</summary>
+    public FloorCloud Clone() => (FloorCloud)MemberwiseClone();
+}
+
+/// <summary>
 /// One actor (sim/core/state.ts ActorState). Mutable: rules mutate the clone that <see cref="Tick.Step"/>
 /// hands them, exactly as the TS mutates its structuredClone.
 /// </summary>
@@ -232,6 +265,9 @@ public sealed class SimState
     /// </summary>
     public JsRecord<FloorWindow> FloorWindows { get; set; } = new();
 
+    /// <summary>Open combo clouds in opening order (C#-only; empty on every oracle run).</summary>
+    public List<FloorCloud> FloorClouds { get; set; } = new();
+
     /// <summary>sim/core/state.ts createState: tick 0, seeded PRNG, no actors, phase "init".</summary>
     public static SimState Create(long seed) => new()
     {
@@ -252,6 +288,7 @@ public sealed class SimState
             copy.Actors.Add(kv.Key, kv.Value.Clone());
         }
         copy.FloorWindows = FloorWindows.Clone(w => w.Clone());
+        copy.FloorClouds = FloorClouds.Select(c => c.Clone()).ToList();
         return copy;
     }
 }
