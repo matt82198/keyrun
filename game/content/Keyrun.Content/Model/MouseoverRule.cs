@@ -99,6 +99,19 @@ public static class MouseoverRule
     public static int? Unit(PixelPoint cursor, bool rightHeld, IReadOnlyList<HoverBody> bodies, IReadOnlyList<HoverPlate> plates)
     {
         ArgumentNullException.ThrowIfNull(plates);
+        if (rightHeld)
+        {
+            return null;
+        }
+        // Last drawn is on top: walk the plates backwards and take the first live enemy plate under the cursor.
+        for (var i = plates.Count - 1; i >= 0; i--)
+        {
+            var p = plates[i];
+            if (p.Alive && p.Hostile && Holds(p.Rect, cursor))
+            {
+                return p.Id;
+            }
+        }
         return Unit(cursor, rightHeld, bodies);
     }
 

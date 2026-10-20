@@ -26,6 +26,12 @@ namespace Keyrun.Host;
 /// <c>--replay-input</c> there is no mouseover and no mouselook facing (the input log records keys and the camera
 /// heading only), so a replay sends what a keyboard-only recording sent.
 /// </para>
+/// <para>
+/// STACKED-PLATES (ledger f-e933a2b7, "hover to interrupt like WoW"): a name plate is a hover target too. The live
+/// enemy whose drawn plate block (<c>LabelView.PlateRects</c>, the name and its cast bar) is under the cursor is the
+/// mouseover unit, ahead of any body (<see cref="Keyrun.Content.MouseoverRule"/>.Unit with plates), so Q kicks the
+/// enemy whose plate you point at.
+/// </para>
 /// Under <c>--autorun</c> <see cref="ScriptedWarden"/> replaces the keyboard so headless runs and proof frames are
 /// reproducible.
 /// </summary>
@@ -52,6 +58,10 @@ public partial class PlayerInput : Node, ICommandSource
     [Export]
     public NodePath DriverPath { get; set; } = new("../SimDriver");
 
+    /// <summary>The name plates (LabelView), whose drawn blocks are hover targets (absent: bodies only).</summary>
+    [Export]
+    public NodePath LabelsPath { get; set; } = new("../Labels");
+
     /// <summary>The key bindings in force (client/keybinds.json defaults).</summary>
     public KeyBinds Binds { get; } = KeyBinds.FromCodes(KeyBinds.ClientDefaults);
 
@@ -65,6 +75,7 @@ public partial class PlayerInput : Node, ICommandSource
     public int? Mouseover { get; private set; }
 
     private readonly List<Keyrun.Content.HoverBody> _bodies = new();
+    private readonly List<Keyrun.Content.HoverPlate> _hoverPlates = new();
 
     // True while the right mouse button is held (mouselook), from its press and release events.
     private bool _rightHeld;
@@ -144,9 +155,24 @@ public partial class PlayerInput : Node, ICommandSource
             var hostile = human is not null && actor.Kind != human.Kind;
             _bodies.Add(new Keyrun.Content.HoverBody(id, rect, depth, hostile, actor.Alive));
         }
+        // STACKED-PLATES: every drawn plate block, in draw order, stands for its leader actor (last frame's layout:
+        // LabelView lays out after this node in the Arena tree, one frame behind at most).
+        _hoverPlates.Clear();
+        if (GetNodeOrNull<LabelView>(LabelsPath) is { } labels)
+        {
+            foreach (var plate in labels.PlateRects)
+            {
+                if (plate.ActorIds.Count == 0 || !state.Actors.TryGetValue(plate.ActorIds[0], out var lead))
+                {
+                    continue;
+                }
+                var hostile = human is not null && lead.Kind != human.Kind;
+                _hoverPlates.Add(new Keyrun.Content.HoverPlate(plate.ActorIds[0], plate.Rect, hostile, lead.Alive));
+            }
+        }
         var cursor = GetViewport().GetMousePosition();
         return Keyrun.Content.MouseoverRule.Unit(
-            new Keyrun.Content.PixelPoint((int)Math.Round(cursor.X), (int)Math.Round(cursor.Y)), _rightHeld, _bodies);
+            new Keyrun.Content.PixelPoint((int)Math.Round(cursor.X), (int)Math.Round(cursor.Y)), _rightHeld, _bodies, _hoverPlates);
     }
 
     /// <inheritdoc />

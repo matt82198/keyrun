@@ -62,7 +62,7 @@ public static class PlateStack
     /// <summary>The mark a cast draws: <see cref="CastMark.Kick"/> when it can be interrupted, else <see cref="CastMark.Locked"/>.</summary>
     /// <param name="interruptible">The ability is interruptible.</param>
     /// <returns>The mark.</returns>
-    public static CastMark MarkOf(bool interruptible) => CastMark.Locked;
+    public static CastMark MarkOf(bool interruptible) => interruptible ? CastMark.Kick : CastMark.Locked;
 
     /// <summary>
     /// The mark's outline as a polygon inside <paramref name="box"/>, clockwise from the top: a kick is a diamond through
@@ -71,8 +71,16 @@ public static class PlateStack
     /// <param name="mark">The mark.</param>
     /// <param name="box">The mark's box (<see cref="StackedPlate.Mark"/>).</param>
     /// <returns>Four points.</returns>
-    public static PixelPoint[] MarkShape(CastMark mark, PixelRect box) =>
-        new[] { new PixelPoint(box.X, box.Y), new PixelPoint(box.Right, box.Y), new PixelPoint(box.Right, box.Bottom), new PixelPoint(box.X, box.Bottom) };
+    public static PixelPoint[] MarkShape(CastMark mark, PixelRect box)
+    {
+        if (mark == CastMark.Kick)
+        {
+            var cx = box.X + (box.Width / 2);
+            var cy = box.Y + (box.Height / 2);
+            return new[] { new PixelPoint(cx, box.Y), new PixelPoint(box.Right, cy), new PixelPoint(cx, box.Bottom), new PixelPoint(box.X, cy) };
+        }
+        return new[] { new PixelPoint(box.X, box.Y), new PixelPoint(box.Right, box.Y), new PixelPoint(box.Right, box.Bottom), new PixelPoint(box.X, box.Bottom) };
+    }
 
     /// <summary>
     /// The key NAMEPLATE-DECLUTTER folds same-name plates by: the name, except that a casting enemy gets a key of its own
@@ -82,7 +90,11 @@ public static class PlateStack
     /// <param name="id">The actor id.</param>
     /// <param name="casting">The plate shows a cast.</param>
     /// <returns>The fold key.</returns>
-    public static string FoldKey(string name, int id, bool casting) => name;
+    public static string FoldKey(string name, int id, bool casting)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return casting ? name + "\u0000" + id.ToString(System.Globalization.CultureInfo.InvariantCulture) : name;
+    }
 
     /// <summary>
     /// Places every plate: blocks built at their anchors, sorted nearest first then lowest id, then each moved the least
@@ -99,20 +111,57 @@ public static class PlateStack
     {
         ArgumentNullException.ThrowIfNull(plates);
         ArgumentNullException.ThrowIfNull(obstacles);
-        var placed = new List<StackedPlate>(plates.Count);
-        foreach (var s in plates)
+        var order = new List<PlateSpec>(plates);
+        order.Sort((a, b) => a.Depth != b.Depth ? a.Depth.CompareTo(b.Depth) : a.Id.CompareTo(b.Id));
+        var built = new StackedPlate[order.Count];
+        var blocks = new PixelRect[order.Count];
+        for (var i = 0; i < order.Count; i++)
         {
-            placed.Add(Build(s));
+            built[i] = Build(order[i]);
+            blocks[i] = built[i].Block;
+        }
+        var offsets = HudLayout.Separate(blocks, viewportWidth, viewportHeight, obstacles);
+        var placed = new List<StackedPlate>(order.Count);
+        for (var i = 0; i < built.Length; i++)
+        {
+            placed.Add(Move(built[i], offsets[i].Dx, offsets[i].Dy));
         }
         return placed;
     }
 
-    /// <summary>The plate's block at its anchor, before placement.</summary>
+    /// <summary>
+    /// The plate's block at its anchor, before placement: the name row's bottom centre on the anchor and, while it casts,
+    /// the cast rows (label band, then the mark and the bar) hanging under the name, centred.
+    /// </summary>
     /// <param name="spec">The plate.</param>
     /// <returns>The block and its parts.</returns>
     public static StackedPlate Build(PlateSpec spec)
     {
-        var name = new PixelRect(spec.Anchor.X - (spec.NameWidth / 2), spec.Anchor.Y - NameHeight, spec.NameWidth, NameHeight);
-        return new StackedPlate(spec.Id, name, name, null, null);
+        var top = spec.Anchor.Y - NameHeight;
+        var name = new PixelRect(spec.Anchor.X - (spec.NameWidth / 2), top, spec.NameWidth, NameHeight);
+        if (!spec.Casting)
+        {
+            return new StackedPlate(spec.Id, name, name, null, null);
+        }
+        var width = Math.Max(spec.NameWidth, CastWidth);
+        var castLeft = spec.Anchor.X - (CastWidth / 2);
+        var barTop = name.Bottom + CastLabelHeight;
+        var mark = new PixelRect(castLeft, barTop, CastBarHeight, CastBarHeight);
+        var bar = new PixelRect(mark.Right + MarkGap, barTop, CastWidth - CastBarHeight - MarkGap, CastBarHeight);
+        var block = new PixelRect(spec.Anchor.X - (width / 2), top, width, NameHeight + CastHeight);
+        return new StackedPlate(spec.Id, block, name, bar, mark);
     }
+
+    /// <summary>The cast label band of a casting plate: above its mark and bar, the cast area's full width.</summary>
+    /// <param name="plate">A placed plate.</param>
+    /// <returns>The band, or null when the plate is idle.</returns>
+    public static PixelRect? CastLabel(StackedPlate plate) =>
+        plate.Mark is { } m ? new PixelRect(m.X, m.Y - CastLabelHeight, CastWidth, CastLabelHeight) : null;
+
+    private static StackedPlate Move(StackedPlate p, int dx, int dy) => new(
+        p.Id,
+        p.Block.Offset(dx, dy),
+        p.Name.Offset(dx, dy),
+        p.CastBar is { } bar ? bar.Offset(dx, dy) : null,
+        p.Mark is { } mark ? mark.Offset(dx, dy) : null);
 }
