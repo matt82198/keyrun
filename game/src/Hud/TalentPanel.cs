@@ -22,8 +22,8 @@ public partial class TalentPanel : Control
     /// <summary>Option description font size.</summary>
     public const int TextFont = 12;
 
-    /// <summary>The line under the title; says plainly that picks do not reach a run yet (see the PR's missing hook).</summary>
-    public const string Caption = "Pick one side of each fork. Respec is free. Picks are not applied to runs yet.";
+    /// <summary>The line under the title. Since lane TALENT-PICKS the picks reach the next queued run.</summary>
+    public const string Caption = "Pick one side of each fork. Respec is free. Picks apply to the next run you queue.";
 
     private const int TitleFont = 16;
     private const int NameFont = 14;

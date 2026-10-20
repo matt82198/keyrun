@@ -27,8 +27,12 @@ namespace Keyrun.Hud;
 /// talent panel: T, pick fork 1 side 1, Down, pick side 2, free respec, pick again, T, then Queue).
 /// <para>Talents (BIBLE s6, lane BIBLE-TALENTS-UI): T opens the <see cref="TalentPanel"/> over the Character and Key
 /// bands; the build is the pure <see cref="TalentPicks"/> for the human's class, kept across opens, and Backspace
-/// respecs for free (Ash is untouched). The picks are not yet handed to the run: that needs the host run setup to
-/// resolve <see cref="TalentPicks.Resolve"/> into RunOptions.Loadouts (named in the PR as the missing hook).</para>
+/// respecs for free (Ash is untouched). Queue hands the picks to the run (lane TALENT-PICKS): they are resolved with
+/// <see cref="TalentPicks.Resolve"/>, converted to sim AbilityDefs by the host's own content conversion
+/// (<see cref="HostRunSetup.Build"/>), and queued on the <see cref="QueueRequest"/> as the human's loadout, which
+/// <see cref="QueueRequest.ToRunOptions"/> passes to the run as RunOptions.Loadouts. The panel's <c>applied=</c> count is
+/// the number of talented abilities the next Queue hands over. The build lives only in this node (it is not saved
+/// across restarts).</para>
 /// </summary>
 public partial class Screen : Control
 {
@@ -224,7 +228,7 @@ public partial class Screen : Control
         TalentsOpen = !TalentsOpen;
         TalentFork = Math.Clamp(TalentFork, 0, Math.Max(0, picks.ForkCount - 1));
         Proof(FormattableString.Invariant(
-            $"SCREEN talents open={(TalentsOpen ? 1 : 0)} class={picks.ClassId} forks={picks.ForkCount} picks={picks.Count} applied=0"));
+            $"SCREEN talents open={(TalentsOpen ? 1 : 0)} class={picks.ClassId} forks={picks.ForkCount} picks={picks.Count} applied={AppliedCount(TalentLoadouts())}"));
         if (TalentsOpen)
         {
             ProofTalents();
@@ -484,7 +488,7 @@ public partial class Screen : Control
         {
             return;
         }
-        var (locked, request) = s.Queue();
+        var (locked, request) = s.Queue(s.Locked ? null : TalentLoadouts());
         _state = locked;
         if (request is null)
         {
@@ -492,9 +496,65 @@ public partial class Screen : Control
         }
         LastRequest = request;
         Proof(FormattableString.Invariant($"SCREEN queue dungeon={request.DungeonId} key={request.KeyLevel} clause={request.ClauseId}"));
+        ProofQueuedTalents(request);
         Queued?.Invoke(request);
         Close();
     }
+
+    /// <summary>
+    /// The human's talent-resolved kit for the next run (BIBLE s6), keyed by the human's actor id, or null when no fork
+    /// is picked or content is not loaded. The picks are resolved on the content abilities with
+    /// <see cref="TalentPicks.Resolve"/>, and the patched content is converted to sim AbilityDefs by the same
+    /// <see cref="HostRunSetup.Build"/> conversion the run itself is built with, so a talented ability is exactly what
+    /// the host would build if the talent were the base definition.
+    /// </summary>
+    /// <returns>The loadouts for <see cref="ScreenState.Queue"/>, or null.</returns>
+    private IReadOnlyDictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>>? TalentLoadouts()
+    {
+        if (_talents is not { Count: > 0 } picks || _driver?.Registry is not { } reg || _state is not { } s)
+        {
+            return null;
+        }
+        var patched = picks.Resolve(reg.Abilities);
+        if (patched.Count == 0)
+        {
+            return null;
+        }
+        var abilities = new Keyrun.Content.ValueMap<Keyrun.Content.AbilityDef>(reg.Abilities.Select(kv =>
+            patched.TryGetValue(kv.Key, out var p) ? new KeyValuePair<string, Keyrun.Content.AbilityDef>(kv.Key, p) : kv));
+        var setup = HostRunSetup.Build(reg with { Abilities = abilities }, s.DungeonId, s.KeyLevel, SimDriver.HumanClassId, withBots: false);
+        var kit = patched.Keys.ToDictionary(id => id, id => setup.Content.Abilities[id], StringComparer.Ordinal);
+        return new Dictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>> { [setup.HumanActorId] = kit };
+    }
+
+    private static int AppliedCount(IReadOnlyDictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>>? loadouts) =>
+        loadouts?.Values.Sum(kit => kit.Count) ?? 0;
+
+    // One line for the count the request hands the run, then one per talented ability: the queued value next to the base
+    // the run would otherwise play (read from the request's own RunOptions, the object SimDriver passes to CreateRun).
+    private void ProofQueuedTalents(QueueRequest request)
+    {
+        var loadouts = request.ToRunOptions().Loadouts;
+        Proof(FormattableString.Invariant($"SCREEN queue talents applied={AppliedCount(loadouts)}"));
+        if (loadouts is null)
+        {
+            return;
+        }
+        var baseKit = _driver?.Setup?.Content.Abilities;
+        foreach (var (actor, kit) in loadouts.OrderBy(kv => kv.Key))
+        {
+            foreach (var (id, def) in kit)
+            {
+                var b = baseKit is not null && baseKit.TryGetValue(id, out var bd) ? bd : null;
+                Proof($"SCREEN queue talent actor={actor.ToString(System.Globalization.CultureInfo.InvariantCulture)} ability={id} {Stats(def)} base {Stats(b)}");
+            }
+        }
+    }
+
+    private static string Stats(Keyrun.Sim.Combat.AbilityDef? d) => d is null
+        ? "shape=- cooldown=- cost=- damage=-"
+        : FormattableString.Invariant(
+            $"shape={d.Shape.Kind} cooldown={d.CooldownTicks} cost={d.Cost.Amount} damage={d.Effects.OfType<Keyrun.Sim.Combat.DamageOp>().FirstOrDefault()?.Amount ?? 0}");
 
     private void OnStepped(int tick, IReadOnlyList<Keyrun.Sim.Core.SimEvent> events)
     {
