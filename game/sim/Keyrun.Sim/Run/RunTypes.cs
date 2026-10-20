@@ -91,8 +91,9 @@ public sealed record RunContent
     public NavLayout? Layout { get; init; }
 
     /// <summary>
-    /// PATH-PACKS (BIBLE section 9.1; layout runs only): the layout's trash packs, each engaging whole when a party member
-    /// steps into its aggro ring (<see cref="LayoutPacks"/>). Their members' scripts ride in <see cref="EnemyScripts"/>.
+    /// PATH-PACKS (BIBLE section 9.1; layout runs only): the layout's trash packs, each standing idle from tick 0
+    /// (<see cref="LayoutPacks.SpawnAllIdle"/>) and engaging whole by proximity or damage as one <see cref="Aggro.GroupsOf"/>
+    /// group with pull index -1. Their members' scripts ride in <see cref="EnemyScripts"/>.
     /// Null or empty = no packs (every oracle run).
     /// </summary>
     public IReadOnlyList<PackGroup>? Packs { get; init; }

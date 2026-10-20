@@ -148,7 +148,8 @@ public sealed record HostRunSetup(
         }
         var nav = NavLayouts.ToSim(layout);
         dungeon = NavLayouts.PlaceDungeon(layout, dungeon);
-        // PATH-PACKS (BIBLE s9.1): the layout's trash packs, each pulled whole when a party member steps into its ring.
+        // PATH-PACKS (BIBLE s9.1): the layout's trash packs, required and optional, idle on the path from tick 0 and each
+        // pulled whole by proximity, like a pull.
         var (packs, packScripts) = LayoutPackGroups.Build(layout, dungeon, scripts);
 
         var run = registry.Run;

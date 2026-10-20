@@ -71,6 +71,8 @@ public static class RunRoot
             // formation from tick 0, and each engages on its own aggro radius (StepLayout), never on room entry.
             layout.RequireTriggers(dungeon);
             state = RunWiring.MergeActors(state, Pulls.SpawnAllIdle(dungeon, content.ActorRadiusMm));
+            // PATH-PACKS: every layout pack, required and optional, stands idle on the path from tick 0 too.
+            state = RunWiring.MergeActors(state, LayoutPacks.SpawnAllIdle(content.Packs, content.ActorRadiusMm));
         }
         else
         {
@@ -110,7 +112,7 @@ public static class RunRoot
             return run;
         }
         var state = run.State.Clone();
-        var groups = Aggro.GroupsOf(run.Dungeon, state.Tick);
+        var groups = Aggro.GroupsOf(run.Dungeon, state.Tick, run.Content.Packs);
         var encounter = Aggro.Engage(state, run.Encounter, groups, new[] { run.Dungeon.Pulls[index].Id }, state.Tick, static _ => { });
         RunWiring.FixupTargeting(state);
         return run with { State = state, Encounter = encounter };
@@ -217,15 +219,9 @@ public static class RunRoot
             var newly = nextEncounter.Engaged.Skip(before).ToList();
             if (newly.Count > 0)
             {
-                var ids = Aggro.GroupsOf(run.Dungeon, nextState.Tick).Where(g => newly.Contains(g.Id)).SelectMany(g => g.ActorIds).ToHashSet();
+                // A pull or a pack (PATH-PACKS) runs its scripts on its own clock from its engage tick.
+                var ids = Aggro.GroupsOf(run.Dungeon, nextState.Tick, content.Packs).Where(g => newly.Contains(g.Id)).SelectMany(g => g.ActorIds).ToHashSet();
                 activeScripts = OnEngageClock(activeScripts ?? content.EnemyScripts, ids, nextState.Tick);
-            }
-            // PATH-PACKS (BIBLE s9.1): a pack engages whole on the tick a party member steps into its ring, its scripts on
-            // its own clock. It never moves the pull index and never shuts a gate.
-            foreach (var pack in LayoutPacks.Triggered(nextState, content.Packs ?? Array.Empty<PackGroup>(), opts?.OpenSeats))
-            {
-                nextState = RunWiring.MergeActors(nextState, LayoutPacks.Spawn(pack, nextState.Tick, emit));
-                activeScripts = OnEngageClock(activeScripts ?? content.EnemyScripts, pack.Spawns.Select(s => s.ActorId).ToHashSet(), nextState.Tick);
             }
         }
         var echo = EchoSpawns.Step(nextEncounter, nextState, events, nextState.Tick, emit);
@@ -315,7 +311,7 @@ public static class RunRoot
             }
         }
 
-        var groups = Aggro.GroupsOf(run.Dungeon, next.Tick);
+        var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs);
         var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);
         return (next, encounter);

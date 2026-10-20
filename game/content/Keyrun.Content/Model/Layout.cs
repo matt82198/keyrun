@@ -34,8 +34,8 @@ public sealed record LayoutDef
     /// each with its own forces value. An optional pack's aggro ring clears the route, so a party in formation walks past
     /// it without a pull; no gate ever names a pack, so the boss never waits on one. The forces bar decides which packs a
     /// route needs. PATH-PACKS: a required pack (<c>optional: false</c>) stands on the walking line between teaching
-    /// pulls, so the forward path is pull, pack, pull, boss; the sim spawns every pack whole when a party member steps
-    /// into its ring. Empty when the key is absent.
+    /// pulls, so the forward path is pull, pack, pull, boss. Every pack stands idle on the path from tick 0 and engages
+    /// whole when a party member comes within its ring (PRESPAWN-AGGRO). Empty when the key is absent.
     /// </summary>
     public ValueList<LayoutPack> Packs { get; init; } = new();
 

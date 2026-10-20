@@ -32,16 +32,28 @@ public static class Aggro
         return (dx * dx) + (dz * dz) <= radiusMm * radiusMm;
     }
 
-    /// <summary>The dungeon's groups on <paramref name="tick"/>: its pulls in pull order.</summary>
+    /// <summary>
+    /// The run's groups on <paramref name="tick"/>: the dungeon's pulls in pull order, then every layout pack
+    /// (PATH-PACKS, required and optional) in <paramref name="packs"/> order with pull index -1, its ring at the pack
+    /// centre and no links. A pack stands idle from tick 0 like a pull (<see cref="LayoutPacks.SpawnAllIdle"/>) and
+    /// engages, whole, by the same proximity and damage rule, emitting <c>pack_engage</c>.
+    /// </summary>
     /// <param name="dungeon">The dungeon.</param>
     /// <param name="tick">The tick (where a patrol's ring stands).</param>
-    public static IReadOnlyList<AggroGroup> GroupsOf(DungeonDef dungeon, int tick)
+    /// <param name="packs">The run's layout packs (<c>RunContent.Packs</c>), or null for none.</param>
+    /// <returns>Pull groups then pack groups.</returns>
+    public static IReadOnlyList<AggroGroup> GroupsOf(DungeonDef dungeon, int tick, IReadOnlyList<PackGroup>? packs = null)
     {
         ArgumentNullException.ThrowIfNull(dungeon);
         _ = tick;
-        return dungeon.Pulls
+        var groups = dungeon.Pulls
             .Select((p, i) => new AggroGroup(p.Id, i, p.Spawns.Select(s => s.ActorId).ToList(), Pulls.RingCenter(p), p.AggroMm, p.Links))
             .ToList();
+        if (packs is not null)
+        {
+            groups.AddRange(packs.Select(k => new AggroGroup(k.Id, -1, k.Spawns.Select(s => s.ActorId).ToList(), k.Center, k.AggroMm, Array.Empty<string>())));
+        }
+        return groups;
     }
 
     /// <summary>
