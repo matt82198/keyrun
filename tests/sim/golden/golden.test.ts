@@ -27,10 +27,14 @@ import {
   SEED as CONTENT_SEED,
   TICKS as CONTENT_TICKS,
   buildCommands,
-  contentHash,
+  contentHashes,
   eventCounts,
+  renderContentPull,
   runScenario,
 } from "./build-content-pull";
+import { hashMapDrift, type HashMap } from "./hash-map";
+import { loadContent, type ContentRegistry } from "@content/index";
+import { gitMergeFile } from "../../oracle/merge-file";
 
 interface GoldenFixture {
   seed: number;
@@ -40,7 +44,7 @@ interface GoldenFixture {
 }
 
 interface ContentGoldenFixture extends GoldenFixture {
-  contentHash: string;
+  contentHashes: HashMap;
   eventCounts: Record<string, number>;
   why: string;
 }
@@ -73,9 +77,13 @@ describe("golden replay: content-pull (real content/ registry)", () => {
     expect(contentFixture.seed).toBe(CONTENT_SEED);
     expect(contentFixture.ticks).toBe(CONTENT_TICKS);
     expect(contentFixture.commands).toEqual(buildCommands());
-    // Hashes the real registry JSON: any content/ edit changes this, forcing a deliberate
+    // Hashes every real registry entry: any content/ edit changes one, forcing a deliberate
     // re-record (npx tsx tests/sim/golden/build-content-pull.ts) instead of a silent drift.
-    expect(contentFixture.contentHash).toBe(contentHash());
+    expect(Object.keys(contentFixture.contentHashes ?? {}).length).toBeGreaterThan(100);
+    expect(
+      hashMapDrift(contentFixture.contentHashes, contentHashes()),
+      "these content entries changed since content-pull.json was recorded; re-record it with npx tsx tests/sim/golden/build-content-pull.ts",
+    ).toEqual([]);
   });
 
   it("recomputes the pinned final-state hash and event counts by type", () => {
@@ -95,5 +103,50 @@ describe("golden replay: content-pull (real content/ registry)", () => {
     const a = runScenario();
     const b = runScenario();
     expect(hashState(a.run.state)).toBe(hashState(b.run.state));
+  });
+});
+
+/** A copy of `reg` with ability `id`'s cooldown moved by `delta` ticks (a one-field content edit). */
+function withCooldownEdit(reg: ContentRegistry, id: string, delta: number): ContentRegistry {
+  const abilities = new Map(reg.abilities);
+  const def = abilities.get(id)!;
+  abilities.set(id, { ...def, cooldownTicks: def.cooldownTicks + delta });
+  return { ...reg, abilities };
+}
+
+describe("content-pull contentHashes: per entry, fail-closed, merge-friendly", () => {
+  const reg = loadContent();
+  // Two abilities that sort next to each other: the hardest case for a line-based merge.
+  const [idA, idB] = [...reg.abilities.keys()].sort().slice(0, 2) as [string, string];
+
+  it("a content edit with a stale (not re-recorded) content-pull.json still fails the drift check", () => {
+    const recorded = contentHashes(reg); // what the committed fixture was recorded from
+    const edited = withCooldownEdit(reg, idA, 5); // a content edit, no re-record
+    expect(hashMapDrift(recorded, contentHashes(edited))).toEqual([`changed abilities/${idA}`]);
+  });
+
+  it("an added or a removed content entry also fails the drift check", () => {
+    const recorded = contentHashes(reg);
+    const abilities = new Map(reg.abilities);
+    const def = abilities.get(idB)!;
+    abilities.delete(idB);
+    abilities.set("zz.new", { ...def, id: "zz.new" });
+    expect(hashMapDrift(recorded, contentHashes({ ...reg, abilities }))).toEqual([
+      `removed abilities/${idB}`,
+      "added abilities/zz.new",
+    ]);
+  });
+
+  it("two independent content edits on separate branches merge content-pull.json without a conflict", () => {
+    const render = (r: ContentRegistry): string => renderContentPull({ ...contentFixture, contentHashes: contentHashes(r) });
+    const base = render(reg);
+    const ours = render(withCooldownEdit(reg, idA, 5)); // branch A edits one ability
+    const theirs = render(withCooldownEdit(reg, idB, 7)); // branch B edits the next one
+    const both = render(withCooldownEdit(withCooldownEdit(reg, idA, 5), idB, 7));
+    expect(ours).not.toBe(base);
+    expect(theirs).not.toBe(base);
+    const merged = gitMergeFile(base, ours, theirs);
+    expect(merged.clean, merged.text).toBe(true);
+    expect(merged.text).toBe(both);
   });
 });
