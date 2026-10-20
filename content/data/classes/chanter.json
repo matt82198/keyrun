@@ -24,7 +24,7 @@
         {
           "id": "resonance",
           "name": "Resonance",
-          "text": "Attuned lasts longer.",
+          "text": "Attuned, Mend and Ward last longer.",
           "patch": {
             "effects": [
               {
@@ -34,7 +34,17 @@
                 "onTarget": true,
                 "setupClass": "chanter"
               }
-            ]
+            ],
+            "variants": {
+              "mend": [
+                { "op": "applyEffect", "effectId": "mendingHot", "durationTicks": 100, "stacks": 1 },
+                { "op": "window", "windowId": "attuned", "durationTicks": 100, "onTarget": true, "setupClass": "chanter" }
+              ],
+              "ward": [
+                { "op": "applyEffect", "effectId": "wardShield", "durationTicks": 100, "stacks": 1 },
+                { "op": "window", "windowId": "attuned", "durationTicks": 100, "onTarget": true, "setupClass": "chanter" }
+              ]
+            }
           }
         },
         {
@@ -55,10 +65,19 @@
         {
           "id": "swift",
           "name": "Swift Verse",
-          "text": "Instant cast; adds a short cooldown.",
+          "text": "Instant cast; Mend and Ward run out sooner.",
           "patch": {
             "castTicks": 0,
-            "cooldownTicks": 40
+            "variants": {
+              "mend": [
+                { "op": "applyEffect", "effectId": "mendingHot", "durationTicks": 40, "stacks": 1 },
+                { "op": "window", "windowId": "attuned", "durationTicks": 60, "onTarget": true, "setupClass": "chanter" }
+              ],
+              "ward": [
+                { "op": "applyEffect", "effectId": "wardShield", "durationTicks": 40, "stacks": 1 },
+                { "op": "window", "windowId": "attuned", "durationTicks": 60, "onTarget": true, "setupClass": "chanter" }
+              ]
+            }
           }
         }
       ]
