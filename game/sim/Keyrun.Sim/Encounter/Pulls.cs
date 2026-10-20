@@ -144,7 +144,9 @@ public static class Pulls
 
     /// <summary>
     /// True once pull <paramref name="pullIndex"/> has spawned: any of its spawn actor ids is in the state (actors are
-    /// never removed, so a spawned pull stays spawned). An out-of-range index or an empty pull is never spawned.
+    /// never removed, so a spawned pull stays spawned). An out-of-range index or an empty pull is never spawned. On a
+    /// layout run every pull is spawned, idle, from tick 0 (PRESPAWN-AGGRO): ask <see cref="IsEngaged(EncounterState, DungeonDef, int)"/>
+    /// whether its fight has started.
     /// </summary>
     public static bool IsSpawned(SimState state, DungeonDef dungeon, int pullIndex)
     {
@@ -252,9 +254,7 @@ public sealed record NavLayout
     /// <param name="pre">The actor's position before the move.</param>
     /// <param name="post">The position the move reached (already walkable-clamped).</param>
     /// <returns>The gated position.</returns>
-    /// <param name="admitOutsider">PRESPAWN-AGGRO: true lets an actor outside step in (the gate shuts behind the party,
-    /// BIBLE section 9.1, so a party member still in the doorway when the first one engages is not shut out).</param>
-    public static Vec3 GateClamp(Combat.Bounds room, Vec3 pre, Vec3 post, bool admitOutsider = false)
+    public static Vec3 GateClamp(Combat.Bounds room, Vec3 pre, Vec3 post)
     {
         var wasIn = Combat.Movement.Contains(room, pre);
         var isIn = Combat.Movement.Contains(room, post);
@@ -262,7 +262,7 @@ public sealed record NavLayout
         {
             return Combat.Movement.ClampPoint(post, room);
         }
-        return !wasIn && isIn && !admitOutsider ? pre : post;
+        return !wasIn && isIn ? pre : post;
     }
 
     /// <summary>The highest-index box holding <paramref name="p"/> (open or not), or -1 when none does.</summary>

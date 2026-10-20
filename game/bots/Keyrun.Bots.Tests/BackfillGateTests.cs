@@ -86,7 +86,7 @@ public sealed class BackfillGateTests
         while (run.State.Tick < MaxTicks && run.RunEnd.ResultTick is null && (stopAt is null || run.State.Tick < stopAt))
         {
             var tick = run.State.Tick;
-            if (!abandoned && run.Encounter.PullIndex == 0 && run.State.Actors.Values.Count(a => a.Alive && a.Kind == ActorKind.Enemy) == 1)
+            if (!abandoned && run.Encounter.PullIndex == 0 && run.State.Actors.Values.Count(a => a.Alive && a.Kind == ActorKind.Enemy && !a.Idle) == 1)
             {
                 // Seat 2 leaves as the Choir's last enemy is fought (HudSceneTest run F abandons late in pull 1 too):
                 // earlier, the Warden dies without his healer and the leader becomes the idle open seat.
@@ -105,7 +105,7 @@ public sealed class BackfillGateTests
                 {
                     // ScriptedWarden's travel: the route, holding for the party, not the tank role.
                     commands.RemoveAll(c => c.ActorId == LeaderId);
-                    if (Follow.LeadRoute(tick, leader, run) is { } walk)
+                    if (Follow.LeadRoute(tick, leader, run, book.Open.Select(s => s.ActorId).ToList()) is { } walk)
                     {
                         commands.Add(walk);
                     }

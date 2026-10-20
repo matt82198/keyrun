@@ -74,7 +74,7 @@ public sealed class JoinerDoorwayTests
         while (run.State.Tick < MaxTicks && run.RunEnd.ResultTick is null)
         {
             var tick = run.State.Tick;
-            if (!abandoned && run.Encounter.PullIndex == 0 && run.State.Actors.Values.Count(a => a.Alive && a.Kind == ActorKind.Enemy) == 1)
+            if (!abandoned && run.Encounter.PullIndex == 0 && run.State.Actors.Values.Count(a => a.Alive && a.Kind == ActorKind.Enemy && !a.Idle) == 1)
             {
                 // As in BackfillGateTests: seat 2 leaves as the Choir's last enemy is fought.
                 book = Backfill.Abandon(book, run, JoinerId);
@@ -92,7 +92,7 @@ public sealed class JoinerDoorwayTests
                 {
                     // ScriptedWarden's travel: the route, holding for the party, not the tank role.
                     commands.RemoveAll(c => c.ActorId == LeaderId);
-                    if (Follow.LeadRoute(tick, leader, run) is { } walk)
+                    if (Follow.LeadRoute(tick, leader, run, book.Open.Select(s => s.ActorId).ToList()) is { } walk)
                     {
                         commands.Add(walk);
                     }

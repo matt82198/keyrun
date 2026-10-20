@@ -10,9 +10,10 @@ using Xunit;
 namespace Keyrun.Sim.Tests;
 
 /// <summary>
-/// The layout run rules on the public run root (STATE.md D18, design/ART-PLAN.md section 3; new behaviour, no TS oracle):
-/// with <see cref="RunContent.Layout"/> set, a pull spawns the first tick the living party stands in its room box (D27)
-/// (never at run start, never on the previous clear), the corridor out of a room is a wall until the room's pull clears,
+/// The layout run rules on the public run root (STATE.md D18, design/ART-PLAN.md section 3; new behaviour, no TS oracle),
+/// re-derived for PRESPAWN-AGGRO (BIBLE section 9.1): with <see cref="RunContent.Layout"/> set, every pull stands idle in
+/// its room from tick 0 and engages (<c>pull_start</c>) on the first tick a living party member is inside its aggro ring
+/// (never on room entry, never on the previous clear), the corridor out of a room is a wall until the room's pull clears,
 /// and entering a room emits <c>room_enter</c>. A run without a layout is every oracle run and is unchanged.
 /// </summary>
 public sealed class NavLayoutRunTests
@@ -39,11 +40,15 @@ public sealed class NavLayoutRunTests
             : new[] { new NavTrigger("p1", Trigger1) },
         new[] { new Vec3(4500, 0, 0), new Vec3(11500, 0, 0), new Vec3(24500, 0, 0), new Vec3(29500, 0, 0), new Vec3(35000, 0, 0) });
 
+    // 2000 mm off the walking line (z 0): a walker crosses each aggro ring (radius 4000) without touching the body.
     private static readonly DungeonDef Dungeon = new("nav", new[]
     {
-        new PullDef("p1", new[] { RunTestKit.Spawn(101, "dummy", 22000, 4000, 10) }),
-        new PullDef("p2", new[] { RunTestKit.Spawn(201, "dummy", 38000, 4000, 10) }),
+        new PullDef("p1", new[] { RunTestKit.Spawn(101, "dummy", 22000, 2000, 10) }),
+        new PullDef("p2", new[] { RunTestKit.Spawn(201, "dummy", 38000, 2000, 10) }),
     });
+
+    private static bool InRing(int pullIndex, Vec3 p) =>
+        Aggro.InRing(p, Pulls.RingCenter(Dungeon.Pulls[pullIndex]), Dungeon.Pulls[pullIndex].AggroMm);
 
     private static RunContent Content(NavLayout? layout)
     {
@@ -67,11 +72,18 @@ public sealed class NavLayoutRunTests
         return (r.Run, r.Events);
     }
 
-    [Fact(DisplayName = "Nav run: no pull spawns before a party member enters its room box")]
-    public void No_pull_spawns_before_a_party_member_enters_its_trigger_box()
+    [Fact(DisplayName = "Nav run: every pull exists idle from tick 0 and none engages before a party member reaches its aggro ring")]
+    public void Every_pull_exists_idle_and_engages_only_at_its_ring()
     {
         var run = Create(0);
-        Assert.False(run.State.Actors.ContainsKey(101));
+        foreach (var (id, pos) in new[] { (101, new Vec3(22000, 0, 2000)), (201, new Vec3(38000, 0, 2000)) })
+        {
+            var enemy = run.State.Actors[id];
+            Assert.True(enemy.Alive);
+            Assert.True(enemy.Idle, $"enemy {id} is not idle at tick 0");
+            Assert.Equal(pos, enemy.Pos);
+        }
+        Assert.Empty(run.Encounter.Engaged);
         var idle = run;
         for (var i = 0; i < 300; i++)
         {
@@ -79,12 +91,14 @@ public sealed class NavLayoutRunTests
             Assert.DoesNotContain(s.Events, e => e.Type is "pull_start" or "pull_clear" or "run_end");
             idle = s.Run;
         }
-        Assert.False(idle.State.Actors.ContainsKey(101));
+        Assert.True(idle.State.Actors[101].Idle);
+        Assert.Equal(new Vec3(22000, 0, 2000), idle.State.Actors[101].Pos);
         Assert.Equal(0, idle.Encounter.PullIndex);
 
-        // Walk east: the pull starts on exactly the tick the Warden first stands in the room box (solo party, D27).
+        // Walk east: the pull engages on exactly the tick the Warden first stands in its aggro ring (not its room box).
         var walking = run;
         int? startTick = null;
+        var enteredRoomFirst = false;
         for (var i = 0; i < 200 && startTick is null; i++)
         {
             var before = walking.State.Actors[1].Pos;
@@ -93,25 +107,30 @@ public sealed class NavLayoutRunTests
             if (s.Events.Any(e => e.Type == "pull_start"))
             {
                 startTick = s.Run.State.Tick;
-                Assert.False(Movement.Contains(Room1, before), $"pull started at {after} but the Warden was already in the trigger at {before}");
-                Assert.True(Movement.Contains(Room1, after), $"pull started with the Warden at {after}, outside the trigger");
-                Assert.True(s.Run.State.Actors.ContainsKey(101));
+                Assert.False(InRing(0, before), $"pull engaged at {after} but the Warden was already in the ring at {before}");
+                Assert.True(InRing(0, after), $"pull engaged with the Warden at {after}, outside the ring");
+                Assert.False(s.Run.State.Actors[101].Idle);
             }
             else
             {
-                Assert.False(Movement.Contains(Room1, after), $"the Warden stood in the trigger at {after} with no pull_start");
+                Assert.False(InRing(0, after), $"the Warden stood in the ring at {after} with no pull_start");
+                enteredRoomFirst |= Movement.Contains(Room1, after);
             }
             walking = s.Run;
         }
         Assert.NotNull(startTick);
+        Assert.True(enteredRoomFirst, "non-vacuity: the Warden should stand in room-1 for some ticks before the engage");
     }
 
-    [Fact(DisplayName = "Nav run: a run that starts inside a trigger spawns that pull at creation")]
-    public void A_run_starting_inside_a_trigger_spawns_that_pull_at_creation()
+    [Fact(DisplayName = "Nav run: a run that starts inside a room has every pull idle at creation; nothing is engaged")]
+    public void A_run_starting_inside_a_room_engages_nothing_at_creation()
     {
         var run = Create(14000);
-        Assert.True(run.State.Actors.ContainsKey(101));
-        Assert.False(run.State.Actors.ContainsKey(201));
+        Assert.True(run.State.Actors[101].Idle);
+        Assert.True(run.State.Actors[201].Idle);
+        Assert.Empty(run.Encounter.Engaged);
+        var s = Step(run);
+        Assert.DoesNotContain(s.Events, e => e.Type is "pull_start" or "gate_closed");
     }
 
     [Fact(DisplayName = "Nav run: the corridor out of a room is a wall until the room's pull clears")]
@@ -131,7 +150,7 @@ public sealed class NavLayoutRunTests
         Assert.Contains(killed.Events.Concat(cleared.Events), e => e.Type == "pull_clear");
         Assert.DoesNotContain(killed.Events.Concat(cleared.Events), e => e.Type == "pull_start");
         run = cleared.Run;
-        Assert.False(run.State.Actors.ContainsKey(201));
+        Assert.True(run.State.Actors[201].Idle, "p2 engaged on p1's clear");
         int? p2Start = null;
         for (var i = 0; i < 120 && p2Start is null; i++)
         {
@@ -140,6 +159,7 @@ public sealed class NavLayoutRunTests
             {
                 p2Start = s.Run.State.Tick;
                 Assert.True(Movement.Contains(Room2, s.Run.State.Actors[1].Pos));
+                Assert.True(InRing(1, s.Run.State.Actors[1].Pos));
             }
             run = s.Run;
         }
@@ -166,8 +186,8 @@ public sealed class NavLayoutRunTests
         Assert.Equal(new Vec3(25000, 0, 0), run.State.Actors[1].Pos);
     }
 
-    [Fact(DisplayName = "Nav run: backfill fills an open seat at the next pull's room-entry start, not at the clear")]
-    public void Backfill_fills_at_the_room_entry_pull_start()
+    [Fact(DisplayName = "Nav run: backfill fills an open seat at the next pull's engage, not at the clear")]
+    public void Backfill_fills_at_the_next_pull_engage()
     {
         var run = RunRoot.CreateRun(
             1,
@@ -178,6 +198,12 @@ public sealed class NavLayoutRunTests
             },
             Dungeon,
             Content(Layout()) with { KeyLevel = 2 });
+        // p1 engages first (the Warden walks into its ring); the Chanter leaves inside that fight.
+        for (var i = 0; i < 200 && run.Encounter.Engaged.Count == 0; i++)
+        {
+            run = Step(run, East(run.State.Tick)).Run;
+        }
+        Assert.Equal(new[] { "p1" }, run.Encounter.Engaged);
         var book = Backfill.Abandon(BackfillState.Empty, run, 2);
         var queue = new[] { new QueueRequest("nav", 2, "none") };
         var kill = Backfill.Step(book, run, new Command[] { new CastCommand(run.State.Tick, 1, "nuke", 101) }, queue);

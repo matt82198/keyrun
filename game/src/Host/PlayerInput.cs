@@ -98,7 +98,7 @@ public partial class PlayerInput : Node, ICommandSource
         ArgumentNullException.ThrowIfNull(run);
         if (_scripted)
         {
-            _script.Sample(tick, run, into);
+            _script.Sample(tick, run, into, Driver?.OpenSeats);
             return;
         }
         SampleMove(tick, into);
@@ -379,7 +379,8 @@ public sealed class ScriptedWarden
     /// <param name="tick">The pre-step tick.</param>
     /// <param name="run">The run.</param>
     /// <param name="into">The command list.</param>
-    public void Sample(int tick, Run run, List<Command> into)
+    /// <param name="openSeats">Abandoned seats not yet refilled (the leader does not wait for them), or null.</param>
+    public void Sample(int tick, Run run, List<Command> into, IReadOnlyList<int>? openSeats = null)
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(into);
@@ -390,7 +391,7 @@ public sealed class ScriptedWarden
         }
         if (run.Content.Layout is not null && !Follow.AnyLivingEnemy(state))
         {
-            if (Follow.LeadRoute(tick, me, run) is { } walk)
+            if (Follow.LeadRoute(tick, me, run, openSeats) is { } walk)
             {
                 into.Add(walk);
             }

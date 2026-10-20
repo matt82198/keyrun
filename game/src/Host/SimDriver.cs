@@ -755,6 +755,9 @@ public partial class SimDriver : Node
     /// <exception cref="ArgumentException">Not a player seat of the run, or already open (<see cref="Backfill.Abandon"/>).</exception>
     public void AbandonSeat(int actorId) => _backfill = Backfill.Abandon(_backfill, Run!, actorId);
 
+    /// <summary>The abandoned seats not yet refilled (actor ids): the scripted leader never waits for them.</summary>
+    public IReadOnlyList<int> OpenSeats => _backfill.Open.Select(s => s.ActorId).ToList();
+
     private void HookScreen()
     {
         _queue ??= GetNodeOrNull<Queue>(QueuePath);
@@ -905,9 +908,9 @@ public partial class SimDriver : Node
         _log?.Line(FormattableString.Invariant(
             $"BOSS armed twins={boss.Twins.Count} lockAt={boss.LockThresholdBp / 100} window={boss.LockWindowTicks} bar={boss.TwinsBar.Id} boss={boss.BossActorId}"));
         // createRun spawns pull 0 and drops its pull_start (it has no event sink); the log names it here. On a layout
-        // run pull 0 spawns at creation only when the party starts in its trigger (a --pull N start); otherwise its
-        // pull_start comes on room entry and RunLog names it then.
-        if (Pulls.IsSpawned(run.State, dungeon, run.Encounter.PullIndex))
+        // run every group stands idle from tick 0 (PRESPAWN-AGGRO) and none is engaged at creation: each pull_start
+        // comes on its aggro-radius engage and RunLog names it then.
+        if (Pulls.IsEngaged(run.Encounter, dungeon, run.Encounter.PullIndex))
         {
             _log?.PullSpawn(run.Encounter.PullIndex, dungeon);
         }

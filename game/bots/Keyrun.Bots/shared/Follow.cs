@@ -104,13 +104,16 @@ public static class Follow
     /// <summary>A walker this close to its point stops (no jitter on the spot), mm.</summary>
     public const long ArriveMm = 300;
 
-    /// <summary>True when any enemy actor is alive (the party is fighting, so roles decide, not travel).</summary>
+    /// <summary>
+    /// True when any engaged enemy actor is alive (the party is fighting, so roles decide, not travel). An idle group
+    /// (PRESPAWN-AGGRO, BIBLE section 9.1: every group stands in its room from tick 0 until it engages) is not a fight.
+    /// </summary>
     /// <param name="state">The state.</param>
-    /// <returns>True when an enemy lives.</returns>
+    /// <returns>True when an engaged enemy lives.</returns>
     public static bool AnyLivingEnemy(SimState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return state.Actors.Values.Any(a => a.Alive && a.Kind == ActorKind.Enemy);
+        return state.Actors.Values.Any(a => a.Alive && a.Kind == ActorKind.Enemy && !a.Idle);
     }
 
     /// <summary>The party's leader: the living player actor with the lowest id (the human seat is actor 1).</summary>
@@ -193,30 +196,35 @@ public static class Follow
     /// How far past a pull room's entry doorway (route point k-1) the leader holds while that room's pull waits for the
     /// party (LEADER-WAITS), mm. 4000 past the doorway, which stands 500 mm inside the room, is the room's layout start
     /// (entry wall + 4500 mm). The layout validator puts every spawn at least 11180 mm past the entry wall
-    /// (trigger inset 2000 + clearance 6000 + overshoot 3180), so the hold is at least 6680 mm from every spawn; and the
-    /// formation slots (2500 mm behind) fall 2000 mm inside the room, so the followers' arrival starts the pull.
+    /// (trigger inset 2000 + clearance 6000 + overshoot 3180), so the hold is at least 6680 mm from every spawn, outside a
+    /// default 4000 mm aggro ring (PRESPAWN-AGGRO); and the formation slots (2500 mm behind) fall 2000 mm inside the room,
+    /// so the followers' arrival releases the leader into the ring.
     /// </summary>
     public const long HoldPastDoorMm = 4000;
 
     /// <summary>
-    /// The scripted leader's travel (ScriptedWarden; STATE.md D27, LEADER-WAITS): <see cref="WalkRoute"/>, except that
-    /// inside the room of the active pull, before it spawns (the living party is not all inside yet), the leader walks to
-    /// <see cref="HoldPoint"/> and waits there instead of crossing to the far doorway, so no living player stands near a
-    /// spawn when the last member's entry starts the pull. Null while holding at the point.
+    /// The scripted leader's travel (ScriptedWarden; STATE.md D27, LEADER-WAITS; PRESPAWN-AGGRO, BIBLE section 9.1 "bots
+    /// pull on purpose, with the tank first"): <see cref="WalkRoute"/>, except that inside the room of the active pull,
+    /// before that pull engages and while a living party member (not an open seat) is still outside the room, the leader
+    /// walks to <see cref="HoldPoint"/> (outside the pull's aggro ring) and waits there instead of crossing to the far
+    /// doorway. Once the party is in, the leader walks on along the route into the ring, so he engages the pull first with
+    /// the party behind him. Null while holding at the point.
     /// </summary>
     /// <param name="tick">Command tick.</param>
     /// <param name="self">The leader.</param>
     /// <param name="run">The run (its layout, dungeon and active pull).</param>
+    /// <param name="openSeats">Abandoned seats' actor ids (they never come in, so they are not waited for), or null.</param>
     /// <returns>The move, or null.</returns>
-    public static MoveCommand? LeadRoute(int tick, ActorState self, Keyrun.Sim.Runs.Run run)
+    public static MoveCommand? LeadRoute(int tick, ActorState self, Keyrun.Sim.Runs.Run run, IReadOnlyList<int>? openSeats = null)
     {
         ArgumentNullException.ThrowIfNull(self);
         ArgumentNullException.ThrowIfNull(run);
         var layout = run.Content.Layout ?? throw new ArgumentException("the run has no layout", nameof(run));
         var index = run.Encounter.PullIndex;
         var (_, high) = Span(layout, self.Pos);
-        if (high > 0 && index < run.Dungeon.Pulls.Count && !Pulls.IsSpawned(run.State, run.Dungeon, index) &&
-            layout.RoomFor(run.Dungeon.Pulls[index].Id) is { } room && string.Equals(room.Id, layout.Boxes[high].Id, StringComparison.Ordinal))
+        if (high > 0 && index < run.Dungeon.Pulls.Count && !Pulls.IsEngaged(run.Encounter, run.Dungeon, index) &&
+            layout.RoomFor(run.Dungeon.Pulls[index].Id) is { } room && string.Equals(room.Id, layout.Boxes[high].Id, StringComparison.Ordinal) &&
+            !NavLayout.PartyInside(run.State, room.Box, openSeats))
         {
             var hold = HoldPoint(layout, high);
             return Distance2(self.Pos, hold) <= ArriveMm * ArriveMm

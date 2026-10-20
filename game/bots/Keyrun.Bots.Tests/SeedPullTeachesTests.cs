@@ -21,8 +21,9 @@ namespace Keyrun.Bots.Tests;
 /// is read before it lands). Run C's shape at full health: the hollow-vault k2 oracle setup placed into the rooms of
 /// game/content/data/layout.json, the host's three seats (Warden 1, Chanter 2, Cinder 3) at the Entrance, the real bot
 /// roles on every seat, and seat 1 driven like the autorun Warden (the route, holding for the party, while no enemy
-/// lives; in a fight it keeps its casts and drops its moves). The Seed spawns on the tick the last seat enters the
-/// seed-chamber (STATE.md D27). From there the Seed must open with a readable setup: none of its casts may start before
+/// lives; in a fight it keeps its casts and drops its moves). The Seed stands idle in the seed-chamber from tick 0 and
+/// engages on the tick the leader walks into its aggro ring (PRESPAWN-AGGRO, BIBLE section 9.1; STATE.md D27 lock-in at
+/// engage). From there the Seed must open with a readable setup: none of its casts may start before
 /// the party was shown that cast's own telegraph, and its telegraphed slam must land at least once before it can die.
 /// </summary>
 public sealed class SeedPullTeachesTests

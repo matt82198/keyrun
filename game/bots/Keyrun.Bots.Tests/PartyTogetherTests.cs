@@ -19,8 +19,9 @@ namespace Keyrun.Bots.Tests;
 /// PARTY-TOGETHER (KF2c; design/BIBLE.md sections 4 and 9: every pull, the party lands together). Run C's shape on the
 /// real layout: the hollow-vault k2 oracle setup placed into its rooms, the host's three seats (Warden 1, Chanter 2,
 /// Cinder 3) at the Entrance, the real bot roles plus <see cref="Follow"/> on seats 2 and 3, and seat 1 driven like the
-/// autorun Warden outside the Choir: it walks the route while no enemy lives, and in a fight it holds where it stands
-/// (the tank role's casts kept, its moves dropped), just inside the trigger it crossed. Enemy health is capped at
+/// autorun Warden outside the Choir: it walks the route while no engaged enemy lives (every group stands idle in its room
+/// from tick 0 until it engages, PRESPAWN-AGGRO), and in a fight it holds where it stands (the tank role's casts kept,
+/// its moves dropped), on the edge of the aggro ring it walked into. Enemy health is capped at
 /// <see cref="HealthCap"/> so the party clears all four pulls in a test-sized run while every fight still outlasts
 /// <see cref="WithinTicks"/>.
 /// </summary>

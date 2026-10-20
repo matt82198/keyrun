@@ -339,9 +339,10 @@ public partial class RoomGateView : Node3D
         }
     }
 
-    // A new run (Enter, a queued run, the screen): no gate stands. A run created with its pull already spawned (a
-    // --pull N start: createRun has no event sink, so no gate_closed) is gated by the sim from its first step, so the
-    // gate is put up here from the same state the sim reads (Pulls.IsSpawned on the active pull's room).
+    // A new run (Enter, a queued run, the screen): no gate stands. A run created with its active pull already engaged
+    // (createRun has no event sink, so no gate_closed) is gated by the sim from its first step, so the gate is put up
+    // here from the same state the sim reads (Pulls.IsEngaged on the active pull). PRESPAWN-AGGRO: every layout pull
+    // exists, idle, from tick 0, so "spawned" no longer means "fought".
     private void OnRunStarted()
     {
         foreach (var room in _shut.Keys.ToList())
@@ -353,7 +354,7 @@ public partial class RoomGateView : Node3D
             return;
         }
         var index = run.Encounter.PullIndex;
-        if (index < run.Dungeon.Pulls.Count && Pulls.IsSpawned(run.State, run.Dungeon, index) &&
+        if (index < run.Dungeon.Pulls.Count && Pulls.IsEngaged(run.Encounter, run.Dungeon, index) &&
             layout.RoomFor(run.Dungeon.Pulls[index].Id) is { } box)
         {
             Shut(layout, box.Id, run.State.Tick);

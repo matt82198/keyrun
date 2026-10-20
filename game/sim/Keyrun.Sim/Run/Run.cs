@@ -245,11 +245,17 @@ public static class RunRoot
         var open = layout.OpenBoxes(run.Dungeon, encounter.PullIndex);
         foreach (var actor in next.Actors.Values)
         {
+            if (actor.Idle)
+            {
+                // PRESPAWN-AGGRO: an idle group stands in its own room, which a layout may still hold shut (not an open
+                // box). It runs no script and never chases, so it is not put back: clamping would drag it into the open boxes.
+                continue;
+            }
             var pre = run.State.Actors.TryGetValue(actor.Id, out var was) ? was.Pos : actor.Pos;
             actor.Pos = Movement.ClampToWalkable(pre, actor.Pos, open);
             if (locked is not null)
             {
-                actor.Pos = NavLayout.GateClamp(locked.Box, pre, actor.Pos, actor.Kind == ActorKind.Player);
+                actor.Pos = NavLayout.GateClamp(locked.Box, pre, actor.Pos);
             }
         }
 
