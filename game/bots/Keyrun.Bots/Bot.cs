@@ -65,7 +65,8 @@ public static class Bot
     {
         var tick = view.State.Tick;
         var selfMm = PointMm.Of(self.Pos);
-        var active = view.Telegraphs.Where(t => t.Danger && t.ResolvesTick > tick).ToList();
+        // DEAD-CASTER-TELEGRAPH: a telegraph whose caster died before its cast began warns of nothing (Positioning.IsSpent).
+        var active = view.Telegraphs.Where(t => t.Danger && t.ResolvesTick > tick && !Positioning.IsSpent(t, view.State)).ToList();
         if (!Positioning.IsInAnyDanger(selfMm, active))
         {
             return null;
