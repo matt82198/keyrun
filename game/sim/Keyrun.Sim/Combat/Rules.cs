@@ -48,6 +48,13 @@ public sealed record RulesConfig
     /// </summary>
     public IReadOnlyDictionary<string, OverheatRule>? Overheat { get; init; }
 
+    /// <summary>
+    /// The Pair's spread and stack mark rules (BIBLE section 9.6 item 2; <see cref="PairMarks"/>), or null for none.
+    /// Null on every oracle run (the frozen TS marks carry no consequence); a host builds it from
+    /// game/content/data/run.json <c>pairMarks</c>.
+    /// </summary>
+    public MarkRules? Marks { get; init; }
+
     /// <summary>This config with its movement fields taken from <paramref name="movement"/>.</summary>
     /// <param name="movement">The host's validated movement rules.</param>
     /// <returns>A new config.</returns>
@@ -200,6 +207,10 @@ public static class Rules
             {
                 Movement.ClampToBounds(actor, cfg.Bounds);
             }
+
+            // C#-only (null on every oracle run): the Pair's spread and stack marks resolve on the tick they run out,
+            // after movement and before the generic expiry below drops them.
+            PairMarks.Resolve(state, cfg.Marks, cfg.Effects, emit, hooks.Weighting);
 
             foreach (var actor in actors)
             {
