@@ -74,6 +74,14 @@ public sealed class ComboTable
 /// <summary>Port of sim/combat/combos.ts: table lookup and the combo effect pipeline.</summary>
 public static class Combos
 {
+    /// <summary>
+    /// Radius, mm, around the Window's carrier inside which a combo's heal pulse reaches the Payoff actor's allies
+    /// (BIBLE section 4 Consecrate: "a 6-second heal pulse for allies near the target"). The BIBLE gives no number, so
+    /// this is the smallest ally-area radius in content: the Chanter's Hymn heal patch, <c>radiusMm 2200</c>
+    /// (content/data/abilities/chanter.json, chanter.hymn window op).
+    /// </summary>
+    public const long HealPulseRadiusMm = 2200;
+
     /// <summary>combos.ts:36-38 lookupCombo.</summary>
     /// <param name="table">The table.</param>
     /// <param name="setupClass">Row key.</param>
@@ -91,7 +99,9 @@ public static class Combos
     /// caller passes; Payoff.cs passes the hooks' weighting inside RunAsCombo), heal, applyEffect, removeEffect
     /// ("*" = dispel), resource (credited to the Payoff actor), threat. interrupt, window, payoff and combo ops are
     /// no-ops: combos do not chain. C#-only: partyEffect applies to every living actor of the Payoff actor's faction,
-    /// and cloud opens a <see cref="FloorCloud"/> on the carrier (BIBLE section 4 Anthem and Steam).
+    /// and cloud opens a <see cref="FloorCloud"/> on the carrier (BIBLE section 4 Anthem and Steam). An applyEffect
+    /// whose effect is a heal-over-time, closed on an enemy carrier, goes to the Payoff actor's living allies near the
+    /// carrier instead (BIBLE section 4 Consecrate; <see cref="HealPulseRadiusMm"/>).
     /// </summary>
     /// <param name="state">Sim state.</param>
     /// <param name="source">The Payoff actor.</param>
@@ -122,7 +132,14 @@ public static class Combos
                 case ApplyEffectOp a:
                     if (effectDefs.TryGetValue(a.EffectId, out var def))
                     {
-                        Effects.ApplyEffectInstance(target, def, source.Id, a.DurationTicks, a.Stacks, state.Tick);
+                        if (IsHealPulse(def) && target.Kind != source.Kind)
+                        {
+                            ApplyHealPulseToAllies(state, source, target, def, a);
+                        }
+                        else
+                        {
+                            Effects.ApplyEffectInstance(target, def, source.Id, a.DurationTicks, a.Stacks, state.Tick);
+                        }
                     }
                     break;
                 case RemoveEffectOp r:
@@ -175,6 +192,24 @@ public static class Combos
         foreach (var cloud in state.FloorClouds)
         {
             ApplyCloud(state, cloud, effectDefs);
+        }
+    }
+
+    /// <summary>True when <paramref name="def"/> is a heal-over-time: its periodic op is a heal.</summary>
+    private static bool IsHealPulse(EffectDef def) => def.Periodic is { Op: HealOp };
+
+    /// <summary>
+    /// BIBLE section 4 Consecrate: a heal pulse closed on an enemy carrier goes to each living ally of the Payoff actor
+    /// within <see cref="HealPulseRadiusMm"/> of the carrier (the Payoff actor too, when in range), never to the enemy.
+    /// Ids come from <see cref="Targeting.InCircle"/> over <c>state.Actors</c> in its own order, so the result is
+    /// deterministic. No oracle run fires Consecrate (Fixtures/oracle traces), so the oracle replays are unchanged.
+    /// </summary>
+    private static void ApplyHealPulseToAllies(SimState state, ActorState source, ActorState target, EffectDef def, ApplyEffectOp op)
+    {
+        var allies = state.Actors.Values.Where(a => a.Alive && a.Kind == source.Kind).ToList();
+        foreach (var id in Targeting.InCircle(target.Pos, HealPulseRadiusMm, allies))
+        {
+            Effects.ApplyEffectInstance(state.Actors[id], def, source.Id, op.DurationTicks, op.Stacks, state.Tick);
         }
     }
 
