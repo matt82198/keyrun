@@ -19,7 +19,49 @@ Standing rules for every increment:
 - Never fit green. A test that pins the old linear layout is re-derived for the new one by the increment that
   changes the behaviour, never loosened.
 
-Parallel waves (from the dependencies): A = 1, 2, 5. B = 3, 6. C = 4, 12. D = 7, 9. E = 8, 10. F = 11.
+Parallel waves (from the dependencies): A = 0, 2, 5. A2 = 1. B = 3, 6. C = 4, 12. D = 7, 9. E = 8, 10. F = 11.
+
+## 0. PRESPAWN-AGGRO: every group exists from tick 0 and engages on its aggro radius (bible 9.1)
+
+- **Files:**
+  - `game/sim/Keyrun.Sim/Run/Run.cs`: today pull 0 spawns at run setup (~63-70) and a layout pull spawns when the
+    party is inside its room (~286-288, `PartyInside` then `Pulls.SpawnPull`). Instead, every group spawns idle at
+    setup, and that layout step becomes an aggro-radius engage. `ActiveScripts` (~217, `Scripts.StartingAt`) is set
+    from the engage tick. The D27 lock (~245-258) keys on engaged, not spawned.
+  - `game/sim/Keyrun.Sim/Encounter/Pulls.cs`: `SpawnPull` is split into a run-start spawn of all groups and
+    `Engage`, which emits `pull_start` on the engage tick. `IsSpawned` becomes `IsEngaged`. It adds the aggro check
+    (radius, damage-taken, links).
+  - `game/sim/Keyrun.Sim/Encounter/EncounterTypes.cs` (`PullDef.AggroMm`, `PullDef.Links`) and
+    `game/sim/Keyrun.Sim/Encounter/EncounterState.cs` (the engaged-group set).
+  - `game/sim/Keyrun.Sim/Encounter/Chase.cs`: an idle group neither chases nor targets.
+  - `game/content/data/layout.json` (per-pull `aggroMm`), `game/content/Keyrun.Content/Model/Layout.cs` and
+    `game/content/Keyrun.Content/Loading/LayoutValidator.cs` (radius inside the room for a teaching pull).
+  - `game/bots/Keyrun.Bots/shared/Follow.cs`: `NavLayouts.PlaceDungeon` places every group at its formation,
+    absorbing `PackOffset` from fix/pack-spawn-spread 3ab876fc. The walk avoids rings the plan does not pull, and the
+    tank enters the rings it pulls first.
+  - The TS twins `sim/encounter/pulls.ts` and `sim/run-wiring.ts`: frozen (D12). Edit them only if the oracle
+    manifest requires it, then regenerate per D28.
+  - `game/src/Host/E2eAssert.ps1` (`$ReplayTickDigest` re-measured per D28, reason "prespawn aggro").
+  - Tests: `game/sim/Keyrun.Sim.Tests/Encounter/PrespawnAggroTests.cs` (new),
+    `game/bots/Keyrun.Bots.Tests/PackFormationTests.cs` (from 3ab876fc), `game/bots/Keyrun.Bots.Tests/DeliberatePullTests.cs`
+    (new), plus `RoomLockInTests.cs`, `NavLayoutRunTests.cs` and `Encounter/SeedOpenerTests.cs`, which are re-derived
+    for engage-on-radius and never loosened.
+- **Red test:**
+  - At tick 0 every group's actors, the boss included, exist alive and idle at spread formation positions. None
+    moves, casts or emits a telegraph until it engages.
+  - A party member 1 mm outside the radius engages nothing. At the radius, the whole group engages and `pull_start`
+    is emitted on that tick. Damage to one member engages its group, and a linked group engages with it.
+  - Across every entry phase, each group's first telegraph comes after its engage tick (the Seed opener included).
+  - A teaching pull's room gate shuts on its engage tick and opens on its clear.
+  - In a seeded bot run, every engage is the tank (or the party following the tank) entering a ring the bots' plan
+    chose to pull.
+- **Depends on:** none in this plan. It comes before 1, because forces need prespawned groups.
+- **Wait for:**
+  - fix/enemy-engage 77284fc4 (edits `game/sim/Keyrun.Sim/Encounter/Chase.cs` and `sim/encounter/chase.ts`) must merge
+    first.
+  - Absorb fix/pack-spawn-spread 3ab876fc (`Follow.cs` `PackOffset`, `PackFormationTests.cs`; marked BLOCKED, not for
+    merge on its own).
+  - #283 and #274 hold the oracle fixtures and manifest, so land after them and measure the D28 regeneration once.
 
 ## 1. FORCES-SIM: the forces counter
 
@@ -32,7 +74,7 @@ Parallel waves (from the dependencies): A = 1, 2, 5. B = 3, 6. C = 4, 12. D = 7,
   event. A hazard kill counts. Boss, Twins and Echo adds add 0. A wipe or a death never lowers the counter. The counter
   is unchanged on a tick with no death. A dungeon with every value 0 emits no `forces` event, so the oracle fixtures
   stay byte-equal.
-- **Depends on:** none.
+- **Depends on:** 0 (prespawned groups; EncounterTypes.cs and EncounterState.cs).
 - **Wait for:** #283 and #274 (both rewrite `game/sim/Keyrun.Sim.Tests/Fixtures/oracle/manifest.json` and oracle
   traces; land after them so any D28 regeneration is measured once on the merged tree).
 
@@ -53,16 +95,16 @@ Parallel waves (from the dependencies): A = 1, 2, 5. B = 3, 6. C = 4, 12. D = 7,
 - **Depends on:** none.
 - **Wait for:** none (no open PR touches these files).
 
-## 3. PACKS-SIM: optional packs that engage on their aggro ring
+## 3. PACKS-SIM: optional packs on increment 0's prespawn and engage
 
 - **Files:** `game/sim/Keyrun.Sim/Encounter/Packs.cs` (new), `game/sim/Keyrun.Sim/Encounter/EncounterTypes.cs`
-  (`DungeonDef.Packs`, `PackDef {id, room, center, ringMm, spawns}`), `game/sim/Keyrun.Sim/Run/Run.cs` (`StepLayout` calls
-  `Packs.Step`), `game/sim/Keyrun.Sim.Tests/Encounter/PacksTests.cs` (new).
-- **Red test:** a pack spawns all of its members on the first tick a living party member is inside its 4000 mm ring,
-  or on the tick party damage or a hazard hits a member, and never otherwise. Walking past outside the ring leaves
-  it unspawned (a skip). Entering two rings on one tick engages both (a chain pull). `Encounter.PullIndex` never
-  moves for a pack. Pack kills credit forces through increment 1.
-- **Depends on:** 1 (EncounterTypes.cs, forces credit).
+  (`DungeonDef.Packs`, `PackDef {id, room, center, aggroMm, links, spawns}`), `game/sim/Keyrun.Sim/Run/Run.cs` (packs
+  join the run-start spawn and the engage step), `game/sim/Keyrun.Sim.Tests/Encounter/PacksTests.cs` (new).
+- **Red test:** every pack exists idle from tick 0. It engages whole on the first tick a living party member is
+  within its aggro radius, or when party damage or a hazard hits a member, and never otherwise. Walking past outside
+  the ring leaves it idle (a skip). Entering two rings on one tick engages both (a chain pull). `Encounter.PullIndex`
+  never moves for a pack. Pack kills credit forces through increment 1.
+- **Depends on:** 0 (engage model), 1 (EncounterTypes.cs, forces credit).
 - **Wait for:** none.
 
 ## 4. ROUTE-GATES: the branch seal and the Hollow Door

@@ -213,6 +213,31 @@ Entrance -> Choir room (pull 1) -> Pair hall (pull 2) -> Fork landing
 Seed chamber -> Hollow Door -> Warden arena (boss)
 ```
 
+- **Everything is prespawned with an aggro distance.** **Decision (Matt, 2026-10-20), recorded verbatim:**
+  "everything should be prespawned with an aggro distance". Every enemy group exists from the run's first tick,
+  standing idle in formation in its own room: the three teaching pulls, every optional pack and the boss. Nothing
+  appears when the party walks in. Each group has an **aggro radius**, an integer number of mm set per group in
+  content (4000 mm unless the content says otherwise) and drawn on the floor as its aggro ring (below). A group
+  **engages** on the first tick a living party member is inside its radius, or when party damage or a hazard hits any
+  of its members, and then the whole group engages at once. An idle group casts nothing, moves nothing and runs no
+  script.
+  - **Scripts start at engage.** Every scripted timer of a group (a teaching pull's spread and stack, the Seed's
+    opener, the boss's cleave) counts from its own engage tick, never from the run start or room entry. A group's
+    first telegraph therefore always follows its engage, whatever tick the party arrives on.
+  - **Room lock-in (STATE.md D27) moves to engage.** A teaching pull's room gate shuts behind the party on the tick
+    that pull engages, not when someone steps through the door, and opens on its clear as before. The aggro radius
+    of a teaching pull lies inside its room, so the party is in the room when the gate shuts. Optional packs never
+    shut a gate.
+  - **The teaching beats are unchanged.** The Choir still teaches the kick, and the Pair still teaches spread and
+    stack. The Seed elite stands idle in its chamber until it is engaged, so it cannot be opened on by a party that
+    has not engaged it, and it drops its Window on death as before. The boss stands idle in the Warden arena behind
+    the Hollow Door (9.5). It can only be engaged once the door is open, and the Lock's 50% and 30-second rhythm
+    counts from its own fight.
+  - **Linked groups chain-pull.** Content may link groups. A link is drawn on the floor as a dashed line between
+    their rings, and engaging one engages the others. A linked pair is a chain pull the party can see before it
+    steps in, under the pull-size rule below. No POC pack is linked by default.
+  - **Bots pull on purpose.** Bots path around the rings they mean to skip and step into the rings they mean to
+    pull, with the tank first. They never engage a group by walking into it on the way somewhere else.
 - **Branching, no backtracking past a taken branch.** The Choir and Pair gates work as before: each opens when its
   pull is cleared. At the Fork landing the party picks West or East. The first living party member to cross the
   threshold trigger of a branch's first room *seals* the branch. The doorway back into the Pair hall and the other
@@ -222,8 +247,8 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
   time cost the party chose, not a softlock. Nothing reopens a sealed doorway. Dead travel is the most-cited killer
   of a run's fun (research/02:50-54, :113-114), so a walk back only ever undoes a skip the party made itself.
 - **Optional packs do not gate.** A pack stands beside the walking line with its **aggro ring** drawn on the floor:
-  a 4000 mm grey dashed ring. It is not a danger shape, so it never reads as a telegraph. The whole pack engages at
-  once when a living party member enters its ring, or when party damage or a hazard hits any of its members.
+  a grey dashed ring at the pack's aggro radius (4000 mm by default). It is not a danger shape, so it never reads as
+  a telegraph. The pack engages by the prespawn rule above.
   Walking the far wall past an untouched ring is a **skip**. Walking into two rings together is a **chain pull**. The
   read is visual, a radius on the floor, not memorised geography (research/01:106-107).
 - **Branches rejoin before the next teaching pull.** Both branches end at the Seed chamber, so every route plays all
