@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://src/Hud/Screen.cs" id="1_screen"]
 [ext_resource type="Script" path="res://src/Hud/ClausePick.cs" id="2_clause"]
 [ext_resource type="Script" path="res://src/Hud/Queue.cs" id="3_queue"]
+[ext_resource type="Script" path="res://src/Hud/PrivateRatingPanel.cs" id="4_rating"]
 
 [node name="Screen" type="Control"]
 layout_mode = 3
@@ -23,3 +24,13 @@ script = ExtResource("2_clause")
 
 [node name="Queue" type="Node" parent="."]
 script = ExtResource("3_queue")
+
+[node name="PrivateRating" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_rating")
