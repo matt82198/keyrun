@@ -204,6 +204,12 @@ public sealed class ActorState
     /// <summary>Tick the current cast started, or null.</summary>
     public int? CastStartTick { get; set; }
 
+    /// <summary>
+    /// The current cast is the Cinder's free Overheat (BIBLE section 5; Combat/Casting.cs OverheatRule). C#-only: false
+    /// on every oracle run (no Overheat rule), and cleared with the cast.
+    /// </summary>
+    public bool CastIsOverheat { get; set; }
+
     /// <summary>Ability id to ready tick, in JS key order.</summary>
     public JsRecord<int> Cooldowns { get; set; } = new();
 
