@@ -156,7 +156,10 @@ public static class Rules
                         {
                             break;
                         }
-                        var err = Casting.StartCast(state, actor, def, c.TargetId, c.Point, state.Tick, hooks);
+                        // Hush silences the party only (BIBLE s8 "save the kicks"; clauses.json "hits the party"):
+                        // an enemy's cast, scripted or not, never sees the silence predicate.
+                        var castHooks = actor.Kind == ActorKind.Player ? hooks : null;
+                        var err = Casting.StartCast(state, actor, def, c.TargetId, c.Point, state.Tick, castHooks);
                         if (err is null && def.CastTicks == 0)
                         {
                             var resolved = Abilities.ResolveVerse(def, actor);
