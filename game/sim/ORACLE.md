@@ -112,7 +112,7 @@ Floats appear only in `botprng.vectors.json` `value`.
 | `bots-hv-k10-s7.trace.jsonl` | same at key 10, seed 7 | 6985, `timed` at t6984 | `b947e653` |
 | `content-pull.setup.json`, `scripted-pull.setup.json`, `hollow-vault-k2.setup.json`, `hollow-vault-k10.setup.json` | createRun inputs (section 4) | | |
 | `fixed.vectors.json`, `atan.vectors.json`, `prng.vectors.json`, `botprng.vectors.json`, `intdiv.vectors.json` | section 7 | about 10k each | |
-| `manifest.json` | sizes and FNV of every file, trace summaries, `loadContent()` counts, frozen-source hash | | |
+| `manifest.json` | sizes and FNV of every file, trace summaries, `loadContent()` counts, per-file frozen-source hashes (one per line) | | |
 
 Observed facts the C# side should expect:
 - Seeds 7 and 11 at key 2 give byte-identical record bodies (only the header differs). At skill dial 100 neither
@@ -184,9 +184,13 @@ Mutation evidence (2026-10-18, lane 1B):
 
 ## 9. Freeze and drift
 
-`manifest.json` `source.frozenSourceHash` is an FNV-1a 32 over the path, byte length and bytes of every file
-under `sim/`, `bots/src/`, `content/`, `client/src/sim-host/`, `client/src/input/`, `tests/sim/golden/` and
-`tests/sim/integration/fixtures.ts`. CR bytes are stripped, so CRLF and LF checkouts hash the same. Any edit
-there, comments included, fails `oracle.test.ts`, because the fixtures claim to come from 6e1548d.
+`manifest.json` `source.frozenSources` holds one entry per file, `"<path>": { "fnv": "<hash>" }`, an FNV-1a 32
+over the path, byte length and bytes of every non-`.md` file under `sim/`, `bots/src/`, `content/`,
+`client/src/sim-host/`, `client/src/input/`, `tests/sim/golden/` and `tests/sim/integration/fixtures.ts`
+(except `tests/sim/golden/content-pull.json`, a generated output that `golden.test.ts` checks against live
+content). CR bytes are stripped, so CRLF and LF checkouts hash the same. Any edit there, comments included,
+fails `oracle.test.ts` and names each added, removed or changed path, because the fixtures claim to come from
+6e1548d. The manifest is written one member per line, so two PRs that edit different source files change
+different lines and merge without a conflict.
 Behaviour drift also shows as a byte diff in the trace or vector it hits. The failure message names the file,
 line and column.
