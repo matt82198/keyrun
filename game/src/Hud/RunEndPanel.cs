@@ -248,8 +248,33 @@ public partial class RunEndPanel : Control
     [Export]
     public NodePath DriverPath { get; set; } = new("../../../SimDriver");
 
+    /// <summary>The party frames, a HUD block the panel keeps clear of (COMBATTEXT-OVERLAP).</summary>
+    [Export]
+    public NodePath PartyFramesPath { get; set; } = new("../PartyFrames");
+
     /// <summary>The choice taken this run (0-based), or null.</summary>
     public int? Taken => _taken;
+
+    /// <summary>
+    /// Lane COMBATTEXT-OVERLAP: the panel's viewport rectangle for a panel <paramref name="height"/> tall, laid out by
+    /// <see cref="HudClearance.RunEndPanel"/> clear of the top bar band, the party frames and the ability bar
+    /// footprint (the player's health and resource meters and the slot row), so it never covers them.
+    /// </summary>
+    /// <param name="height">The panel height (taller by one line when the run earned bonus loot).</param>
+    /// <param name="ability">The ability bar footprint it avoided.</param>
+    /// <param name="party">The party frames block it avoided (empty when there is none).</param>
+    /// <returns>The panel rectangle in viewport pixels.</returns>
+    private PixelRect LayoutPanel(int height, out PixelRect ability, out PixelRect party)
+    {
+        var size = GetViewport()?.GetVisibleRect().Size ?? Size;
+        var w = (int)size.X;
+        var h = (int)size.Y;
+        var bar = AbilityBar.Footprint(size, (_driver?.Setup?.Slots.Count ?? 0) + 1);
+        ability = new PixelRect((int)bar.Position.X, (int)bar.Position.Y, (int)Math.Ceiling(bar.Size.X), (int)Math.Ceiling(bar.Size.Y));
+        party = _driver is null ? default : HudObstacles.PartyFrames(GetNodeOrNull<Control>(PartyFramesPath), _driver.State) ?? default;
+        var avoid = new List<PixelRect> { HudLayout.TopBar(w, h).Band(w), ability, party };
+        return HudClearance.RunEndPanel(w, h, (int)PanelWidth, height, avoid);
+    }
 
     /// <inheritdoc />
     public override void _Ready()
@@ -311,7 +336,8 @@ public partial class RunEndPanel : Control
         }
         // Lane SEED-LOOT-VIEW: a run that earned bonus loot gets one more line under the result; the rest moves down.
         var bonusShift = view.BonusLabel is null ? 0f : BonusLineHeight;
-        var panel = new Rect2((Size.X - PanelWidth) / 2, (Size.Y * 0.37f), PanelWidth, PanelHeight + bonusShift);
+        var placed = LayoutPanel((int)(PanelHeight + bonusShift), out _, out _);
+        var panel = new Rect2(new Vector2(placed.X, placed.Y) - GetGlobalRect().Position, placed.Width, placed.Height);
         DrawRect(panel, new Color(0.06f, 0.07f, 0.09f, 0.94f));
         DrawRect(panel, new Color(1f, 0.85f, 0.5f), filled: false, width: 2f);
         HudNodes.Text(this, panel.Position + new Vector2(20, 34), view.Title, TitleFont, new Color(1f, 0.85f, 0.5f));
@@ -418,6 +444,10 @@ public partial class RunEndPanel : Control
             {
                 HudNodes.Proof(_driver, line);
             }
+            var panel = LayoutPanel((int)(PanelHeight + (view.BonusLabel is null ? 0f : BonusLineHeight)), out var ability, out var party);
+            var size = GetViewport()?.GetVisibleRect().Size ?? Size;
+            HudNodes.Proof(_driver, FormattableString.Invariant(
+                $"HUD runend layout panel={HudClearance.Format(panel)} abilitybar={HudClearance.Format(ability)} party={HudClearance.Format(party)} viewport={(int)size.X}x{(int)size.Y}"));
         }
     }
 }
