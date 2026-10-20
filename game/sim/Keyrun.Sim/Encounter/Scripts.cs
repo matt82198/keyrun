@@ -131,6 +131,47 @@ public static class Scripts
         return ability.Def is not { } def || Casting.StartError(state, actor, def, cmd.TargetId, fireTick) is null;
     }
 
+    /// <summary>
+    /// TELEGRAPH-HONEST (BIBLE s3; wrong data shown is P0): the index of the script step whose cast the actor is left
+    /// holding once combat has run every scheduled cast due on <paramref name="fireTick"/>, or -1 when none starts.
+    /// Combat runs an actor's script casts in step order and StartCast replaces a cast under way, so a later step that
+    /// starts on the same tick takes the cast over (the Hollow Warden's Lock loop lands on every second slam tick); an
+    /// earlier step that starts a GCD (gcdTicks &gt; 0) refuses every later one, and a second step of an ability
+    /// already started that tick is refused when that took its only charge. Each step's own start is
+    /// <see cref="WillStart"/>; a step with no ability view starts whenever its target resolves. Without this a
+    /// spansCast telegraph was drawn for every step that could start on its own, and on a shared tick every one but the
+    /// last announced a cast that never came.
+    /// </summary>
+    private static int CastHeldAt(SimState state, int actorId, ActorState actor, IReadOnlyList<ScriptStep> script, IReadOnlyDictionary<string, ScriptAbility> abilities, int fireTick)
+    {
+        var held = -1;
+        var gcdStarted = false;
+        var started = new HashSet<string>(StringComparer.Ordinal);
+        for (var j = 0; j < script.Count && !gcdStarted; j++)
+        {
+            var s = script[j];
+            if (s.Trigger == StepTrigger.OnDeath || !FiresAt(s, fireTick))
+            {
+                continue;
+            }
+            var def = abilities.TryGetValue(s.Cast, out var ability) ? ability.Def : null;
+            if (def is not null && started.Contains(s.Cast) && def.CooldownTicks > 0 && def.Charges <= 1)
+            {
+                continue;
+            }
+            var starts = ability is not null
+                ? WillStart(state, actorId, actor, s, ability, abilities, fireTick)
+                : CastCommandFor(state, actorId, actor, s, abilities) is not null;
+            if (starts)
+            {
+                held = j;
+                started.Add(s.Cast);
+                gcdStarted = def is not null && def.GcdTicks > 0;
+            }
+        }
+        return held;
+    }
+
     /// <summary>scripts.ts:139 stepEnemyScripts (rules in the class summary). Never mutates <paramref name="state"/>.</summary>
     /// <param name="state">The tick's state.</param>
     /// <param name="scripts">Actor id to script.</param>
@@ -162,8 +203,9 @@ public static class Scripts
             {
                 continue;
             }
-            foreach (var step in script)
+            for (var i = 0; i < script.Count; i++)
             {
+                var step = script[i];
                 if (step.Trigger == StepTrigger.OnDeath)
                 {
                     if (actor.Alive)
@@ -210,7 +252,7 @@ public static class Scripts
                     // did to it) and resolves on the landing tick; it is drawn only when its cast will start.
                     var lead = Math.Max(tg.LeadTicks, spanned.CastTicks);
                     var fireTick = tick + lead - spanned.CastTicks;
-                    if (FiresAt(step, fireTick) && WillStart(state, actorId, actor, step, spanned, abil, fireTick))
+                    if (FiresAt(step, fireTick) && CastHeldAt(state, actorId, actor, script, abil, fireTick) == i)
                     {
                         telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, tg with { LeadTicks = lead }));
                     }

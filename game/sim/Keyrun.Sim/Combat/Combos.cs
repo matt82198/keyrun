@@ -42,6 +42,20 @@ public sealed record PartyEffectOp(string EffectId, int DurationTicks, long Stac
 public sealed record CloudOp(string EffectId, int DurationTicks, long RadiusMm) : EffectOp;
 
 /// <summary>
+/// <c>{op:"closerBurn"}</c>: a combo op that burns the Payoff actor itself (keyrun STATE.md D34, Matt 2026-10-20 on the
+/// Cinderfield closer: "as damage scales this will turn into a one shot, so abilities and damage reduction stuff needs
+/// to be considered"). The raw burn is <paramref name="MaxHealthBp"/> of the closer's max health; the Pact weighting,
+/// the closer's damageDoneBp and any damage-taken increase on it amplify it, the result is clamped to
+/// <paramref name="CapBp"/> of the closer's max health so no amplifier can grow it toward a one-shot, and the closer's
+/// damage-taken reductions (Brace, Vigil, ...) then apply to the capped amount, so defensive play always lowers it.
+/// C#-only, like <see cref="PartyEffectOp"/>; the content validator keeps <c>0 &lt; MaxHealthBp &lt;= CapBp &lt; 10000</c>.
+/// </summary>
+/// <param name="MaxHealthBp">Base burn, bp of the closer's max health.</param>
+/// <param name="CapBp">Ceiling after every amplifier and before damage reduction, bp of the closer's max health.</param>
+/// <param name="School">Damage school tag.</param>
+public sealed record CloserBurnOp(long MaxHealthBp, long CapBp, string School) : EffectOp;
+
+/// <summary>
 /// [setupClass][payoffClass] -&gt; ComboDef (sim/combat/combos.ts:34 ComboTable). Lookup-only: nothing iterates it,
 /// so the map's own order never reaches the sim.
 /// </summary>
@@ -110,6 +124,8 @@ public static class Combos
     /// <param name="effectDefs">Effect definitions.</param>
     /// <param name="emit">Event sink.</param>
     /// <param name="weighting">The active Pact weighting, or null.</param>
+    /// <param name="overheat">The step's Overheat rules, or null: a removeEffect of the Payoff actor's own Chill clears
+    /// it from the Payoff actor (<see cref="Casting.RemoveEffectHolder"/>; Flashfire, finding f-9efbee75).</param>
     public static void ApplyComboEffects(
         SimState state,
         ActorState source,
@@ -117,7 +133,8 @@ public static class Combos
         IReadOnlyList<EffectOp> ops,
         IReadOnlyDictionary<string, EffectDef> effectDefs,
         Action<SimEvent> emit,
-        DamageWeighting? weighting = null)
+        DamageWeighting? weighting = null,
+        IReadOnlyDictionary<string, OverheatRule>? overheat = null)
     {
         foreach (var op in ops)
         {
@@ -149,7 +166,7 @@ public static class Combos
                     }
                     else
                     {
-                        Effects.RemoveEffectInstances(target, r.EffectId);
+                        Effects.RemoveEffectInstances(Casting.RemoveEffectHolder(source, target, r.EffectId, overheat), r.EffectId);
                     }
                     break;
                 case ResourceOp res:
@@ -172,6 +189,9 @@ public static class Combos
                     break;
                 case CloudOp c:
                     OpenCloud(state, source, target, c, effectDefs);
+                    break;
+                case CloserBurnOp b:
+                    BurnCloser(state.Tick, source, b, effectDefs, emit, weighting);
                     break;
             }
         }
@@ -211,6 +231,51 @@ public static class Combos
         {
             Effects.ApplyEffectInstance(state.Actors[id], def, source.Id, op.DurationTicks, op.Stacks, state.Tick);
         }
+    }
+
+    /// <summary>
+    /// <see cref="CloserBurnOp"/> on <paramref name="closer"/> (the Payoff actor), in two stages so damage reduction
+    /// always counts. Amplify: raw = MaxHealthBp of its max health, then the Pact <paramref name="weighting"/>, its
+    /// damageDoneBp and every damage-taken increase it carries, clamped to CapBp of its max health. Reduce: every
+    /// damage-taken reduction it carries (Brace, Vigil, ...) applies to the capped amount, so a braced closer always takes
+    /// less than an open one however far the amplifiers push. Then absorb and health through
+    /// <see cref="Damage.ResolveModified"/> (one "damage" event, source and target the closer). The blinded miss rule does
+    /// not apply: the closer is not attacking. A dead closer takes nothing.
+    /// </summary>
+    private static void BurnCloser(
+        int tick,
+        ActorState closer,
+        CloserBurnOp op,
+        IReadOnlyDictionary<string, EffectDef> effectDefs,
+        Action<SimEvent> emit,
+        DamageWeighting? weighting)
+    {
+        if (!closer.Alive)
+        {
+            return;
+        }
+        var raw = IntMath.TruncDiv(closer.MaxHealth * op.MaxHealthBp, Effects.BpDenom);
+        var cap = IntMath.TruncDiv(closer.MaxHealth * op.CapBp, Effects.BpDenom);
+        long takenUp = 0, takenDown = 0;
+        foreach (var inst in closer.Effects)
+        {
+            if (effectDefs.TryGetValue(inst.EffectId, out var def) && def.Modifiers.DamageTakenBp is { } bp)
+            {
+                if (bp > 0)
+                {
+                    takenUp += bp * inst.Stacks;
+                }
+                else
+                {
+                    takenDown += bp * inst.Stacks;
+                }
+            }
+        }
+        var weighted = weighting is null ? raw : weighting(raw);
+        var doneBp = Effects.AggregateModifiers(closer, effectDefs).DamageDoneBp;
+        var capped = Math.Min(cap, Damage.ApplyModifiers(weighted, doneBp, takenUp));
+        var modified = Damage.ApplyModifiers(capped, 0, takenDown);
+        Damage.ResolveModified(tick, closer, raw, modified, effectDefs, emit, closer.Id);
     }
 
     private static void OpenCloud(SimState state, ActorState source, ActorState target, CloudOp op, IReadOnlyDictionary<string, EffectDef> effectDefs)

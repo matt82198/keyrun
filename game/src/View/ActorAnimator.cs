@@ -40,10 +40,14 @@ public sealed class ActorAnimator
     private string? _oneShot;
     private bool _dead;
     private bool _spawning;
+    private readonly string _moveClip;
+    private readonly int _scalePermille;
 
-    private ActorAnimator(AnimationPlayer player, ActorClips clips)
+    private ActorAnimator(AnimationPlayer player, ActorClips clips, int scalePermille)
     {
         _player = player;
+        _moveClip = clips.Move;
+        _scalePermille = scalePermille;
         var names = player.GetAnimationList();
         _idle = Match(names, clips.Idle, loop: true);
         _move = Match(names, clips.Move, loop: true);
@@ -84,14 +88,17 @@ public sealed class ActorAnimator
     /// <summary>True while the death clip is (or has finished) playing: the view keeps the body visible.</summary>
     public bool HoldsDeath => _dead && _death is not null;
 
-    /// <summary>An animator for the first AnimationPlayer under <paramref name="model"/>, or null when it has none.</summary>
-    public static ActorAnimator? TryCreate(Node model, ActorClips clips)
+    /// <summary>
+    /// An animator for the first AnimationPlayer under <paramref name="model"/>, or null when it has none.
+    /// <paramref name="scalePermille"/> is the scale the model is drawn at (KF1-GAIT: its stride scales with it).
+    /// </summary>
+    public static ActorAnimator? TryCreate(Node model, ActorClips clips, int scalePermille = 1000)
     {
         foreach (var node in model.FindChildren("*", "AnimationPlayer", true, false))
         {
             if (node is AnimationPlayer player)
             {
-                return new ActorAnimator(player, clips);
+                return new ActorAnimator(player, clips, scalePermille);
             }
         }
         return null;
@@ -112,6 +119,7 @@ public sealed class ActorAnimator
                 _dead = true;
                 _spawning = false;
                 _oneShot = null;
+                _player.SpeedScale = 1f;
                 Play(_death);
                 if (_death is not null)
                 {
@@ -162,6 +170,7 @@ public sealed class ActorAnimator
             if (decision.Restart)
             {
                 var from = decision.Clip == AnimClip.Act ? _actStartSeconds : 0f;
+                _player.SpeedScale = 1f; // a one-shot's contact frame is timed at its own rate (AnimRule.SwingStartMs)
                 _player.Play(clip, Blend);
                 _player.Seek(from, true);
                 // Proof line (like ACTOR): which one-shot started, on whom, on which tick, from where in the clip.
@@ -176,6 +185,10 @@ public sealed class ActorAnimator
         {
             GD.Print(AnimRule.ViewLine(now.Id, next, tick) + " kind=Cast");
         }
+        // KF1-GAIT: the run or walk loop steps at the body's speed, so the planted foot stays still on the floor.
+        _player.SpeedScale = next is not null && next == _move
+            ? GaitRule.PlaybackPermille(_moveClip, (int)(speedMps * 1000f), _scalePermille) / 1000f
+            : 1f;
         Play(next);
     }
 

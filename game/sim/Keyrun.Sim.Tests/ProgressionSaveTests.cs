@@ -201,4 +201,78 @@ public sealed class ProgressionSaveTests : IDisposable
 
         Assert.False(string.IsNullOrEmpty(error));
     }
+
+    // A save from a newer build: a valid v1 body with the version bumped. This build cannot read it, but the player's
+    // character is still in it, so it must survive the fresh character being banked over it.
+    private static string NewerVersionText() =>
+        ProgressionSave.Serialize(Played()).Replace("\"v\":1", "\"v\":2", StringComparison.Ordinal);
+
+    // Loads the unreadable save at path, banks a run on the fresh character it falls back to, saves that over it, and
+    // asserts the original bytes are still on disk beside the new save, which itself loads cleanly.
+    private void AssertUnreadableSaveSurvivesTheNextBank(string originalText)
+    {
+        Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, ProgressionSave.FileName);
+        File.WriteAllText(path, originalText);
+        var original = File.ReadAllBytes(path);
+
+        var loaded = ProgressionSave.LoadFile(path, seed: 9);
+        Assert.False(string.IsNullOrEmpty(loaded.Error));
+        var banked = loaded.Progression.BankRun(RunResult.Timed);
+
+        Assert.Null(ProgressionSave.SaveFile(path, banked));
+
+        var kept = Directory.GetFiles(_dir).Where(f => f != path).ToArray();
+        Assert.Single(kept);
+        Assert.Equal(original, File.ReadAllBytes(kept[0]));
+        var reloaded = ProgressionSave.LoadFile(path, seed: 1);
+        Assert.Null(reloaded.Error);
+        AssertSame(banked, reloaded.Progression);
+    }
+
+    [Fact]
+    public void A_newer_version_save_is_kept_when_the_fresh_character_is_banked_over_it()
+    {
+        AssertUnreadableSaveSurvivesTheNextBank(NewerVersionText());
+    }
+
+    [Fact]
+    public void A_garbage_save_is_kept_when_the_fresh_character_is_banked_over_it()
+    {
+        AssertUnreadableSaveSurvivesTheNextBank("{\"v\":1,\"ash\":12 not json at all");
+    }
+
+    [Fact]
+    public void Every_unreadable_save_is_kept_and_no_earlier_backup_is_overwritten()
+    {
+        Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, ProgressionSave.FileName);
+        var first = NewerVersionText();
+        const string second = "garbage written by something else";
+
+        File.WriteAllText(path, first);
+        Assert.Null(ProgressionSave.SaveFile(path, Progression.Start(1)));
+        File.WriteAllText(path, second);
+        Assert.Null(ProgressionSave.SaveFile(path, Progression.Start(2)));
+
+        var kept = Directory.GetFiles(_dir).Where(f => f != path).Select(File.ReadAllText).OrderBy(t => t, StringComparer.Ordinal);
+        Assert.Equal(new[] { first, second }.OrderBy(t => t, StringComparer.Ordinal), kept);
+        AssertSame(Progression.Start(2), ProgressionSave.LoadFile(path, seed: 9).Progression);
+    }
+
+    [Fact]
+    public void A_readable_save_is_replaced_in_place_with_no_backup_left_beside_it()
+    {
+        var path = Path.Combine(_dir, ProgressionSave.FileName);
+        var played = Played();
+        Assert.Null(ProgressionSave.SaveFile(path, played));
+        var before = File.ReadAllBytes(path);
+
+        var loaded = ProgressionSave.LoadFile(path, seed: 1);
+        Assert.Null(loaded.Error);
+        Assert.Null(ProgressionSave.SaveFile(path, loaded.Progression));
+
+        Assert.Equal(before, File.ReadAllBytes(path));
+        Assert.Equal(new[] { path }, Directory.GetFiles(_dir));
+    }
 }
