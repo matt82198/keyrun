@@ -1,0 +1,4 @@
+<Project>
+  <!-- Keyrun.Replay lives outside game/, so it reuses game's opt-in KeyrunSignOutputs target (-p:KeyrunSign=true). -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\game\Directory.Build.targets" />
+</Project>
