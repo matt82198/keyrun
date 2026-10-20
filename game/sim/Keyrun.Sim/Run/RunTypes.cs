@@ -70,6 +70,13 @@ public sealed record RunContent
     /// </summary>
     public IReadOnlyDictionary<string, OverheatRule>? Overheat { get; init; }
 
+    /// <summary>
+    /// STUN-STOPS-CAST (BIBLE s9.3 "Stops as well as kicks"): the effect ids that stop a cast when they land on a caster
+    /// mid an interruptible cast (a stun, a freeze, a silence), or null for none. Null on every oracle run (the frozen
+    /// TS has no stops); a host sets it.
+    /// </summary>
+    public IReadOnlyList<string>? StopEffectIds { get; init; }
+
     /// <summary>Break-bar sources in their JS key order, or null for none (stepRun then drains none).</summary>
     public IReadOnlyList<BreakBarSource>? BreakBarSources { get; init; }
 
