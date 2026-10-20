@@ -19,6 +19,18 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
+  <!--
+    Same compiler-time purity copy as Keyrun.Sim (the oracle replays content through the sim): one
+    banned list, game/sim/Keyrun.Sim/BannedSymbols.txt, RS0030 an error under TreatWarningsAsErrors.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="../../sim/Keyrun.Sim/BannedSymbols.txt" />
+  </ItemGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="../../../content/data/**/*.json" LinkBase="data" LogicalName="content/data/%(RecursiveDir)%(Filename)%(Extension)" />
     <!--
