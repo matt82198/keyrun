@@ -42,7 +42,8 @@
      12. a bot seat takes damage and every "HUD runend cause" line is seat 1's (the private run log's seat filter
          with more than one seat in the sim), and the party clears the dungeon (lane TUNE-BOSS, STATE.md D14): a
          "PULL spawn index=3 id=boss actors=900:hollowWarden.boss" line and a lockIndex 1 "lock_open" EVENT before
-         run_end, and the run-end panel titled "Run cleared -- within par" (run_end timed at tick 3457 at seed 1 key 2
+         run_end, and the run-end panel titled "Run cleared -- within par" (run_end timed at tick 3430 at seed 1 key 2 per the
+         game-e2e log of run 39318059212 on main, 2026-10-19; the PASS line does not print run_end; was 3457
          since lane WARDEN-ENGAGES, 5168 since lane NAV-CORE, 6787 on the flat arena); the autorun Warden lands damage
          on the Choir at least every 300 ticks from pull_start to pull_clear (WardenEngagesTest.ps1, lane WARDEN-ENGAGES);
      13. "BOTS done commands=N hash=H" with N > 0, equal across the two runs (bot determinism);
