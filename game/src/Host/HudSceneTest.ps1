@@ -584,6 +584,19 @@ if (-not $livePing) { $failures.Add('run C: no "HUD ping label=SPREAD|STACK" lin
 $causesC = @($c.Lines | Where-Object { $_ -match '^HUD runend cause ' })
 $foreignC = @($causesC | Where-Object { $_ -notmatch '^HUD runend cause seat=1 ' })
 if ($foreignC.Count -gt 0) { $failures.Add("run C: seat 1's run-end panel shows another seat's cause: '$($foreignC[0])'") }
+# Lane COMBO-BLAME (BIBLE s4): the run-end panel's late-combo lines are seat 1's own only, one per distinct
+# (windowId, reason) of the combo_denied EVENTs whose payoffActorId is 1, capped at 3.
+foreach ($run in @(@{ Name = 'A'; Lines = $a.Lines }, @{ Name = 'C'; Lines = $c.Lines })) {
+    $lateLines = @($run.Lines | Where-Object { $_ -match '^HUD runend combo ' })
+    $lateForeign = @($lateLines | Where-Object { $_ -notmatch '^HUD runend combo seat=1 window=\S* reason=\S* half=payoff count=[1-9]\d*$' })
+    if ($lateForeign.Count -gt 0) { $failures.Add("run $($run.Name): the run-end panel shows a late-combo line that is not seat 1's own: '$($lateForeign[0])'") }
+    $ownDenied = @($run.Lines | Where-Object { $_ -match '^EVENT \{.*"payoffActorId":1,.*"type":"combo_denied"' } |
+        ForEach-Object { $w = if ($_ -match '"windowId":"([^"]*)"') { $Matches[1] } else { '' }; $r = if ($_ -match '"reason":"([^"]*)"') { $Matches[1] } else { '' }; "$w|$r" } |
+        Sort-Object -Unique)
+    $expectLate = [Math]::Min(3, $ownDenied.Count)
+    if ($lateLines.Count -ne $expectLate) { $failures.Add("run $($run.Name): expected $expectLate 'HUD runend combo' line(s) for seat 1's $($ownDenied.Count) distinct combo_denied, got $($lateLines.Count)") }
+    Write-Host "COMBO-BLAME run $($run.Name): seat1 denied distinct=$($ownDenied.Count) lines=$($lateLines.Count)"
+}
 # Lane TUNE-BOSS (STATE.md D14): from pull 1 the party clears the dungeon at seed 1 key 2 (run_end timed at tick
 # 6787): it reaches the boss, the Lock opens before run_end, and the run-end panel carries the clear title.
 $runEndC = First $c.Lines '^HUD runend result='
