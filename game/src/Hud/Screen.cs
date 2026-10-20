@@ -64,6 +64,13 @@ public partial class Screen : Control
     [Export]
     public NodePath DriverPath { get; set; } = new("../../SimDriver");
 
+    /// <summary>
+    /// The in-run help line (Arena.tscn <c>Hud/Help</c>), hidden while the screen is up so it does not show through
+    /// behind the title, and shown again when the screen closes (lane SCREEN-OVERFLOW).
+    /// </summary>
+    [Export]
+    public NodePath HelpPath { get; set; } = new("../Help");
+
     /// <summary>True while the screen is up.</summary>
     public bool IsOpen { get; private set; }
 
@@ -228,6 +235,7 @@ public partial class Screen : Control
         }
         Proof(FormattableString.Invariant(
             $"SCREEN open ash={_progression.AshTotal} runs={_progression.Runs} since=\"{_progression.LastRun?.Text() ?? string.Empty}\""));
+        SetHelpVisible(false);
         Proof($"SCREEN character class={ClassName()}");
         foreach (var (keyLabel, name) in Abilities())
         {
@@ -239,11 +247,19 @@ public partial class Screen : Control
         }
         ProofKeyBand();
         Proof($"SCREEN queue caption=\"{QueueCaption}\"");
+        // Measured at the design viewport (project.godot 1280x720): headless runs have a tiny dummy window.
+        var design = DesignSize();
+        var queueBox = LayoutFor(design).Queue;
+        var caption = CaptionLines(queueBox);
+        var right = queueBox.Position.X + caption.Max(line => HudNodes.Width(line, SmallFont));
+        Proof(FormattableString.Invariant(
+            $"SCREEN fit caption lines={caption.Count} right={Math.Ceiling(right)} viewport={Math.Floor(design.X)}"));
     }
 
     private void Close()
     {
         IsOpen = false;
+        SetHelpVisible(true);
         MouseFilter = MouseFilterEnum.Ignore;
         if (GetNodeOrNull<Control>("ClausePick") is { } pick)
         {
@@ -424,6 +440,71 @@ public partial class Screen : Control
             var id = s.Clause.Offers[i];
             Proof(FormattableString.Invariant($"SCREEN clause n={i + 1} id={id} name=\"{ClauseText(id).Name}\" picked={(id == s.Clause.Picked ? 1 : 0)}"));
         }
+        // The cards as laid out at the design viewport (1280x720), with the same wrap the ClausePick draws.
+        var box = ClausePick.TextWidthFor(LayoutFor(DesignSize()).Pick.Size.X);
+        for (var i = 0; i < s.Clause.Offers.Count; i++)
+        {
+            var text = ClausePick.TextLines(ClauseText(s.Clause.Offers[i]).Text, box);
+            var widest = text.Count == 0 ? 0f : text.Max(line => HudNodes.Width(line, ClausePick.TextFont));
+            Proof(FormattableString.Invariant(
+                $"SCREEN fit clause n={i + 1} lines={text.Count} widest={Math.Ceiling(widest)} box={Math.Floor(box)}"));
+        }
+    }
+
+    private void SetHelpVisible(bool visible)
+    {
+        if (GetNodeOrNull<CanvasItem>(HelpPath) is not { } help)
+        {
+            return;
+        }
+        help.Visible = visible;
+        Proof(FormattableString.Invariant($"SCREEN help visible={(help.Visible ? 1 : 0)}"));
+    }
+
+    // The Queue caption wrapped to the Queue box's width, so it never runs past the window edge.
+    private static IReadOnlyList<string> CaptionLines(Rect2 queue) => Wrap(QueueCaption, queue.Size.X, SmallFont, 3);
+
+    /// <summary>
+    /// Greedy word wrap of <paramref name="text"/> into lines no wider than <paramref name="width"/> at font
+    /// <paramref name="size"/>. A word wider than the bound is clipped with "...", and text past
+    /// <paramref name="maxLines"/> is clipped into the last line with "...". The wording itself never changes.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="width">The bound in pixels.</param>
+    /// <param name="size">Font size.</param>
+    /// <param name="maxLines">The most lines to return (at least 1).</param>
+    /// <returns>The lines, empty for empty text.</returns>
+    public static IReadOnlyList<string> Wrap(string text, float width, int size, int maxLines)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var lines = new List<string>();
+        var current = string.Empty;
+        foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var candidate = current.Length == 0 ? word : current + " " + word;
+            if (current.Length == 0 || HudNodes.Width(candidate, size) <= width)
+            {
+                current = candidate;
+                continue;
+            }
+            lines.Add(current);
+            current = word;
+        }
+        if (current.Length > 0)
+        {
+            lines.Add(current);
+        }
+        var cap = Math.Max(1, maxLines);
+        if (lines.Count > cap)
+        {
+            lines[cap - 1] = string.Join(' ', lines.Skip(cap - 1));
+            lines.RemoveRange(cap, lines.Count - cap);
+        }
+        for (var i = 0; i < lines.Count; i++)
+        {
+            lines[i] = Clip(lines[i], width, size);
+        }
+        return lines;
     }
 
     private IReadOnlyList<string> ClauseIds() =>
@@ -471,21 +552,34 @@ public partial class Screen : Control
 
     private (Rect2 Character, Rect2 Key, Rect2 Queue, Rect2 KeyDown, Rect2 KeyUp) Layout()
     {
-        var top = Margin + 30;
-        var height = Size.Y - top - 44;
-        var width = Size.X - (2 * Margin);
-        var character = new Rect2(Margin, top, width * 0.46f, height);
-        var key = new Rect2(character.End.X + 16, top, width * 0.32f, height);
-        var queue = new Rect2(key.End.X + 16, top, Size.X - Margin - key.End.X - 16, 120);
-        var keyDown = new Rect2(key.Position.X + 14, key.Position.Y + 44, 40, 40);
-        var keyUp = new Rect2(key.Position.X + 150, key.Position.Y + 44, 40, 40);
+        var l = LayoutFor(Size);
         if (GetNodeOrNull<Control>("ClausePick") is { } pick)
         {
-            pick.Position = new Vector2(key.Position.X + 14, key.Position.Y + 128);
-            pick.Size = new Vector2(key.Size.X - 28, 3 * 72);
+            pick.Position = l.Pick.Position;
+            pick.Size = l.Pick.Size;
         }
-        return (character, key, queue, keyDown, keyUp);
+        return (l.Character, l.Key, l.Queue, l.KeyDown, l.KeyUp);
     }
+
+    // The bands for a screen of `size` (pure): the draw uses the node's Size, the fit proof lines the design size.
+    private static (Rect2 Character, Rect2 Key, Rect2 Queue, Rect2 KeyDown, Rect2 KeyUp, Rect2 Pick) LayoutFor(Vector2 size)
+    {
+        var top = Margin + 30;
+        var height = size.Y - top - 44;
+        var width = size.X - (2 * Margin);
+        var character = new Rect2(Margin, top, width * 0.46f, height);
+        var key = new Rect2(character.End.X + 16, top, width * 0.32f, height);
+        var queue = new Rect2(key.End.X + 16, top, size.X - Margin - key.End.X - 16, 120);
+        var keyDown = new Rect2(key.Position.X + 14, key.Position.Y + 44, 40, 40);
+        var keyUp = new Rect2(key.Position.X + 150, key.Position.Y + 44, 40, 40);
+        var pick = new Rect2(key.Position.X + 14, key.Position.Y + 128, key.Size.X - 28, 3 * 72);
+        return (character, key, queue, keyDown, keyUp, pick);
+    }
+
+    // project.godot display/window/size/viewport_width and _height (1280x720).
+    private static Vector2 DesignSize() => new(
+        ProjectSettings.GetSetting("display/window/size/viewport_width", 1280).AsInt32(),
+        ProjectSettings.GetSetting("display/window/size/viewport_height", 720).AsInt32());
 
     private void Band(Rect2 r, string title)
     {
@@ -562,7 +656,12 @@ public partial class Screen : Control
         var (name, _) = ClauseText(state.Clause.Picked);
         HudNodes.Text(this, r.Position + new Vector2(18, 80), FormattableString.Invariant($"Key {state.KeyLevel} with {name}"), BodyFont, Calm);
         HudNodes.Text(this, r.Position + new Vector2(18, 102), "Enter or click", SmallFont, Colors.White);
-        HudNodes.Text(this, new Vector2(r.Position.X, r.End.Y + 24), QueueCaption, SmallFont, Calm);
+        var y = r.End.Y + 24;
+        foreach (var line in CaptionLines(r))
+        {
+            HudNodes.Text(this, new Vector2(r.Position.X, y), line, SmallFont, Calm);
+            y += SmallFont + 4;
+        }
     }
 
     private static string Clip(string text, float width, int size)
