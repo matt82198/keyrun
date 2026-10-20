@@ -1,17 +1,28 @@
 using System;
 using System.Collections.Generic;
+using Keyrun.Sim.Combat;
 
 namespace Keyrun.Sim.Runs;
 
-/// <summary>What the screen's Queue button hands the host: one dungeon, one key, one Clause.</summary>
+/// <summary>
+/// What the screen's Queue button hands the host: one dungeon, one key, one Clause, and the human's talented kit
+/// (BIBLE s6: the talents picked on the screen are the abilities the run plays).
+/// </summary>
 /// <param name="DungeonId">The dungeon.</param>
 /// <param name="KeyLevel">The key, 2-20.</param>
 /// <param name="ClauseId">The one picked Clause.</param>
 public sealed record QueueRequest(string DungeonId, int KeyLevel, string ClauseId)
 {
-    /// <summary>The run options for the queued run (its one Clause).</summary>
+    /// <summary>
+    /// Actor id to that actor's talent-resolved abilities (by ability id), or null when nothing is picked. The host
+    /// resolves the screen's picks into plain AbilityDefs (the sim never sees a ClassDef); this is the talent layer
+    /// of <see cref="RunOptions.Loadouts"/>.
+    /// </summary>
+    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, AbilityDef>>? Loadouts { get; init; }
+
+    /// <summary>The run options for the queued run: its one Clause and the queued loadouts.</summary>
     /// <returns>The options.</returns>
-    public RunOptions ToRunOptions() => new() { ClauseId = ClauseId };
+    public RunOptions ToRunOptions() => new() { ClauseId = ClauseId, Loadouts = Loadouts };
 }
 
 /// <summary>
@@ -75,15 +86,22 @@ public sealed record ScreenState(string DungeonId, IReadOnlyList<string> ClauseI
         return this with { Clause = picked };
     }
 
-    /// <summary>Queues: locks the band and returns the request, or null (and this state) when already queued.</summary>
+    /// <summary>
+    /// Queues: locks the band and returns the request, or null (and this state) when already queued. The request
+    /// carries <paramref name="loadouts"/> (the screen's resolved talent picks) so the run plays the talented kit; a
+    /// null or empty map queues no loadout, and the run keeps the base abilities.
+    /// </summary>
+    /// <param name="loadouts">Actor id to that actor's talent-resolved abilities, or null.</param>
     /// <returns>The locked state and the request.</returns>
-    public (ScreenState State, QueueRequest? Request) Queue()
+    public (ScreenState State, QueueRequest? Request) Queue(
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, AbilityDef>>? loadouts = null)
     {
         if (Locked)
         {
             return (this, null);
         }
-        return (this with { Locked = true }, new QueueRequest(DungeonId, KeyLevel, Clause.Picked));
+        var carried = loadouts is { Count: > 0 } ? loadouts : null;
+        return (this with { Locked = true }, new QueueRequest(DungeonId, KeyLevel, Clause.Picked) { Loadouts = carried });
     }
 
     private static int Clamp(long key) => (int)Math.Min(MaxKey, Math.Max(MinKey, key));
