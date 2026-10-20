@@ -1,0 +1,2 @@
+- AGGRO-DIRECTION record Matt's 2026-10-20 aggro and taunt-swap direction as STATE.md D30 (no threat meter, no proximity pull for a non-tank but an on-screen pull-range warning, a Kalphite King style tank-mark taunt swap) plus a NEXT STEPS plug-in list (docs only; no sim, content, bots, host or view change; design/BIBLE.md unchanged, proposed wording in the PR body for Matt).
+BUILDLOG: AGGRO-DIRECTION recorded D30 verbatim with its four rules and listed its conflicts with BIBLE 5 and 9.1 and the R1 PRESPAWN-AGGRO branch for Matt; nothing implemented.
