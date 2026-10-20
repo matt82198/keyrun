@@ -107,8 +107,11 @@
   Before 3I the arena never arms the boss and never reads the queue: 14-19 fail (RED). Before 3J SimDriver steps
   RunRoot.StepRun and ignores --abandon-seat: 20-24 fail (RED).
     Source checks (lane HUD-FU; the ability bar draws with immediate-mode DrawString, so no node or line shows it):
-     25. game/src/Hud/AbilityBar.cs draws no run-over banner: no "Run over" text and no RunEnd read (since 3C the
-         run-end panel owns the run-over state), and RunEndPanel.cs still draws "Enter starts a fresh run";
+     25. game/src/Hud/AbilityBar.cs draws no run-over banner: no "Run over" text and no run-end result, result type or
+         ToJs() in any DrawString/DrawCentered/DrawMeter call (since 3C the run-end panel owns the run-over state), its
+         ShowsOutOfRange call passes a runOver argument (lane TINT-RUNOVER: the bar may read THAT the run ended, to turn
+         the range tint off; until then the clause banned any RunEnd read, which only the stale banner made), and
+         RunEndPanel.cs still draws "Enter starts a fresh run";
      26. game/src/Hud/Screen.cs no longer says the host ignores the queue ("does not read the queued"): since 3I/3J
          the host starts the queued run (ScreenSceneTest asserts the caption it now draws).
   Before HUD-FU the bar still drew "Run over: <result> - press Enter to start again" and the Queue caption said the
@@ -200,6 +203,16 @@
      40. nine "HUD bar slot=<key> ability=warden.<id> icon=res://assets/kenney-board-game-icons/<file>.png tex=64x64"
          lines, one per slot 1-5, Q, E, R, F (tex is the loaded Texture2D's size, so a missing file or an unmapped id
          reads icon=none tex=none and fails). Before ABILITY-ICONS the bar draws only text: no "HUD bar" line, 40 RED.
+    Run N (lane TINT-RUNOVER, a non-clear run end with a living out-of-range target; three-seat party, key 2):
+        -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (default 1400 and 2@600, no --joiner-key)
+        (the bar prints "HUD bar range tinted=N over=0|1 tick=T" under --autorun whenever the count of range-tinted
+        slots or the run-over state changes. At seed 1 the Chanter leaves at 600, the Warden dies at 1014 with the
+        Choir enemy it targeted alive and out of range, the bar tints 4 slots at 1025, and the party wipes: run_end
+        depleted at 1271)
+     41. a "HUD runend result=depleted ... cleared=0" line (the run did not clear), at least one "HUD bar range
+         tinted=N over=0" line with N > 0 (control: the live run tints), at least one "over=1" line, and every
+         "over=1" line reads tinted=0. Before TINT-RUNOVER the bar passed no runOver and printed "tinted=4 over=1
+         tick=1271": 41 RED.
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -221,6 +234,8 @@ param(
     [string]$YawTo = '1.5',
     [int]$YawFrames = 900,
     [int]$HeadingFrames = 420,
+    [int]$TintTicks = 1400,
+    [string]$TintAbandon = '2@600',
     [switch]$HeadingOnly
 )
 $ErrorActionPreference = 'Stop'
@@ -273,7 +288,8 @@ $barSrc = Get-Content -Raw (Join-Path $repo 'game/src/Hud/AbilityBar.cs')
 $panelSrc = Get-Content -Raw (Join-Path $repo 'game/src/Hud/RunEndPanel.cs')
 $screenSrc = Get-Content -Raw (Join-Path $repo 'game/src/Hud/Screen.cs')
 if ($barSrc -match 'Run over') { $failures.Add('AbilityBar.cs still draws a "Run over" banner (the run-end panel owns the run-over state)') }
-if ($barSrc -match '\bRunEnd\b') { $failures.Add('AbilityBar.cs still reads run.RunEnd (only the stale run-over banner did)') }
+if ($barSrc -match 'Draw(String|Centered|Meter)\([^;]*(RunEnd|RunResult|\.ToJs\(\))') { $failures.Add('AbilityBar.cs draws run-over text (the run-end panel owns the result, rewards and Enter hint)') }
+if ($barSrc -notmatch 'ShowsOutOfRange\([^;]*\brunOver:') { $failures.Add('AbilityBar.cs calls ShowsOutOfRange without a runOver argument (the range tint must be off once the run has ended, lane TINT-RUNOVER)') }
 if ($panelSrc -notmatch 'Enter starts a fresh run') { $failures.Add('RunEndPanel.cs no longer draws "Enter starts a fresh run" (the only Enter hint once the bar banner is gone)') }
 if ($screenSrc -match 'does not read the queued') { $failures.Add('Screen.cs still says the host does not read the queued key and Clause (false since 3I/3J)') }
 
@@ -495,6 +511,19 @@ foreach ($k in @('1', '2', '3', '4', '5', 'Q', 'E', 'R', 'F')) {
         $failures.Add("run A: ability bar slot $k has no loaded icon: '$row'")
     }
 }
+
+# ---- Run N (lane TINT-RUNOVER, check 41): the range tint is off once a non-clear run has ended -------------------
+$tintN = Invoke-Arena $TintTicks @('--abandon-seat', $TintAbandon)
+$tintRun = @(FirstRun $tintN.Lines)
+if ($tintN.Code -ne 0) { $failures.Add("run N: godot exited $($tintN.Code) (expected 0)") }
+$tintEnd = First $tintRun '^HUD runend result=depleted .*\bcleared=0 '
+$tintLive = First $tintRun '^HUD bar range tinted=[1-9]\d* over=0 '
+$tintOver = @($tintRun | Where-Object { $_ -match '^HUD bar range tinted=\d+ over=1 ' })
+$tintStuck = $tintOver | Where-Object { $_ -notmatch '^HUD bar range tinted=0 over=1 ' } | Select-Object -First 1
+if (-not $tintEnd) { $failures.Add("run N: no 'HUD runend result=depleted ... cleared=0' line (the party must wipe for the case; got '$(First $tintRun '^HUD runend result=')')") }
+if (-not $tintLive) { $failures.Add('run N: no "HUD bar range tinted=N over=0" line with N > 0 (control: a live run with an out-of-range target tints)') }
+if ($tintOver.Count -eq 0) { $failures.Add('run N: no "HUD bar range ... over=1" line (the bar never saw the run end)') }
+if ($tintStuck) { $failures.Add("run N: the range tint still shows after the run ended: '$tintStuck'") }
 
 # ---- Run B: from pull 2 -----------------------------------------------------------------------------------------
 $b = Invoke-Arena $PingTicks @('--pull', '2', '--solo')
@@ -1061,6 +1090,10 @@ foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $sl
 }
 Write-Output "--- run-end titles, lane 3C-d (lines=$($titleLines.Count) cleared=$clearedTitles) ---"
 foreach ($l in $titleLines) { Write-Output $l }
+Write-Output '--- run N (range tint after a non-clear run end), lane TINT-RUNOVER ---'
+foreach ($l in @($tintLive, $tintEnd) + $tintOver) {
+    if ($l) { Write-Output $l }
+}
 Write-Output '--- run C (bot party) ---'
 foreach ($l in $seats + $botCasts + @($pull2, $tick295, $livePing, $bossC, $lockC, $runEndEv, $runEndC, $botHit) + $causesC + @($botsC, $botsC2)) {
     if ($l) { Write-Output $l }
