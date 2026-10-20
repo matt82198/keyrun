@@ -177,7 +177,8 @@ public partial class CombatText : Control
             var baseline = new PixelPoint((int)Math.Round(screen.X), (int)Math.Round(screen.Y - (RisePx * (n.Age / LifeSeconds))));
             var raw = HudClearance.NumberRect(baseline, (int)Math.Ceiling(HudNodes.Width(n.Text, FontSize)), FontSize, OutlineSize);
             var hasPlate = plates.TryGetValue(n.TargetId, out var plate);
-            var placed = CombatTextRule.PlaceNumber(hasPlate ? plate : raw, raw.Width, raw.Height, n.Age / LifeSeconds, width, height, avoid);
+            var agePermille = (int)Math.Round(n.Age / LifeSeconds * CombatTextRule.AgeScale);
+            var placed = CombatTextRule.PlaceNumber(hasPlate ? plate : raw, raw.Width, raw.Height, agePermille, width, height, avoid);
             n.Placed = placed;
             if (placed is not { } box)
             {
