@@ -44,8 +44,9 @@
         (--careless-seat S@T:GROUP, CARELESS-SEAT, default 3@300:pair; Matt 2026-10-20, verbatim: "no a bad player will
         accidentally aggro more groups, just test it naturally", STATE.md D43: under PRESPAWN-AGGRO the Warden walks
         into every ring first, so no enemy ever picked a bot seat. Bot seat S (the Cinder) plays carelessly from run tick
-        T, mid-Choir: it strays off the party toward the idle Pair down the open path (no corridor is walled since
-        STATE.md D44, PATH-TO-BOSS), and walks into the Pair's aggro ring ahead of the Warden. The sim's own aggro rule engages
+        T, mid-Choir: it strays off the party toward the idle Pair, waits at the Choir room's far doorway while the Choir
+        fight lasts (Careless.HoldPoint; no gate walls it since STATE.md D44, PATH-TO-BOSS, so it pulls between fights, not
+        mid-fight), runs on when the Choir clears, and walks into the Pair's aggro ring ahead of the Warden. The sim's own aggro rule engages
         the Pair on it and the Pair's own targeting (no threat yet, so the nearest living player) goes for it. Nothing
         makes an enemy hit a bot; check 12's bot-damage line comes from that pull.)
       9. "HUD party seat=1 name=Warden", "seat=2 name=Chanter", "seat=3 name=Cinder" (BotCommandSource drives 2, 3);
