@@ -85,6 +85,49 @@ public static class Casting
         var rule = OverheatRuleOf(ctx, actor);
         // BIBLE section 5: at the threshold the next cast is the Overheat, and the Overheat is free.
         var overheat = rule is not null && actor.Resource >= rule.Threshold;
+        if (StartError(state, actor, def, targetId, now, hooks, overheat) is { } err)
+        {
+            return err;
+        }
+        if (!overheat)
+        {
+            actor.Resource -= def.Cost.Amount;
+        }
+        Cooldowns.ConsumeCharge(actor, def, now);
+        Cooldowns.StartGcd(actor, now, def.GcdTicks);
+        actor.CastId = def.Id;
+        actor.CastStartTick = now;
+        actor.CastEndsTick = now + ChilledCastTicks(actor, def.CastTicks, rule, ctx, now);
+        actor.CastIsOverheat = overheat;
+        if (targetId is not null)
+        {
+            actor.TargetId = targetId;
+        }
+        if (!overheat)
+        {
+            Threat.AddMomentumSpentThreat(state, actor, def.Cost);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The checks <see cref="StartCast"/> makes, in its order, with no side effects: null when a cast of
+    /// <paramref name="def"/> on <paramref name="targetId"/> would start on tick <paramref name="now"/>, else
+    /// StartCast's error code. SLAM-TELEGRAPH: a spansCast script telegraph is drawn only when this says its cast starts.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <param name="actor">The caster.</param>
+    /// <param name="def">The ability.</param>
+    /// <param name="targetId">The target, or null.</param>
+    /// <param name="now">The tick the cast would start.</param>
+    /// <param name="hooks">Clause hooks (null for an enemy: enemies are never silenced).</param>
+    /// <param name="overheat">True when the cast is a free Overheat (players only).</param>
+    /// <returns>Null when the cast would start, else the error code.</returns>
+    public static string? StartError(SimState state, ActorState actor, AbilityDef def, int? targetId, int now, ClauseHooks? hooks = null, bool overheat = false)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(def);
         if (hooks is not null && hooks.IsSilenced(now))
         {
             return "silenced";
@@ -115,24 +158,6 @@ public static class Casting
             {
                 return "out_of_range";
             }
-        }
-        if (!overheat)
-        {
-            actor.Resource -= def.Cost.Amount;
-        }
-        Cooldowns.ConsumeCharge(actor, def, now);
-        Cooldowns.StartGcd(actor, now, def.GcdTicks);
-        actor.CastId = def.Id;
-        actor.CastStartTick = now;
-        actor.CastEndsTick = now + ChilledCastTicks(actor, def.CastTicks, rule, ctx, now);
-        actor.CastIsOverheat = overheat;
-        if (targetId is not null)
-        {
-            actor.TargetId = targetId;
-        }
-        if (!overheat)
-        {
-            Threat.AddMomentumSpentThreat(state, actor, def.Cost);
         }
         return null;
     }
