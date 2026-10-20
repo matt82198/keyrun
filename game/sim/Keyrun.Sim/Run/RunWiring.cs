@@ -110,6 +110,7 @@ public static class RunWiring
             views[kv.Key] = new ScriptAbility(def.Id, def.Range, ShapeKindJs(def.Shape.Kind), def.Effects.Any(op => op is HealOp))
             {
                 CastTicks = def.CastTicks,
+                Def = def,
             };
         }
         return views;

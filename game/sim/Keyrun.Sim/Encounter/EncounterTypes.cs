@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
@@ -101,6 +102,12 @@ public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool
 {
     /// <summary>The ability's cast time, ticks (<c>def.castTicks</c>); read only for a <see cref="TelegraphSpec.SpansCast"/> telegraph.</summary>
     public int CastTicks { get; init; }
+
+    /// <summary>
+    /// The full definition, for <see cref="Casting.StartError"/>: a <see cref="TelegraphSpec.SpansCast"/> telegraph is
+    /// drawn only when its cast would start. Null = unknown (the check is skipped).
+    /// </summary>
+    public AbilityDef? Def { get; init; }
 }
 
 /// <summary>One enemy a pull spawns (sim/encounter/pulls.ts:17 PullSpawn).</summary>

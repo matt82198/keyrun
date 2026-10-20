@@ -106,8 +106,10 @@ Boss and elite slams (values as the data files hold them; `abilities/enemies.jso
 `spansCast` (SLAM-TELEGRAPH, C# sim only; the frozen TS ignores it and oracle replays clear it): the telegraph resolves
 on the tick the cast lands (fire tick + castTicks) instead of the tick it starts, so with leadTicks 10 = castTicks 10
 the circle appears with the cast bar and resolves with the hit. Without it the circle resolved 10 ticks before the damage.
-Tempo shrinks the lead but not the cast time, so at key 2 Cleave (lead 39, cast 40) and the Seed casts (lead 19, cast
-20) draw their shape one tick after the bar starts; it still stays down until the cast lands.
+Tempo shrinks the lead but not the cast time (key 2: Cleave 39 < 40, Seed 19 < 20), so a spansCast telegraph leads by
+at least castTicks: the shape and the bar start on the same tick. It is drawn only when its cast will start (the
+StartCast checks: cooldown/charges, GCD, cost, lockout, target and range), so a script step refused `not_ready` (key 2:
+Cleave every 156 vs cooldown 160, Seed slam 98 vs 100, lash 196 vs 200) shows nothing instead of a telegraph with no hit.
 
 ## Enemy movement (`// TUNE`)
 
