@@ -57,6 +57,13 @@ public sealed record BotTelegraph(string Id, TelegraphShape Shape, PointMm Cente
 
     /// <summary>Line width, mm.</summary>
     public long? Width { get; init; }
+
+    /// <summary>
+    /// The caster's actor id for an encounter telegraph (<see cref="BotViews.ToBotTelegraph"/>), null for floor patches
+    /// and scripted test telegraphs. No TS counterpart: it lets the danger tiers drop a telegraph whose caster died
+    /// before its cast began (DEAD-CASTER-TELEGRAPH, <see cref="Shared.Positioning.IsSpent"/>).
+    /// </summary>
+    public int? SourceId { get; init; }
 }
 
 /// <summary>
