@@ -51,7 +51,7 @@ public static class ContentCombos
         return (combos, field);
     }
 
-    /// <summary>One content effect op as the sim op (content/sim-adapt.ts toSimOp plus the C#-only party/cloud ops).</summary>
+    /// <summary>One content effect op as the sim op (content/sim-adapt.ts toSimOp plus the C#-only party/cloud/closer-burn ops).</summary>
     /// <param name="op">The content op.</param>
     /// <param name="where">Where the op sits, for the error message.</param>
     /// <returns>The sim op.</returns>
@@ -77,6 +77,7 @@ public static class ContentCombos
         C.ComboOp c => new ComboOp(c.ComboTable),
         C.PartyEffectOp p => new PartyEffectOp(p.EffectId, p.DurationTicks, p.Stacks),
         C.CloudOp c => new CloudOp(c.EffectId, c.DurationTicks, c.RadiusMm),
+        C.CloserBurnOp b => new CloserBurnOp(b.MaxHealthBp, b.CapBp, b.School),
         _ => throw new InvalidOperationException($"run setup: {where} has an op the sim does not run ({op.GetType().Name})"),
     };
 }

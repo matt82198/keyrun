@@ -128,7 +128,7 @@ public sealed class ActorBindingTests
         Assert.Equal(knight.Folder, boss.Folder);
         Assert.Equal(knight.ModelFile, boss.ModelFile);
         Assert.Equal(knight.NativeHeightMm * 19 / 10, boss.TargetHeightMm);
-        Assert.NotNull(boss.TintRgb); // the hollow, darkened Knight (ART-PLAN section 4)
+        Assert.NotNull(boss.TintRgb); // the hollow, pale cold-steel Knight (ART-PLAN section 4; BOSS-READABILITY)
     }
 
     [Fact]
@@ -138,6 +138,29 @@ public sealed class ActorBindingTests
         Assert.Equal(ActorBinding.HeadLineMm * 115 / 100, Table.For("hollowWarden.twinA").TargetHeightMm);
         Assert.Equal(ActorBinding.HeadLineMm * 115 / 100, Table.For("hollowWarden.twinB").TargetHeightMm);
         Assert.Equal(ActorBinding.HeadLineMm, ActorBinding.Capsule.TargetHeightMm);
+    }
+
+    [Fact]
+    public void No_tint_darkens_a_body_below_half_its_pack_brightness()
+    {
+        foreach (ActorBindingRow row in Table.Rows.Where(r => r.TintRgb is not null))
+        {
+            Assert.True(row.TintLumaPermille >= ActorBinding.MinTintLumaPermille,
+                $"{row.Key}: tint 0x{row.TintRgb:X6} keeps {row.TintLumaPermille} permille of the pack brightness, under {ActorBinding.MinTintLumaPermille}");
+        }
+    }
+
+    [Theory]
+    [InlineData(0x000000, 0)]
+    [InlineData(0xFFFFFF, 1000)]
+    [InlineData(0xFF0000, 299)]
+    [InlineData(0x00FF00, 587)]
+    [InlineData(0x0000FF, 114)]
+    public void Tint_luma_is_rec_601_permille(int rgb, int permille)
+    {
+        ActorBindingRow row = ActorBinding.Capsule with { TintRgb = rgb };
+        Assert.Equal(permille, row.TintLumaPermille);
+        Assert.Null(ActorBinding.Capsule.TintLumaPermille);
     }
 
     [Fact]
