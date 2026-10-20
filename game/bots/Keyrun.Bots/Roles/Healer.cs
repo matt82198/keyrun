@@ -99,9 +99,17 @@ public sealed class HealerRole : IRole
         if (dispelId is null)
         {
             var healId = Priority.PickHealTarget(actors, HealThresholdPct);
-            return healId is { } hid && actors.TryGetValue(hid, out var healTarget)
-                ? HealPick.HealCommands(view, self, kit, healTarget)
-                : Array.Empty<Command>();
+            if (healId is not { } hid || !actors.TryGetValue(hid, out var healTarget))
+            {
+                return HealerIdle.IdleCommands(view, self, kit, MendVerseValue);
+            }
+            // BOTS-FIVE-BUTTONS: someone needs healing while the stance sits in Ward, so Refrain back to Mend first
+            // (its Mend burst heals on the swap) before the shape-aware heal.
+            if (HealerIdle.StanceSwapReady(self, kit, tick) && self.Resource != MendVerseValue)
+            {
+                return new Command[] { new CastCommand(tick, self.Id, kit.StanceSwapAbilityId!) };
+            }
+            return HealPick.HealCommands(view, self, kit, healTarget);
         }
 
         var abilityId = kit.DispelAbilityId ?? "dispel";

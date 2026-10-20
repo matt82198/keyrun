@@ -23,6 +23,7 @@ import { floorEscapeCommand } from "../shared/floor.js";
 import { moveToward } from "../shared/command.js";
 import { readyAndAffordable, ledgerKickCommand } from "./shared.js";
 import { healCommands } from "./heal-pick.js";
+import { idleCommands, stanceSwapReady } from "./healer-idle.js";
 
 const DISPELLABLE_PREFIX = "dispellable:";
 /** ActorState.pos is already integer millimetres (sim/CLAUDE.md), so this 30m design constant is
@@ -95,7 +96,13 @@ export function healerDecide(view: BotView, self: ActorState): Command[] {
     // only the caster (roles/heal-pick.ts).
     const healId = pickHealTarget(view.state.actors, HEAL_THRESHOLD_PCT);
     const healTarget = healId !== null ? view.state.actors[healId] : undefined;
-    return healTarget ? healCommands(view, self, kit, healTarget) : [];
+    if (!healTarget) return idleCommands(view, self, kit, MEND_VERSE_VALUE);
+    // BOTS-FIVE-BUTTONS: someone needs healing while the stance sits in Ward, so Refrain back to
+    // Mend first (its Mend burst heals on the swap) before the shape-aware heal.
+    if (stanceSwapReady(self, kit, tick) && self.resource !== MEND_VERSE_VALUE) {
+      return [{ tick, actorId: self.id, kind: "cast", abilityId: kit.stanceSwapAbilityId! }];
+    }
+    return healCommands(view, self, kit, healTarget);
   }
   const targetId = dispelId;
   const abilityId = kit.dispelAbilityId ?? "dispel";
