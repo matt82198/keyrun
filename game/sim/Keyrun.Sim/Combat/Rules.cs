@@ -116,6 +116,7 @@ public static class Rules
         return (state, commands, emit) =>
         {
             var hooks = new ClauseHooks(cfg.Clause);
+            var noClause = new ClauseHooks(null);
             var ctx = new CastContext(cfg.Abilities, cfg.Effects, cfg.LockoutTicks) { Hooks = hooks, Overheat = cfg.Overheat };
             var wctx = new WindowsContext(cfg.Effects, combos, fieldCombos, new FloorWindowRegistry(state.FloorWindows), hooks);
 
@@ -162,7 +163,12 @@ public static class Rules
                         {
                             break;
                         }
-                        var err = Casting.StartCast(state, actor, def, c.TargetId, c.Point, state.Tick, hooks, ctx);
+                        // Hush silences the party only (BIBLE s8 "save the kicks"; clauses.json "hits the party"):
+                        // an enemy's cast, scripted or not, never sees the silence predicate. Enemies get a
+                        // no-Clause hooks object, not null, so StartCast's `hooks ??= ctx.Hooks` (the Overheat
+                        // context) cannot hand the silence back.
+                        var castHooks = actor.Kind == ActorKind.Player ? hooks : noClause;
+                        var err = Casting.StartCast(state, actor, def, c.TargetId, c.Point, state.Tick, castHooks, ctx);
                         if (err is null && def.CastTicks == 0)
                         {
                             var resolved = Abilities.ResolveVerse(def, actor);
