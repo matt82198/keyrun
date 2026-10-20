@@ -25,4 +25,9 @@
     <ProjectReference Include="../../../tools/Keyrun.Replay/Keyrun.Replay.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- f-50d8099e: the Godot-free --write-movie frame picker lives with the host (game/src/Host) and is tested here. -->
+    <Compile Include="../../src/Host/MovieDirector.cs" Link="Host/MovieDirector.cs" />
+  </ItemGroup>
+
 </Project>
