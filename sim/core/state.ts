@@ -55,6 +55,10 @@ export interface ActorState {
   gcdReadyTick: Tick;
   effects: EffectInstance[];
   threat: Record<ActorId, number>;
+  /** HOLDER-LOCK (STATE.md D30): the player an engaged enemy is locked onto; absent = not engaged, a player, or no
+   * living player. Set on engage to the nearest living player (sim/combat/holder.ts), moved only by a taunt, the
+   * holder's death (then the nearest living player) or a wipe. Not projected (game/sim/ORACLE.md section 1). */
+  holderId?: ActorId;
   /** Per-actor walk speed (mm/tick) for `move` commands; absent = RulesConfig.baseSpeedMmPerTick.
    * Set from content at spawn (sim/encounter/pulls.ts), never from a command. */
   speedMmPerTick?: number;
