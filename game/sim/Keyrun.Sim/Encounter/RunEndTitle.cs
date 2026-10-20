@@ -41,4 +41,29 @@ public static class RunEndTitle
             _ => Depleted,
         };
     }
+
+    /// <summary>
+    /// The run-end panel's title for <paramref name="run"/>, or null while it is live. RED STUB: mirrors the panel's
+    /// current inline switch (every timed clear reads "within par").
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <param name="lostNumber">1-based pull lost on, used only when not cleared.</param>
+    /// <param name="lostTotal">Pull count of the full dungeon, used only when not cleared.</param>
+    /// <returns>The title line, or null.</returns>
+    public static string? ForRun(Keyrun.Sim.Runs.Run run, int lostNumber, int lostTotal)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.RunEnd.Result is not { } result)
+        {
+            return null;
+        }
+        var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
+        return (result, cleared) switch
+        {
+            (RunResult.Abandoned, _) => Abandoned,
+            (_, false) => FormattableString.Invariant($"Party wiped on pull {lostNumber} of {lostTotal} -- key depleted"),
+            (RunResult.Timed, true) => WithinPar,
+            _ => Depleted,
+        };
+    }
 }
