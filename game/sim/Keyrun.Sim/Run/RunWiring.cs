@@ -171,7 +171,8 @@ public static class RunWiring
     {
         ArgumentNullException.ThrowIfNull(state);
         var tank = state.Actors.Values.FirstOrDefault(a => a.Kind == ActorKind.Player && a.Role == ActorRole.Tank);
-        var enemies = state.Actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive).ToList();
+        // PRESPAWN-AGGRO: an idle enemy is never auto-targeted and never auto-targets (no idle actor in an oracle run).
+        var enemies = state.Actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle).ToList();
         if (tank is not null)
         {
             foreach (var enemy in enemies.Where(e => e.TargetId is null))
