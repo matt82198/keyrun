@@ -61,6 +61,39 @@ public static class NavLayouts
     }
 
     /// <summary>
+    /// MPLUS-PATROLS: <paramref name="layout"/>'s patrols as sim <see cref="PatrolDef"/>s. Members get actor ids from
+    /// <paramref name="firstActorId"/> up, in patrol, enemy-group, count order; <paramref name="spawnOf"/> builds each
+    /// member's spawn (health, speed, scaling: the host's choice) and its position is then set to the group's content
+    /// offset from the patrol point. Waypoints, speed and radius come from the layout (radius null = the sim default).
+    /// </summary>
+    /// <param name="layout">A validated content layout.</param>
+    /// <param name="firstActorId">The first member's actor id.</param>
+    /// <param name="spawnOf">Builds a member's spawn from its enemy id and actor id.</param>
+    /// <returns>The patrols in layout order.</returns>
+    public static IReadOnlyList<PatrolDef> ToSimPatrols(C.LayoutDef layout, int firstActorId, Func<string, int, PullSpawn> spawnOf)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(spawnOf);
+        var nextId = firstActorId;
+        var patrols = new List<PatrolDef>();
+        foreach (var patrol in layout.Patrols)
+        {
+            var spawns = new List<PullSpawn>();
+            foreach (var group in patrol.Enemies)
+            {
+                for (var i = 0; i < group.Count; i++)
+                {
+                    spawns.Add(spawnOf(group.EnemyId, nextId++) with { Pos = new Vec3(group.Spawn.X, 0, group.Spawn.Z) });
+                }
+            }
+            var waypoints = patrol.Waypoints.Select(p => new Vec3(p.X, 0, p.Z)).ToList();
+            var def = new PatrolDef(patrol.Id, spawns, waypoints, patrol.SpeedMmPerTick);
+            patrols.Add(patrol.AggroMm is { } r ? def with { AggroMm = r } : def);
+        }
+        return patrols;
+    }
+
+    /// <summary>
     /// <paramref name="party"/> moved to where a run beginning at <paramref name="firstPullId"/> starts: the layout
     /// start for the first pull's room, else that pull's room start (a <c>--pull N</c> run starts in its fight). Each
     /// member keeps its offset from the first member (the tank slot) and faces +x, along the route.

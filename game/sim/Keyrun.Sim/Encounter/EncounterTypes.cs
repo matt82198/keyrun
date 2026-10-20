@@ -146,4 +146,28 @@ public sealed record PullDef(string Id, IReadOnlyList<PullSpawn> Spawns)
 /// <summary>A dungeon as the encounter sees it (sim/encounter/pulls.ts:33 DungeonDef).</summary>
 /// <param name="Id">Dungeon id.</param>
 /// <param name="Pulls">Ordered pulls.</param>
-public sealed record DungeonDef(string Id, IReadOnlyList<PullDef> Pulls);
+public sealed record DungeonDef(string Id, IReadOnlyList<PullDef> Pulls)
+{
+    /// <summary>
+    /// MPLUS-PATROLS (C#-only, layout runs; BIBLE section 9.1 "it does not move unless it is a patrol"): packs that walk
+    /// a fixed waypoint loop while idle. A patrol is not a pull: it never moves the pull index and the run never waits on
+    /// it, but its members bank forces like any pack. Empty for every oracle run.
+    /// </summary>
+    public IReadOnlyList<PatrolDef> Patrols { get; init; } = System.Array.Empty<PatrolDef>();
+}
+
+/// <summary>
+/// One patrol pack (MPLUS-PATROLS; game/content/data/layout.json <c>patrols</c>). While idle its point walks the closed
+/// loop <paramref name="Waypoints"/>[0] -> [1] -> ... -> [0] at <paramref name="SpeedMmPerTick"/> from tick 0
+/// (<see cref="Patrols.PointAt"/>), and each member stands at that point plus its spawn offset. Every leg is
+/// axis-aligned, so the walk is exact integer mm.
+/// </summary>
+/// <param name="Id">Group id (shares the pull and pack namespace: <c>pack_engage</c> names it).</param>
+/// <param name="Spawns">Members; each <see cref="PullSpawn.Pos"/> is the member's offset from the patrol point.</param>
+/// <param name="Waypoints">The loop's corners, at least two (two = out and back).</param>
+/// <param name="SpeedMmPerTick">Walk speed while idle, mm per tick (positive).</param>
+public sealed record PatrolDef(string Id, IReadOnlyList<PullSpawn> Spawns, IReadOnlyList<Vec3> Waypoints, long SpeedMmPerTick)
+{
+    /// <summary>Aggro radius, mm: the same rule and default as a prespawned idle pack (<see cref="Pulls.DefaultAggroMm"/>).</summary>
+    public long AggroMm { get; init; } = Pulls.DefaultAggroMm;
+}

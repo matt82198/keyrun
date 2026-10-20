@@ -620,7 +620,25 @@ public sealed record HostRunSetup(
             new PullSpawn(BossActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp)),
         }));
         scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel);
-        return (new DungeonDef(dungeonDef.Id, pulls), scripts);
+
+        // MPLUS-PATROLS: layout.json's patrol packs, ids after the last pull actor, built like trash (Tempo, Fortified).
+        var patrols = NavLayouts.ToSimPatrols(registry.Layout, nextId, (enemyId, actorId) =>
+        {
+            var def = Enemy(registry, enemyId, "layout patrol");
+            if (actorId >= BossActorId)
+            {
+                throw new InvalidOperationException($"run setup: patrol actor id {actorId} reaches the boss id {BossActorId}");
+            }
+            var spawn = new PullSpawn(actorId, def.Id, Vec3.Zero, 0, def.MaxHealth)
+            {
+                SpeedMmPerTick = def.SpeedMmPerTick,
+                ChaseMarginMm = def.ChaseMarginMm,
+            };
+            var scaled = Tempo.ScaleSpawn(spawn, keyLevel);
+            scripts[actorId] = Tempo.ScaleScript(ToSim(def.Script), keyLevel);
+            return scaled with { Health = Affixes.ScaleHealth(scaled.Health, trashHealthBp) };
+        });
+        return (new DungeonDef(dungeonDef.Id, pulls) { Patrols = patrols }, scripts);
     }
 
     private static C.EnemyDef Enemy(C.ContentRegistry registry, string id, string where) =>

@@ -126,6 +126,42 @@ public static class LayoutValidator
             if (slot.BehindMm <= 0 || d2 < (long)MinFormationMm * MinFormationMm || d2 > (long)MaxFormationMm * MaxFormationMm)
                 Fail("formation slot \"" + slot.ClassId + "\" must be behind the leader and 2 to 3 m from it");
         }
+
+        CheckPatrols(reg, layout, boxes, pullOrder);
+    }
+
+    // MPLUS-PATROLS: a patrol the sim can walk exactly (axis-aligned legs, each inside one box, so it never leaves the
+    // walkable layout), with a unique id outside the pull namespace, a positive speed and radius, and members that are
+    // known enemies with a forces value (a patrol banks forces like any pack).
+    private static void CheckPatrols(ContentRegistry reg, LayoutDef layout, List<LayoutBox> boxes, List<string> pullOrder)
+    {
+        var valued = new HashSet<string>(reg.Forces.Values.Select(v => v.EnemyId), System.StringComparer.Ordinal);
+        var ids = new HashSet<string>(System.StringComparer.Ordinal);
+        foreach (LayoutPatrol patrol in layout.Patrols)
+        {
+            string where = "patrol \"" + patrol.Id + "\"";
+            if (!ids.Add(patrol.Id)) Fail("duplicate patrol id \"" + patrol.Id + "\"");
+            if (pullOrder.Contains(patrol.Id)) Fail(where + " has the id of a pull");
+            if (patrol.SpeedMmPerTick <= 0) Fail(where + " speedMmPerTick must be positive, got " + patrol.SpeedMmPerTick);
+            if (patrol.AggroMm is { } aggro && aggro <= 0) Fail(where + " aggroMm must be positive");
+            if (patrol.Enemies.Count == 0) Fail(where + " has no enemies");
+            foreach (PullEnemy member in patrol.Enemies)
+            {
+                if (!reg.Enemies.ContainsKey(member.EnemyId)) Fail(where + " references unknown enemy \"" + member.EnemyId + "\"");
+                if (member.Count <= 0) Fail(where + " enemy \"" + member.EnemyId + "\" count must be positive, got " + member.Count);
+                if (!valued.Contains(member.EnemyId)) Fail(where + " enemy \"" + member.EnemyId + "\" has no forces value");
+            }
+            var w = patrol.Waypoints.ToList();
+            if (w.Count < 2) Fail(where + " needs at least two waypoints, got " + w.Count);
+            for (int i = 0; i < w.Count; i++)
+            {
+                LayoutPoint a = w[i];
+                LayoutPoint b = w[(i + 1) % w.Count];
+                string leg = where + " leg (" + a.X + ", " + a.Z + ") -> (" + b.X + ", " + b.Z + ")";
+                if ((a.X != b.X) == (a.Z != b.Z)) Fail(leg + " must move along exactly one axis");
+                if (!boxes.Any(box => Inside(box, a) && Inside(box, b))) Fail(leg + " is not inside one layout box");
+            }
+        }
     }
 
     private static void CheckPullRoom(DungeonDef dungeon, LayoutBox room)

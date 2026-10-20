@@ -304,6 +304,9 @@ public static class RunRoot
             }
         }
 
+        // MPLUS-PATROLS: an idle patrol walks its loop to this tick's point before the aggro check, so the check reads
+        // where the patrol stands now (a pure function of the tick) and a patrol walking into a fight joins it.
+        Patrols.Walk(next, run.Dungeon, encounter);
         var groups = Aggro.GroupsOf(run.Dungeon, next.Tick);
         var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);

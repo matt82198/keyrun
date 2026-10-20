@@ -48,6 +48,20 @@
     { "x": 82500, "z": 0 },
     { "x": 96000, "z": 0 }
   ],
+  "patrols": [
+    {
+      "id": "corridor-patrol",
+      "enemies": [
+        { "enemyId": "choir.melee", "count": 1, "spawn": { "x": 0, "z": -600 } },
+        { "enemyId": "choir.melee", "count": 1, "spawn": { "x": 0, "z": 600 } }
+      ],
+      "waypoints": [
+        { "x": 32500, "z": 0 },
+        { "x": 26500, "z": 0 }
+      ],
+      "speedMmPerTick": 50
+    }
+  ],
   "formation": [
     { "classId": "chanter", "behindMm": 2500, "sideMm": -1000 },
     { "classId": "cinder", "behindMm": 2500, "sideMm": 1000 }

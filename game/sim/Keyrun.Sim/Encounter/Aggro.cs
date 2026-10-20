@@ -32,15 +32,20 @@ public static class Aggro
         return (dx * dx) + (dz * dz) <= radiusMm * radiusMm;
     }
 
-    /// <summary>The dungeon's groups on <paramref name="tick"/>: its pulls in pull order.</summary>
+    /// <summary>
+    /// The dungeon's groups on <paramref name="tick"/>: its pulls in pull order, then its patrols (MPLUS-PATROLS) in
+    /// content order, each patrol's ring centred on its point at <paramref name="tick"/> (<see cref="Patrols.PointAt"/>)
+    /// with pull index -1 (a patrol never moves the pull index; its engage emits <c>pack_engage</c>).
+    /// </summary>
     /// <param name="dungeon">The dungeon.</param>
     /// <param name="tick">The tick (where a patrol's ring stands).</param>
     public static IReadOnlyList<AggroGroup> GroupsOf(DungeonDef dungeon, int tick)
     {
         ArgumentNullException.ThrowIfNull(dungeon);
-        _ = tick;
         return dungeon.Pulls
             .Select((p, i) => new AggroGroup(p.Id, i, p.Spawns.Select(s => s.ActorId).ToList(), Pulls.RingCenter(p), p.AggroMm, p.Links))
+            .Concat(dungeon.Patrols.Select(p => new AggroGroup(
+                p.Id, -1, p.Spawns.Select(s => s.ActorId).ToList(), Patrols.PointAt(p, tick), p.AggroMm, Array.Empty<string>())))
             .ToList();
     }
 

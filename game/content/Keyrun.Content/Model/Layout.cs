@@ -31,6 +31,35 @@ public sealed record LayoutDef
 
     /// <summary>Where each bot class stands behind the leader while the party travels.</summary>
     public required ValueList<FormationSlot> Formation { get; init; }
+
+    /// <summary>
+    /// MPLUS-PATROLS: packs that walk a fixed waypoint loop while idle (BIBLE section 9.1 "it does not move unless it is
+    /// a patrol"). Optional; empty when the key is absent. NavLayouts.ToSimPatrols turns each into a sim PatrolDef.
+    /// </summary>
+    public ValueList<LayoutPatrol> Patrols { get; init; } = new();
+}
+
+/// <summary>
+/// One patrol pack (MPLUS-PATROLS): its members walk the closed loop <see cref="Waypoints"/>[0] -> [1] -> ... -> [0] at
+/// <see cref="SpeedMmPerTick"/> from tick 0 and engage, whole, on the prespawned packs' aggro rule. Every leg is
+/// axis-aligned and inside one layout box; every member needs a forces value (a patrol banks forces like any pack).
+/// </summary>
+public sealed record LayoutPatrol
+{
+    /// <summary>Group id (unique; not a pull id).</summary>
+    public required string Id { get; init; }
+
+    /// <summary>Members; each group's <c>spawn</c> is its offset from the patrol point, mm.</summary>
+    public required ValueList<PullEnemy> Enemies { get; init; }
+
+    /// <summary>The loop's corners, at least two (two = out and back), mm.</summary>
+    public required ValueList<LayoutPoint> Waypoints { get; init; }
+
+    /// <summary>Walk speed while idle, mm per tick (positive).</summary>
+    public required int SpeedMmPerTick { get; init; }
+
+    /// <summary>Aggro radius, mm, or null = the sim default (4000), the same as an idle pack's.</summary>
+    public int? AggroMm { get; init; }
 }
 
 /// <summary>A box's kind: a room (a place, possibly with a pull) or a corridor between rooms.</summary>
