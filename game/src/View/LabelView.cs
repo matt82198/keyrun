@@ -29,6 +29,11 @@ namespace Keyrun.View;
 /// target is among them, as "Paired Warrior x5" (target: "&gt; Paired Warrior x5 &lt;"), so five Pair Warriors on one
 /// spot no longer stand in a tall column. Plates of different names still separate.
 /// </para>
+/// <para>
+/// Lane PLATE-RECTS (finding f-9d4a31a5): every frame's drawn plates, after the fold and the separation, are published
+/// as <see cref="PlateRects"/> (each plate's box and the actors folded into it), so CombatText places its numbers clear
+/// of the plates where they actually draw instead of a copy of this layout that never folded a crowd.
+/// </para>
 /// </summary>
 public partial class LabelView : Node3D
 {
@@ -48,6 +53,7 @@ public partial class LabelView : Node3D
     private readonly List<int> _gone = new();
     private readonly List<Shown> _shown = new();
     private readonly List<Drawn> _drawn = new();
+    private readonly List<DrawnPlate> _plateRects = new();
     private readonly HashSet<string> _crowdLogged = new(StringComparer.Ordinal);
 
     private Control? _canvas;
@@ -79,6 +85,14 @@ public partial class LabelView : Node3D
     /// <summary>The SPREAD/STACK labels and callouts (Pings), whose placed boxes plates keep clear of.</summary>
     [Export]
     public NodePath PingsPath { get; set; } = new("../Hud/HudRoot/Pings");
+
+    /// <summary>
+    /// The plates this frame draws, in draw order (lane PLATE-RECTS): each box after the same-name crowd fold and
+    /// HudLayout.Separate, and the actors folded into it, the leader first. Laid out in <c>_Process</c>, which runs
+    /// before the HUD's (Arena tree order), so CombatText reads the plates of the frame it draws on. Empty with no
+    /// camera or no plate on screen.
+    /// </summary>
+    public IReadOnlyList<DrawnPlate> PlateRects => _plateRects;
 
     private SimDriver? Driver { get; set; }
 
@@ -112,7 +126,7 @@ public partial class LabelView : Node3D
             EnsureBody(id, actor);
             if (!_plates.TryGetValue(id, out var plate))
             {
-                plate = new Plate(Driver.DisplayName(actor));
+                plate = new Plate(id, Driver.DisplayName(actor));
                 _plates[id] = plate;
             }
             // The Warden's own name and health live on the ability bar's meters, not over his head.
@@ -172,6 +186,7 @@ public partial class LabelView : Node3D
     private void LayoutPlates()
     {
         _drawn.Clear();
+        _plateRects.Clear();
         var camera = GetViewport()?.GetCamera3D();
         if (_canvas is null || camera is null)
         {
@@ -218,7 +233,9 @@ public partial class LabelView : Node3D
         var offsets = HudLayout.Separate(wanted.Select(d => d.Rect).ToList(), width, height, Obstacles(width, height));
         for (var i = 0; i < wanted.Count; i++)
         {
-            _drawn.Add(wanted[i] with { Rect = wanted[i].Rect.Offset(offsets[i].Dx, offsets[i].Dy) });
+            var drawn = wanted[i] with { Rect = wanted[i].Rect.Offset(offsets[i].Dx, offsets[i].Dy) };
+            _drawn.Add(drawn);
+            _plateRects.Add(new DrawnPlate(drawn.Rect, crowds[drawn.Crowd].Members.Select(m => _shown[m].Plate.Id).ToArray()));
         }
         LogCrowds(crowds);
     }
@@ -336,10 +353,12 @@ public partial class LabelView : Node3D
     // higher of the target height and the scaled model top, the boss capped at 5 m), so a plate sits just over its head.
     private static float PlateHeight(ActorState actor) => ActorView.Binding.For(actor.ClassId).PlateHeightMm * 0.001f;
 
-    private sealed class Plate(string baseName)
+    private sealed class Plate(int id, string baseName)
     {
         /// <summary>The lines every plate draws: the name (HUD-DECLUTTER: no health number over a head).</summary>
         public static readonly string[] Lines = { "name" };
+
+        public int Id { get; } = id;
 
         public string BaseName { get; } = baseName;
 
