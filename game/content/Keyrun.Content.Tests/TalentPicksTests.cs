@@ -122,4 +122,34 @@ public sealed class TalentPicksTests
         Assert.Equal(baseStrike with { CooldownTicks = 77, Name = "Strike II" }, patched);
         Assert.Equal(baseStrike, TalentPicks.ApplyPatch(baseStrike, new AbilityPatch()));
     }
+
+    [Fact]
+    public void Restore_rebuilds_a_saved_build_exactly_whatever_order_the_choices_come_in()
+    {
+        var built = TalentPicks.Start(Warden).Pick(0, 0).Pick(1, 1);
+        var reversed = built.Choices.Reverse().ToList();
+
+        var restored = TalentPicks.Restore(Warden, reversed);
+
+        Assert.Equal(built, restored);
+        Assert.Equal(built.Resolve(Reg.Abilities), restored.Resolve(Reg.Abilities));
+    }
+
+    [Fact]
+    public void Restore_drops_a_saved_pick_the_content_no_longer_has_and_keeps_the_rest()
+    {
+        var strike = Warden.Talents.Select((fork, i) => (fork, i)).Single(x => x.fork.AbilityId == "warden.strike").i;
+        var saved = new[]
+        {
+            new System.Collections.Generic.KeyValuePair<string, string>("warden.strike", "rend"),
+            new System.Collections.Generic.KeyValuePair<string, string>("warden.guardBreak", "retired-option"),
+            new System.Collections.Generic.KeyValuePair<string, string>("cinder.flare", "wildfire"),
+        };
+
+        var restored = TalentPicks.Restore(Warden, saved);
+
+        Assert.Equal(1, restored.Count);
+        Assert.Equal("rend", restored.PickedOption(strike));
+        Assert.Single(restored.Resolve(Reg.Abilities));
+    }
 }

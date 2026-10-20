@@ -829,6 +829,26 @@ Additional parked decisions (from the burn ledger):
   +10 both are on, a rotating Clause layers on top; ledger f-319aced5). For the build: BIBLE section 8 ("Fortified and
   Tyrannical", "The Clause"). Build: built (#304, Encounter/Affixes.cs, ClauseRotation in Run/Clause.cs and
   RunOptions.cs, values in game/content/data/run.json).
+- D45 **Orchestrator decisions 2026-10-21, tune later** (orchestrator, 2026-10-21, under Matt's verbatim: "make the rest of the
+  decisions and we will tune later"; reversible, tune later). The decisions:
+  - Death penalty: 15 s per death (the current 300-tick Slack cost stays), WoW Midnight-style.
+  - Gear tier power: keep the merged per-slot tier tables from #314; no flat +2%/tier.
+  - Rewards: every finished run, timed or depleted, offers the choice of three; a player who leaves mid-run gets nothing.
+  - Every enemy plate shows its cast bar.
+  - MVP line (D10 question): the full section 1 loop: screen, queue, dungeon, end-of-run choice.
+  - Tank: Warden passive armor 40% (PR #362), tune later.
+  - #329 (stuns stop interruptible casts) and #344 (break-bar stagger stops the Twins) both land; #344 is the boss-specific case.
+  - #325's held-cast/spansCast behaviour, #357 removing content-pull from the frozen set, and #358's dial-90 seed are accepted.
+- D46 **MPLUS CLOCK ONLY: deaths add time to the run clock; a key times or not purely on that clock** (orchestrator,
+  2026-10-20, from Matt's verbatim "honestly just lean into m+ design heavily while in the dungeon" and "it should feel
+  almost exact to wow"; reversible, tune later). Each player death adds 300 ticks (15 s) to the run clock, counted per
+  player including same-tick deaths (#373); a full wipe adds 500 ticks more. There is no Slack bank that fails the key
+  once drained: a completed run is timed when elapsed plus that added time is within par, and the +2/+3 tiers are
+  measured on the same clock (Timer.ClockTicks, KeyMove.ForRun). An unrecovered full wipe still ends the run depleted.
+  This supersedes BIBLE section 8's Slack bank for the dungeon; the bank constants stay in Timer.cs as tunables. WHY:
+  in WoW Mythic+ a death only costs time, it never fails the key on its own; under the bank, three deaths at +2 (900
+  ticks against a 620-tick bank) depleted a key that was far ahead of par. The HUD bar now reads the run clock and
+  "Deaths N (+Xs)" (TimerSlack.cs). Tune later: the 15 s / 25 s costs and whether the HUD bar keeps its shape.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
