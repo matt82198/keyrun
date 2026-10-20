@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Runs;
@@ -28,7 +29,32 @@ public sealed record RoleScarcity(int Tanks, int Healers, int Damage, IReadOnlyL
     /// <returns>The readout state.</returns>
     public static RoleScarcity Read(IEnumerable<ActorRole> queued)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(queued);
+        int tanks = 0, healers = 0, damage = 0;
+        foreach (var role in queued)
+        {
+            switch (role)
+            {
+                case ActorRole.Tank:
+                    tanks++;
+                    break;
+                case ActorRole.Healer:
+                    healers++;
+                    break;
+                case ActorRole.Damage:
+                    damage++;
+                    break;
+            }
+        }
+        var counts = new[] { tanks, healers, damage };
+        var most = Math.Max(tanks, Math.Max(healers, damage));
+        var scarce = Enumerable.Range(0, counts.Length)
+            .Where(i => counts[i] < most)
+            .OrderBy(i => counts[i])
+            .ThenBy(i => i)
+            .Select(i => PartyRoles[i])
+            .ToArray();
+        return new RoleScarcity(tanks, healers, damage, scarce);
     }
 
     /// <summary>
@@ -38,7 +64,11 @@ public sealed record RoleScarcity(int Tanks, int Healers, int Damage, IReadOnlyL
     /// <returns>The line.</returns>
     public string Readout()
     {
-        throw new NotImplementedException();
+        if (Tanks + Healers + Damage == 0)
+        {
+            return "No one else waiting";
+        }
+        return Scarce.Count == 0 ? "Roles even" : "Short on: " + string.Join(", ", Scarce.Select(r => r.ToJs()));
     }
 }
 
@@ -83,7 +113,13 @@ public sealed record ReadyCheck(
     /// <returns>A pending check.</returns>
     public static ReadyCheck Pop(IReadOnlyList<int> seats, int tick)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(seats);
+        var distinct = seats.Distinct().ToArray();
+        if (distinct.Length == 0)
+        {
+            throw new ArgumentException("A ready check needs at least one seat.", nameof(seats));
+        }
+        return new ReadyCheck(distinct, tick, Array.Empty<int>(), ReadyPhase.Pending, Array.Empty<int>());
     }
 
     /// <summary>The check as it stands at <paramref name="tick"/>: a pending check past its window is Requeue (everyone).</summary>
@@ -91,7 +127,11 @@ public sealed record ReadyCheck(
     /// <returns>The check, this instance when nothing changes.</returns>
     public ReadyCheck At(int tick)
     {
-        throw new NotImplementedException();
+        if (Phase != ReadyPhase.Pending || tick < StartTick + TimeoutTicks)
+        {
+            return this;
+        }
+        return this with { Phase = ReadyPhase.Requeue, Requeued = Seats.ToArray() };
     }
 
     /// <summary>
@@ -104,7 +144,15 @@ public sealed record ReadyCheck(
     /// <returns>The check after the answer.</returns>
     public ReadyCheck Accept(int seat, int tick)
     {
-        throw new NotImplementedException();
+        var now = At(tick);
+        if (now.Phase != ReadyPhase.Pending || !Seats.Contains(seat) || ReadySeats.Contains(seat))
+        {
+            return now;
+        }
+        var ready = ReadySeats.Append(seat).ToArray();
+        return ready.Length == Seats.Count
+            ? this with { ReadySeats = ready, Phase = ReadyPhase.Enter }
+            : this with { ReadySeats = ready };
     }
 
     /// <summary>
@@ -116,14 +164,16 @@ public sealed record ReadyCheck(
     /// <returns>The check after the answer.</returns>
     public ReadyCheck Decline(int seat, int tick)
     {
-        throw new NotImplementedException();
+        var now = At(tick);
+        if (now.Phase != ReadyPhase.Pending || !Seats.Contains(seat))
+        {
+            return now;
+        }
+        return this with { Phase = ReadyPhase.Requeue, Requeued = Seats.Where(s => s != seat).ToArray() };
     }
 
     /// <summary>Ticks left to answer at <paramref name="tick"/> (0 once the window has closed).</summary>
     /// <param name="tick">The tick.</param>
     /// <returns>The ticks left.</returns>
-    public int RemainingTicks(int tick)
-    {
-        throw new NotImplementedException();
-    }
+    public int RemainingTicks(int tick) => Math.Max(0, StartTick + TimeoutTicks - tick);
 }
