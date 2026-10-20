@@ -11,6 +11,13 @@ namespace Keyrun.Content;
 /// <param name="Alive">True while the actor is alive.</param>
 public readonly record struct HoverBody(int Id, PixelRect Rect, long Depth, bool Hostile, bool Alive);
 
+/// <summary>One drawn name plate the cursor may hover (STACKED-PLATES): its block this frame, in draw order.</summary>
+/// <param name="Id">The actor the plate stands for (a folded crowd's leader).</param>
+/// <param name="Rect">The plate's drawn block (<see cref="StackedPlate.Block"/>).</param>
+/// <param name="Hostile">True for an enemy of the human.</param>
+/// <param name="Alive">True while the actor is alive.</param>
+public readonly record struct HoverPlate(int Id, PixelRect Rect, bool Hostile, bool Alive);
+
 /// <summary>
 /// MOUSEOVER (Matt 2026-10-20, "like wow you should be able to hover and interrupt"; BIBLE s3, cast bars are the enemy's
 /// language): the WoW input model, Godot-free and integer-only. The cursor is free by default and captured only while
@@ -76,6 +83,36 @@ public static class MouseoverRule
             }
         }
         return best?.Id;
+    }
+
+    /// <summary>
+    /// STACKED-PLATES (ledger f-e933a2b7, "hover to interrupt like WoW"): the mouseover unit with name plates. A live
+    /// enemy's plate under <paramref name="cursor"/> wins (plates draw over the 3D view; where two still overlap, the one
+    /// drawn last, which is on top); a friendly or dead plate is not a target and the pick falls through to
+    /// <see cref="Unit(PixelPoint, bool, IReadOnlyList{HoverBody})"/>. Null while the right mouse button is held.
+    /// </summary>
+    /// <param name="cursor">The cursor, viewport pixels.</param>
+    /// <param name="rightHeld">The right mouse button is down.</param>
+    /// <param name="bodies">This frame's bodies.</param>
+    /// <param name="plates">This frame's drawn plates, in draw order.</param>
+    /// <returns>The hovered actor id, or null.</returns>
+    public static int? Unit(PixelPoint cursor, bool rightHeld, IReadOnlyList<HoverBody> bodies, IReadOnlyList<HoverPlate> plates)
+    {
+        ArgumentNullException.ThrowIfNull(plates);
+        if (rightHeld)
+        {
+            return null;
+        }
+        // Last drawn is on top: walk the plates backwards and take the first live enemy plate under the cursor.
+        for (var i = plates.Count - 1; i >= 0; i--)
+        {
+            var p = plates[i];
+            if (p.Alive && p.Hostile && Holds(p.Rect, cursor))
+            {
+                return p.Id;
+            }
+        }
+        return Unit(cursor, rightHeld, bodies);
     }
 
     /// <summary>The target a human cast goes at: the kick at the mouseover unit when one exists, else the fallback.</summary>
