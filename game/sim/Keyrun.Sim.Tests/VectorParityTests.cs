@@ -190,12 +190,26 @@ public sealed class VectorParityTests
         });
     }
 
-    // ---------------- botprng.vectors.json (out of 1C scope) ----------------
+    // ---------------- botprng.vectors.json (parity owned by Keyrun.Bots.Tests) ----------------
 
-    [Fact(Skip = "botprng.vectors.json pins bots/src/skill.ts seedPrng/stepPrng, which live in Keyrun.Bots (lane 3A bots-core); stepPrng's value is an IEEE double, which Keyrun.Sim's purity rules forbid.")]
+    /// <summary>
+    /// botprng.vectors.json pins bots/src/skill.ts seedPrng/stepPrng. Lane 3A (PR #130, 9c8a5ca) put that code in
+    /// Keyrun.Bots, and its row-by-row parity runs in game/bots/Keyrun.Bots.Tests/BotPrngVectorTests.cs
+    /// (SeedPrngMatchesOracle, StepPrngMatchesOracle). Keyrun.Sim.Tests does not reference Keyrun.Bots (stepPrng's
+    /// value is an IEEE double, which Keyrun.Sim's purity rules forbid), so this side guards the fixture itself:
+    /// it loads, its header and row counts check, and it holds exactly the two functions that file covers. A new
+    /// function in the fixture turns this red until BotPrngVectorTests checks it too.
+    /// </summary>
+    [Fact]
     public void BotPrng_seedPrng_and_stepPrng_match()
     {
-        Assert.Fail("unblocked by lane 3A (Keyrun.Bots)");
+        var botPrng = LoadVectors("botprng.vectors.json");
+        Assert.Equal(new[] { "seedPrng", "stepPrng" }, botPrng.Keys.ToArray());
+        foreach (var fn in botPrng.Values)
+        {
+            Assert.True(fn.Count > 0, $"{fn.Name}: fixture declares no rows");
+            Assert.Equal(fn.Count, fn.Rows.Count);
+        }
     }
 
     /// <summary>Guard: every function in each in-scope vector file has a test above (no silently ignored block).</summary>
