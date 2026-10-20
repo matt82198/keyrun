@@ -57,7 +57,7 @@ public static class Floor
     private static bool OrdinaryTelegraphDangerActive(BotView view, ActorState self)
     {
         var tick = view.State.Tick;
-        var ordinary = view.Telegraphs.Where(t => t.Danger && t.ResolvesTick > tick && !IsFloorPatchTelegraph(t)).ToList();
+        var ordinary = view.Telegraphs.Where(t => t.Danger && t.ResolvesTick > tick && !IsFloorPatchTelegraph(t) && !Positioning.IsSpent(t, view.State)).ToList();
         return Positioning.IsInAnyDanger(PointMm.Of(self.Pos), ordinary);
     }
 

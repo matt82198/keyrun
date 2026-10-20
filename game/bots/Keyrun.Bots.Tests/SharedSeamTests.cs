@@ -162,7 +162,7 @@ public sealed class SharedSeamTests
     public void ToBotTelegraphMapsEncounter()
     {
         var cleave = new Keyrun.Sim.Encounter.Telegraph(3, 9, "hollowWarden.cleave", "cone", new Vec3(10, 0, 20), 300, 77) { Radius = 4000, Angle1024 = 200 };
-        Assert.Equal(new BotTelegraph("3", TelegraphShape.Cone, new PointMm(10, 20), 77, true) { Radius = 4000, Angle1024 = 200, Yaw = 300 }, BotViews.ToBotTelegraph(cleave));
+        Assert.Equal(new BotTelegraph("3", TelegraphShape.Cone, new PointMm(10, 20), 77, true) { Radius = 4000, Angle1024 = 200, Yaw = 300, SourceId = 9 }, BotViews.ToBotTelegraph(cleave));
         var stack = new Keyrun.Sim.Encounter.Telegraph(4, 9, "pair.stackCall", "circle", new Vec3(0, 0, 0), 0, 50) { Radius = 2500 };
         Assert.False(BotViews.ToBotTelegraph(stack).Danger);
         var unknown = new Keyrun.Sim.Encounter.Telegraph(5, 9, "who.knows", "line", new Vec3(0, 0, 0), 0, 50) { Length = 9000, Width = 1000 };

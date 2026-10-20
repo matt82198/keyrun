@@ -62,6 +62,7 @@ public static class BotViews
             Angle1024 = t.Angle1024,
             Length = t.Length,
             Width = t.Width,
+            SourceId = t.SourceId,
         };
     }
 
