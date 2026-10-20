@@ -16,7 +16,8 @@ namespace Keyrun.Content;
 /// </para>
 /// <para>
 /// Added beyond validate.ts: effect refs inside talent and facet patches, <c>breakBarId</c>
-/// must name a declared break bar, and a Window op on an ability or talent must carry its
+/// must name a declared break bar, a script telegraph with <c>spansCast</c> must cast an ability with castTicks &gt; 0,
+/// and a Window op on an ability or talent must carry its
 /// <c>setupClass</c> (the sim union requires it; only facet <c>effectsAppend</c> may omit it).
 /// </para>
 /// <para>
@@ -263,7 +264,11 @@ public static class ContentValidator
             foreach (string id in enemy.Abilities)
                 if (!reg.Abilities.ContainsKey(id)) Fail(where + " references unknown ability \"" + id + "\"");
             foreach (ScriptStep step in enemy.Script)
-                if (!reg.Abilities.ContainsKey(step.Cast)) Fail(where + " script references unknown ability \"" + step.Cast + "\"");
+            {
+                if (!reg.Abilities.TryGetValue(step.Cast, out AbilityDef? cast)) Fail(where + " script references unknown ability \"" + step.Cast + "\"");
+                else if (step.Telegraph?.SpansCast == true && cast.CastTicks <= 0)
+                    Fail(where + " script step \"" + step.Cast + "\" telegraph spansCast needs a cast with castTicks > 0 (has " + cast.CastTicks + ")");
+            }
             foreach (BreakBarDef bar in enemy.BreakBars ?? new ValueList<BreakBarDef>())
                 CheckOps(bar.OnEmpty, reg, where + " breakBar \"" + bar.Id + "\"", requireSetupClass: true);
             if (enemy.BreakBarId is not null && !bars.Contains(enemy.BreakBarId))
