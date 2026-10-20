@@ -40,7 +40,12 @@ public sealed class BackfillGateTests
     // 21 ticks before the Pair's last kill at 1294 (CI run 39473823641, "1273 death actor 1"). After that the refilled
     // joiner was the lowest living seat, so it led itself and never walked in. The cap keeps the precondition that the
     // Warden and the Cinder clear the Pair.
-    private const int HealthCap = 1000;
+    // 1000 -> 700 (feeda29, push-out skips idle bodies): the Pair's five melee no longer de-stack while idle, so all
+    // five reach the healerless Warden together at the 604 engage, as a stacked pull spawned on entry did on main. CI
+    // run 39484126569 (6503838): the Cinder died at 811 with every Pair melee at 140 of 1000 (860 taken each, evenly),
+    // the Warden at 1105 with four left, and nobody led the joiner on. 700 is under the 860 the Pair had taken by the
+    // Cinder's death, and keeps the gate shut well over 2 * HoldTicks.
+    private const int HealthCap = 700;
     private const string GatedRoom = "pair-hall";
 
     private sealed record Tick(int At, Vec3 Joiner, bool JoinerMoved);
