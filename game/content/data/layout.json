@@ -65,9 +65,9 @@
       "id": "hall-sentries", "name": "Hall Sentries", "room": "pair-hall", "optional": false,
       "center": { "x": 51500, "z": 0 }, "aggroMm": 3000,
       "enemies": [
-        { "enemyId": "choir.melee", "count": 2, "spawn": { "x": -500, "z": 1000 } },
-        { "enemyId": "choir.melee", "count": 2, "spawn": { "x": -500, "z": -1000 } },
-        { "enemyId": "choir.lieutenant", "count": 1, "spawn": { "x": 1000, "z": 0 } }
+        { "enemyId": "hall.sentry", "count": 2, "spawn": { "x": -500, "z": 1000 } },
+        { "enemyId": "hall.sentry", "count": 2, "spawn": { "x": -500, "z": -1000 } },
+        { "enemyId": "hall.sentry", "count": 1, "spawn": { "x": 1000, "z": 0 } }
       ]
     },
     {

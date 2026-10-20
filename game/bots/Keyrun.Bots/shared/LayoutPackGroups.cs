@@ -23,16 +23,23 @@ public static class LayoutPackGroups
     /// <paramref name="dungeon"/> (pull order), so it carries that spawn's Tempo- and affix-scaled health, speed and chase
     /// margin and runs that spawn's script; it stands at the pack centre plus its group's offset, yaw 0. Actor ids run from
     /// <paramref name="firstActorId"/> in pack, group, count order. Fails closed on a member whose enemy no pull fields
-    /// (there is no scaled template to copy) and on an id the dungeon or the scripts already use.
+    /// (and that <paramref name="packOnly"/> does not give either), on an enemy both a pull and <paramref name="packOnly"/>
+    /// give (two sources of scaling), and on an id the dungeon or the scripts already use.
     /// </summary>
     /// <param name="layout">A validated content layout.</param>
     /// <param name="dungeon">The placed sim dungeon (<see cref="NavLayouts.PlaceDungeon"/>).</param>
     /// <param name="scripts">The run's enemy scripts, keyed by actor id.</param>
     /// <param name="firstActorId">The first pack member's actor id.</param>
+    /// <param name="packOnly">
+    /// Templates for enemies only a pack fields (Mythic+ trash such as <c>hall.sentry</c>), keyed by enemy id: a spawn
+    /// already Tempo- and affix-scaled by the caller exactly as a pull spawn is (its actor id and position are replaced)
+    /// and its Tempo-scaled script. Null for none.
+    /// </param>
     /// <returns>The packs, and the scripts with every pack member's added.</returns>
-    /// <exception cref="InvalidOperationException">A member has no template, or an id is taken.</exception>
+    /// <exception cref="InvalidOperationException">A member has no template or two, or an id is taken.</exception>
     public static (IReadOnlyList<PackGroup> Packs, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> Scripts) Build(
-        C.LayoutDef layout, DungeonDef dungeon, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts, int firstActorId = FirstActorId)
+        C.LayoutDef layout, DungeonDef dungeon, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts, int firstActorId = FirstActorId,
+        IReadOnlyDictionary<string, PackTemplate>? packOnly = null)
     {
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(dungeon);
@@ -41,6 +48,10 @@ public static class LayoutPackGroups
         foreach (var spawn in dungeon.Pulls.SelectMany(p => p.Spawns))
         {
             templates.TryAdd(spawn.ClassId, spawn);
+        }
+        foreach (var enemyId in (packOnly?.Keys ?? Enumerable.Empty<string>()).Where(templates.ContainsKey))
+        {
+            throw new InvalidOperationException($"pack template \"{enemyId}\": a pull already fields this enemy, so it would have two scaled spawns");
         }
         var taken = dungeon.Pulls.SelectMany(p => p.Spawns).Select(s => s.ActorId).Concat(scripts.Keys).ToHashSet();
         var merged = new SortedDictionary<int, IReadOnlyList<ScriptStep>>(scripts.ToDictionary(kv => kv.Key, kv => kv.Value));
@@ -51,13 +62,28 @@ public static class LayoutPackGroups
             var spawns = new List<PullSpawn>();
             foreach (var group in pack.Enemies)
             {
-                if (!templates.TryGetValue(group.EnemyId, out var template))
+                PullSpawn template;
+                IReadOnlyList<ScriptStep>? script;
+                if (templates.TryGetValue(group.EnemyId, out var pullTemplate))
                 {
-                    throw new InvalidOperationException($"pack \"{pack.Id}\": no pull fields enemy \"{group.EnemyId}\", so it has no scaled spawn to copy");
+                    template = pullTemplate;
+                    if (!scripts.TryGetValue(template.ActorId, out script))
+                    {
+                        throw new InvalidOperationException($"pack \"{pack.Id}\": enemy \"{group.EnemyId}\" (template actor {template.ActorId}) has no script");
+                    }
                 }
-                if (!scripts.TryGetValue(template.ActorId, out var script))
+                else if (packOnly is not null && packOnly.TryGetValue(group.EnemyId, out var direct))
                 {
-                    throw new InvalidOperationException($"pack \"{pack.Id}\": enemy \"{group.EnemyId}\" (template actor {template.ActorId}) has no script");
+                    if (!string.Equals(direct.Spawn.ClassId, group.EnemyId, StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException($"pack \"{pack.Id}\": template for \"{group.EnemyId}\" spawns \"{direct.Spawn.ClassId}\"");
+                    }
+                    template = direct.Spawn;
+                    script = direct.Script;
+                }
+                else
+                {
+                    throw new InvalidOperationException($"pack \"{pack.Id}\": no pull fields enemy \"{group.EnemyId}\" and no pack template gives it, so it has no scaled spawn to copy");
                 }
                 for (var i = 0; i < group.Count; i++)
                 {
@@ -80,3 +106,12 @@ public static class LayoutPackGroups
         return (packs, merged);
     }
 }
+
+/// <summary>
+/// A scaled spawn and script for an enemy only a layout pack fields (<see cref="LayoutPackGroups.Build"/>): the caller
+/// scales it exactly as it scales a pull spawn (Tempo, then the trash health affix), so a pack-only enemy is no softer or
+/// harder at a key level than one copied from a pull.
+/// </summary>
+/// <param name="Spawn">The scaled spawn; its actor id, position and yaw are replaced per member.</param>
+/// <param name="Script">The Tempo-scaled script every member runs.</param>
+public sealed record PackTemplate(PullSpawn Spawn, IReadOnlyList<ScriptStep> Script);
