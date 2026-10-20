@@ -61,6 +61,18 @@ public static class GearItems
     public static GearStatsDef StatsAt(IReadOnlyDictionary<string, GearItemDef> gear, GearSlot slot, int tier)
     {
         ArgumentNullException.ThrowIfNull(gear);
-        return new GearStatsDef();
+        if (tier < 1 || tier > MaxTier) throw new ArgumentOutOfRangeException(nameof(tier), tier, "tier must be 1.." + MaxTier);
+        GearItemDef? best = null;
+        foreach (var item in gear.Values)
+        {
+            if (item.Slot == slot && item.Tier <= tier && (best is null || item.Tier > best.Tier)) best = item;
+        }
+        if (best is null) throw new ArgumentException("no gear item for slot " + GearFacets.SlotId(slot) + " at or below tier " + tier, nameof(gear));
+        long steps = tier - best.Tier;
+        return new GearStatsDef
+        {
+            DamageDoneBp = best.Stats.DamageDoneBp + (steps * best.PerTier.DamageDoneBp),
+            DamageTakenBp = best.Stats.DamageTakenBp + (steps * best.PerTier.DamageTakenBp),
+        };
     }
 }

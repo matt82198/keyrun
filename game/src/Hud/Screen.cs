@@ -334,6 +334,7 @@ public partial class Screen : Control
         {
             ProofItem(slot);
         }
+        ProofGear();
         ProofKeyBand();
         Proof($"SCREEN queue caption=\"{QueueCaption}\"");
         // Measured at the design viewport (project.godot 1280x720): headless runs have a tiny dummy window.
@@ -494,6 +495,13 @@ public partial class Screen : Control
         if (request is null)
         {
             return;
+        }
+        // BIBLE s7 "Tier is power": the five slots' summed stats ride the request onto the human's actor.
+        if (_driver?.Setup is { } gearSetup && GearTotal() is { } gear)
+        {
+            request = request with { Gear = new Dictionary<int, GearStats> { [gearSetup.HumanActorId] = gear } };
+            Proof(FormattableString.Invariant(
+                $"SCREEN queue gear actor={gearSetup.HumanActorId} damageDoneBp={gear.DamageDoneBp} damageTakenBp={gear.DamageTakenBp}"));
         }
         LastRequest = request;
         Proof(FormattableString.Invariant($"SCREEN queue dungeon={request.DungeonId} key={request.KeyLevel} clause={request.ClauseId}"));
@@ -753,6 +761,65 @@ public partial class Screen : Control
         return parts.Count == 0 ? "none" : string.Join(",", parts);
     }
 
+    // BIBLE s7 "Tier is power": one equipped item's stats from the content gear table, or null when content is not
+    // loaded (the screen still lists the slot, with no numbers).
+    private GearStats? SlotStats(string slot, int tier)
+    {
+        if (_driver?.Registry is not { } reg || reg.Gear.Count == 0)
+        {
+            return null;
+        }
+        var s = Keyrun.Content.GearItems.StatsAt(reg.Gear, Enum.Parse<Keyrun.Content.GearSlot>(slot, ignoreCase: true), tier);
+        return new GearStats(s.DamageDoneBp, s.DamageTakenBp);
+    }
+
+    // The five slots' summed stats (GearPower.Sum), or null when content is not loaded.
+    private GearStats? GearTotal()
+    {
+        if (_driver?.Registry is not { } reg || reg.Gear.Count == 0)
+        {
+            return null;
+        }
+        return GearPower.Sum(_progression.Equipped, (slot, tier) => SlotStats(slot, tier) ?? default);
+    }
+
+    // The character readout's five slots (equipped or empty) with their stats, then the summed total.
+    private void ProofGear()
+    {
+        foreach (var slot in Rewards.GearSlots)
+        {
+            if (_progression.Equipped.TryGetValue(slot, out var item) && SlotStats(slot, item.Tier) is { } st)
+            {
+                Proof(FormattableString.Invariant(
+                    $"SCREEN gear slot={slot} state=equipped tier={item.Tier} damageDoneBp={st.DamageDoneBp} damageTakenBp={st.DamageTakenBp}"));
+            }
+            else
+            {
+                Proof(FormattableString.Invariant(
+                    $"SCREEN gear slot={slot} state={(_progression.Equipped.ContainsKey(slot) ? "equipped" : "empty")}"));
+            }
+        }
+        var total = GearTotal() ?? default;
+        Proof(FormattableString.Invariant(
+            $"SCREEN gear total damageDoneBp={total.DamageDoneBp} damageTakenBp={total.DamageTakenBp}"));
+    }
+
+    // "+5% damage dealt, -2.5% damage taken" (basis points; empty when there is nothing).
+    private static string GearTotalText(GearStats t)
+    {
+        static string Pct(long bp) => (Math.Abs(bp) / 100m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+        var parts = new List<string>();
+        if (t.DamageDoneBp != 0)
+        {
+            parts.Add((t.DamageDoneBp > 0 ? "+" : "-") + Pct(t.DamageDoneBp) + " damage dealt");
+        }
+        if (t.DamageTakenBp != 0)
+        {
+            parts.Add((t.DamageTakenBp < 0 ? "-" : "+") + Pct(t.DamageTakenBp) + " damage taken");
+        }
+        return string.Join(", ", parts);
+    }
+
     private void ProofItem(string slot)
     {
         if (!_progression.Equipped.TryGetValue(slot, out var item))
@@ -985,6 +1052,10 @@ public partial class Screen : Control
         }
         y += 10;
         HudNodes.Text(this, new Vector2(x, y), "Gear", 16, Gold);
+        if (GearTotal() is { } total && GearTotalText(total) is { Length: > 0 } totalText)
+        {
+            HudNodes.Text(this, new Vector2(x + 52, y), Clip(totalText, r.Size.X - 70, SmallFont), SmallFont, Calm);
+        }
         y += 22;
         foreach (var slot in Rewards.GearSlots)
         {

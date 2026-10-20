@@ -49,6 +49,7 @@ public static class ContentValidator
         CheckHeatOverheat(reg);
         CheckForces(reg);
         LayoutValidator.Check(reg);
+        GearValidator.Check(reg);
     }
 
     /// <summary>

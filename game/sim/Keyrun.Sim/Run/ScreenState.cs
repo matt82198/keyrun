@@ -25,7 +25,7 @@ public sealed record QueueRequest(string DungeonId, int KeyLevel, string ClauseI
 
     /// <summary>The run options for the queued run: its one Clause and the queued loadouts.</summary>
     /// <returns>The options.</returns>
-    public RunOptions ToRunOptions() => new() { ClauseId = ClauseId, Loadouts = Loadouts };
+    public RunOptions ToRunOptions() => new() { ClauseId = ClauseId, Loadouts = Loadouts, Gear = Gear };
 }
 
 /// <summary>

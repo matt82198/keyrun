@@ -36,7 +36,15 @@ public static class GearPower
     {
         ArgumentNullException.ThrowIfNull(equipped);
         ArgumentNullException.ThrowIfNull(statsAt);
-        return default;
+        GearStats total = default;
+        foreach (var slot in Rewards.GearSlots)
+        {
+            if (equipped.TryGetValue(slot, out var item))
+            {
+                total += statsAt(slot, item.Tier);
+            }
+        }
+        return total;
     }
 
     /// <summary>Puts <paramref name="stats"/> on <paramref name="actor"/> (replacing any gear stats it had).</summary>
@@ -45,5 +53,7 @@ public static class GearPower
     public static void Apply(ActorState actor, GearStats stats)
     {
         ArgumentNullException.ThrowIfNull(actor);
+        actor.GearDamageDoneBp = stats.DamageDoneBp;
+        actor.GearDamageTakenBp = stats.DamageTakenBp;
     }
 }
