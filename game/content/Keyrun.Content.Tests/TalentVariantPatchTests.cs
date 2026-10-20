@@ -6,7 +6,7 @@ namespace Keyrun.Content.Tests;
 
 /// <summary>
 /// A talent's text must be true in both Chanter verses (BIBLE s5 "Every other ability behaves differently per verse")
-/// The sim plays a verse ability's <c>Variants</c>
+/// and an "also" talent must keep the base ops it adds to. The sim plays a verse ability's <c>Variants</c>
 /// (Abilities.ResolveVerse replaces Effects with the caster's verse), so a talent that patched only
 /// <see cref="AbilityDef.Effects"/> used to be dead on every verse ability. These tests drive
 /// <see cref="TalentPicks.Resolve"/> against the shipped content.
@@ -76,6 +76,31 @@ public sealed class TalentVariantPatchTests
         Assert.Single(ops, o => o is PayoffOp);
         Assert.Equal(delta, Assert.IsType<ResourceOp>(Assert.Single(ops, o => o is ResourceOp)).Delta);
         Assert.Equal(Verse(Reg.Abilities["chanter.refrain"], verse).Count + 1, ops.Count);
+    }
+
+    [Fact]
+    public void Pin_keeps_Guard_Break_Momentum_and_threat_and_adds_the_stun()
+    {
+        var guardBreak = Talented("warden", "warden.guardBreak", "pin");
+
+        var ops = guardBreak.Effects;
+        Assert.Equal(15, Assert.IsType<ResourceOp>(Assert.Single(ops, o => o is ResourceOp)).Delta);
+        Assert.Equal(15000, Assert.IsType<ThreatOp>(Assert.Single(ops, o => o is ThreatOp)).MultiplierBp);
+        Assert.Single(ops, o => o is ApplyEffectOp a && a.EffectId == "stunned");
+        Assert.Equal(100, Assert.IsType<DamageOp>(Assert.Single(ops, o => o is DamageOp)).Amount);
+        Assert.Single(ops, o => o is PayoffOp);
+    }
+
+    [Fact]
+    public void Overflow_dumps_part_of_the_Heat_and_Cold_Snap_still_stuns()
+    {
+        var coldSnap = Talented("cinder", "cinder.coldSnap", "overflow");
+
+        var ops = coldSnap.Effects;
+        Assert.Equal(-60, Assert.IsType<ResourceOp>(Assert.Single(ops, o => o is ResourceOp)).Delta);
+        var stun = Assert.IsType<ApplyEffectOp>(Assert.Single(ops, o => o is ApplyEffectOp a && a.EffectId == "stunned"));
+        Assert.Equal(20, stun.DurationTicks);
+        Assert.Single(ops, o => o is RemoveEffectOp r && r.EffectId == "chill");
     }
 
     [Fact]
