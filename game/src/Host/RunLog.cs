@@ -191,8 +191,9 @@ public sealed class CombatNarrator
                 }
                 var d0 = Casting.RangeMm(prev, w0);
                 var d1 = Casting.RangeMm(now, w1);
-                // The enemy itself moved (not only the Warden walking closer) and the gap shrank.
-                if (prev.Pos != now.Pos && d1 < d0 && Casting.RangeMm(now, w0) < d0)
+                // The enemy itself moved (not only the Warden walking closer) and the gap shrank. One rule with the
+                // --write-movie chase frame (MovieDirector.IsChase).
+                if (MovieDirector.IsChase(prev, now, w0, w1))
                 {
                     _chased.Add(id);
                     lines.Add(FormattableString.Invariant($"CHASE actor={id} class={now.ClassId} dist={d0}->{d1}"));
