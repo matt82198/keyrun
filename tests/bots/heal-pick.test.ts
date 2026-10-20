@@ -51,7 +51,8 @@ describe("Chanter shape-aware heals", () => {
   });
 
   it("heals itself with the self heal", () => {
-    const healer = makeActor({ health: 50 });
+    // was resource 1 (Mend); re-recorded: healer no longer swaps verse to self-heal (Refrain heals only from Ward).
+    const healer = makeActor({ health: 50, resource: 0 });
     const cmds = healerDecide(makeView([healer]), healer);
     expect(cmds).toEqual([{ tick: 10, actorId: 3, kind: "cast", abilityId: "chanter.refrain" }]);
   });
