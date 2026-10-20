@@ -200,15 +200,17 @@ public static class RunWiring
 
     /// <summary>
     /// run-wiring.ts:129 applyDeathsAndWipe: when this tick's events carry a player death, spends the death cost, plus
-    /// the wipe cost when every player is dead, forwarding <c>depleted</c> through <paramref name="emit"/>.
+    /// the wipe cost when the party has wiped (<see cref="IsWipe"/>), forwarding <c>depleted</c> through
+    /// <paramref name="emit"/>.
     /// </summary>
     /// <param name="state">The post-tick state.</param>
     /// <param name="encounter">The encounter state.</param>
     /// <param name="events">Every event of the tick so far.</param>
     /// <param name="tick">The post-step tick.</param>
     /// <param name="emit">Event sink.</param>
+    /// <param name="gatedRoom">The active pull's room while its gate is shut (STATE.md D27), or null (no layout, no fight).</param>
     /// <returns>The encounter after Slack spend (itself when no player died).</returns>
-    public static EncounterState ApplyDeathsAndWipe(SimState state, EncounterState encounter, IReadOnlyList<SimEvent> events, int tick, Action<SimEvent> emit)
+    public static EncounterState ApplyDeathsAndWipe(SimState state, EncounterState encounter, IReadOnlyList<SimEvent> events, int tick, Action<SimEvent> emit, Bounds? gatedRoom = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(encounter);
@@ -221,23 +223,41 @@ public static class RunWiring
             return encounter;
         }
         var next = Timer.SpendSlackOnDeath(encounter, tick, emit);
-        if (AllPlayersDead(state))
+        if (IsWipe(state, gatedRoom))
         {
             next = Timer.SpendSlackOnWipe(next, tick, emit);
         }
         return next;
     }
 
-    private static bool AllPlayersDead(SimState state)
+    /// <summary>
+    /// True when the party has wiped: every player is dead (run-wiring.ts allPlayersDead), or (GATED-WIPE, f-3cc5aeee; no
+    /// TS counterpart) the active pull's room is gated and no living player stands inside it. A shut gate keeps every
+    /// actor outside out until the pull clears (STATE.md D27), so once every player locked in has died nobody can fight
+    /// the pull again, the gate never opens, and a living seat outside it (an abandoned seat, or a seat an engage shut
+    /// out) would otherwise hold the run open forever. It resolves like any full wipe (BIBLE s8: the wipe Slack cost,
+    /// then <see cref="WipeGraceTicks"/> and a depleted finish).
+    /// </summary>
+    /// <param name="state">The post-tick state.</param>
+    /// <param name="gatedRoom">The active pull's room while its gate is shut, or null.</param>
+    /// <returns>True on a wipe.</returns>
+    public static bool IsWipe(SimState state, Bounds? gatedRoom = null)
     {
+        ArgumentNullException.ThrowIfNull(state);
         var players = state.Actors.Values.Where(a => a.Kind == ActorKind.Player).ToList();
-        return players.Count > 0 && players.All(a => !a.Alive);
+        if (players.Count == 0)
+        {
+            return false;
+        }
+        return gatedRoom is { } room
+            ? !players.Any(a => a.Alive && Movement.Contains(room, a.Pos))
+            : players.All(a => !a.Alive);
     }
 
     /// <summary>
     /// run-wiring.ts:153 checkRunEnd: idempotent once ended. The run is complete when the pull index is past the last
-    /// pull (finish timed or depleted); an abandon request finishes it abandoned; a full wipe lasting
-    /// <see cref="WipeGraceTicks"/> finishes it with depleted forced. Each finish emits <c>finish</c>.
+    /// pull (finish timed or depleted); an abandon request finishes it abandoned; a full wipe (<see cref="IsWipe"/>)
+    /// lasting <see cref="WipeGraceTicks"/> finishes it with depleted forced. Each finish emits <c>finish</c>.
     /// </summary>
     /// <param name="prev">The previous terminal state.</param>
     /// <param name="state">The post-tick state.</param>
@@ -246,8 +266,9 @@ public static class RunWiring
     /// <param name="tick">The post-step tick.</param>
     /// <param name="abandonRequested">The host's abandon signal.</param>
     /// <param name="emit">Event sink.</param>
+    /// <param name="gatedRoom">The active pull's room while its gate is shut (STATE.md D27), or null (no layout, no fight).</param>
     /// <returns>The next terminal state.</returns>
-    public static RunEndState CheckRunEnd(RunEndState prev, SimState state, EncounterState encounter, DungeonDef dungeon, int tick, bool abandonRequested, Action<SimEvent> emit)
+    public static RunEndState CheckRunEnd(RunEndState prev, SimState state, EncounterState encounter, DungeonDef dungeon, int tick, bool abandonRequested, Action<SimEvent> emit, Bounds? gatedRoom = null)
     {
         ArgumentNullException.ThrowIfNull(prev);
         ArgumentNullException.ThrowIfNull(state);
@@ -265,7 +286,7 @@ public static class RunWiring
         {
             return new RunEndState(Timer.FinishRun(encounter, tick, false, emit), tick, prev.WipeStartTick);
         }
-        if (AllPlayersDead(state))
+        if (IsWipe(state, gatedRoom))
         {
             var wipeStart = prev.WipeStartTick ?? tick;
             if (tick - wipeStart >= WipeGraceTicks)

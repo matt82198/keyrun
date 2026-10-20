@@ -185,9 +185,11 @@ public static class RunRoot
         nextState = RunWiring.MergeActors(nextState, echo.Spawned);
 
         RunWiring.FixupTargeting(nextState);
-        nextEncounter = RunWiring.ApplyDeathsAndWipe(nextState, nextEncounter, events, nextState.Tick, emit);
+        // GATED-WIPE (f-3cc5aeee): with the active pull's gate shut, the party has wiped once nobody alive is inside it.
+        var gatedRoom = layout is null ? null : GatedRoom(layout, run.Dungeon, nextState, nextEncounter)?.Box;
+        nextEncounter = RunWiring.ApplyDeathsAndWipe(nextState, nextEncounter, events, nextState.Tick, emit, gatedRoom);
 
-        var runEnd = RunWiring.CheckRunEnd(run.RunEnd, nextState, nextEncounter, run.Dungeon, nextState.Tick, opts?.AbandonRequested ?? false, emit);
+        var runEnd = RunWiring.CheckRunEnd(run.RunEnd, nextState, nextEncounter, run.Dungeon, nextState.Tick, opts?.AbandonRequested ?? false, emit, gatedRoom);
         if (runEnd.Result is RunResult result && run.RunEnd.Result is null)
         {
             if (result == RunResult.Depleted)
@@ -243,6 +245,18 @@ public static class RunRoot
     }
 
     /// <summary>
+    /// The active pull's room while its gate is shut (ROOM-LOCK-IN, STATE.md D27): the pull is being fought (its actors
+    /// are spawned) and has not cleared. Null when every pull is cleared, the pull is not fought yet, or the layout has no
+    /// room for it. The one definition of "the gate is shut": <see cref="StepLayout"/>'s gate clamp and the GATED-WIPE
+    /// rule (<see cref="RunWiring.IsWipe"/>) both read it, so they cannot drift apart.
+    /// </summary>
+    private static NavBox? GatedRoom(NavLayout layout, DungeonDef dungeon, SimState state, EncounterState encounter)
+    {
+        var index = encounter.PullIndex;
+        return index < dungeon.Pulls.Count && Pulls.IsSpawned(state, dungeon, index) ? layout.RoomFor(dungeon.Pulls[index].Id) : null;
+    }
+
+    /// <summary>
     /// The layout rules after combat (STATE.md D18; no TS counterpart): (1) every actor that moved off the open boxes is
     /// put back by <see cref="Movement.ClampToWalkable"/> against its pre-step position (a gated box opens on the tick its
     /// pull clears) and, while the active pull is fought, by its room's closed gate (STATE.md D27,
@@ -255,7 +269,7 @@ public static class RunRoot
         // ROOM-LOCK-IN (STATE.md D27): the active pull's room is gated from its pull_start until its pull_clear. The gate
         // holds this tick when the pull was already spawned before the step and did not clear during it.
         var priorIndex = run.Encounter.PullIndex;
-        var priorFought = priorIndex < run.Dungeon.Pulls.Count && Pulls.IsSpawned(run.State, run.Dungeon, priorIndex);
+        var priorFought = GatedRoom(layout, run.Dungeon, run.State, run.Encounter) is not null;
         var locked = priorFought && priorIndex == encounter.PullIndex ? layout.RoomFor(run.Dungeon.Pulls[priorIndex].Id) : null;
 
         var open = layout.OpenBoxes(run.Dungeon, encounter.PullIndex);
