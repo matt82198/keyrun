@@ -238,8 +238,10 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     /// <param name="classKit">The local player's class kit ability ids (the facet pool's scope).</param>
     /// <param name="bonus">The run's Seed bonus fold, or null (no bonus loot).</param>
     /// <param name="combos">The run's denied Combos, or null (no late-combo lines).</param>
+    /// <param name="equipped">The character's equipped gear by slot (the screen's <see cref="Progression.Equipped"/>),
+    /// or null for a fresh character: one card is then a strict upgrade over it (BIBLE s7, <see cref="EndOfRun.Offer"/>).</param>
     /// <returns>The view, or null while the run is live.</returns>
-    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log, ContentRegistry? registry, IReadOnlySet<string> classKit, SeedBonusLog? bonus = null, PrivateComboLog? combos = null)
+    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log, ContentRegistry? registry, IReadOnlySet<string> classKit, SeedBonusLog? bonus = null, PrivateComboLog? combos = null, IReadOnlyDictionary<string, Item>? equipped = null)
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(log);
@@ -248,10 +250,11 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         {
             return null;
         }
-        var seed = unchecked((run.State.Seed * 1_000_003L) + tick);
-        var choices = registry is null
-            ? Rewards.RollRewardChoices(seed, run.Encounter.KeyLevel, result, Rewards.GearSlots)
-            : Rewards.RollRewardChoices(seed, run.Encounter.KeyLevel, result, Rewards.GearSlots, Rewards.GearSlots.ToDictionary(s => s, s => Screen.SlotPool(registry, classKit, s), StringComparer.Ordinal));
+        // BIBLE s1/s7: the one offer read (EndOfRun.Offer), the same for a timed clear, an untimed clear and a wipe.
+        var pools = registry is null
+            ? null
+            : Rewards.GearSlots.ToDictionary(s => s, s => Screen.SlotPool(registry, classKit, s), StringComparer.Ordinal);
+        var choices = EndOfRun.Offer(run, pools, equipped ?? new Dictionary<string, Item>(StringComparer.Ordinal))!;
         // The sim finishes a lasting wipe as "depleted" with completed forced (run-wiring.ts checkRunEnd), so the
         // result alone cannot tell a cleared depleted key from a wipe: the pull index past the last pull can.
         var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
@@ -576,7 +579,9 @@ public partial class RunEndPanel : Control
         }
         // The human's class kit scopes the reward facet pool (the Screen's reroll pool, Screen.SlotPool).
         var kit = new HashSet<string>(setup.Slots.Select(s => s.AbilityId), StringComparer.Ordinal);
-        if (RunEndView.Of(run, setup.HumanActorId, _log, registry, kit, _bonus, _combos) is { } view)
+        // The character the pick goes onto (the screen's progression), so one card is a strict upgrade for it (BIBLE s7).
+        var equipped = (GetTree()?.GetFirstNodeInGroup(Screen.GroupName) as Screen)?.Progression.Equipped;
+        if (RunEndView.Of(run, setup.HumanActorId, _log, registry, kit, _bonus, _combos, equipped) is { } view)
         {
             _view = view;
             foreach (var line in view.LogLines())
