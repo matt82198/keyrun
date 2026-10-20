@@ -1,0 +1,2 @@
+- DECISION-IDS fix two code comments that cited STATE.md D10 for the Space dash (game/sim/Keyrun.Sim/Combat/Movement.cs:63, game/sim/Keyrun.Sim/Core/Commands.cs:28): D10 is the MVP definition, and no recorded decision defines the dash, so the ids were dropped and the comments say placeholder (comments only; no sim, content, bots, host or view change).
+BUILDLOG: DECISION-IDS re-checked every decision id cited in game/ code comments against STATE.md and design/BIBLE.md; two wrong D10 citations on the Space dash were dropped, all other citations matched.
