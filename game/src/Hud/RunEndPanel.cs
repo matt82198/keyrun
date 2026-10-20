@@ -289,6 +289,13 @@ public partial class RunEndPanel : Control
     private const float BonusLineHeight = 22;
     private const float LineStep = CardFont + 6;
 
+    /// <summary>
+    /// Lane RUNEND-OPAQUE: the panel's background fill, drawn by <see cref="_Draw"/> and reported on the
+    /// "HUD runend fill" proof line. The world name plates draw on CanvasLayer 0 under the Hud layer, so any alpha
+    /// below 1 lets them show through the panel.
+    /// </summary>
+    private static readonly Color PanelFill = new(0.06f, 0.07f, 0.09f, 1f);
+
     private readonly PrivateRunLog _log = new();
     private readonly SeedBonusLog _bonus = new();
     private readonly PrivateComboLog _combos = new();
@@ -390,7 +397,7 @@ public partial class RunEndPanel : Control
         var bonusShift = view.BonusLabel is null ? 0f : BonusLineHeight;
         var placed = LayoutPanel(HeightOf(view), out _, out _);
         var panel = new Rect2(new Vector2(placed.X, placed.Y) - GetGlobalRect().Position, placed.Width, placed.Height);
-        DrawRect(panel, new Color(0.06f, 0.07f, 0.09f, 0.94f));
+        DrawRect(panel, PanelFill);
         DrawRect(panel, new Color(1f, 0.85f, 0.5f), filled: false, width: 2f);
         HudNodes.Text(this, panel.Position + new Vector2(20, 34), view.Title, TitleFont, new Color(1f, 0.85f, 0.5f));
         if (view.BonusLabel is { } bonusLabel)
@@ -525,6 +532,8 @@ public partial class RunEndPanel : Control
             var size = GetViewport()?.GetVisibleRect().Size ?? Size;
             HudNodes.Proof(_driver, FormattableString.Invariant(
                 $"HUD runend layout panel={HudClearance.Format(panel)} abilitybar={HudClearance.Format(ability)} party={HudClearance.Format(party)} viewport={(int)size.X}x{(int)size.Y}"));
+            HudNodes.Proof(_driver, FormattableString.Invariant(
+                $"HUD runend fill r={PanelFill.R:F2} g={PanelFill.G:F2} b={PanelFill.B:F2} a={PanelFill.A:F2} panel={HudClearance.Format(panel)}"));
         }
     }
 }
