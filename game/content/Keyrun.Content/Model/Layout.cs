@@ -33,7 +33,9 @@ public sealed record LayoutDef
     /// SKIPPABLE-PACKS (Mythic+ route choice, BIBLE section 9.1): trash packs that stand in a room beside the walking line,
     /// each with its own forces value. An optional pack's aggro ring clears the route, so a party in formation walks past
     /// it without a pull; no gate ever names a pack, so the boss never waits on one. The forces bar decides which packs a
-    /// route needs. Empty when the key is absent.
+    /// route needs. PATH-PACKS: a required pack (<c>optional: false</c>) stands on the walking line between teaching
+    /// pulls, so the forward path is pull, pack, pull, boss; the sim spawns every pack whole when a party member steps
+    /// into its ring. Empty when the key is absent.
     /// </summary>
     public ValueList<LayoutPack> Packs { get; init; } = new();
 
@@ -148,7 +150,8 @@ public sealed record LayoutPack
 
     /// <summary>
     /// True for a pack the route can skip: its ring clears the walking line by more than the widest formation slot, and
-    /// the route still reaches the forces bar without it.
+    /// the route still reaches the forces bar without it. False for a required pack: its ring meets the walking line, so
+    /// walking forward pulls it.
     /// </summary>
     public required bool Optional { get; init; }
 

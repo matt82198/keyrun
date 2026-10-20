@@ -148,6 +148,8 @@ public sealed record HostRunSetup(
         }
         var nav = NavLayouts.ToSim(layout);
         dungeon = NavLayouts.PlaceDungeon(layout, dungeon);
+        // PATH-PACKS (BIBLE s9.1): the layout's trash packs, each pulled whole when a party member steps into its ring.
+        var (packs, packScripts) = LayoutPackGroups.Build(layout, dungeon, scripts);
 
         var run = registry.Run;
         var movement = new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm, nav.Extent);
@@ -159,13 +161,14 @@ public sealed record HostRunSetup(
             BaseSpeedMmPerTick = 0,
             ActorRadiusMm = 0,
             Bounds = movement.Bounds,
-            EnemyScripts = scripts,
+            EnemyScripts = packScripts,
             KeyLevel = keyLevel,
             ParTicks = dungeonDef.ParTicks,
             Combos = combos,
             FieldCombos = fieldCombos,
             Clauses = clauses,
             Layout = nav,
+            Packs = packs,
             StopEffectIds = StopEffectIds,
         }.WithMovement(movement);
 

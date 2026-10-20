@@ -135,7 +135,9 @@ public static class LayoutValidator
     /// members inside its room, has a positive ring and members that are known enemies with a forces value. An optional
     /// pack's ring clears the walking line (start then every route point) by more than the widest formation slot, so a
     /// party in formation passes it without a pull. The teaching pulls plus every pack fill the forces bar, and they still
-    /// fill it with any one optional pack skipped.
+    /// fill it with any one optional pack skipped. PATH-PACKS: a required pack's ring meets the walking line (so walking
+    /// forward pulls it), holds neither the start nor stands in the boss's room, and the walking line alone (teaching pulls
+    /// plus required packs) falls short of the bar whenever an optional pack exists.
     /// </summary>
     private static void CheckPacks(ContentRegistry reg, DungeonDef dungeon, LayoutDef layout, List<string> pullOrder, HashSet<string> boxIds)
     {
@@ -171,6 +173,17 @@ public static class LayoutValidator
                         Fail(where + " is optional but its " + pack.AggroMm + " mm ring plus the " + widestSlot + " mm formation reaches the walking line on leg " + k);
                 }
             }
+            else
+            {
+                // PATH-PACKS: a required pack stands on the path, so walking forward pulls it; never on the start or in the
+                // boss's room (the boss pull is the run's last stop).
+                if (Enumerable.Range(0, line.Count - 1).All(k => SegmentClears(line[k], line[k + 1], pack.Center, pack.AggroMm)))
+                    Fail("required " + where + " ring (" + pack.AggroMm + " mm) never meets the walking line");
+                if (!SegmentClears(layout.Start, layout.Start, pack.Center, pack.AggroMm))
+                    Fail("required " + where + " ring holds the start (a run would start in a fight)");
+                if (room!.Pull == LayoutDef.BossPullId)
+                    Fail("required " + where + " stands in the boss's room");
+            }
         }
 
         int total = RouteForces.CriticalPathPoints(forces, dungeon) + layout.Packs.Sum(p => RouteForces.LayoutPackPoints(forces, p));
@@ -181,6 +194,15 @@ public static class LayoutValidator
             int without = total - RouteForces.LayoutPackPoints(forces, pack);
             if (without < forces.Required)
                 Fail("the route reaches " + without + " of the " + forces.Required + " forces required without optional pack \"" + pack.Id + "\" (an optional pack must be skippable)");
+        }
+
+        // PATH-PACKS: the bar fills only with enough packs. The walking line alone (teaching pulls plus required packs)
+        // falls short, so some optional pack is always part of the route decision.
+        if (layout.Packs.Any(p => p.Optional))
+        {
+            int onLine = RouteForces.CriticalPathPoints(forces, dungeon) + layout.Packs.Where(p => !p.Optional).Sum(p => RouteForces.LayoutPackPoints(forces, p));
+            if (onLine >= forces.Required)
+                Fail("the walking line reaches " + onLine + " of the " + forces.Required + " forces required without an optional pack (the bar must need more packs)");
         }
     }
 

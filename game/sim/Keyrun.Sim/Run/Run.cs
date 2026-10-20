@@ -187,6 +187,13 @@ public static class RunRoot
             {
                 activeScripts = OnPullClock(activeScripts ?? content.EnemyScripts, run.Dungeon.Pulls[index], nextState.Tick);
             }
+            // PATH-PACKS (BIBLE s9.1): a pack engages whole on the tick a party member steps into its ring, its scripts on
+            // its own clock. It never moves the pull index and never shuts a gate.
+            foreach (var pack in LayoutPacks.Triggered(nextState, content.Packs ?? Array.Empty<PackGroup>(), opts?.OpenSeats))
+            {
+                nextState = RunWiring.MergeActors(nextState, LayoutPacks.Spawn(pack, nextState.Tick, emit));
+                activeScripts = OnPullClock(activeScripts ?? content.EnemyScripts, new PullDef(pack.Id, pack.Spawns), nextState.Tick);
+            }
         }
         var echo = EchoSpawns.Step(nextEncounter, nextState, events, nextState.Tick, emit);
         nextEncounter = echo.Encounter;

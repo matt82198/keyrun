@@ -91,6 +91,13 @@ public sealed record RunContent
     public NavLayout? Layout { get; init; }
 
     /// <summary>
+    /// PATH-PACKS (BIBLE section 9.1; layout runs only): the layout's trash packs, each engaging whole when a party member
+    /// steps into its aggro ring (<see cref="LayoutPacks"/>). Their members' scripts ride in <see cref="EnemyScripts"/>.
+    /// Null or empty = no packs (every oracle run).
+    /// </summary>
+    public IReadOnlyList<PackGroup>? Packs { get; init; }
+
+    /// <summary>
     /// This content with its movement fields taken from the host's validated <paramref name="movement"/>
     /// (the run-root side of <see cref="RulesConfig.WithMovement"/>: the host never hard-codes speed, radius or bounds).
     /// </summary>
