@@ -35,13 +35,21 @@ public static class TankEngage
         return ranges.Count > 0 ? ranges.Min() : DefaultReachMm;
     }
 
-    /// <summary>tank-engage.ts holdsThreat: <paramref name="tankId"/> has a threat entry at least as high as every other one.</summary>
+    /// <summary>
+    /// tank-engage.ts holdsThreat: an enemy with a locked holder (HOLDER-LOCK, STATE.md D30) is held exactly when the
+    /// tank is its holder, whatever the threat table says; with no holder, <paramref name="tankId"/> has a threat entry
+    /// at least as high as every other one.
+    /// </summary>
     /// <param name="enemy">Enemy.</param>
     /// <param name="tankId">Tank.</param>
     /// <returns>True when held.</returns>
     public static bool HoldsThreat(ActorState enemy, int tankId)
     {
         ArgumentNullException.ThrowIfNull(enemy);
+        if (enemy.HolderId is { } holderId)
+        {
+            return holderId == tankId;
+        }
         if (!enemy.Threat.TryGetValue(tankId, out var mine))
         {
             return false;

@@ -239,9 +239,14 @@ public static class Casting
         ArgumentNullException.ThrowIfNull(def);
         ArgumentNullException.ThrowIfNull(targets);
         ArgumentNullException.ThrowIfNull(ctx);
+        var taunt = Holder.IsTaunt(def);
         foreach (var target in targets)
         {
             ApplyEffects(state, actor, target, def.Effects, ctx, emit);
+            if (taunt)
+            {
+                Holder.ApplyTaunt(actor, target); // HOLDER-LOCK (STATE.md D30): only a taunt moves a holder
+            }
         }
         foreach (var op in def.Effects)
         {

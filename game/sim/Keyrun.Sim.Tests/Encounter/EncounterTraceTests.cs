@@ -19,6 +19,10 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// events are compared byte for byte (canonical JSON); between projections positions are unknown, so a
 /// telegraph's origin/yaw and a hit's actor list are left out of the comparison and everything else
 /// (tick, caster, cast, shape, lead, resolvesTick, geometry, telegraph ids, pull events) is still exact.
+/// HOLDER-LOCK (STATE.md D30): enemy holders are not projected, so the model replays them as the run root makes them:
+/// each completed taunt in the record (its cast command's target) moves that enemy's holder, then
+/// <see cref="Keyrun.Sim.Combat.Holder.LockHolders"/> runs on the post-step state (after the projection sync when the
+/// record carries one), exactly where RunWiring.FixupTargeting runs it.
 /// </summary>
 public sealed class EncounterTraceTests
 {
@@ -60,6 +64,44 @@ public sealed class EncounterTraceTests
         return new SimEvent(e.Tick, e.Type, e.Fields.Members.Where(m => !drop.Contains(m.Key))).ToCanonicalJson();
     }
 
+    // Combat/Holder.cs IsTaunt over the setup's raw ability JSON: target shape, the "utility" tag and a threat op.
+    private static HashSet<string> TauntIds(JsObject abilities)
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (id, value) in abilities.Members)
+        {
+            var def = (JsObject)value;
+            var target = def.Get("shape") is JsObject shape && shape.Get("kind") is JsString { Value: "target" };
+            var utility = def.Get("tags") is JsArray tags && tags.Items.Any(t => t is JsString { Value: Keyrun.Sim.Combat.Holder.TauntTag });
+            var threat = def.Get("effects") is JsArray ops && ops.Items.Any(o => o is JsObject op && op.Get("op") is JsString { Value: "threat" });
+            if (target && utility && threat)
+            {
+                ids.Add(id);
+            }
+        }
+        return ids;
+    }
+
+    // The run root's holder bookkeeping for one recorded step: completed taunts (combat), then LockHolders.
+    private static void ApplyHolders(SimState state, OracleRecord r, HashSet<string> taunts)
+    {
+        foreach (var done in r.Events.Where(e => e.Type == "cast_complete"))
+        {
+            var casterId = (int)((JsInt)done.Get("actorId")!).Value;
+            var abilityId = ((JsString)done.Get("abilityId")!).Value;
+            if (!taunts.Contains(abilityId))
+            {
+                continue;
+            }
+            var cmd = r.Commands.OfType<CastCommand>().LastOrDefault(c => c.ActorId == casterId && c.AbilityId == abilityId);
+            if (cmd?.TargetId is { } tid && state.Actors.TryGetValue(tid, out var target) && state.Actors.TryGetValue(casterId, out var caster))
+            {
+                Keyrun.Sim.Combat.Holder.ApplyTaunt(caster, target);
+            }
+        }
+        Keyrun.Sim.Combat.Holder.LockHolders(state);
+    }
+
     private Tally Replay(string trace)
     {
         var setup = EncounterTestKit.Setup(OracleRun.SetupNameOf(trace));
@@ -83,6 +125,8 @@ public sealed class EncounterTraceTests
         }
         var encounter = EncounterState.Create(keyLevel, OracleRun.ParTicks(setup), Clauses.DefaultEncounterRules(keyLevel));
         var noTags = new Dictionary<string, IReadOnlyList<string>?>();
+        var taunts = TauntIds((JsObject)content.Get("abilities")!);
+        Keyrun.Sim.Combat.Holder.LockHolders(state); // createRun's fixupTargeting
 
         void Sync(OracleRecord r)
         {
@@ -171,6 +215,7 @@ public sealed class EncounterTraceTests
             {
                 Sync(r);
             }
+            ApplyHolders(state, r, taunts);
         }
 
         _out.WriteLine($"{trace}: records={tally.Records} telegraphs={tally.Telegraphs} (exact {tally.ExactTelegraphs}) " +
@@ -206,9 +251,9 @@ public sealed class EncounterTraceTests
     // and casts seed.lash; the re-recorded traces carry 11 / 14 telegraphs (was 9 / 13), k2 10 hits (was 9), k10 14 hits
     // (was 13) with 3 exact (was 2), measured by this replay against the regenerated oracle.
     [Theory]
-    [InlineData("bots-hv-k2-s7", 13, 12, 7, 0, 0, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k2-s11", 13, 12, 7, 0, 0, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 14, 14, 7, 0, 0, 3)]
+    [InlineData("bots-hv-k2-s7", 11, 11, 7, 0, 0, 1)] // HOLDER-LOCK D30 re-record: was 13, 12, 7, 0, 0, 1 (measured from the regenerated trace). DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k2-s11", 11, 11, 7, 0, 0, 1)] // HOLDER-LOCK D30 re-record: was 13, 12, 7, 0, 0, 1 (measured from the regenerated trace). DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k10-s7", 15, 15, 7, 0, 0, 3)] // HOLDER-LOCK D30 re-record: was 14, 14, 7, 0, 0, 3 (measured from the regenerated trace)
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

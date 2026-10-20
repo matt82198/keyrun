@@ -45,8 +45,10 @@ function reachMm(kit: EffectiveKit): number {
   return ranges.length > 0 ? Math.min(...ranges) : DEFAULT_REACH_MM;
 }
 
-/** True if `tankId` holds `enemy`: it has a threat entry at least as high as every other one. */
+/** True if `tankId` holds `enemy`: with a locked holder (HOLDER-LOCK, STATE.md D30) exactly when the
+ * tank is that holder; with none, it has a threat entry at least as high as every other one. */
 export function holdsThreat(enemy: ActorState, tankId: ActorId): boolean {
+  if (enemy.holderId !== undefined) return enemy.holderId === tankId;
   const mine = enemy.threat[tankId];
   if (mine === undefined) return false;
   return Object.values(enemy.threat).every((v) => v <= mine);

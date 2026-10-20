@@ -25,6 +25,7 @@ import { isAbilityReady, startGcd, consumeCharge } from "./cooldowns";
 import { applyHeal } from "./damage";
 import { creditResource, dealDamage } from "./mitigation";
 import { addThreat } from "./threat";
+import { applyTaunt, isTaunt } from "./holder";
 import { resolveTargets } from "./targeting";
 import { isqrt } from "./movement";
 import { shouldSilence } from "../encounter/clauses";
@@ -98,8 +99,10 @@ export function completeCast(state: SimState, actor: ActorState, ctx: CastContex
     clearCast(actor);
     return;
   }
+  const taunt = isTaunt(def);
   for (const target of resolveTargets(state, actor, def)) {
     applyEffects(state, actor, target, def.effects, ctx, emit);
+    if (taunt) applyTaunt(actor, target); // HOLDER-LOCK (STATE.md D30): only a taunt moves a holder
   }
   // "resource" ops credit the CASTER, once per completed cast (not once per resolved target):
   // the op has no target field (abilities.ts), so a builder's momentum/heat is the caster's.

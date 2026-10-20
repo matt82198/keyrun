@@ -159,12 +159,14 @@ public static class RunWiring
     /// <summary>
     /// run-wiring.ts:109 fixupTargeting, in place: every untargeted living enemy targets the party's tank (the first
     /// player with role tank, alive or not); every living damage-role player without a living enemy target targets
-    /// the first living enemy (ascending id). Safe every tick and at creation.
+    /// the first living enemy (ascending id). Safe every tick and at creation. First, HOLDER-LOCK (STATE.md D30):
+    /// <see cref="Holder.LockHolders"/> locks every living enemy without a living holder onto the nearest living player.
     /// </summary>
     /// <param name="state">The state to fix up.</param>
     public static void FixupTargeting(SimState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        Holder.LockHolders(state);
         var tank = state.Actors.Values.FirstOrDefault(a => a.Kind == ActorKind.Player && a.Role == ActorRole.Tank);
         var enemies = state.Actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive).ToList();
         if (tank is not null)

@@ -33,6 +33,7 @@ import type { ActorState, SimState, ActorId, Tick } from "./core/state";
 import type { AbilityDef } from "./combat/abilities";
 import type { EffectDef } from "./combat/effects";
 import { applyEffectInstance } from "./combat/effects";
+import { lockHolders } from "./combat/holder";
 import type { RulesConfig } from "./combat/rules";
 import type { BreakBarEffectPatch } from "./encounter/breakbar";
 import type { SimEvent } from "./core/events";
@@ -99,8 +100,9 @@ export function applyBreakBarPatches(
  * enemy points at the party's tank (the one living-or-not player actor with `role: "tank"`, if any);
  * every living damage-role player without a living-enemy target points at the current pull's first
  * living enemy. Mutates `state.actors` in place; safe to call every tick (already-resolved targets
- * are left alone) and at run creation. */
+ * are left alone) and at run creation. HOLDER-LOCK (STATE.md D30): lockHolders first (combat/holder.ts). */
 export function fixupTargeting(state: SimState): void {
+  lockHolders(state);
   const tank = Object.values(state.actors).find((a) => a.kind === "player" && a.role === "tank");
   const enemies = Object.values(state.actors).filter((a) => a.kind === "enemy" && a.alive);
   if (tank) {
