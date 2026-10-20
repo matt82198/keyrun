@@ -25,7 +25,7 @@ public sealed record MoveCommand(int Tick, int ActorId, Dir2 Dir, int Yaw) : Com
     public override string Kind => "move";
 }
 
-/// <summary>"dash" (D10 Space): a one-tick burst of Movement.DashDistanceMm along <paramref name="Dir"/>.</summary>
+/// <summary>"dash" (Space, unrecorded placeholder): a one-tick burst of Movement.DashDistanceMm along <paramref name="Dir"/>.</summary>
 /// <param name="Tick">Tick.</param>
 /// <param name="ActorId">Actor.</param>
 /// <param name="Dir">Direction, each component -1000..1000.</param>
