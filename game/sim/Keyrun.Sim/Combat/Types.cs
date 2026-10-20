@@ -129,6 +129,13 @@ public sealed record AbilityDef
 
     /// <summary>Free-form tags, or null (abilities.ts:59 optional).</summary>
     public IReadOnlyList<string>? Tags { get; init; }
+
+    /// <summary>
+    /// Per-verse replacement ops (content <c>variants</c>, keyed "mend"/"ward"; BIBLE section 5 Chanter), or null.
+    /// <see cref="Abilities.ResolveVerse"/> picks one from the caster's verse at cast completion. Null (every oracle
+    /// setup) = <see cref="Effects"/> always.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<EffectOp>>? Variants { get; init; }
 }
 
 /// <summary>Basis-point modifiers and absorb an effect carries per stack (sim/combat/effects.ts:15-21). Absent = null.</summary>
