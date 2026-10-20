@@ -91,26 +91,88 @@ public sealed class PrespawnAggroTests
             Assert.All(spawns, s => Assert.Null(run.State.Actors[s.ActorId].CastId));
         }
         Assert.DoesNotContain(events, e => e.Type is "pull_start" or "gate_closed" or "telegraph" or "damage" or "pack_engage");
-        // No idle enemy walks. Bodies the content stacks on one spawn point (the Choir pair, the five Pair melee) are only
-        // pushed apart by actor spacing (Rules collision push-out), so they stay beside their point; a lone body never moves.
-        var stacked = spawns.GroupBy(s => (s.Pos.X, s.Pos.Z)).Where(g => g.Count() > 1).SelectMany(g => g).Select(s => s.ActorId).ToHashSet();
+        // No idle enemy moves (BIBLE section 9.1 "it does not move unless it is a patrol"), bodies the content stacks on one
+        // spawn point (the Choir pair, the five Pair melee) included: actor spacing never shoves an idle body.
         Assert.All(spawns, s =>
         {
             var a = run.State.Actors[s.ActorId];
             Assert.True(a.Idle);
-            if (stacked.Contains(s.ActorId))
-            {
-                Assert.True(Aggro.InRing(a.Pos, s.Pos, StackedSpreadMm), $"stacked enemy {s.ActorId} drifted to {a.Pos} from {s.Pos}");
-            }
-            else
-            {
-                Assert.Equal(s.Pos, a.Pos);
-            }
+            Assert.Equal(s.Pos, a.Pos);
         });
     }
 
-    /// <summary>How far actor spacing may spread a stack of up to five 400 mm bodies from their shared point, mm.</summary>
-    private const long StackedSpreadMm = 2500;
+    // The party at the layout start (layout.json start x 4000, the Entrance), seats 1200 mm apart on z.
+    private static Vec3 AtEntrance(int seat) => new(4000, 0, (seat - 1) * 1200);
+
+    [Fact(DisplayName = "Prespawn aggro (run C, PR #308): with the party at the Entrance no enemy has a target or moves, from tick 0 on")]
+    public void No_enemy_moves_or_targets_while_the_party_stands_at_the_entrance()
+    {
+        var (run, dungeon) = RealRun(null, AtEntrance);
+        var spawns = dungeon.Pulls.SelectMany(p => p.Spawns).ToList();
+        for (var i = 0; i < 200; i++)
+        {
+            var tick = run.State.Tick;
+            var stepped = RunRoot.StepRun(run, Array.Empty<Command>());
+            Assert.DoesNotContain(stepped.Events, e => e.Type is "pull_start" or "pack_engage");
+            run = stepped.Run;
+            foreach (var s in spawns)
+            {
+                var a = run.State.Actors[s.ActorId];
+                Assert.True(a.Idle, $"tick {tick}: enemy {s.ActorId} ({s.ClassId}) engaged with the party at the Entrance");
+                Assert.True(a.TargetId is null, $"tick {tick}: idle enemy {s.ActorId} ({s.ClassId}) has target {a.TargetId}");
+                Assert.True(s.Pos == a.Pos, $"tick {tick}: idle enemy {s.ActorId} ({s.ClassId}) moved from {s.Pos} to {a.Pos}");
+            }
+        }
+    }
+
+    [Fact(DisplayName = "Prespawn aggro (run C, PR #308): walking in from the Entrance, the Choir engages whole on the tick a party member crosses its ring; nothing moves before")]
+    public void The_choir_engages_whole_on_the_tick_the_party_crosses_its_ring()
+    {
+        var (run, dungeon) = RealRun(null, AtEntrance);
+        var choir = dungeon.Pulls.Single(p => p.Id == "choir");
+        var choirIds = choir.Spawns.Select(s => s.ActorId).ToHashSet();
+        var center = Pulls.RingCenter(choir);
+        var radius = choir.AggroMm;
+        var spawns = dungeon.Pulls.SelectMany(p => p.Spawns).ToList();
+        bool PartyInRing(Run r) => new[] { 1, 2, 3 }.Any(id => r.State.Actors[id].Alive && Aggro.InRing(r.State.Actors[id].Pos, center, radius));
+
+        int? engage = null;
+        while (engage is null && run.State.Tick < 400)
+        {
+            var tick = run.State.Tick;
+            var wasIn = PartyInRing(run);
+            var walk = new[] { 1, 2, 3 }.Select(id => (Command)new MoveCommand(tick, id, new Dir2(1000, 0), 0)).ToList();
+            var stepped = RunRoot.StepRun(run, walk);
+            run = stepped.Run;
+            var starts = stepped.Events.Where(e => e.Type is "pull_start" or "pack_engage").ToList();
+            if (starts.Count == 0)
+            {
+                Assert.False(PartyInRing(run), $"tick {tick}: a party member stands in the Choir ring and nothing engaged");
+                foreach (var s in spawns)
+                {
+                    var a = run.State.Actors[s.ActorId];
+                    Assert.True(a.Idle && a.TargetId is null && a.Pos == s.Pos, $"tick {tick}: enemy {s.ActorId} ({s.ClassId}) acted before any engage: idle={a.Idle} target={a.TargetId} pos={a.Pos}");
+                }
+                continue;
+            }
+            engage = tick;
+            var start = Assert.Single(starts);
+            Assert.Equal("choir", ((JsString)start.Get("pullId")!).Value);
+            Assert.False(wasIn, "the party was already in the Choir ring a tick before the engage");
+            Assert.True(PartyInRing(run), "the Choir engaged with no party member in its ring");
+            foreach (var s in spawns)
+            {
+                var a = run.State.Actors[s.ActorId];
+                Assert.True(choirIds.Contains(s.ActorId) ? !a.Idle : a.Idle, $"tick {tick}: enemy {s.ActorId} ({s.ClassId}) idle={a.Idle} on the Choir's engage tick");
+                if (!choirIds.Contains(s.ActorId))
+                {
+                    Assert.True(a.TargetId is null && a.Pos == s.Pos, $"tick {tick}: enemy {s.ActorId} outside the Choir acted on its engage");
+                }
+            }
+        }
+        _out.WriteLine($"Choir engage t{engage}");
+        Assert.NotNull(engage);
+    }
 
     // One room, one pull: enemy 101 at (10000, 0) (the ring's centre), the Warden standing at x on the z = 0 line.
     private static IReadOnlyList<SimEvent> OneStepWithWardenAt(long x, long? aggroMm = null)
