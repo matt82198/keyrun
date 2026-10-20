@@ -123,12 +123,13 @@ public class CastFacingTests
         return At(0, caster, target);
     }
 
-    // The facing-relevant fields of every ability in content/data/abilities/*.json (id, castTicks, range, shape), at
-    // no cost and no cooldown so each cast starts; the ops are a 1-point heal (no case lets a cast complete).
+    // The facing-relevant fields of every ability in content/data/abilities/*.json of both content roots (repo root and
+    // game/content/data; id, castTicks, range, shape), at no cost and no cooldown so each cast starts; the ops are a
+    // 1-point heal (no case lets a cast complete).
     private static IReadOnlyDictionary<string, AbilityDef> Content()
     {
         var map = new Dictionary<string, AbilityDef>(StringComparer.Ordinal);
-        foreach (var file in Directory.GetFiles(AbilitiesDir(), "*.json").OrderBy(f => f, StringComparer.Ordinal))
+        foreach (var file in ContentRoots.KindFiles(AppContext.BaseDirectory, "abilities"))
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(file));
             foreach (var a in doc.RootElement.EnumerateArray())
@@ -157,17 +158,4 @@ public class CastFacingTests
     }
 
     private static long? Opt(JsonElement e, string name) => e.TryGetProperty(name, out var v) ? v.GetInt64() : null;
-
-    private static string AbilitiesDir()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            var candidate = Path.Combine(dir.FullName, "content", "data", "abilities");
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-        throw new DirectoryNotFoundException("content/data/abilities not found above " + AppContext.BaseDirectory);
-    }
 }
