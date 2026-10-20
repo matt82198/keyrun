@@ -7,6 +7,14 @@ Engine wrapper scripts (godot.ps1 / godot.sh resolve the binary and DOTNET_ROOT)
 export-template installer (install-templates.ps1). Changes here are game-gated: a PR touching tools/godot/**
 needs a green game-e2e run (see tools/ci/).
 
+Single launch path (2026-10-20 box freeze): `launch-lock.ps1` is the one lock, cap and tree kill for every engine
+launch. godot.ps1, screens.ps1 and the multi-launch game/src harnesses dot-source it; godot.sh delegates to godot.ps1 on
+Windows. Lock file `%LOCALAPPDATA%\keyrun\godot-launch.lock` (override `KEYRUN_LAUNCH_LOCK_FILE`), stale only when its
+owner PID is gone (start time checked against PID reuse), never by age. Busy: godot.ps1 exits 4, screens.ps1 5, a
+harness 2. Cap: `KEYRUN_GODOT_TIMEOUT_SEC` (default 300; game-e2e sets 660), then the job object and taskkill /T end the
+whole tree, exit 124. Tests: `powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/launch-lock-test.ps1`
+(stub binary only; never launches Godot). Lanes never launch the game; the orchestrator does.
+
 ## tools/Keyrun.Playtest/ (+ Keyrun.Playtest.Tests)
 Agent playtesters: headless Hollow Vault runs driven by a playtester's plan file, so agents can fail, learn and push
 keys (Matt 2026-10-20). GUIDE.md is the playtester's how-to-play guide (embedded, `playtest guide`); it names no enemy
