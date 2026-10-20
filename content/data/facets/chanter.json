@@ -188,7 +188,7 @@
     "id": "chanter.ring.versedReserves",
     "slot": "ring",
     "abilityId": "chanter.chorus",
-    "text": "Chorus grants an extra charge, tagged for Verse synergies.",
+    "text": "Chorus grants an extra charge.",
     "patch": {
       "charges": 2,
       "tagAdd": [
@@ -224,7 +224,7 @@
     "id": "chanter.ring.overtureOfPower",
     "slot": "ring",
     "abilityId": "chanter.refrain",
-    "text": "Refrain also grants a burst of Verse, tagged for stance synergies.",
+    "text": "Refrain also grants a burst of Verse.",
     "patch": {
       "tagAdd": [
         "verse-surge"
