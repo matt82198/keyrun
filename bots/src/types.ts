@@ -26,6 +26,9 @@ export interface Telegraph {
   width?: number;
   resolvesTick: number;
   danger: boolean;
+  /** DEAD-CASTER-TELEGRAPH: the caster's actor id for an encounter telegraph (telegraph-map.ts toBotTelegraph);
+   * absent for floor patches and scripted test telegraphs (shared/floor.ts isSpent). */
+  sourceId?: number;
 }
 
 /** What a bot's decide() call is handed each tick. */
