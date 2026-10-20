@@ -232,9 +232,10 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         var title = (result, cleared) switch
         {
             (RunResult.Abandoned, _) => "Run abandoned",
-            (_, false) => FormattableString.Invariant($"Party wiped on pull {lost!.Number} of {lost.Total} -- key depleted"),
+            // An untimed key stays at its level (Matt 2026-10-20, f-7c7abdf4): the title names the kept level.
+            (_, false) => RunEndTitle.Wiped(lost!.Number, lost.Total, run.Encounter.KeyLevel),
             (RunResult.Timed, true) => "Run cleared -- within par",
-            _ => "Run cleared -- key depleted",
+            _ => RunEndTitle.ClearedUntimed(run.Encounter.KeyLevel),
         };
         var rewards = bonus?.Rewards ?? RunRewards.Empty;
         return new RunEndView(result, tick, title, cleared, choices, log.CausesFor(localSeat))
