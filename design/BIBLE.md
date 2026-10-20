@@ -161,7 +161,134 @@ pair combo, so there is always something to close even when the enemy Window was
 
 ## 9. The POC dungeon: Hollow Vault
 
-Three pulls and a boss, forward-only, no backtracking (research/02). Each pull teaches one thing.
+Three teaching pulls, optional trash packs on two branching paths, an enemy-forces bar, and a boss behind a door
+the bar opens. Each teaching pull still teaches one thing. The packs and the bar make route choice and pull size
+the run's standing decision against the timer (research/01:29-33, research/06:42-46, research/06:55-59).
+
+**Decision (Matt, 2026-10-20).** The earlier shape, "three pulls and a boss, forward-only", was judged too thin.
+Matt, verbatim: "the room design is just super lame... it does not even look fun... there is so much more to
+mythic+ that makes it fun". His chosen option, verbatim: "Forces + route layer: Keep the boss and the three teaching
+pulls, and add 4-6 optional trash packs across two branching paths, plus a 100% enemy-forces bar that must be full
+before the boss door opens. Route choice and pull size become real decisions against the timer. Mixed packs give
+several kickable casters, and two rooms get floor hazards." This section is that option made concrete. It does not
+change par (an open `[DECIDE]`, section 12) or the key's 5/10/15 mechanic unlocks (section 8).
+
+### 9.1 The map
+
+```
+Entrance -> Choir room (pull 1) -> Pair hall (pull 2) -> Fork landing
+  West: Undercroft Steps (W1) -> Bellows Hall (W2, hazard)                              -> Seed chamber (pull 3)
+  East: Reading Gallery (E1) + Cantor's Loft alcove (E2) -> Sluice Gallery (E3, hazard) -> Seed chamber (pull 3)
+Seed chamber -> Hollow Door -> Warden arena (boss)
+```
+
+- **Branching, no backtracking past a taken branch.** The Choir and Pair gates work as before: each opens when its
+  pull is cleared. At the Fork landing the party picks West or East. The first living party member to cross the
+  threshold trigger of a branch's first room *seals* the branch. The doorway back into the Pair hall and the other
+  branch's doorway close for the rest of the run, and so does the other branch's stair into the Seed chamber.
+  Inside the taken branch every room stays open in both directions, and so does the stair between the branch and the
+  Seed chamber. A party that skipped too much can walk back to a pack it skipped in its own branch. That walk is a
+  time cost the party chose, not a softlock. Nothing reopens a sealed doorway. Dead travel is the most-cited killer
+  of a run's fun (research/02:50-54, :113-114), so a walk back only ever undoes a skip the party made itself.
+- **Optional packs do not gate.** A pack stands beside the walking line with its **aggro ring** drawn on the floor:
+  a 4000 mm grey dashed ring. It is not a danger shape, so it never reads as a telegraph. The whole pack engages at
+  once when a living party member enters its ring, or when party damage or a hazard hits any of its members.
+  Walking the far wall past an untouched ring is a **skip**. Walking into two rings together is a **chain pull**. The
+  read is visual, a radius on the floor, not memorised geography (research/01:106-107).
+- **Backfill** (section 10): a joiner arrives at the next teaching pull or pack engage, inside the party's taken
+  branch.
+
+### 9.2 Enemy forces
+
+- **The bar.** One **Forces** bar, shown under the timer and Slack bars, fills from 0% to 100%. Forces are integer
+  points and **1000 points = 100%**. Each enemy carries a fixed point value from content. The value is credited on
+  the enemy's death tick, whatever killed it, hazards included. Forces never go down: a death or wipe costs Slack
+  (section 8), never forces. The boss, the Sundered Twins and Echo-spawned adds are worth 0, so nothing in the run can
+  be farmed for forces.
+- **Point values** (per enemy; a pack's value is the sum of its members):
+
+| Pack | Where | Members (points each) | Pack points |
+|---|---|---|---|
+| Choir (pull 1) | critical path | 2 Choir Acolyte (40), 1 Choir Cantor (80) | 160 (16%) |
+| Pair (pull 2) | critical path | 5 Paired Warrior (52) | 260 (26%) |
+| Seed (pull 3) | critical path | 1 Seed elite (180) | 180 (18%) |
+| W1 Hound Kennel | West, Undercroft Steps | 4 Hollow Hound (35), 1 Ash Hexer (80) | 220 (22%) |
+| W2 Bellows Crew | West, Bellows Hall (hazard) | 2 Vault Brute (90), 2 Bellows Keeper (70), 1 Ash Hexer (80) | 400 (40%) |
+| E1 Reading Watch | East, Reading Gallery | 2 Choir Acolyte (40), 1 Drowned Chorister (60) | 140 (14%) |
+| E2 Loft Choir | East, Cantor's Loft alcove | 1 Choir Acolyte (40), 1 Choir Cantor (80), 1 Drowned Chorister (60) | 180 (18%) |
+| E3 Floodgate Watch | East, Sluice Gallery (hazard) | 1 Vault Brute (90), 1 Choir Acolyte (40), 1 Drowned Chorister (60), 1 Bellows Keeper (70) | 260 (26%) |
+
+- **The arithmetic is the decision.** The three teaching pulls give 60%, so no run reaches 100% on the critical path
+  alone and every route needs at least one optional pack. **West** offers 122% in all (60 + 22 + 40). W2 alone exactly
+  fills the bar (100%) and W1 alone does not (82%), so West's choice is whether to skip the Kennel and how to take
+  the Crew: alone, or chained with the Kennel down the Steps (620 points in one fight). **East** offers 118% in all
+  (60 + 14 + 18 + 26). E3 is required (without it East peaks at 92%), plus E1 or E2 (100% or 104%). West is fewer,
+  bigger pulls on a short walk. East is more casters in smaller pulls on a longer walk. This is the route puzzle
+  against a required trash percentage that Mythic+ route tools solve (research/06:55-59). The ~20% surplus on either
+  path is what makes a skip a real choice (research/01:29-33).
+
+### 9.3 Packs and the kick economy
+
+Packs mix melee and casters, so the party splits its attention between "where do I stand" and "who do I kick", and
+the ratio changes from pack to pack (research/06:47-50). A party of three has three interrupts per 24 seconds (Q,
+section 2), about one kick every 8 seconds. One caster casting every 9-12 s can be kicked every time, which is the
+Choir's lesson. Two casters cannot, and a chain pull with four cannot. The cost of a bigger pull is how many uncovered
+casts the party chooses to survive (research/01:23-26, research/06:22, :117-121). Every dangerous cast below has a
+cast bar and a floor telegraph that differs from the others by shape and colour (section 3; research/06:100-104,
+:147-151).
+
+**Kickable casters** (four distinct casts across the dungeon; any class's Q interrupts each one):
+
+| Caster | Cast | Cast time | Cooldown | Telegraph | Effect if it lands |
+|---|---|---|---|---|---|
+| Choir Cantor (existing) | **Choral Mending** | 80 ticks (4 s) | 200 ticks | unchanged from the Choir | Heals its pack. Left uncovered, the pack outheals the timer. |
+| Ash Hexer | **Searing Hex** | 50 ticks (2.5 s) | 200 ticks | 1200 mm violet circle under the target, with an inner ring | A magic burn of 25% of the target's max health over 6 s. Cinder's Purge and Chanter's Cleanse remove it, so a missed kick costs an R, not a death. |
+| Bellows Keeper | **Stoke** | 70 ticks (3.5 s) | 240 ticks | 4000 mm ember-orange circle centred on the Keeper, with a toothed edge | Enemies inside gain 30% damage and 20% cast speed for 8 s (**Stoked**). |
+| Drowned Chorister | **Undertow** | 60 ticks (3 s) | 180 ticks | 30-degree sea-green cone from the Chorister toward the target | Pulls the target 5000 mm toward the Chorister and roots it for 1 s. Small damage, but in the Sluice Gallery it drags the target into the next jet. |
+
+**Melee** (not kickable; the dangerous swing is telegraphed and avoided, not kicked):
+- **Choir Acolyte** (existing, `choir.melee`): filler melee.
+- **Hollow Hound**: fast (260 mm/tick), fragile melee. The Kennel's four test cleave and peel for the backline.
+- **Vault Brute**: **Crushing Slam**, a 40-tick (2 s) cast, a 90-degree 3500 mm stone-grey frontal cone, 40% of max
+  health, not interruptible. The tank turns it away from the party (research/06:30).
+
+Kill order, kick assignment and dispel are the pack puzzle. The Choir's lieutenant framing carries over
+(research/06:51-54). The key's Tempo makes every caster cast more often and every telegraph lead less (section 8),
+so the same pack asks for more kicks on a higher key. The packs gain their extra mechanic at keys 5, 10 and 15 by
+the same rule as the teaching pulls. This amendment moves no threshold.
+
+### 9.4 The two hazard rooms
+
+A hazard is an **environment caster**: an untargetable, unkillable room actor whose casts are not interruptible.
+Each cast shows a bar on a room hazard frame under the objective line and a floor telegraph before it resolves, so
+section 3's contract holds for the room exactly as it does for an enemy. Hazards hit enemies as well as players,
+which is what makes them part of pulling and not just damage on the floor. Tempo scales their cadence and lead like
+any cast (the 10-tick lead floor holds). Tide (section 8) does not move them, because they are telegraphs, not floor
+patches.
+
+- **Bellows Hall (West, W2): Vent Gout.** Six floor grates in two rows of three, in set A (1, 3, 5) and set B
+  (2, 4, 6). Every 160 ticks (8 s) one set erupts, alternating A, B, A. Each grate's telegraph is a 2500 mm circle with
+  a white-hot core and a jagged orange edge, leading by 60 ticks. An eruption deals 30% of max health to players and
+  15% to enemies standing in it. The hazard runs from the tick a party member first enters the hall until the Bellows
+  Crew is dead, then stops, so walking back through costs nothing. *Pulling:* the vent cycle is the pull clock. The
+  tank drags the Crew across the set about to erupt while the party stands on the idle set. A Stoked Brute standing
+  in a vent is the same risk turned around.
+- **Sluice Gallery (East, E3): Floodjet.** Two wall nozzles, north and south. Every 200 ticks (10 s) one fires,
+  alternating, as a 90-degree cone of radius 10000 mm from its wall. The telegraph is pale blue with a chevron (wave)
+  edge, leading by 80 ticks. A jet deals 25% of max health and **Drenched** (30% slower movement for 3 s) to players
+  and enemies alike. It runs while the Floodgate Watch lives and a party member is in the gallery. *Pulling:* the
+  tank parks the Watch in the arc about to fire. The kick to time is the Chorister's Undertow, because an Undertow
+  that lands just before a jet drags its target into the arc.
+
+### 9.5 The boss door
+
+The corridor from the Seed chamber to the Warden arena ends at the **Hollow Door**, the gate the Seed's clear used
+to open on its own. It now opens on the first tick on which **both** the Seed pull is cleared **and** Forces are at
+or above 1000 points (100%). While it is shut, the door shows the bar and the shortfall ("Forces 87%"). A party that
+clears the Seed short of 100% walks back into its own branch for a skipped pack. Forces past 100% are shown (for
+example 104%) and do nothing else. The fight beyond the door is unchanged.
+
+### 9.6 The teaching pulls (unchanged lessons)
 
 1. **The Choir** — two melee and a caster lieutenant whose 4-second heal cast must be kicked; teaches the kick
    ledger. Low positional demand.
@@ -185,7 +312,8 @@ Three pulls and a boss, forward-only, no backtracking (research/02). Each pull t
   keybinds), **Key** (stepper, Clause pick, locks on queue), **Queue** (one button; while queued, a role-scarcity
   readout; ready check on pop; a short lock only after a mid-run abandon).
 - **Backfill is in the first playable** (Fellowship's named defect — research/09): a slot that empties mid-run is
-  offered to the queue at the same key; a joiner arrives at the next pull start with the run's Slack.
+  offered to the queue at the same key; a joiner arrives at the next pull start (a teaching pull or a pack engage,
+  section 9.1) with the run's Slack.
 - **No exported score.** Run history is private to the character. Matching uses key level and completion, nothing
   a stranger can read to reject you.
 - **Pings are the communication.** G marks a target or a spot; the game turns it into the party's language
@@ -202,11 +330,13 @@ narrative. The sim, content, bots and client are built so none of these require 
 **From the research** (cited above): the timer spine and one-modifier rule; soft roles and the queue evidence;
 depth from modifiers on a frozen kit; forks not trees; facets not item level; per-run choice of three; transparent
 drop sources; bounded crafting; Ash on every run; telegraph readability rules; sequenced not layered mechanics;
-no single-mistake wipes; the one-screen hub; backfill; no exported score; fixed-tick determinism.
+no single-mistake wipes; the one-screen hub; backfill; no exported score; fixed-tick determinism; route choice
+and pull size against a required enemy-forces percentage; mixed melee and caster packs with priority kicks.
 
 **Keyrun's own judgment**: Windows and Combos as the synergy core; the six named pair-combos; the three classes'
 loops and kits; the Clause pick; Slack instead of flat death penalties; Tempo as the key's scaling axis; the Lock
-as the boss's combo gate; the ten-key table including the ping.
+as the boss's combo gate; the ten-key table including the ping; the branch seal (no backtracking past a taken
+branch); the forces point table; hazards as environment casters that hit enemies too; the Hollow Door rule.
 
 `[DECIDE]` for Matt: the three class identities and names; the combo effects table; key range and par time; whether
 Ascension is visible to other players or private.
