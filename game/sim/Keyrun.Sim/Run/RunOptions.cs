@@ -28,6 +28,28 @@ public sealed record RunOptions
     public IReadOnlyDictionary<int, IReadOnlyDictionary<string, AbilityDef>>? Loadouts { get; init; }
 
     /// <summary>
+    /// The host's affix rotation index (BIBLE s8: "the rotation index comes with the key from the host (the ISO week),
+    /// so the sim stays deterministic"). Its parity picks Fortified or Tyrannical on keys 5-9
+    /// (<see cref="Affixes.AffixesFor"/>) and it selects the key-set Clause (<see cref="ClauseRotation.ForKey"/>).
+    /// </summary>
+    public int RotationIndex { get; init; }
+
+    /// <summary>
+    /// The options a key carries with no pre-queue pick (BIBLE s8): the rotation index and the key-set Clause, or no
+    /// Clause below <paramref name="clauseStartKey"/>. Exactly one Clause or none, never two.
+    /// </summary>
+    /// <param name="clauseIds">Every Clause id content defines.</param>
+    /// <param name="keyLevel">The key level.</param>
+    /// <param name="rotationIndex">The host's rotation index.</param>
+    /// <param name="clauseStartKey">The first key that carries a Clause.</param>
+    /// <returns>The options.</returns>
+    public static RunOptions ForKey(IReadOnlyList<string> clauseIds, int keyLevel, int rotationIndex, int clauseStartKey) => new()
+    {
+        ClauseId = ClauseRotation.ForKey(clauseIds, keyLevel, rotationIndex, clauseStartKey),
+        RotationIndex = rotationIndex,
+    };
+
+    /// <summary>
     /// run-options.ts:92 resolveEncounterRules: <paramref name="clauseId"/> folded onto
     /// <c>content.EncounterRules ?? DefaultEncounterRules(keyLevel)</c>, or that base unchanged when no id is given.
     /// </summary>
