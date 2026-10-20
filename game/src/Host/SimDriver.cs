@@ -171,8 +171,10 @@ public sealed record ArenaOptions(
     /// <summary>Default seed.</summary>
     public const long DefaultSeed = 1;
 
-    /// <summary>Parses user arguments; unknown arguments are ignored (Godot passes them through verbatim).</summary>
-    /// <exception cref="ArgumentException">A flag is missing its value, or a number flag is not a positive integer.</exception>
+    /// <summary>Parses user arguments (Godot passes them through verbatim). An argument this switch does not read goes to
+    /// <see cref="Keyrun.Content.ForeignUserArgs.Skip"/>: Main's and Screen's flags are stepped over, anything else throws.</summary>
+    /// <exception cref="ArgumentException">A flag is missing its value, a number flag is not a positive integer, or an
+    /// argument is unknown.</exception>
     public static ArenaOptions Parse(IReadOnlyList<string> args)
     {
         var autorun = false;
@@ -251,6 +253,11 @@ public sealed record ArenaOptions(
                 case "--write-movie":
                     movie = Value(args, ref i);
                     autorun = true; // proof frames come from the scripted run
+                    break;
+                default:
+                    // CARELESS-SEAT-ARGS (PR #308 run C): an argument nobody reads stops the launch. A build without a
+                    // flag used to drop it silently and run as if it were never passed.
+                    Keyrun.Content.ForeignUserArgs.Skip(args, ref i);
                     break;
             }
         }
