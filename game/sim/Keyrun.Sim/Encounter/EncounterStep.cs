@@ -55,7 +55,8 @@ public static class EncounterStep
 
         // Lane 3F (no TS counterpart): an armed boss resolves its Lock and supplies the Twins' scripts and bar first.
         // Unarmed (Boss null, every oracle run) this is skipped and the step is exactly index.ts stepEncounter.
-        BossPreStep? boss = encounter.Boss is { } armed ? BossRules.PreCombat(state, armed, scripts, emit) : null;
+        // LOCK-TELEGRAPH: the ability views give a cast Lock its castTicks, and the registry holds the boss's own circles.
+        BossPreStep? boss = encounter.Boss is { } armed ? BossRules.PreCombat(state, armed, scripts, emit, abilities, encounter.Telegraphs) : null;
         if (boss is not null)
         {
             scripts = boss.Scripts;
