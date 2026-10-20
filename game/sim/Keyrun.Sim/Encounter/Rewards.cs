@@ -20,8 +20,10 @@ public sealed record Facet(string Id, string Text, string AbilityId);
 public sealed record Item(string Id, string Slot, int Tier, Facet Facet, int Charges);
 
 /// <summary>
-/// End-of-run choice of three (sim/encounter/rewards.ts; BIBLE s7): a pure function of seed, key, result and owned
-/// slots via the xoshiro128** PRNG. The tier band widens with the key; tiers 9-10 only on a timed clear at key 15+.
+/// End-of-run choice of three (sim/encounter/rewards.ts; BIBLE s7): a pure function of seed, key and owned slots via
+/// the xoshiro128** PRNG. The tier band widens with the key; tiers 9-10 at key 15+ whatever the run result (Matt
+/// 2026-10-20, ledger f-baeb031a: loot quality comes from key level, the result pays through the key jump; a
+/// documented break from the frozen rewards.ts, which opened tiers 9-10 only on a timed clear).
 /// The three are never identical (slot, facet, tier), re-drawn up to 20 times on a collision.
 /// </summary>
 public static class Rewards
@@ -32,7 +34,7 @@ public static class Rewards
     /// <summary>Crafting charges a new item starts with (rewards.ts:39).</summary>
     public const int StartingCharges = 2;
 
-    /// <summary>Minimum key, on a timed clear, that can drop tiers 9-10 (rewards.ts:41).</summary>
+    /// <summary>Minimum key that can drop tiers 9-10, for any run result (rewards.ts:41; f-baeb031a).</summary>
     public const int HardBisMinKey = 15;
 
     private const int MaxTier = 10;
@@ -77,12 +79,13 @@ public static class Rewards
     private static int ClampKey(int keyLevel) => Math.Min(20, Math.Max(2, keyLevel));
 
     // rewards.ts:81 tierBand. key >= 2, so (key - 2) / 2 is a non-negative floor (ORACLE.md s8: rewards.ts:83).
-    private static (int Min, int Max) TierBand(int keyLevel, RunResult result)
+    // f-baeb031a: a function of key level only; rewards.ts:85 also required a timed result for tiers 9-10.
+    private static (int Min, int Max) TierBand(int keyLevel)
     {
         var key = ClampKey(keyLevel);
         var b = Math.Min(SoftTierCap, (int)IntMath.FloorDiv(key - 2, 2) + 1);
         var min = Math.Max(1, b - 1);
-        var hardBis = result == RunResult.Timed && key >= HardBisMinKey;
+        var hardBis = key >= HardBisMinKey;
         var max = hardBis ? MaxTier : Math.Min(SoftTierCap, b + 1);
         return (min, max);
     }
@@ -115,7 +118,7 @@ public static class Rewards
     /// <exception cref="ArgumentException">An owned slot is not one of <see cref="GearSlots"/> (the TS would crash
     /// on an undefined facet pool).</exception>
     public static IReadOnlyList<Item> RollRewardChoices(long seed, int keyLevel, RunResult result, IReadOnlyList<string> slotsOwned) =>
-        Roll(seed, keyLevel, result, slotsOwned, PlaceholderPool);
+        Roll(seed, keyLevel, slotsOwned, PlaceholderPool);
 
     /// <summary>
     /// The same roll over a caller-supplied facet pool (lane 3C-c; NEW behaviour, no TS oracle: the TS sim is frozen
@@ -128,7 +131,8 @@ public static class Rewards
     /// </summary>
     /// <param name="seed">Run-end seed (through <see cref="Prng.SeedState(long)"/>).</param>
     /// <param name="keyLevel">Key level.</param>
-    /// <param name="result">Run result.</param>
+    /// <param name="result">Run result. It does not change the roll (f-baeb031a: the tier band is a function of the key
+    /// level only); kept so callers state the result the cards are for.</param>
     /// <param name="slotsOwned">Slots to draw from; empty means all five.</param>
     /// <param name="facetPools">Facets per gear slot, in the order the draw indexes them.</param>
     /// <returns>Three items.</returns>
@@ -141,13 +145,13 @@ public static class Rewards
             facetPools.TryGetValue(slot, out var f) && f.Count > 0
                 ? f
                 : throw new ArgumentException($"no facets for gear slot \"{slot}\"", nameof(facetPools));
-        return Roll(seed, keyLevel, result, slotsOwned, FacetsOf);
+        return Roll(seed, keyLevel, slotsOwned, FacetsOf);
     }
 
-    private static IReadOnlyList<Item> Roll(long seed, int keyLevel, RunResult result, IReadOnlyList<string> slotsOwned, Func<string, IReadOnlyList<Facet>> facetsOf)
+    private static IReadOnlyList<Item> Roll(long seed, int keyLevel, IReadOnlyList<string> slotsOwned, Func<string, IReadOnlyList<Facet>> facetsOf)
     {
         var pool = slotsOwned.Count > 0 ? slotsOwned : GearSlots;
-        var band = TierBand(keyLevel, result);
+        var band = TierBand(keyLevel);
         var state = Prng.SeedState(seed);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var items = new List<Item>(3);

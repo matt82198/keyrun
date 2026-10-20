@@ -32,12 +32,13 @@ public sealed class ContentCountTests
 
         // 19 TS loadContent files from content/data plus the C#-only game/content/data/run.json, layout.json, theme.json,
         // combo-riders.json and the forces + route files forces.json, packs.json and hazards.json (FORCES-ROUTE-PLAN
-        // increment 2).
+        // increment 2), and gear.json (five gear slots, BIBLE section 7).
         string[] csharpOnly =
         {
             "run.json", "layout.json", "theme.json", "combo-riders.json", "forces.json", "packs.json", "hazards.json",
+            "gear.json",
         };
-        Assert.Equal(26, embedded.Length);
+        Assert.Equal(27, embedded.Length);
         Assert.Equal(19, embedded.Count(p => !csharpOnly.Contains(p)));
         Assert.Equal(embedded, loaded);
     }

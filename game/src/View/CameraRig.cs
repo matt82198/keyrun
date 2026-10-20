@@ -10,7 +10,7 @@ namespace Keyrun.View;
 
 /// <summary>
 /// Third-person camera: a pivot that follows the target at shoulder height, turned by mouse look
-/// (yaw unbounded, pitch clamped), with its Camera3D child held up to <see cref="Distance"/> metres behind
+/// (yaw unbounded, pitch clamped), with its Camera3D child held up to <see cref="ZoomMm"/> behind
 /// the pivot along the pivot's +Z, so the camera looks along the pivot's -Z at the target.
 /// CAMERA-FEEL (design/ART-PLAN.md section 8 lane 10), all rules in the pure, tested <see cref="CameraBoom"/>:
 /// <list type="bullet">
@@ -27,16 +27,19 @@ namespace Keyrun.View;
 /// (<see cref="CameraBoom.Occluding"/>) is hidden for that frame by <see cref="DungeonBuilder.CutAway"/>. The same sight
 /// lines go to <see cref="RoomGateView.CutAway"/>, which hides a shut room entry gate they cross by the same rule
 /// (GATE-CUTAWAY).</item>
-/// <item>Party framing (PARTY-FRAMING): each frame <see cref="CameraBoom.FitParty"/> sizes the boom (within
-/// <see cref="MinBoom"/>..<see cref="MaxBoom"/>) so every living party body and the Warden's current target, from
-/// <see cref="BodyBottomMm"/> to <see cref="BodyTopMm"/> above the feet, sit inside the frustum less <see cref="FramePad"/> and above the ability bar
-/// (<see cref="HudBottomPermille"/>). The boom eases toward the fit (<see cref="BoomRate"/>) and the eased boom still
-/// goes through the wall clamp, so the walls win. A pitch change the boom cannot cover (fitted at the clamped boom) is a
-/// separate eased offset (<see cref="PitchRate"/>) on top of the player's <see cref="Pitch"/>, within its clamp and never flatter than
-/// <see cref="FlattestFitPitch"/>; a mouse
-/// pitch folds the offset into <see cref="Pitch"/> and holds it at zero for <see cref="PitchHoldSeconds"/>, so mouse
-/// look stays authoritative. The fit never writes <see cref="Yaw"/>. A fit no boom or pitch solves logs
-/// <c>CAMERA fit unsolvable</c> once per episode and keeps the longest boom.</item>
+/// <item>WoW framing (CAMERA-FRAMING, supersedes PARTY-FRAMING's boom and pitch fit; Matt 2026-10-20 "it should feel
+/// almost exact to wow"): the camera follows the player at the wheel zoom (<see cref="ZoomMm"/>, starting at
+/// <see cref="CameraFraming.DefaultBoomMm"/>, one <see cref="CameraFraming.ZoomStepMm"/> per wheel notch, clamped by
+/// <see cref="CameraFraming.Zoom"/>), pitched <see cref="CameraFraming.DefaultPitchMrad"/> at
+/// <see cref="CameraFraming.VerticalFovDeg"/>, so the player is drawn a quarter to a third of the frame tall. The boom
+/// eases toward the zoom (<see cref="BoomRate"/>) and the eased boom still goes through the wall clamp, so the walls
+/// win. The boom no longer grows to fit the whole party and the camera never pitches on its own: the party frames say
+/// where the bots are, as in WoW. <see cref="CameraBoom.FitParty"/> still runs at the zoom with no pitch room as a
+/// readout only: the audit line's <c>fit=</c> and a <c>CAMERA fit unsolvable</c> line once per episode report a living
+/// party body or the Warden's current target (from <see cref="BodyBottomMm"/> to <see cref="BodyTopMm"/>) out of frame.
+/// Proof line, measured on the drawn camera (<c>Camera3D.UnprojectPosition</c> of the Warden's feet and
+/// <see cref="CameraFraming.PlayerHeightMm"/> above them): <c>CAMERA framing frame=F player=P zoom=Z boom=B</c>, P the
+/// Warden's drawn height in permille of the frame (game/src/View/CameraFramingSceneTest.ps1).</item>
 /// </list>
 /// Render-only: it never writes sim state; <see cref="Yaw"/> is still the heading PlayerInput's WASD reads.
 /// </summary>
@@ -59,13 +62,11 @@ public partial class CameraRig : Node3D
     private readonly List<(int X, int Y, int Z)> _sightTargets = new();
     private readonly List<(int X, int Y, int Z)> _points = new();
     private readonly List<int> _pointIds = new();
-    private bool _fitted;
     private bool _unsolvable;
     private ulong _unsolvedEpisodes;
     private float _boomWant;
-    private float _pitchOffset;
-    private float _pitchHold;
     private int _fitMm;
+    private int _framedPermille = -1;
     private bool _headed;
     private NavLayout? _layout;
     private IReadOnlyList<WallBox> _walls = new List<WallBox>();
@@ -91,37 +92,16 @@ public partial class CameraRig : Node3D
     [Export]
     public NodePath GatesPath { get; set; } = new("../RoomGates");
 
-    /// <summary>Camera distance behind the pivot before there is a party to frame, metres (walls may shorten it).</summary>
-    [Export]
-    public float Distance { get; set; } = 7.5f;
+    /// <summary>The wheel zoom: the boom the camera wants behind the pivot, mm (walls may shorten it).</summary>
+    public int ZoomMm { get; private set; } = CameraFraming.DefaultBoomMm;
 
-    /// <summary>Shortest boom the party fit may choose, metres.</summary>
-    [Export]
-    public float MinBoom { get; set; } = 4.5f;
-
-    /// <summary>Longest boom the party fit may choose, metres (walls may still shorten it).</summary>
-    [Export]
-    public float MaxBoom { get; set; } = 12f;
-
-    /// <summary>Margin kept between a framed point and the frustum edge, metres.</summary>
+    /// <summary>Margin kept between a framed point and the frustum edge in the party readout, metres.</summary>
     [Export]
     public float FramePad { get; set; } = 0.5f;
 
-    /// <summary>The flattest pitch the fit's offset may reach, radians (a flatter view drops the camera to the floor).</summary>
-    [Export]
-    public float FlattestFitPitch { get; set; } = -0.22f;
-
-    /// <summary>How fast the boom eases toward the fit, per second (k = 1 - exp(-dt rate)).</summary>
+    /// <summary>How fast the boom eases toward the zoom, per second (k = 1 - exp(-dt rate)).</summary>
     [Export]
     public float BoomRate { get; set; } = 6f;
-
-    /// <summary>How fast the fit's pitch offset eases in or out, per second.</summary>
-    [Export]
-    public float PitchRate { get; set; } = 3f;
-
-    /// <summary>Seconds after a mouse pitch during which the fit adds no pitch offset.</summary>
-    [Export]
-    public float PitchHoldSeconds { get; set; } = 2f;
 
     /// <summary>Part of the lower half-frame above the ability bar, permille (the bar's top edge is at 57 percent).</summary>
     [Export]
@@ -133,13 +113,13 @@ public partial class CameraRig : Node3D
 
     /// <summary>Pivot height above the target's feet, metres.</summary>
     [Export]
-    public float PivotHeight { get; set; } = 1.4f;
+    public float PivotHeight { get; set; } = CameraFraming.PivotHeightMm * MmToM;
 
     /// <summary>Heading, radians. Pi looks along world +z; -Pi/2 looks along world +x.</summary>
     public float Yaw { get; private set; } = Mathf.Pi;
 
     /// <summary>Pitch, radians (negative looks down).</summary>
-    public float Pitch { get; private set; } = -0.42f;
+    public float Pitch { get; private set; } = CameraFraming.DefaultPitchMrad / 1000f;
 
     /// <summary>The boom length this frame after the wall clamp, metres.</summary>
     public float Boom { get; private set; }
@@ -162,25 +142,40 @@ public partial class CameraRig : Node3D
         Driver = GetNodeOrNull<SimDriver>(DriverPath);
         Dungeon = GetNodeOrNull<DungeonBuilder>(DungeonPath);
         Gates = GetNodeOrNull<RoomGateView>(GatesPath);
-        Boom = Distance;
-        _boomWant = Distance;
+        if (Camera is not null)
+        {
+            // WoW's default lens (CameraFraming.VerticalFovDeg); the rig owns its camera's framing.
+            Camera.Fov = CameraFraming.VerticalFovDeg;
+        }
+        Boom = ZoomMm * MmToM;
+        _boomWant = Boom;
         Apply(0f);
     }
 
-    /// <summary>
-    /// Turns the rig by a mouse delta, radians. A pitch delta first folds the party fit's pitch offset into
-    /// <see cref="Pitch"/> (the view does not jump) and holds the offset at zero for <see cref="PitchHoldSeconds"/>.
-    /// </summary>
+    /// <summary>Turns the rig by a mouse delta, radians (pitch within its clamp).</summary>
     public void Look(float yawDelta, float pitchDelta)
     {
         Yaw = Mathf.Wrap(Yaw + yawDelta, -Mathf.Pi, Mathf.Pi);
-        if (pitchDelta != 0f)
-        {
-            Pitch = Mathf.Clamp(Pitch + _pitchOffset, MinPitch, MaxPitch);
-            _pitchOffset = 0f;
-            _pitchHold = PitchHoldSeconds;
-        }
         Pitch = Mathf.Clamp(Pitch + pitchDelta, MinPitch, MaxPitch);
+    }
+
+    /// <summary>Zooms by mouse-wheel notches (negative is in), within the <see cref="CameraFraming"/> zoom clamp.</summary>
+    public void Zoom(int notches) => ZoomMm = CameraFraming.Zoom(ZoomMm, notches);
+
+    /// <inheritdoc />
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (@event is InputEventMouseButton { Pressed: true } wheel)
+        {
+            if (wheel.ButtonIndex == MouseButton.WheelUp)
+            {
+                Zoom(-1);
+            }
+            else if (wheel.ButtonIndex == MouseButton.WheelDown)
+            {
+                Zoom(1);
+            }
+        }
     }
 
     /// <summary>
@@ -225,20 +220,20 @@ public partial class CameraRig : Node3D
             GlobalPosition = Target.GlobalPosition + new Vector3(0, PivotHeight, 0);
         }
         Rotation = new Vector3(Pitch, Yaw, 0);
-        Boom = Distance;
         if (Camera is null)
         {
+            Boom = ZoomMm * MmToM;
             return;
         }
 
-        FrameParty(dt);
-        Rotation = new Vector3(Mathf.Clamp(Pitch + _pitchOffset, MinPitch, MaxPitch), Yaw, 0);
+        _boomWant = Ease(_boomWant, ZoomMm * MmToM, BoomRate, dt);
         Boom = ClampToWalls(_boomWant, Transform.Basis, out var cut);
         if (cut)
         {
             _clamped++;
         }
         Camera.Position = new Vector3(0, 0, Boom);
+        ReadParty();
         if (_layout is not null && _walls.Count > 0)
         {
             CutAwayOccluders(_layout);
@@ -246,15 +241,13 @@ public partial class CameraRig : Node3D
         }
     }
 
-    // PARTY-FRAMING: the boom eases toward the fit at the player's pitch (Rotation holds (Pitch, Yaw) here); the pitch
-    // offset is fitted at the wall-clamped boom, so a wall that shortens the boom can still be answered by the pitch.
-    private void FrameParty(float dt)
+    // CAMERA-FRAMING: the party fit is a readout at the drawn boom with no pitch room (it never moves the camera): fit=
+    // in the audit line is the boom the fit would want there, and a body it cannot frame logs once per episode.
+    private void ReadParty()
     {
         GatherPoints();
         if (_points.Count == 0)
         {
-            _boomWant = Ease(_boomWant, Distance, BoomRate, dt);
-            _pitchOffset = Ease(_pitchOffset, 0f, PitchRate, dt);
             return;
         }
         var basis = Transform.Basis;
@@ -263,24 +256,12 @@ public partial class CameraRig : Node3D
         var up = ToPermille(basis.Y);
         var (tanH, tanUp, tanDown) = Tangents();
         var pad = Mathf.RoundToInt(FramePad / MmToM);
-        var minMm = Mathf.RoundToInt(MinBoom / MmToM);
-        var maxMm = Math.Max(minMm, Mathf.RoundToInt(MaxBoom / MmToM));
-        var downRoom = Math.Max(0, Mathf.FloorToInt((Pitch - MinPitch) * 1000f));
-        var upRoom = Math.Max(0, Mathf.FloorToInt((Mathf.Min(MaxPitch, FlattestFitPitch) - Pitch) * 1000f));
+        var boomMm = Math.Max(1, Mathf.RoundToInt(Boom / MmToM));
 
-        var fit = CameraBoom.FitParty(pivot, forward, up, _points, tanH, tanUp, tanDown, pad, minMm, maxMm, downRoom, upRoom);
+        var fit = CameraBoom.FitParty(pivot, forward, up, _points, tanH, tanUp, tanDown, pad, boomMm, boomMm, 0, 0);
         _fitMm = fit.BoomMm;
-        var want = fit.BoomMm * MmToM;
-        _boomWant = _fitted ? Ease(_boomWant, want, BoomRate, dt) : want;
-        _fitted = true;
 
-        var clampedMm = Mathf.RoundToInt(ClampToWalls(_boomWant, basis, out _) / MmToM);
-        var atWall = CameraBoom.FitParty(pivot, forward, up, _points, tanH, tanUp, tanDown, pad, clampedMm, clampedMm, downRoom, upRoom);
-        _pitchHold = Math.Max(0f, _pitchHold - dt);
-        var pitchWant = _pitchHold > 0f ? 0f : atWall.PitchMrad / 1000f;
-        _pitchOffset = Ease(_pitchOffset, pitchWant, PitchRate, dt);
-
-        var unsolvable = !fit.Solved && fit.BoomMm == maxMm;
+        var unsolvable = !fit.Solved;
         if (unsolvable && !_unsolvable)
         {
             _unsolvedEpisodes++;
@@ -428,11 +409,37 @@ public partial class CameraRig : Node3D
             _outside++;
             GD.Print(FormattableString.Invariant($"CAMERA outside frame={_frames} at=({x},{z})"));
         }
+        if (_frames % 60 == 0)
+        {
+            MeasureFraming();
+            GD.Print(FormattableString.Invariant(
+                $"CAMERA framing frame={_frames} player={_framedPermille} zoom={ZoomMm} boom={Boom:F2} pitch={Pitch:F3} fov={Camera.Fov:F1}"));
+        }
         if (_frames == 120 || _frames % 600 == 0)
         {
             GD.Print(FormattableString.Invariant(
-                $"CAMERA audit frame={_frames} clamped={_clamped} outside={_outside} cut={_occluded.Count} maxcut={_maxCut} boom={Boom:F2} fit={_fitMm} pitchoff={_pitchOffset:F3} unsolved={_unsolvedEpisodes}"));
+                $"CAMERA audit frame={_frames} clamped={_clamped} outside={_outside} cut={_occluded.Count} maxcut={_maxCut} boom={Boom:F2} fit={_fitMm} unsolved={_unsolvedEpisodes}"));
         }
+    }
+
+    // The Warden's drawn height on the real camera: its feet and CameraFraming.PlayerHeightMm above them projected to the
+    // viewport, permille of the viewport height (-1 when either point is behind the camera or there is no target).
+    private void MeasureFraming()
+    {
+        _framedPermille = -1;
+        var size = GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero;
+        if (Target is null || Camera is null || size.Y <= 0f)
+        {
+            return;
+        }
+        var feet = Target.GlobalPosition;
+        var head = feet + new Vector3(0, CameraFraming.PlayerHeightMm * MmToM, 0);
+        if (Camera.IsPositionBehind(feet) || Camera.IsPositionBehind(head))
+        {
+            return;
+        }
+        var span = Camera.UnprojectPosition(feet).Y - Camera.UnprojectPosition(head).Y;
+        _framedPermille = Mathf.RoundToInt(span / size.Y * 1000f);
     }
 
     private static (int X, int Z) ToMm(float x, float z) => (Mathf.RoundToInt(x / MmToM), Mathf.RoundToInt(z / MmToM));
