@@ -137,53 +137,6 @@ public sealed class AffixesTests
         Assert.Throws<ClauseAlreadyActiveException>(() => Clauses.ApplyClause(rules, ClauseDefs[other]));
     }
 
-    // Finding f-319aced5 (Matt 2026-10-20, "affixes follow current WoW"): the game's run must actually rotate. The host
-    // derives the rotation index from the run seed (Affixes.RotationIndexFor), so a replay with the same seed and key
-    // rebuilds the same affixes and Clause, and consecutive seeds take turns, as WoW's weeks do. The host now takes the
-    // ISO week instead (Keyrun.Host.AffixWeek, Host/AffixWeekTests.cs); these pin the seed function itself.
-    [Theory]
-    [InlineData(1L, 4, false, false)]
-    [InlineData(1L, 5, false, true)]
-    [InlineData(1L, 9, false, true)]
-    [InlineData(1L, 10, true, true)]
-    [InlineData(2L, 4, false, false)]
-    [InlineData(2L, 5, true, false)]
-    [InlineData(2L, 9, true, false)]
-    [InlineData(2L, 10, true, true)]
-    public void A_seeds_rotation_gives_none_below_5_one_from_5_to_9_and_both_from_10(long seed, int key, bool fortified, bool tyrannical)
-    {
-        Assert.Equal(new KeyAffixes(fortified, tyrannical), Affixes.AffixesFor(BibleTable, key, Affixes.RotationIndexFor(seed)));
-    }
-
-    [Theory]
-    [InlineData(1L, 1)]
-    [InlineData(2L, 2)]
-    [InlineData(7L, 7)]
-    [InlineData(0L, 0)]
-    [InlineData(-1L, int.MaxValue)]
-    [InlineData(long.MaxValue, int.MaxValue)]
-    [InlineData(0x1_0000_0003L, 3)]
-    public void The_rotation_index_is_a_pure_non_negative_function_of_the_seed(long seed, int expected)
-    {
-        Assert.Equal(expected, Affixes.RotationIndexFor(seed));
-        Assert.Equal(Affixes.RotationIndexFor(seed), Affixes.RotationIndexFor(seed));
-    }
-
-    [Fact]
-    public void Consecutive_seeds_alternate_Fortified_and_Tyrannical_on_a_key_7_and_cycle_every_Clause()
-    {
-        var seen = new List<string>();
-        var clauses = new HashSet<string>(StringComparer.Ordinal);
-        for (long seed = 1; seed <= 8; seed++)
-        {
-            var rotation = Affixes.RotationIndexFor(seed);
-            seen.Add(string.Join("+", Affixes.AffixesFor(BibleTable, 7, rotation).Names));
-            clauses.Add(RunOptions.ForKey(ClauseIds, 7, rotation, 5).ClauseId!);
-        }
-        Assert.Equal(new[] { "Tyrannical", "Fortified", "Tyrannical", "Fortified", "Tyrannical", "Fortified", "Tyrannical", "Fortified" }, seen);
-        Assert.Equal(4, clauses.Count);
-    }
-
     [Fact]
     public void Key_4_carries_neither_an_affix_nor_a_Clause()
     {

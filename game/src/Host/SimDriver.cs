@@ -136,6 +136,10 @@ public sealed class TickAccumulator
 /// <param name="BotsHold">Scene-test seam (<c>--bots-hold</c>, lane PARTY-TOGETHER): the bot seats spawn as usual but the
 /// host applies none of their commands, so they stand and take no action (HudSceneTest run I's wipe source: nobody
 /// fights). The bots library is untouched; only the host's per-step sample is skipped. Default false.</param>
+/// <param name="Rotation">Weekly affix rotation override (<c>--rotation N</c>, N &gt;= 0): pins a live run's rotation
+/// index (<see cref="AffixWeek.ForRun"/>) instead of the week since the last Tuesday 15:00 UTC reset, so an
+/// <c>--autorun</c> or <c>--record-input</c> scene test at keys 5-9 never depends on the date. On a replay the log's
+/// recorded index wins. Null = the clock.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -153,7 +157,8 @@ public sealed record ArenaOptions(
     string? RecordInput = null,
     string? ReplayInput = null,
     YawPlan? PressYaw = null,
-    bool BotsHold = false)
+    bool BotsHold = false,
+    int? Rotation = null)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -180,6 +185,7 @@ public sealed record ArenaOptions(
         var pull = 1;
         var solo = false;
         var botsHold = false;
+        int? rotation = null;
         var requeue = false;
         SeatAbandonPlan? abandon = null;
         int? joinerKey = null;
@@ -197,6 +203,9 @@ public sealed record ArenaOptions(
                     break;
                 case "--solo":
                     solo = true;
+                    break;
+                case "--rotation":
+                    rotation = AffixWeek.ParseOverride(Value(args, ref i));
                     break;
                 case "--bots-hold":
                     botsHold = true;
@@ -246,7 +255,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, rotation);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -429,8 +438,9 @@ public partial class SimDriver : Node
     public HostRunSetup? Setup { get; private set; }
 
     /// <summary>
-    /// The weekly affix rotation index every run of this launch is built with (<see cref="AffixWeek"/>): this ISO
-    /// week's, taken once at launch from the wall clock, or the replayed input log's recorded index. It goes into the
+    /// The weekly affix rotation index every run of this launch is built with (<see cref="AffixWeek"/>): the week
+    /// since the last US reset (Tuesday 15:00 UTC), taken once at launch from the UTC clock, or <c>--rotation N</c>, or the
+    /// replayed input log's recorded index. It goes into the
     /// setup (the screen's affix line reads it there), the run's <see cref="RunOptions.RotationIndex"/> and the
     /// <c>--record-input</c> log header.
     /// </summary>
@@ -495,12 +505,13 @@ public partial class SimDriver : Node
         {
             Options = ArenaOptions.Parse(OS.GetCmdlineUserArgs());
             Registry = ContentLoader.Load();
-            // The weekly affix rotation (AffixWeek, Matt 2026-10-20 "lean into m+ design"): a live run takes this ISO
-            // week's index from the wall clock, here in the host, never in the sim; a --replay-input run takes the index
-            // its log recorded, never today's. Read the log first so the setup is built at the recorded index.
+            // The weekly affix rotation (AffixWeek, Matt 2026-10-20 "lean into m+ design"): a live run takes the index
+            // of the week since the last US reset (Tuesday 15:00 UTC), read from the UTC clock here in the host, never in
+            // the sim, unless --rotation N pins it; a --replay-input run takes the index its log recorded, never the
+            // clock. Read the log first so the setup is built at the recorded index.
             _replayLog = !Options.Autorun && Options.ReplayInput is { } replayPath ? InputLog.Load(replayPath) : null;
             RotationIndex = AffixWeek.ForRun(
-                _replayLog is not null, _replayLog?.RotationIndex, DateOnly.FromDateTime(DateTime.Now), AffixWeek.RotationLength(Registry.Clauses.Count));
+                _replayLog is not null, _replayLog?.RotationIndex, Options.Rotation, DateTime.UtcNow, AffixWeek.RotationLength(Registry.Clauses.Count));
             Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: RotationIndex);
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _player = GetNode<PlayerInput>(InputPath);

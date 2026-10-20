@@ -5,21 +5,23 @@ using System.Text.Json;
 namespace Keyrun.Host;
 
 /// <summary>
-/// The weekly affix rotation (BIBLE s8 "the rotation index comes with the key from the host (the ISO week)"; Matt
-/// 2026-10-20, "lean into m+ design heavily while in the dungeon"). Like WoW's Mythic+ weeks, every run started in the
-/// same ISO week gets the same rotation index, so the same Fortified/Tyrannical parity and the same key-set Clause, and
-/// the index moves on by one each week. It lives in the host, never the sim: the sim stays pure and takes the index as
-/// an input (<see cref="Keyrun.Sim.Runs.RunOptions.RotationIndex"/>). A run's index is recorded in its input-log header
-/// (<see cref="HeaderField"/>), and a replay builds its run from that recorded index, never from the replay's own date.
-/// Godot-free so Keyrun.Sim.Tests can drive it.
+/// The weekly affix rotation (BIBLE s8 "the rotation index comes with the key from the host"; Matt 2026-10-20, "lean
+/// into m+ design heavily while in the dungeon"). As in WoW's Mythic+, the week rolls at the US weekly reset, Tuesday
+/// 15:00 UTC: every run started between two resets gets the same rotation index, so the same Fortified/Tyrannical parity
+/// and the same key-set Clause, and the index moves on by one at each reset. It lives in the host, never the sim: the sim
+/// stays pure and takes the index as an input (<see cref="Keyrun.Sim.Runs.RunOptions.RotationIndex"/>). A run's index
+/// is recorded in its input-log header (<see cref="HeaderField"/>), and a replay builds its run from that recorded index,
+/// never from the clock. Godot-free so Keyrun.Sim.Tests can drive it.
 /// </summary>
 public static class AffixWeek
 {
     /// <summary>The input-log header field that records a run's index.</summary>
     public const string HeaderField = "rotationIndex";
 
-    /// <summary>Monday of ISO 2026-W01 (2025-12-29), the week whose index is 0.</summary>
-    public static readonly DateOnly EpochMonday = DateOnly.FromDateTime(ISOWeek.ToDateTime(2026, 1, DayOfWeek.Monday));
+    /// <summary>The US weekly reset (Tuesday 2025-12-30 15:00 UTC) that opens the week whose index is 0.</summary>
+    public static readonly DateTime EpochReset = new(2025, 12, 30, 15, 0, 0, DateTimeKind.Utc);
+
+    private const long TicksPerWeek = TimeSpan.TicksPerDay * 7;
 
     /// <summary>
     /// The rotation's length in weeks: the least common multiple of the affix parity (2, <see
@@ -42,34 +44,56 @@ public static class AffixWeek
     }
 
     /// <summary>
-    /// The index for a run started on <paramref name="date"/>: whole ISO weeks since <see cref="EpochMonday"/>, wrapped
-    /// into [0, <paramref name="rotationLength"/>). Every day of one ISO week (Monday to Sunday, including a week that
-    /// straddles New Year) gets the same index; the next week gets the next one.
+    /// The index for a run started at <paramref name="utcNow"/>: whole weekly resets (Tuesday 15:00 UTC) since
+    /// <see cref="EpochReset"/>, floored, wrapped into [0, <paramref name="rotationLength"/>). Monday night and Tuesday
+    /// 14:59 UTC share the old week; Tuesday 15:00 UTC opens the next one. Integer tick math, no rounding.
     /// </summary>
-    /// <param name="date">The wall-clock date at run start.</param>
+    /// <param name="utcNow">The run's start instant; must be <see cref="DateTimeKind.Utc"/>.</param>
     /// <param name="rotationLength">From <see cref="RotationLength"/>.</param>
     /// <returns>The index.</returns>
-    public static int IndexFor(DateOnly date, int rotationLength)
+    /// <exception cref="ArgumentException"><paramref name="utcNow"/> is not a UTC time.</exception>
+    public static int IndexFor(DateTime utcNow, int rotationLength)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(rotationLength, 1);
-        var dt = date.ToDateTime(TimeOnly.MinValue);
-        var monday = DateOnly.FromDateTime(ISOWeek.ToDateTime(ISOWeek.GetYear(dt), ISOWeek.GetWeekOfYear(dt), DayOfWeek.Monday));
-        var weeks = (monday.DayNumber - EpochMonday.DayNumber) / 7; // exact: both are Mondays
-        return ((weeks % rotationLength) + rotationLength) % rotationLength;
+        if (utcNow.Kind != DateTimeKind.Utc)
+        {
+            throw new ArgumentException($"the affix week is computed in UTC, got a {utcNow.Kind} time", nameof(utcNow));
+        }
+        var ticks = (utcNow - EpochReset).Ticks;
+        var weeks = ticks >= 0 ? ticks / TicksPerWeek : -((-ticks + TicksPerWeek - 1) / TicksPerWeek);
+        return (int)(((weeks % rotationLength) + rotationLength) % rotationLength);
     }
 
     /// <summary>
-    /// The index a run is built with. A live run takes <paramref name="today"/>'s week. A replay takes the index its log
-    /// recorded and never reads <paramref name="today"/>; a log written before the header carried one replays at 0, the
-    /// index the host used when those logs were recorded.
+    /// The <c>--rotation N</c> host override: a non-negative integer that pins a live run's index, so a scene test at
+    /// keys 5-9 never depends on the date.
+    /// </summary>
+    /// <param name="raw">The flag's value.</param>
+    /// <returns>The index.</returns>
+    /// <exception cref="ArgumentException">Not a non-negative integer.</exception>
+    public static int ParseOverride(string raw)
+    {
+        if (!int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var n))
+        {
+            throw new ArgumentException($"--rotation needs a non-negative integer, got '{raw}'");
+        }
+        return n;
+    }
+
+    /// <summary>
+    /// The index a run is built with. A live run takes <paramref name="overrideIndex"/> (<c>--rotation N</c>) when given,
+    /// else this week's (<see cref="IndexFor"/>). A replay never reads the clock: the log's recorded index wins, then the
+    /// override, then 0 (a log written before the header carried an index replays at 0, the index the host used when
+    /// those logs were recorded).
     /// </summary>
     /// <param name="replaying">True when the launch replays an input log.</param>
     /// <param name="recorded">The log's recorded index, or null when it has none.</param>
-    /// <param name="today">The wall-clock date at run start.</param>
+    /// <param name="overrideIndex">The <c>--rotation N</c> value, or null.</param>
+    /// <param name="utcNow">The run's start instant (UTC); read only on a live run without an override.</param>
     /// <param name="rotationLength">From <see cref="RotationLength"/>.</param>
     /// <returns>The index.</returns>
-    public static int ForRun(bool replaying, int? recorded, DateOnly today, int rotationLength) =>
-        replaying ? recorded ?? 0 : IndexFor(today, rotationLength);
+    public static int ForRun(bool replaying, int? recorded, int? overrideIndex, DateTime utcNow, int rotationLength) =>
+        replaying ? recorded ?? overrideIndex ?? 0 : overrideIndex ?? IndexFor(utcNow, rotationLength);
 
     /// <summary>The header line the input log writes (two-space indent, trailing comma, LF).</summary>
     /// <param name="index">The run's index.</param>

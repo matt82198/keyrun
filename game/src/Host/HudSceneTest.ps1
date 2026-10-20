@@ -317,7 +317,7 @@ function Get-StartHeadingText([string]$path) {
 }
 
 # The weekly affix rotation (AffixWeek.cs): every recording carries a "rotationIndex" header line, the index the run was
-# built with (this ISO week's on a live run, the replayed log's on a replay, 0 for a log that has none). The committed
+# built with (this reset week's, Tuesday 15:00 UTC, or --rotation N's on a live run, the replayed log's on a replay, 0 for a log that has none). The committed
 # examples predate the field, so the byte comparisons leave that one line out and assert it separately.
 function Get-RotationIndexText([string]$path) {
     if (-not (Test-Path -LiteralPath $path)) { return $null }
