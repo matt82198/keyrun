@@ -107,7 +107,10 @@ public static class RunWiring
         foreach (var kv in abilities)
         {
             var def = kv.Value;
-            views[kv.Key] = new ScriptAbility(def.Id, def.Range, ShapeKindJs(def.Shape.Kind), def.Effects.Any(op => op is HealOp), def.CastTicks);
+            views[kv.Key] = new ScriptAbility(def.Id, def.Range, ShapeKindJs(def.Shape.Kind), def.Effects.Any(op => op is HealOp), def.CastTicks)
+            {
+                Def = def,
+            };
         }
         return views;
     }

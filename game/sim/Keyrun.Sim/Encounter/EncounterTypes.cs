@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
@@ -47,6 +48,15 @@ public sealed record TelegraphSpec(string Shape, int LeadTicks)
 
     /// <summary>Line full width, mm.</summary>
     public long? Width { get; init; }
+
+    /// <summary>
+    /// SLAM-TELEGRAPH (BIBLE s3, "a floor telegraph drawn ahead of resolution"): when true the telegraph resolves on
+    /// the tick the cast LANDS (the script's fire tick plus the ability's <see cref="ScriptAbility.CastTicks"/>) and is
+    /// announced <see cref="LeadTicks"/> before that, so with a lead of at least the cast time it stays on the floor for
+    /// the whole cast bar. False (the default, and the frozen TS rule): it resolves on the fire tick, when the cast
+    /// starts. C#-only; oracle replays never apply it (tools/Keyrun.Replay RunSetup clears it).
+    /// </summary>
+    public bool SpansCast { get; init; }
 }
 
 /// <summary>
@@ -88,8 +98,16 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
 /// <param name="Range">Range in mm (<c>def.range</c>).</param>
 /// <param name="ShapeKind"><c>def.shape.kind</c>: "target", "self", "circle", "cone" or "line".</param>
 /// <param name="Heals">True when any effect op is <c>"heal"</c> (script-target.ts:61 isHealAbility).</param>
-/// <param name="CastTicks"><c>def.castTicks</c>; above 0 the cast stays in flight (deferred-casts.ts leavesCastInFlight).</param>
-public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals, int CastTicks = 0);
+/// <param name="CastTicks"><c>def.castTicks</c>; above 0 the cast stays in flight (deferred-casts.ts leavesCastInFlight), and
+/// a <see cref="TelegraphSpec.SpansCast"/> telegraph spans it.</param>
+public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals, int CastTicks = 0)
+{
+    /// <summary>
+    /// The full definition, for <see cref="Casting.StartError"/>: a <see cref="TelegraphSpec.SpansCast"/> telegraph is
+    /// drawn only when its cast would start. Null = unknown (the check is skipped).
+    /// </summary>
+    public AbilityDef? Def { get; init; }
+}
 
 /// <summary>One enemy a pull spawns (sim/encounter/pulls.ts:17 PullSpawn).</summary>
 /// <param name="ActorId">Actor id.</param>
