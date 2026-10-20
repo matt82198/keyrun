@@ -226,25 +226,29 @@ CC0 needs no attribution; the file exists so the provenance is on disk.
 
 ## 7. Proof per D15
 
-Every lane that changes anything visible ships PNG frames plus an mp4 of run C into
-C:/Users/Mattt/Desktop/keyrun-screens/<lane>/ and the orchestrator views them before accepting.
+Every lane that changes anything visible is proved by PNG frames plus an mp4 of run C in
+C:/Users/Mattt/Desktop/keyrun-screens/<lane>/, and the orchestrator views them before accepting. Lanes never launch
+the game or run the recorder: the orchestrator makes the captures as its single-instance step, one at a time (the
+recorder takes the machine-wide launch lock, tools/godot/launch-lock.ps1, and exits 5 while another Godot instance
+holds it). A lane's hand-back says which frames it needs (run C, Entrance, a longer -MaxSeconds) and what they must show.
 
-- Tool: tools/godot/screens.ps1 (being promoted by lane SCREENS-TOOL on feat/screens-tool; this plan does not write
-  it). Flags: `-OutDir <dir>` (required), `-IntervalSeconds 4`, `-MaxSeconds 150`, `-Name run`, `-NoVideo`, and
+- Tool: tools/godot/screens.ps1. Flags: `-OutDir <dir>` (required), `-IntervalSeconds 4`, `-MaxSeconds 150`, `-Name run`, `-NoVideo`, and
   `-GodotArgs` whose default is run C: `--path game --fixed-fps 60 --resolution 1280x720 --position 0,0 -- --autorun
   --ticks 7000 --key 2 --seed 1 --log build/screens-run.txt`. Frames are named `<name>-NNN-tXXXs.png` by elapsed
   seconds; the mp4 is made with ffmpeg 9.0.1 (on PATH on this box).
-- Command: `powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/screens.ps1 -OutDir
-  C:/Users/Mattt/Desktop/keyrun-screens/<lane> -Name <lane>`. After lane 1 the route is longer, so a lane raises
-  `-MaxSeconds` until the run-end panel is in the last frame.
-- Entrance frames: autorun skips the screen (SimDriver.cs:430), so lanes that touch the Entrance also capture a
-  non-autorun launch (the screen opens first) with `-GodotArgs` lacking `--autorun` and `-MaxSeconds 10`.
-- The hand-back names at least six frames by file name and says what each shows against the section 2 rule.
+- Orchestrator command: `powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/screens.ps1 -OutDir
+  C:/Users/Mattt/Desktop/keyrun-screens/<lane> -Name <lane>`. After lane 1 the route is longer, so the orchestrator
+  raises `-MaxSeconds` until the run-end panel is in the last frame (clamped to `KEYRUN_GODOT_TIMEOUT_SEC`, default 300).
+- Entrance frames: autorun skips the screen (SimDriver.cs:430), so for lanes that touch the Entrance the orchestrator
+  also captures a non-autorun launch (the screen opens first) with `-GodotArgs` lacking `--autorun` and `-MaxSeconds 10`.
+- The orchestrator's acceptance names at least six frames by file name and says what each shows against the section 2
+  rule.
 
 ## 8. Lanes (Phase 3.5 "Look and route"; one PR each)
 
 Every lane: Opus per D11 (development); its recon and its docs bookkeeping on Haiku. Every lane keeps `SMOKE ok`,
-game.yml green, `npx vitest run tests/oracle` green with the committed manifest, and ships the section 7 frames.
+game.yml green, `npx vitest run tests/oracle` green with the committed manifest, and is proved by the section 7
+frames, which the orchestrator captures (lanes never launch the game).
 Off-limits for every lane unless listed as owned: content/data/**, tests/oracle/**, sim/**, bots/src/**, client/**,
 server/**, .github/**, STATE.md (orchestrator), other lanes' files.
 
