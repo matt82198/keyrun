@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" path="res://scenes/RunEnd.tscn" id="5_runend"]
 [ext_resource type="Script" path="res://src/Hud/CombatText.cs" id="6_combattext"]
 [ext_resource type="Script" path="res://src/Hud/UnitFrames.cs" id="7_unitframes"]
+[ext_resource type="Script" path="res://src/Hud/BreakBar.cs" id="8_breakbar"]
 
 [node name="HudRoot" type="Control"]
 layout_mode = 3
@@ -65,6 +66,16 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("7_unitframes")
+
+[node name="BreakBar" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("8_breakbar")
 
 [node name="Pings" type="Control" parent="."]
 layout_mode = 1
