@@ -60,7 +60,7 @@ public sealed record MovementConfig
 public static class Movement
 {
     /// <summary>
-    /// Space dash (D10 placeholder, design/BIBLE.md does not define it): a dash command moves this many mm in
+    /// Space dash (placeholder; no recorded decision, and design/BIBLE.md does not define it): a dash command moves this many mm in
     /// one tick through <see cref="ApplyMovement(ActorState, Dir2, long, long, int)"/>, so movement modifiers scale it.
     /// </summary>
     public const long DashDistanceMm = 3000;
