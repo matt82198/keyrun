@@ -15,7 +15,22 @@ public sealed record CastContext(
 {
     /// <summary>The step's Clause hooks (the TS reads them from clause-hooks.ts module state). Default: no Clause.</summary>
     public ClauseHooks Hooks { get; init; } = new(null);
+
+    /// <summary>
+    /// Class id to its Heat/Overheat rule (BIBLE section 5 Cinder), or null for none. Null on every oracle run: the
+    /// Overheat is new behaviour with no TS oracle and runs only when a host sets it (<see cref="RulesConfig.Overheat"/>).
+    /// </summary>
+    public IReadOnlyDictionary<string, OverheatRule>? Overheat { get; init; }
 }
+
+/// <summary>
+/// BIBLE section 5 (Cinder): "Heat rises per cast. At 100 the next cast is a free Overheat that dumps Heat to 0 and
+/// applies Chill (slower casts for 3 s)." Heat is the class's loop resource; each ability's own resource ops raise it.
+/// </summary>
+/// <param name="Threshold">Heat at or above which the next cast is the Overheat (the class loop max, 100).</param>
+/// <param name="ChillEffectId">The effect the Overheat applies to the caster (content effects "chill", hasteBp -3000).</param>
+/// <param name="ChillTicks">Chill duration, ticks (60 = 3 s at 20 Hz).</param>
+public sealed record OverheatRule(long Threshold, string ChillEffectId, int ChillTicks);
 
 /// <summary>
 /// Port of sim/combat/casting.ts: the cast lifecycle. startCast validates silence, GCD/charges, cost, school lockout
@@ -61,10 +76,15 @@ public static class Casting
     /// <param name="point">The command's ground point, or null (unused, as in the TS).</param>
     /// <param name="now">Current tick.</param>
     /// <param name="hooks">The step's Clause hooks, or null for none.</param>
+    /// <param name="ctx">The step's cast context (its <see cref="CastContext.Overheat"/> rule), or null for none.</param>
     /// <returns>Null on success, else the error code.</returns>
-    public static string? StartCast(SimState state, ActorState actor, AbilityDef def, int? targetId, Vec3? point, int now, ClauseHooks? hooks = null)
+    public static string? StartCast(SimState state, ActorState actor, AbilityDef def, int? targetId, Vec3? point, int now, ClauseHooks? hooks = null, CastContext? ctx = null)
     {
         _ = point;
+        hooks ??= ctx?.Hooks;
+        var rule = OverheatRuleOf(ctx, actor);
+        // BIBLE section 5: at the threshold the next cast is the Overheat, and the Overheat is free.
+        var overheat = rule is not null && actor.Resource >= rule.Threshold;
         if (hooks is not null && hooks.IsSilenced(now))
         {
             return "silenced";
@@ -73,7 +93,7 @@ public static class Casting
         {
             return "not_ready";
         }
-        if (actor.Resource < def.Cost.Amount)
+        if (!overheat && actor.Resource < def.Cost.Amount)
         {
             return "insufficient_resource";
         }
@@ -96,18 +116,67 @@ public static class Casting
                 return "out_of_range";
             }
         }
-        actor.Resource -= def.Cost.Amount;
+        if (!overheat)
+        {
+            actor.Resource -= def.Cost.Amount;
+        }
         Cooldowns.ConsumeCharge(actor, def, now);
         Cooldowns.StartGcd(actor, now, def.GcdTicks);
         actor.CastId = def.Id;
         actor.CastStartTick = now;
-        actor.CastEndsTick = now + def.CastTicks;
+        actor.CastEndsTick = now + ChilledCastTicks(actor, def.CastTicks, rule, ctx, now);
+        actor.CastIsOverheat = overheat;
         if (targetId is not null)
         {
             actor.TargetId = targetId;
         }
-        Threat.AddMomentumSpentThreat(state, actor, def.Cost);
+        if (!overheat)
+        {
+            Threat.AddMomentumSpentThreat(state, actor, def.Cost);
+        }
         return null;
+    }
+
+    private static OverheatRule? OverheatRuleOf(CastContext? ctx, ActorState actor) =>
+        ctx?.Overheat is { } rules && rules.TryGetValue(actor.ClassId, out var rule) ? rule : null;
+
+    /// <summary>
+    /// BIBLE section 5 Chill, "slower casts": while the caster holds its rule's Chill, a cast takes
+    /// castTicks * 10000 / (10000 + hasteBp) ticks (floor; Chill's hasteBp -3000 makes 20 ticks 28). An instant cast
+    /// stays instant. No rule, no Chill, or a Chill with no haste penalty leaves the content cast time unchanged.
+    /// </summary>
+    private static int ChilledCastTicks(ActorState actor, int castTicks, OverheatRule? rule, CastContext? ctx, int now)
+    {
+        if (rule is null || ctx is null || castTicks <= 0 || !ctx.Effects.TryGetValue(rule.ChillEffectId, out var chill))
+        {
+            return castTicks;
+        }
+        var haste = chill.Modifiers.HasteBp ?? 0;
+        var chilled = actor.Effects.Exists(e => e.EffectId == rule.ChillEffectId && e.EndsTick > now);
+        if (!chilled || haste >= 0 || Effects.BpDenom + haste <= 0)
+        {
+            return castTicks;
+        }
+        return (int)IntMath.FloorDiv(castTicks * Effects.BpDenom, Effects.BpDenom + haste);
+    }
+
+    /// <summary>
+    /// The Overheat's completion (BIBLE section 5): Heat dumps to 0 (after the cast's own resource ops, so its Heat
+    /// gain is dumped too), the caster gains its rule's Chill for ChillTicks, and an "overheat" event is emitted.
+    /// </summary>
+    private static void CompleteOverheat(SimState state, ActorState actor, AbilityDef def, CastContext ctx, Action<SimEvent> emit)
+    {
+        var rule = OverheatRuleOf(ctx, actor);
+        if (rule is null)
+        {
+            return;
+        }
+        actor.Resource = 0;
+        if (ctx.Effects.TryGetValue(rule.ChillEffectId, out var chill))
+        {
+            Effects.ApplyEffectInstance(actor, chill, actor.Id, rule.ChillTicks, 1, state.Tick);
+        }
+        emit(new SimEvent(state.Tick, "overheat", ("actorId", JsValue.Int(actor.Id)), ("abilityId", JsValue.Str(def.Id))));
     }
 
     private static void ClearCast(ActorState actor)
@@ -115,6 +184,7 @@ public static class Casting
         actor.CastId = null;
         actor.CastStartTick = null;
         actor.CastEndsTick = null;
+        actor.CastIsOverheat = false;
     }
 
     /// <summary>sim/combat/casting.ts:89-93 stopcast: emits "cast_stopped" and clears the cast; no-op when idle.</summary>
@@ -179,6 +249,10 @@ public static class Casting
             {
                 Mitigation.CreditResource(actor, r.Delta);
             }
+        }
+        if (actor.CastIsOverheat)
+        {
+            CompleteOverheat(state, actor, def, ctx, emit);
         }
         emit(new SimEvent(state.Tick, "cast_complete", ("actorId", JsValue.Int(actor.Id)), ("abilityId", JsValue.Str(def.Id))));
         ClearCast(actor);
