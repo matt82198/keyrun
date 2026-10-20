@@ -225,7 +225,7 @@ public static class RunRoot
             foreach (var pack in LayoutPacks.Triggered(nextState, content.Packs ?? Array.Empty<PackGroup>(), opts?.OpenSeats))
             {
                 nextState = RunWiring.MergeActors(nextState, LayoutPacks.Spawn(pack, nextState.Tick, emit));
-                activeScripts = OnPullClock(activeScripts ?? content.EnemyScripts, new PullDef(pack.Id, pack.Spawns), nextState.Tick);
+                activeScripts = OnEngageClock(activeScripts ?? content.EnemyScripts, pack.Spawns.Select(s => s.ActorId).ToHashSet(), nextState.Tick);
             }
         }
         var echo = EchoSpawns.Step(nextEncounter, nextState, events, nextState.Tick, emit);
