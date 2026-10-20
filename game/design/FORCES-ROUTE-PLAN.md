@@ -19,7 +19,7 @@ Standing rules for every increment:
 - Never fit green. A test that pins the old linear layout is re-derived for the new one by the increment that
   changes the behaviour, never loosened.
 
-Parallel waves (from the dependencies): A = 0, 2, M1, M2. A2 = 1, 5. B = 3, 6. M3 follows 0 and KICK-READY-READOUT. C = 4, 12. D = 7, 9. E = 8, 10. F = 11.
+Parallel waves (from the dependencies): A = 0, 2, M1, M2, M4, M5. A2 = 1 (after 0 and M4), 5. B = 3, 6. M3 follows 0 and KICK-READY-READOUT. C = 4, 12. D = 7, 9. E = 8, 10. F = 11.
 
 ## 0. PRESPAWN-AGGRO: every group exists from tick 0 and engages on its aggro radius (bible 9.1)
 
@@ -72,7 +72,8 @@ Parallel waves (from the dependencies): A = 0, 2, M1, M2. A2 = 1, 5. B = 3, 6. M
   `game/sim/Keyrun.Sim.Tests/Encounter/UpgradeTierTests.cs` (new).
 - **Red test:** a run with no deaths that finishes 1 tick past par plus its initial Slack is depleted, while today it
   reads timed. One death on a run finishing at par is still timed (test 3). Finishes at exactly 6000, 8000 and
-  10000 bp of par upgrade by +3, +2 and +1. A depleted run does not upgrade.
+  10000 bp of par upgrade by +3, +2 and +1. A depleted run does not upgrade, and its key stays at the same level (Matt,
+  2026-10-20: no drop).
 - **Depends on:** none (no file shared with 0).
 - **Wait for:** #253 (edits `game/src/Hud/TimerSlack.cs` and adds RunClock), plus #283 and #274 if the oracle
   digest moves (D28).
@@ -99,6 +100,42 @@ Parallel waves (from the dependencies): A = 0, 2, M1, M2. A2 = 1, 5. B = 3, 6. M
 - **Depends on:** 0 (engage tick), and the next-increments KICK-READY-READOUT (party-frame cooldown model).
 - **Wait for:** #263 (edits `game/src/View/LabelView.cs`).
 
+## M4. TWINS-DIE-WITH-BOSS: the boss's death ends the encounter (bible 9.6)
+
+- **Files:**
+  - `game/sim/Keyrun.Sim/Encounter/Boss.cs` and `game/sim/Keyrun.Sim/Encounter/EncounterStep.cs`: on the boss's death
+    tick, every living enemy of the boss encounter (the Twins, plus Echo adds) despawns with one
+    `despawn {actorIds}` event, before run_end.
+  - `game/sim/Keyrun.Sim.Tests/Encounter/BossDeathDespawnTests.cs` (new).
+  - `game/sim/Keyrun.Sim.Tests/Fixtures/boss/hollow-warden-boss.trace.jsonl` (the boss golden, regenerated per D28 with
+    reason "Twins die with the boss").
+- **Red test:** a boss killed while both Twins live leaves no living enemy on its death tick, emits one `despawn`
+  naming both Twins, and run_end follows on the same tick. A Twin killed earlier is not in the event. The
+  TWIN-AFTER-RUNEND freeze still holds.
+- **Depends on:** none. It must land before 1, which also edits `EncounterStep.cs`.
+- **Wait for:** #283 (rewrites the same boss golden and the oracle traces) and #274 (manifest). This is the trace
+  chokepoint, so the golden is regenerated once, after both.
+
+## M5. FORTIFIED-TYRANNICAL: the key's affixes (bible 8)
+
+- **Files:**
+  - `game/sim/Keyrun.Sim/Encounter/Affixes.cs` (new): `AffixesFor(keyLevel, rotationIndex)`. Keys 2-4 get none, keys
+    5-9 get Fortified or Tyrannical by rotation parity, key 10 and up get both. Fortified is +2000 bp health and
+    +3000 bp damage on non-boss enemies. Tyrannical is +2500 bp health and +1500 bp damage on the boss and its adds.
+  - `game/sim/Keyrun.Sim/Encounter/Tempo.cs`: `UnlockedMechanicCount` (keys 5/10/15) is superseded, and its only
+    consumer is `TempoTests`.
+  - `game/sim/Keyrun.Sim/Run/RunOptions.cs` (rotation index), `game/sim/Keyrun.Sim/Run/Clause.cs` (the Clause
+    rotation layers on top, with its starting key tuned).
+  - `game/src/Host/HostRunSetup.cs` (apply health at spawn, ~456 and ~472), `game/src/Hud/Screen.cs` (show the key's
+    affixes and Clause).
+  - `game/sim/Keyrun.Sim.Tests/Encounter/AffixesTests.cs` (new) and `game/sim/Keyrun.Sim.Tests/Encounter/TempoTests.cs`.
+- **Red test:** keys 4, 5 and 10, each with rotation indices 0 and 1, give none; Fortified then Tyrannical; and both,
+  both. A key-10 trash spawn has 12000 bp health and its hits 13000 bp damage, and a key-10 boss has 12500 bp and
+  11500 bp. The Clause stays exactly one at a time on top.
+- **Depends on:** none.
+- **Wait for:** #233 (edits `HostRunSetup.cs`), #266 and #268 (`Screen.cs`), and #283 and #274 (the key-10 oracle
+  trace `bots-hv-k10-s7` moves, regenerated per D28).
+
 ## 1. FORCES-SIM: the forces counter
 
 - **Files:** `game/sim/Keyrun.Sim/Encounter/Forces.cs` (new), `game/sim/Keyrun.Sim/Encounter/EncounterTypes.cs`
@@ -110,7 +147,7 @@ Parallel waves (from the dependencies): A = 0, 2, M1, M2. A2 = 1, 5. B = 3, 6. M
   event. A hazard kill counts. Boss, Twins and Echo adds add 0. A wipe or a death never lowers the counter. The counter
   is unchanged on a tick with no death. A dungeon with every value 0 emits no `forces` event, so the oracle fixtures
   stay byte-equal.
-- **Depends on:** 0 (prespawned groups; EncounterTypes.cs and EncounterState.cs).
+- **Depends on:** 0 (prespawned groups; EncounterTypes.cs and EncounterState.cs), M4 (EncounterStep.cs).
 - **Wait for:** #283 and #274 (both rewrite `game/sim/Keyrun.Sim.Tests/Fixtures/oracle/manifest.json` and oracle
   traces; land after them so any D28 regeneration is measured once on the merged tree).
 
@@ -292,6 +329,13 @@ are guesses.
 - **REWARD-GUARANTEE** (bible 7): one of the three options is always an upgrade, or Ascension progress at the cap.
   Files: `game/sim/Keyrun.Sim/Encounter/Rewards.cs`, `game/sim/Keyrun.Sim/Run/Ascension.cs`,
   `game/sim/Keyrun.Sim.Tests/Encounter/RewardsTests.cs`.
+- **LOOT-BY-KEY** (bible 7): the tiers offered rise with the key level the run was played at. Files:
+  `game/sim/Keyrun.Sim/Encounter/Rewards.cs`, `game/sim/Keyrun.Sim.Tests/Encounter/RewardsTests.cs`. It shares
+  Rewards.cs with REWARD-GUARANTEE and 12, so it lands in sequence with them.
+- **PRIVATE-RATING** (bible 10): a WoW-style Mythic+ rating, shown only on the player's own screen and never in
+  matching. Files: `game/sim/Keyrun.Sim/Run/Rating.cs` (new), `game/sim/Keyrun.Sim/Run/ProgressionSave.cs`,
+  `game/src/Hud/Screen.cs`, `game/sim/Keyrun.Sim.Tests/RatingTests.cs` (new), and a test that no queue or match input
+  reads the rating.
 - **FORK-PARITY** (bible 6): the bots-suite dominance check over every fork. Files:
   `game/bots/Keyrun.Bots.Tests/ForkParityTests.cs` (new).
 - **KICK-READY-READOUT** (bible 10): a Q ready pip and arc on each party frame. Files: `game/src/Hud/PartyFrames.cs`,

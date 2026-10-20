@@ -166,6 +166,10 @@ pair combo, so there is always something to close even when the enemy Window was
   every clear is a strict upgrade for the character: a higher tier in some slot, or a Facet the character does not
   own yet. At the cap, that option is Ascension progress instead. Fellowship's top complaint was that most drops
   upgrade nothing (research/09:60-62). The private **last-3-runs strip** is on the screen (section 10).
+- **Loot quality comes from the key level.** **Decision (Matt, 2026-10-20), as relayed:** loot quality comes from
+  the key level, and a +2 or +3 pays by moving the key up 2 or 3 levels. The tiers offered at the end of a run rise
+  with the key it was run at. A fast clear's reward is the higher key it earns, not a bigger chest. Choose one of
+  three, the Tier-10 cap and cosmetic Ash all stay.
 - **Crafting is two charges per item**: reroll the Facet from that slot's listed pool, twice, then it is what it is
   (Last Epoch scaled down — research/05).
 - **Every run banks Ash, win or lose** (Hades — research/05). Ash buys only cosmetics and titles.
@@ -174,15 +178,26 @@ pair combo, so there is always something to close even when the enemy Window was
 
 ## 8. The key, the Clause, and Tempo
 
-- **The key** is a number, 2–20 for the POC. It scales **Tempo**, not health: enemies cast more often, telegraphs
-  resolve faster, and pulls gain one extra mechanic at fixed thresholds (research/06 and Blizzard's own scaling
-  lessons in research/01). Health scales gently so kills still happen.
+- **The key** is a number, 2–20 for the POC. It scales **Tempo**: enemies cast more often and telegraphs resolve
+  faster (research/06 and Blizzard's own scaling lessons in research/01). Health scales gently so kills still happen.
+- **Fortified and Tyrannical** (they replace the earlier "one extra mechanic at keys 5, 10 and 15" `[DECIDE]`).
+  **Decision (Matt, 2026-10-20), as relayed:** "follow current WoW. From +5, one of Fortified (trash harder) or
+  Tyrannical (boss harder) is active and rotates. From +10, both are on. A rotating Clause (like Xal'atath's affix)
+  layers on top."
+  - **Keys 2-4:** neither is on.
+  - **Keys 5-9:** exactly one is on, and the two alternate on a fixed rotation. The rotation index comes with the key
+    from the host (the ISO week), so the sim stays deterministic, and the screen shows it.
+  - **Key 10 and up:** both are on.
+  - **Values** are WoW's current ones, in basis points. **Fortified:** non-boss enemies get +2000 bp health and
+    +3000 bp damage. **Tyrannical:** the boss and its adds get +2500 bp health and +1500 bp damage.
 - **The Clause**: **Decision (Matt, 2026-10-20), recorded verbatim:** "Clause = no pre-queue pick, the key sets it
   (rotating) and Clauses start at a higher key (e.g. +5)". Nobody picks a Clause. The key carries it: the Clause is
   set by the key level and a fixed rotation, and the screen shows the key's Clause before Queue is pressed, so no
   lobby negotiation remains (test 2; research/08:122-124). Below the starting key no Clause runs. Matt's example of
   the starting key is +5, and the exact key is tuned. Modifiers start at a higher tier, as Fellowship's curses start
-  at Adept (research/09:29-31). Exactly one Clause runs at a time, never stacked (research/01). Clauses change plans,
+  at Adept (research/09:29-31). Exactly one Clause runs at a time, rotating like Xal'atath's affix, and it layers on
+  top of Fortified and Tyrannical. Two Clauses never stack. Research/01:108-110 advised a single modifier, and Matt's
+  affix decision above sets this layering instead. Clauses change plans,
   not stats: *Echo* (every interrupted cast spawns a
   weak add), *Tide* (floor patches drift), *Hush* (silence pulses every 45 s; save the kicks), *Pact* (Combos deal
   more, uncombo'd hits deal less). Every Clause is tested against every class before it ships.
@@ -190,8 +205,10 @@ pair combo, so there is always something to close even when the enemy Window was
   Mythic+ (section 9 principle). **Slack** is a grace bank shown as a second bar: 30 s plus 1 s per key level above 1.
   A death costs 15 s of Slack and a full wipe 25 s, the same 15 s a death costs a Mythic+ timer. The run is
   **timed** when it finishes no later than par plus the Slack still left. Otherwise the key is *depleted*: the party
-  may still finish for the run reward and Ash, but not the key upgrade. A timed run upgrades the key by **+1**,
-  **+2** if it finishes within 80% of par, and **+3** within 60% of par. These are Mythic+'s upgrade tiers, measured
+  may still finish for the run reward and Ash, but not the key upgrade. **Decision (Matt, 2026-10-20), as relayed:**
+  an untimed key stays at the same level, with no drop. This is a deliberate divergence from WoW, for test 3. A timed
+  run upgrades the key by **+1**, **+2** if it finishes within 80% of par, and **+3** within 60% of par. A +2 or +3
+  pays out as that key movement (section 7). These are Mythic+'s upgrade tiers, measured
   against par, and they do not change the par value (a `[DECIDE]`, section 12). **Test 3 holds with a death penalty:**
   the bank always covers at least two deaths, so one death never depletes a run that was on pace, and only repeated
   mistakes or a slow route can. One mistake never flips a clearable run by itself (research/01).
@@ -204,12 +221,15 @@ pair combo, so there is always something to close even when the enemy Window was
   convention, Mythic+ wins unless a section 0 test or a recorded Matt decision says otherwise, and every such
   divergence names its reason. This applies to the dungeon only. The screen, the queue, gear, the end-of-run choice
   and the social rules (sections 7 and 10) stay as written.
-- **Divergences kept, with their reason.** No invisibility or skip consumables: the ten-keybind budget (section 2,
-  D4) has no slot for them. One Clause at a time, never stacked affixes: research/01:108-110 and Matt's Clause
-  decision (section 8). Slack as a grace bank on top of the Mythic+ death cost: test 3. Still for Matt to decide:
-  mapping the key 5/10/15 unlocks to Mythic+'s alternating Fortified/Tyrannical, the key range and par, whether a
-  depleted key drops a level, and the Mythic+ score and chest size, which touch his no-public-score and
-  choose-one-of-three decisions.
+- **Almost exactly WoW, with fewer buttons.** **Direction (Matt, 2026-10-20), recorded verbatim:** "it should feel
+  almost exact to wow with less button clutter". The one intended divergence from WoW Mythic+ in the dungeon is
+  fewer buttons: the ten-keybind budget (section 2, D4). For the same reason there are no invisibility or skip
+  consumables, because the budget has no slot for them.
+- **Divergences that remain, each named.**
+  - An untimed key stays at its level. This is Matt's deliberate divergence, for test 3 (section 8).
+  - Slack is a grace bank on top of the Mythic+ death cost. It is kept for test 3, and it is the orchestrator's
+    reading, not a Matt decision, so it is open to removal under the direction above.
+  - The key range and par stay an open `[DECIDE]` (section 12).
 
 Three teaching pulls, optional trash packs on two branching paths, an enemy-forces bar, and a boss behind a door
 the bar opens. Each teaching pull still teaches one thing. The packs and the bar make route choice and pull size
@@ -221,7 +241,7 @@ mythic+ that makes it fun". His chosen option, verbatim: "Forces + route layer: 
 pulls, and add 4-6 optional trash packs across two branching paths, plus a 100% enemy-forces bar that must be full
 before the boss door opens. Route choice and pull size become real decisions against the timer. Mixed packs give
 several kickable casters, and two rooms get floor hazards." This section is that option made concrete. It does not
-change par (an open `[DECIDE]`, section 12) or the key's 5/10/15 mechanic unlocks (section 8).
+change par (an open `[DECIDE]`, section 12). The key's affixes are set in section 8.
 
 ### 9.1 The map
 
@@ -365,8 +385,8 @@ cast bar and a floor telegraph that differs from the others by shape and colour 
 
 Kill order, kick assignment and dispel are the pack puzzle. The Choir's lieutenant framing carries over
 (research/06:51-54). The key's Tempo makes every caster cast more often and every telegraph lead less (section 8),
-so the same pack asks for more kicks on a higher key. The packs gain their extra mechanic at keys 5, 10 and 15 by
-the same rule as the teaching pulls. This amendment moves no threshold.
+so the same pack asks for more kicks on a higher key. Fortified hardens every pack and teaching pull, and Tyrannical
+hardens the boss, by the key rule in section 8.
 
 ### 9.4 The two hazard rooms
 
@@ -411,7 +431,9 @@ example 104%) and do nothing else. The fight beyond the door is unchanged.
 **Boss: the Hollow Warden.** Three mechanics, sequenced, never layered (research/06):
 1. **Cleave** — a slow frontal cone, readable from the boss's facing. Stand behind or beside.
 2. **The Sundered Twins** — two adds share one **Break bar**; any interrupt- or control-tagged ability drains it;
-   at empty both are stunned for a burst window. Add priority plus shared control.
+   at empty both are stunned for a burst window. Add priority plus shared control. **Decision (Matt, 2026-10-20),
+   as relayed:** the Twins die with the Hollow Warden. The boss's death ends the encounter, and any adds still alive
+   despawn, as in WoW.
 3. **The Lock** — at 50%, the boss shields and opens a **Window on itself** for 3 seconds, repeating every 30 s.
    Only a **Combo** closes it (any pair; the boss's Window accepts any Payoff from a class other than whichever
    Setup last tagged it — so the party must alternate who sets and who pays). Fail three Locks and the boss enrages
@@ -434,13 +456,15 @@ example 104%) and do nothing else. The fight beyond the door is unchanged.
   mid-run is offered to the queue at the same key. A joiner arrives at the next pull start (a teaching pull or a
   pack engage, section 9.1) with the run's Slack.
 - **Vote to leave keeps the key for those who stay.** A player who leaves alone costs only their own attempt (the
-  short lock above). If the party votes to abandon together, nobody's key is depleted or downgraded and nobody gets
+  short lock above). If the party votes to abandon together, nobody's key is depleted and nobody gets
   the lock. One player leaving never costs the players who stay their key (test 3; research/08:37-42, :85-88).
 - **Kick-ready readout on the party frames.** Each party frame shows its player's Q cooldown as a ready pip and a
   draining arc, so "who has a kick" is visible without a ping. This stops the double kick that wastes two
   interrupts on one cast, which the Choir punishes (research/03:111-113, research/06:117-121).
 - **No exported score.** Run history is private to the character. Matching uses key level and completion, nothing
-  a stranger can read to reject you.
+  a stranger can read to reject you. A shareable or exported score stays banned. **Decision (Matt, 2026-10-20), as
+  relayed:** a private WoW-style Mythic+ rating, shown only on the player's own screen. It is never shown to others
+  and never used to filter groups.
 - **Pings are the communication.** G marks a target or a spot; the game turns it into the party's language
   ("kick", "stack here", "Window!"). No chat in the POC. Strangers by default need day-one signalling, and
   Fellowship's weak pings were a named complaint (research/09:76, :139-140).
@@ -453,7 +477,7 @@ narrative. The sim, content, bots and client are built so none of these require 
 
 ## 12. Data versus judgment
 
-**From the research** (cited above): the timer spine and one-modifier rule; soft roles and the queue evidence;
+**From the research** (cited above): the timer spine and one-Clause-at-a-time rule; soft roles and the queue evidence;
 depth from modifiers on a frozen kit; forks not trees; facets not item level; per-run choice of three; transparent
 drop sources; bounded crafting; Ash on every run; telegraph readability rules; sequenced not layered mechanics;
 no single-mistake wipes; the one-screen hub; backfill; no exported score; fixed-tick determinism; route choice
@@ -462,7 +486,11 @@ Clauses starting at a higher key; the kick window in ticks with a lag margin; ti
 kick-ready party-frame readout; vote-to-leave keeping the key; the honest queue screen.
 
 **Matt's 2026-10-20 decisions** (recorded verbatim in sections 6, 7 and 8): forks kept, with a dominance check; the
-Clause set by the key, never picked; every clear moves something visible; the vault every run.
+Clause set by the key, never picked; every clear moves something visible; the vault every run; prespawn with
+aggro distance and zero downtime as stakes (section 9.1); Mythic+ as the dungeon's reference, "almost exact to wow
+with less button clutter" (section 9); an untimed key keeps its level, the upgrade tiers and loot quality from the
+key level (sections 7 and 8); Fortified and Tyrannical with a rotating Clause on top (section 8); the Twins dying
+with the boss (section 9.6); the private rating (section 10).
 
 **Keyrun's own judgment**: Windows and Combos as the synergy core; the six named pair-combos; the three classes'
 loops and kits; the Clause carried by the key; Slack instead of flat death penalties; Tempo as the key's scaling axis; the Lock
