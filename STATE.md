@@ -2,6 +2,8 @@
 
 ## INTENT (pinned; the orchestrator reads this first after every compaction)
 Why pinned: Matt 2026-10-19, verbatim: "there seems to be a misunderstaning with your responsiblity now, the workers context are small scope, your context is intent... over and over we are losing intent for context... even though its enforced with code" and "i think you've built a good start, it just does not align with the bible lmfao". Every lane is judged against design/BIBLE.md below, not against its own PR text.
+- Core dungeon loop rule (Matt 2026-10-20, verbatim): "anything you want my decision on in the core dungeon loop, defer to wow". The orchestrator answers dungeon-loop design questions with what WoW Mythic+ does and records the call.
+- Out-of-dungeon rule (Matt 2026-10-20, verbatim): "anything else like progression, builds, classes, lobby stuff more like dark and darker... character management screen, quests, progression, score, follow the bible but you get what im saying, just one screen with tabs should be enough before entering a game/queue". The orchestrator decides lobby, progression, build, class and character-management questions the way Dark and Darker does them, within design/BIBLE.md. Where the bible excludes something (it lists no quests, shop or stash in the POC, and no shareable score), the bible wins.
 - Goal, design/BIBLE.md section 1, verbatim: "Screen -> Queue -> Dungeon (timed, one boss) -> End-of-run choice of three -> Screen." "Nothing exists outside this loop in the POC: no world, no quests, no shop, no stash."
 - The three tests, section 0, verbatim headings, each with its first sentence. Every lane's deliverable is judged against these three, not against its own PR description.
   - "**Depth and difficulty.** Classes with real decisions on five buttons; keys that are genuinely hard because of what enemies *do*, not how much health they have."
@@ -11,9 +13,9 @@ Why pinned: Matt 2026-10-19, verbatim: "there seems to be a misunderstaning with
 - The design's centre, section 4, verbatim: "This is the design's centre and the answer to "more creative than Blizzard": synergy is not a buff you press, it is a *timing game between two people*."
 - POC dungeon, section 9, verbatim: "Three pulls and a boss, forward-only, no backtracking (research/02). Each pull teaches one thing." Pulls: "**The Choir**" teaches the kick ledger (must-kick 4-second heal cast); "**The Pair**" teaches reading shape (spread ring, then stack circle); "**The Seed**" teaches the boss's core rule with no stakes. Boss "the Hollow Warden": Cleave, The Sundered Twins, The Lock.
 - Gear, section 7, verbatim: "**Five slots**: Weapon, Armor, Charm, Ring, Keystone." "Tier is power and it is capped at 10." "**Facets change function**" "**End of every run: choose one of three**" "Ash buys only cosmetics and titles." "**After the cap: Ascension.** ... and Ascension marks on the character."
-- Current milestone, STATE.md D10 (verbatim): "**MVP = 3D gameplay**" ... "the MVP deliverable is one complete 3D run Matt can play end to end and judge by feel, not a test count." Phase 3 exit waits on Matt's human-played run. OPEN QUESTION FOR MATT: D10 covers the dungeon only, while section 1 includes the screen, the queue and the end-of-run choice; which is the MVP line?
+- Current milestone, STATE.md D10 (verbatim): "**MVP = 3D gameplay**" ... "the MVP deliverable is one complete 3D run Matt can play end to end and judge by feel, not a test count." Phase 3 exit waits on Matt's human-played run. MVP LINE (D10 question, RESOLVED 2026-10-20 under Matt's out-of-dungeon rule, see INTENT): the MVP is the full section 1 loop: one screen with tabs, then Queue, then the Dungeon, then the end-of-run choice of three, then back to the screen.
 - Acceptance is Matt watching (D15): frames and video viewed before a visible row closes. Demo verdict 2026-10-19 (default run C at 75da3ef): KF1 combat animation reads badly; KF2 bots idle in the first room (the Choir is meant to teach the kick); KF3 the Seed elite spawns on entry and the bots cheese it. Known section 3 gaps: boss slam and Twins slam untelegraphed.
-- Art and gear models: CC0 packs only (D17). How gear shows on the CC0 models is an open design question; a BIBLE-ALIGN recon on 2026-10-19 is mapping the bible against main.
+- Art and gear models: CC0 packs only (D17). How gear shows on the CC0 models was an open design question, RESOLVED 2026-10-20 under Matt's out-of-dungeon rule (see INTENT): as in Dark and Darker, equipped gear is visible on the character model, within the CC0 assets (D17). A BIBLE-ALIGN recon on 2026-10-19 is mapping the bible against main.
 
 **Intent (Matt, 2026-09-18):** "isolating m+ from WoW and just making it an open and queue game like Dark and Darker,
 and let people manage their characters from a simple screen... study other mmos, dungeon games, gear progression, and
@@ -901,6 +903,19 @@ Additional parked decisions (from the burn ledger):
   RouteContentTests' forces fixture, SkippablePackTests' strip setup and PathPackRouteTests' oracle setup (a hall.sentry
   template) carry the new enemy. WHY recorded: each is a fixture or count that must follow the content, and no
   assertion, floor or behaviour was relaxed.
+- D50 **LOBBY-TABS: the between-runs screen is one lobby with three tabs, Character / Build / Play** (orchestrator,
+  2026-10-20, from Matt's verbatim "anything else like progression, builds, classes, lobby stuff more like dark and
+  darker... character management screen, quests, progression, score, follow the bible but you get what im saying, just
+  one screen with tabs should be enough before entering a game/queue"; reversible). Character picks the class (the
+  three roster classes) and shows the five gear slots with tier; Build is the class's talent forks; Play is the key,
+  its Clause and Queue. The run end's choice of three returns to the Play tab, unlocked, class and build kept. The pure
+  state is `Lobby` (game/src/Host/Lobby.cs). The class stays on the host and never rides the queue payload
+  (`Lobby.ClassFor` reads the screen; QueueRequest is unchanged, BIBLE s3 "the queue matches on key level only"). The
+  human takes the picked class's roster seat and bots fill the other two. WHY: BIBLE s1 names the screen as the loop's
+  start and end, and s0 test 2 wants Queue inside a minute; one tabbed screen keeps every pre-run choice on it. No
+  quests, shop, stash or shareable score (BIBLE s1, s10, s11), so "quests" and "score" from the quote are out. Not yet:
+  the class pick is not saved across launches (the progression save format is unchanged); the private rating already
+  shows on the screen.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
