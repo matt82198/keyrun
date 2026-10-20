@@ -55,6 +55,21 @@ public partial class AbilityBar : Control
     /// <inheritdoc />
     public override void _Process(double delta) => QueueRedraw();
 
+    /// <summary>
+    /// The screen rect the bar draws in (its health and momentum meters on top, the slot row below), pixels, for a
+    /// control of <paramref name="size"/> holding <paramref name="count"/> slots (the setup's slots plus the G ping).
+    /// The 3D views use it to keep world geometry from standing in front of it (GATE-FOREGROUND).
+    /// </summary>
+    /// <param name="size">The control's size (the viewport: the bar is a full-rect control).</param>
+    /// <param name="count">Slots drawn, the ping included.</param>
+    /// <returns>The bar's footprint.</returns>
+    public static Rect2 Footprint(Vector2 size, int count)
+    {
+        var width = (count * Slot) + ((count - 1) * Gap);
+        var top = size.Y - BottomMargin - Slot - 44;
+        return new Rect2((size.X - width) / 2, top, width, 44 + Slot);
+    }
+
     /// <inheritdoc />
     public override void _Draw()
     {
@@ -64,8 +79,9 @@ public partial class AbilityBar : Control
         }
         var font = ThemeDB.FallbackFont;
         var count = setup.Slots.Count + 1; // + the G ping
-        var width = (count * Slot) + ((count - 1) * Gap);
-        var origin = new Vector2((Size.X - width) / 2, Size.Y - BottomMargin - Slot);
+        var bar = Footprint(Size, count);
+        var width = bar.Size.X;
+        var origin = new Vector2(bar.Position.X, bar.End.Y - Slot);
         var now = run.State.Tick;
 
         DrawMeter(font, new Rect2(origin.X, origin.Y - 44, width, 16), me.Health, me.MaxHealth, HealthFill, $"{Driver.DisplayName(me)}  {me.Health} / {me.MaxHealth}");
