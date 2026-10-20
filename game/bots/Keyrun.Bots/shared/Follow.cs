@@ -32,10 +32,32 @@ public static class NavLayouts
         return new NavLayout(boxes, triggers, route);
     }
 
+    /// <summary>Gap between neighbouring bodies of one spawn point's pack, mm (1.5 body diameters at run.json radiusMm 400).</summary>
+    public const long PackSpacingMm = 1200;
+
+    /// <summary>How far each step out from the pack's centre sweeps back along +x (away from the party), mm.</summary>
+    public const long PackSweepMm = 300;
+
+    /// <summary>
+    /// The offset of body <paramref name="index"/> of a <paramref name="count"/>-body pack from its spawn point: an arc
+    /// abreast across z, centred on the point, its wings swept back along +x so the party (arriving along +x) sees every
+    /// body. Integer only and independent of the seed: index k = 2i - (n - 1) half-steps from the centre gives
+    /// z = k * <see cref="PackSpacingMm"/> / 2 and x = |k| * <see cref="PackSweepMm"/> / 2. A lone body stays on the point.
+    /// </summary>
+    /// <param name="index">The body's index in its pack, 0-based.</param>
+    /// <param name="count">The pack's size.</param>
+    /// <returns>The offset (x, z), mm.</returns>
+    public static (long X, long Z) PackOffset(int index, int count)
+    {
+        var k = 2L * index - (count - 1);
+        return (Math.Abs(k) * PackSweepMm / 2, k * PackSpacingMm / 2);
+    }
+
     /// <summary>
     /// <paramref name="dungeon"/> with every pull moved into its room: a pull's spawns stand at the room origin plus the
-    /// spawn offset the content carries (so formation shapes never change); the boss pull (<see cref="C.LayoutDef.BossPullId"/>)
-    /// stands at the arena origin. Fails closed on a pull with no room.
+    /// spawn offset the content carries; the bodies that share one content offset (a group's <c>count</c>) fan out around
+    /// it in the <see cref="PackOffset"/> arc so no two stand inside each other. The boss pull
+    /// (<see cref="C.LayoutDef.BossPullId"/>) stands at the arena origin. Fails closed on a pull with no room.
     /// </summary>
     /// <param name="layout">The content layout.</param>
     /// <param name="dungeon">The sim dungeon with content spawn offsets.</param>
@@ -50,9 +72,19 @@ public static class NavLayouts
             var room = RoomOf(layout, pull.Id);
             var origin = room.Origin!;
             var boss = string.Equals(pull.Id, C.LayoutDef.BossPullId, StringComparison.Ordinal);
-            var spawns = pull.Spawns.Select(s => s with
+            var packSize = pull.Spawns.GroupBy(s => (s.Pos.X, s.Pos.Z)).ToDictionary(g => g.Key, g => g.Count());
+            var packIndex = new Dictionary<(long, long), int>();
+            var spawns = pull.Spawns.Select(s =>
             {
-                Pos = boss ? new Vec3(origin.X, s.Pos.Y, origin.Z) : new Vec3(origin.X + s.Pos.X, s.Pos.Y, origin.Z + s.Pos.Z),
+                if (boss)
+                {
+                    return s with { Pos = new Vec3(origin.X, s.Pos.Y, origin.Z) };
+                }
+                var key = (s.Pos.X, s.Pos.Z);
+                var index = packIndex.TryGetValue(key, out var seen) ? seen : 0;
+                packIndex[key] = index + 1;
+                var (dx, dz) = PackOffset(index, packSize[key]);
+                return s with { Pos = new Vec3(origin.X + s.Pos.X + dx, s.Pos.Y, origin.Z + s.Pos.Z + dz) };
             }).ToList();
             return pull with { Spawns = spawns };
         }).ToList();
