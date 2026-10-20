@@ -46,8 +46,8 @@ pings, so secondary systems can never balloon past the core kit.
   telegraph (circle, cone, line) drawn ahead of resolution. Shape plus colour, never colour alone (research/06).
 - **Soft roles, no trinity lock** (research/03). Every class has real self-sustain and some group utility. A party
   without a "healer" class is harder, never blocked from queueing. The queue matches on key level only.
-- **Damage is a pipeline of integers**: base → source modifiers → target modifiers → absorbs → health. Mitigation
-  and buffs are basis points. No hidden multipliers.
+- **Damage is a pipeline of integers**: base → source modifiers → target modifiers → class armor → absorbs →
+  health. Mitigation and buffs are basis points. No hidden multipliers (section 3.1 names the one armor stage).
 - **The sim runs at 20 Hz** (one tick is 50 ms; STATE.md D9, measured in research/11). Every duration in this
   document is in ticks at that rate.
 - **The kick window is sized in ticks, with a lag margin.** A kick counts when its intended tick falls inside the
@@ -59,6 +59,31 @@ pings, so secondary systems can never balloon past the core kit.
 - **Telegraph contrast and outline.** Every floor telegraph has a solid, high-contrast outline. Its fill colour is
   checked against the room's floor colour so it never sinks into the background. Each telegraph type keeps its own
   shape and edge pattern, so it still reads with the colour removed (research/06:100-104, :147-151).
+
+### 3.1 Tank survivability (decided 2026-10-20, WoW M+ model)
+
+Matt: "as damage scales this will turn into a one shot, so abilities and damage reduction stuff needs to be
+considered". Before this, the Warden (400 health) had no passive mitigation: alone in the Choir pull at key 1 with
+Brace on cooldown it died at tick 160 (8 s), and one key-10 Fortified Acolyte swing took 91 (23% of its health).
+WoW M+ keeps a tank alive with three layers, and Keyrun copies all three:
+
+1. **Passive armor (always on).** The Warden removes **40% (4000 bp)** of every hit, after the bp modifiers
+   (game/content/data/run.json `classArmorBp`; `Damage.ApplyArmor`). It is a percent, so it scales with Fortified
+   and Tempo instead of being outgrown, and it **multiplies** with the active layer instead of adding to it, so the
+   full stack never reaches immunity. 40% is a WoW plate tank's armor reduction against same-level mobs.
+2. **Active mitigation (buttons already in the kit).** Brace -40% for 60 ticks every 300 (20% uptime, the "press it
+   for the big hit" cooldown); Vigil -30% for 100 ticks for 50 Momentum (the Shield Block / Ironfur rhythm the
+   Warden earns by hitting); Bulwark -15% for anyone in the patch. Taken during Brace: 60% x 60% = 36%. Brace + Vigil
+   + Bulwark + armor: 15% x 60% = 9%, never 0.
+3. **Healer throughput.** The tank alone buys the healer's reaction budget: **an unhealed Warden with only Brace on
+   cooldown lives at least 10 s (200 ticks) on a key-1 pull** (measured: Choir pull 240 ticks; key 5 333, key 10
+   297). The healer's job is the rest: sustained healing on the tank should match the tank's mitigated incoming
+   damage on trash (key-1 Choir: two Acolytes x 42 per 40 ticks = 42 health/s, about 10% of the Warden per second)
+   and burst past it after a big hit. The Chanter's healing (Consecrate pulses, the Hymn field) is not retuned here.
+
+**One-shot guard:** at key 10 (Fortified + Tempo), no trash hit may take a fifth of the tank's health (measured: 54
+of 400). Boss hits are bigger by design (Cleave 220 raw, 132 after armor) and are telegraphed: that is Brace's job.
+Tests: tools/Keyrun.Playtest.Tests/TankSurvivabilityTests.cs.
 
 ## 4. Synergy: Windows and Combos (Keyrun's own system)
 

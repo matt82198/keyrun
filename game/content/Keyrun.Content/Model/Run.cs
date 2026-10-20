@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Keyrun.Content;
 
 /// <summary>
@@ -19,6 +21,13 @@ public sealed record RunConfig
 
     /// <summary>The key's Fortified/Tyrannical affixes and the Clause's starting key (BIBLE s8, plan M5).</summary>
     public required AffixesConfig Affixes { get; init; }
+
+    /// <summary>
+    /// Class id to its passive armor, bp of every incoming hit removed after Brace/Vigil/Bulwark (design/BIBLE.md
+    /// section 3.1; each value in [0, 9000], each key a class). A class with no entry has none. Not in the
+    /// frozen content/data.
+    /// </summary>
+    public required IReadOnlyDictionary<string, int> ClassArmorBp { get; init; }
 }
 
 /// <summary>

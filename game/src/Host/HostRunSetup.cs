@@ -417,7 +417,12 @@ public sealed record HostRunSetup(
                 throw new InvalidOperationException($"run setup: party slot {i} references unknown class \"{classId}\"");
             }
             var id = isHuman ? HumanId : nextBotId++;
-            party.Add(new PartyMemberSpec(id, cls.Id, slot.Role, new Vec3(slot.SpawnX, 0, WardenSpawn.Z), slot.MaxHealth, cls.Loop.Max) { Yaw = WardenYaw });
+            party.Add(new PartyMemberSpec(id, cls.Id, slot.Role, new Vec3(slot.SpawnX, 0, WardenSpawn.Z), slot.MaxHealth, cls.Loop.Max)
+            {
+                Yaw = WardenYaw,
+                // design/BIBLE.md section 3.1: the class's passive armor from run.json classArmorBp.
+                ArmorBp = registry.Run.ClassArmorBp.TryGetValue(cls.Id, out var armorBp) ? armorBp : 0,
+            });
         }
         return party.OrderBy(p => p.Id).ToList();
     }
