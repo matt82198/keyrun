@@ -165,6 +165,39 @@ public static class RunWiring
     }
 
     /// <summary>
+    /// C#-only (f-8b3fff18, BIBLE s9 Twins and s9.3 "Stops as well as kicks"): every listed actor still casting has its
+    /// cast ended with a <c>cast_stopped</c> event (<see cref="Casting.Stopcast"/>) at the state's tick, in list order.
+    /// The run root calls it right after the stagger stun is applied, post-combat of the stagger tick, so a cast due on
+    /// the next tick or later never resolves, while one already resolved this tick stands (casts complete before
+    /// commands: the same intended-tick rule as a kick). Stopped actors are copied first; the input state is never
+    /// modified.
+    /// </summary>
+    /// <param name="state">The post-combat state.</param>
+    /// <param name="actorIds">The actors whose casts end (this tick's staggered bar actors).</param>
+    /// <param name="emit">Event sink.</param>
+    /// <returns><paramref name="state"/> itself when no cast ended, else a new state.</returns>
+    public static SimState StopCasts(SimState state, IReadOnlyList<int> actorIds, Action<SimEvent> emit)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(actorIds);
+        ArgumentNullException.ThrowIfNull(emit);
+        SortedDictionary<int, ActorState>? actors = null;
+        foreach (var actorId in actorIds)
+        {
+            var current = actors ?? state.Actors;
+            if (!current.TryGetValue(actorId, out var actor) || actor.CastId is null)
+            {
+                continue;
+            }
+            var stopped = actor.Clone();
+            Casting.Stopcast(stopped, emit, state.Tick);
+            actors ??= new SortedDictionary<int, ActorState>(state.Actors);
+            actors[actorId] = stopped;
+        }
+        return actors is null ? state : WithActors(state, actors);
+    }
+
+    /// <summary>
     /// run-wiring.ts:109 fixupTargeting, in place: every untargeted living enemy targets the party's tank (the first
     /// player with role tank, alive or not); every living damage-role player without a living enemy target targets
     /// the first living enemy (ascending id). Safe every tick and at creation.
