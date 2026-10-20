@@ -65,7 +65,7 @@ public sealed class QueuePopTests
     {
         var read = RoleScarcity.Read(Enumerable.Repeat(ActorRole.Damage, 12).Append(ActorRole.Tank));
 
-        Assert.False(read.Readout().Any(char.IsDigit));
+        Assert.DoesNotContain(read.Readout(), char.IsDigit);
         Assert.Equal("Short on: healer, tank", read.Readout());
     }
 
