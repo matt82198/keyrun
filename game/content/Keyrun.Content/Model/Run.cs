@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Keyrun.Content;
 
 /// <summary>
@@ -25,9 +23,9 @@ public sealed record RunConfig
     /// <summary>
     /// Class id to its passive armor, bp of every incoming hit removed after Brace/Vigil/Bulwark (design/BIBLE.md
     /// section 3.1; each value in [0, 9000], each key a class). A class with no entry has none. Not in the
-    /// frozen content/data.
+    /// frozen content/data. A <see cref="ValueMap{TValue}"/> so two loads of the same files stay value-equal.
     /// </summary>
-    public required IReadOnlyDictionary<string, int> ClassArmorBp { get; init; }
+    public required ValueMap<int> ClassArmorBp { get; init; }
 }
 
 /// <summary>
