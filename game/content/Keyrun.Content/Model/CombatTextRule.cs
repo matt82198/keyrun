@@ -58,6 +58,9 @@ public static class CombatTextRule
     /// <summary>The most a number is moved up or down off its spot beside the plate before that side counts as blocked.</summary>
     public const int MaxShiftPx = 48;
 
+    /// <summary>A number's whole life in permille: <see cref="PlaceNumber"/> takes age as an integer 0 to this (purity rule, integer-only).</summary>
+    public const int AgeScale = 1000;
+
     /// <summary>
     /// Where one floating number (a damage number or <see cref="MissText"/>) draws, given its target's plate as it is
     /// drawn (after LabelView's separation). The number never spawns on the plate or the cast bar over the target's
@@ -72,18 +75,18 @@ public static class CombatTextRule
     /// <param name="beside">The target's drawn plate (or, with no plate on screen, the box the number would float in).</param>
     /// <param name="width">The number's box width (text plus outline).</param>
     /// <param name="height">The number's box height (font plus outline).</param>
-    /// <param name="age">The number's age as a fraction of its life, 0 to 1.</param>
+    /// <param name="agePermille">The number's age in permille of its life, 0 to <see cref="AgeScale"/> (clamped).</param>
     /// <param name="viewportWidth">Viewport width in pixels.</param>
     /// <param name="viewportHeight">Viewport height in pixels.</param>
     /// <param name="avoid">The plates, cast bars, HUD blocks and numbers already placed this frame.</param>
     /// <returns>The number's box, or null when it has no clear spot this frame.</returns>
     public static PixelRect? PlaceNumber(
-        PixelRect beside, int width, int height, float age, int viewportWidth, int viewportHeight, IReadOnlyList<PixelRect> avoid)
+        PixelRect beside, int width, int height, int agePermille, int viewportWidth, int viewportHeight, IReadOnlyList<PixelRect> avoid)
     {
         ArgumentNullException.ThrowIfNull(avoid);
-        var t = Math.Clamp(age, 0f, 1f);
-        var side = SideGap + (int)Math.Round(DriftSidePx * t);
-        var y = beside.Y + ((beside.Height - height) / 2) + (int)Math.Round(DriftDownPx * t);
+        var p = Math.Clamp(agePermille, 0, AgeScale);
+        var side = SideGap + Drift(DriftSidePx, p);
+        var y = beside.Y + ((beside.Height - height) / 2) + Drift(DriftDownPx, p);
         var grown = new List<PixelRect>(avoid.Count + 1) { Grow(beside) };
         foreach (var r in avoid)
         {
@@ -105,6 +108,9 @@ public static class CombatTextRule
         }
         return null;
     }
+
+    // Integer drift for an age in permille, rounded half up (p is clamped to 0..AgeScale, so it never goes negative).
+    private static int Drift(int px, int p) => ((px * p) + (AgeScale / 2)) / AgeScale;
 
     private static PixelRect Grow(PixelRect r) =>
         new(r.X - Clearance, r.Y - Clearance, r.Width + (2 * Clearance), r.Height + (2 * Clearance));

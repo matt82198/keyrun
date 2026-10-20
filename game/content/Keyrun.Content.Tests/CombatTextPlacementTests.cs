@@ -23,7 +23,7 @@ public sealed class CombatTextPlacementTests
     private const int MissW = 54;
     private const int NumberH = 26;
 
-    private static readonly float[] Ages = { 0f, 0.1f, 0.25f, 0.5f, 0.75f, 0.9f, 1f };
+    private static readonly int[] Ages = { 0, 100, 250, 500, 750, 900, CombatTextRule.AgeScale };
 
     [Fact]
     public void A_number_on_a_casting_boss_clears_its_plate_and_its_cast_bar()
@@ -72,7 +72,7 @@ public sealed class CombatTextPlacementTests
             casters: new[] { new PixelPoint(1220, 262) },
             plates: new[] { Plate(1220, 312, 96) });
         AssertClearForLife(scene, target: 0, NumberW);
-        var placed = Place(scene, 0, NumberW, 0.5f);
+        var placed = Place(scene, 0, NumberW, 500);
         Assert.True(placed.Right <= scene.Plates[0].X, $"number {placed} should sit left of plate {scene.Plates[0]}");
     }
 
@@ -83,8 +83,8 @@ public sealed class CombatTextPlacementTests
             casters: new[] { new PixelPoint(632, 262) },
             plates: new[] { Plate(632, 312, 96) });
         var plate = scene.Plates[0];
-        var start = Place(scene, 0, NumberW, 0f);
-        var end = Place(scene, 0, NumberW, 1f);
+        var start = Place(scene, 0, NumberW, 0);
+        var end = Place(scene, 0, NumberW, CombatTextRule.AgeScale);
 
         // Beside the plate: level with it and within a short reach of its side, not flung across the screen.
         Assert.True(start.X >= plate.Right, $"start {start} should be right of plate {plate}");
@@ -102,12 +102,37 @@ public sealed class CombatTextPlacementTests
         var scene = Scene.Lay(
             casters: new PixelPoint[0],
             plates: new[] { Plate(632, 312, 96) });
-        var first = Place(scene, 0, NumberW, 0.2f);
+        var first = Place(scene, 0, NumberW, 200);
         var avoid = new List<PixelRect>(scene.Avoid) { first };
-        var second = CombatTextRule.PlaceNumber(scene.Plates[0], NumberW, NumberH, 0.2f, Width, Height, avoid);
+        var second = CombatTextRule.PlaceNumber(scene.Plates[0], NumberW, NumberH, 200, Width, Height, avoid);
         Assert.NotNull(second);
         Assert.False(second!.Value.Intersects(first), $"second {second} overlaps first {first}");
         Assert.False(second.Value.Intersects(scene.Plates[0]), $"second {second} overlaps the plate {scene.Plates[0]}");
+    }
+
+    [Fact]
+    public void Drift_is_whole_pixels_from_an_integer_age_in_permille()
+    {
+        // Purity rule (game/CLAUDE.md): content is integer-only, so age arrives as permille of the number's life and
+        // the drift is integer pixels (rounded half up), never float rounding. With nothing to avoid, the number sits
+        // SideGap past the plate's right edge, level with it, plus the drift for its age.
+        var plate = new PixelRect(600, 300, 80, 23);
+        var none = new PixelRect[0];
+        var levelY = plate.Y + ((plate.Height - NumberH) / 2);
+        Assert.Equal(new PixelRect(plate.Right + CombatTextRule.SideGap, levelY, NumberW, NumberH),
+            CombatTextRule.PlaceNumber(plate, NumberW, NumberH, 0, Width, Height, none));
+        Assert.Equal(new PixelRect(plate.Right + CombatTextRule.SideGap + 12, levelY + 8, NumberW, NumberH),
+            CombatTextRule.PlaceNumber(plate, NumberW, NumberH, 500, Width, Height, none));
+        Assert.Equal(new PixelRect(plate.Right + CombatTextRule.SideGap + 1, levelY + 1, NumberW, NumberH),
+            CombatTextRule.PlaceNumber(plate, NumberW, NumberH, 32, Width, Height, none));
+        Assert.Equal(new PixelRect(plate.Right + CombatTextRule.SideGap + 24, levelY + 16, NumberW, NumberH),
+            CombatTextRule.PlaceNumber(plate, NumberW, NumberH, CombatTextRule.AgeScale, Width, Height, none));
+
+        // Age outside its life is clamped to it.
+        Assert.Equal(CombatTextRule.PlaceNumber(plate, NumberW, NumberH, 0, Width, Height, none),
+            CombatTextRule.PlaceNumber(plate, NumberW, NumberH, -40, Width, Height, none));
+        Assert.Equal(CombatTextRule.PlaceNumber(plate, NumberW, NumberH, CombatTextRule.AgeScale, Width, Height, none),
+            CombatTextRule.PlaceNumber(plate, NumberW, NumberH, 5000, Width, Height, none));
     }
 
     [Fact]
@@ -116,7 +141,7 @@ public sealed class CombatTextPlacementTests
         // Every pixel is covered: the number is withheld rather than drawn over a plate or a bar.
         var plate = new PixelRect(600, 300, 80, 23);
         var wall = new[] { plate, new PixelRect(0, 0, Width, Height) };
-        Assert.Null(CombatTextRule.PlaceNumber(plate, NumberW, NumberH, 0.5f, Width, Height, wall));
+        Assert.Null(CombatTextRule.PlaceNumber(plate, NumberW, NumberH, 500, Width, Height, wall));
     }
 
     private static void AssertClearForLife(Scene scene, int target, int width)
@@ -136,7 +161,7 @@ public sealed class CombatTextPlacementTests
         }
     }
 
-    private static PixelRect Place(Scene scene, int target, int width, float age)
+    private static PixelRect Place(Scene scene, int target, int width, int age)
     {
         var placed = CombatTextRule.PlaceNumber(scene.Plates[target], width, NumberH, age, Width, Height, scene.Avoid);
         Assert.NotNull(placed);

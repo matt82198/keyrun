@@ -191,7 +191,8 @@ public partial class CombatText : Control
             var drawnPlate = DrawnPlates.PlateOf(real, n.TargetId);
             var hasPlate = drawnPlate.HasValue;
             var plate = drawnPlate.GetValueOrDefault();
-            var placed = CombatTextRule.PlaceNumber(hasPlate ? plate : raw, raw.Width, raw.Height, n.Age / LifeSeconds, width, height, avoid);
+            var agePermille = (int)Math.Round(n.Age / LifeSeconds * CombatTextRule.AgeScale);
+            var placed = CombatTextRule.PlaceNumber(hasPlate ? plate : raw, raw.Width, raw.Height, agePermille, width, height, avoid);
             n.Placed = placed;
             if (placed is not { } box)
             {

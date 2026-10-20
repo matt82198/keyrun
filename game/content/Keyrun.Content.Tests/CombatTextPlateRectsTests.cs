@@ -21,7 +21,7 @@ public sealed class CombatTextPlateRectsTests
     private const int NumberW = 38;
     private const int NumberH = 26;
 
-    private static readonly float[] Ages = { 0f, 0.25f, 0.5f, 0.75f, 1f };
+    private static readonly int[] Ages = { 0, 250, 500, 750, CombatTextRule.AgeScale };
 
     [Fact]
     public void A_number_on_a_folded_crowd_member_goes_beside_the_crowd_s_one_plate()
