@@ -9,7 +9,8 @@ namespace Keyrun.Content;
 /// <summary>
 /// Loads every content kind from the verbatim content/data JSON into a typed, validated
 /// <see cref="ContentRegistry"/>: the C# mirror of content/index.ts <c>loadContent()</c>, reading
-/// the same 19 files in the same order, plus the C#-only run.json, layout.json, theme.json (theme.json is read by ThemeLoader) and combo-riders.json. Fails closed with <see cref="ContentLoadException"/> on
+/// the same 19 files in the same order, plus the C#-only run.json, layout.json, theme.json (theme.json is read by ThemeLoader), combo-riders.json
+/// and the forces + route files (forces.json, packs.json, hazards.json). Fails closed with <see cref="ContentLoadException"/> on
 /// any unknown property, missing required field, null in a non-optional field, non-integer
 /// number, unknown enum or op, duplicate id, unresolved cross-reference, or unlisted/missing file.
 /// </summary>
@@ -36,7 +37,22 @@ public static class ContentLoader
         LayoutFile,
         ThemeFile,
         ComboRidersFile,
+        ForcesFile,
+        PacksFile,
+        HazardsFile,
     };
+
+    /// <summary>
+    /// C#-only forces table and route (game/content/data/forces.json; BIBLE section 9.2): the bar's size, every
+    /// enemy's points and the fork, rejoin and branches.
+    /// </summary>
+    public const string ForcesFile = "forces.json";
+
+    /// <summary>C#-only optional packs (game/content/data/packs.json; BIBLE section 9.1).</summary>
+    public const string PacksFile = "packs.json";
+
+    /// <summary>C#-only room hazards (game/content/data/hazards.json; BIBLE section 9.4).</summary>
+    public const string HazardsFile = "hazards.json";
 
     /// <summary>
     /// C#-only combo riders (game/content/data/combo-riders.json, same logical root): replacement effects for combos
@@ -121,6 +137,9 @@ public static class ContentLoader
             Run = ReadOne<RunConfig>(source, RunFile)[0],
             Layout = ReadOne<LayoutDef>(source, LayoutFile)[0],
             ComboRiders = ById("combo rider", ReadArray<ComboRider>(source, ComboRidersFile)),
+            Forces = ReadOne<ForcesTable>(source, ForcesFile)[0],
+            Packs = ById("pack", ReadArray<PackDef>(source, PacksFile)),
+            Hazards = ById("hazard", ReadArray<HazardDef>(source, HazardsFile)),
         };
 
         ContentValidator.Validate(registry);
