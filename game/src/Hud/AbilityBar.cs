@@ -12,7 +12,8 @@ namespace Keyrun.Hud;
 /// The named ability bar (BIBLE s2): the human's nine ability slots in key order (1-5 rotational, Q interrupt,
 /// E defensive, R utility, F movement) plus the G ping, each with its key, the ability's content name, and its state:
 /// a dark sweep with seconds left while on cooldown, a light sweep during the global cooldown, dimmed when the
-/// class resource is short, a red edge when the cast's target is out of range. Above it: the Warden's health and
+/// class resource is short, its icon tinted red (WoW style, no red border) when the cast's target is out of range
+/// (<see cref="Keyrun.Content.AbilitySlotLook"/>, lane ABILITYBAR-RANGE-TINT). Above it: the Warden's health and
 /// Momentum. The run-over state (result, rewards, the Enter hint) is the run-end panel's (<see cref="RunEndPanel"/>).
 /// Each ability slot draws its CC0 icon (<see cref="Keyrun.Content.AbilityIcons"/>, lane ABILITY-ICONS) in place of the
 /// name text; a slot whose ability has no icon row keeps the name. Under --autorun it prints one "HUD bar slot=K
@@ -23,7 +24,7 @@ public partial class AbilityBar : Control
     private const float Slot = 78;
     private const float IconSize = 46;
     private const float CooldownIconAlpha = 0.35f; // the icon fades under the cooldown sweep so the seconds stay readable
-    private static readonly Color IconTint = new(0.92f, 0.93f, 0.97f, 1f);
+    private static readonly Color OutOfRangeTint = ToColor(Keyrun.Content.AbilitySlotLook.OutOfRangeTint);
     private static readonly Color KeyShadow = new(0f, 0f, 0f, 0.85f);
     private const float Gap = 8;
     private const float BottomMargin = 24;
@@ -31,10 +32,9 @@ public partial class AbilityBar : Control
     private const int NameFont = 13;
 
     private static readonly Color SlotBack = new(0.1f, 0.11f, 0.14f, 0.92f);
-    private static readonly Color SlotEdge = new(0.45f, 0.47f, 0.55f, 1f);
+    private static readonly Color SlotEdge = ToColor(Keyrun.Content.AbilitySlotLook.SlotEdge);
     private static readonly Color CooldownShade = new(0f, 0f, 0f, 0.62f);
     private static readonly Color GcdShade = new(1f, 1f, 1f, 0.16f);
-    private static readonly Color OutOfRangeEdge = new(0.95f, 0.2f, 0.15f, 1f);
     private static readonly Color HealthFill = new(0.25f, 0.75f, 0.35f, 1f);
     private static readonly Color MomentumFill = new(0.95f, 0.65f, 0.15f, 1f);
 
@@ -178,9 +178,11 @@ public partial class AbilityBar : Control
         {
             // The icon sits centred, nudged down so the key label keeps the top-left corner clear.
             var iconRect = new Rect2(rect.Position + new Vector2((rect.Size.X - IconSize) / 2, ((rect.Size.Y - IconSize) / 2) + 4), new Vector2(IconSize, IconSize));
-            DrawTextureRect(icon, iconRect, false, new Color(IconTint, IconTint.A * alpha * iconAlpha));
+            var tint = ToColor(Keyrun.Content.AbilitySlotLook.IconModulate(outOfRange)); // red when out of range, WoW style
+            DrawTextureRect(icon, iconRect, false, new Color(tint, tint.A * alpha * iconAlpha));
         }
-        DrawRect(rect, outOfRange ? OutOfRangeEdge : new Color(SlotEdge, dashed ? 0.5f : 1f), filled: false, width: outOfRange ? 3f : 2f);
+        var edge = ToColor(Keyrun.Content.AbilitySlotLook.Edge(outOfRange));
+        DrawRect(rect, new Color(edge, dashed ? 0.5f : 1f), filled: false, width: Keyrun.Content.AbilitySlotLook.EdgeWidth(outOfRange));
         // The key label has a dark drop shadow so it stays readable over the white icon glyph.
         DrawString(font, rect.Position + new Vector2(7, 21), key, HorizontalAlignment.Left, -1, KeyFont, new Color(KeyShadow, KeyShadow.A * alpha));
         DrawString(font, rect.Position + new Vector2(6, 20), key, HorizontalAlignment.Left, -1, KeyFont, new Color(1f, 0.9f, 0.55f, alpha));
@@ -197,9 +199,11 @@ public partial class AbilityBar : Control
         {
             var y = rect.End.Y - 8 - ((lines.Length - 1 - i) * (NameFont + 2));
             var w = font.GetStringSize(lines[i], HorizontalAlignment.Left, -1, NameFont).X;
-            DrawString(font, new Vector2(rect.Position.X + ((rect.Size.X - w) / 2), y), lines[i], HorizontalAlignment.Left, -1, NameFont, new Color(1, 1, 1, alpha));
+            DrawString(font, new Vector2(rect.Position.X + ((rect.Size.X - w) / 2), y), lines[i], HorizontalAlignment.Left, -1, NameFont, outOfRange ? new Color(OutOfRangeTint, alpha) : new Color(1, 1, 1, alpha));
         }
     }
+
+    private static Color ToColor(Keyrun.Content.Rgba8 c) => Color.Color8((byte)c.R, (byte)c.G, (byte)c.B, (byte)c.A);
 
     private void DrawMeter(Font font, Rect2 rect, long value, long max, Color fill, string label)
     {
