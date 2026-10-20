@@ -123,6 +123,14 @@
                 "school": "physical"
               },
               {
+                "op": "resource",
+                "delta": 15
+              },
+              {
+                "op": "threat",
+                "multiplierBp": 15000
+              },
+              {
                 "op": "applyEffect",
                 "effectId": "stunned",
                 "durationTicks": 20,
