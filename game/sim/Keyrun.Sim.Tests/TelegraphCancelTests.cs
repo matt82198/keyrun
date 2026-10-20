@@ -39,6 +39,10 @@ public sealed class TelegraphCancelTests
         Telegraph = new TelegraphSpec("circle", lead) { Radius = 2000, SpansCast = true },
     };
 
+    // CAST-FINISH: an enemy now finishes the cast it starts (a step due mid-cast waits for it to land), so its own next
+    // cast overwrites a bar only under the frozen-TS rule (ScriptStep.TsCastReplace), the one place that path still runs.
+    private static ScriptStep TsAt(int tick, string cast, int lead) => At(tick, cast, lead) with { TsCastReplace = true };
+
     private static Run BuildRun(params ScriptStep[] script)
     {
         var abilities = new Dictionary<string, AbilityDef>(StringComparer.Ordinal)
@@ -146,8 +150,8 @@ public sealed class TelegraphCancelTests
     [Fact(DisplayName = "A cast overwritten mid-bar by the same enemy's next cast cancels its telegraph on the overwrite tick")]
     public void Cast_overwritten_mid_bar_cancels_its_telegraph()
     {
-        // e.long starts on 20 (lands 60); e.short starts on 40 and replaces it (lands 50).
-        var run = BuildRun(At(20, Long, 40), At(40, Short, 10));
+        // Frozen-TS rule: e.long starts on 20 (lands 60); e.short starts on 40 and replaces it (lands 50).
+        var run = BuildRun(TsAt(20, Long, 40), TsAt(40, Short, 10));
         var (events, pending, firstId) = Play(run, 90);
         AssertCancelled(events, pending, firstId,Long, 40);
         AssertLands(events, pending, firstId,Short);
@@ -161,13 +165,39 @@ public sealed class TelegraphCancelTests
         // so e.short is never drawn at all: no telegraph, no telegraph_cancel, no hit. #323 was written on a base without
         // #351 and expected draw-then-cancel on tick 20; the merged contract is stronger (never shown, not shown and
         // retracted), and the cancel path itself stays covered by the kick, stop and mid-bar overwrite cases.
-        var run = BuildRun(At(20, Short, 10), At(20, Long, 40));
+        // Frozen-TS rule (CAST-FINISH: only there does a later step replace a cast on its start tick).
+        var run = BuildRun(TsAt(20, Short, 10), TsAt(20, Long, 40));
         var (events, pending, firstId) = Play(run, 90);
         Assert.DoesNotContain(events, e => e.Type == "telegraph" && Str(e, "cast") == Short);
         Assert.DoesNotContain(events, e => e.Type == "telegraph_cancel");
         Assert.DoesNotContain(events, e => e.Type == "cast_complete" && Str(e, "abilityId") == Short);
         Assert.All(pending.Values, tgs => Assert.DoesNotContain(tgs, tg => tg.AbilityId == Short));
         AssertLands(events, pending, firstId,Long);
+    }
+
+    [Fact(DisplayName = "CAST-FINISH: a step due mid-bar waits for the bar to land; both casts land and both telegraphs resolve")]
+    public void Step_due_mid_bar_waits_and_both_casts_land()
+    {
+        // e.long starts on 20 and lands on 60; e.short, due on 40, waits and starts on 60 (lands 70). Nothing is cancelled.
+        var run = BuildRun(At(20, Long, 40), At(40, Short, 10));
+        var (events, pending, firstId) = Play(run, 90);
+        Assert.DoesNotContain(events, e => e.Type == "telegraph_cancel");
+        AssertLands(events, pending, firstId, Long);
+        AssertLands(events, pending, firstId, Short);
+        Assert.Contains(events, e => e.Type == "cast_complete" && Str(e, "abilityId") == Short && e.Tick == 70);
+    }
+
+    [Fact(DisplayName = "CAST-FINISH: two steps due on one tick cast in script order; the second waits for the first to land")]
+    public void Steps_due_on_one_tick_cast_one_after_the_other()
+    {
+        // Both due on 20: e.short starts on 20 (lands 30), e.long waits and starts on 30 (lands 70).
+        var run = BuildRun(At(20, Short, 10), At(20, Long, 40));
+        var (events, pending, firstId) = Play(run, 90);
+        Assert.DoesNotContain(events, e => e.Type == "telegraph_cancel");
+        AssertLands(events, pending, firstId, Short);
+        AssertLands(events, pending, firstId, Long);
+        Assert.Contains(events, e => e.Type == "cast_complete" && Str(e, "abilityId") == Short && e.Tick == 30);
+        Assert.Contains(events, e => e.Type == "cast_complete" && Str(e, "abilityId") == Long && e.Tick == 70);
     }
 
     [Fact(DisplayName = "A cast that runs its whole bar keeps its telegraph and resolves it, with no cancel")]

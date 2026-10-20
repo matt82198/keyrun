@@ -486,7 +486,8 @@ public partial class SimDriver : Node
         {
             Options = ArenaOptions.Parse(OS.GetCmdlineUserArgs());
             Registry = ContentLoader.Load();
-            Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo);
+            // Finding f-319aced5: the run's affix rotation comes from its seed, so keys 5-9 rotate and a replay matches.
+            Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: Affixes.RotationIndexFor(Options.Seed));
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _player = GetNode<PlayerInput>(InputPath);
             _rig = GetNodeOrNull<CameraRig>(CameraRigPath);
@@ -870,7 +871,7 @@ public partial class SimDriver : Node
         var keyLevel = request?.KeyLevel ?? Options.KeyLevel;
         if (Setup is null || Setup.Dungeon.Id != dungeonId || Setup.Content.KeyLevel != keyLevel)
         {
-            Setup = HostRunSetup.Build(registry, dungeonId, keyLevel, HumanClassId, withBots: !Options.Solo);
+            Setup = HostRunSetup.Build(registry, dungeonId, keyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: Affixes.RotationIndexFor(Options.Seed));
         }
         var setup = Setup;
         var dungeon = setup.Dungeon;
