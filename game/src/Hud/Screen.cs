@@ -667,8 +667,9 @@ public partial class Screen : Control
         // a depleted or abandoned run keeps the key at the level it was played at (Matt 2026-10-20: no drop).
         var ended = _driver.Run;
         var played = ended.Encounter.KeyLevel;
-        var tier = Keyrun.Sim.Encounter.Timer.UpgradeTier(result, ended.RunEnd.ResultTick ?? ended.State.RunTimerTicks, ended.Encounter.ParTicks);
-        _state = ScreenState.Open(SimDriver.DungeonId, _state?.ClauseIds ?? ClauseIds(), Keyrun.Sim.Encounter.Timer.NextKeyLevel(played, tier));
+        var finish = ended.RunEnd.ResultTick ?? ended.State.RunTimerTicks;
+        var tier = Keyrun.Sim.Encounter.Timer.UpgradeTier(result, finish, ended.Encounter.ParTicks);
+        _state = ScreenState.Open(SimDriver.DungeonId, _state?.ClauseIds ?? ClauseIds(), Keyrun.Sim.Encounter.Timer.KeyAfterRun(played, result, finish, ended.Encounter.ParTicks));
         Proof(FormattableString.Invariant($"SCREEN key from={played} to={_state.KeyLevel} tier={tier}"));
         if (_driver.Options.Autorun)
         {
