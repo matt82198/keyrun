@@ -90,62 +90,25 @@ public sealed class PrivateRunLog
 }
 
 /// <summary>
-/// The Seed's bonus loot for the run-end panel (BIBLE s9 item 3 "drops bonus loot", lane SEED-LOOT-VIEW): folds
-/// <see cref="SeedLoot.Observe"/> over every step's events, the rule from <see cref="SeedLoot.RuleFor"/> over the
-/// run's enemy scripts (the first enemy whose onDeath cast opens a Window: the Seed). The sim defines the award and
-/// this only reads its events, as <see cref="PrivateRunLog"/> does. Godot-free.
+/// The Seed's bonus loot for the run-end panel (BIBLE s9 item 3 "drops bonus loot", lanes SEED-LOOT-VIEW and
+/// SEED-BONUS-REWARDS): the award the sim itself carries on <see cref="Run.Rewards"/> (<see cref="RunRoot.StepRun"/>
+/// folds <see cref="SeedLoot.Observe"/> over every step, #197 SEED-LOOT-AWARD). The view never re-folds the events,
+/// so the panel cannot disagree with the sim about what the run awarded. Godot-free.
 /// </summary>
 public sealed class SeedBonusLog
 {
-    private SeedLootRule? _rule;
-    private bool _resolved;
-
-    /// <summary>The rewards so far (<see cref="RunRewards.Empty"/> until the Seed's Window opens).</summary>
+    /// <summary>The run's rewards as of the last step read (<see cref="RunRewards.Empty"/> until the Seed's Window opens).</summary>
     public RunRewards Rewards { get; private set; } = RunRewards.Empty;
 
     /// <summary>Forgets everything (a fresh run).</summary>
-    public void Clear()
-    {
-        _rule = null;
-        _resolved = false;
-        Rewards = RunRewards.Empty;
-    }
+    public void Clear() => Rewards = RunRewards.Empty;
 
-    /// <summary>Folds one step's events in.</summary>
-    /// <param name="events">The step's events.</param>
-    /// <param name="content">The run's content (enemy scripts and abilities; fixed for the run).</param>
-    public void Observe(IReadOnlyList<SimEvent> events, RunContent content)
+    /// <summary>Reads the sim's award after one step.</summary>
+    /// <param name="run">The run as the step left it.</param>
+    public void Observe(Run run)
     {
-        ArgumentNullException.ThrowIfNull(events);
-        ArgumentNullException.ThrowIfNull(content);
-        if (!_resolved)
-        {
-            _rule = RuleOf(content);
-            _resolved = true;
-        }
-        if (_rule is { } rule)
-        {
-            Rewards = SeedLoot.Observe(Rewards, rule, events);
-        }
-    }
-
-    /// <summary>The Seed's loot rule in <paramref name="content"/>, or null when no enemy's onDeath opens a Window.</summary>
-    /// <param name="content">The run's content.</param>
-    /// <returns>The rule, lowest actor id first.</returns>
-    public static SeedLootRule? RuleOf(RunContent content)
-    {
-        ArgumentNullException.ThrowIfNull(content);
-        string? WindowIdOf(string abilityId) => content.Abilities.TryGetValue(abilityId, out var ability)
-            ? ability.Effects.OfType<Keyrun.Sim.Combat.WindowOp>().Select(w => w.WindowId).FirstOrDefault()
-            : null;
-        foreach (var (actorId, script) in content.EnemyScripts.OrderBy(kv => kv.Key))
-        {
-            if (SeedLoot.RuleFor(actorId, script, WindowIdOf) is { } rule)
-            {
-                return rule;
-            }
-        }
-        return null;
+        ArgumentNullException.ThrowIfNull(run);
+        Rewards = run.Rewards;
     }
 }
 
@@ -441,7 +404,7 @@ public partial class RunEndPanel : Control
         }
         var registry = _driver.Registry;
         _log.Observe(events, run.State, classId => Names.Actor(registry, classId));
-        _bonus.Observe(events, run.Content);
+        _bonus.Observe(run);
         if (_view is not null || run.RunEnd.Result is null)
         {
             return;
