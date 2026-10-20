@@ -14,8 +14,8 @@ namespace Keyrun.Hud;
 /// <param name="Total">Pulls in the dungeon, boss included.</param>
 /// <param name="PullId">The sim pull id ("choir", ..., "boss").</param>
 /// <param name="Name">The pull's content display name (the boss's enemy name for the boss pull).</param>
-/// <param name="Remaining">Enemies of this pull still alive.</param>
-/// <param name="Count">Enemies the pull spawned.</param>
+/// <param name="Remaining">Enemies of this pull still alive; once complete, enemies still alive anywhere in the run.</param>
+/// <param name="Count">Enemies the pull spawned; once complete, enemies the run spawned.</param>
 /// <param name="Complete">True once the pull index is past the last pull (the run is cleared).</param>
 public sealed record ObjectiveLine(int Number, int Total, string PullId, string Name, int Remaining, int Count, bool Complete)
 {
@@ -28,7 +28,14 @@ public sealed record ObjectiveLine(int Number, int Total, string PullId, string 
         : new PullHeader(Number, Total, Name).Title;
 
     /// <summary>The task under it: "Defeat the pull: 3 of 3 remain".</summary>
-    public string Task => Complete ? "No enemies remain" : FormattableString.Invariant($"Defeat the pull: {Remaining} of {Count} remain");
+    public string Task => Complete
+        ? Remaining switch
+        {
+            0 => "No enemies remain",
+            1 => "1 enemy left standing",
+            _ => FormattableString.Invariant($"{Remaining} enemies left standing"),
+        }
+        : FormattableString.Invariant($"Defeat the pull: {Remaining} of {Count} remain");
 
     /// <summary>"HUD objective pull=1/4 id=choir name="The Choir" remaining=3/3".</summary>
     public string LogLine() => FormattableString.Invariant(
@@ -55,7 +62,11 @@ public static class ObjectiveModel
         var index = run.Encounter.PullIndex;
         if (index >= pulls.Count)
         {
-            return new ObjectiveLine(total, total, "done", content?.Name ?? run.Dungeon.Id, 0, 0, true);
+            // Cleared: the boss pull spawns only the boss, so a Sundered Twin can outlive it and stays alive (frozen
+            // by RUN-END-FREEZE, Run.StepRun). Count the enemies the sim still holds alive, never claim zero.
+            var standing = run.State.Actors.Values.Count(a => a.Alive && a.Kind == ActorKind.Enemy);
+            var enemies = run.State.Actors.Values.Count(a => a.Kind == ActorKind.Enemy);
+            return new ObjectiveLine(total, total, "done", content?.Name ?? run.Dungeon.Id, standing, enemies, true);
         }
         var pull = pulls[index];
         var number = contentIds.IndexOf(pull.Id) + 1;
