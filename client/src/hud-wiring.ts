@@ -32,6 +32,7 @@ import type { DisplayInfo } from "./sim-host/display-info.js";
 import { interpolateSnapshots } from "./sim-host/interpolate.js";
 import type { ActorSnapshot, Snapshot } from "./sim-host/snapshot.js";
 import { metrics } from "./sim-host/metrics.js";
+import { inputReadiness } from "./input-ready.js";
 import { deriveHostControlCommands } from "./sim-host/host-commands.js";
 import { RunEndView } from "./hud/run-end.js";
 import type { BossBarView } from "./hud/boss-bar.js";
@@ -133,6 +134,7 @@ export function runGameLoop(deps: GameLoopDeps): void {
     },
     () => {
       localTick += 1;
+      inputReadiness.noteInputTick(localTick, nextSnapshot?.tick ?? null); // e2e input readiness (input-ready.ts)
       const commands: AnyCommand[] = [];
 
       const move = computeMoveDeltaMm(deps.moveKeys, orbitCamera.yaw, MOVE_SPEED_MM_PER_TICK);
@@ -144,10 +146,10 @@ export function runGameLoop(deps: GameLoopDeps): void {
       for (const control of deriveHostControlCommands(justPressed, localTick)) simHost.applyCommand(control);
 
       const player = rawById.get(humanActorId);
-      // Spot pings land where the crosshair ray meets the floor (ping-wiring.ts); else at the pinger.
+      // Spot pings land at the crosshair's floor point (ping-wiring.ts), else the pinger; stamped with the SIM tick, never the lagging localTick.
       const aimed = justPressed.has(deps.keybinds.ping) ? aimedGroundPoint(orbitCamera.camera) : null; // raycast only on a G press
       const groundPoint: PingGroundPoint = aimed ?? (player ? { x: player.pos.x, z: player.pos.z } : { x: 0, z: 0 });
-      const ping = derivePingEvent(justPressed, deps.keybinds.ping, localTick, humanActorId, player?.targetId ?? null, groundPoint, deps.pingLimiter);
+      const ping = nextSnapshot ? derivePingEvent(justPressed, deps.keybinds.ping, nextSnapshot.tick, humanActorId, player?.targetId ?? null, groundPoint, deps.pingLimiter) : null;
       if (ping) {
         pingEvents.push(ping);
         simHost.applyCommand({ type: "ping", event: ping });
