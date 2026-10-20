@@ -10,8 +10,8 @@ using Keyrun.Sim.Core;
 namespace Keyrun.View;
 
 /// <summary>
-/// One floating nameplate per sim actor other than the Warden: the content display name ("Choir Cantor"), a health
-/// readout, and a marker on the Warden's current target. It also gives every actor the run spawns a body: an Actor.tscn instance (ActorView)
+/// One floating nameplate per sim actor other than the Warden: the content display name ("Choir Cantor") only
+/// (HUD-DECLUTTER: no health number over a head; enemy health is in UnitFrames), and a marker on the Warden's current target. It also gives every actor the run spawns a body: an Actor.tscn instance (ActorView)
 /// under <see cref="ActorsPath"/>, coloured by role, unless the scene already holds a view for that id (the Warden's,
 /// which CameraRig follows). Plates and bodies of actors that leave the state (a fresh run) are freed.
 /// <para>
@@ -19,16 +19,14 @@ namespace Keyrun.View;
 /// as Label3D billboards. Each frame every plate's anchor (<see cref="PlateHeight"/> above its body) is projected with
 /// <c>Camera3D.UnprojectPosition</c>, the plates are sorted nearest the camera first, and
 /// <see cref="HudLayout"/>.Separate stacks them so no two plates (five Pair Warriors, a Twin beside the boss) and no
-/// plate and the top bar or party frames share a pixel, and every plate stays inside the viewport. The health line
-/// stays under its title as one plate; the font size is fixed, so the boss and Twin plates read the same from the door
+/// plate and the top bar or party frames share a pixel, and every plate stays inside the viewport.
+/// The font size is fixed, so the boss and Twin plates read the same from the door
 /// as up close.
 /// </para>
 /// </summary>
 public partial class LabelView : Node3D
 {
     private const int NameFont = 15;
-    private const int HealthFont = 12;
-    private const int PlateLineGap = 2;
     private const int PlatePad = 4;
     private const int OutlineSize = 4;
 
@@ -61,6 +59,10 @@ public partial class LabelView : Node3D
     /// <summary>The party frames, a HUD obstacle plates keep clear of (absent: no party-frame obstacle).</summary>
     [Export]
     public NodePath PartyFramesPath { get; set; } = new("../Hud/HudRoot/PartyFrames");
+
+    /// <summary>The enemy unit frames (HUD-DECLUTTER), a HUD obstacle plates keep clear of.</summary>
+    [Export]
+    public NodePath UnitFramesPath { get; set; } = new("../Hud/HudRoot/UnitFrames");
 
     /// <summary>The over-head cast bars (CastBarView), whose placed blocks plates keep clear of.</summary>
     [Export]
@@ -111,11 +113,15 @@ public partial class LabelView : Node3D
             {
                 continue;
             }
+            if (!plate.Logged)
+            {
+                // HUD-DECLUTTER proof: the lines this plate draws ("name" only; health lives in the unit frames).
+                plate.Logged = true;
+                HudNodes.Proof(Driver, $"HUD plate actor={id} lines={string.Join(",", Plate.Lines)}");
+            }
             var before = Driver.PreviousState.Actors.TryGetValue(id, out var prev) ? prev : actor;
             var t = Driver.Alpha;
             plate.Anchor = ActorView.ToMetres(before.Pos).Lerp(ActorView.ToMetres(actor.Pos), t) + new Vector3(0, PlateHeight(actor), 0);
-            plate.Health = $"{actor.Health} / {actor.MaxHealth}";
-            plate.HealthTint = HealthColor(actor.Health, actor.MaxHealth);
             plate.Targeted = id == targetId;
         }
 
@@ -164,8 +170,8 @@ public partial class LabelView : Node3D
                 continue;
             }
             var name = plate.Targeted ? "> " + plate.BaseName + " <" : plate.BaseName;
-            var w = (int)Math.Ceiling(Math.Max(HudNodes.Width(name, NameFont), HudNodes.Width(plate.Health, HealthFont))) + (2 * PlatePad);
-            var h = NameFont + PlateLineGap + HealthFont + (2 * PlatePad);
+            var w = (int)Math.Ceiling(HudNodes.Width(name, NameFont)) + (2 * PlatePad);
+            var h = NameFont + (2 * PlatePad);
             var rect = new PixelRect((int)Math.Round(screen.X) - (w / 2), (int)Math.Round(screen.Y) - h, w, h);
             _shown.Add(new Shown(plate, name, rect, origin.DistanceSquaredTo(plate.Anchor)));
         }
@@ -184,7 +190,6 @@ public partial class LabelView : Node3D
             var centre = r.X + (r.Width / 2f);
             var nameColor = s.Plate.Targeted ? TargetColor : Colors.White;
             Line(font, new Vector2(centre, r.Y + PlatePad + NameFont), s.Name, NameFont, nameColor);
-            Line(font, new Vector2(centre, r.Y + PlatePad + NameFont + PlateLineGap + HealthFont), s.Plate.Health, HealthFont, s.Plate.HealthTint);
         }
     }
 
@@ -211,6 +216,10 @@ public partial class LabelView : Node3D
         if (HudObstacles.PartyFrames(GetNodeOrNull<Control>(PartyFramesPath), Driver.State) is { } frames)
         {
             obstacles.Add(frames);
+        }
+        if (GetNodeOrNull<UnitFrames>(UnitFramesPath) is { } units)
+        {
+            obstacles.AddRange(units.FrameRects);
         }
         if (GetNodeOrNull<CastBarView>(CastBarsPath) is { } bars)
         {
@@ -261,23 +270,18 @@ public partial class LabelView : Node3D
     // higher of the target height and the scaled model top, the boss capped at 5 m), so a plate sits just over its head.
     private static float PlateHeight(ActorState actor) => ActorView.Binding.For(actor.ClassId).PlateHeightMm * 0.001f;
 
-    private static Color HealthColor(long hp, long max)
-    {
-        var f = max <= 0 ? 0f : Mathf.Clamp((float)hp / max, 0f, 1f);
-        return new Color(1f - (0.7f * f), 0.35f + (0.6f * f), 0.3f);
-    }
-
     private sealed class Plate(string baseName)
     {
+        /// <summary>The lines every plate draws: the name (HUD-DECLUTTER: no health number over a head).</summary>
+        public static readonly string[] Lines = { "name" };
+
         public string BaseName { get; } = baseName;
 
         public bool Visible { get; set; }
 
+        public bool Logged { get; set; }
+
         public Vector3 Anchor { get; set; }
-
-        public string Health { get; set; } = string.Empty;
-
-        public Color HealthTint { get; set; } = Colors.White;
 
         public bool Targeted { get; set; }
     }
