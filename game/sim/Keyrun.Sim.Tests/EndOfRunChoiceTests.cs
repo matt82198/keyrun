@@ -15,7 +15,7 @@ namespace Keyrun.Sim.Tests;
 /// run-end panel draws): exactly three distinct cards, at least one a strict upgrade for the character, and the pick
 /// lands on the character and survives the save the screen writes. Reward quality by key level is
 /// <see cref="Encounter.RewardQualityFromKeyLevelTests"/> (PR #386) and the untimed key hold is #341/#385; not repeated.
-/// An abandoned run is left as main has it (an open question for Matt, STATE.md D45) and is not pinned here.
+/// An abandoned run gets nothing (STATE.md D45); that is pinned in <see cref="AbandonedRunGetsNothingTests"/>.
 /// </summary>
 public sealed class EndOfRunChoiceTests
 {

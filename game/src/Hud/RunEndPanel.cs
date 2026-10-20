@@ -166,6 +166,12 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     public RunRewards Bonus { get; init; } = RunRewards.Empty;
 
     /// <summary>
+    /// "Left mid-run: nothing gained" for a run the player left (STATE.md D45, <see cref="EndOfRun.HudLine"/>), drawn
+    /// where the cards would be; null for every finished run.
+    /// </summary>
+    public string? Nothing { get; init; }
+
+    /// <summary>
     /// The key move drawn right under the result (BIBLE s8, Matt 2026-10-20: timed moves the key by its chest tier,
     /// untimed holds it), or null for a view built without a run.
     /// </summary>
@@ -266,9 +272,12 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         // inside its Slack reads "over par", never "within par"; an untimed key names the level it keeps (Of ->
         // RunEndTitle.Wiped / ClearedUntimed: Matt 2026-10-20, f-7c7abdf4).
         var title = RunEndTitle.ForRun(run, lost?.Number ?? 0, lost?.Total ?? 0)!;
-        var rewards = bonus?.Rewards ?? RunRewards.Empty;
+        // D45: a player who leaves mid-run gets nothing -- no cards (EndOfRun.Offer is empty), no bonus loot line.
+        var nothing = EndOfRun.HudLine(run);
+        var rewards = nothing is null ? bonus?.Rewards ?? RunRewards.Empty : RunRewards.Empty;
         return new RunEndView(result, tick, title, cleared, choices, log.CausesFor(localSeat))
         {
+            Nothing = nothing,
             Bonus = rewards,
             BonusLabel = BonusLabelOf(rewards.BonusLoot, registry),
             LateCombos = combos?.LinesFor(localSeat) ?? Array.Empty<ComboBlameLine>(),
@@ -286,6 +295,11 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         {
             // "HUD runend key from=7 to=10 tier=3": the level the panel shows and the screen reopens at.
             yield return key.LogLine();
+        }
+        if (Nothing is { } nothing)
+        {
+            // D45: "HUD runend nothing result=abandoned line="Left mid-run: nothing gained"".
+            yield return FormattableString.Invariant($"HUD runend nothing result={Result.ToJs()} line=\"{nothing}\"");
         }
         for (var i = 0; i < Choices.Count; i++)
         {
@@ -456,7 +470,12 @@ public partial class RunEndPanel : Control
         }
         // Lane 3D-c: in the interactive game Enter opens the between-runs screen; only --solo restarts at once.
         var enter = _driver?.StartsOnScreen == true ? "Enter opens the between-runs screen" : "Enter starts a fresh run";
-        var hint = _taken is null ? "1-3 take a reward    " + enter : enter;
+        var hint = _taken is null && view.Choices.Count > 0 ? "1-3 take a reward    " + enter : enter;
+        if (view.Nothing is { } nothing)
+        {
+            // D45: a run the player left grants nothing; the line sits where the cards would be.
+            HudNodes.Text(this, panel.Position + new Vector2(20, 52 + bonusShift + 28), nothing, CardFont + 2, new Color(0.85f, 0.88f, 0.95f));
+        }
         HudNodes.Text(this, new Vector2(panel.End.X - HudNodes.Width(hint, CardFont) - 20, panel.Position.Y + 30), hint, CardFont, Colors.White);
 
         var cardWidth = (PanelWidth - 40 - (2 * CardGap)) / 3;

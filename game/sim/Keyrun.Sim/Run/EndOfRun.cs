@@ -11,12 +11,24 @@ namespace Keyrun.Sim.Runs;
 /// character's equipped gear, testable without the engine.
 /// </summary>
 /// <remarks>
-/// An abandoned run also gets an offer here, as it did on main before this seam existed. Whether a leaver gets the
-/// choice is an open question for Matt (STATE.md D45 records "a player who leaves mid-run gets nothing"); it is left
-/// unchanged and unpinned.
+/// An abandoned run gets nothing (STATE.md D45: "every finished run, timed or depleted, offers the choice of three; a
+/// player who leaves mid-run gets nothing"): <see cref="Offer"/> is empty, <see cref="Ash.ForResult"/> is 0,
+/// <see cref="Progression.Take"/> refuses, and the key holds (<see cref="Timer.KeyAfterRun"/>).
 /// </remarks>
 public static class EndOfRun
 {
+    /// <summary>The HUD line (run-end panel and the screen's "since last run") for a run the player left (D45).</summary>
+    public const string NothingLine = "Left mid-run: nothing gained";
+
+    /// <summary>The run-end panel's "nothing granted" line for an abandoned run (D45), else null.</summary>
+    /// <param name="run">The run.</param>
+    /// <returns><see cref="NothingLine"/> for an abandoned run, else null.</returns>
+    public static string? HudLine(Run run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        return run.RunEnd.Result == RunResult.Abandoned ? NothingLine : null;
+    }
+
     /// <summary>
     /// The reward seed the run-end panel has always used (server/src/run-end.ts): the run seed x 1000003 plus the tick
     /// the run ended.
@@ -43,7 +55,7 @@ public static class EndOfRun
     /// <param name="run">The run.</param>
     /// <param name="facetPools">The human class's facets per slot, or null.</param>
     /// <param name="equipped">The character's equipped gear by slot (empty for a fresh character).</param>
-    /// <returns>Exactly three distinct cards, or null.</returns>
+    /// <returns>Exactly three distinct cards, none for an abandoned run (D45), or null while the run is live.</returns>
     public static IReadOnlyList<Item>? Offer(Run run, IReadOnlyDictionary<string, IReadOnlyList<Facet>>? facetPools, IReadOnlyDictionary<string, Item> equipped)
     {
         ArgumentNullException.ThrowIfNull(run);
@@ -51,6 +63,11 @@ public static class EndOfRun
         if (run.RunEnd.Result is not { } result || run.RunEnd.ResultTick is null)
         {
             return null;
+        }
+        if (result == RunResult.Abandoned)
+        {
+            // D45: a player who leaves mid-run gets nothing.
+            return Array.Empty<Item>();
         }
         var seed = RewardSeed(run);
         return facetPools is null
