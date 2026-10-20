@@ -7,13 +7,14 @@ namespace Keyrun.Sim.Runs;
 
 /// <summary>
 /// One party seat its player left mid-run (BIBLE s10 backfill). The seat's actor stays in the run, alive and idle:
-/// abandoning never kills, removes or resets it, so the run's Slack is not spent by the leave.
+/// abandoning never kills, removes or resets it, so the leave adds no time to the run clock (STATE.md D46).
 /// </summary>
 /// <param name="ActorId">The seat's player actor.</param>
 /// <param name="Tick">The run tick of the abandon (the tick the leaver's commands stop).</param>
 /// <param name="PullIndex">The active pull at the abandon; the seat is offered at the next pull start after it.</param>
-/// <param name="SlackTicks">The run's Slack bank at the abandon.</param>
-public sealed record SeatAbandon(int ActorId, int Tick, int PullIndex, int SlackTicks);
+/// <param name="PenaltyTicks">Time the run's deaths and wipes had added to the run clock at the abandon
+/// (<see cref="Keyrun.Sim.Encounter.EncounterState.PenaltyTicks"/>, STATE.md D46).</param>
+public sealed record SeatAbandon(int ActorId, int Tick, int PullIndex, int PenaltyTicks);
 
 /// <summary>An abandoned seat refilled from the queue at a pull start.</summary>
 /// <param name="ActorId">The seat's player actor, now driven by the joiner.</param>
@@ -21,8 +22,8 @@ public sealed record SeatAbandon(int ActorId, int Tick, int PullIndex, int Slack
 /// <param name="AbandonTick">The tick the seat emptied.</param>
 /// <param name="FillTick">The pull start tick: the first tick whose commands for the seat are the joiner's.</param>
 /// <param name="PullIndex">The pull that started.</param>
-/// <param name="SlackTicks">The run's Slack the joiner arrives with (the run's own bank, never reset).</param>
-public sealed record SeatFill(int ActorId, QueueRequest Joiner, int AbandonTick, int FillTick, int PullIndex, int SlackTicks);
+/// <param name="PenaltyTicks">The run clock's added time the joiner arrives with (the run's own, never reset; STATE.md D46).</param>
+public sealed record SeatFill(int ActorId, QueueRequest Joiner, int AbandonTick, int FillTick, int PullIndex, int PenaltyTicks);
 
 /// <summary>The run's backfill book: seats waiting for a joiner (in abandon order) and seats already refilled.</summary>
 /// <param name="Open">Abandoned seats not yet filled, oldest first.</param>
@@ -48,10 +49,11 @@ public sealed record BackfillStep(
 
 /// <summary>
 /// ENGINE-PLAN 3G backfill (BIBLE s10: "a slot that empties mid-run is offered to the queue at the same key; a joiner
-/// arrives at the next pull start with the run's Slack"; research/09, Fellowship's named defect). Pure and
+/// arrives at the next pull start with the run's Slack", which since STATE.md D46 is the run clock as it stands;
+/// research/09, Fellowship's named defect). Pure and
 /// deterministic: the refill depends only on the run, the abandon and the queue order, never on a clock.
 /// <list type="bullet">
-/// <item><see cref="Abandon"/> records the seat; the run is not touched (no death, so no Slack spend).</item>
+/// <item><see cref="Abandon"/> records the seat; the run is not touched (no death, so no time added to the run clock).</item>
 /// <item><see cref="Step"/> wraps <see cref="RunRoot.StepRun"/>: an open seat's commands are dropped, and at the
 /// first <c>pull_start</c> after the abandon the seat goes to the first admitted queue request, whose commands run
 /// from the pull start tick on.</item>
@@ -102,7 +104,7 @@ public static class Backfill
         {
             throw new ArgumentException($"backfill: seat {actorId} is already open", nameof(actorId));
         }
-        var abandon = new SeatAbandon(actorId, run.State.Tick, run.Encounter.PullIndex, run.Encounter.SlackTicks);
+        var abandon = new SeatAbandon(actorId, run.State.Tick, run.Encounter.PullIndex, run.Encounter.PenaltyTicks);
         return state with { Open = state.Open.Append(abandon).ToList() };
     }
 
@@ -165,7 +167,7 @@ public static class Backfill
                 continue;
             }
             consumed.Add(pick);
-            fills.Add(new SeatFill(seat.ActorId, queue[pick], seat.Tick, next.State.Tick, next.Encounter.PullIndex, next.Encounter.SlackTicks));
+            fills.Add(new SeatFill(seat.ActorId, queue[pick], seat.Tick, next.State.Tick, next.Encounter.PullIndex, next.Encounter.PenaltyTicks));
         }
         if (fills.Count == 0)
         {

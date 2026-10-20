@@ -8,8 +8,9 @@ what to do. What the enemies do, and what to do about it, you find out by playin
 
 Keyrun is a timed dungeon, built to feel like a World of Warcraft Mythic+ key with fewer buttons. A **key** is a
 number from 2 to 20. Higher keys make enemies cast more often, make floor warnings resolve faster and give enemies more
-health. The dungeon has teaching pulls, then a boss. The run clock starts at once and counts against **par**. A
-second bar, **Slack**, is a grace bank: a death costs some of it, a full wipe costs more.
+health. The dungeon has teaching pulls, then a boss. The run clock starts at once and counts against **par**. As in
+Mythic+, every death adds 15 s to the run clock and a full wipe adds 25 s more; par and your key tier are judged on
+that clock.
 
 ## Your party
 
@@ -69,7 +70,9 @@ and event), records the result in the ledger (`game/playtest/ledger.json`) and a
 
 `summary.json` is your end-of-run screen. The fields that teach the most:
 
-- `result`, `lostOnPull`, `clearSeconds` against `parSeconds`, `slackLeftSeconds`: how the key went and where it ended.
+- `result`, `lostOnPull`, `clockSeconds` against `parSeconds` (`clockParPercent`, `overPar`): how the key went and
+  where it ended. The clock is `clearSeconds` (time played) plus `addedSeconds`, the time your `deathCount` deaths
+  and any wipe added.
 - `deaths`: who died, when, in which pull, to which enemy ability, from which enemy.
 - `interruptibleCastsResolved` and `castsInterrupted`: enemy casts that could have been kicked, and how many were.
 - `enemiesFought`: the enemy ids you traded blows with and their names (the ids `focus` takes).
@@ -84,7 +87,7 @@ Your memory file keeps a short recap of each run (`saw:` lines) next to your les
 
 - A **timed** run (the boss dead with time left) raises your key by the tier: **+1** within par, **+2** within 80% of
   par, **+3** within 60% of par.
-- An **untimed** run (a wipe, a depleted Slack bank, a clear past par, or a run that never finished) leaves your key
+- An **untimed** run (a wipe, a clear past par on the run clock, or a run that never finished) leaves your key
   where it was. An untimed key stays the same level, it never drops.
 
 ## Learning, run by run

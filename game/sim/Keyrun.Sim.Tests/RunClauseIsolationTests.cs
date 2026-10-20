@@ -62,7 +62,7 @@ public sealed class RunClauseIsolationTests
     private static List<int> Marked(Run run) =>
         run.State.Actors.Values.Where(a => a.Effects.Any(e => e.EffectId == "mark")).Select(a => a.Id).OrderBy(x => x).ToList();
 
-    private static string Line(Run run) => Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.SlackTicks);
+    private static string Line(Run run) => Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.PenaltyTicks);
 
     [Fact]
     public void Registered_effects_interleaved_runs_with_opposite_polarity_each_match_their_solo_replay()

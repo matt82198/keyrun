@@ -134,7 +134,7 @@ public static class TraceReplayer
                 actualEvents = stepped.Events.Select(e => e.ToCanonicalJson()).ToList();
             }
 
-            var line = Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.SlackTicks);
+            var line = Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.PenaltyTicks);
             var hash = Fnv1a.Hex(Projection.RecordHash(line));
             if (hash != record.H)
             {

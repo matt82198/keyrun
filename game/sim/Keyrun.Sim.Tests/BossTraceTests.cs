@@ -42,7 +42,7 @@ public sealed class BossTraceTests
             var tick = run.State.Tick;
             var stepped = RunRoot.StepRun(run, Script.Where(c => c.Tick == tick).ToList());
             run = stepped.Run;
-            var line = Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.SlackTicks);
+            var line = Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.PenaltyTicks);
             lines.Add(line);
             var events = string.Join(",", stepped.Events.Select(e => e.ToCanonicalJson()));
             body.Append("{\"t\":").Append(run.State.Tick)

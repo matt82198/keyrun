@@ -6,7 +6,8 @@
  *   - fnv1a32(text): FNV-1a 32-bit over the UTF-16 code units of an ASCII string (== its bytes),
  *     returned as 8 lowercase hex chars.
  *   - projectionLine(tick, encounter, actors): the per-tick projection line
- *     `t=<tick>;pull=<i>;slack=<n>;a=<actor>|<actor>|...` with each actor rendered as
+ *     `t=<tick>;pull=<i>;penalty=<n>;a=<actor>|<actor>|...` (penalty: the time deaths and wipes have
+ *     added to the run clock, STATE.md D46; 0 before any) with each actor rendered as
  *     `<id>,<hp>,<x>,<z>,<yaw>,<alive>,<res>,<castAbility|->,<castEnd|->` and actors sorted by id.
  *   - canonicalJson(value): sorted-key compact JSON (undefined members dropped), used for every
  *     command/event/setup payload so a reader in another language can re-render it byte-for-byte.
@@ -33,7 +34,8 @@ export interface ProjectedActor {
 /** Minimal encounter shape the projection reads (sim/encounter EncounterState subset). */
 export interface ProjectedEncounter {
   pullIndex: number;
-  slackTicks: number;
+  /** Run-clock added time (sim/encounter/timer.ts chargeDeath/chargeWipe); absent until the first death. */
+  penaltyTicks?: number;
 }
 
 const FNV_OFFSET = 0x811c9dc5;
@@ -91,7 +93,7 @@ export function projectActor(a: ProjectedActor): string {
 export function projectionLine(tick: number, encounter: ProjectedEncounter, actors: Iterable<ProjectedActor>): string {
   const sorted = [...actors].sort((p, q) => p.id - q.id);
   const body = sorted.map(projectActor).join("|");
-  return `t=${fmtInt(tick, "tick")};pull=${fmtInt(encounter.pullIndex, "pullIndex")};slack=${fmtInt(encounter.slackTicks, "slackTicks")};a=${body}`;
+  return `t=${fmtInt(tick, "tick")};pull=${fmtInt(encounter.pullIndex, "pullIndex")};penalty=${fmtInt(encounter.penaltyTicks ?? 0, "penaltyTicks")};a=${body}`;
 }
 
 /**

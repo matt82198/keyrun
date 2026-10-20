@@ -9,7 +9,7 @@ using Keyrun.Sim.Runs;
 namespace Keyrun.Playtest;
 
 /// <summary>How one run went for the key (Matt 2026-10-20: untimed keeps the key, timed raises it by the tier).</summary>
-/// <param name="Timed">True when the dungeon was cleared with Slack left at or before par.</param>
+/// <param name="Timed">True when the dungeon was cleared with the run clock at or before par (STATE.md D46).</param>
 /// <param name="Tier">+1, +2 or +3 for a timed run (clear time within 100%, 80% or 60% of par), 0 when untimed.</param>
 /// <param name="Why">"timed", or why not: "wiped", "depleted", "over par" or "unfinished".</param>
 public sealed record KeyOutcome(bool Timed, int Tier, string Why)
@@ -25,12 +25,13 @@ public sealed record KeyOutcome(bool Timed, int Tier, string Why)
 
     /// <summary>
     /// The outcome of a finished run. <paramref name="cleared"/> false with the run ended is a wipe; a cleared run
-    /// that ran out of Slack is depleted; a cleared run past par is over par; else timed with the tier by clear time.
+    /// the sim flagged depleted is depleted; a cleared run past par on the run clock is over par; else timed with the tier
+    /// by the run clock.
     /// </summary>
     /// <param name="ended">True when the run reached run_end.</param>
     /// <param name="cleared">True when every pull including the boss was cleared.</param>
-    /// <param name="depleted">True when the Slack bank ran out.</param>
-    /// <param name="clearTicks">The run clock at the end.</param>
+    /// <param name="depleted">The sim's depleted flag (an unrecovered full wipe, STATE.md D46).</param>
+    /// <param name="clearTicks">The run clock at the end: elapsed plus the time deaths and wipes added (D46).</param>
     /// <param name="parTicks">The dungeon's par.</param>
     /// <returns>The outcome.</returns>
     public static KeyOutcome Of(bool ended, bool cleared, bool depleted, int clearTicks, int parTicks)

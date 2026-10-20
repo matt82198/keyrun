@@ -55,13 +55,13 @@ public sealed class FormatParityTests
     }
 
     /// <summary>Test-side reader of a projection line into actors (the inverse of the writer under test).</summary>
-    private static (int Tick, int Pull, long Slack, List<ActorState> Actors) ParseProjection(string p)
+    private static (int Tick, int Pull, long Penalty, List<ActorState> Actors) ParseProjection(string p)
     {
         var parts = p.Split(';');
         Assert.Equal(4, parts.Length);
         Assert.StartsWith("t=", parts[0]);
         Assert.StartsWith("pull=", parts[1]);
-        Assert.StartsWith("slack=", parts[2]);
+        Assert.StartsWith("penalty=", parts[2]);
         Assert.StartsWith("a=", parts[3]);
         var actors = new List<ActorState>();
         var body = parts[3][2..];
@@ -87,7 +87,7 @@ public sealed class FormatParityTests
             }
         }
         return (int.Parse(parts[0][2..], CultureInfo.InvariantCulture), int.Parse(parts[1][5..], CultureInfo.InvariantCulture),
-            long.Parse(parts[2][6..], NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture), actors);
+            long.Parse(parts[2]["penalty=".Length..], NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture), actors);
     }
 
     public static IEnumerable<object[]> Traces() => TraceNames.Select(n => new object[] { n });
@@ -122,9 +122,9 @@ public sealed class FormatParityTests
             {
                 var p = pEl.GetString()!;
                 Assert.Equal(h, Fnv1a.Hex(Fnv1a.Hash(p)));
-                var (tick, pull, slack, actors) = ParseProjection(p);
+                var (tick, pull, penalty, actors) = ParseProjection(p);
                 Assert.Equal(t, tick);
-                Assert.Equal(p, Projection.Line(tick, pull, slack, actors));
+                Assert.Equal(p, Projection.Line(tick, pull, penalty, actors));
                 projections++;
             }
             if (rec.TryGetProperty("c", out var cEl))
@@ -177,8 +177,8 @@ public sealed class FormatParityTests
     {
         var a = new ActorState { Id = 7, Health = 10, Pos = new Vec3(-5, 99, 3), Yaw = 1023, Alive = false, Resource = 0 };
         var b = new ActorState { Id = 2, Health = 1, Pos = new Vec3(0, 0, -1), Yaw = 0, Alive = true, Resource = 4, CastId = "warden.brace", CastEndsTick = 40 };
-        Assert.Equal("t=3;pull=1;slack=-2;a=2,1,0,-1,0,1,4,warden.brace,40|7,10,-5,3,1023,0,0,-,-", Projection.Line(3, 1, -2, new[] { a, b }));
-        Assert.Equal("t=0;pull=0;slack=0;a=", Projection.Line(0, 0, 0, Array.Empty<ActorState>()));
+        Assert.Equal("t=3;pull=1;penalty=-2;a=2,1,0,-1,0,1,4,warden.brace,40|7,10,-5,3,1023,0,0,-,-", Projection.Line(3, 1, -2, new[] { a, b }));
+        Assert.Equal("t=0;pull=0;penalty=0;a=", Projection.Line(0, 0, 0, Array.Empty<ActorState>()));
     }
 
     [Theory]

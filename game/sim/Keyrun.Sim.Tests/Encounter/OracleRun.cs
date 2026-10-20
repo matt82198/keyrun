@@ -19,7 +19,7 @@ internal sealed record OracleRecord(int T, string? P, IReadOnlyList<Command> Com
 internal sealed record ProjectedActor(int Id, long Hp, long X, long Z, int Yaw, bool Alive, long Res, string? Cast, int? CastEnd);
 
 /// <summary>A parsed projection line.</summary>
-internal sealed record ProjectedLine(int T, int Pull, long Slack, IReadOnlyList<ProjectedActor> Actors);
+internal sealed record ProjectedLine(int T, int Pull, long Penalty, IReadOnlyList<ProjectedActor> Actors);
 
 /// <summary>Trace and setup loading for the encounter oracle tests.</summary>
 internal static class OracleRun
@@ -45,7 +45,7 @@ internal static class OracleRun
         long L(string s) => long.Parse(s, CultureInfo.InvariantCulture);
         var t = I(parts[0]["t=".Length..]);
         var pull = I(parts[1]["pull=".Length..]);
-        var slack = L(parts[2]["slack=".Length..]);
+        var penalty = L(parts[2]["penalty=".Length..]);
         var body = parts[3]["a=".Length..];
         var actors = body.Length == 0
             ? new List<ProjectedActor>()
@@ -55,7 +55,7 @@ internal static class OracleRun
                 return new ProjectedActor(I(f[0]), L(f[1]), L(f[2]), L(f[3]), I(f[4]), f[5] == "1", L(f[6]),
                     f[7] == "-" ? null : f[7], f[8] == "-" ? null : I(f[8]));
             }).ToList();
-        return new ProjectedLine(t, pull, slack, actors);
+        return new ProjectedLine(t, pull, penalty, actors);
     }
 
     /// <summary>The party as createRun builds it (sim/combat/actors.ts:19 createActor over setup.party).</summary>

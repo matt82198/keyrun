@@ -74,8 +74,8 @@ public sealed class HostQueuedRunTests
             plain = a.Run;
             armed = b.Run;
             Assert.Equal(
-                Projection.Line(plain.State, plain.Encounter.PullIndex, plain.Encounter.SlackTicks),
-                Projection.Line(armed.State, armed.Encounter.PullIndex, armed.Encounter.SlackTicks));
+                Projection.Line(plain.State, plain.Encounter.PullIndex, plain.Encounter.PenaltyTicks),
+                Projection.Line(armed.State, armed.Encounter.PullIndex, armed.Encounter.PenaltyTicks));
             Assert.Equal(a.Events.Select(e => e.ToCanonicalJson()), b.Events.Select(e => e.ToCanonicalJson()));
         }
         Assert.NotNull(armed.Encounter.Boss);

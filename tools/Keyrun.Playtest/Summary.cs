@@ -32,7 +32,19 @@ public static class Summary
         var run = result.Run;
         var ended = run.RunEnd.Result is not null;
         var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
-        return KeyOutcome.Of(ended, cleared, run.Encounter.Depleted, run.State.RunTimerTicks, run.Encounter.ParTicks);
+        return KeyOutcome.Of(ended, cleared, run.Encounter.Depleted, (int)Math.Min(int.MaxValue, ClockTicksOf(run)), run.Encounter.ParTicks);
+    }
+
+    /// <summary>
+    /// The run clock at the end of a played run (STATE.md D46, <see cref="Keyrun.Sim.Encounter.Timer.ClockTicks"/>): the
+    /// elapsed run timer plus the time deaths and wipes added. Par and the key tier are measured on it.
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <returns>Clock ticks.</returns>
+    public static long ClockTicksOf(Run run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        return Keyrun.Sim.Encounter.Timer.ClockTicks(run.Encounter, run.State.RunTimerTicks);
     }
 
     /// <summary>The summary JSON text.</summary>
@@ -76,8 +88,16 @@ public static class Summary
             w.WriteNumber("parTicks", run.Encounter.ParTicks);
             w.WriteNumber("parSeconds", run.Encounter.ParTicks / TicksPerSecond);
             w.WriteNumber("parPercent", (int)((long)run.State.RunTimerTicks * 100 / Math.Max(1, run.Encounter.ParTicks)));
-            w.WriteNumber("slackLeftTicks", run.Encounter.SlackTicks);
-            w.WriteNumber("slackLeftSeconds", run.Encounter.SlackTicks / TicksPerSecond);
+            // STATE.md D46 (Mythic+): deaths and wipes add time to the run clock; par and the key are judged on it.
+            var added = Math.Max(0, run.Encounter.PenaltyTicks);
+            var clock = ClockTicksOf(run);
+            w.WriteNumber("deathCount", run.Encounter.Deaths);
+            w.WriteNumber("addedTicks", added);
+            w.WriteNumber("addedSeconds", added / TicksPerSecond);
+            w.WriteNumber("clockTicks", clock);
+            w.WriteNumber("clockSeconds", clock / TicksPerSecond);
+            w.WriteNumber("clockParPercent", clock * 100 / Math.Max(1, run.Encounter.ParTicks));
+            w.WriteBoolean("overPar", clock > run.Encounter.ParTicks);
             w.WriteBoolean("depleted", run.Encounter.Depleted);
             var lost = run.RunEnd.Result is not null && run.Encounter.PullIndex < run.Dungeon.Pulls.Count ? PlaytestRunner.PullIdOf(run) : null;
             w.WriteString("lostOnPull", lost);

@@ -101,7 +101,7 @@ public sealed class PrivateRatingIsolationTests
             var step = RunRoot.StepRun(run, Array.Empty<Command>());
             run = step.Run;
             lines.AddRange(step.Events.Select(e => e.ToCanonicalJson()));
-            lines.Add(Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.SlackTicks));
+            lines.Add(Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.PenaltyTicks));
         }
         Assert.True(lines.Count > 600, "vacuity guard: the trace has events beyond the projections");
         var leaked = lines.Where(IsBanned).Take(3).ToList();

@@ -41,11 +41,16 @@ describe("oracle wire format", () => {
   });
 
   it("renders a projection line with actors sorted by id, '-' for no cast, 1/0 for alive", () => {
-    const line = projectionLine(12, { pullIndex: 1, slackTicks: 3600 }, [
+    const line = projectionLine(12, { pullIndex: 1, penaltyTicks: 900 }, [
       { id: 900, health: 0, pos: { x: -5, z: 7 }, yaw: 1023, alive: false, resource: 0, castId: null, castEndsTick: null },
       { id: 2, health: 400, pos: { x: 100, z: -2500 }, yaw: 0, alive: true, resource: 75, castId: "warden.strike", castEndsTick: 30 },
     ]);
-    expect(line).toBe("t=12;pull=1;slack=3600;a=2,400,100,-2500,0,1,75,warden.strike,30|900,0,-5,7,1023,0,0,-,-");
+    expect(line).toBe("t=12;pull=1;penalty=900;a=2,400,100,-2500,0,1,75,warden.strike,30|900,0,-5,7,1023,0,0,-,-");
+  });
+
+  it("projects the run clock's added time (D46), 0 before any death or wipe, and no Slack bank", () => {
+    expect(projectionLine(0, { pullIndex: 0 }, [])).toBe("t=0;pull=0;penalty=0;a=");
+    expect(projectionLine(0, { pullIndex: 0, slackTicks: 620 } as never, [])).not.toMatch(/slack/);
   });
 
   it("refuses non-integer fields and renders -0 as 0", () => {

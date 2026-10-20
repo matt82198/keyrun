@@ -135,11 +135,15 @@ public sealed class TempoTests
     [InlineData("scripted-pull", 1)]
     [InlineData("bots-hv-k2-s7", 2)]
     [InlineData("bots-hv-k10-s7", 10)]
-    public void Oracle_initial_slack_is_the_key_level_bank(string trace, int keyLevel)
+    public void Oracle_initial_run_clock_has_no_added_time(string trace, int keyLevel)
     {
+        // STATE.md D46: the oracle projects the run clock's added time (penalty=), not the Slack bank, which no longer
+        // moves. A fresh run at any key starts with nothing added, on both sides of the oracle.
         var first = OracleFixtures.LoadTrace(trace).RecordLines[0];
         var p = System.Text.Json.JsonDocument.Parse(first).RootElement.GetProperty("p").GetString()!;
-        var slack = p.Split(';').Single(f => f.StartsWith("slack=", System.StringComparison.Ordinal))["slack=".Length..];
-        Assert.Equal(Timer.InitialSlackTicks(keyLevel).ToString(System.Globalization.CultureInfo.InvariantCulture), slack);
+        var penalty = p.Split(';').Single(f => f.StartsWith("penalty=", System.StringComparison.Ordinal))["penalty=".Length..];
+        var fresh = EncounterState.Create(keyLevel, 24000, Clauses.DefaultEncounterRules(keyLevel));
+        Assert.Equal(fresh.PenaltyTicks.ToString(System.Globalization.CultureInfo.InvariantCulture), penalty);
+        Assert.Equal("0", penalty);
     }
 }

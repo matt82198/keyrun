@@ -292,7 +292,7 @@ public sealed partial class PlaytesterMemory
         var tps = Summary.TicksPerSecond;
         var lost = run.RunEnd.Result is not null && run.Encounter.PullIndex < run.Dungeon.Pulls.Count ? PlaytestRunner.PullIdOf(run) : null;
         lines.Add(FormattableString.Invariant(
-            $"result: {outcome.Label}; clock {run.State.RunTimerTicks / tps}s of par {run.Encounter.ParTicks / tps}s; slack left {run.Encounter.SlackTicks / tps}s{(lost is null ? string.Empty : "; run ended on pull " + lost)}"));
+            $"result: {outcome.Label}; clock {Summary.ClockTicksOf(run) / tps}s of par {run.Encounter.ParTicks / tps}s (run {run.State.RunTimerTicks / tps}s + {Math.Max(0, run.Encounter.PenaltyTicks) / tps}s added); deaths {run.Encounter.Deaths}{(lost is null ? string.Empty : "; run ended on pull " + lost)}"));
         var cleared = stats.Pulls.Where(p => p.StartTick is not null && p.ClearTick is not null)
             .Select(p => FormattableString.Invariant($"{p.Id} {(p.ClearTick!.Value - p.StartTick!.Value) / tps}s")).ToList();
         lines.Add(cleared.Count == 0 ? "pulls cleared: none" : "pulls cleared: " + string.Join(", ", cleared));

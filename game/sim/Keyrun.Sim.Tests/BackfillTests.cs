@@ -65,7 +65,7 @@ public sealed class BackfillTests
         }
         if (tick == HealerDeathTick)
         {
-            // A real death while the seat is open, so the run's Slack moves between the abandon and the refill.
+            // A real death while the seat is open, so the run clock's added time moves between the abandon and the refill.
             list.Add(new CastCommand(tick, Tank, "nuke", Healer));
         }
         list.Add(new MoveCommand(tick, Seat, new Dir2(tick % 2 == 0 ? 1000 : -1000, 0), 256));
@@ -77,7 +77,7 @@ public sealed class BackfillTests
         BackfillState Backfill,
         List<SeatFill> Fills,
         List<int> SeatActedTicks,
-        Dictionary<int, int> SlackAt,
+        Dictionary<int, int> PenaltyAt,
         Dictionary<int, Vec3> SeatPosAt,
         int? PullStart3Tick,
         List<QueueRequest> QueueLeft);
@@ -90,13 +90,13 @@ public sealed class BackfillTests
         var waiting = queue.ToList();
         var fills = new List<SeatFill>();
         var acted = new List<int>();
-        var slack = new Dictionary<int, int>();
+        var penalty = new Dictionary<int, int>();
         var pos = new Dictionary<int, Vec3>();
         int? pullStart3 = null;
         while (run.State.Tick < EndTick)
         {
             var tick = run.State.Tick;
-            slack[tick] = run.Encounter.SlackTicks;
+            penalty[tick] = run.Encounter.PenaltyTicks;
             pos[tick] = run.State.Actors[Seat].Pos;
             if (tick == abandonTick)
             {
@@ -120,9 +120,9 @@ public sealed class BackfillTests
             backfill = step.Backfill;
             run = step.Step.Run;
         }
-        slack[run.State.Tick] = run.Encounter.SlackTicks;
+        penalty[run.State.Tick] = run.Encounter.PenaltyTicks;
         pos[run.State.Tick] = run.State.Actors[Seat].Pos;
-        return new Drive(run, backfill, fills, acted, slack, pos, pullStart3, waiting);
+        return new Drive(run, backfill, fills, acted, penalty, pos, pullStart3, waiting);
     }
 
     [Fact]
@@ -165,28 +165,27 @@ public sealed class BackfillTests
     }
 
     [Fact]
-    public void The_runs_Slack_is_unchanged_by_the_abandon_and_the_refill()
+    public void The_runs_added_time_is_unchanged_by_the_abandon_and_the_refill()
     {
         var d = DriveRun(AbandonTick, new[] { Key10 });
         var control = DriveRun(null, Array.Empty<QueueRequest>());
         var fill = Assert.Single(d.Fills);
 
-        // Every tick's Slack equals the no-abandon control run's, through the abandon, the open seat and the refill.
-        Assert.Equal(control.SlackAt.Keys.OrderBy(k => k), d.SlackAt.Keys.OrderBy(k => k));
-        foreach (var (tick, slack) in control.SlackAt)
+        // Every tick's added time equals the no-abandon control run's, through the abandon, the open seat and the refill.
+        Assert.Equal(control.PenaltyAt.Keys.OrderBy(k => k), d.PenaltyAt.Keys.OrderBy(k => k));
+        foreach (var (tick, penalty) in control.PenaltyAt)
         {
-            Assert.Equal(slack, d.SlackAt[tick]);
+            Assert.Equal(penalty, d.PenaltyAt[tick]);
         }
-        Assert.Equal(control.Run.Encounter.SlackTicks, d.Run.Encounter.SlackTicks);
-
-        // The joiner arrives with the run's current Slack. STATE.md D46: the healer's death (tick 80) adds time to the
-        // run clock and no longer drains the bank, so the bank is the abandon-time bank and the death time is kept.
-        Assert.False(d.Run.State.Actors[Healer].Alive);
-        Assert.Equal(d.SlackAt[AbandonTick], d.SlackAt[fill.FillTick]);
-        Assert.True(d.Run.Encounter.PenaltyTicks > 0);
         Assert.Equal(control.Run.Encounter.PenaltyTicks, d.Run.Encounter.PenaltyTicks);
-        Assert.Equal(d.SlackAt[fill.FillTick], fill.SlackTicks);
-        Assert.Equal(d.Run.Encounter.SlackTicks, fill.SlackTicks);
+
+        // STATE.md D46: the healer's death (tick 80, after the abandon at tick 60) adds its cost to the run clock, so the
+        // seat opens with no added time and the joiner arrives with the run's current added time, never reset.
+        Assert.False(d.Run.State.Actors[Healer].Alive);
+        Assert.Equal(0, d.PenaltyAt[AbandonTick]);
+        Assert.Equal(Timer.DeathCostTicks(d.Run.Encounter.Rules), d.PenaltyAt[fill.FillTick]);
+        Assert.Equal(d.PenaltyAt[fill.FillTick], fill.PenaltyTicks);
+        Assert.Equal(d.Run.Encounter.PenaltyTicks, fill.PenaltyTicks);
     }
 
     [Fact]
@@ -230,20 +229,20 @@ public sealed class BackfillTests
         Assert.Equal(Assert.Single(a.Fills), Assert.Single(b.Fills));
         Assert.Equal(a.SeatActedTicks, b.SeatActedTicks);
         Assert.Equal(
-            Projection.Line(a.Run.State, a.Run.Encounter.PullIndex, a.Run.Encounter.SlackTicks),
-            Projection.Line(b.Run.State, b.Run.Encounter.PullIndex, b.Run.Encounter.SlackTicks));
+            Projection.Line(a.Run.State, a.Run.Encounter.PullIndex, a.Run.Encounter.PenaltyTicks),
+            Projection.Line(b.Run.State, b.Run.Encounter.PullIndex, b.Run.Encounter.PenaltyTicks));
     }
 
     [Fact]
     public void Abandon_records_the_seat_without_touching_the_run()
     {
         var run = BuildRun();
-        var before = Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.SlackTicks);
+        var before = Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.PenaltyTicks);
         var s = Backfill.Abandon(BackfillState.Empty, run, Seat);
 
         var open = Assert.Single(s.Open);
-        Assert.Equal(new SeatAbandon(Seat, 0, 0, run.Encounter.SlackTicks), open);
-        Assert.Equal(before, Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.SlackTicks));
+        Assert.Equal(new SeatAbandon(Seat, 0, 0, run.Encounter.PenaltyTicks), open);
+        Assert.Equal(before, Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.PenaltyTicks));
         Assert.True(run.State.Actors[Seat].Alive);
     }
 

@@ -97,9 +97,9 @@ public sealed class RunEndTests
     public void StepRun_never_mutates_the_input_run_state()
     {
         var run = BuildRun();
-        var before = Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.SlackTicks);
+        var before = Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.PenaltyTicks);
         var stepped = RunRoot.StepRun(run, new Command[] { new MoveCommand(0, TankId, new Dir2(1000, 0), 256) });
-        Assert.Equal(before, Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.SlackTicks));
+        Assert.Equal(before, Projection.Line(run.State, run.Encounter.PullIndex, run.Encounter.PenaltyTicks));
         Assert.Equal(0, run.State.Tick);
         Assert.Equal(1, stepped.Run.State.Tick);
         Assert.NotEqual(run.State.Actors[TankId].Pos, stepped.Run.State.Actors[TankId].Pos);

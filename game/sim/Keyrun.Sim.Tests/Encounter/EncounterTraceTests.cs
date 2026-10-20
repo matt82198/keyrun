@@ -89,7 +89,7 @@ public sealed class EncounterTraceTests
             var line = OracleRun.Parse(r.P!);
             Assert.Equal(r.T, line.T);
             Assert.True(line.Pull == encounter.PullIndex, $"{trace} t={r.T}: pull {encounter.PullIndex}, oracle {line.Pull}");
-            Assert.True(line.Slack == encounter.SlackTicks, $"{trace} t={r.T}: slack {encounter.SlackTicks}, oracle {line.Slack}");
+            Assert.True(line.Penalty == encounter.PenaltyTicks, $"{trace} t={r.T}: penalty {encounter.PenaltyTicks}, oracle {line.Penalty}");
             Assert.Equal(line.Actors.Select(a => a.Id), state.Actors.Keys);
             foreach (var pa in line.Actors)
             {

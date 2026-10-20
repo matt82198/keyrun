@@ -8,7 +8,8 @@ namespace Keyrun.Sim.Core;
 
 /// <summary>
 /// The oracle's per-tick projection line and hashes (ORACLE.md sections 1 and 2):
-/// <c>t=&lt;tick&gt;;pull=&lt;pullIndex&gt;;slack=&lt;slackTicks&gt;;a=&lt;actor&gt;|...</c> with each actor
+/// <c>t=&lt;tick&gt;;pull=&lt;pullIndex&gt;;penalty=&lt;penaltyTicks&gt;;a=&lt;actor&gt;|...</c> (penalty: the time deaths
+/// and wipes have added to the run clock, STATE.md D46) with each actor
 /// <c>id,hp,x,z,yaw,alive,res,castAbility,castEnd</c>, actors ascending by id, dead ones included. Like the TS
 /// writer it refuses values outside the safe-integer range and cast ids that are not projection-safe tokens,
 /// so a corrupt value fails loudly instead of being recorded as exact.
@@ -72,12 +73,12 @@ public static class Projection
     }
 
     /// <summary>The projection line for one tick.</summary>
-    public static string Line(int tick, int pullIndex, long slackTicks, IEnumerable<ActorState> actors)
+    public static string Line(int tick, int pullIndex, long penaltyTicks, IEnumerable<ActorState> actors)
     {
         var sb = new StringBuilder();
         sb.Append("t=").Append(Int(tick, "tick"))
           .Append(";pull=").Append(Int(pullIndex, "pullIndex"))
-          .Append(";slack=").Append(Int(slackTicks, "slackTicks"))
+          .Append(";penalty=").Append(Int(penaltyTicks, "penaltyTicks"))
           .Append(";a=");
         var first = true;
         foreach (var a in actors.OrderBy(x => x.Id))
@@ -92,9 +93,9 @@ public static class Projection
         return sb.ToString();
     }
 
-    /// <summary>The projection line of a state, given the encounter's pull index and slack.</summary>
-    public static string Line(SimState state, int pullIndex, long slackTicks) =>
-        Line(state.Tick, pullIndex, slackTicks, state.Actors.Values);
+    /// <summary>The projection line of a state, given the encounter's pull index and run-clock added time.</summary>
+    public static string Line(SimState state, int pullIndex, long penaltyTicks) =>
+        Line(state.Tick, pullIndex, penaltyTicks, state.Actors.Values);
 
     /// <summary>Record hash: FNV-1a 32 over the projection line (no newline).</summary>
     public static uint RecordHash(string line) => Fnv1a.Hash(line);

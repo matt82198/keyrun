@@ -20,7 +20,7 @@ the traces record whatever the TS does, including wipes.
 One ASCII line per tick, no trailing separator:
 
 ```
-t=<tick>;pull=<pullIndex>;slack=<slackTicks>;a=<actor>|<actor>|...
+t=<tick>;pull=<pullIndex>;penalty=<penaltyTicks>;a=<actor>|<actor>|...
 <actor> = <id>,<hp>,<x>,<z>,<yaw>,<alive>,<res>,<castAbility>,<castEnd>
 ```
 
@@ -28,7 +28,7 @@ t=<tick>;pull=<pullIndex>;slack=<slackTicks>;a=<actor>|<actor>|...
 |---|---|---|
 | `t` | `run.state.tick` | decimal int |
 | `pull` | `run.encounter.pullIndex` | decimal int |
-| `slack` | `run.encounter.slackTicks` | decimal int |
+| `penalty` | `run.encounter.penaltyTicks ?? 0`: time deaths and wipes have added to the run clock (STATE.md D46; it replaced `slack`, the Slack bank, which no longer moves) | decimal int |
 | `id` | `ActorState.id` | decimal int |
 | `hp` | `ActorState.health` | decimal int |
 | `x`, `z` | `ActorState.pos.x`, `pos.z` (mm; `y` is not projected) | decimal int, may be negative |
@@ -105,8 +105,8 @@ Floats appear only in `botprng.vectors.json` `value`.
 
 | File | What | Records / rows | traceHash |
 |---|---|---|---|
-| `content-pull.trace.jsonl` | tests/sim/golden/build-content-pull.ts scenario and commands, 400 ticks | 401 | `5bdadaf1` |
-| `scripted-pull.trace.jsonl` | tests/sim/golden/scripted-pull.json on tests/sim/integration/fixtures.ts content, 600 ticks | 601 | `a2bf97d7` |
+| `content-pull.trace.jsonl` | tests/sim/golden/build-content-pull.ts scenario and commands, 400 ticks | 401 | `1544c804` |
+| `scripted-pull.trace.jsonl` | tests/sim/golden/scripted-pull.json on tests/sim/integration/fixtures.ts content, 600 ticks | 601 | `3bce7d1a` |
 | `bots-hv-k2-s7.trace.jsonl` | Hollow Vault key 2, run seed 7 = bot PRNG seed 7, five bots (human slot = bot warden), skill 100 | 4974, `depleted` at t4973 | `3c5796a1` |
 | `bots-hv-k2-s11.trace.jsonl` | same at seed 11 | 4974, `depleted` at t4973 | `3c5796a1` |
 | `bots-hv-k10-s7.trace.jsonl` | same at key 10, seed 7 | 6985, `timed` at t6984 | `b947e653` |
