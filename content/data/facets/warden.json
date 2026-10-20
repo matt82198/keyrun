@@ -3,7 +3,7 @@
     "id": "warden.weapon.keenEdge",
     "slot": "weapon",
     "abilityId": "warden.strike",
-    "text": "Strike becomes a narrow frontal cone, catching an extra enemy.",
+    "text": "Strike becomes a narrow frontal cone instead of a single target.",
     "patch": {
       "shape": {
         "kind": "cone",
@@ -16,7 +16,7 @@
     "id": "warden.weapon.wideningBreak",
     "slot": "weapon",
     "abilityId": "warden.guardBreak",
-    "text": "Guard Break trades range for a much wider cone.",
+    "text": "Guard Break's cone grows much wider, but it gains a short cooldown.",
     "patch": {
       "shape": {
         "kind": "cone",
@@ -176,7 +176,7 @@
     "id": "warden.charm.releaseTheGuard",
     "slot": "charm",
     "abilityId": "warden.brace",
-    "text": "Brace becomes a Payoff: releasing it early closes a Window.",
+    "text": "Brace becomes a Payoff, closing any open Window each time it is cast.",
     "patch": {
       "tagAdd": [
         "payoff"
@@ -274,7 +274,7 @@
     "id": "warden.keystone.sunderedStorm",
     "slot": "keystone",
     "abilityId": "warden.strike",
-    "text": "Strike becomes a wide cone, applying Sundered across the whole arc.",
+    "text": "Strike becomes a wide cone; Sundered also reaches the nearest other enemy in the arc.",
     "patch": {
       "shape": {
         "kind": "cone",
