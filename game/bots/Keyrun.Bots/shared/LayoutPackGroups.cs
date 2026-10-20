@@ -60,10 +60,16 @@ public static class LayoutPackGroups
         foreach (var pack in layout.Packs)
         {
             var spawns = new List<PullSpawn>();
+            // STATE.md D46: pack-only members swing on their own timers, spread over one swing period (StaggerSwing).
+            var packOnlyCount = packOnly is null
+                ? 0
+                : pack.Enemies.Where(g => !templates.ContainsKey(g.EnemyId) && packOnly.ContainsKey(g.EnemyId)).Sum(g => g.Count);
+            var packOnlyIndex = 0;
             foreach (var group in pack.Enemies)
             {
                 PullSpawn template;
                 IReadOnlyList<ScriptStep>? script;
+                var staggered = false;
                 if (templates.TryGetValue(group.EnemyId, out var pullTemplate))
                 {
                     template = pullTemplate;
@@ -80,6 +86,7 @@ public static class LayoutPackGroups
                     }
                     template = direct.Spawn;
                     script = direct.Script;
+                    staggered = true;
                 }
                 else
                 {
@@ -98,12 +105,38 @@ public static class LayoutPackGroups
                         Pos = new Vec3(pack.Center.X + group.Spawn.X, 0, pack.Center.Z + group.Spawn.Z),
                         Yaw = 0,
                     });
-                    merged[actorId] = script;
+                    merged[actorId] = staggered ? StaggerSwing(script, packOnlyIndex++, packOnlyCount) : script;
                 }
             }
             packs.Add(new PackGroup(pack.Id, spawns, new Vec3(pack.Center.X, 0, pack.Center.Z), pack.AggroMm));
         }
         return (packs, merged);
+    }
+
+    /// <summary>
+    /// STATE.md D46 (WoW-faithful swing timers): in WoW each mob's swing timer is its own, so a pack does not land every
+    /// auto-attack on one tick. Member <paramref name="index"/> of <paramref name="count"/> pack-only members runs its
+    /// script on a clock offset by <c>index * period / count</c> ticks, where period is the script's shortest repeat
+    /// period: the pack's swings spread evenly over one swing period, deterministically, in member order. The sim keeps
+    /// no per-actor "reached melee" tick (a swing fired out of range is simply refused), so the stagger is by member
+    /// index, not arrival. <see cref="Keyrun.Sim.Encounter.Scripts.StartingAt"/> shifts the clock, so the run root's own
+    /// engage shift (onto the pack's engage tick) still composes on top. A script with no repeating step, and member 0,
+    /// are returned unchanged. Applies only to pack-only templates, never to a member copied from a pull (the frozen
+    /// pulls and the TS oracle twin keep their scripts).
+    /// </summary>
+    /// <param name="script">The member's Tempo-scaled script.</param>
+    /// <param name="index">The member's index among the pack's pack-only members, in pack order.</param>
+    /// <param name="count">How many pack-only members the pack has.</param>
+    /// <returns>The script on the member's own clock.</returns>
+    internal static IReadOnlyList<ScriptStep> StaggerSwing(IReadOnlyList<ScriptStep> script, int index, int count)
+    {
+        var period = script
+            .Where(s => s.Trigger != StepTrigger.OnDeath && s.Every is > 0)
+            .Select(s => s.Every!.Value)
+            .DefaultIfEmpty(0)
+            .Min();
+        var offset = count > 0 ? index * period / count : 0;
+        return offset == 0 ? script : script.Select(s => Scripts.StartingAt(s, offset)).ToList();
     }
 }
 
