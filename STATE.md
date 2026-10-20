@@ -699,6 +699,46 @@ Additional parked decisions (from the burn ledger):
   carries rules the TS one never had, so a check against TS can only record, not judge.
 - D29 **lane row files: lanes write game/lanes/<branch>.md, the fold lane merges them post-squash (aesop BUILDLOG 2026-10-19 17:50Z)**
   (orchestrator, 2026-10-19, lane LANE-ROW-FILES; reversible). Why: three keyrun PRs in one day each needed an Opus resume only to append one line to game/CLAUDE.md and BUILDLOG.md.
+- Matt's 2026-10-20 dungeon, key and reward decisions (lane docs/record-matt-decisions-1020). Numbered D35-D42 because
+  D30-D34 are claimed by open PRs #306, #311, #315, #320 and #338. The agent-playtester decisions (ledger f-4f45e954,
+  f-4e8c87b7) are recorded by D33 on PR #320 and are not repeated here. Why these are here: they were held only in the
+  aesop open-findings ledger, which is for work, so the decisions move to this file where every lane reads them.
+- D35 **Everything is prespawned with an aggro distance** (Matt, 2026-10-20, verbatim: "everything should be prespawned
+  with an aggro distance"; ledger f-6d538dd2). Every pack exists idle from the run's first tick and engages when the
+  party enters that pack's aggro radius; this replaces spawn-on-room-entry (Run.cs:255-258, Pulls.SpawnPull,
+  NavLayouts.PlaceDungeon). For the build: BIBLE section 9.1 ("Everything is prespawned with an aggro distance", patrols, aggro
+  rings, skips). Build: not yet built (PR #308 PRESPAWN-AGGRO is open).
+- D36 **Zero downtime means stakes, not spawns** (Matt, 2026-10-20, verbatim: "when i say 0 downtime, i mean the high
+  stakes m+ introduces, not literally spawning enemies on the player"; ledger f-66f25047). Spawn-on-entry and
+  density-rule readings of zero dead time are removed; the stakes come from the timer, forces, the route and pull size.
+  For the build: BIBLE section 9.1 ("Zero downtime means stakes, not spawns"). Build: not yet built (the spawn-on-entry path is
+  still on main; D35 / PR #308 removes it).
+- D37 **Lean into Mythic+ inside the dungeon** (Matt, 2026-10-20, verbatim: "honestly just lean into m+ design heavily
+  while in the dungeon"; ledger f-228202e1). Dungeon design follows Mythic+ conventions (timer and chest tiers, forces
+  percent, mixed packs with kick and stop casters, patrols, skips, a death time penalty, rotating affixes, key upgrade);
+  the screen, gear and social rules stay as the BIBLE has them. For the build: BIBLE section 9 principle, sections 9.2-9.3 and
+  section 8. Build: partly built (timer tiers and affixes merged in #304; forces/route, stops and patrols not yet built,
+  PR #302 and #308 open).
+- D38 **Almost exactly WoW, with less button clutter** (Matt, 2026-10-20, verbatim: "it should feel almost exact to wow
+  with less button clutter"; ledger f-3897cb62). WoW Mythic+ is the dungeon reference almost exactly; the only intended
+  divergence is fewer buttons (the ten-keybind budget, D4). For the build: BIBLE section 9 principle and section 2. Build: a
+  standing direction, not one build item; each Mythic+ convention ships under D37.
+- D39 **An untimed key stays at the same level** (Matt, 2026-10-20, re-asked, as relayed: an untimed key stays the same
+  level, no depletion drop; ledger f-7c7abdf4). A deliberate divergence from WoW for test 3. For the build: BIBLE section 8
+  (timer and Slack). Build: built (#304, `Timer.NextKeyLevel` never lowers the key, game/sim/Keyrun.Sim/Encounter/Timer.cs:133).
+- D40 **Private Mythic+ rating, own screen only** (Matt, 2026-10-20, as relayed: a private WoW-style M+ rating shown only
+  on the player's own screen, never to others and never used to filter groups; ledger f-a3230c59). For the build: BIBLE section 0
+  test 3 (no shareable score) and section 10 (the screen); the BIBLE has no rating line yet. Build: not yet built (PR #318
+  PRIVATE-RATING is open).
+- D41 **Loot quality comes from the key level; +2/+3 pays as key movement** (Matt, 2026-10-20, as relayed: loot quality
+  comes from key level; +2/+3 pays by jumping the key 2 or 3 levels; choose-one-of-three stays; ledger f-baeb031a). Build:
+  BIBLE section 7 ("Loot quality comes from the key level") and section 8. Build: partly built (the +2/+3 key jump is in
+  #304, `Timer.UpgradeTier` and Screen.cs:670-671; reward tiers rising with the key level are not confirmed in code, and
+  PR #317 for the end-of-run key display is open).
+- D42 **Affixes follow current WoW** (Matt, 2026-10-20, as relayed: from +5 one of Fortified or Tyrannical rotates, from
+  +10 both are on, a rotating Clause layers on top; ledger f-319aced5). For the build: BIBLE section 8 ("Fortified and
+  Tyrannical", "The Clause"). Build: built (#304, Encounter/Affixes.cs, ClauseRotation in Run/Clause.cs and
+  RunOptions.cs, values in game/content/data/run.json).
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
