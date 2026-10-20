@@ -95,7 +95,8 @@ public sealed record BossPreStep(BossState Boss, IReadOnlyDictionary<int, IReadO
 
 /// <summary>The armed boss's post-combat output for one tick.</summary>
 /// <param name="Boss">The next boss state.</param>
-/// <param name="Spawned">Twins realised this tick, for the run root to merge into state.</param>
+/// <param name="Spawned">Twins realised this tick, and Twins that fell with the boss this tick (Health 0, not Alive),
+/// for the run root to merge into state (a merge replaces an actor by id).</param>
 public sealed record BossPostStep(BossState Boss, IReadOnlyList<ActorState> Spawned);
 
 /// <summary>
@@ -112,8 +113,10 @@ public sealed record BossPostStep(BossState Boss, IReadOnlyList<ActorState> Spaw
 /// different class (the <c>combo</c> event closing that Setup's Window), breaks it and drops the shield. A Window that
 /// ends unbroken is a failed Lock; the third failed Lock enrages the boss into a Tempo spike (its script loops fire
 /// <see cref="BossConfig.EnrageTempoBp"/> as often), never an instant wipe.</item>
+/// <item>The boss's death ends the encounter: every Twin still standing dies on the boss's death tick (a <c>death</c>
+/// event with <c>reason: "boss_death"</c>), as WoW despawns a boss's adds when the boss dies.</item>
 /// </list>
-/// Events: <c>boss_add_spawn</c>, <c>lock_open</c>, <c>lock_broken</c>, <c>lock_failed</c>, <c>boss_enrage</c>.
+/// Events: <c>boss_add_spawn</c>, <c>death</c> (a Twin falling with the boss), <c>lock_open</c>, <c>lock_broken</c>, <c>lock_failed</c>, <c>boss_enrage</c>.
 /// </summary>
 public static class BossRules
 {
@@ -294,6 +297,28 @@ public static class BossRules
                     ("bossActorId", JsValue.Int(cfg.BossActorId))));
             }
             next = next with { TwinsSpawned = true };
+        }
+
+        // TWINS-DIE-WITH-BOSS (Matt 2026-10-20; WoW ends an encounter on its boss's death): on the step the boss's death
+        // event fires, every Twin still standing dies with it, on the boss's death tick, each with its own death event
+        // (logs and combat text read a kill, not a silent vanish). No Twin is left alive for run_end.
+        if (next.TwinsSpawned && events.FirstOrDefault(e => e.Type == "death" && IntOf(e, "actorId") == cfg.BossActorId) is { } bossDeath)
+        {
+            foreach (var twin in cfg.Twins)
+            {
+                if (!state.Actors.TryGetValue(twin.ActorId, out var standing) || !standing.Alive)
+                {
+                    continue;
+                }
+                var fallen = standing.Clone();
+                fallen.Health = 0;
+                fallen.Alive = false;
+                spawned.Add(fallen);
+                emit(new SimEvent(bossDeath.Tick, "death",
+                    ("actorId", JsValue.Int(twin.ActorId)),
+                    ("sourceId", JsValue.Int(cfg.BossActorId)),
+                    ("reason", JsValue.Str("boss_death"))));
+            }
         }
 
         if (next.Active is not { } window)
