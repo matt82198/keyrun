@@ -228,7 +228,7 @@ public sealed class EncounterTraceTests
     // 14, 14, 7, 0, 0, 3; the tally reproduces both parents' committed rows from their own traces).
     [InlineData("bots-hv-k2-s7", 12, 12, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
     [InlineData("bots-hv-k2-s11", 12, 12, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 16, 15, 7, 0, 0, 2)] // SLAM-CIRCLE-HITS re-record (slam circle + CHASE-AREA-REACH): was 16, 16, 7, 0, 0, 3 (measured by this replay against the regenerated oracle); k2 rows unchanged
+    [InlineData("bots-hv-k10-s7", 17, 17, 7, 0, 0, 3)] // INTEGRATE-PLAYABLE re-record (integrated tree, e19bc046 traces): was 16, 15, 7, 0, 0, 2, tallied by this replay from the recorded trace; SLAM-CIRCLE-HITS re-record (slam circle + CHASE-AREA-REACH): was 16, 16, 7, 0, 0, 3 (measured by this replay against the regenerated oracle); k2 rows unchanged
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {
