@@ -235,12 +235,14 @@ public static class Follow
     }
 
     /// <summary>
-    /// The leader seat's travel when that seat is a bot (KF2, BOTS-ENGAGE-CHOIR): on a layout run, while no enemy lives,
-    /// the bot in the party's lowest player seat (alive or dead, so a human leader's death never hands the lead to a bot)
-    /// walks the route like the scripted leader (<see cref="LeadRoute"/>): in a pull room whose pull has not spawned
-    /// (no enemy actor, living or dead, stands in that room) it walks to <see cref="HoldPoint"/> and waits there for the
-    /// party, whose arrival starts the pull; anywhere else it walks the route forward (<see cref="WalkRoute"/>). The bot
-    /// sees only the view (positions, the layout); it never reads the run's pull index. Null for any other bot, off a
+    /// The leader seat's travel when that seat is a bot (KF2, BOTS-ENGAGE-CHOIR): on a layout run, while no engaged enemy
+    /// lives (PRESPAWN-AGGRO: an idle prespawned group is not a fight), the bot in the party's lowest player seat (alive
+    /// or dead, so a human leader's death never hands the lead to a bot) walks the route like the scripted leader
+    /// (<see cref="LeadRoute"/>): in a pull room whose pull has not engaged (every enemy standing in that room is alive
+    /// and idle) while a living party member is still outside the room, it walks to <see cref="HoldPoint"/> (outside the
+    /// pull's aggro ring) and waits there for the party; once the party is in, and anywhere else, it walks the route
+    /// forward (<see cref="WalkRoute"/>), so it engages the pull first with the party behind it. The bot sees only the
+    /// view (positions, idle flags, the layout); it never reads the run's pull index. Null for any other bot, off a
     /// layout run, in a fight, or while it holds at the point.
     /// </summary>
     /// <param name="view">This tick's view.</param>
@@ -262,7 +264,8 @@ public static class Follow
         var tick = view.State.Tick;
         var (_, high) = Span(layout, self.Pos);
         if (high > 0 && layout.Boxes[high] is { IsRoom: true } room && HasPull(layout, room) &&
-            !view.State.Actors.Values.Any(a => a.Kind == ActorKind.Enemy && Movement.Contains(room.Box, a.Pos)))
+            !view.State.Actors.Values.Any(a => a.Kind == ActorKind.Enemy && (!a.Alive || !a.Idle) && Movement.Contains(room.Box, a.Pos)) &&
+            !NavLayout.PartyInside(view.State, room.Box))
         {
             var hold = HoldPoint(layout, high);
             return Distance2(self.Pos, hold) <= ArriveMm * ArriveMm ? null : Moves.MoveToward(tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(hold));
