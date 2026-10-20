@@ -29,6 +29,31 @@ public static class HudDeclutter
     /// <returns>The placement word the proof lines print.</returns>
     public static string CastPlacement(ActorState actor) => OverheadCast(actor) ? "overhead" : "frame";
 
+    /// <summary>
+    /// True when <paramref name="e"/> spawns a floating damage number in the world: a "damage" event whose source is
+    /// the human's seat and whose modified amount (health damage plus absorbed) is positive. A bot's hit, an enemy's
+    /// hit and a zero hit spawn nothing.
+    /// </summary>
+    /// <param name="e">One sim event of the step.</param>
+    /// <param name="humanActorId">The played character's actor id.</param>
+    /// <param name="targetId">The hit actor.</param>
+    /// <param name="amount">The number to show.</param>
+    /// <returns>True when a number is shown.</returns>
+    public static bool WorldDamageNumber(SimEvent e, int humanActorId, out int targetId, out long amount)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        targetId = 0;
+        amount = 0;
+        if (e.Type != "damage" || e.Get("sourceId") is not JsInt source || source.Value != humanActorId ||
+            e.Get("targetId") is not JsInt target || e.Get("modifiedAmount") is not JsInt modified || modified.Value <= 0)
+        {
+            return false;
+        }
+        targetId = (int)target.Value;
+        amount = modified.Value;
+        return true;
+    }
+
     /// <summary>"player" or "enemy", as the proof lines print an actor's side.</summary>
     /// <param name="actor">The actor.</param>
     /// <returns>The side word.</returns>
