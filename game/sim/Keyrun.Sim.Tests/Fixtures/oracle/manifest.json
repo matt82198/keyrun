@@ -31,24 +31,24 @@
       "fnv": "c888e0b1"
     },
     "content-pull.setup.json": {
-      "bytes": 22502,
-      "fnv": "079f9f16"
+      "bytes": 22518,
+      "fnv": "b6333f34"
     },
     "content-pull.trace.jsonl": {
-      "bytes": 30412,
-      "fnv": "41721054"
+      "bytes": 30554,
+      "fnv": "5133ab9e"
     },
     "fixed.vectors.json": {
       "bytes": 300060,
       "fnv": "766fb4de"
     },
     "hollow-vault-k10.setup.json": {
-      "bytes": 24781,
-      "fnv": "0cffbf03"
+      "bytes": 24797,
+      "fnv": "19c4eb4d"
     },
     "hollow-vault-k2.setup.json": {
-      "bytes": 24779,
-      "fnv": "6f896fe1"
+      "bytes": 24795,
+      "fnv": "83014d87"
     },
     "intdiv.vectors.json": {
       "bytes": 371573,
@@ -260,7 +260,7 @@
         "fnv": "b7eb7a89"
       },
       "content/data/abilities/enemies.json": {
-        "fnv": "af990d0d"
+        "fnv": "c03baca3"
       },
       "content/data/abilities/warden.json": {
         "fnv": "36ffc9d9"
@@ -507,7 +507,7 @@
       "result": null,
       "setup": "content-pull.setup.json",
       "trace": "content-pull.trace.jsonl",
-      "traceHash": "5bdadaf1"
+      "traceHash": "b858d0fd"
     },
     {
       "finalTick": 600,
