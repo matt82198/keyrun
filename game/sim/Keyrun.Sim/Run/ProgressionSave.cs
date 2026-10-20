@@ -15,7 +15,8 @@ public sealed record ProgressionLoad(Progression Progression, string? Error);
 
 /// <summary>
 /// Persists the character's banked progression across runs (BIBLE s7 "Every run banks Ash, win or lose"; the gear the
-/// end-of-run choice equips): Ash total, runs, the five gear slots, the crafting PRNG and the "since last run" delta.
+/// end-of-run choice equips): Ash total, runs, the five gear slots, the crafting PRNG, the "since last run" delta, and
+/// the talent build picked on the screen (BIBLE s6, an optional "talents" member: a save without it has no picks).
 /// The codec is pure and deterministic (canonical JSON, slots in <see cref="Rewards.GearSlots"/> order), so the same
 /// progression always writes the same text. Loading never throws: a missing save is a fresh character, and a corrupt
 /// one is a fresh character plus the reason, so a bad file can never block or crash a run.
@@ -53,7 +54,8 @@ public static class ProgressionSave
             ("runs", JsValue.Int(progression.Runs)),
             ("prng", JsValue.Arr(JsValue.Int(p.S0), JsValue.Int(p.S1), JsValue.Int(p.S2), JsValue.Int(p.S3))),
             ("equipped", JsValue.Arr(equipped)),
-            ("last", last)).ToCanonicalJson();
+            ("last", last),
+            ("talents", TalentsJs(progression.Talents))).ToCanonicalJson();
     }
 
     /// <summary>
@@ -188,7 +190,27 @@ public static class ProgressionSave
             Prng = new PrngState(w[0], w[1], w[2], w[3]),
             Equipped = equipped,
             LastRun = ParseDelta(root.Get("last") ?? throw new FormatException("missing \"last\"")),
-        };
+        }.WithTalents(ParseTalents(root.Get("talents")));
+    }
+
+    // The screen's talent build (BIBLE s6), ability id to option id in ordinal key order.
+    private static JsObject TalentsJs(IReadOnlyDictionary<string, string> talents) => JsValue.Obj(
+        talents.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+            .Select(kv => new KeyValuePair<string, JsValue>(kv.Key, JsValue.Str(kv.Value))));
+
+    // A save written before talents were saved has no member: that character simply has no picks yet.
+    private static IEnumerable<KeyValuePair<string, string>> ParseTalents(JsValue? v)
+    {
+        if (v is null)
+        {
+            return Array.Empty<KeyValuePair<string, string>>();
+        }
+        if (v is not JsObject o)
+        {
+            throw new FormatException("\"talents\" must be an object");
+        }
+        return o.Members.Select(m => new KeyValuePair<string, string>(
+            m.Key, m.Value is JsString { Value.Length: > 0 } s ? s.Value : throw new FormatException($"talent \"{m.Key}\" must be a non-empty option id"))).ToList();
     }
 
     private static RunDelta? ParseDelta(JsValue v)
