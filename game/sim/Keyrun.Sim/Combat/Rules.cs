@@ -184,7 +184,12 @@ public static class Rules
             {
                 for (var j = i + 1; j < actors.Count; j++)
                 {
-                    if (actors[i].Alive && actors[j].Alive)
+                    // PRESPAWN-AGGRO (C#-only, BIBLE section 9.1 "an idle group ... does not move unless it is a patrol"):
+                    // push-out never shoves an idle body, so a stack the content puts on one spawn point stands still
+                    // until its group engages and spreads on that tick, as a pull spawned on entry did. A party member
+                    // close enough to touch an idle body is, under the 4000 mm default ring, inside its aggro ring and engages it this tick. No actor of
+                    // an oracle run is idle, so the TS push-out is unchanged there.
+                    if (actors[i].Alive && actors[j].Alive && !actors[i].Idle && !actors[j].Idle)
                     {
                         Movement.ResolveCollision(actors[i], actors[j], cfg.ActorRadiusMm);
                     }
