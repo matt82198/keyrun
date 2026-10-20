@@ -112,7 +112,7 @@
         {
           "id": "discipline",
           "name": "Discipline",
-          "text": "Longer cooldown; stronger pulse.",
+          "text": "Longer cooldown.",
           "patch": {
             "cooldownTicks": 160
           }
