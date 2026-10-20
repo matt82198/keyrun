@@ -143,6 +143,7 @@ internal sealed class EffectOpConverter : JsonConverter<EffectOp>
         ("combo", typeof(ComboOp)),
         ("partyEffect", typeof(PartyEffectOp)),
         ("cloud", typeof(CloudOp)),
+        ("closerBurn", typeof(CloserBurnOp)),
     };
 
     /// <summary>The JSON <c>op</c> name of a concrete op record.</summary>

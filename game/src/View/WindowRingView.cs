@@ -18,6 +18,8 @@ namespace Keyrun.View;
 /// (<see cref="WindowBandRule"/>, read from the loaded content's classes, Payoff abilities and combo rows). The lit
 /// arc keeps every segment as it shrinks, so the closers stay readable until the Window expires. A Window with no
 /// closer falls back to its id colour (<see cref="ColorOf"/>); a Lock Window is drawn thicker in the fixed Lock violet.
+/// A combo cloud (BIBLE s4 Steam, <see cref="FloorTelegraphs.DeriveCloudShapes"/>) draws as a pale disc of its own
+/// radius at its centre with a rim whose lit arc is its life left, so players can see where enemies are blinded.
 /// </summary>
 public partial class WindowRingView : Node3D
 {
@@ -25,6 +27,10 @@ public partial class WindowRingView : Node3D
     private const float ActorRingRadiusM = 0.85f;
     private const float RingWidthM = 0.12f;
     private const int Segments = 48;
+
+    // A Steam blind cloud: pale steam grey, translucent so the bodies inside stay readable.
+    private static readonly Color CloudColor = new(0.86f, 0.89f, 0.93f, 0.28f);
+    private static readonly Color CloudRimColor = new(0.92f, 0.95f, 1f, 0.8f);
 
     private readonly Dictionary<string, int> _openedAt = new(StringComparer.Ordinal);
     private readonly HashSet<string> _seen = new(StringComparer.Ordinal);
@@ -153,6 +159,17 @@ public partial class WindowRingView : Node3D
             var left = Remaining(key, state.Tick, patch.EndsTick, now);
             DrawBand(ActorView.ToMetres(patch.Pos), patch.RadiusMm * 0.001f, RingWidthM * 1.5f, left, BandOf(patch.SetupClass, floor: true), 750, ColorOf(windowId));
         }
+        // CLOUD-VIEW: each open combo cloud (Steam's blind cloud, FloorTelegraphs.DeriveCloudShapes) draws as a pale
+        // translucent disc of its own radius at its own centre, rimmed by a ring whose lit arc is the life left. It is
+        // gone the tick the cloud ends, because DeriveCloudShapes then yields nothing.
+        foreach (var cloud in FloorTelegraphs.DeriveCloudShapes(state))
+        {
+            var centre = ActorView.ToMetres(new Vec3(cloud.CenterX, 0, cloud.CenterZ));
+            var radius = cloud.RadiusMm * 0.001f;
+            var left = Mathf.Clamp((cloud.EndsTick - now) / cloud.LifeTicks, 0f, 1f);
+            Disc(centre, radius, new Color(CloudColor, CloudColor.A * (0.5f + (0.5f * left))));
+            DrawRing(centre, radius, RingWidthM * 1.5f, left, CloudRimColor);
+        }
 
         _stale.Clear();
         foreach (var key in _openedAt.Keys)
@@ -213,6 +230,29 @@ public partial class WindowRingView : Node3D
             Strip(centre, radius, width * 0.6f, from, to, new Color(color, color.A * 0.25f));
             Strip(centre, radius, width, from * fraction, to * fraction, color);
         }
+    }
+
+    // A filled floor disc (a triangle fan as a list of triangles), just under the rings so a ring stays on top.
+    private void Disc(Vector3 centre, float radius, Color color)
+    {
+        if (radius <= 0f)
+        {
+            return;
+        }
+        var lift = new Vector3(0, FloorLift * 0.5f, 0);
+        _mesh!.SurfaceBegin(Mesh.PrimitiveType.Triangles);
+        for (var i = 0; i < Segments; i++)
+        {
+            var a0 = Mathf.Tau * i / Segments;
+            var a1 = Mathf.Tau * (i + 1) / Segments;
+            _mesh.SurfaceSetColor(color);
+            _mesh.SurfaceAddVertex(centre + lift);
+            _mesh.SurfaceSetColor(color);
+            _mesh.SurfaceAddVertex(centre + (new Vector3(Mathf.Cos(a0), 0, Mathf.Sin(a0)) * radius) + lift);
+            _mesh.SurfaceSetColor(color);
+            _mesh.SurfaceAddVertex(centre + (new Vector3(Mathf.Cos(a1), 0, Mathf.Sin(a1)) * radius) + lift);
+        }
+        _mesh.SurfaceEnd();
     }
 
     // A ring strip from fraction `from` to `to` of a full turn, clockwise from 12 o'clock.
