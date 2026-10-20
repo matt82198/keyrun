@@ -140,6 +140,46 @@ public sealed class CarelessSeatTests
         Assert.True(hits[0].Tick <= d.EngageTick + HitWithinTicks, $"the first Choir hit on the careless seat came at tick {hits[0].Tick}, more than {HitWithinTicks} ticks after the engage at {d.EngageTick}");
     }
 
+    [Fact(DisplayName = "Careless seat: never strays toward the next group while the party is in a fight (an engaged enemy lives), so it never double-pulls onto the Choir; it strays once that fight is over")]
+    public void A_careless_seat_runs_ahead_between_pulls_never_mid_fight()
+    {
+        var registry = ContentLoader.Load();
+        var layoutDef = registry.Layout;
+        var nav = NavLayouts.ToSim(layoutDef);
+        var setup = RunSetup.Load(Path.Combine(RolesOracleTraceTests.OracleDir(), "hollow-vault-k2.setup.json"), Seed);
+        SimDungeon dungeon = NavLayouts.PlaceDungeon(layoutDef, setup.Dungeon);
+        var party = NavLayouts.PlaceParty(layoutDef, setup.Party.Take(3).ToList(), dungeon.Pulls[0].Id);
+        var run = RunRoot.CreateRun(Seed, party, dungeon, setup.Content with { Layout = nav, Bounds = nav.Extent }, setup.Options);
+        var kits = KitRegistry.From(registry);
+        var choirIds = dungeon.Pulls[0].Spawns.Select(s => s.ActorId).ToList();
+        var pairIds = dungeon.Pulls.Single(p => p.Id == "pair").Spawns.Select(s => s.ActorId).ToList();
+        var plan = new CarelessPlan(0, pairIds);
+        BotView View() => BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
+        var self = run.State.Actors[CarelessId];
+
+        // Out of combat (every group idle): the careless seat strays toward the Pair.
+        Assert.NotNull(Careless.StrayTarget(View(), self, plan));
+        Assert.Null(Careless.HoldPoint(View(), self, plan));
+
+        // The Choir is engaged and alive (the party is fighting it): the seat plays its role, no stray.
+        foreach (var id in choirIds)
+        {
+            run.State.Actors[id].Idle = false;
+        }
+        Assert.Null(Careless.StrayTarget(View(), self, plan));
+        // It waits at the Choir room's far doorway (layout.json route point 2, x 25500), where the shut gate held it
+        // before PATH-TO-BOSS: 14000 mm short of the Pair's ring edge (x 39500). Literal on purpose.
+        Assert.Equal(new Vec3(25500, 0, 0), Careless.HoldPoint(View(), self, plan));
+
+        // The Choir is dead (the fight is over): it strays toward the still-idle Pair again.
+        foreach (var id in choirIds)
+        {
+            run.State.Actors[id].Health = 0;
+            run.State.Actors[id].Alive = false;
+        }
+        Assert.NotNull(Careless.StrayTarget(View(), self, plan));
+    }
+
     [Fact(DisplayName = "Careless seat control: the same seat without the plan follows its formation slot, and nothing engages or hits it")]
     public void Without_the_plan_the_seat_follows_and_nothing_engages()
     {
