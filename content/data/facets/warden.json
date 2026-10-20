@@ -223,7 +223,7 @@
     "id": "warden.ring.momentumSurge",
     "slot": "ring",
     "abilityId": "warden.guardBreak",
-    "text": "Guard Break refunds bonus Momentum, tagged for other Momentum synergies.",
+    "text": "Guard Break refunds bonus Momentum.",
     "patch": {
       "tagAdd": [
         "momentum-surge"
