@@ -662,6 +662,14 @@ public partial class Screen : Control
         _progression = _progression.BankRun(result);
         Proof(FormattableString.Invariant($"SCREEN bank result={result.ToJs()} ash={Ash.ForResult(result)} total={_progression.AshTotal}"));
         SaveProgression("bank");
+
+        // M1 TIMER-TIERS (BIBLE s8): a timed run raises the key by its tier (+1, +2 within 80% of par, +3 within 60%);
+        // a depleted or abandoned run keeps the key at the level it was played at (Matt 2026-10-20: no drop).
+        var ended = _driver.Run;
+        var played = ended.Encounter.KeyLevel;
+        var tier = Keyrun.Sim.Encounter.Timer.UpgradeTier(result, ended.RunEnd.ResultTick ?? ended.State.RunTimerTicks, ended.Encounter.ParTicks);
+        _state = ScreenState.Open(SimDriver.DungeonId, _state?.ClauseIds ?? ClauseIds(), Keyrun.Sim.Encounter.Timer.NextKeyLevel(played, tier));
+        Proof(FormattableString.Invariant($"SCREEN key from={played} to={_state.KeyLevel} tier={tier}"));
         if (_driver.Options.Autorun)
         {
             _autorunStep = 0;
