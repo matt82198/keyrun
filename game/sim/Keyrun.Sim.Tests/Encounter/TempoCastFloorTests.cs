@@ -41,31 +41,84 @@ public sealed class TempoCastFloorTests
     }
 
     [Fact]
-    public void Scaled_every_never_drops_below_the_casts_cooldown_or_cast_time_at_any_key()
+    public void Scaled_every_never_drops_below_the_scaled_cooldown_or_cast_time_at_any_key()
     {
         var ticks = EnemyAbilityTicks();
-        int Floor(string id) => Tempo.CastFloorTicks(ticks[id].Cooldown, ticks[id].Cast);
         var checkedSteps = 0;
         var failures = new List<string>();
         foreach (var (enemyId, raw) in RawScripts())
         {
             for (var key = 1; key <= System.Math.Max(TopKey, ScreenState.MaxKey); key++)
             {
-                var scaled = Tempo.ScaleScript(raw, key, Floor);
+                var k = key;
+                var scaled = Tempo.ScaleScript(raw, key, id => Tempo.ScaledCastFloorTicks(ticks[id].Cooldown, ticks[id].Cast, k));
                 Assert.Equal(raw.Count, scaled.Count);
                 foreach (var step in scaled.Where(s => s.Every is not null))
                 {
                     var (cooldown, cast) = ticks[step.Cast];
+                    var scaledCooldown = Tempo.ScaleCooldownTicks(cooldown, key);
                     checkedSteps++;
-                    if (step.Every < cooldown || step.Every < cast)
+                    if (step.Every < scaledCooldown || step.Every < cast || step.Every < Tempo.EveryFloorTicks)
                     {
-                        failures.Add($"{enemyId} {step.Cast} key {key}: every {step.Every} < cooldown {cooldown} / cast {cast}");
+                        failures.Add($"{enemyId} {step.Cast} key {key}: every {step.Every} < scaled cooldown {scaledCooldown} / cast {cast} / 20");
                     }
                 }
             }
         }
         Assert.True(checkedSteps >= 12 * TopKey, $"only {checkedSteps} steps checked");
         Assert.True(failures.Count == 0, string.Join("\n", failures.Take(20)) + $"\n({failures.Count} total)");
+    }
+
+    [Fact]
+    public void Casts_still_speed_up_with_the_key_the_cleave_loop_at_key_10_is_faster_than_at_key_1()
+    {
+        // BIBLE s8: "enemies cast more often". Cleave is authored every 160 == cooldownTicks 160 (castTicks 40).
+        var ticks = EnemyAbilityTicks();
+        var (cooldown, cast) = ticks["hollowWarden.cleave"];
+        var cleave = ScriptStep.Loop(160, "hollowWarden.cleave");
+        var key1 = Tempo.ScaleStep(cleave, 1, _ => Tempo.ScaledCastFloorTicks(cooldown, cast, 1)).Every!.Value;
+        var key10 = Tempo.ScaleStep(cleave, 10, _ => Tempo.ScaledCastFloorTicks(cooldown, cast, 10)).Every!.Value;
+        Assert.Equal(160, key1);
+        Assert.True(key10 < key1, $"key 10 cleave every {key10} is not faster than key 1 every {key1}");
+        Assert.Equal(135, key10); // 160 * 10000 / 11800 = 135, and the cooldown scales to the same 135.
+        Assert.Equal(key10, Tempo.ScaleCooldownTicks(cooldown, 10));
+    }
+
+    [Fact]
+    public void Cooldown_scales_by_the_tempo_factor_with_no_floor()
+    {
+        Assert.Equal(160, Tempo.ScaleCooldownTicks(160, 1));
+        Assert.Equal(156, Tempo.ScaleCooldownTicks(160, 2));
+        Assert.Equal(Tempo.ScaleCastEvery(160, 15), Tempo.ScaleCooldownTicks(160, 15));
+        Assert.Equal(0, Tempo.ScaleCooldownTicks(0, 20));
+        // Below the 20-tick every floor the cooldown is not raised: it only ever gets shorter.
+        Assert.Equal(15, Tempo.ScaleCooldownTicks(20, 15)); // 20 * 10000 / 12800
+    }
+
+    [Fact]
+    public void ScaleEnemyCooldowns_scales_only_scripted_casts_and_the_scaled_loop_finds_its_cast_ready_every_fire()
+    {
+        var cleave = RunTestKit.Ability("hollowWarden.cleave", System.Array.Empty<Keyrun.Sim.Combat.EffectOp>(), cooldownTicks: 160);
+        var kick = RunTestKit.Ability("warden.kick", System.Array.Empty<Keyrun.Sim.Combat.EffectOp>(), cooldownTicks: 480);
+        var table = new Dictionary<string, Keyrun.Sim.Combat.AbilityDef> { [cleave.Id] = cleave, [kick.Id] = kick };
+        var script = new[] { ScriptStep.Loop(160, cleave.Id) };
+        const int key = 10;
+
+        var scaledTable = Tempo.ScaleEnemyCooldowns(table, new[] { (IReadOnlyList<ScriptStep>)script }, key);
+        Assert.Equal(135, scaledTable[cleave.Id].CooldownTicks);
+        Assert.Equal(480, scaledTable[kick.Id].CooldownTicks); // a party ability is not an enemy cast
+        Assert.Equal(160, table[cleave.Id].CooldownTicks); // input untouched
+
+        // Drive the real cooldown rules: the loop fires at every, 2*every, ... and each cast must be ready.
+        var every = Tempo.ScaleScript(script, key, _ => Tempo.ScaledCastFloorTicks(160, 0, key))[0].Every!.Value;
+        Assert.True(every < 160);
+        var actor = CombatTestKit.Actor(2);
+        var def = scaledTable[cleave.Id];
+        for (var fire = every; fire <= every * 6; fire += every)
+        {
+            Assert.True(Keyrun.Sim.Combat.Cooldowns.IsAbilityReady(actor, def, fire), $"cast not ready on fire tick {fire}");
+            Keyrun.Sim.Combat.Cooldowns.ConsumeCharge(actor, def, fire);
+        }
     }
 
     [Fact]

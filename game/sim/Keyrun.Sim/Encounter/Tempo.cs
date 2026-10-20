@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
@@ -99,6 +100,51 @@ public static class Tempo
     /// a new cast would start before the last one lands. Negative inputs count as 0.
     /// </summary>
     public static int CastFloorTicks(int cooldownTicks, int castTicks) => Math.Max(0, Math.Max(cooldownTicks, castTicks));
+
+    /// <summary>
+    /// TEMPO-CAST-FLOOR: an enemy ability's cooldown at the key, scaled by the same Tempo factor as its script loop
+    /// (BIBLE s8, "enemies cast more often"): <c>trunc(cooldown * 10000 / mult)</c>, one truncating division like
+    /// <see cref="ScaleCastEvery(int, int)"/> but with no 20-tick floor (a 0 cooldown stays 0). A loop authored at
+    /// <c>every == cooldown</c> therefore scales to <c>every == scaled cooldown</c>: faster, and never early.
+    /// </summary>
+    /// <param name="baseCooldownTicks">The authored cooldown.</param>
+    /// <param name="keyLevel">The key level.</param>
+    /// <returns>The scaled cooldown, ticks.</returns>
+    public static int ScaleCooldownTicks(int baseCooldownTicks, int keyLevel) => baseCooldownTicks;
+
+    /// <summary>TEMPO-CAST-FLOOR: <see cref="CastFloorTicks"/> of the key-scaled cooldown (<see cref="ScaleCooldownTicks"/>) and the unscaled cast time.</summary>
+    /// <param name="cooldownTicks">The authored cooldown.</param>
+    /// <param name="castTicks">The cast time (Tempo never scales it).</param>
+    /// <param name="keyLevel">The key level.</param>
+    /// <returns>The floor for the cast's scaled loop period.</returns>
+    public static int ScaledCastFloorTicks(int cooldownTicks, int castTicks, int keyLevel) =>
+        CastFloorTicks(ScaleCooldownTicks(cooldownTicks, keyLevel), castTicks);
+
+    /// <summary>
+    /// TEMPO-CAST-FLOOR: the run's ability table with every ability an enemy script casts given its
+    /// <see cref="ScaleCooldownTicks"/> cooldown; every other ability (the party's) is kept as is. This is the one
+    /// place enemy cooldowns are scaled: the run reads cooldowns only from <c>RunContent.Abilities</c>
+    /// (<see cref="Cooldowns"/>), so the cast the scaled loop fires is ready on its fire tick.
+    /// </summary>
+    /// <param name="abilities">Abilities by id (unscaled cooldowns).</param>
+    /// <param name="enemyScripts">Every enemy script of the run (pulls, boss and Twins).</param>
+    /// <param name="keyLevel">The key level.</param>
+    /// <returns>A new table; the input is not mutated.</returns>
+    public static Dictionary<string, AbilityDef> ScaleEnemyCooldowns(
+        IReadOnlyDictionary<string, AbilityDef> abilities, IEnumerable<IReadOnlyList<ScriptStep>> enemyScripts, int keyLevel)
+    {
+        ArgumentNullException.ThrowIfNull(abilities);
+        ArgumentNullException.ThrowIfNull(enemyScripts);
+        var cast = new HashSet<string>(enemyScripts.SelectMany(s => s).Select(s => s.Cast), StringComparer.Ordinal);
+        var scaled = new Dictionary<string, AbilityDef>(StringComparer.Ordinal);
+        foreach (var kv in abilities)
+        {
+            scaled[kv.Key] = cast.Contains(kv.Key)
+                ? kv.Value with { CooldownTicks = ScaleCooldownTicks(kv.Value.CooldownTicks, keyLevel) }
+                : kv.Value;
+        }
+        return scaled;
+    }
 
     /// <summary>TEMPO-CAST-FLOOR: <see cref="ScaleCastEvery(int, int)"/>, then never below <paramref name="castFloorTicks"/>.</summary>
     /// <param name="baseEveryTicks">The authored period.</param>
