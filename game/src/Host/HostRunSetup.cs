@@ -117,7 +117,7 @@ public sealed record HostRunSetup(
 
         var abilities = registry.Abilities.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
         var effects = registry.Effects.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
-        var (combos, fieldCombos) = ToComboTables(registry.Combos.Values, registry.Classes.Keys.ToList());
+        var (combos, fieldCombos) = ToComboTables(registry.Combos.Values, registry.Classes.Keys.ToList(), registry.ComboRiders);
         var (dungeon, scripts) = ToSimDungeon(registry, dungeonDef, keyLevel);
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
 
@@ -310,7 +310,8 @@ public sealed record HostRunSetup(
         return slots;
     }
 
-    // run-setup.ts:61 resolveVariant: Chanter's stance abilities always play their "mend" variant.
+    // run-setup.ts:61 resolveVariant: a stance ability's static Effects are its "mend" variant (the opening verse).
+    // BIBLE section 5: the variants also ride along, and the sim (Abilities.ResolveVerse) plays the caster's verse.
     private static AbilityDef ToSim(C.AbilityDef a)
     {
         if (a.Shape.Width is not null)
@@ -318,6 +319,15 @@ public sealed record HostRunSetup(
             throw new InvalidOperationException($"run setup: ability \"{a.Id}\" has a shape width (facet patches only)");
         }
         var ops = a.Variants is { } v && v.TryGetValue("mend", out var mend) ? mend : a.Effects;
+        Dictionary<string, IReadOnlyList<EffectOp>>? variants = null;
+        if (a.Variants is { } all)
+        {
+            variants = new Dictionary<string, IReadOnlyList<EffectOp>>(StringComparer.Ordinal);
+            foreach (var kv in all)
+            {
+                variants[kv.Key] = kv.Value.Select(o => ToSim(o, a.Id + " variant " + kv.Key)).ToList();
+            }
+        }
         return new AbilityDef
         {
             Id = a.Id,
@@ -331,6 +341,7 @@ public sealed record HostRunSetup(
             Interruptible = a.Interruptible,
             Effects = ops.Select(o => ToSim(o, a.Id)).ToList(),
             Tags = a.Tags.ToList(),
+            Variants = variants,
         };
     }
 
@@ -363,6 +374,8 @@ public sealed record HostRunSetup(
             w.RadiusMm),
         C.PayoffOp => new PayoffOp(),
         C.ComboOp c => new ComboOp(c.ComboTable),
+        C.PartyEffectOp p => new PartyEffectOp(p.EffectId, p.DurationTicks, p.Stacks),
+        C.CloudOp c => new CloudOp(c.EffectId, c.DurationTicks, c.RadiusMm),
         _ => throw new InvalidOperationException($"run setup: {where} has an op the sim does not run ({op.GetType().Name})"),
     };
 
@@ -393,15 +406,18 @@ public sealed record HostRunSetup(
 
     /// <summary>
     /// content/sim-adapt.ts toComboTables: exact (setupClass, payoffClass) rows go to the burst table; a
-    /// <c>payoffClass "*"</c> row goes to the field table once per other class.
+    /// <c>payoffClass "*"</c> row goes to the field table once per other class. A combo with a C#-only rider
+    /// (combo-riders.json: Anthem's party haste, Steam's cloud; BIBLE section 4) fires the rider's effects instead.
     /// </summary>
-    private static (ComboTable Combos, ComboTable FieldCombos) ToComboTables(IEnumerable<C.ComboEntry> entries, IReadOnlyList<string> classIds)
+    private static (ComboTable Combos, ComboTable FieldCombos) ToComboTables(
+        IEnumerable<C.ComboEntry> entries, IReadOnlyList<string> classIds, IReadOnlyDictionary<string, C.ComboRider> riders)
     {
         var combos = new ComboTable();
         var field = new ComboTable();
         foreach (var entry in entries)
         {
-            var def = new ComboDef(entry.Id, entry.Effects.Select(o => ToSim(o, "combo " + entry.Id)).ToList());
+            var ops = riders.TryGetValue(entry.Id, out var rider) ? rider.Effects : entry.Effects;
+            var def = new ComboDef(entry.Id, ops.Select(o => ToSim(o, "combo " + entry.Id)).ToList());
             if (entry.PayoffClass == "*")
             {
                 foreach (var payoff in classIds.Where(c => c != entry.SetupClass))

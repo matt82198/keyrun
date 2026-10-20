@@ -1,0 +1,15 @@
+[
+  {
+    "id": "anthem",
+    "effects": [
+      { "op": "partyEffect", "effectId": "hasted", "durationTicks": 120, "stacks": 1 }
+    ]
+  },
+  {
+    "id": "steam",
+    "effects": [
+      { "op": "damage", "amount": 150, "school": "fire" },
+      { "op": "cloud", "effectId": "blinded", "durationTicks": 80, "radiusMm": 2500 }
+    ]
+  }
+]

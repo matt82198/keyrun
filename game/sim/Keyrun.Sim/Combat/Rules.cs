@@ -59,7 +59,8 @@ public sealed record RulesConfig
 /// <item>Run the tick's commands in order: target, stopcast, move/dash, cast (an instant cast completes now, then
 /// its Windows and Payoff). A dead actor's commands are dropped except cast (the onDeath DEATH-CAST EXCEPTION).</item>
 /// <item>Push live actors apart, then clamp every actor to the bounds.</item>
-/// <item>Per actor: due periodic ticks, Window expiries, then the generic effect expiry; then floor expiries.</item>
+/// <item>Per actor: due periodic ticks, Window expiries, then the generic effect expiry; then floor expiries, then
+/// the C#-only combo clouds (<see cref="Combos.TickClouds"/>; none on an oracle run).</item>
 /// </list>
 /// The rules never advance state.Tick; <see cref="Core.Tick.Step"/> owns the tick.
 /// </summary>
@@ -83,6 +84,13 @@ public static class Rules
             foreach (var op in kv.Value.Effects)
             {
                 errors.AddRange(Abilities.OpKindErrors(op).Select(e => kv.Key + ": " + e));
+            }
+            foreach (var variant in kv.Value.Variants ?? new Dictionary<string, IReadOnlyList<EffectOp>>())
+            {
+                foreach (var op in variant.Value)
+                {
+                    errors.AddRange(Abilities.OpKindErrors(op).Select(e => kv.Key + " variant " + variant.Key + ": " + e));
+                }
             }
         }
         foreach (var kv in cfg.Effects)
@@ -109,7 +117,8 @@ public static class Rules
             {
                 if (actor.CastId is not null && actor.CastEndsTick == state.Tick)
                 {
-                    cfg.Abilities.TryGetValue(actor.CastId, out var def);
+                    // The verse variant is resolved before CompleteCast credits the cast's own resource ops (a swap).
+                    var def = cfg.Abilities.TryGetValue(actor.CastId, out var found) ? Abilities.ResolveVerse(found, actor) : null;
                     Casting.CompleteCast(state, actor, ctx, emit);
                     if (def is not null)
                     {
@@ -150,8 +159,9 @@ public static class Rules
                         var err = Casting.StartCast(state, actor, def, c.TargetId, c.Point, state.Tick, hooks);
                         if (err is null && def.CastTicks == 0)
                         {
+                            var resolved = Abilities.ResolveVerse(def, actor);
                             Casting.CompleteCast(state, actor, ctx, emit);
-                            Windows.ApplyWindowsAndCombos(state, actor, def, wctx, emit);
+                            Windows.ApplyWindowsAndCombos(state, actor, resolved, wctx, emit);
                         }
                         break;
                 }
@@ -187,6 +197,7 @@ public static class Rules
                 Effects.ExpireEffects(actor, state.Tick);
             }
             Windows.CheckFloorExpiries(state, wctx.Floor, emit);
+            Combos.TickClouds(state, cfg.Effects);
         };
     }
 

@@ -76,6 +76,7 @@ public static class RunWiring
         RunTimerTicks = state.RunTimerTicks,
         Phase = state.Phase,
         FloorWindows = state.FloorWindows,
+        FloorClouds = state.FloorClouds,
     };
 
     /// <summary>run-wiring.ts:70 abilityTagsOf: ability id to its tags (null = untagged), for break-bar drains.</summary>
