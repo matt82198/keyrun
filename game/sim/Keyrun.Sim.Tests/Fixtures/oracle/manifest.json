@@ -35,8 +35,8 @@
       "fnv": "104b3503"
     },
     "content-pull.trace.jsonl": {
-      "bytes": 30554,
-      "fnv": "fdf89e56"
+      "bytes": 30532,
+      "fnv": "481a0c4a"
     },
     "fixed.vectors.json": {
       "bytes": 300060,
@@ -383,13 +383,13 @@
         "fnv": "f6804874"
       },
       "sim/combat/movement.ts": {
-        "fnv": "193be6de"
+        "fnv": "24dd3b8f"
       },
       "sim/combat/payoff.ts": {
         "fnv": "b176fb7d"
       },
       "sim/combat/rules.ts": {
-        "fnv": "bee05a0b"
+        "fnv": "d4dcc747"
       },
       "sim/combat/targeting.ts": {
         "fnv": "f49c6064"
@@ -507,7 +507,7 @@
       "result": null,
       "setup": "content-pull.setup.json",
       "trace": "content-pull.trace.jsonl",
-      "traceHash": "4dc08fbd"
+      "traceHash": "fc9969ed"
     },
     {
       "finalTick": 600,

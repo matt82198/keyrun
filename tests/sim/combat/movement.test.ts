@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { createActor } from "../../../sim/combat/actors";
-import { applyMovement, clampToBounds, isqrt, resolveCollision, type Bounds } from "../../../sim/combat/movement";
+import { applyMovement, bodiesCollide, clampToBounds, isqrt, resolveCollision, type Bounds } from "../../../sim/combat/movement";
 
 describe("isqrt", () => {
   it("is exact for perfect squares", () => {
@@ -45,6 +45,24 @@ describe("applyMovement", () => {
     applyMovement(a, { x: 0, z: 0 }, 300, 0, 256);
     expect(a.pos).toEqual({ x: 10, y: 0, z: 10 });
     expect(a.yaw).toBe(256);
+  });
+});
+
+describe("bodiesCollide (ENEMY-NO-PUSH, STATE.md D50)", () => {
+  const at = (id: number, kind: "player" | "enemy") =>
+    createActor({ id, kind, classId: "x", role: "damage", pos: { x: 0, y: 0, z: 0 }, maxHealth: 1, maxResource: 0 });
+
+  it("never pushes a player and an enemy apart, either way round", () => {
+    expect(bodiesCollide(at(1, "player"), at(2, "enemy"))).toBe(false);
+    expect(bodiesCollide(at(2, "enemy"), at(1, "player"))).toBe(false);
+  });
+
+  it("still pushes two players or two enemies, and never a dead body", () => {
+    expect(bodiesCollide(at(1, "player"), at(2, "player"))).toBe(true);
+    expect(bodiesCollide(at(3, "enemy"), at(4, "enemy"))).toBe(true);
+    const dead = at(5, "enemy");
+    dead.alive = false;
+    expect(bodiesCollide(at(3, "enemy"), dead)).toBe(false);
   });
 });
 

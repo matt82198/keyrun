@@ -102,6 +102,27 @@ public sealed class MovementTests
     }
 
     [Fact]
+    public void Enemy_no_push_a_player_and_an_enemy_never_collide_but_same_kinds_do()
+    {
+        // ENEMY-NO-PUSH (STATE.md D50): WoW bodies, an enemy never shoves a player and a player never shoves an enemy.
+        var player = At(1, 0, 0);
+        var player2 = At(2, 50, 0);
+        var enemy = At(3, 50, 0);
+        enemy.Kind = ActorKind.Enemy;
+        var enemy2 = At(4, 60, 0);
+        enemy2.Kind = ActorKind.Enemy;
+        Assert.False(Movement.BodiesCollide(player, enemy));
+        Assert.False(Movement.BodiesCollide(enemy, player));
+        Assert.True(Movement.BodiesCollide(player, player2));
+        Assert.True(Movement.BodiesCollide(enemy, enemy2));
+        enemy2.Idle = true;
+        Assert.False(Movement.BodiesCollide(enemy, enemy2)); // PRESPAWN-AGGRO: an idle body is never pushed
+        enemy2.Idle = false;
+        enemy2.Alive = false;
+        Assert.False(Movement.BodiesCollide(enemy, enemy2));
+    }
+
+    [Fact]
     public void Does_nothing_when_already_far_enough_apart()
     {
         var a = At(1, 0, 0);

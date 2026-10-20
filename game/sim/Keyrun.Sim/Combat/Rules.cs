@@ -190,7 +190,9 @@ public static class Rules
                     // (Pulls.SpawnAllIdle), so it never needs a shove. A party member
                     // close enough to touch an idle body is, under the 4000 mm default ring, inside its aggro ring and engages it this tick. No actor of
                     // an oracle run is idle, so the TS push-out is unchanged there.
-                    if (actors[i].Alive && actors[j].Alive && !actors[i].Idle && !actors[j].Idle)
+                    // ENEMY-NO-PUSH (STATE.md D50; TS twin sim/combat/movement.ts bodiesCollide): a player and an enemy never push each other
+                    // (Movement.BodiesCollide); two players or two enemies still do.
+                    if (Movement.BodiesCollide(actors[i], actors[j]))
                     {
                         Movement.ResolveCollision(actors[i], actors[j], cfg.ActorRadiusMm);
                     }

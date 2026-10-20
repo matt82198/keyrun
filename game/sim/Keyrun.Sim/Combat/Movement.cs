@@ -117,6 +117,23 @@ public static class Movement
         ClampToBounds(actor, config.Bounds);
     }
 
+    /// <summary>
+    /// Whether the step's push-out (<see cref="ResolveCollision(ActorState, ActorState, long)"/>) runs for this pair: both
+    /// alive, neither idle (PRESPAWN-AGGRO), and both of one kind. ENEMY-NO-PUSH (STATE.md D50, TS twin sim/combat/movement.ts bodiesCollide; Matt: "it should
+    /// feel almost exact to wow"): in WoW an enemy body never collides with or shoves a player, and a player never shoves
+    /// an enemy, so a player-enemy pair is never pushed. Enemy-enemy and player-player push-out are unchanged (a pack
+    /// still fans out among itself; the push-out between two players or two enemies stays as ported from TS).
+    /// </summary>
+    /// <param name="a">One actor.</param>
+    /// <param name="b">The other actor.</param>
+    /// <returns>True when the pair is pushed apart on overlap.</returns>
+    public static bool BodiesCollide(ActorState a, ActorState b)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        return a.Alive && b.Alive && !a.Idle && !b.Idle && a.Kind == b.Kind;
+    }
+
     /// <summary>Pushes two overlapping equal-radius actor cylinders apart symmetrically along their XZ delta.</summary>
     public static void ResolveCollision(ActorState a, ActorState b, long radiusMm)
     {

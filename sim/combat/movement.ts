@@ -49,6 +49,15 @@ export function applyMovement(
   actor.pos = { x: actor.pos.x + dx, y: actor.pos.y, z: actor.pos.z + dz };
 }
 
+/**
+ * Whether the step's push-out runs for this pair: both alive and both of one kind. ENEMY-NO-PUSH (STATE.md D50, twin of
+ * Movement.BodiesCollide in game/sim): as in WoW, a player and an enemy never push each other; two players or two
+ * enemies still do. (The C# twin also skips idle bodies, PRESPAWN-AGGRO; no TS actor is idle.)
+ */
+export function bodiesCollide(a: ActorState, b: ActorState): boolean {
+  return a.alive && b.alive && a.kind === b.kind;
+}
+
 /** Pushes two overlapping equal-radius actor cylinders apart symmetrically along their XZ delta. */
 export function resolveCollision(a: ActorState, b: ActorState, radiusMm: number): void {
   const dx = b.pos.x - a.pos.x;

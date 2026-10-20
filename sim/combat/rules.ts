@@ -33,7 +33,7 @@ import type { ActorState, Command, SimEvent, SimState, StepRules } from "./types
 import type { AbilityDef, EffectOp } from "./abilities";
 import type { EffectDef } from "./effects";
 import { startCast, completeCast, stopcast, type CastContext } from "./casting";
-import { applyMovement, resolveCollision, clampToBounds, DASH_DISTANCE_MM, type Bounds } from "./movement";
+import { applyMovement, bodiesCollide, resolveCollision, clampToBounds, DASH_DISTANCE_MM, type Bounds } from "./movement";
 import { expireEffects, duePeriodicInstances, advancePeriodic, aggregateModifiers } from "./effects";
 import { applyHeal } from "./damage";
 import { dealDamage } from "./mitigation";
@@ -129,7 +129,7 @@ export function makeRules(cfg: RulesConfig): StepRules {
       for (let j = i + 1; j < actors.length; j += 1) {
         const a = actors[i]!;
         const b = actors[j]!;
-        if (a.alive && b.alive) resolveCollision(a, b, cfg.actorRadiusMm);
+        if (bodiesCollide(a, b)) resolveCollision(a, b, cfg.actorRadiusMm); // ENEMY-NO-PUSH (STATE.md D50)
       }
     }
     for (const actor of actors) clampToBounds(actor, cfg.bounds);
