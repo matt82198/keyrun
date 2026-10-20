@@ -16,7 +16,9 @@ namespace Keyrun.View;
 /// fresh <see cref="ActorBinding.StaggerEffectId"/> effect lands (the Twins' break bar emptying). Read-only: it never
 /// writes sim state. KF1: the swing one-shot starts at <see cref="AnimRule.SwingStartMs"/> (its blow lands on the hit
 /// tick, not 300 to 800 ms after it), and a caster the sim's <c>interrupt</c> event targets plays the hit clip (a kick
-/// flinch). A model without an AnimationPlayer gets no animator (<see cref="TryCreate"/> returns null), so it
+/// flinch). KF1-READABLE: a cast's own <c>cast_complete</c> plays the release over the next cast it chains into (for
+/// <see cref="AnimRule.ReleaseEndsMs"/>, then the cast pose resumes), and every clip start prints a
+/// <see cref="AnimRule.ViewLine"/> (<c>VIEW anim actor=N clip=X tick=T</c>). A model without an AnimationPlayer gets no animator (<see cref="TryCreate"/> returns null), so it
 /// keeps its static pose.
 /// </summary>
 public sealed class ActorAnimator
@@ -52,7 +54,11 @@ public sealed class ActorAnimator
         _spawn = clips.Spawn is null ? null : Match(names, clips.Spawn, loop: false);
         // KF1: the swing starts just before its contact frame, so the blow lands on the sim's hit tick.
         _actStartSeconds = AnimRule.SwingStartMs(clips.Act) / 1000f;
+        _actRow = clips.Act;
     }
+
+    // The row's swing clip name (AnimRule's contact table is keyed by it, not by the matched library path).
+    private readonly string _actRow;
 
     /// <summary>The clip names this animator resolved, for the ACTOR log line ("idle=Idle move=Running_A ...").</summary>
     public string Matched =>
@@ -107,6 +113,10 @@ public sealed class ActorAnimator
                 _spawning = false;
                 _oneShot = null;
                 Play(_death);
+                if (_death is not null)
+                {
+                    GD.Print(AnimRule.ViewLine(now.Id, _death, tick) + " kind=Death");
+                }
             }
             return;
         }
@@ -130,15 +140,20 @@ public sealed class ActorAnimator
         var playing = _oneShot is not null && _player.IsPlaying() && _player.CurrentAnimation == _oneShot
             ? (_oneShot == _act ? AnimClip.Act : AnimClip.Hit)
             : AnimClip.None;
+        var released = _act is not null && AnimRule.Resolved(now.Id, Pairs(events));
         var facts = new AnimFacts(
             Alive: true,
             NewTick: newTick,
             Moving: speedMps > MoveSpeedMps,
             Casting: now.CastId is not null && _cast is not null,
-            Acted: _act is not null && (AnimRule.Resolved(now.Id, Pairs(events)) || now.GcdReadyTick > before.GcdReadyTick),
+            Acted: _act is not null && (released || now.GcdReadyTick > before.GcdReadyTick),
             Hurt: _hit is not null && now.Health < before.Health,
             Staggered: _hit is not null && (StaggerLanded(before, now) || AnimRule.Kicked(now.Id, Targets(events))),
-            Playing: playing);
+            Playing: playing,
+            // KF1-READABLE: a release plays over the cast it chains into, for its window, then the cast pose resumes.
+            Released: released,
+            InRelease: playing == AnimClip.Act &&
+                AnimRule.InRelease(_actRow, (int)(_player.CurrentAnimationPosition * 1000.0)));
         var decision = AnimRule.Decide(facts);
         var clip = ClipFor(decision.Clip);
         if (decision.OneShot && clip is not null)
@@ -150,13 +165,18 @@ public sealed class ActorAnimator
                 _player.Play(clip, Blend);
                 _player.Seek(from, true);
                 // Proof line (like ACTOR): which one-shot started, on whom, on which tick, from where in the clip.
-                GD.Print(FormattableString.Invariant(
-                    $"ANIM oneshot actor={now.Id} tick={tick} clip={clip} kind={decision.Clip} from={from:0.00} moving={(facts.Moving ? 1 : 0)}"));
+                GD.Print(AnimRule.ViewLine(now.Id, clip, tick) + FormattableString.Invariant(
+                    $" kind={decision.Clip} from={from:0.00} moving={(facts.Moving ? 1 : 0)} casting={(facts.Casting ? 1 : 0)}"));
             }
             return;
         }
         _oneShot = null;
-        Play(clip ?? _idle);
+        var next = clip ?? _idle;
+        if (decision.Clip == AnimClip.Cast && next is not null && !(_player.CurrentAnimation == next && _player.IsPlaying()))
+        {
+            GD.Print(AnimRule.ViewLine(now.Id, next, tick) + " kind=Cast");
+        }
+        Play(next);
     }
 
     private string? ClipFor(AnimClip clip) => clip switch

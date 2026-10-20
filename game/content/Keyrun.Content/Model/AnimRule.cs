@@ -61,7 +61,8 @@ public readonly record struct AnimDecision(AnimClip Clip, bool OneShot, bool Res
 /// clip's own length and returns. KF1 (2026-10-20, "combat animation reads badly"): a swing starts at
 /// <see cref="SwingStartMs"/> so its blow lands on the hit tick, every health drop flashes the victim
 /// (<see cref="FlashPermille"/>) even while a one-shot hides the hit clip, and a kicked caster flinches
-/// (<see cref="Kicked"/>).
+/// (<see cref="Kicked"/>). KF1-READABLE (f-fa28e36e): a resolve on the step the next cast starts plays the release over
+/// that cast's loop until <see cref="ReleaseEndsMs"/> (a chained caster used to loop its cast pose forever).
 /// </summary>
 public static class AnimRule
 {
@@ -82,14 +83,22 @@ public static class AnimRule
     /// <summary>KF1-READABLE: how long a release keeps playing past its contact frame over a chained cast, in ms.</summary>
     public const int ReleaseTailMs = 250;
 
-    /// <summary>RED STUB (KF1-READABLE): where the release window ends, in ms into the swing clip.</summary>
-    public static int ReleaseEndsMs(string clip) => 0;
+    /// <summary>
+    /// KF1-READABLE: where the release window of <paramref name="clip"/> ends, in ms into the clip: its contact frame
+    /// plus <see cref="ReleaseTailMs"/> (a clip with no known contact counts contact as 0). Over a chained cast the
+    /// release plays from <see cref="SwingStartMs"/> to here, then the next cast's pose resumes.
+    /// </summary>
+    public static int ReleaseEndsMs(string clip) => (ContactMs(clip) ?? 0) + ReleaseTailMs;
 
-    /// <summary>RED STUB (KF1-READABLE): true while <paramref name="playedMs"/> is inside the release window.</summary>
-    public static bool InRelease(string clip, int playedMs) => false;
+    /// <summary>True while <paramref name="playedMs"/> (ms into <paramref name="clip"/>) is before <see cref="ReleaseEndsMs"/>.</summary>
+    public static bool InRelease(string clip, int playedMs) => playedMs < ReleaseEndsMs(clip);
 
-    /// <summary>RED STUB (KF1-READABLE): the engine proof line for a clip start.</summary>
-    public static string ViewLine(int actorId, string clip, int tick) => string.Empty;
+    /// <summary>The engine proof line for a combat clip starting on an actor: <c>VIEW anim actor=N clip=X tick=T</c>.</summary>
+    public static string ViewLine(int actorId, string clip, int tick)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        return FormattableString.Invariant($"VIEW anim actor={actorId} clip={clip} tick={tick}");
+    }
 
     /// <summary>KF1 hit flash: a health drop lights the victim for this many sim ticks, fading linearly.</summary>
     public const int FlashTicks = 3;
@@ -163,6 +172,16 @@ public static class AnimRule
         }
         if (f.Casting)
         {
+            // KF1-READABLE: a caster that chains casts starts the next one on the step the last resolves, so the cast
+            // loop used to hide every release. The release plays over the new cast for its window, then the pose resumes.
+            if (f.NewTick && f.Released)
+            {
+                return new AnimDecision(AnimClip.Act, true, true);
+            }
+            if (f.Playing == AnimClip.Act && f.InRelease)
+            {
+                return new AnimDecision(AnimClip.Act, true, false);
+            }
             return new AnimDecision(AnimClip.Cast, false, false);
         }
         if (f.NewTick)
