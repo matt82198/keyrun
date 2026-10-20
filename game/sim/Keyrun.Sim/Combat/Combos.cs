@@ -44,14 +44,14 @@ public sealed record CloudOp(string EffectId, int DurationTicks, long RadiusMm) 
 /// <summary>
 /// <c>{op:"closerBurn"}</c>: a combo op that burns the Payoff actor itself (keyrun STATE.md D34, Matt 2026-10-20 on the
 /// Cinderfield closer: "as damage scales this will turn into a one shot, so abilities and damage reduction stuff needs
-/// to be considered"). The raw burn is <paramref name="MaxHealthBp"/> of the closer's max health; it then takes the
-/// Pact weighting and the closer's own modifiers exactly as a damage op would (so Brace, Vigil and any damageTakenBp
-/// still reduce it), and the result is clamped to <paramref name="CapBp"/> of the closer's max health, so no amplifier
-/// can grow it toward a one-shot. C#-only, like <see cref="PartyEffectOp"/>; the content validator keeps
-/// <c>0 &lt; MaxHealthBp &lt;= CapBp &lt; 10000</c>.
+/// to be considered"). The raw burn is <paramref name="MaxHealthBp"/> of the closer's max health; the Pact weighting,
+/// the closer's damageDoneBp and any damage-taken increase on it amplify it, the result is clamped to
+/// <paramref name="CapBp"/> of the closer's max health so no amplifier can grow it toward a one-shot, and the closer's
+/// damage-taken reductions (Brace, Vigil, ...) then apply to the capped amount, so defensive play always lowers it.
+/// C#-only, like <see cref="PartyEffectOp"/>; the content validator keeps <c>0 &lt; MaxHealthBp &lt;= CapBp &lt; 10000</c>.
 /// </summary>
 /// <param name="MaxHealthBp">Base burn, bp of the closer's max health.</param>
-/// <param name="CapBp">Ceiling after every amplifier, bp of the closer's max health.</param>
+/// <param name="CapBp">Ceiling after every amplifier and before damage reduction, bp of the closer's max health.</param>
 /// <param name="School">Damage school tag.</param>
 public sealed record CloserBurnOp(long MaxHealthBp, long CapBp, string School) : EffectOp;
 
@@ -231,11 +231,13 @@ public static class Combos
     }
 
     /// <summary>
-    /// <see cref="CloserBurnOp"/> on <paramref name="closer"/> (the Payoff actor): raw = MaxHealthBp of its max health,
-    /// then the Pact <paramref name="weighting"/> and its damageDone/damageTaken modifiers as
-    /// <see cref="Mitigation.DealDamage"/> applies them, clamped to CapBp of its max health, then absorb and health
-    /// through <see cref="Damage.ResolveModified"/> (one "damage" event, source and target the closer). The blinded miss
-    /// rule does not apply: the closer is not attacking. A dead closer takes nothing.
+    /// <see cref="CloserBurnOp"/> on <paramref name="closer"/> (the Payoff actor), in two stages so damage reduction
+    /// always counts. Amplify: raw = MaxHealthBp of its max health, then the Pact <paramref name="weighting"/>, its
+    /// damageDoneBp and every damage-taken increase it carries, clamped to CapBp of its max health. Reduce: every
+    /// damage-taken reduction it carries (Brace, Vigil, ...) applies to the capped amount, so a braced closer always takes
+    /// less than an open one however far the amplifiers push. Then absorb and health through
+    /// <see cref="Damage.ResolveModified"/> (one "damage" event, source and target the closer). The blinded miss rule does
+    /// not apply: the closer is not attacking. A dead closer takes nothing.
     /// </summary>
     private static void BurnCloser(
         int tick,
@@ -251,9 +253,25 @@ public static class Combos
         }
         var raw = IntMath.TruncDiv(closer.MaxHealth * op.MaxHealthBp, Effects.BpDenom);
         var cap = IntMath.TruncDiv(closer.MaxHealth * op.CapBp, Effects.BpDenom);
+        long takenUp = 0, takenDown = 0;
+        foreach (var inst in closer.Effects)
+        {
+            if (effectDefs.TryGetValue(inst.EffectId, out var def) && def.Modifiers.DamageTakenBp is { } bp)
+            {
+                if (bp > 0)
+                {
+                    takenUp += bp * inst.Stacks;
+                }
+                else
+                {
+                    takenDown += bp * inst.Stacks;
+                }
+            }
+        }
         var weighted = weighting is null ? raw : weighting(raw);
-        var mods = Effects.AggregateModifiers(closer, effectDefs);
-        var modified = Math.Min(cap, Damage.ApplyModifiers(weighted, mods.DamageDoneBp, mods.DamageTakenBp));
+        var doneBp = Effects.AggregateModifiers(closer, effectDefs).DamageDoneBp;
+        var capped = Math.Min(cap, Damage.ApplyModifiers(weighted, doneBp, takenUp));
+        var modified = Damage.ApplyModifiers(capped, 0, takenDown);
         Damage.ResolveModified(tick, closer, raw, modified, effectDefs, emit, closer.Id);
     }
 

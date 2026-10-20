@@ -704,8 +704,9 @@ Additional parked decisions (from the burn ledger):
   this will turn into a one shot, so abilities and damage reduction stuff needs to be considered lol"; lane
   CINDERFIELD-CLOSER-COST, finding f-17c18460; reversible). Implemented: the game/content/data/combo-riders.json rider
   for `cinderfield-field` replaces the frozen 80 fire with a C#-only `closerBurn` op: 15% of the closer's max health,
-  then the Pact and the closer's own modifiers (so Brace, Vigil and any damage reduction still lower it), hard-capped
-  at 20% of max health after every amplifier. The validator requires cap < 100%, so the burn alone can never kill a
+  amplified by the Pact, the closer's damageDoneBp and any damage-taken increase, hard-capped at 20% of max health,
+  and then lowered by the closer's damage reduction (Brace, Vigil, ...), which applies after the cap so defensive play
+  always counts. The validator requires 0 < base <= cap < 100%, so the burn alone can never kill a
   closer at full health at any key or gear Tier. Why: the closer is both source and target of a field Combo, so the
   Pact's comboDamageBp and any future gear power riding damageDoneBp scaled a raw number with no ceiling.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
