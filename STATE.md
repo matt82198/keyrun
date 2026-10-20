@@ -713,6 +713,16 @@ Additional parked decisions (from the burn ledger):
   Cost: about $0.0035 per decision at Haiku list price, cap 3M input tokens per experiment; any recurring loop is NEEDS
   MATT. NEXT STEPS (smallest first): merge #305; fold the guide into GUIDE.md; traceHash + buildSha; provenance check;
   verify --replay; first-run failure measurement; report script; one cohort experiment; recurring loop NEEDS MATT.
+- D34 **CINDERFIELD CLOSER COST: closing a Cinderfield still burns the closer, as a capped share of its max health**
+  (Matt, 2026-10-20, asked "should closing a Cinderfield burn the closer?", verbatim: "probably, but as damage scales
+  this will turn into a one shot, so abilities and damage reduction stuff needs to be considered lol"; lane
+  CINDERFIELD-CLOSER-COST, finding f-17c18460; reversible). Implemented: the game/content/data/combo-riders.json rider
+  for `cinderfield-field` replaces the frozen 80 fire with a C#-only `closerBurn` op: 15% of the closer's max health,
+  amplified by the Pact, the closer's damageDoneBp and any damage-taken increase, hard-capped at 20% of max health,
+  and then lowered by the closer's damage reduction (Brace, Vigil, ...), which applies after the cap so defensive play
+  always counts. The validator requires 0 < base <= cap < 100%, so the burn alone can never kill a
+  closer at full health at any key or gear Tier. Why: the closer is both source and target of a field Combo, so the
+  Pact's comboDamageBp and any future gear power riding damageDoneBp scaled a raw number with no ceiling.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
