@@ -92,16 +92,47 @@ public static class Tempo
     public static IReadOnlyList<ScriptStep> ScaleScript(IReadOnlyList<ScriptStep> script, int keyLevel) =>
         script.Select(s => ScaleStep(s, keyLevel)).ToList();
 
-    /// <summary>TEMPO-CAST-FLOOR: the shortest period a step may repeat its cast (cooldown and cast time).</summary>
-    public static int CastFloorTicks(int cooldownTicks, int castTicks) => 0;
+    /// <summary>
+    /// TEMPO-CAST-FLOOR (BIBLE s3, "Cast bars are the enemy's language"): the shortest period a script step may repeat
+    /// its cast, the larger of the ability's cooldown and its cast time. Faster than the cooldown, the cast is refused
+    /// <c>not_ready</c> on the fire tick (a telegraph with no cast, and an aliased cadence); faster than the cast time,
+    /// a new cast would start before the last one lands. Negative inputs count as 0.
+    /// </summary>
+    public static int CastFloorTicks(int cooldownTicks, int castTicks) => Math.Max(0, Math.Max(cooldownTicks, castTicks));
 
-    /// <summary>TEMPO-CAST-FLOOR: <see cref="ScaleCastEvery(int, int)"/> never below the cast's floor.</summary>
-    public static int ScaleCastEvery(int baseEveryTicks, int keyLevel, int castFloorTicks) => ScaleCastEvery(baseEveryTicks, keyLevel);
+    /// <summary>TEMPO-CAST-FLOOR: <see cref="ScaleCastEvery(int, int)"/>, then never below <paramref name="castFloorTicks"/>.</summary>
+    /// <param name="baseEveryTicks">The authored period.</param>
+    /// <param name="keyLevel">The key level.</param>
+    /// <param name="castFloorTicks">The cast's <see cref="CastFloorTicks"/>.</param>
+    /// <returns>The scaled period, at least 20 ticks and at least the cast's floor.</returns>
+    public static int ScaleCastEvery(int baseEveryTicks, int keyLevel, int castFloorTicks) =>
+        Math.Max(ScaleCastEvery(baseEveryTicks, keyLevel), castFloorTicks);
 
-    /// <summary>TEMPO-CAST-FLOOR: <see cref="ScaleStep(ScriptStep, int)"/> with the cast's floor applied to <c>every</c>.</summary>
-    public static ScriptStep ScaleStep(ScriptStep step, int keyLevel, Func<string, int> castFloorTicks) => ScaleStep(step, keyLevel);
+    /// <summary>
+    /// TEMPO-CAST-FLOOR: <see cref="ScaleStep(ScriptStep, int)"/> (the frozen-TS parity rule, which the oracle setups
+    /// record), then a present <c>every</c> raised to the cast's floor. Trigger, at, cast and telegraph are kept.
+    /// </summary>
+    /// <param name="step">The authored step.</param>
+    /// <param name="keyLevel">The key level.</param>
+    /// <param name="castFloorTicks">Ability id to its <see cref="CastFloorTicks"/>.</param>
+    /// <returns>The scaled step.</returns>
+    public static ScriptStep ScaleStep(ScriptStep step, int keyLevel, Func<string, int> castFloorTicks)
+    {
+        ArgumentNullException.ThrowIfNull(castFloorTicks);
+        var scaled = ScaleStep(step, keyLevel);
+        if (scaled.Every is not { } every)
+        {
+            return scaled;
+        }
+        var floor = castFloorTicks(step.Cast);
+        return every >= floor ? scaled : scaled with { Every = floor };
+    }
 
     /// <summary>TEMPO-CAST-FLOOR: <see cref="ScaleStep(ScriptStep, int, Func{string, int})"/> over every step, in order.</summary>
+    /// <param name="script">The authored script.</param>
+    /// <param name="keyLevel">The key level.</param>
+    /// <param name="castFloorTicks">Ability id to its <see cref="CastFloorTicks"/>.</param>
+    /// <returns>The scaled script.</returns>
     public static IReadOnlyList<ScriptStep> ScaleScript(IReadOnlyList<ScriptStep> script, int keyLevel, Func<string, int> castFloorTicks) =>
         script.Select(s => ScaleStep(s, keyLevel, castFloorTicks)).ToList();
 

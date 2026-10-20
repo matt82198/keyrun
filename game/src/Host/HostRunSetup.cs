@@ -287,7 +287,7 @@ public sealed record HostRunSetup(
             def.Id,
             Affixes.ScaleHealth(Tempo.ScaleHealth(def.MaxHealth, keyLevel), twinHealthBp),
             new Vec3(i == 0 ? TwinOffsetMm : -TwinOffsetMm, 0, 0),
-            Tempo.ScaleScript(ToSim(def.Script), keyLevel))).ToList();
+            Tempo.ScaleScript(ToSim(def.Script), keyLevel, CastFloors(registry)))).ToList();
         var onEmpty = bar.OnEmpty.Select(op => op is C.ApplyEffectOp e
             ? new BreakBarOnEmptyEffect(e.EffectId, e.DurationTicks, e.Stacks)
             : throw new InvalidOperationException($"run setup: {where} bar \"{bar.Id}\" onEmpty has a {op.GetType().Name}, only applyEffect is run")).ToList();
@@ -534,7 +534,7 @@ public sealed record HostRunSetup(
                     };
                     var scaled = Tempo.ScaleSpawn(spawn, keyLevel);
                     spawns.Add(scaled with { Health = Affixes.ScaleHealth(scaled.Health, trashHealthBp) });
-                    scripts[actorId] = Tempo.ScaleScript(ToSim(def.Script), keyLevel);
+                    scripts[actorId] = Tempo.ScaleScript(ToSim(def.Script), keyLevel, CastFloors(registry));
                 }
             }
             pulls.Add(new PullDef(pull.Id, spawns));
@@ -546,9 +546,16 @@ public sealed record HostRunSetup(
         {
             new PullSpawn(BossActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp)),
         }));
-        scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel);
+        scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel, CastFloors(registry));
         return (new DungeonDef(dungeonDef.Id, pulls), scripts);
     }
+
+    /// <summary>
+    /// TEMPO-CAST-FLOOR: ability id to <see cref="Tempo.CastFloorTicks"/> (cooldown and cast time), so Tempo never
+    /// schedules a cast before its ability is ready (BIBLE s3). An id the registry lacks gets 0 (no extra floor).
+    /// </summary>
+    private static Func<string, int> CastFloors(C.ContentRegistry registry) =>
+        id => registry.Abilities.TryGetValue(id, out var a) ? Tempo.CastFloorTicks(a.CooldownTicks, a.CastTicks) : 0;
 
     private static C.EnemyDef Enemy(C.ContentRegistry registry, string id, string where) =>
         registry.Enemies.TryGetValue(id, out var def)
