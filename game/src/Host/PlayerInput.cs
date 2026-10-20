@@ -301,9 +301,9 @@ public sealed class KeyBinds
 }
 
 /// <summary>
-/// player-commands.ts castTargetFor (D10 first-run fix), Godot-free: a hostile single-target ability with no live enemy
-/// targeted goes at the nearest live enemy (squared XZ distance, lowest id on a tie); everything else keeps the current
-/// target, else the caster.
+/// player-commands.ts castTargetFor (D10 first-run fix), Godot-free: a hostile single-target ability with no live engaged
+/// enemy targeted goes at the nearest live engaged enemy (squared XZ distance, lowest id on a tie; an idle prespawned
+/// enemy is never picked, PRESPAWN-AGGRO); everything else keeps the current target, else the caster.
 /// </summary>
 public static class CastTargeting
 {
@@ -326,28 +326,13 @@ public static class CastTargeting
         {
             return current ?? humanId;
         }
-        if (current is { } c && actors.TryGetValue(c, out var cur) && cur.Alive && cur.Kind != player.Kind)
+        // PRESPAWN-AGGRO: the current target while it is a living ENGAGED enemy, else the nearest engaged one
+        // (EngagedTargets, Keyrun.Bots). An idle prespawned enemy is never picked, so a cast never pulls a pack.
+        if (EngagedTargets.HostileTarget(run.State, player) is { } target)
         {
-            return cur.Id;
+            return target;
         }
-        int? best = null;
-        long bestD2 = 0;
-        foreach (var a in actors.Values)
-        {
-            if (!a.Alive || a.Kind == player.Kind)
-            {
-                continue;
-            }
-            var dx = a.Pos.X - player.Pos.X;
-            var dz = a.Pos.Z - player.Pos.Z;
-            var d2 = (dx * dx) + (dz * dz);
-            if (best is null || d2 < bestD2 || (d2 == bestD2 && a.Id < best))
-            {
-                best = a.Id;
-                bestD2 = d2;
-            }
-        }
-        return best ?? current ?? humanId;
+        return current is { } c && actors.TryGetValue(c, out var cur) && cur.Alive && cur.Idle ? humanId : current ?? humanId;
     }
 }
 
@@ -398,7 +383,7 @@ public sealed class ScriptedWarden
             return;
         }
         var abilities = run.Content.Abilities;
-        var lieutenant = state.Actors.Values.FirstOrDefault(a => a.Alive && a.Kind == ActorKind.Enemy && a.ClassId == LieutenantClass);
+        var lieutenant = state.Actors.Values.FirstOrDefault(a => a.ClassId == LieutenantClass && EngagedTargets.IsEngagedHostile(me, a));
 
         if (lieutenant is { CastId: { } castId, CastStartTick: { } start } && abilities.TryGetValue(castId, out var cast) && cast.Interruptible &&
             tick >= start + (cast.CastTicks / 2) && Ready(me, abilities[Kick], tick) && Casting.RangeMm(me, lieutenant) <= abilities[Kick].Range)
@@ -462,26 +447,9 @@ public sealed class ScriptedWarden
         return new MoveCommand(tick, me.Id, dir, Atan.YawFromComponents(dir.X, dir.Z));
     }
 
-    /// <summary>The living enemy nearest <paramref name="me"/> (squared XZ distance, lowest id on a tie), or null.</summary>
-    private static ActorState? NearestEnemy(SimState state, ActorState me)
-    {
-        ActorState? best = null;
-        long bestD2 = 0;
-        foreach (var a in state.Actors.Values)
-        {
-            if (!a.Alive || a.Kind != ActorKind.Enemy)
-            {
-                continue;
-            }
-            var dx = a.Pos.X - me.Pos.X;
-            var dz = a.Pos.Z - me.Pos.Z;
-            var d2 = (dx * dx) + (dz * dz);
-            if (best is null || d2 < bestD2 || (d2 == bestD2 && a.Id < best.Id))
-            {
-                best = a;
-                bestD2 = d2;
-            }
-        }
-        return best;
-    }
+    /// <summary>
+    /// The living ENGAGED enemy nearest <paramref name="me"/> (squared XZ distance, lowest id on a tie), or null. An idle
+    /// prespawned enemy is never picked (PRESPAWN-AGGRO; <see cref="EngagedTargets.Nearest"/>).
+    /// </summary>
+    private static ActorState? NearestEnemy(SimState state, ActorState me) => EngagedTargets.Nearest(state, me);
 }
