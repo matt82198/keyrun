@@ -16,7 +16,8 @@ namespace Keyrun.Content;
 /// </para>
 /// <para>
 /// Added beyond validate.ts: effect refs inside talent and facet patches, <c>breakBarId</c>
-/// must name a declared break bar, and a Window op on an ability or talent must carry its
+/// must name a declared break bar, a script telegraph with <c>spansCast</c> must cast an ability with castTicks &gt; 0,
+/// and a Window op on an ability or talent must carry its
 /// <c>setupClass</c> (the sim union requires it; only facet <c>effectsAppend</c> may omit it).
 /// </para>
 /// <para>
@@ -47,7 +48,87 @@ public static class ContentValidator
         CheckFacets(reg);
         CheckRun(reg.Run);
         CheckHeatOverheat(reg);
+        CheckForces(reg);
         LayoutValidator.Check(reg);
+    }
+
+    /// <summary>
+    /// BIBLE section 9.2 forces + route invariants: a positive bar; every value names a known enemy once, is not
+    /// negative, and is earned only by a teaching-pull or pack enemy (nothing farmable); every teaching-pull and pack
+    /// enemy has a value; the fork precedes the rejoin; branch and room ids are unique; packs and hazards stand in a
+    /// branch room; and every branch's critical path plus all of its packs reaches the bar.
+    /// </summary>
+    private static void CheckForces(ContentRegistry reg)
+    {
+        ForcesTable forces = reg.Forces;
+        if (forces.Required <= 0) Fail("forces required must be positive, got " + forces.Required);
+
+        var valued = new HashSet<string>(System.StringComparer.Ordinal);
+        foreach (ForcesValue value in forces.Values)
+        {
+            if (!reg.Enemies.ContainsKey(value.EnemyId)) Fail("forces value references unknown enemy \"" + value.EnemyId + "\"");
+            if (!valued.Add(value.EnemyId)) Fail("duplicate forces value for enemy \"" + value.EnemyId + "\"");
+            if (value.Points < 0) Fail("forces value for enemy \"" + value.EnemyId + "\" is negative, got " + value.Points);
+        }
+
+        RouteDef route = forces.Route;
+        if (!reg.Dungeons.TryGetValue(route.DungeonId, out DungeonDef? dungeon))
+            Fail("route references unknown dungeon \"" + route.DungeonId + "\"");
+        var earners = new HashSet<string>(System.StringComparer.Ordinal);
+        foreach (PullDef pull in dungeon!.Pulls)
+            foreach (PullEnemy group in pull.Enemies)
+            {
+                if (!valued.Contains(group.EnemyId))
+                    Fail("pull \"" + pull.Id + "\" enemy \"" + group.EnemyId + "\" has no forces value");
+                earners.Add(group.EnemyId);
+            }
+
+        List<string> pullIds = dungeon.Pulls.Select(p => p.Id).ToList();
+        int fork = pullIds.IndexOf(route.ForkAfterPull);
+        int rejoin = pullIds.IndexOf(route.RejoinPull);
+        if (fork < 0) Fail("route forkAfterPull \"" + route.ForkAfterPull + "\" is not a pull of \"" + dungeon.Id + "\"");
+        if (rejoin < 0) Fail("route rejoinPull \"" + route.RejoinPull + "\" is not a pull of \"" + dungeon.Id + "\"");
+        if (rejoin <= fork)
+            Fail("route rejoinPull \"" + route.RejoinPull + "\" must come after forkAfterPull \"" + route.ForkAfterPull + "\"");
+
+        var branchIds = new HashSet<string>(System.StringComparer.Ordinal);
+        var rooms = new HashSet<string>(System.StringComparer.Ordinal);
+        foreach (BranchDef branch in route.Branches)
+        {
+            if (!branchIds.Add(branch.Id)) Fail("duplicate branch id \"" + branch.Id + "\"");
+            if (branch.Rooms.Count == 0) Fail("branch \"" + branch.Id + "\" has no rooms");
+            foreach (string room in branch.Rooms)
+                if (!rooms.Add(room)) Fail("room \"" + room + "\" is in more than one branch");
+        }
+
+        foreach (PackDef pack in reg.Packs.Values)
+        {
+            string where = "pack \"" + pack.Id + "\"";
+            if (!rooms.Contains(pack.Room)) Fail(where + " is in unknown room \"" + pack.Room + "\"");
+            if (pack.RingMm <= 0) Fail(where + " ringMm must be positive, got " + pack.RingMm);
+            if (pack.Enemies.Count == 0) Fail(where + " has no enemies");
+            foreach (PullEnemy member in pack.Enemies)
+            {
+                if (!reg.Enemies.ContainsKey(member.EnemyId)) Fail(where + " references unknown enemy \"" + member.EnemyId + "\"");
+                if (member.Count <= 0) Fail(where + " enemy \"" + member.EnemyId + "\" count must be positive, got " + member.Count);
+                if (!valued.Contains(member.EnemyId)) Fail(where + " enemy \"" + member.EnemyId + "\" has no forces value");
+                earners.Add(member.EnemyId);
+            }
+        }
+
+        foreach (ForcesValue value in forces.Values)
+            if (value.Points > 0 && !earners.Contains(value.EnemyId))
+                Fail("enemy \"" + value.EnemyId + "\" is worth " + value.Points + " forces but is in no pull or pack");
+
+        foreach (HazardDef hazard in reg.Hazards.Values)
+            if (!rooms.Contains(hazard.Room)) Fail("hazard \"" + hazard.Id + "\" is in unknown room \"" + hazard.Room + "\"");
+
+        foreach (BranchDef branch in route.Branches)
+        {
+            int total = RouteForces.BranchPoints(reg, branch);
+            if (total < forces.Required)
+                Fail("branch \"" + branch.Id + "\" reaches " + total + " of the " + forces.Required + " forces required (critical path plus every pack)");
+        }
     }
 
     private static void CheckHeatOverheat(ContentRegistry reg)
@@ -62,6 +143,15 @@ public static class ContentValidator
     {
         if (run.Movement.SpeedMmPerTick <= 0) Fail("run movement.speedMmPerTick must be positive, got " + run.Movement.SpeedMmPerTick);
         if (run.Movement.RadiusMm <= 0) Fail("run movement.radiusMm must be positive, got " + run.Movement.RadiusMm);
+        AffixesConfig a = run.Affixes;
+        if (a.OneAffixKey <= 0 || a.BothAffixKey <= a.OneAffixKey)
+            Fail("run affixes must have 0 < oneAffixKey < bothAffixKey, got " + a.OneAffixKey + " and " + a.BothAffixKey);
+        if (a.ClauseStartKey <= 0) Fail("run affixes.clauseStartKey must be positive, got " + a.ClauseStartKey);
+        foreach ((string name, AffixScaleConfig s) in new[] { ("fortified", a.Fortified), ("tyrannical", a.Tyrannical) })
+        {
+            if (s.HealthBp < 0 || s.DamageBp < 0)
+                Fail("run affixes." + name + " healthBp and damageBp must be non-negative, got " + s.HealthBp + " and " + s.DamageBp);
+        }
         ArenaBounds b = run.ArenaBounds;
         if (b.MinX >= b.MaxX || b.MinZ >= b.MaxZ)
             Fail("run arenaBounds must have minX < maxX and minZ < maxZ, got x " + b.MinX + ".." + b.MaxX + " z " + b.MinZ + ".." + b.MaxZ);
@@ -174,7 +264,11 @@ public static class ContentValidator
             foreach (string id in enemy.Abilities)
                 if (!reg.Abilities.ContainsKey(id)) Fail(where + " references unknown ability \"" + id + "\"");
             foreach (ScriptStep step in enemy.Script)
-                if (!reg.Abilities.ContainsKey(step.Cast)) Fail(where + " script references unknown ability \"" + step.Cast + "\"");
+            {
+                if (!reg.Abilities.TryGetValue(step.Cast, out AbilityDef? cast)) Fail(where + " script references unknown ability \"" + step.Cast + "\"");
+                else if (step.Telegraph?.SpansCast == true && cast.CastTicks <= 0)
+                    Fail(where + " script step \"" + step.Cast + "\" telegraph spansCast needs a cast with castTicks > 0 (has " + cast.CastTicks + ")");
+            }
             foreach (BreakBarDef bar in enemy.BreakBars ?? new ValueList<BreakBarDef>())
                 CheckOps(bar.OnEmpty, reg, where + " breakBar \"" + bar.Id + "\"", requireSetupClass: true);
             if (enemy.BreakBarId is not null && !bars.Contains(enemy.BreakBarId))

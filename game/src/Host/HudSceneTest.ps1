@@ -29,9 +29,12 @@
       (600 since lane NAV-CORE, was 400: the Pair now spawns at the far side of its hall, 7 m off, run_end at tick 455)
       7. "HUD objective pull=2/4 id=pair name="The Pair"", and the wipe title "Party wiped on pull 2 of 4 -- key
          depleted" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
-      8. at least one "HUD ping label=SPREAD" or "HUD ping label=STACK" line (from the Pair's mark telegraphs and
-         mark effects in the sim state). The solo Warden is down before the Pair's first mark (about tick 294), so
-         this line comes from enemy scripts the sim keeps stepping after run_end; run C proves a live-run call.
+      8. NO "HUD ping label=SPREAD" or "HUD ping label=STACK" line (SLAM-TELEGRAPH, wrong data shown is P0). The
+         solo Warden is down before the Pair's first mark (its telegraph is due about tick 295), so the mark cast
+         has no target and never starts; a spansCast telegraph is drawn only for a cast that will start
+         (Scripts.WillStart), so the floor and the HUD must not call SPREAD/STACK for it. Before SLAM-TELEGRAPH this
+         check asserted the opposite: a ping from the telegraph the sim drew after run_end for that dead-target cast.
+         Run C (check 11) proves the live-run call.
     Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:  -- --autorun --ticks <PartyTicks>
         (default 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
       9. "HUD party seat=1 name=Warden", "seat=2 name=Chanter", "seat=3 name=Cinder" (BotCommandSource drives 2, 3);
@@ -243,6 +246,12 @@ $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
 $wrapper = Join-Path $repo 'tools/godot/godot.ps1'
 $failures = New-Object System.Collections.Generic.List[string]
+
+# One launch lock for the whole sequence (tools/godot/launch-lock.ps1): no other launch can interleave, and every
+# launch below runs one after another through godot.ps1. Exit 2 when another Godot instance holds the lock.
+. (Join-Path $repo 'tools/godot/launch-lock.ps1')
+$launchLock = Enter-KeyrunLaunchLock -Owner 'HudSceneTest.ps1' -ExitCodeOnBusy 2
+try {
 
 function Invoke-Arena([int]$n, [string[]]$extra) {
     # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
@@ -531,7 +540,7 @@ if ($b.Code -ne 0) { $failures.Add("run B: godot exited $($b.Code) (expected 0)"
 $objB = First $b.Lines '^HUD objective pull=2/4 id=pair name="The Pair"'
 if (-not $objB) { $failures.Add('run B: no "HUD objective pull=2/4 id=pair name=""The Pair""" line') }
 $ping = First $b.Lines '^HUD ping label=(SPREAD|STACK) '
-if (-not $ping) { $failures.Add('run B: no "HUD ping label=SPREAD|STACK" line') }
+if ($ping) { $failures.Add("run B: a SPREAD/STACK call for a mark cast that never starts (the solo Warden is dead, no target): '$ping'") }
 # Lane 3C-d: the solo Warden wipes in the Pair; --pull 2 drops pull 1 from the run's dungeon, and the title still
 # numbers the Pair 2 of 4 (ObjectiveModel numbering), never 1 of 3.
 $runEndB = First $b.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 2 of 4 -- key depleted"$'
@@ -652,6 +661,9 @@ foreach ($f in @(& (Join-Path $PSScriptRoot 'WardenEngagesTest.ps1') -Lines $cRu
 # 13c. Lane HUD-DECLUTTER: friendly casts in the party frames, only the human's damage numbers, enemy health in unit
 # frames, enemy cast bars kept (src/Hud/HudDeclutterTest.ps1 holds the four checks and their RED on main).
 foreach ($f in @(& (Join-Path $PSScriptRoot '../Hud/HudDeclutterTest.ps1') -Lines $cRun)) { $failures.Add("run C: $f") }
+# 13d. Lane fix/target-frame-after-death (P0): a cleared run's objective counts the enemies still alive at run_end (a
+# Sundered Twin that outlives the boss), never "No enemies remain" over a live target frame (src/Hud/ObjectiveClearTest.ps1).
+foreach ($f in @(& (Join-Path $PSScriptRoot '../Hud/ObjectiveClearTest.ps1') -Lines $cRun)) { $failures.Add("run C: $f") }
 
 # ---- Run D: the armed boss (lane 3I) -----------------------------------------------------------------------------
 # From pull 4 (the boss pull): no key reaches the boss from pull 1 under autorun (see the header for the sweep).
@@ -1134,3 +1146,6 @@ if ($failures.Count -gt 0) {
 }
 Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks backfillTicks=$BackfillTicks abandonSeat=$AbandonSeat wipeFrames=$WipeFrames pingAt=$PingAt pingFrames=$PingFrames recordFrames=$RecordFrames recordEvents=$recN yawAt=$YawAt yawTo=$YawTo yawFrames=$YawFrames yawCompared=$comparedL"
 exit 0
+} finally {
+    Exit-KeyrunLaunchLock $launchLock
+}

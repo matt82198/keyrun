@@ -90,6 +90,11 @@ if ($PSBoundParameters.ContainsKey('LinesA')) { return (Get-AllFailures @($Lines
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
 $wrapper = Join-Path $repo 'tools/godot/godot.ps1'
+# One launch lock for both launches (tools/godot/launch-lock.ps1); they run one after another. Exit 2 when another
+# Godot instance holds the lock.
+. (Join-Path $repo 'tools/godot/launch-lock.ps1')
+$launchLock = Enter-KeyrunLaunchLock -Owner 'HelpHintSceneTest.ps1' -ExitCodeOnBusy 2
+try {
 $game = Join-Path $repo 'game'
 $walk = Join-Path $game 'fixtures/input/example-yaw-walk.input-log.json'
 $ErrorActionPreference = 'Continue'
@@ -106,3 +111,6 @@ foreach ($x in $f) { Write-Output $x }
 if ($f.Count -gt 0) { Write-Output 'HelpHintSceneTest: FAIL'; exit 1 }
 Write-Output 'HelpHintSceneTest: PASS'
 exit 0
+} finally {
+    Exit-KeyrunLaunchLock $launchLock
+}

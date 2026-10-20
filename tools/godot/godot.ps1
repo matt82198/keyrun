@@ -9,7 +9,16 @@
   PATH, then runs Godot with every argument passed through unchanged. Exits with
   Godot's exit code. Fails closed (exit 2) when the binary cannot be found.
 
-  Lanes and CI call this wrapper; nothing else hardcodes the engine path.
+  CI and the orchestrator call this wrapper; nothing else hardcodes the engine path. Lanes never launch the game.
+
+  Single instance (tools/godot/launch-lock.ps1): the launch takes the machine-wide launch lock first. While another
+  live process holds it, this exits 4 at once with "another Godot instance holds the launch lock" and never queues.
+  A launch that carries the holder's KEYRUN_LAUNCH_LOCK_TOKEN (a SceneTest running its launches in sequence) joins
+  the held lock. A lock whose owner process is gone is recovered.
+
+  Wall-clock cap: Godot runs inside a kill-on-close job object. After KEYRUN_GODOT_TIMEOUT_SEC seconds (default
+  300) the whole process tree is killed and this exits 124. Killing this wrapper also kills the game it started.
+  Godot's stdout and stderr lines are written to this script's output stream, in arrival order.
 
 .NOTES
   PowerShell consumes a bare -- when it binds script arguments. To pass Godot's
@@ -65,8 +74,22 @@ if ($env:KEYRUN_USER_ARGS) {
     $godotArgs += ($env:KEYRUN_USER_ARGS -split '\s+' | Where-Object { $_ })
 }
 
-# Godot writes warnings to stderr; under 'Stop' a caller's 2>&1 would turn them
-# into terminating NativeCommandErrors. The exit code is the verdict instead.
-$ErrorActionPreference = 'Continue'
-& $godot @godotArgs
-exit $LASTEXITCODE
+. (Join-Path $PSScriptRoot 'launch-lock.ps1')
+try {
+    $timeoutSec = Get-KeyrunGodotTimeoutSec
+} catch {
+    [Console]::Error.WriteLine("godot.ps1: $($_.Exception.Message)")
+    exit 2
+}
+
+$launchLock = Enter-KeyrunLaunchLock -Owner ('godot.ps1 ' + ($godotArgs -join ' ')) -ExitCodeOnBusy 4
+try {
+    # Godot writes warnings to stderr; they arrive as plain output lines, so a caller's 2>&1 under 'Stop' cannot turn
+    # them into terminating errors. The exit code is the verdict.
+    $ErrorActionPreference = 'Continue'
+    Invoke-KeyrunCapped -FilePath $godot -Arguments $godotArgs -TimeoutSec $timeoutSec -Label 'godot.ps1'
+    $code = $script:KeyrunLastExitCode
+} finally {
+    Exit-KeyrunLaunchLock $launchLock
+}
+exit $code

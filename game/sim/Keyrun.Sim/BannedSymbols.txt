@@ -1,0 +1,50 @@
+T:System.Random;purity rule (game/CLAUDE.md), sim and content are deterministic: the PRNG lives in sim state (no System.Random)
+T:System.Security.Cryptography.RandomNumberGenerator;purity rule (game/CLAUDE.md), sim and content are deterministic: the PRNG lives in sim state
+T:System.Guid;purity rule (game/CLAUDE.md), sim and content are deterministic: no Guid (random)
+P:System.DateTime.Now;purity rule (game/CLAUDE.md), sim and content have no clock: time is the tick counter
+P:System.DateTime.UtcNow;purity rule (game/CLAUDE.md), sim and content have no clock: time is the tick counter
+P:System.DateTime.Today;purity rule (game/CLAUDE.md), sim and content have no clock: time is the tick counter
+P:System.DateTimeOffset.Now;purity rule (game/CLAUDE.md), sim and content have no clock: time is the tick counter
+P:System.DateTimeOffset.UtcNow;purity rule (game/CLAUDE.md), sim and content have no clock: time is the tick counter
+T:System.TimeProvider;purity rule (game/CLAUDE.md), sim and content have no clock: time is the tick counter
+P:System.Environment.TickCount;purity rule (game/CLAUDE.md), sim and content have no clock: time is the tick counter
+P:System.Environment.TickCount64;purity rule (game/CLAUDE.md), sim and content have no clock: time is the tick counter
+T:System.Diagnostics.Stopwatch;purity rule (game/CLAUDE.md), sim and content have no clock: time is the tick counter
+T:System.Threading.Timer;purity rule (game/CLAUDE.md), sim and content have no clock: time is the tick counter
+T:System.Timers.Timer;purity rule (game/CLAUDE.md), sim and content have no clock: time is the tick counter
+T:System.MathF;purity rule (game/CLAUDE.md), sim and content are integer-only (mm, ticks, bp): no float math
+T:System.Numerics.Vector2;purity rule (game/CLAUDE.md), sim and content are integer-only (mm, ticks, bp): no float vectors
+T:System.Numerics.Vector3;purity rule (game/CLAUDE.md), sim and content are integer-only (mm, ticks, bp): no float vectors
+T:System.Numerics.Vector4;purity rule (game/CLAUDE.md), sim and content are integer-only (mm, ticks, bp): no float vectors
+T:System.Numerics.Quaternion;purity rule (game/CLAUDE.md), sim and content are integer-only (mm, ticks, bp): no float math
+T:System.Numerics.Matrix3x2;purity rule (game/CLAUDE.md), sim and content are integer-only (mm, ticks, bp): no float math
+T:System.Numerics.Matrix4x4;purity rule (game/CLAUDE.md), sim and content are integer-only (mm, ticks, bp): no float math
+M:System.Math.Sqrt(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: use an integer sqrt
+M:System.Math.Pow(System.Double,System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float math
+M:System.Math.Sin(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float trig
+M:System.Math.Cos(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float trig
+M:System.Math.Tan(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float trig
+M:System.Math.Asin(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float trig
+M:System.Math.Acos(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float trig
+M:System.Math.Atan(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float trig
+M:System.Math.Atan2(System.Double,System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float trig
+M:System.Math.Exp(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float math
+M:System.Math.Log(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float math
+M:System.Math.Log10(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float math
+M:System.Math.Log2(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float math
+M:System.Math.Floor(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: use IntMath.FloorDiv
+M:System.Math.Ceiling(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float rounding
+M:System.Math.Round(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float rounding
+M:System.Math.Truncate(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: use IntMath.TruncDiv
+M:System.Math.Abs(System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float math
+M:System.Math.Abs(System.Single);purity rule (game/CLAUDE.md), sim and content are integer-only: no float math
+M:System.Math.Max(System.Double,System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float math
+M:System.Math.Min(System.Double,System.Double);purity rule (game/CLAUDE.md), sim and content are integer-only: no float math
+M:System.Math.Max(System.Single,System.Single);purity rule (game/CLAUDE.md), sim and content are integer-only: no float math
+M:System.Math.Min(System.Single,System.Single);purity rule (game/CLAUDE.md), sim and content are integer-only: no float math
+M:System.Convert.ToDouble(System.Int32);purity rule (game/CLAUDE.md), sim and content are integer-only: no float conversion
+M:System.Convert.ToDouble(System.Int64);purity rule (game/CLAUDE.md), sim and content are integer-only: no float conversion
+M:System.Convert.ToDouble(System.String);purity rule (game/CLAUDE.md), sim and content are integer-only: no float conversion
+M:System.Convert.ToSingle(System.Int32);purity rule (game/CLAUDE.md), sim and content are integer-only: no float conversion
+M:System.Double.Parse(System.String);purity rule (game/CLAUDE.md), sim and content are integer-only: no float parsing
+M:System.Single.Parse(System.String);purity rule (game/CLAUDE.md), sim and content are integer-only: no float parsing
