@@ -1,2 +1,0 @@
-- LANE-ROW-FILES lanes write game/lanes/<branch>.md row files instead of editing the game/CLAUDE.md lane list and BUILDLOG.md in the PR (README convention; the fold lane merges the rows post-squash; D29; no sim, bots, host, content, view or CI change; tests/lanes/row-files.test.ts pins the shape)
-BUILDLOG: 2026-10-19 LANE-ROW-FILES (chore/lane-row-files): lanes write their own game/lanes/<branch>.md row file and a haiku fold lane merges the rows into the game/CLAUDE.md lane list and BUILDLOG.md after the squash (D29, aesop BUILDLOG 2026-10-19 17:50Z).
