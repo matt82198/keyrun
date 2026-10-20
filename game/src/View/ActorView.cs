@@ -1,6 +1,7 @@
 using Godot;
 using Keyrun.Content;
 using Keyrun.Host;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.View;
@@ -221,7 +222,11 @@ public partial class ActorView : Node3D
         Position = new Vector3(x, y, z);
         Visible = now.Alive || (_animator?.HoldsDeath ?? false); // a model plays its death clip instead of vanishing
         SetShadows(now.Alive);
-        Rotation = new Vector3(0, -YawRadians(before.Yaw, now.Yaw, t), 0);
+        // CAST-FACING: a caster is drawn facing its cast target (CastFacing.RenderYaw), never its sim Yaw alone.
+        var abilities = Driver.Run?.Content.Abilities;
+        var fromYaw = CastFacing.RenderYaw(Driver.PreviousState, before, abilities);
+        var toYaw = CastFacing.RenderYaw(Driver.State, now, abilities);
+        Rotation = new Vector3(0, -YawRadians(fromYaw, toYaw, t), 0);
     }
 
     // A dead body lies on the floor as a bone pile or a fallen hero: it stops casting shadows, which take most of a
