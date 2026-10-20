@@ -85,6 +85,49 @@ public static class Casting
         var rule = OverheatRuleOf(ctx, actor);
         // BIBLE section 5: at the threshold the next cast is the Overheat, and the Overheat is free.
         var overheat = rule is not null && actor.Resource >= rule.Threshold;
+        if (StartError(state, actor, def, targetId, now, hooks, overheat) is { } err)
+        {
+            return err;
+        }
+        if (!overheat)
+        {
+            actor.Resource -= def.Cost.Amount;
+        }
+        Cooldowns.ConsumeCharge(actor, def, now);
+        Cooldowns.StartGcd(actor, now, def.GcdTicks);
+        actor.CastId = def.Id;
+        actor.CastStartTick = now;
+        actor.CastEndsTick = now + ChilledCastTicks(actor, def.CastTicks, rule, ctx, now);
+        actor.CastIsOverheat = overheat;
+        if (targetId is not null)
+        {
+            actor.TargetId = targetId;
+        }
+        if (!overheat)
+        {
+            Threat.AddMomentumSpentThreat(state, actor, def.Cost);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The checks <see cref="StartCast"/> makes, in its order, with no side effects: null when a cast of
+    /// <paramref name="def"/> on <paramref name="targetId"/> would start on tick <paramref name="now"/>, else
+    /// StartCast's error code. SLAM-TELEGRAPH: a spansCast script telegraph is drawn only when this says its cast starts.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <param name="actor">The caster.</param>
+    /// <param name="def">The ability.</param>
+    /// <param name="targetId">The target, or null.</param>
+    /// <param name="now">The tick the cast would start.</param>
+    /// <param name="hooks">Clause hooks (null for an enemy: enemies are never silenced).</param>
+    /// <param name="overheat">True when the cast is a free Overheat (players only).</param>
+    /// <returns>Null when the cast would start, else the error code.</returns>
+    public static string? StartError(SimState state, ActorState actor, AbilityDef def, int? targetId, int now, ClauseHooks? hooks = null, bool overheat = false)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(def);
         if (hooks is not null && hooks.IsSilenced(now))
         {
             return "silenced";
@@ -115,24 +158,6 @@ public static class Casting
             {
                 return "out_of_range";
             }
-        }
-        if (!overheat)
-        {
-            actor.Resource -= def.Cost.Amount;
-        }
-        Cooldowns.ConsumeCharge(actor, def, now);
-        Cooldowns.StartGcd(actor, now, def.GcdTicks);
-        actor.CastId = def.Id;
-        actor.CastStartTick = now;
-        actor.CastEndsTick = now + ChilledCastTicks(actor, def.CastTicks, rule, ctx, now);
-        actor.CastIsOverheat = overheat;
-        if (targetId is not null)
-        {
-            actor.TargetId = targetId;
-        }
-        if (!overheat)
-        {
-            Threat.AddMomentumSpentThreat(state, actor, def.Cost);
         }
         return null;
     }
@@ -227,6 +252,9 @@ public static class Casting
     /// The targets-resolved half of completeCast (casting.ts:101-110): every op on each target in order, then each
     /// "resource" op credited to the CASTER once per cast (not per target), then "cast_complete", then the cast is
     /// cleared. Split out so the oracle cast ledger can drive it with traced targets (as 2A split ResolveModified).
+    /// BIBLE section 5 (Quench "refunds 20 Heat on a successful kick"): on an ability that carries an "interrupt"
+    /// op, its resource ops are a kick refund and credit only when at least one interrupt landed; a whiff refunds
+    /// nothing. Abilities with no interrupt op credit unconditionally, as before.
     /// </summary>
     /// <param name="state">Sim state.</param>
     /// <param name="actor">The caster.</param>
@@ -239,13 +267,19 @@ public static class Casting
         ArgumentNullException.ThrowIfNull(def);
         ArgumentNullException.ThrowIfNull(targets);
         ArgumentNullException.ThrowIfNull(ctx);
+        var landed = false;
+        var isKick = false;
         foreach (var target in targets)
         {
-            ApplyEffects(state, actor, target, def.Effects, ctx, emit);
+            landed |= ApplyEffects(state, actor, target, def.Effects, ctx, emit);
         }
         foreach (var op in def.Effects)
         {
-            if (op is ResourceOp r)
+            isKick |= op is InterruptOp;
+        }
+        foreach (var op in def.Effects)
+        {
+            if (op is ResourceOp r && (landed || !isKick))
             {
                 Mitigation.CreditResource(actor, r.Delta);
             }
@@ -262,9 +296,11 @@ public static class Casting
     /// sim/combat/casting.ts:113-138 applyEffects: damage (through mitigation, with the Pact weighting), heal,
     /// applyEffect (an unknown effect id is skipped), removeEffect ("*" = dispel), threat, interrupt. window, payoff,
     /// combo and resource ops do nothing per target (Windows.cs and <see cref="CompleteCastOn"/> run them).
+    /// Returns true when an interrupt op landed on this target.
     /// </summary>
-    private static void ApplyEffects(SimState state, ActorState source, ActorState target, IReadOnlyList<EffectOp> ops, CastContext ctx, Action<SimEvent> emit)
+    private static bool ApplyEffects(SimState state, ActorState source, ActorState target, IReadOnlyList<EffectOp> ops, CastContext ctx, Action<SimEvent> emit)
     {
+        var interrupted = false;
         foreach (var op in ops)
         {
             switch (op)
@@ -295,10 +331,11 @@ public static class Casting
                     Threat.AddThreat(target, source.Id, t.Amount ?? 0, t.MultiplierBp);
                     break;
                 case InterruptOp:
-                    InterruptCast(state, target, source.Id, ctx, emit);
+                    interrupted |= InterruptCast(state, target, source.Id, ctx, emit);
                     break;
             }
         }
+        return interrupted;
     }
 
     /// <summary>
@@ -311,12 +348,13 @@ public static class Casting
     /// <param name="sourceId">The kicker.</param>
     /// <param name="ctx">Abilities and lockout length.</param>
     /// <param name="emit">Event sink.</param>
-    public static void InterruptCast(SimState state, ActorState target, int sourceId, CastContext ctx, Action<SimEvent> emit)
+    /// <returns>True when the kick landed (a cast was cleared and "interrupt" emitted), false on a no-op.</returns>
+    public static bool InterruptCast(SimState state, ActorState target, int sourceId, CastContext ctx, Action<SimEvent> emit)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         if (target.CastId is null || !ctx.Abilities.TryGetValue(target.CastId, out var castDef) || !castDef.Interruptible)
         {
-            return;
+            return false;
         }
         var school = Abilities.AbilitySchool(castDef);
         var abilityId = target.CastId;
@@ -336,5 +374,6 @@ public static class Casting
             ("targetId", JsValue.Int(target.Id)),
             ("abilityId", JsValue.Str(abilityId)),
             ("school", JsValue.Str(school))));
+        return true;
     }
 }

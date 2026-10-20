@@ -206,9 +206,16 @@ public sealed class EncounterTraceTests
     // and casts seed.lash; the re-recorded traces carry 11 / 14 telegraphs (was 9 / 13), k2 10 hits (was 9), k10 14 hits
     // (was 13) with 3 exact (was 2), measured by this replay against the regenerated oracle.
     [Theory]
-    [InlineData("bots-hv-k2-s7", 9, 9, 7, 0, 1, 1)] // BOTS-FIVE-BUTTONS re-record: was 13, 12, 7, 0, 0, 1 (run ends t1637, was t1838). DEAD-CASTER-TELEGRAPH: was 11, 10, 7, 0, 1, 1
-    [InlineData("bots-hv-k2-s11", 9, 9, 7, 0, 1, 1)] // BOTS-FIVE-BUTTONS re-record: was 13, 12, 7, 0, 0, 1. DEAD-CASTER-TELEGRAPH: was 11, 10, 7, 0, 1, 1
-    [InlineData("bots-hv-k10-s7", 14, 14, 7, 0, 0, 0)] // BOTS-FIVE-BUTTONS re-record: was 14, 14, 7, 0, 0, 3
+    // SLAM-TELEGRAPH Pair leadTicks 140 re-record: k2 was 13, 12, 7, 0, 0, 1 and k10 was 14, 14, 7, 0, 0, 3; the new
+    // values are tallied from the re-recorded TS traces with this replay's rules (the same tally reproduces the old ones).
+    // Merged with QUENCH-REFUND (main: k2 13, 12, 7, 0, 0, 1; k10 14, 13, 7, 0, 0, 2) and re-recorded on the merged
+    // tree: the same tally of the merged traces gives the SLAM-TELEGRAPH rows below unchanged (it reproduces both
+    // parents' rows from their own traces).
+    // BOTS-FIVE-BUTTONS merged with that main and re-recorded on the merged tree; the same tally (it reproduces
+    // BOTS-FIVE-BUTTONS' own rows k2 9, 9, 7, 0, 1, 1 / k10 14, 14, 7, 0, 0, 0 from its traces) gives the rows below.
+    [InlineData("bots-hv-k2-s7", 9, 9, 7, 0, 1, 1)] // BOTS-FIVE-BUTTONS merge re-record: main was 12, 12, 7, 0, 1, 1 (run ends t1607). DEAD-CASTER-TELEGRAPH: was 11, 10, 7, 0, 1, 1
+    [InlineData("bots-hv-k2-s11", 9, 9, 7, 0, 1, 1)] // BOTS-FIVE-BUTTONS merge re-record: main was 12, 12, 7, 0, 1, 1. DEAD-CASTER-TELEGRAPH: was 11, 10, 7, 0, 1, 1
+    [InlineData("bots-hv-k10-s7", 15, 15, 7, 0, 0, 0)] // BOTS-FIVE-BUTTONS merge re-record: main was 16, 16, 7, 0, 0, 3 (run ends t1945)
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

@@ -274,7 +274,7 @@ public sealed class TelegraphTests
                 }
             }
         }
-        Assert.Equal(38, count); // BOTS-FIVE-BUTTONS re-record: was 46 (k2-s7 13 -> 9, k2-s11 13 -> 9; scripted-pull 6, k10-s7 14 unchanged). DEAD-CASTER-TELEGRAPH re-record: was 42 (k2-s7 11 -> 13, k2-s11 11 -> 13); scripted-pull 6 + bots-hv k2-s7 11, k2-s11 11, k10-s7 14 (KF3-SEED-ENGAGE seed.lash; 37 after SLAM-TELEGRAPH B1, 34 after D14)
+        Assert.Equal(39, count); // BOTS-FIVE-BUTTONS merged with main (46) and re-recorded on the merged tree: scripted-pull 6 + k2-s7 9, k2-s11 9, k10-s7 15 (counted in the regenerated traces). BOTS-FIVE-BUTTONS re-record: was 46 (k2-s7 13 -> 9, k2-s11 13 -> 9; scripted-pull 6, k10-s7 14 unchanged). DEAD-CASTER-TELEGRAPH re-record: was 42 (k2-s7 11 -> 13, k2-s11 11 -> 13); scripted-pull 6 + bots-hv k2-s7 11, k2-s11 11, k10-s7 14 (KF3-SEED-ENGAGE seed.lash; 37 after SLAM-TELEGRAPH B1, 34 after D14)
         Assert.Subset(new SortedSet<string>(new[] { "circle", "cone", "line" }), shapes);
     }
 
