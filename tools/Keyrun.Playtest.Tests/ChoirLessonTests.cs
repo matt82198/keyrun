@@ -29,7 +29,8 @@ public sealed class ChoirLessonTests
     public void Unkicked_mending_heals_the_pack()
     {
         var r = Play("{}");
-        var cantor = r.Run.State.Actors.Values.Single(a => a.ClassId == "choir.lieutenant").Id;
+        // The Choir pull's own Cantor: PATH-PACKS packs also field choir.lieutenant members, idle in the state from tick 0.
+        var cantor = r.Setup.Dungeon.Pulls.Single(p => p.Id == "choir").Spawns.Single(s => s.ClassId == "choir.lieutenant").ActorId;
         var firstHealTick = r.Log.Split('\n')
             .Where(l => l.Contains("\"type\":\"heal\"") && l.Contains($"\"sourceId\":{cantor},"))
             .Select(l => int.Parse(System.Text.RegularExpressions.Regex.Match(l, "\"tick\":(\\d+)").Groups[1].Value))
