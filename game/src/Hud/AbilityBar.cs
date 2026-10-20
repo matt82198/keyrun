@@ -12,7 +12,8 @@ namespace Keyrun.Hud;
 /// The named ability bar (BIBLE s2): the human's nine ability slots in key order (1-5 rotational, Q interrupt,
 /// E defensive, R utility, F movement) plus the G ping, each with its key, the ability's content name, and its state:
 /// a dark sweep with seconds left while on cooldown, a light sweep during the global cooldown, dimmed when the
-/// class resource is short, its icon tinted red (WoW style, no red border) when the cast's target is out of range
+/// class resource is short, its icon tinted red (WoW style, no red border) with an "out of range" caption (finding
+/// f-4e8c87b7: the reason is written, never colour alone; "HUD bar slot=K range=out" under --autorun) when the target is out of range
 /// (<see cref="Keyrun.Content.AbilitySlotLook"/>, lane ABILITYBAR-RANGE-TINT). Above it: the Warden's health and
 /// Momentum. The run-over state (result, rewards, the Enter hint) is the run-end panel's (<see cref="RunEndPanel"/>).
 /// Each ability slot draws its CC0 icon (<see cref="Keyrun.Content.AbilityIcons"/>, lane ABILITY-ICONS) in place of the
@@ -32,6 +33,7 @@ public partial class AbilityBar : Control
     private const float BottomMargin = 24;
     private const int KeyFont = 18;
     private const int NameFont = 13;
+    private const int CaptionFont = 12;
 
     private static readonly Color SlotBack = new(0.1f, 0.11f, 0.14f, 0.92f);
     private static readonly Color SlotEdge = ToColor(Keyrun.Content.AbilitySlotLook.SlotEdge);
@@ -119,6 +121,9 @@ public partial class AbilityBar : Control
     // changes (lane TINT-RUNOVER, HudSceneTest check 41).
     private string? _lastRangeLine;
 
+    // The slot keys last printed as out of range (finding f-4e8c87b7), so each slot logs only when its state flips.
+    private readonly System.Collections.Generic.HashSet<string> _slotOutOfRange = new();
+
     // Under --autorun: "HUD bar range tinted=N over=0|1 tick=T", N the slots the bar draws with the out-of-range tint,
     // over 1 once the run has ended for any result. Printed on change only.
     private void PrintRangeTint()
@@ -130,9 +135,26 @@ public partial class AbilityBar : Control
         var tinted = 0;
         foreach (var slot in setup.Slots)
         {
-            if (run.Content.Abilities.TryGetValue(slot.AbilityId, out var def) && OutOfRange(run, me, def))
+            var look = run.Content.Abilities.TryGetValue(slot.AbilityId, out var def) ? RangeLook(run, me, def) : default;
+            if (look.OutOfRange)
             {
                 tinted++;
+            }
+            // Finding f-4e8c87b7: one line per slot whose range state flips, naming the caption the slot draws, so a
+            // capture can be matched to the reason on screen ("HUD bar slot=K range=out caption=\"out of range\"").
+            var was = _slotOutOfRange.Contains(slot.Key);
+            if (look.OutOfRange != was)
+            {
+                if (look.OutOfRange)
+                {
+                    _slotOutOfRange.Add(slot.Key);
+                    GD.Print(FormattableString.Invariant($"HUD bar slot={slot.Key} range=out caption=\"{look.Caption}\" tick={run.State.Tick}"));
+                }
+                else
+                {
+                    _slotOutOfRange.Remove(slot.Key);
+                    GD.Print(FormattableString.Invariant($"HUD bar slot={slot.Key} range=in tick={run.State.Tick}"));
+                }
             }
         }
         var line = FormattableString.Invariant($"HUD bar range tinted={tinted} over={(run.RunEnd.Result is not null ? 1 : 0)}");
@@ -207,7 +229,7 @@ public partial class AbilityBar : Control
             var icon = ReferenceEquals(setup, _iconSetup) && i < _icons.Length ? _icons[i] : null;
             if (!run.Content.Abilities.TryGetValue(slot.AbilityId, out var def))
             {
-                DrawSlot(font, rect, key, slot.AbilityId, 1f, false, false, icon);
+                DrawSlot(font, rect, key, slot.AbilityId, 1f, InRange, false, icon);
                 continue;
             }
             var cdFraction = 0f;
@@ -220,8 +242,8 @@ public partial class AbilityBar : Control
             }
             var gcd = def.GcdTicks > 0 && me.GcdReadyTick > now ? Mathf.Clamp((float)(me.GcdReadyTick - now) / def.GcdTicks, 0f, 1f) : 0f;
             var shortResource = def.Cost.Resource != "none" && me.Resource < def.Cost.Amount;
-            var outOfRange = OutOfRange(run, me, def);
-            DrawSlot(font, rect, key, Driver.AbilityName(def.Id), shortResource ? 0.45f : 1f, outOfRange, false, icon, cdFraction > 0f ? CooldownIconAlpha : 1f);
+            var range = RangeLook(run, me, def);
+            DrawSlot(font, rect, key, Driver.AbilityName(def.Id), shortResource ? 0.45f : 1f, range, false, icon, cdFraction > 0f ? CooldownIconAlpha : 1f);
             if (cdFraction > 0f)
             {
                 DrawRect(new Rect2(rect.Position, new Vector2(rect.Size.X, rect.Size.Y * cdFraction)), CooldownShade);
@@ -244,37 +266,57 @@ public partial class AbilityBar : Control
 
         var pingRect = new Rect2(origin.X + (setup.Slots.Count * (Slot + Gap)), origin.Y, Slot, Slot);
         var pingKey = KeyInput is not null ? KeyBinds.Label(KeyInput.Binds.KeyFor(KeyAction.Ping)) : "G";
-        DrawSlot(font, pingRect, pingKey, "Ping", 0.8f, false, true);
+        DrawSlot(font, pingRect, pingKey, "Ping", 0.8f, InRange, true);
     }
 
     // Lane RANGE-TINT-NOTARGET: the tint reads off the player's own selected target, never the cast's nearest-enemy
     // fallback (CastTargeting.For), so no target or a dead or friendly one leaves every slot untinted. Lane TINT-RUNOVER:
     // once the run has ended for any result the tint is off too, since a depleted run can end with the player's target
     // alive and out of range. The bar only reads that the run ended; the run-end panel draws the result (HudSceneTest 25).
-    private static bool OutOfRange(Run run, ActorState me, AbilityDef def)
+    // Finding f-4e8c87b7: the one range decision (AbilitySlotLook.ForRange) every part of the slot reads - the icon's
+    // red modulate, the edge and the "out of range" caption - so the red never shows without its written reason.
+    private static Keyrun.Content.SlotRangeLook RangeLook(Run run, ActorState me, AbilityDef def)
     {
         Keyrun.Content.RangeTarget? target = me.TargetId is { } id && id != me.Id && run.State.Actors.TryGetValue(id, out var t)
             ? new Keyrun.Content.RangeTarget(t.Alive, t.Kind != me.Kind, Casting.RangeMm(me, t))
             : null;
         var hostileAbility = def.Shape.Kind == ShapeKind.Target && Affinities.Of(def, run.Content.Effects) == Affinity.Hostile;
-        return Keyrun.Content.AbilitySlotLook.ShowsOutOfRange(target, hostileAbility, def.Range, runOver: run.RunEnd.Result is not null);
+        return Keyrun.Content.AbilitySlotLook.ForRange(target, hostileAbility, def.Range, runOver: run.RunEnd.Result is not null);
     }
 
-    private void DrawSlot(Font font, Rect2 rect, string key, string name, float alpha, bool outOfRange, bool dashed, Texture2D? icon = null, float iconAlpha = 1f)
+    // The range look of a slot with no range state (an unknown ability, the G ping).
+    private static readonly Keyrun.Content.SlotRangeLook InRange = Keyrun.Content.AbilitySlotLook.ForRange(null, false, 0);
+
+    private void DrawSlot(Font font, Rect2 rect, string key, string name, float alpha, Keyrun.Content.SlotRangeLook range, bool dashed, Texture2D? icon = null, float iconAlpha = 1f)
     {
+        var outOfRange = range.OutOfRange;
         DrawRect(rect, new Color(SlotBack, SlotBack.A * alpha));
         if (icon is not null)
         {
             // The icon sits centred, nudged down so the key label keeps the top-left corner clear.
             var iconRect = new Rect2(rect.Position + new Vector2((rect.Size.X - IconSize) / 2, ((rect.Size.Y - IconSize) / 2) + 4), new Vector2(IconSize, IconSize));
-            var tint = ToColor(Keyrun.Content.AbilitySlotLook.IconModulate(outOfRange)); // red when out of range, WoW style
+            var tint = ToColor(range.IconModulate); // red when out of range, WoW style
             DrawTextureRect(icon, iconRect, false, new Color(tint, tint.A * alpha * iconAlpha));
         }
-        var edge = ToColor(Keyrun.Content.AbilitySlotLook.Edge(outOfRange));
-        DrawRect(rect, new Color(edge, dashed ? 0.5f : 1f), filled: false, width: Keyrun.Content.AbilitySlotLook.EdgeWidth(outOfRange));
+        var edge = ToColor(range.Edge);
+        DrawRect(rect, new Color(edge, dashed ? 0.5f : 1f), filled: false, width: range.EdgeWidth);
         // The key label has a dark drop shadow so it stays readable over the white icon glyph.
         DrawString(font, rect.Position + new Vector2(7, 21), key, HorizontalAlignment.Left, -1, KeyFont, new Color(KeyShadow, KeyShadow.A * alpha));
         DrawString(font, rect.Position + new Vector2(6, 20), key, HorizontalAlignment.Left, -1, KeyFont, new Color(1f, 0.9f, 0.55f, alpha));
+        if (range.Caption is { } caption)
+        {
+            // The written reason for the red icon (shape plus colour, BIBLE s3): a small outlined caption along the
+            // slot's bottom edge, over the icon's lower margin, shrunk to fit the slot width.
+            var size = CaptionFont;
+            while (size > 8 && font.GetStringSize(caption, HorizontalAlignment.Left, -1, size).X > rect.Size.X - 6)
+            {
+                size--;
+            }
+            var w = font.GetStringSize(caption, HorizontalAlignment.Left, -1, size).X;
+            var at = new Vector2(rect.Position.X + ((rect.Size.X - w) / 2), rect.End.Y - 4);
+            DrawStringOutline(font, at, caption, HorizontalAlignment.Left, -1, size, 4, new Color(0f, 0f, 0f, alpha));
+            DrawString(font, at, caption, HorizontalAlignment.Left, -1, size, new Color(1f, 0.55f, 0.55f, alpha));
+        }
         if (icon is not null)
         {
             return; // the icon replaces the name text (reduce screen clutter); the name stays for an unmapped ability
@@ -286,7 +328,8 @@ public partial class AbilityBar : Control
             : new[] { name };
         for (var i = 0; i < lines.Length; i++)
         {
-            var y = rect.End.Y - 8 - ((lines.Length - 1 - i) * (NameFont + 2));
+            var lift = range.Caption is not null ? CaptionFont + 2 : 0; // the name sits above the caption, never under it
+            var y = rect.End.Y - 8 - lift - ((lines.Length - 1 - i) * (NameFont + 2));
             var w = font.GetStringSize(lines[i], HorizontalAlignment.Left, -1, NameFont).X;
             DrawString(font, new Vector2(rect.Position.X + ((rect.Size.X - w) / 2), y), lines[i], HorizontalAlignment.Left, -1, NameFont, outOfRange ? new Color(OutOfRangeTint, alpha) : new Color(1, 1, 1, alpha));
         }

@@ -51,7 +51,33 @@ public static class AbilitySlotLook
     public static bool ShowsOutOfRange(RangeTarget? target, bool hostileAbility, long abilityRangeMm, bool runOver = false) =>
         !runOver && hostileAbility && abilityRangeMm > 0 &&
         target is { Alive: true, Hostile: true } t && t.RangeMm > abilityRangeMm;
+
+    /// <summary>The caption an out-of-range slot shows so the red icon has a visible reason (shape plus colour).</summary>
+    public const string OutOfRangeCaption = "out of range";
+
+    /// <summary>
+    /// The one range decision the ability bar draws from (finding f-4e8c87b7): the icon modulate, the edge and the
+    /// "out of range" caption all come from this result, so the red icon never shows without its written reason.
+    /// </summary>
+    /// <param name="target">The player's current target, or null when none is selected.</param>
+    /// <param name="hostileAbility">The ability is a hostile single-target cast.</param>
+    /// <param name="abilityRangeMm">The ability's range in mm; 0 or less means it has none.</param>
+    /// <param name="runOver">The run has ended, for any result.</param>
+    /// <returns>How the slot draws its range state.</returns>
+    public static SlotRangeLook ForRange(RangeTarget? target, bool hostileAbility, long abilityRangeMm, bool runOver = false)
+    {
+        var outOfRange = ShowsOutOfRange(target, hostileAbility, abilityRangeMm, runOver);
+        return new SlotRangeLook(outOfRange, IconModulate(outOfRange), Edge(outOfRange), EdgeWidth(outOfRange), outOfRange ? OutOfRangeCaption : null);
+    }
 }
+
+/// <summary>How a slot draws its range state (<see cref="AbilitySlotLook.ForRange"/>).</summary>
+/// <param name="OutOfRange">The player's target is out of this ability's range.</param>
+/// <param name="IconModulate">The icon modulate (red when out of range).</param>
+/// <param name="Edge">The slot edge colour (never red).</param>
+/// <param name="EdgeWidth">The slot edge width in pixels.</param>
+/// <param name="Caption">The text drawn on the slot, "out of range", or null when in range.</param>
+public readonly record struct SlotRangeLook(bool OutOfRange, Rgba8 IconModulate, Rgba8 Edge, int EdgeWidth, string? Caption);
 
 /// <summary>The player's current target as the ability bar's range tint sees it (Godot- and sim-free).</summary>
 /// <param name="Alive">The target is alive.</param>
