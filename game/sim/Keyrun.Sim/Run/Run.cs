@@ -110,6 +110,18 @@ public static class RunRoot
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(commands);
         var events = new List<SimEvent>();
+
+        // RUN-END-FREEZE: once run_end has fired the run is over. No rule, script, cast or death resolves any more, so
+        // an add left standing (a Sundered Twin when the boss dies) cannot take damage or die after the run record is
+        // written. The clock still advances exactly as Tick.Step advances it, so a host that keeps stepping stays in step.
+        if (run.RunEnd.Result is not null)
+        {
+            var frozen = run.State.Clone();
+            frozen.Tick += 1;
+            frozen.RunTimerTicks += 1;
+            return new RunStepResult(run with { State = frozen }, events);
+        }
+
         Action<SimEvent> emit = events.Add;
         var content = run.Content;
 
