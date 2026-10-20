@@ -1119,10 +1119,10 @@
       "fnv": "9e81d4c8"
     },
     "abilities/hollowWarden.lock": {
-      "fnv": "a4a3d29d"
+      "fnv": "2e3bbea5"
     },
     "abilities/hollowWarden.slam": {
-      "fnv": "e62b779c"
+      "fnv": "d78150f7"
     },
     "abilities/pair.meleeSwing": {
       "fnv": "15f6e0cd"
@@ -1146,7 +1146,7 @@
       "fnv": "be78290d"
     },
     "abilities/twins.slam": {
-      "fnv": "4096c66b"
+      "fnv": "ea2e4ee6"
     },
     "abilities/warden.brace": {
       "fnv": "9ccdba27"
@@ -1311,7 +1311,7 @@
       "fnv": "164ad8a8"
     },
     "enemies/hollowWarden.boss": {
-      "fnv": "0a1ee800"
+      "fnv": "12d42701"
     },
     "enemies/hollowWarden.twinA": {
       "fnv": "87977504"

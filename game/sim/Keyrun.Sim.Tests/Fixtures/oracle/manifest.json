@@ -19,20 +19,20 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 299470,
-      "fnv": "92ccd51e"
+      "bytes": 290466,
+      "fnv": "728cda2b"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 238720,
-      "fnv": "08990276"
+      "bytes": 238930,
+      "fnv": "efd7dbf7"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 238717,
-      "fnv": "4903ed4f"
+      "bytes": 238927,
+      "fnv": "5d74f7b4"
     },
     "content-pull.setup.json": {
-      "bytes": 22908,
-      "fnv": "104b3503"
+      "bytes": 22931,
+      "fnv": "d7995b73"
     },
     "content-pull.trace.jsonl": {
       "bytes": 30554,
@@ -43,12 +43,12 @@
       "fnv": "766fb4de"
     },
     "hollow-vault-k10.setup.json": {
-      "bytes": 25187,
-      "fnv": "c1ba59be"
+      "bytes": 25287,
+      "fnv": "e9258a29"
     },
     "hollow-vault-k2.setup.json": {
-      "bytes": 25185,
-      "fnv": "06dc4fec"
+      "bytes": 25285,
+      "fnv": "916861d3"
     },
     "intdiv.vectors.json": {
       "bytes": 371573,
@@ -60,11 +60,11 @@
     },
     "scripted-pull.setup.json": {
       "bytes": 1220,
-      "fnv": "5de809fe"
+      "fnv": "6575d7a0"
     },
     "scripted-pull.trace.jsonl": {
       "bytes": 25913,
-      "fnv": "fa6905c2"
+      "fnv": "9bb75aa3"
     }
   },
   "kind": "keyrun-oracle-manifest",
@@ -233,7 +233,7 @@
         "fnv": "7181d89e"
       },
       "client/src/sim-host/telegraph-map.ts": {
-        "fnv": "75210e09"
+        "fnv": "00707f2e"
       },
       "client/src/sim-host/wire.ts": {
         "fnv": "6d5c993a"
@@ -260,7 +260,7 @@
         "fnv": "b7eb7a89"
       },
       "content/data/abilities/enemies.json": {
-        "fnv": "fd177487"
+        "fnv": "7dc15cf8"
       },
       "content/data/abilities/warden.json": {
         "fnv": "36ffc9d9"
@@ -293,7 +293,7 @@
         "fnv": "11ee2178"
       },
       "content/data/enemies/hollow-warden.json": {
-        "fnv": "b4c3c4d0"
+        "fnv": "493d4758"
       },
       "content/data/enemies/pair.json": {
         "fnv": "bb7076ab"
@@ -356,7 +356,7 @@
         "fnv": "5018f7d9"
       },
       "sim/combat/casting.ts": {
-        "fnv": "c70c2b48"
+        "fnv": "8b597c27"
       },
       "sim/combat/clause-hooks.ts": {
         "fnv": "43aaf28e"
@@ -434,7 +434,7 @@
         "fnv": "f593d495"
       },
       "sim/encounter/chase.ts": {
-        "fnv": "4685b155"
+        "fnv": "01a7387e"
       },
       "sim/encounter/clauses.ts": {
         "fnv": "122a3f67"
@@ -491,10 +491,10 @@
         "fnv": "7e43222f"
       },
       "tests/sim/golden/scripted-pull.json": {
-        "fnv": "effe3419"
+        "fnv": "a5b31cd5"
       },
       "tests/sim/integration/fixtures.ts": {
-        "fnv": "500008e2"
+        "fnv": "33253bef"
       }
     },
     "sha": "6e1548d"
@@ -516,34 +516,34 @@
       "result": null,
       "setup": "scripted-pull.setup.json",
       "trace": "scripted-pull.trace.jsonl",
-      "traceHash": "a2bf97d7"
+      "traceHash": "014e427d"
     },
     {
-      "finalTick": 1719,
+      "finalTick": 1736,
       "name": "bots-hv-k2-s7",
-      "records": 1720,
+      "records": 1737,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "f0369dfc"
+      "traceHash": "d5c20907"
     },
     {
-      "finalTick": 1719,
+      "finalTick": 1736,
       "name": "bots-hv-k2-s11",
-      "records": 1720,
+      "records": 1737,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "f0369dfc"
+      "traceHash": "d5c20907"
     },
     {
-      "finalTick": 2172,
+      "finalTick": 2071,
       "name": "bots-hv-k10-s7",
-      "records": 2173,
+      "records": 2072,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "d7b7304f"
+      "traceHash": "6f856fd1"
     }
   ],
   "version": 1
