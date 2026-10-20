@@ -699,6 +699,20 @@ Additional parked decisions (from the burn ledger):
   carries rules the TS one never had, so a check against TS can only record, not judge.
 - D29 **lane row files: lanes write game/lanes/<branch>.md, the fold lane merges them post-squash (aesop BUILDLOG 2026-10-19 17:50Z)**
   (orchestrator, 2026-10-19, lane LANE-ROW-FILES; reversible). Why: three keyrun PRs in one day each needed an Opus resume only to append one line to game/CLAUDE.md and BUILDLOG.md.
+- D33 **AGENT PLAYTESTERS: dispatched agents play keys headless, fail first, and learn through receipts and memory**
+  (Matt 2026-10-20, verbatim: "the bots are your gametesters, they should learn and progress keys as well, they should be
+  given an understanding of how to play the game, just use agent playtesters" and "ensure the bots can fail lol, they
+  should not clear the first dungeon on the first try unless they have played wow lmfao, the point is agents can learn the
+  game over time using the same machinery we are using right now"; design design/PLAYTESTERS.md, lane docs/agent-playtesters;
+  D30-D32 are claimed by open PRs #306, #311, #315; reversible). A playtester is a Haiku subagent that gets only the
+  player-side guide (no enemy ids, no answers), writes a plan per batch, plays it on 3 seeds in the headless sim through
+  #305's `playtest run` (never Godot), and writes one lesson citing a run. Each run's receipt adds a traceHash
+  (Projection.TraceHash, as Keyrun.Replay) and the build sha; `playtest verify --replay` recomputes it. The key moves by
+  BIBLE s8 (timed +1/+2/+3, untimed stays). Learning counts only when learners beat an amnesiac control on held-out seeds,
+  first-run timed rate stays at or under 20%, and a plan provenance check refuses any enemy id the playtester never saw.
+  Cost: about $0.0035 per decision at Haiku list price, cap 3M input tokens per experiment; any recurring loop is NEEDS
+  MATT. NEXT STEPS (smallest first): merge #305; fold the guide into GUIDE.md; traceHash + buildSha; provenance check;
+  verify --replay; first-run failure measurement; report script; one cohort experiment; recurring loop NEEDS MATT.
 - D34 **CINDERFIELD CLOSER COST: closing a Cinderfield still burns the closer, as a capped share of its max health**
   (Matt, 2026-10-20, asked "should closing a Cinderfield burn the closer?", verbatim: "probably, but as damage scales
   this will turn into a one shot, so abilities and damage reduction stuff needs to be considered lol"; lane
