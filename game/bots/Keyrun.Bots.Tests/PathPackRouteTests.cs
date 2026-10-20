@@ -59,7 +59,7 @@ public sealed class PathPackRouteTests
             Pulls = setup.Dungeon.Pulls.Select(p => p with { Spawns = p.Spawns.Select(s => s with { Health = 1 }).ToList() }).ToList(),
         };
         SimDungeon dungeon = NavLayouts.PlaceDungeon(layoutDef, weak);
-        var (packs, scripts) = LayoutPackGroups.Build(layoutDef, dungeon, setup.Content.EnemyScripts);
+        var (packs, scripts) = LayoutPackGroups.Build(layoutDef, dungeon, setup.Content.EnemyScripts, packOnly: PackOnlyTemplates(registry, setup.Dungeon));
         var party = NavLayouts.PlaceParty(layoutDef, setup.Party.Take(3).ToList(), dungeon.Pulls[0].Id);
         var content = setup.Content with { Layout = nav, Bounds = nav.Extent, Packs = packs, EnemyScripts = scripts };
         var run = RunRoot.CreateRun(Seed, party, dungeon, content, setup.Options);
@@ -112,6 +112,28 @@ public sealed class PathPackRouteTests
             }
         }
         return new PackRun(events, members, packs, layoutDef, initial, appearances, run);
+    }
+
+    // The oracle setup's templates for every layout pack enemy no oracle pull fields (the Hall Sentry, STATE.md D49):
+    // the same 1-health weakening as the pulls, the content script Tempo-scaled to the oracle key, as the host's
+    // HostRunSetup.PackOnlyTemplates scales it. Fixture only; the pack's own behaviour is the sim's.
+    private static IReadOnlyDictionary<string, PackTemplate> PackOnlyTemplates(ContentRegistry registry, SimDungeon oracle)
+    {
+        var fielded = oracle.Pulls.SelectMany(p => p.Spawns).Select(s => s.ClassId).ToHashSet(StringComparer.Ordinal);
+        var templates = new SortedDictionary<string, PackTemplate>(StringComparer.Ordinal);
+        foreach (var id in registry.Layout.Packs.SelectMany(p => p.Enemies).Select(e => e.EnemyId).Where(id => !fielded.Contains(id)).Distinct())
+        {
+            var def = registry.Enemies[id];
+            var spawn = new PullSpawn(0, def.Id, Vec3.Zero, 0, 1) { SpeedMmPerTick = def.SpeedMmPerTick, ChaseMarginMm = def.ChaseMarginMm };
+            var script = def.Script.Select(s => s.At.Kind switch
+            {
+                ScriptAtKind.Tick => Keyrun.Sim.Encounter.ScriptStep.At(s.At.Tick, s.Cast, s.Every),
+                ScriptAtKind.Loop => Keyrun.Sim.Encounter.ScriptStep.Loop(s.Every, s.Cast),
+                _ => throw new InvalidOperationException($"pack-only enemy {id}: script trigger {s.At.Kind} is not built by this fixture"),
+            }).ToList();
+            templates[id] = new PackTemplate(spawn, Tempo.ScaleScript(script, 2));
+        }
+        return templates;
     }
 
     // Squared XZ distance from p to the nearest party (player) actor, alive or dead; long.MaxValue with no party.

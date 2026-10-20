@@ -11,13 +11,21 @@ namespace Keyrun.Playtest.Tests;
 /// Choir member for 300 of its 6000 health every ~20 s, so leaving it unkicked cost almost nothing and the party timed
 /// the first key. These cases play the real Hollow Vault through <see cref="PlaytestRunner"/> at key 2, seed 1, and
 /// pin both sides of the lesson: an unkicked Mending heals the whole pack and drags the Choir past the clock, and a
-/// party that kicks it clears the Choir and times the key.
+/// party that kicks it clears the Choir and times the key. Both plans are the same competent party (STATE.md D48: the
+/// tank mitigates as the scripted tank does); they differ only in the kick rule, so the lesson is the kick.
 /// </summary>
 public sealed class ChoirLessonTests
 {
     private static readonly ContentRegistry Registry = ContentLoader.Load();
 
-    private const string KickPlan = "{\"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"cinder\", \"chanter\", \"warden\"]}]}";
+    // STATE.md D48: the lesson compares a competent party that kicks against the SAME competent party that never kicks.
+    // Competent includes the tank mitigating the way the scripted party's tank does (Brace and Bulwark under pressure);
+    // both plans carry it, so the only difference between the two cases is the kick rule.
+    private const string Competent = "\"mitigate\": [\"warden\"]";
+
+    private const string KickPlan = "{" + Competent + ", \"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"cinder\", \"chanter\", \"warden\"]}]}";
+
+    private const string NeverKickPlan = "{" + Competent + "}";
 
     private static PlaytestResult Play(string? policyJson) =>
         PlaytestRunner.Play(new PlaytestOptions(2, 1, policyJson is null ? null : PolicyReader.Parse(policyJson, Registry)), Registry);
@@ -28,7 +36,7 @@ public sealed class ChoirLessonTests
     [Fact(DisplayName = "Choir lesson: an unkicked Choral Mending heals every living Choir member at once")]
     public void Unkicked_mending_heals_the_pack()
     {
-        var r = Play("{}");
+        var r = Play(NeverKickPlan);
         // The Choir pull's own Cantor: PATH-PACKS packs also field choir.lieutenant members, idle in the state from tick 0.
         var cantor = r.Setup.Dungeon.Pulls.Single(p => p.Id == "choir").Spawns.Single(s => s.ClassId == "choir.lieutenant").ActorId;
         var firstHealTick = r.Log.Split('\n')
@@ -43,15 +51,15 @@ public sealed class ChoirLessonTests
         Assert.Equal(3, targets.Count);
     }
 
-    [Fact(DisplayName = "Choir lesson: the empty plan's Choir drags past twice the kicking party's, and its key is not timed")]
+    [Fact(DisplayName = "Choir lesson: the never-kick plan's Choir drags past twice the kicking party's, and its key is not timed")]
     public void Unkicked_choir_drags_and_fails_the_key()
     {
-        var empty = Play("{}");
+        var neverKick = Play(NeverKickPlan);
         var kicking = Play(KickPlan);
 
-        Assert.True(ChoirClearTick(empty) > 2 * ChoirClearTick(kicking),
-            $"empty plan cleared the Choir at {ChoirClearTick(empty)}, the kicking plan at {ChoirClearTick(kicking)}");
-        Assert.NotEqual(RunResult.Timed, empty.Run.RunEnd.Result);
+        Assert.True(ChoirClearTick(neverKick) > 2 * ChoirClearTick(kicking),
+            $"never-kick plan cleared the Choir at {ChoirClearTick(neverKick)}, the kicking plan at {ChoirClearTick(kicking)}");
+        Assert.NotEqual(RunResult.Timed, neverKick.Run.RunEnd.Result);
     }
 
     [Fact(DisplayName = "Choir lesson: a party that kicks Choral Mending clears the Choir and times key 2 (a kick plan and the scripted party)")]

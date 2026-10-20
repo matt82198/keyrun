@@ -10,13 +10,14 @@ namespace Keyrun.Playtest.Tests;
 /// the required pack on the walking line between the Pair and the Seed is a speed bump a competent party walks through,
 /// not a second Choir. Played through <see cref="PlaytestRunner"/> on the real Hollow Vault at key 2, seed 1, as
 /// <see cref="ChoirLessonTests"/> plays it: a party that kicks Choral Mending (the kick plan and the scripted party) kills
-/// every Hall Sentry. The empty plan's failure is pinned by <see cref="ChoirLessonTests"/>, unchanged.
+/// every Hall Sentry. The never-kick plan's failure is pinned by <see cref="ChoirLessonTests"/>.
 /// </summary>
 public sealed class HallSentriesTests
 {
     private static readonly ContentRegistry Registry = ContentLoader.Load();
 
-    private const string KickPlan = "{\"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"cinder\", \"chanter\", \"warden\"]}]}";
+    // The same competent kick plan ChoirLessonTests plays (STATE.md D48: the tank mitigates as the scripted tank does).
+    private const string KickPlan = "{\"mitigate\": [\"warden\"], \"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"cinder\", \"chanter\", \"warden\"]}]}";
 
     private static PlaytestResult Play(string? policyJson) =>
         PlaytestRunner.Play(new PlaytestOptions(2, 1, policyJson is null ? null : PolicyReader.Parse(policyJson, Registry)), Registry);

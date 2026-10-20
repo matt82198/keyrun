@@ -60,7 +60,7 @@ public static class LayoutPackGroups
         foreach (var pack in layout.Packs)
         {
             var spawns = new List<PullSpawn>();
-            // STATE.md D46: pack-only members swing on their own timers, spread over one swing period (StaggerSwing).
+            // STATE.md D47: pack-only members swing on their own timers, spread over one swing period (StaggerSwing).
             var packOnlyCount = packOnly is null
                 ? 0
                 : pack.Enemies.Where(g => !templates.ContainsKey(g.EnemyId) && packOnly.ContainsKey(g.EnemyId)).Sum(g => g.Count);
@@ -114,7 +114,7 @@ public static class LayoutPackGroups
     }
 
     /// <summary>
-    /// STATE.md D46 (WoW-faithful swing timers): in WoW each mob's swing timer is its own, so a pack does not land every
+    /// STATE.md D47 (WoW-faithful swing timers): in WoW each mob's swing timer is its own, so a pack does not land every
     /// auto-attack on one tick. Member <paramref name="index"/> of <paramref name="count"/> pack-only members runs its
     /// script on a clock offset by <c>index * period / count</c> ticks, where period is the script's shortest repeat
     /// period: the pack's swings spread evenly over one swing period, deterministically, in member order. The sim keeps

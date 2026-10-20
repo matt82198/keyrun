@@ -876,6 +876,31 @@ Additional parked decisions (from the burn ledger):
   in WoW Mythic+ a death only costs time, it never fails the key on its own; under the bank, three deaths at +2 (900
   ticks against a 620-tick bank) depleted a key that was far ahead of par. The HUD bar now reads the run clock and
   "Deaths N (+Xs)" (TimerSlack.cs). Tune later: the 15 s / 25 s costs and whether the HUD bar keeps its shape.
+- D47 **HALL SENTRIES SWING ON THEIR OWN TIMERS** (orchestrator, 2026-10-20, under Matt's verbatim "make the rest of
+  the decisions and we will tune later"; reversible). The required Hall Sentries pack fields hall.sentry, a real
+  Mythic+ trash enemy only a layout pack fields (game/content/data/enemies/hall.json: 2000 health, choir.meleeSwing,
+  48 forces each). Pack-only members swing on staggered timers by member index, offsets i x period / n over one swing
+  period (LayoutPackGroups.StaggerSwing), so a five-sentry pack never lands five swings on one tick. WHY: in WoW each
+  mob's swing timer is its own; a pack landing every swing on the same tick is a spike no tank mitigates through.
+  Tune later: the period, the health and the count.
+- D48 **THE CHOIR LESSON COMPARES THE SAME COMPETENT PARTY WITH AND WITHOUT KICKS** (orchestrator, 2026-10-20, under
+  Matt's verbatim "make the rest of the decisions and we will tune later" and "ensure the bots can fail lol, they
+  should not clear the first dungeon on the first try unless they have played wow"; reversible). "Competent" includes
+  the tank mitigating the way the scripted party's tank does: a new playtest policy field `mitigate` (class list) lets
+  that seat press its defensive (E) when its role's script would, which also lets the script's pressure branch reach
+  Bulwark. Both ChoirLessonTests plans carry `"mitigate": ["warden"]`; they differ only in the kick rule. The claims
+  are unchanged: the kicking party times key 2, the never-kick party does not. Measured key 2 seed 1 on this branch:
+  kick plan timed +3 at 285 s, 0 deaths; never-kick plan untimed (depleted) at 830 s, 0 deaths; Choir cleared at tick
+  2500 vs 13401. WHY: without mitigation the policy Warden never pressed Brace or Bulwark, so every Hall Sentry swing
+  landed for the full 70 and the kick plan wiped, which made the lesson about tank buttons instead of the kick.
+- D49 **CONTENT INVENTORY RAISES FOR THE 8TH ENEMY ARE INVENTORY, NOT LOOSENING** (orchestrator, 2026-10-20). hall.sentry
+  is a real 8th enemy: ContentCountTests enemies 7 -> 8, embedded files 27 -> 28 (enemies/hall.json joins the C#-only
+  list), ReferenceTests refs 32 -> 34 (its ability and script step; measured on the merged tree, the brief's 30 -> 32
+  predates seed.lock). ActorBindingTests reads both enemy folders (content/data/enemies and game/content/data/enemies);
+  hall.sentry has a model row (the CC0 Skeleton_Warrior.glb with the Skeleton spawn clip, tinted bronze 0xD0A060).
+  RouteContentTests' forces fixture, SkippablePackTests' strip setup and PathPackRouteTests' oracle setup (a hall.sentry
+  template) carry the new enemy. WHY recorded: each is a fixture or count that must follow the content, and no
+  assertion, floor or behaviour was relaxed.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as

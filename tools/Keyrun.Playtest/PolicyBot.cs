@@ -25,7 +25,9 @@ public sealed class PolicyContext
 /// kick ledger is switched off.</item>
 /// <item>Dodging: telegraphs and floor patches only when <see cref="Policy.DodgeTelegraphs"/> /
 /// <see cref="Policy.DodgeFloor"/> say so, after a reaction delay.</item>
-/// <item>Defensive (E): only under the policy's health threshold. Utility (R): only for listed classes.</item>
+/// <item>Defensive (E): under the policy's health threshold, or, for a <see cref="Policy.Mitigate"/> class, whenever its
+/// script would (the scripted tank's pressure rule, which then also reaches its group mitigation). Utility (R): only for
+/// listed classes.</item>
 /// <item>Targets: damage dealers attack their target (else the tank's), or the policy's focus list first.</item>
 /// <item>Holds: an ability held for other pulls is never pressed in this one.</item>
 /// </list>
@@ -204,7 +206,12 @@ public sealed class PolicyBot : IBot
     private bool Allowed(CastCommand cast, ActorState self, Keyrun.Bots.EffectiveKit kit, BotView view, int? desired)
     {
         var id = cast.AbilityId;
-        if (string.Equals(id, kit.InterruptAbilityId, StringComparison.Ordinal) || string.Equals(id, kit.DefensiveAbilityId, StringComparison.Ordinal))
+        if (string.Equals(id, kit.InterruptAbilityId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+        // STATE.md D48: a mitigating seat presses E when its script would; any other seat only by its plan threshold.
+        if (string.Equals(id, kit.DefensiveAbilityId, StringComparison.Ordinal) && !_policy.Mitigate.Contains(self.ClassId, StringComparer.Ordinal))
         {
             return false;
         }

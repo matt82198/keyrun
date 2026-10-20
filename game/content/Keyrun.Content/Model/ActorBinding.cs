@@ -169,6 +169,11 @@ public sealed class ActorBinding
         new ActorBindingRow("choir.lieutenant", "Skeleton_Mage.glb", 2630, 684, 0xB070E0, Array.Empty<string>(),
             ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
 
+        // Hall Sentry (Mythic+ trash only the Hall Sentries pack fields, game/content/data/enemies/hall.json): the same
+        // CC0 Skeleton Warrior as the Choir Acolyte, washed bronze so the pack reads as its own enemy.
+        new ActorBindingRow("hall.sentry", "Skeleton_Warrior.glb", 2590, 695, 0xD0A060, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
         // Paired Warrior x5: the bare Skeleton Minion.
         new ActorBindingRow("pair.melee", "Skeleton_Minion.glb", 2166, 831, null, Array.Empty<string>(),
             ActorClips.Skeleton, Folder: SkeletonsFolder),
