@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
@@ -89,99 +88,9 @@ public static class Tempo
         };
     }
 
-    /// <summary>content-dungeon.ts:57 scaleScript: <see cref="ScaleStep(ScriptStep, int)"/> over every step, in order.</summary>
+    /// <summary>content-dungeon.ts:57 scaleScript: <see cref="ScaleStep"/> over every step, in order.</summary>
     public static IReadOnlyList<ScriptStep> ScaleScript(IReadOnlyList<ScriptStep> script, int keyLevel) =>
         script.Select(s => ScaleStep(s, keyLevel)).ToList();
-
-    /// <summary>
-    /// TEMPO-CAST-FLOOR (BIBLE s3, "Cast bars are the enemy's language"): the shortest period a script step may repeat
-    /// its cast, the larger of the ability's cooldown and its cast time. Faster than the cooldown, the cast is refused
-    /// <c>not_ready</c> on the fire tick (a telegraph with no cast, and an aliased cadence); faster than the cast time,
-    /// a new cast would start before the last one lands. Negative inputs count as 0.
-    /// </summary>
-    public static int CastFloorTicks(int cooldownTicks, int castTicks) => Math.Max(0, Math.Max(cooldownTicks, castTicks));
-
-    /// <summary>
-    /// TEMPO-CAST-FLOOR: an enemy ability's cooldown at the key, scaled by the same Tempo factor as its script loop
-    /// (BIBLE s8, "enemies cast more often"): <c>trunc(cooldown * 10000 / mult)</c>, one truncating division like
-    /// <see cref="ScaleCastEvery(int, int)"/> but with no 20-tick floor (a 0 cooldown stays 0). A loop authored at
-    /// <c>every == cooldown</c> therefore scales to <c>every == scaled cooldown</c>: faster, and never early.
-    /// </summary>
-    /// <param name="baseCooldownTicks">The authored cooldown.</param>
-    /// <param name="keyLevel">The key level.</param>
-    /// <returns>The scaled cooldown, ticks.</returns>
-    public static int ScaleCooldownTicks(int baseCooldownTicks, int keyLevel) =>
-        checked((int)IntMath.TruncDiv((long)baseCooldownTicks * BpDenom, TempoMultiplierBp(keyLevel)));
-
-    /// <summary>TEMPO-CAST-FLOOR: <see cref="CastFloorTicks"/> of the key-scaled cooldown (<see cref="ScaleCooldownTicks"/>) and the unscaled cast time.</summary>
-    /// <param name="cooldownTicks">The authored cooldown.</param>
-    /// <param name="castTicks">The cast time (Tempo never scales it).</param>
-    /// <param name="keyLevel">The key level.</param>
-    /// <returns>The floor for the cast's scaled loop period.</returns>
-    public static int ScaledCastFloorTicks(int cooldownTicks, int castTicks, int keyLevel) =>
-        CastFloorTicks(ScaleCooldownTicks(cooldownTicks, keyLevel), castTicks);
-
-    /// <summary>
-    /// TEMPO-CAST-FLOOR: the run's ability table with every ability an enemy script casts given its
-    /// <see cref="ScaleCooldownTicks"/> cooldown; every other ability (the party's) is kept as is. This is the one
-    /// place enemy cooldowns are scaled: the run reads cooldowns only from <c>RunContent.Abilities</c>
-    /// (<see cref="Cooldowns"/>), so the cast the scaled loop fires is ready on its fire tick.
-    /// </summary>
-    /// <param name="abilities">Abilities by id (unscaled cooldowns).</param>
-    /// <param name="enemyScripts">Every enemy script of the run (pulls, boss and Twins).</param>
-    /// <param name="keyLevel">The key level.</param>
-    /// <returns>A new table; the input is not mutated.</returns>
-    public static Dictionary<string, AbilityDef> ScaleEnemyCooldowns(
-        IReadOnlyDictionary<string, AbilityDef> abilities, IEnumerable<IReadOnlyList<ScriptStep>> enemyScripts, int keyLevel)
-    {
-        ArgumentNullException.ThrowIfNull(abilities);
-        ArgumentNullException.ThrowIfNull(enemyScripts);
-        var cast = new HashSet<string>(enemyScripts.SelectMany(s => s).Select(s => s.Cast), StringComparer.Ordinal);
-        var scaled = new Dictionary<string, AbilityDef>(StringComparer.Ordinal);
-        foreach (var kv in abilities)
-        {
-            scaled[kv.Key] = cast.Contains(kv.Key)
-                ? kv.Value with { CooldownTicks = ScaleCooldownTicks(kv.Value.CooldownTicks, keyLevel) }
-                : kv.Value;
-        }
-        return scaled;
-    }
-
-    /// <summary>TEMPO-CAST-FLOOR: <see cref="ScaleCastEvery(int, int)"/>, then never below <paramref name="castFloorTicks"/>.</summary>
-    /// <param name="baseEveryTicks">The authored period.</param>
-    /// <param name="keyLevel">The key level.</param>
-    /// <param name="castFloorTicks">The cast's <see cref="CastFloorTicks"/>.</param>
-    /// <returns>The scaled period, at least 20 ticks and at least the cast's floor.</returns>
-    public static int ScaleCastEvery(int baseEveryTicks, int keyLevel, int castFloorTicks) =>
-        Math.Max(ScaleCastEvery(baseEveryTicks, keyLevel), castFloorTicks);
-
-    /// <summary>
-    /// TEMPO-CAST-FLOOR: <see cref="ScaleStep(ScriptStep, int)"/> (the frozen-TS parity rule, which the oracle setups
-    /// record), then a present <c>every</c> raised to the cast's floor. Trigger, at, cast and telegraph are kept.
-    /// </summary>
-    /// <param name="step">The authored step.</param>
-    /// <param name="keyLevel">The key level.</param>
-    /// <param name="castFloorTicks">Ability id to its <see cref="CastFloorTicks"/>.</param>
-    /// <returns>The scaled step.</returns>
-    public static ScriptStep ScaleStep(ScriptStep step, int keyLevel, Func<string, int> castFloorTicks)
-    {
-        ArgumentNullException.ThrowIfNull(castFloorTicks);
-        var scaled = ScaleStep(step, keyLevel);
-        if (scaled.Every is not { } every)
-        {
-            return scaled;
-        }
-        var floor = castFloorTicks(step.Cast);
-        return every >= floor ? scaled : scaled with { Every = floor };
-    }
-
-    /// <summary>TEMPO-CAST-FLOOR: <see cref="ScaleStep(ScriptStep, int, Func{string, int})"/> over every step, in order.</summary>
-    /// <param name="script">The authored script.</param>
-    /// <param name="keyLevel">The key level.</param>
-    /// <param name="castFloorTicks">Ability id to its <see cref="CastFloorTicks"/>.</param>
-    /// <returns>The scaled script.</returns>
-    public static IReadOnlyList<ScriptStep> ScaleScript(IReadOnlyList<ScriptStep> script, int keyLevel, Func<string, int> castFloorTicks) =>
-        script.Select(s => ScaleStep(s, keyLevel, castFloorTicks)).ToList();
 
     /// <summary>content-dungeon.ts:61 scaleSpawns (one spawn): health scaled, everything else kept.</summary>
     public static PullSpawn ScaleSpawn(PullSpawn spawn, int keyLevel) => spawn with { Health = ScaleHealth(spawn.Health, keyLevel) };
