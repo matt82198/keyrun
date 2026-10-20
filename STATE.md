@@ -316,6 +316,17 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   4. Matt plays a run (Phase 5 measurement).
   5. Only then re-run the s10 plan-vs-output check and record PHASE 3 EXIT and D10 (MET / MET-WITH-TUNING-GAP / NOT-MET).
   6. Phase 4: TS deletion after parity. Blocked on step 5.
+  D31. Skill toolkit (NOT implemented; depends on D30, PR #306; the per-class table and the BIBLE wording wait for Matt in
+     the D31 PR body; research/03 addendum "the Outlaw Rogue toolkit" is the reason). First increment, data before sim:
+     - Ops: three generic threat ops any ability may carry (take to self, give to a target ally, drop to the next
+       holder), the "explicit take-threat ability op" of D30 rule 3. Sim: game/sim/Keyrun.Sim/Combat/Threat.cs,
+       Combat/Effects.cs and Combat/Abilities.cs, read by Encounter/ScriptTarget.cs (file names from the D30 list, not
+       re-verified on main); the loader and validator in game/content/ must accept the new op names.
+     - Content: one toolkit Facet per class in content/data/facets/warden.json, cinder.json and chanter.json (the
+       Warden Taunt hand-off, the Cinder Cold Snap lure and Ashen Skin veil, the Chanter Ward-verse Dissonance), the
+       E/R/F rows they patch in content/data/abilities/*.json, and any fork rows in content/data/classes/*.json.
+     - Parity: the BIBLE section 6 fork check needs a saves measure (runs survived after a tank death) before a
+       toolkit option is compared with a damage option; that lives in the bots suite (game/bots/).
 
 ## STATE-R9 checkpoint (2026-10-19 05:05Z)
 WHY: #175 to #181 finished the Phase 3.5 ladder and added decisions D25 and D26; the next session must resume from disk, not
@@ -699,6 +710,28 @@ Additional parked decisions (from the burn ledger):
   carries rules the TS one never had, so a check against TS can only record, not judge.
 - D29 **lane row files: lanes write game/lanes/<branch>.md, the fold lane merges them post-squash (aesop BUILDLOG 2026-10-19 17:50Z)**
   (orchestrator, 2026-10-19, lane LANE-ROW-FILES; reversible). Why: three keyrun PRs in one day each needed an Opus resume only to append one line to game/CLAUDE.md and BUILDLOG.md.
+- D31 **SKILL TOOLKIT: Outlaw-level skill on five buttons; every class can carry threat-take, reset, kite and save tools
+  through Facets and forks** (Matt 2026-10-20, verbatim: "look at why people love playing outlaw rogue for a sec: you can
+  pull threat, evasion, cloak, flask, invis, re pull, grapple, cheap, ambush, grapple, sucker keeps pack alive if tank
+  dies... there needs to be this level of "skill" in the game... and playing into mechanics or builds like this will
+  encourage the late game way more than just hitting something lmao"). Numbered D31 because D30 is on PR #306
+  (docs/aggro-taunt-direction), not yet merged; D31 depends on D30 rule 3 ("Once threat is initialized, it cant be
+  taken except for abilities... other characters need some toolkit to take threat, or an upgraded ability"). Direction
+  recorded; design/BIBLE.md is NOT amended (proposed wording and the conflict list wait for Matt in the D31 PR body).
+  The rules:
+  1. The budget holds: five rotational buttons and ten keys (BIBLE section 2, D4). Depth comes from what the keys do,
+     never from a new key.
+  2. Every class can build a toolkit on keys it already has: a threat take, a threat reset or hand-off, a kite or
+     reposition, and an emergency save. Each comes from a Facet (BIBLE section 7, "Facets change function") or a fork,
+     on R utility, E defensive, F movement or one rotational ability, so the toolkit is a build choice that costs power.
+  3. Threat moves only through explicit ability ops (D30 rule 3), and those ops are generic: any class's ability may
+     carry take, give or drop. No class owns threat-taking by name.
+  4. Each tool is an outplay window read off a cast bar or a telegraph (BIBLE section 3), not a passive: pressing it at
+     the right tick is the skill, and a mistimed press is a visible miss.
+  5. A dying run has a way back one player can execute (kite the pack, hand threat back, reset), which serves test 3 of
+     BIBLE section 0.
+  Why: Matt names Outlaw Rogue's toolkit as the skill bar for late game, and the five-button cap means that depth has to
+  live in build choices and timing on the existing keys (research/03 addendum, 2026-10-20).
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
