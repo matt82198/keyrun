@@ -16,19 +16,20 @@
       4. "HUD objective pull=1/4 id=choir name="The Choir"" (the current pull's content name);
       5. "HUD slack ticks=620 of=620" first (Timer.InitialSlackTicks(2) = 600 + 20), then a lower value after the
          death (the sim spends 300 on a death and 500 on the wipe);
-      6. "HUD runend result=depleted choices=3 cleared=0 ... title="Party wiped on pull 1 of 4 -- key depleted"" (the
+      6. "HUD runend result=depleted choices=3 cleared=0 ... title="Party wiped on pull 1 of 4 -- key stays at +2"" (the
          sim reports a lasting wipe as "depleted"; the panel must not call it cleared, and names the pull it was lost
          on, numbered as the objective line numbers it: lane 3C-d), three "HUD runend choice n=<1..3> slot=<slot>
          tier=<t> facet=... ability=warden.<id> charges=<c> id=reward-<slot>-warden.<slot>.<facet>-t<t>-<i>" lines
          (Rewards.RollRewardChoices over the Warden's content facet pool, lane 3C-d: no placeholder "ability-<n>"
          id), and "HUD runend cause seat=1" lines naming only seat 1's own causes; every "HUD runend result=" line of
          every autorun (A-G) titles a cleared=1 run "Run cleared -- ..." and a cleared=0 depleted run "Party wiped
-         on pull <n> of <total> -- key depleted" (run C clears the dungeon since lane TUNE-BOSS, so the clear title
+         on pull <n> of <total> -- key stays at +<key>" (an untimed key keeps its level: Matt 2026-10-20, f-7c7abdf4;
+         "key depleted" is banned from every title) (run C clears the dungeon since lane TUNE-BOSS, so the clear title
          is checked on it; the count of cleared runs is printed).
     Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 600 --pull 2 --solo
       (600 since lane NAV-CORE, was 400: the Pair now spawns at the far side of its hall, 7 m off, run_end at tick 455)
       7. "HUD objective pull=2/4 id=pair name="The Pair"", and the wipe title "Party wiped on pull 2 of 4 -- key
-         depleted" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
+         stays at +2" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
       8. at least one "HUD ping label=SPREAD" or "HUD ping label=STACK" line (from the Pair's mark telegraphs and
          mark effects in the sim state). The solo Warden is down before the Pair's first mark (about tick 294), so
          this line comes from enemy scripts the sim keeps stepping after run_end; run C proves a live-run call.
@@ -491,8 +492,8 @@ if ($slackLines.Count -eq 0) {
     if (-not $slackLower) { $failures.Add('run A: Slack never dropped below 620 after the death') }
 }
 
-$runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 1 of 4 -- key depleted"$'
-if (-not $runEnd) { $failures.Add("run A: no 'HUD runend result=depleted choices=3 cleared=0 ... title=""Party wiped on pull 1 of 4 -- key depleted""' line (got '$(First $a.Lines '^HUD runend result=')')") }
+$runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 1 of 4 -- key stays at \+2"$'
+if (-not $runEnd) { $failures.Add("run A: no 'HUD runend result=depleted choices=3 cleared=0 ... title=""Party wiped on pull 1 of 4 -- key stays at +2""' line (got '$(First $a.Lines '^HUD runend result=')')") }
 $choices = @($a.Lines | Where-Object { $_ -match '^HUD runend choice n=[123] slot=(weapon|armor|charm|ring|keystone) tier=\d+ facet="[^"]+"' })
 if ($choices.Count -ne 3) { $failures.Add("run A: expected 3 'HUD runend choice' lines, got $($choices.Count)") }
 # Lane 3C-d: the cards roll over the Warden's content facet pool, so each names a real facet id and its kit ability.
@@ -540,8 +541,8 @@ $ping = First $b.Lines '^HUD ping label=(SPREAD|STACK) '
 if (-not $ping) { $failures.Add('run B: no "HUD ping label=SPREAD|STACK" line') }
 # Lane 3C-d: the solo Warden wipes in the Pair; --pull 2 drops pull 1 from the run's dungeon, and the title still
 # numbers the Pair 2 of 4 (ObjectiveModel numbering), never 1 of 3.
-$runEndB = First $b.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 2 of 4 -- key depleted"$'
-if (-not $runEndB) { $failures.Add("run B: no 'HUD runend ... title=""Party wiped on pull 2 of 4 -- key depleted""' line (got '$(First $b.Lines '^HUD runend result=')')") }
+$runEndB = First $b.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 2 of 4 -- key stays at \+2"$'
+if (-not $runEndB) { $failures.Add("run B: no 'HUD runend ... title=""Party wiped on pull 2 of 4 -- key stays at +2""' line (got '$(First $b.Lines '^HUD runend result=')')") }
 
 # ---- Run C: the three-seat bot party (lane 3H) -------------------------------------------------------------------
 # The human Warden (seat 1) plus a Chanter (healer) and a Cinder (damage) driven by Keyrun.Bots through
@@ -786,10 +787,13 @@ $clearedTitles = 0
 foreach ($t in $titleLines) {
     if ($t -match ' cleared=1 ') {
         $clearedTitles++
-        if ($t -notmatch ' title="Run cleared -- (within par|key depleted)"$') { $failures.Add("a cleared run lost the clear title: '$t'") }
-    } elseif ($t -match '^HUD runend result=depleted ' -and $t -notmatch ' title="Party wiped on pull \d+ of \d+ -- key depleted"$') {
-        $failures.Add("a wiped run's title does not name the pull it was lost on: '$t'")
+        if ($t -notmatch ' title="Run cleared -- (within par|key stays at \+\d+)"$') { $failures.Add("a cleared run lost the clear title: '$t'") }
+    } elseif ($t -match '^HUD runend result=depleted ' -and $t -notmatch ' title="Party wiped on pull \d+ of \d+ -- key stays at \+\d+"$') {
+        $failures.Add("a wiped run's title does not name the pull it was lost on and the key level it keeps: '$t'")
     }
+    # An untimed key keeps its level (Matt 2026-10-20, f-7c7abdf4): no title may say "depleted", which a WoW player
+    # reads as the key losing a level.
+    if ($t -match ' title="[^"]*depleted') { $failures.Add("a run-end title says the key is depleted: '$t'") }
 }
 if ($titleLines.Count -eq 0) { $failures.Add('no "HUD runend result=" line in any autorun (the title checks did not run)') }
 
