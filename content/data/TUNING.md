@@ -93,7 +93,9 @@ loop every 160. The ability cooldown columns above are unchanged.
 Boss and elite slams (values as the data files hold them; `abilities/enemies.json` plus the script telegraphs in
 `enemies/*.json`; ticks at 20 Hz):
 - `seed.slam` (The Seed, elite, 3000 hp): circle shape radius 2000, `range` 0, damage 150 physical, castTicks 20,
-  cooldownTicks 100; script `loop every 100` with telegraph circle radius 2000, leadTicks 20.
+  cooldownTicks 100; script `loop every 100` with telegraph circle radius 2000, leadTicks 20, `spansCast: true`.
+  `seed.lash` (script `at: 50, every: 200`, telegraph circle radius 1500, leadTicks 20) and `hollowWarden.cleave`
+  (telegraph cone radius 4000, angle1024 200, leadTicks 40) also carry `spansCast: true`.
 - `hollowWarden.slam` (The Hollow Warden, boss, 5000 hp): target shape, `range` 3000, damage 150 physical, castTicks 10,
   cooldownTicks 60; script `loop every 300` (see cadences above) with telegraph circle radius 3000, leadTicks 10,
   `spansCast: true`.
@@ -104,6 +106,8 @@ Boss and elite slams (values as the data files hold them; `abilities/enemies.jso
 `spansCast` (SLAM-TELEGRAPH, C# sim only; the frozen TS ignores it and oracle replays clear it): the telegraph resolves
 on the tick the cast lands (fire tick + castTicks) instead of the tick it starts, so with leadTicks 10 = castTicks 10
 the circle appears with the cast bar and resolves with the hit. Without it the circle resolved 10 ticks before the damage.
+Tempo shrinks the lead but not the cast time, so at key 2 Cleave (lead 39, cast 40) and the Seed casts (lead 19, cast
+20) draw their shape one tick after the bar starts; it still stays down until the cast lands.
 
 ## Enemy movement (`// TUNE`)
 

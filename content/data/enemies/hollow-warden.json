@@ -9,7 +9,7 @@
       { "at": "loop", "every": 300, "cast": "hollowWarden.slam",
         "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 10, "spansCast": true } },
       { "at": "loop", "every": 160, "cast": "hollowWarden.cleave",
-        "telegraph": { "shape": "cone", "radius": 4000, "angle1024": 200, "leadTicks": 40 } },
+        "telegraph": { "shape": "cone", "radius": 4000, "angle1024": 200, "leadTicks": 40, "spansCast": true } },
       { "at": "loop", "every": 600, "cast": "hollowWarden.lock" }
     ],
     "breakBars": [
