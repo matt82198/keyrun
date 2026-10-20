@@ -182,6 +182,30 @@ public static class Clauses
         telegraphs.Select(t => DriftTelegraphOrigin(t, rules)).ToList();
 
     /// <summary>
+    /// BIBLE.md:156 "*Tide* (floor patches drift)" (no TS counterpart): under Tide every floor Window in
+    /// <see cref="SimState.FloorWindows"/> shifts +x by driftMmPerTick, the same drift the telegraphs take. Pure: the
+    /// input state is never touched; a copy is returned when anything moves, otherwise the input itself.
+    /// </summary>
+    /// <param name="state">The tick's state (read only).</param>
+    /// <param name="rules">The encounter rules carrying the active Clause.</param>
+    /// <returns>The state with its floor Windows drifted, or <paramref name="state"/> when nothing drifts.</returns>
+    public static SimState DriftFloorWindows(SimState state, EncounterRules rules)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (rules.ActiveClauseKind != ClauseKind.Tide || rules.DriftMmPerTick == 0 || state.FloorWindows.Count == 0)
+        {
+            return state;
+        }
+        var copy = state.Clone();
+        foreach (var key in copy.FloorWindows.Keys.ToList())
+        {
+            var fw = copy.FloorWindows[key];
+            fw.Pos = fw.Pos with { X = fw.Pos.X + rules.DriftMmPerTick };
+        }
+        return copy;
+    }
+
+    /// <summary>
     /// clauses.ts:134 shouldSilence: under Hush, true inside a pulse. The first pulse starts at tick
     /// <c>silenceIntervalTicks</c> (never tick 0) and lasts <c>silenceDurationTicks</c>. Ticks are non-negative, so
     /// <c>%</c> and <c>/</c> match the TS (ORACLE.md section 8: clauses.ts:136-137).
