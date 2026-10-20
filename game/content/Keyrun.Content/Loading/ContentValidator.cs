@@ -46,7 +46,16 @@ public static class ContentValidator
         CheckDungeons(reg);
         CheckFacets(reg);
         CheckRun(reg.Run);
+        CheckHeatOverheat(reg);
         LayoutValidator.Check(reg);
+    }
+
+    private static void CheckHeatOverheat(ContentRegistry reg)
+    {
+        HeatOverheatConfig h = reg.Run.HeatOverheat;
+        if (!reg.Effects.ContainsKey(h.ChillEffectId))
+            Fail("run heatOverheat.chillEffectId \"" + h.ChillEffectId + "\" is not an effect");
+        if (h.ChillTicks <= 0) Fail("run heatOverheat.chillTicks must be positive, got " + h.ChillTicks);
     }
 
     private static void CheckRun(RunConfig run)

@@ -42,6 +42,12 @@ public sealed record RulesConfig
     /// </summary>
     public ICombatClause? Clause { get; init; }
 
+    /// <summary>
+    /// Class id to its Heat/Overheat rule (BIBLE section 5 Cinder), or null for none. Null on every oracle run (the TS
+    /// has no Overheat); a host builds it from content (the heat-overheat class loop max and run.json heatOverheat).
+    /// </summary>
+    public IReadOnlyDictionary<string, OverheatRule>? Overheat { get; init; }
+
     /// <summary>This config with its movement fields taken from <paramref name="movement"/>.</summary>
     /// <param name="movement">The host's validated movement rules.</param>
     /// <returns>A new config.</returns>
@@ -110,7 +116,8 @@ public static class Rules
         return (state, commands, emit) =>
         {
             var hooks = new ClauseHooks(cfg.Clause);
-            var ctx = new CastContext(cfg.Abilities, cfg.Effects, cfg.LockoutTicks) { Hooks = hooks };
+            var noClause = new ClauseHooks(null);
+            var ctx = new CastContext(cfg.Abilities, cfg.Effects, cfg.LockoutTicks) { Hooks = hooks, Overheat = cfg.Overheat };
             var wctx = new WindowsContext(cfg.Effects, combos, fieldCombos, new FloorWindowRegistry(state.FloorWindows), hooks);
 
             foreach (var actor in state.Actors.Values.ToList())
@@ -157,9 +164,11 @@ public static class Rules
                             break;
                         }
                         // Hush silences the party only (BIBLE s8 "save the kicks"; clauses.json "hits the party"):
-                        // an enemy's cast, scripted or not, never sees the silence predicate.
-                        var castHooks = actor.Kind == ActorKind.Player ? hooks : null;
-                        var err = Casting.StartCast(state, actor, def, c.TargetId, c.Point, state.Tick, castHooks);
+                        // an enemy's cast, scripted or not, never sees the silence predicate. Enemies get a
+                        // no-Clause hooks object, not null, so StartCast's `hooks ??= ctx.Hooks` (the Overheat
+                        // context) cannot hand the silence back.
+                        var castHooks = actor.Kind == ActorKind.Player ? hooks : noClause;
+                        var err = Casting.StartCast(state, actor, def, c.TargetId, c.Point, state.Tick, castHooks, ctx);
                         if (err is null && def.CastTicks == 0)
                         {
                             var resolved = Abilities.ResolveVerse(def, actor);
