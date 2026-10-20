@@ -213,14 +213,27 @@ public static class RunWiring
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(encounter);
         ArgumentNullException.ThrowIfNull(events);
-        var anyPlayerDeath = events.Any(e => e.Type == "death" && e.Get("actorId") is JsInt id
-            && id.Value >= int.MinValue && id.Value <= int.MaxValue
-            && state.Actors.TryGetValue((int)id.Value, out var a) && a.Kind == ActorKind.Player);
-        if (!anyPlayerDeath)
+        // MPLUS-DEATH-PENALTY (Matt 2026-10-20, BIBLE s8): as on a Mythic+ timer every player death costs its own
+        // death cost, so two players killed on one tick cost two deaths (the TS reference charged once per tick).
+        // Distinct actor ids, so a repeated death event for one player is still one death.
+        var playerDeaths = events
+            .Where(e => e.Type == "death")
+            .Select(e => e.Get("actorId"))
+            .OfType<JsInt>()
+            .Where(id => id.Value >= int.MinValue && id.Value <= int.MaxValue)
+            .Select(id => (int)id.Value)
+            .Where(id => state.Actors.TryGetValue(id, out var a) && a.Kind == ActorKind.Player)
+            .Distinct()
+            .Count();
+        if (playerDeaths == 0)
         {
             return encounter;
         }
-        var next = Timer.SpendSlackOnDeath(encounter, tick, emit);
+        var next = encounter with { Deaths = encounter.Deaths + playerDeaths };
+        for (var i = 0; i < playerDeaths; i++)
+        {
+            next = Timer.SpendSlackOnDeath(next, tick, emit);
+        }
         if (AllPlayersDead(state))
         {
             next = Timer.SpendSlackOnWipe(next, tick, emit);
