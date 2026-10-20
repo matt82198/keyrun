@@ -36,6 +36,8 @@ public static class Payoff
     /// <param name="effectDefs">Effect definitions.</param>
     /// <param name="emit">Event sink.</param>
     /// <param name="hooks">The step's Clause hooks.</param>
+    /// <param name="overheat">The step's Overheat rules, or null (every oracle run); the combo's removeEffect of the
+    /// Payoff actor's own Chill clears the Payoff actor (<see cref="Combos.ApplyComboEffects"/>).</param>
     /// <returns>The outcome.</returns>
     public static PayoffOutcome TryClosePayoff(
         SimState state,
@@ -44,7 +46,8 @@ public static class Payoff
         ComboTable table,
         IReadOnlyDictionary<string, EffectDef> effectDefs,
         Action<SimEvent> emit,
-        ClauseHooks hooks)
+        ClauseHooks hooks,
+        IReadOnlyDictionary<string, OverheatRule>? overheat = null)
     {
         ArgumentNullException.ThrowIfNull(hooks);
         var now = state.Tick;
@@ -82,7 +85,7 @@ public static class Payoff
             WindowState.SetLastSetupClass(target, payoffActor.ClassId);
             WindowState.ResetLockFailCount(target);
         }
-        hooks.RunAsCombo(() => Combos.ApplyComboEffects(state, payoffActor, target, combo.Effects, effectDefs, emit, hooks.Weighting));
+        hooks.RunAsCombo(() => Combos.ApplyComboEffects(state, payoffActor, target, combo.Effects, effectDefs, emit, hooks.Weighting, overheat));
         emit(new SimEvent(
             now,
             "combo",
