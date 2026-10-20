@@ -345,13 +345,19 @@ public sealed class LockWinnabilityTests
         foreach (var kv in content.EnemyScripts)
         {
             var authored = raw[classOf[kv.Key]];
-            // The id-to-class mapping is right: the two-argument rebuild is exactly what the setup recorded.
-            Assert.Equal(Tempo.ScaleScript(authored, keyLevel), kv.Value);
+            // The id-to-class mapping is right: the two-argument rebuild is exactly what the setup recorded, once
+            // spansCast is cleared the way RunSetup.TsScripts clears it for TS-equal replays (SLAM-TELEGRAPH, #313).
+            // The rebuilt script keeps the authored spansCast, as HostRunSetup does.
+            Assert.Equal(WithoutSpansCast(Tempo.ScaleScript(authored, keyLevel)), kv.Value);
             scripts[kv.Key] = Tempo.ScaleScript(authored, keyLevel, floors);
         }
         var abilities = Tempo.ScaleEnemyCooldowns(content.Abilities, scripts.Values.Concat(boss.Twins.Select(t => t.Script)), keyLevel);
         return content with { Abilities = abilities, EnemyScripts = scripts };
     }
+
+    /// <summary>tools/Keyrun.Replay/RunSetup.cs TsScripts, one script: every spansCast telegraph cleared to false.</summary>
+    private static List<ScriptStep> WithoutSpansCast(IReadOnlyList<ScriptStep> script) =>
+        script.Select(s => s.Telegraph is { SpansCast: true } tg ? s with { Telegraph = tg with { SpansCast = false } } : s).ToList();
 
     private static string RepoFile(params string[] parts)
     {
