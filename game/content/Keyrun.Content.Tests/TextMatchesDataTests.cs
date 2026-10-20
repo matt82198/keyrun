@@ -49,6 +49,9 @@ public sealed class TextMatchesDataTests
 
     private static bool Spreads(AbilityDef p) => p.Tags?.Contains("warcry:multi-target") == true;
 
+    // Resource the ability grants its caster: the sum of its positive resource deltas.
+    private static int Gained(AbilityDef a) => Ops(a).OfType<ResourceOp>().Where(r => r.Delta > 0).Sum(r => r.Delta);
+
     /// <summary>Every rule the walk applies. A text matching a phrase must satisfy that phrase's check.</summary>
     private static readonly Rule[] Rules =
     {
@@ -71,6 +74,11 @@ public sealed class TextMatchesDataTests
         new("instant", Rx(@"instant cast|casts instantly"), (b, p) => p.CastTicks == 0 && b.CastTicks > 0),
         new("faster cast", Rx(@"faster cast"), (b, p) => p.CastTicks < b.CastTicks),
         new("enemy count", Rx(@"extra enemy|other enemy|two (adjacent )?enemies"), (_, p) => Spreads(p)),
+        new("grants resource", Rx(@"burst of \w+|banks (bonus|extra) \w+|refunds (bonus|extra) \w+"), (b, p) => Gained(p) > Gained(b)),
+        // No game system reads a Facet-added tag as a synergy hook: verse-surge, heat-surge and momentum-surge have
+        // no reader in game/sim, game/src, game/content or game/bots, and no Facet or talent patch keys off a tag.
+        // When a system starts reading one, this rule becomes "the added tag has that reader".
+        new("tag synergies", Rx(@"\bsynerg"), (_, _) => false),
         // No content field or tag does these: a Window spread is the Warcry tag's primary plus nearest, and a cast
         // has no release step.
         new("no such mechanic", Rx(@"whole arc|releasing it early|released early"), (_, _) => false),
@@ -168,6 +176,8 @@ public sealed class TextMatchesDataTests
         yield return new object[] { "Strike becomes a cone, catching an extra enemy.", strike, strike with { Shape = new AbilityShape { Kind = ShapeKind.Cone, Radius = 3000, Angle1024 = 90 } } };
         yield return new object[] { "Applies Sundered across the whole arc.", strike, strike };
         yield return new object[] { "Longer cooldown; stronger pulse.", chorus, chorus with { CooldownTicks = 160 } };
+        yield return new object[] { "Chorus grants an extra charge, tagged for Verse synergies.", chorus, ApplyFacet(chorus, new FacetPatch { Charges = chorus.Charges + 1, TagAdd = new ValueList<string>(new[] { "verse-surge" }) }) };
+        yield return new object[] { "Flare also banks bonus Heat.", flare, ApplyFacet(flare, new FacetPatch { TagAdd = new ValueList<string>(new[] { "heat-surge" }) }) };
     }
 
     [Theory]
