@@ -57,9 +57,13 @@ public sealed class TelegraphCancelTests
         return RunRoot.CreateRun(7, party, dungeon, content);
     }
 
-    /// <summary>Steps to <paramref name="until"/>, recording events and the registry left pending after each tick.</summary>
-    private static (List<SimEvent> Events, Dictionary<int, IReadOnlyList<Telegraph>> Pending) Play(Run run, int until, params Command[] commands)
+    /// <summary>
+    /// Steps to <paramref name="until"/>, recording events and the registry left pending after each tick. FirstId is the
+    /// run's NextTelegraphId before the first tick: the registry mints ids consecutively in "telegraph" event order.
+    /// </summary>
+    private static (List<SimEvent> Events, Dictionary<int, IReadOnlyList<Telegraph>> Pending, int FirstId) Play(Run run, int until, params Command[] commands)
     {
+        var firstId = run.Encounter.NextTelegraphId;
         var events = new List<SimEvent>();
         var pending = new Dictionary<int, IReadOnlyList<Telegraph>>();
         while (run.State.Tick < until)
@@ -70,18 +74,22 @@ public sealed class TelegraphCancelTests
             run = stepped.Run;
             pending[tick] = run.Encounter.Telegraphs;
         }
-        return (events, pending);
+        return (events, pending, firstId);
     }
 
     private static long Int(SimEvent e, string key) => e.Get(key) is JsInt v ? v.Value : long.MinValue;
 
     private static string? Str(SimEvent e, string key) => e.Get(key) is JsString s ? s.Value : null;
 
-    /// <summary>The telegraph drawn for <paramref name="cast"/> and the id the registry minted for it.</summary>
-    private static (SimEvent Drawn, int Id) Telegraphed(List<SimEvent> events, Dictionary<int, IReadOnlyList<Telegraph>> pending, string cast)
+    /// <summary>
+    /// The telegraph drawn for <paramref name="cast"/> and the id the registry minted for it: <paramref name="firstId"/>
+    /// plus its index among all "telegraph" events. Read from the event stream, not the registry, because a telegraph
+    /// cancelled on the tick it was drawn is never left pending after any tick.
+    /// </summary>
+    private static (SimEvent Drawn, int Id) Telegraphed(List<SimEvent> events, int firstId, string cast)
     {
         var drawn = Assert.Single(events, e => e.Type == "telegraph" && Str(e, "cast") == cast);
-        var id = pending[drawn.Tick].Single(t => t.AbilityId == cast && t.ResolvesTick == Int(drawn, "resolvesTick")).Id;
+        var id = firstId + events.Where(e => e.Type == "telegraph").ToList().IndexOf(drawn);
         return (drawn, id);
     }
 
@@ -89,9 +97,9 @@ public sealed class TelegraphCancelTests
     /// The cancelled telegraph: exactly one telegraph_cancel for it on <paramref name="cancelTick"/>, naming its caster
     /// and cast; no telegraph_hit for it ever; gone from the registry from that tick on; and its cast never lands.
     /// </summary>
-    private static void AssertCancelled(List<SimEvent> events, Dictionary<int, IReadOnlyList<Telegraph>> pending, string cast, int cancelTick)
+    private static void AssertCancelled(List<SimEvent> events, Dictionary<int, IReadOnlyList<Telegraph>> pending, int firstId, string cast, int cancelTick)
     {
-        var (drawn, id) = Telegraphed(events, pending, cast);
+        var (drawn, id) = Telegraphed(events, firstId, cast);
         var cancels = events.Where(e => e.Type == "telegraph_cancel" && Int(e, "telegraphId") == id).ToList();
         var cancel = Assert.Single(cancels);
         Assert.Equal(cancelTick, cancel.Tick);
@@ -106,10 +114,12 @@ public sealed class TelegraphCancelTests
     }
 
     /// <summary>The telegraph that was NOT cancelled resolves with its cast landing on the same tick.</summary>
-    private static void AssertLands(List<SimEvent> events, Dictionary<int, IReadOnlyList<Telegraph>> pending, string cast)
+    private static void AssertLands(List<SimEvent> events, Dictionary<int, IReadOnlyList<Telegraph>> pending, int firstId, string cast)
     {
-        var (drawn, id) = Telegraphed(events, pending, cast);
+        var (drawn, id) = Telegraphed(events, firstId, cast);
         var resolves = Int(drawn, "resolvesTick");
+        // The id derived from the event stream is the one the registry holds for this cast.
+        Assert.Contains(pending[drawn.Tick], tg => tg.Id == id && tg.AbilityId == cast && tg.ResolvesTick == resolves);
         Assert.DoesNotContain(events, e => e.Type == "telegraph_cancel" && Int(e, "telegraphId") == id);
         Assert.Contains(events, e => e.Type == "telegraph_hit" && Int(e, "telegraphId") == id && e.Tick == resolves);
         Assert.Contains(events, e => e.Type == "cast_complete" && Str(e, "abilityId") == cast && e.Tick == resolves);
@@ -119,18 +129,18 @@ public sealed class TelegraphCancelTests
     public void Kicked_cast_cancels_its_telegraph_on_the_kick_tick()
     {
         var run = BuildRun(At(20, Kickable, 40));
-        var (events, pending) = Play(run, 90, new CastCommand(30, Player, Kick, Enemy));
+        var (events, pending, firstId) = Play(run, 90, new CastCommand(30, Player, Kick, Enemy));
         Assert.Contains(events, e => e.Type == "interrupt" && e.Tick == 30 && Int(e, "targetId") == Enemy);
-        AssertCancelled(events, pending, Kickable, 30);
+        AssertCancelled(events, pending, firstId,Kickable, 30);
     }
 
     [Fact(DisplayName = "A stopped cast's floor telegraph is cancelled on the stop tick and never resolves")]
     public void Stopped_cast_cancels_its_telegraph_on_the_stop_tick()
     {
         var run = BuildRun(At(20, Long, 40));
-        var (events, pending) = Play(run, 90, new StopCastCommand(35, Enemy));
+        var (events, pending, firstId) = Play(run, 90, new StopCastCommand(35, Enemy));
         Assert.Contains(events, e => e.Type == "cast_stopped" && e.Tick == 35 && Int(e, "actorId") == Enemy);
-        AssertCancelled(events, pending, Long, 35);
+        AssertCancelled(events, pending, firstId,Long, 35);
     }
 
     [Fact(DisplayName = "A cast overwritten mid-bar by the same enemy's next cast cancels its telegraph on the overwrite tick")]
@@ -138,9 +148,9 @@ public sealed class TelegraphCancelTests
     {
         // e.long starts on 20 (lands 60); e.short starts on 40 and replaces it (lands 50).
         var run = BuildRun(At(20, Long, 40), At(40, Short, 10));
-        var (events, pending) = Play(run, 90);
-        AssertCancelled(events, pending, Long, 40);
-        AssertLands(events, pending, Short);
+        var (events, pending, firstId) = Play(run, 90);
+        AssertCancelled(events, pending, firstId,Long, 40);
+        AssertLands(events, pending, firstId,Short);
     }
 
     [Fact(DisplayName = "A cast overwritten on the tick it starts cancels its telegraph that same tick")]
@@ -148,18 +158,18 @@ public sealed class TelegraphCancelTests
     {
         // Both fire on 20, short first in script order: e.short starts and e.long replaces it on the same tick.
         var run = BuildRun(At(20, Short, 10), At(20, Long, 40));
-        var (events, pending) = Play(run, 90);
-        AssertCancelled(events, pending, Short, 20);
-        AssertLands(events, pending, Long);
+        var (events, pending, firstId) = Play(run, 90);
+        AssertCancelled(events, pending, firstId,Short, 20);
+        AssertLands(events, pending, firstId,Long);
     }
 
     [Fact(DisplayName = "A cast that runs its whole bar keeps its telegraph and resolves it, with no cancel")]
     public void Uninterrupted_cast_is_never_cancelled()
     {
         var run = BuildRun(At(20, Long, 40), At(100, Kickable, 40));
-        var (events, pending) = Play(run, 160, new CastCommand(150, Player, Kick, Enemy));
+        var (events, pending, firstId) = Play(run, 160, new CastCommand(150, Player, Kick, Enemy));
         Assert.DoesNotContain(events, e => e.Type == "telegraph_cancel");
-        AssertLands(events, pending, Long);
-        AssertLands(events, pending, Kickable);
+        AssertLands(events, pending, firstId,Long);
+        AssertLands(events, pending, firstId,Kickable);
     }
 }
