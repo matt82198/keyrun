@@ -16,6 +16,42 @@ public sealed record RunConfig
 
     /// <summary>The Cinder Heat/Overheat rule's Chill (BIBLE section 5); not in the frozen content/data.</summary>
     public required HeatOverheatConfig HeatOverheat { get; init; }
+
+    /// <summary>The key's Fortified/Tyrannical affixes and the Clause's starting key (BIBLE s8, plan M5).</summary>
+    public required AffixesConfig Affixes { get; init; }
+}
+
+/// <summary>
+/// BIBLE s8 (Matt 2026-10-20, "follow current WoW"): from <see cref="OneAffixKey"/> one of Fortified or Tyrannical is
+/// on and rotates, from <see cref="BothAffixKey"/> both are on, and a key-set Clause runs from
+/// <see cref="ClauseStartKey"/>. The bp values are WoW-derived pending Matt, so they live here as data.
+/// </summary>
+public sealed record AffixesConfig
+{
+    /// <summary>First key with one rotating affix (positive).</summary>
+    public required int OneAffixKey { get; init; }
+
+    /// <summary>First key with both affixes (greater than <see cref="OneAffixKey"/>).</summary>
+    public required int BothAffixKey { get; init; }
+
+    /// <summary>First key that carries a Clause (positive).</summary>
+    public required int ClauseStartKey { get; init; }
+
+    /// <summary>Non-boss enemies' extra health and damage.</summary>
+    public required AffixScaleConfig Fortified { get; init; }
+
+    /// <summary>The boss's and its adds' extra health and damage.</summary>
+    public required AffixScaleConfig Tyrannical { get; init; }
+}
+
+/// <summary>One affix's extra health and damage, basis points (non-negative; 2000 = +20%).</summary>
+public sealed record AffixScaleConfig
+{
+    /// <summary>Extra health, bp.</summary>
+    public required int HealthBp { get; init; }
+
+    /// <summary>Extra damage dealt, bp.</summary>
+    public required int DamageBp { get; init; }
 }
 
 /// <summary>

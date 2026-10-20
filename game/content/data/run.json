@@ -12,5 +12,12 @@
   "heatOverheat": {
     "chillEffectId": "chill",
     "chillTicks": 60
+  },
+  "affixes": {
+    "oneAffixKey": 5,
+    "bothAffixKey": 10,
+    "clauseStartKey": 5,
+    "fortified": { "healthBp": 2000, "damageBp": 3000 },
+    "tyrannical": { "healthBp": 2500, "damageBp": 1500 }
   }
 }

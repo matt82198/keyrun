@@ -98,8 +98,10 @@ public sealed record HostRunSetup(
     /// <param name="humanClassId">The human's class, e.g. "warden".</param>
     /// <param name="withBots">True (default) for the three-seat party: the human plus a bot in every other
     /// <see cref="Roster"/> slot. False for the human's seat alone.</param>
+    /// <param name="rotationIndex">The host's affix rotation index (BIBLE s8: the ISO week, passed in so the setup stays
+    /// deterministic). Its parity picks Fortified or Tyrannical on keys 5-9 (plan M5).</param>
     /// <returns>The setup.</returns>
-    public static HostRunSetup Build(C.ContentRegistry registry, string dungeonId, int keyLevel, string humanClassId, bool withBots = true)
+    public static HostRunSetup Build(C.ContentRegistry registry, string dungeonId, int keyLevel, string humanClassId, bool withBots = true, int rotationIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(registry);
         if (keyLevel < 1)
@@ -115,10 +117,20 @@ public sealed record HostRunSetup(
             throw new InvalidOperationException($"run setup: unknown class \"{humanClassId}\"");
         }
 
-        var abilities = registry.Abilities.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
+        var affixTable = AffixTableOf(registry.Run.Affixes);
+        var affixes = Affixes.AffixesFor(affixTable, keyLevel, rotationIndex);
+        var bossEnemy = Enemy(registry, dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss");
+        var abilities = ScaleEnemyDamage(
+            registry,
+            dungeonDef,
+            bossEnemy,
+            registry.Abilities.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal),
+            Affixes.DamageBp(affixTable, affixes, bossSide: false),
+            Affixes.DamageBp(affixTable, affixes, bossSide: true));
         var effects = registry.Effects.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
         var (combos, fieldCombos) = ToComboTables(registry.Combos.Values, registry.Classes.Keys.ToList(), registry.ComboRiders);
-        var (dungeon, scripts) = ToSimDungeon(registry, dungeonDef, keyLevel);
+        var (dungeon, scripts) = ToSimDungeon(
+            registry, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false), Affixes.HealthBp(affixTable, affixes, bossSide: true));
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
 
         // Lane NAV-CORE (STATE.md D18): the dungeon's rooms and corridors. Pulls stand in their rooms, the party in the
@@ -151,16 +163,73 @@ public sealed record HostRunSetup(
         }.WithMovement(movement);
 
         var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
-        var boss = BuildBossConfig(registry, Enemy(registry, dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss"), keyLevel);
+        var boss = BuildBossConfig(registry, bossEnemy, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: true));
         var botGear = BuildBotGear(registry, party);
         return new HostRunSetup(party, dungeon, content, HumanId, ResolveSlots(classDef), boss)
         {
             Layout = layout,
+            KeyAffixes = affixes,
+            ClauseStartKey = registry.Run.Affixes.ClauseStartKey,
+            RotationIndex = rotationIndex,
             BotGear = botGear,
             BotLoadouts = botGear.ToDictionary(
                 kv => kv.Key,
                 kv => (IReadOnlyDictionary<string, AbilityDef>)kv.Value.Abilities.ToDictionary(a => a.Key, a => ToSim(a.Value), StringComparer.Ordinal)),
         };
+    }
+
+    /// <summary>The key's Fortified/Tyrannical affixes this setup was scaled with (plan M5; the screen shows them).</summary>
+    public KeyAffixes KeyAffixes { get; init; } = KeyAffixes.None;
+
+    /// <summary>The first key that carries a Clause (content run.json affixes.clauseStartKey).</summary>
+    public int ClauseStartKey { get; init; }
+
+    /// <summary>The affix rotation index the setup was built with.</summary>
+    public int RotationIndex { get; init; }
+
+    /// <summary>The sim affix table from content run.json <c>affixes</c> (the values are data, pending Matt).</summary>
+    /// <param name="a">The content block.</param>
+    /// <returns>The table.</returns>
+    public static AffixTable AffixTableOf(C.AffixesConfig a)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        return new AffixTable(
+            new AffixScale(a.Fortified.HealthBp, a.Fortified.DamageBp),
+            new AffixScale(a.Tyrannical.HealthBp, a.Tyrannical.DamageBp),
+            a.OneAffixKey,
+            a.BothAffixKey);
+    }
+
+    /// <summary>
+    /// Plan M5: every enemy ability's damage scaled by its side's affix. The trash side is every ability a pull enemy
+    /// lists or casts; the boss side is the boss's and the Twins' (Tyrannical: "the boss and its adds"). An ability on
+    /// both sides fails closed, since one shared map cannot hold two scales for it.
+    /// </summary>
+    private static Dictionary<string, AbilityDef> ScaleEnemyDamage(
+        C.ContentRegistry registry, C.DungeonDef dungeonDef, C.EnemyDef boss, Dictionary<string, AbilityDef> abilities, int trashBp, int bossBp)
+    {
+        static IEnumerable<string> Casts(C.EnemyDef e) => e.Abilities.Concat(e.Script.Select(s => s.Cast));
+        var trash = dungeonDef.Pulls
+            .SelectMany(p => p.Enemies)
+            .Select(g => Enemy(registry, g.EnemyId, $"pull enemy \"{g.EnemyId}\""))
+            .SelectMany(Casts)
+            .ToHashSet(StringComparer.Ordinal);
+        var bossSide = registry.Enemies.Values
+            .Where(e => e.Id == boss.Id || (e.BreakBarId is { } bar && boss.BreakBars?.Any(b => b.Id == bar) == true))
+            .SelectMany(Casts)
+            .ToHashSet(StringComparer.Ordinal);
+        if (trash.Intersect(bossSide, StringComparer.Ordinal).FirstOrDefault() is { } shared)
+        {
+            throw new InvalidOperationException($"run setup: ability \"{shared}\" is cast by trash and by the boss side; affix damage needs one side");
+        }
+        foreach (var (ids, bp) in new[] { (trash, trashBp), (bossSide, bossBp) })
+        {
+            foreach (var id in ids.Where(abilities.ContainsKey))
+            {
+                abilities[id] = Affixes.ScaleDamage(abilities[id], bp);
+            }
+        }
+        return abilities;
     }
 
     /// <summary>The content layout the setup was placed with (game/content/data/layout.json).</summary>
@@ -274,7 +343,8 @@ public sealed record HostRunSetup(
     /// <exception cref="InvalidOperationException">The boss has not exactly one Break bar, the bar has not exactly two
     /// Twins, an onEmpty op is not applyEffect, or the boss has not exactly one Lock ability with one window and one
     /// applyEffect op.</exception>
-    public static BossConfig BuildBossConfig(C.ContentRegistry registry, C.EnemyDef boss, int keyLevel)
+    /// <param name="twinHealthBp">Tyrannical's health on the Twins, bp (plan M5: "the boss and its adds"); 10000 for none.</param>
+    public static BossConfig BuildBossConfig(C.ContentRegistry registry, C.EnemyDef boss, int keyLevel, int twinHealthBp = 10000)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(boss);
@@ -295,7 +365,7 @@ public sealed record HostRunSetup(
         var twins = twinDefs.Select((def, i) => new BossTwinSpec(
             TwinActorIdStart + i,
             def.Id,
-            Tempo.ScaleHealth(def.MaxHealth, keyLevel),
+            Affixes.ScaleHealth(Tempo.ScaleHealth(def.MaxHealth, keyLevel), twinHealthBp),
             new Vec3(i == 0 ? TwinOffsetMm : -TwinOffsetMm, 0, 0),
             Tempo.ScaleScript(ToSim(def.Script), keyLevel))).ToList();
         var onEmpty = bar.OnEmpty.Select(op => op is C.ApplyEffectOp e
@@ -522,8 +592,9 @@ public sealed record HostRunSetup(
     /// and scripts, and the boss appended as one more pull at <see cref="BossActorId"/>.
     /// </summary>
     private static (DungeonDef Dungeon, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> Scripts) ToSimDungeon(
-        C.ContentRegistry registry, C.DungeonDef dungeonDef, int keyLevel)
+        C.ContentRegistry registry, C.DungeonDef dungeonDef, int keyLevel, int trashHealthBp, int bossHealthBp)
     {
+        // Plan M5: Fortified (trash) and Tyrannical (boss) health on top of Tempo, applied at spawn.
         var nextId = PullActorIdStart;
         var scripts = new SortedDictionary<int, IReadOnlyList<ScriptStep>>();
         var pulls = new List<PullDef>();
@@ -541,7 +612,8 @@ public sealed record HostRunSetup(
                         SpeedMmPerTick = def.SpeedMmPerTick,
                         ChaseMarginMm = def.ChaseMarginMm,
                     };
-                    spawns.Add(Tempo.ScaleSpawn(spawn, keyLevel));
+                    var scaled = Tempo.ScaleSpawn(spawn, keyLevel);
+                    spawns.Add(scaled with { Health = Affixes.ScaleHealth(scaled.Health, trashHealthBp) });
                     scripts[actorId] = Tempo.ScaleScript(ToSim(def.Script), keyLevel);
                 }
             }
@@ -552,7 +624,7 @@ public sealed record HostRunSetup(
         // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon stands it at the arena origin.
         pulls.Add(new PullDef(C.LayoutDef.BossPullId, new[]
         {
-            new PullSpawn(BossActorId, boss.Id, Vec3.Zero, BossYaw, Tempo.ScaleHealth(boss.MaxHealth, keyLevel)),
+            new PullSpawn(BossActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp)),
         }));
         scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel);
         return (new DungeonDef(dungeonDef.Id, pulls), scripts);
