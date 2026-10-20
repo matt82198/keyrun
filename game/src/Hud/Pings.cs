@@ -284,7 +284,9 @@ public partial class Pings : Control
         var view = GetViewport().GetVisibleRect().Size;
         var width = (int)view.X;
         var height = (int)view.Y;
-        var wanted = new List<PixelRect>();
+        var texts = new List<string>();
+        var colors = new List<Color>();
+        var spots = new List<PixelRect>();
         foreach (var call in calls)
         {
             var world = ActorView.ToMetres(call.Pos) + new Vector3(0, call.Source == PingSource.Mark ? 2.6f : 0.3f, 0);
@@ -298,9 +300,17 @@ public partial class Pings : Control
             // Skip a label no pixel of which would show at its spot (a ping well off screen).
             if (HudLayout.Shows(rect, width, height))
             {
-                _labels.Add(new Shown(call.Text, ColorOf(call.Label)));
-                wanted.Add(rect);
+                texts.Add(call.Text);
+                colors.Add(ColorOf(call.Label));
+                spots.Add(rect);
             }
+        }
+        // STACK-PING-LABEL: one label per call per spot (the Pair's casters each raise their own STACK telegraph).
+        var wanted = new List<PixelRect>();
+        foreach (var i in HudLayout.DistinctPings(texts, spots))
+        {
+            _labels.Add(new Shown(texts[i], colors[i]));
+            wanted.Add(spots[i]);
         }
         if (wanted.Count == 0)
         {
