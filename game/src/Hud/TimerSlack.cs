@@ -9,34 +9,40 @@ using SimTimer = Keyrun.Sim.Encounter.Timer;
 
 namespace Keyrun.Hud;
 
-/// <summary>The run timer and the Slack bank as the HUD shows them (Godot-free).</summary>
-/// <param name="SlackTicks">Slack left (<c>Encounter.SlackTicks</c>).</param>
+/// <summary>
+/// The run clock as the HUD shows it (Godot-free). STATE.md D46 (Mythic+): deaths and wipes only add time to the run
+/// clock (<see cref="SimTimer.ClockTicks"/>); the key is timed when that clock finishes within par. The Slack bank
+/// fields stay for the log line, but the bank no longer drains or decides a result.
+/// </summary>
+/// <param name="SlackTicks">Slack left (<c>Encounter.SlackTicks</c>; no longer drains, D46).</param>
 /// <param name="BankTicks">The full bank for this key (<see cref="SimTimer.InitialSlackTicks"/>).</param>
-/// <param name="Depleted">The sim's depleted flag (the bank hit 0 at least once).</param>
+/// <param name="Depleted">The sim's depleted flag (an unrecovered full wipe ended the run).</param>
 /// <param name="RunTimerTicks">Run time so far (<see cref="RunClock.ShownTicks"/>: frozen at the end tick once the run has ended).</param>
 /// <param name="ParTicks">Par (<c>Encounter.ParTicks</c>).</param>
 /// <param name="KeyLevel">The key level.</param>
-public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, int RunTimerTicks, int ParTicks, int KeyLevel)
+/// <param name="PenaltyTicks">Time deaths and wipes have added to the run clock (<c>Encounter.PenaltyTicks</c>, D46).</param>
+/// <param name="Deaths">Player deaths this run (<c>Encounter.Deaths</c>).</param>
+public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, int RunTimerTicks, int ParTicks, int KeyLevel, int PenaltyTicks = 0, int Deaths = 0)
 {
-    /// <summary>Fill fraction of the Slack bar, [0, 1].</summary>
-    public float Fraction => BankTicks <= 0 ? 0f : Math.Clamp((float)SlackTicks / BankTicks, 0f, 1f);
+    /// <summary>The run clock: the run timer plus the time deaths and wipes added (<see cref="SimTimer.ClockTicks"/>).</summary>
+    public long ClockTicks => (long)RunTimerTicks + Math.Max(0, PenaltyTicks);
 
-    /// <summary>True when the run timer is strictly past par (<see cref="SimTimer.IsOverPar"/>).</summary>
-    public bool OverPar => RunTimerTicks > ParTicks;
+    /// <summary>Fill fraction of the bar, [0, 1]: the share of par still left on the run clock.</summary>
+    public float Fraction => ParTicks <= 0 ? 0f : Math.Clamp(1f - ((float)ClockTicks / ParTicks), 0f, 1f);
 
-    /// <summary>The bar label: "Slack 31.0s" or "Slack DEPLETED".</summary>
+    /// <summary>True when the run clock is strictly past par (the key would not be timed).</summary>
+    public bool OverPar => ClockTicks > ParTicks;
+
+    /// <summary>The bar label: "Deaths 3 (+45s)", or "DEPLETED" once a lasting wipe ended the run.</summary>
     public string Label => Depleted
-        ? "Slack DEPLETED"
-        : FormattableString.Invariant($"Slack {SlackTicks / (double)Tick.TickHz:0.0}s");
+        ? "DEPLETED"
+        : FormattableString.Invariant($"Deaths {Deaths} (+{Math.Max(0, PenaltyTicks) / Tick.TickHz}s)");
 
-    /// <summary>The timer label: "+2  0:12 / par 12:00".</summary>
-    public string TimerLabel => FormattableString.Invariant($"+{KeyLevel}  {Clock(RunTimerTicks)} / par {Clock(ParTicks)}");
+    /// <summary>The timer label, on the run clock: "+2  0:57 / par 12:00".</summary>
+    public string TimerLabel => FormattableString.Invariant($"+{KeyLevel}  {Clock((int)Math.Min(int.MaxValue, ClockTicks))} / par {Clock(ParTicks)}");
 
-    /// <summary>
-    /// Fill fraction of the timer strip, [0, 1]: the run timer against par plus the full bank (M1 TIMER-TIERS: the
-    /// run is timed up to par plus the Slack left), so the strip fills at the latest a clean run can still be timed.
-    /// </summary>
-    public float TimerFraction => Span <= 0 ? 0f : Math.Clamp((float)RunTimerTicks / Span, 0f, 1f);
+    /// <summary>Fill fraction of the timer strip, [0, 1]: the run clock against par, so the strip fills at par.</summary>
+    public float TimerFraction => Span <= 0 ? 0f : Math.Clamp((float)ClockTicks / Span, 0f, 1f);
 
     /// <summary>Where the +3 mark sits on the timer strip (60% of par, <see cref="SimTimer.UpgradeThreeParBp"/>).</summary>
     public float PlusThreeMark => Mark(SimTimer.UpgradeThreeParBp);
@@ -44,24 +50,24 @@ public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, 
     /// <summary>Where the +2 mark sits on the timer strip (80% of par, <see cref="SimTimer.UpgradeTwoParBp"/>).</summary>
     public float PlusTwoMark => Mark(SimTimer.UpgradeTwoParBp);
 
-    /// <summary>Where par sits on the timer strip (the +1 band runs from here to par plus the Slack left).</summary>
+    /// <summary>Where par sits on the timer strip (the end of the +1 band).</summary>
     public float ParMark => Mark(10000);
 
     /// <summary>
-    /// The upgrade a finish on this tick would earn (<see cref="SimTimer.UpgradeTier"/>): 3, 2 or 1 while the run is
-    /// still inside par plus the Slack left, 0 once it is not.
+    /// The upgrade a finish on this tick would earn (<see cref="SimTimer.UpgradeTier"/> on the run clock): 3, 2 or 1
+    /// while the clock is within par, 0 once it is not.
     /// </summary>
-    public int PaceTier => !Depleted && RunTimerTicks <= (long)ParTicks + SlackTicks
-        ? SimTimer.UpgradeTier(Keyrun.Sim.Encounter.RunResult.Timed, RunTimerTicks, ParTicks)
+    public int PaceTier => !Depleted && ClockTicks <= ParTicks
+        ? SimTimer.UpgradeTier(Keyrun.Sim.Encounter.RunResult.Timed, ClockTicks, ParTicks)
         : 0;
 
-    private long Span => (long)ParTicks + BankTicks;
+    private long Span => ParTicks;
 
     private float Mark(int parBp) => Span <= 0 ? 0f : Math.Clamp((float)((long)ParTicks * parBp / 10000) / Span, 0f, 1f);
 
-    /// <summary>"HUD slack ticks=620 of=620 depleted=0 timer=0 par=14400".</summary>
+    /// <summary>"HUD slack ticks=620 of=620 depleted=0 timer=0 par=14400 penalty=0 deaths=0".</summary>
     public string LogLine() => FormattableString.Invariant(
-        $"HUD slack ticks={SlackTicks} of={BankTicks} depleted={(Depleted ? 1 : 0)} timer={RunTimerTicks} par={ParTicks}");
+        $"HUD slack ticks={SlackTicks} of={BankTicks} depleted={(Depleted ? 1 : 0)} timer={RunTimerTicks} par={ParTicks} penalty={PenaltyTicks} deaths={Deaths}");
 
     private static string Clock(int ticks)
     {
@@ -77,13 +83,14 @@ public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, 
         ArgumentNullException.ThrowIfNull(run);
         var e = run.Encounter;
         // RUN-TIMER-STOP: RunClock, not State.RunTimerTicks, which StepRun keeps advancing after run_end.
-        return new SlackReading(e.SlackTicks, SimTimer.InitialSlackTicks(e.KeyLevel), e.Depleted, RunClock.ShownTicks(run), e.ParTicks, e.KeyLevel);
+        return new SlackReading(e.SlackTicks, SimTimer.InitialSlackTicks(e.KeyLevel), e.Depleted, RunClock.ShownTicks(run), e.ParTicks, e.KeyLevel, e.PenaltyTicks, e.Deaths);
     }
 }
 
 /// <summary>
-/// The Slack bar (BIBLE s8): the soft time bank in seconds, which a death spends 15 s of and a wipe 25 s, read from the
-/// sim's <c>Encounter.SlackTicks</c>, with the key level and the run timer against par beside it. Top right, beside the objective panel (HudLayout.TopBar).
+/// The run clock bar (STATE.md D46, Mythic+): the share of par left on the run clock and the deaths readout (a death adds
+/// 15 s to the clock, a wipe 25 s more), read from the sim's <c>Encounter.PenaltyTicks</c>/<c>Deaths</c>, with the key
+/// level and the run clock against par beside it. Top right, beside the objective panel (HudLayout.TopBar).
 /// Reads the sim state only.
 /// </summary>
 public partial class TimerSlack : Control
@@ -147,7 +154,7 @@ public partial class TimerSlack : Control
         HudNodes.Text(this, new Vector2(bar.End.X - HudNodes.Width(timer, Font) - 6, bar.End.Y - 3), timer, Font, color);
 
         // M1 TIMER-TIERS: a 3 px timer strip along the bar's bottom edge (inside the slot, so HudClearance is unchanged)
-        // with the +3 (60% of par), +2 (80% of par) and par marks; past par the run is still timed while Slack is left.
+        // with the +3 (60% of par), +2 (80% of par) and par marks, on the run clock (D46: past par the key is not timed).
         var strip = new Rect2(bar.Position.X, bar.End.Y - 3, bar.Size.X, 3);
         DrawRect(new Rect2(strip.Position, new Vector2(strip.Size.X * s.TimerFraction, strip.Size.Y)), color);
         foreach (var mark in new[] { s.PlusThreeMark, s.PlusTwoMark, s.ParMark })
@@ -172,8 +179,8 @@ public partial class TimerSlack : Control
             return;
         }
         var s = SlackReading.Of(run);
-        // Log on a Slack change only (the timer moves every tick).
-        var key = FormattableString.Invariant($"{s.SlackTicks}:{s.Depleted}");
+        // Log on a Slack, death-time or depleted change only (the timer moves every tick).
+        var key = FormattableString.Invariant($"{s.SlackTicks}:{s.PenaltyTicks}:{s.Depleted}");
         if (key != _logged)
         {
             _logged = key;

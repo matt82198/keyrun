@@ -172,18 +172,18 @@ public sealed class OpenSeatWipeTests
         Assert.True(Movement.Contains(Room1, ended.State.Actors[Chanter].Pos), $"no gate: the Chanter walks back into the fought room, at {ended.State.Actors[Chanter].Pos}");
     }
 
-    [Fact(DisplayName = "Open-seat wipe: the wipe pays the full-wipe Slack cost on the last seated death")]
-    public void An_open_seat_wipe_spends_the_wipe_slack()
+    [Fact(DisplayName = "Open-seat wipe: the wipe adds the full-wipe cost to the run clock on the last seated death")]
+    public void An_open_seat_wipe_adds_the_wipe_cost()
     {
+        // D46 (#377): deaths and a wipe only add time to the run clock (EncounterState.PenaltyTicks); nothing drains.
         var opts = new StepRunOpts(OpenSeats: new[] { Chanter });
         var run = WalkInUntilPullStart(CreateThree(), opts, Warden, Cinder);
-        // A bank deep enough that neither spend clamps at 0 (key 1 starts at 600 ticks).
-        const int slackBefore = 5000;
-        run = run with { Encounter = run.Encounter with { SlackTicks = slackBefore } };
+        var penaltyBefore = run.Encounter.PenaltyTicks;
 
         var (killed, _) = Kill(run, opts, Warden, Cinder);
 
-        Assert.Equal(slackBefore - (2 * Timer.DeathSlackCostTicks) - Timer.WipeSlackCostTicks, killed.Encounter.SlackTicks);
+        Assert.Equal(2, killed.Encounter.Deaths - run.Encounter.Deaths);
+        Assert.Equal((2 * Timer.DeathSlackCostTicks) + Timer.WipeSlackCostTicks, killed.Encounter.PenaltyTicks - penaltyBefore);
     }
 
     [Fact(DisplayName = "Open-seat wipe: IsWipe counts only living players who are in the run")]

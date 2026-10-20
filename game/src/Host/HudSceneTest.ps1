@@ -14,8 +14,9 @@
       2. "HUD party seat=1 name=Warden hp=H/400 res=R/M" (the party frame reads the human's health and resource);
       3. "HUD party seat=1 ... DOWNED" after the sim's death event for actor 1 (the DOWNED chip);
       4. "HUD objective pull=1/4 id=choir name="The Choir"" (the current pull's content name);
-      5. "HUD slack ticks=620 of=620" first (Timer.InitialSlackTicks(2) = 600 + 20), then a lower value after the
-         death (the sim spends 300 on a death and 500 on the wipe);
+      5. "HUD slack ticks=620 of=620" first (Timer.InitialSlackTicks(2) = 600 + 20), then a "penalty=N" above 0
+         after the death (STATE.md D46, Mythic+: a death adds 300 to the run clock and the wipe 500 more), with the
+         bank never drained below 620 (deaths no longer spend it);
       6. "HUD runend result=depleted choices=3 cleared=0 ... title="Party wiped on pull 1 of 4 -- key stays at +2"" (the
          sim reports a lasting wipe as "depleted"; the panel must not call it cleared, and names the pull it was lost
          on, numbered as the objective line numbers it: lane 3C-d), three "HUD runend choice n=<1..3> slot=<slot>
@@ -508,8 +509,11 @@ if ($slackLines.Count -eq 0) {
     if ($slackFirst -notmatch '^HUD slack ticks=620 of=620\b') {
         $failures.Add("run A: first Slack line is not the key-2 bank 620 of 620: '$slackFirst'")
     }
-    $slackLower = $slackLines | Where-Object { $_ -match '^HUD slack ticks=(\d+) ' -and [int]$Matches[1] -lt 620 } | Select-Object -First 1
-    if (-not $slackLower) { $failures.Add('run A: Slack never dropped below 620 after the death') }
+    # D46 (Mythic+): the death adds time to the run clock (penalty=) and never drains the bank.
+    $slackLower = $slackLines | Where-Object { $_ -match '\bpenalty=(\d+)\b' -and [int]$Matches[1] -gt 0 } | Select-Object -First 1
+    if (-not $slackLower) { $failures.Add('run A: no "HUD slack ... penalty=N" line above 0 after the death (the death added no time to the run clock)') }
+    $drained = $slackLines | Where-Object { $_ -match '^HUD slack ticks=(\d+) ' -and [int]$Matches[1] -lt 620 } | Select-Object -First 1
+    if ($drained) { $failures.Add("run A: a death drained the Slack bank (D46: deaths only add time to the clock): '$drained'") }
 }
 
 $runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 1 of 4 -- key stays at \+2"$'

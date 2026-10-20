@@ -41,4 +41,18 @@ public static class PlateRule
         int plate = Math.Max(targetHeightMm, ScaledTopMm(nativeHeightMm, scalePermille)) + ClearanceMm;
         return boss ? Math.Min(plate, BossCapMm) : plate;
     }
+
+    /// <summary>
+    /// True when src/View/LabelView.cs draws an over-head name plate for this actor: alive, not the played character,
+    /// and not the enemy the boss unit frame names (f-07f1b477: the boss plate and the Sundered Twin plates beside it
+    /// collided and HudLayout.Separate stacked all three over the boss model; the boss frame already names the boss,
+    /// the plate counterpart of HudDeclutter.OverheadCast). The target frame does not suppress: the target's plate
+    /// carries the "&gt; name &lt;" mark in the world.
+    /// </summary>
+    /// <param name="actorId">The actor.</param>
+    /// <param name="alive">Whether it is alive.</param>
+    /// <param name="human">True for the played character, whose name and health live on the ability bar's meters.</param>
+    /// <param name="bossFrameActorId">The actor the boss unit frame shows this frame (UnitFrameModel), or null.</param>
+    public static bool DrawsOverhead(int actorId, bool alive, bool human, int? bossFrameActorId) =>
+        alive && !human && actorId != bossFrameActorId;
 }

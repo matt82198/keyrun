@@ -11,7 +11,7 @@ namespace Keyrun.Sim.Runs;
 /// The run root's adapters and per-tick host policy (sim/run-wiring.ts). Adapters: the 2C
 /// <see cref="EncounterRules"/> as 2B's <see cref="ICombatClause"/>, <see cref="RunContent"/> as a
 /// <see cref="RulesConfig"/>, AbilityDefs as the encounter's <see cref="ScriptAbility"/> view and break-bar tags.
-/// Policy (P2, policy-inside-stepRun): enemy and damage-role auto-targeting, Slack spend on player death and wipe, and
+/// Policy (P2, policy-inside-stepRun): enemy and damage-role auto-targeting, death and wipe time added to the run clock (D46), and
 /// run-end detection. <see cref="RunRoot"/> is the only production caller.
 /// </summary>
 public static class RunWiring
@@ -200,9 +200,9 @@ public static class RunWiring
     }
 
     /// <summary>
-    /// run-wiring.ts:129 applyDeathsAndWipe: when this tick's events carry a player death, spends the death cost, plus
-    /// the wipe cost when the party has wiped (<see cref="IsWipe"/>), forwarding <c>depleted</c> through
-    /// <paramref name="emit"/>.
+    /// run-wiring.ts:129 applyDeathsAndWipe: each distinct player death in this tick's events adds the death cost to the
+    /// run clock (<see cref="Timer.ChargeDeath"/>), plus the wipe cost when the party has wiped (<see cref="IsWipe"/>,
+    /// D44) (D46). Emits nothing.
     /// </summary>
     /// <param name="state">The post-tick state.</param>
     /// <param name="encounter">The encounter state.</param>
@@ -210,7 +210,7 @@ public static class RunWiring
     /// <param name="tick">The post-step tick.</param>
     /// <param name="emit">Event sink.</param>
     /// <param name="openSeats">Abandoned or unfilled seats' actor ids (<see cref="StepRunOpts.OpenSeats"/>), or null.</param>
-    /// <returns>The encounter after Slack spend (itself when no player died).</returns>
+    /// <returns>The encounter with the deaths charged (itself when no player died).</returns>
     public static EncounterState ApplyDeathsAndWipe(SimState state, EncounterState encounter, IReadOnlyList<SimEvent> events, int tick, Action<SimEvent> emit, IReadOnlyList<int>? openSeats = null)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -232,14 +232,18 @@ public static class RunWiring
         {
             return encounter;
         }
-        var next = encounter with { Deaths = encounter.Deaths + playerDeaths };
+        // D46 (Matt 2026-10-20 "almost exact to wow"): deaths and wipes only add time to the run clock; nothing drains,
+        // so nothing is emitted here (the old Slack bank's "depleted" event is gone). tick and emit keep the host's call shape.
+        _ = tick;
+        _ = emit;
+        var next = encounter;
         for (var i = 0; i < playerDeaths; i++)
         {
-            next = Timer.SpendSlackOnDeath(next, tick, emit);
+            next = Timer.ChargeDeath(next);
         }
         if (IsWipe(state, openSeats))
         {
-            next = Timer.SpendSlackOnWipe(next, tick, emit);
+            next = Timer.ChargeWipe(next);
         }
         return next;
     }

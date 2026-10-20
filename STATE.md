@@ -826,6 +826,16 @@ Additional parked decisions (from the burn ledger):
   - Tank: Warden passive armor 40% (PR #362), tune later.
   - #329 (stuns stop interruptible casts) and #344 (break-bar stagger stops the Twins) both land; #344 is the boss-specific case.
   - #325's held-cast/spansCast behaviour, #357 removing content-pull from the frozen set, and #358's dial-90 seed are accepted.
+- D46 **MPLUS CLOCK ONLY: deaths add time to the run clock; a key times or not purely on that clock** (orchestrator,
+  2026-10-20, from Matt's verbatim "honestly just lean into m+ design heavily while in the dungeon" and "it should feel
+  almost exact to wow"; reversible, tune later). Each player death adds 300 ticks (15 s) to the run clock, counted per
+  player including same-tick deaths (#373); a full wipe adds 500 ticks more. There is no Slack bank that fails the key
+  once drained: a completed run is timed when elapsed plus that added time is within par, and the +2/+3 tiers are
+  measured on the same clock (Timer.ClockTicks, KeyMove.ForRun). An unrecovered full wipe still ends the run depleted.
+  This supersedes BIBLE section 8's Slack bank for the dungeon; the bank constants stay in Timer.cs as tunables. WHY:
+  in WoW Mythic+ a death only costs time, it never fails the key on its own; under the bank, three deaths at +2 (900
+  ticks against a 620-tick bank) depleted a key that was far ahead of par. The HUD bar now reads the run clock and
+  "Deaths N (+Xs)" (TimerSlack.cs). Tune later: the 15 s / 25 s costs and whether the HUD bar keeps its shape.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
