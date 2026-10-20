@@ -19,6 +19,7 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
 - .NET SDK 8.0.426 at `C:/Users/Mattt/.dotnet/dotnet.exe` (not on PATH); `dotnet` on PATH also works.
 - Build: `dotnet build game/Keyrun.sln`
 - Headless tests (no engine): `dotnet test game/Keyrun.sln`
+- Per-step lane check (seconds): `powershell -NoProfile -ExecutionPolicy Bypass -File tools/fastcheck.ps1` builds the solution, then tests only the projects the diff vs origin/main maps to (table in the script; unmapped path = all); `-All` forces every project. Never replaces the full suites or CI.
 - Godot 4.7.2 .NET console binary: `C:/Users/Mattt/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_console.exe`
   (override with `KEYRUN_GODOT`). Lanes call it only through `tools/godot/godot.ps1` or `tools/godot/godot.sh`, which
   also set DOTNET_ROOT.
@@ -42,6 +43,8 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
 
 - No `float`, `double`, `DateTime`, `System.Random` or Godot type in `Keyrun.Sim` or `Keyrun.Content`. Sim state is
   integers (mm, ticks, bp), and the PRNG lives in state. The purity tests (PurityTests.cs) enforce this by reflection.
+  The compiler enforces it first: `sim/Keyrun.Sim/BannedSymbols.txt` (plus `BannedSymbols.Sim.txt`, Sim only) bans
+  Random, clocks, Stopwatch and float math entry points via BannedApiAnalyzers, so a violation is build error RS0030.
 - Rendering converts mm to metres as floats in `src/View/` only.
 - Signed division: use `IntMath.FloorDiv` or `IntMath.TruncDiv`, never a bare `/` on signed values (JS `Math.floor`
   and `Math.trunc` differ on negatives).

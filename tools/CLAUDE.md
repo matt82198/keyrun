@@ -7,6 +7,12 @@ Engine wrapper scripts (godot.ps1 / godot.sh resolve the binary and DOTNET_ROOT)
 export-template installer (install-templates.ps1). Changes here are game-gated: a PR touching tools/godot/**
 needs a green game-e2e run (see tools/ci/).
 
+## tools/fastcheck.ps1
+Per-step lane check: incremental `dotnet build game/Keyrun.sln`, then `dotnet test --no-build` for only the test
+projects the path table at the top of the script maps the diff (vs `git merge-base origin/main HEAD`, plus uncommitted
+and untracked files) to. Fails closed: an unmapped path, a git failure or an empty diff runs all three projects. Exit
+nonzero on any build error or test failure. A speed tool for lanes only; CI game-test still runs the full solution.
+
 ## tools/ci/
 Stdlib-only CI guards. Tests: `python -m unittest discover -s tools/ci -p "test_*.py"` (fixtures live in tempfile
 dirs; no cwd pollution).
