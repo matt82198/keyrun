@@ -43,6 +43,15 @@ public static class Actors
     /// <returns>True while casting.</returns>
     public static bool IsCasting(ActorState actor) => actor.CastId is not null;
 
+    /// <summary>
+    /// The Chanter's verse (BIBLE section 5: "always in Mend or Ward verse"). It is the class loop resource
+    /// (content/data/classes/chanter.json loop "verse", max 1): 1 is Mend, 0 is Ward, the same reading the healer bot
+    /// uses (Keyrun.Bots HealerRole MendVerseValue). An actor starts at full resource, so a Chanter opens in Mend.
+    /// </summary>
+    /// <param name="actor">The actor.</param>
+    /// <returns><see cref="Abilities.MendVerse"/> or <see cref="Abilities.WardVerse"/>.</returns>
+    public static string Verse(ActorState actor) => actor.Resource >= 1 ? Abilities.MendVerse : Abilities.WardVerse;
+
     /// <summary>sim/combat/actors.ts:47-50 reviveActor: alive again at <paramref name="health"/>, or full health.</summary>
     /// <param name="actor">The actor.</param>
     /// <param name="health">Health to revive at; null = maxHealth.</param>
