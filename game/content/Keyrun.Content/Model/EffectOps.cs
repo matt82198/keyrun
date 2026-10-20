@@ -161,6 +161,25 @@ public sealed record CloudOp : EffectOp
 }
 
 /// <summary>
+/// <c>{"op":"closerBurn"}</c>: C#-only combo op (keyrun STATE.md D34, Matt 2026-10-20: closing a Cinderfield burns the
+/// closer, but "as damage scales this will turn into a one shot") that damages the Payoff actor itself by
+/// <see cref="MaxHealthBp"/> of its own max health, through its damage reduction, and never more than
+/// <see cref="CapBp"/> of its max health after every amplifier. Allowed only in combo-riders.json; the validator keeps
+/// <c>0 &lt; maxHealthBp &lt;= capBp &lt; 10000</c>, so the burn alone can never kill a closer at full health.
+/// </summary>
+public sealed record CloserBurnOp : EffectOp
+{
+    /// <summary>Base burn, basis points of the closer's max health, before the Pact and modifiers.</summary>
+    public required int MaxHealthBp { get; init; }
+
+    /// <summary>Hard ceiling, basis points of the closer's max health, after every amplifier.</summary>
+    public required int CapBp { get; init; }
+
+    /// <summary>Damage school tag, e.g. "fire".</summary>
+    public required string School { get; init; }
+}
+
+/// <summary>
 /// One row of the C#-only game/content/data/combo-riders.json: the effects that replace those of combo <see cref="Id"/>
 /// when the host builds its ComboTables. It exists because content/data/combos.json is a frozen oracle root and
 /// cannot carry the BIBLE section 4 party and cloud effects; oracle runs read their own setup and never see a rider.

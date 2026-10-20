@@ -1,0 +1,42 @@
+[
+  {
+    "id": "gear.weapon.t1",
+    "slot": "weapon",
+    "tier": 1,
+    "name": "Plain Blade",
+    "stats": { "damageDoneBp": 300 },
+    "perTier": { "damageDoneBp": 100 }
+  },
+  {
+    "id": "gear.armor.t1",
+    "slot": "armor",
+    "tier": 1,
+    "name": "Quilted Coat",
+    "stats": { "damageTakenBp": -200 },
+    "perTier": { "damageTakenBp": -50 }
+  },
+  {
+    "id": "gear.charm.t1",
+    "slot": "charm",
+    "tier": 1,
+    "name": "Bone Charm",
+    "stats": { "damageDoneBp": 150 },
+    "perTier": { "damageDoneBp": 50 }
+  },
+  {
+    "id": "gear.ring.t1",
+    "slot": "ring",
+    "tier": 1,
+    "name": "Iron Band",
+    "stats": { "damageDoneBp": 150 },
+    "perTier": { "damageDoneBp": 50 }
+  },
+  {
+    "id": "gear.keystone.t1",
+    "slot": "keystone",
+    "tier": 1,
+    "name": "Cracked Keystone",
+    "stats": { "damageTakenBp": -100 },
+    "perTier": { "damageTakenBp": -50 }
+  }
+]

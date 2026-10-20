@@ -145,6 +145,7 @@ internal sealed class EffectOpConverter : JsonConverter<EffectOp>
         ("cloud", typeof(CloudOp)),
         ("damagePct", typeof(DamagePctOp)),
         ("pull", typeof(PullOp)),
+        ("closerBurn", typeof(CloserBurnOp)),
     };
 
     /// <summary>The JSON <c>op</c> name of a concrete op record.</summary>

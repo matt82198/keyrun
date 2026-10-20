@@ -21,7 +21,8 @@
          on, numbered as the objective line numbers it: lane 3C-d), three "HUD runend choice n=<1..3> slot=<slot>
          tier=<t> facet=... ability=warden.<id> charges=<c> id=reward-<slot>-warden.<slot>.<facet>-t<t>-<i>" lines
          (Rewards.RollRewardChoices over the Warden's content facet pool, lane 3C-d: no placeholder "ability-<n>"
-         id), and "HUD runend cause seat=1" lines naming only seat 1's own causes; every "HUD runend result=" line of
+         id), "HUD runend key from=2 to=2 tier=0" (an untimed key holds its level, KeyMove), and "HUD runend cause
+         seat=1" lines naming only seat 1's own causes; every "HUD runend result=" line of
          every autorun (A-G) titles a cleared=1 run "Run cleared -- ..." and a cleared=0 depleted run "Party wiped
          on pull <n> of <total> -- key stays at +<key>" (an untimed key keeps its level: Matt 2026-10-20, f-7c7abdf4;
          "key depleted" is banned from every title) (run C clears the dungeon since lane TUNE-BOSS, so the clear title
@@ -497,6 +498,9 @@ if ($slackLines.Count -eq 0) {
 
 $runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 1 of 4 -- key stays at \+2"$'
 if (-not $runEnd) { $failures.Add("run A: no 'HUD runend result=depleted choices=3 cleared=0 ... title=""Party wiped on pull 1 of 4 -- key stays at +2""' line (got '$(First $a.Lines '^HUD runend result=')')") }
+# Key progression (BIBLE s8, Matt 2026-10-20): the wiped key-2 run holds its key, no depletion drop, and the panel says so.
+$keyLine = First $a.Lines '^HUD runend key from=2 to=2 tier=0$'
+if (-not $keyLine) { $failures.Add("run A: no 'HUD runend key from=2 to=2 tier=0' line (an untimed key holds its level; got '$(First $a.Lines '^HUD runend key ')')") }
 $choices = @($a.Lines | Where-Object { $_ -match '^HUD runend choice n=[123] slot=(weapon|armor|charm|ring|keystone) tier=\d+ facet="[^"]+"' })
 if ($choices.Count -ne 3) { $failures.Add("run A: expected 3 'HUD runend choice' lines, got $($choices.Count)") }
 # Lane 3C-d: the cards roll over the Warden's content facet pool, so each names a real facet id and its kit ability.
@@ -790,7 +794,11 @@ $clearedTitles = 0
 foreach ($t in $titleLines) {
     if ($t -match ' cleared=1 ') {
         $clearedTitles++
-        if ($t -notmatch ' title="Run cleared -- (within par|key stays at \+\d+)"$') { $failures.Add("a cleared run lost the clear title: '$t'") }
+        if ($t -notmatch ' title="Run cleared -- (within par|over par|key stays at \+\d+)"$') { $failures.Add("a cleared run lost the clear title: '$t'") }
+        # RunEndTitle.ForRun (one source with the sim): "within par"/"over par" only for a timed run, "key stays at +N"
+        # only for a depleted (untimed) one.
+        if ($t -match ' title="Run cleared -- (within par|over par)"$' -and $t -notmatch '^HUD runend result=timed ') { $failures.Add("a non-timed clear has a timed title: '$t'") }
+        if ($t -match ' title="Run cleared -- key stays at \+\d+"$' -and $t -notmatch '^HUD runend result=depleted ') { $failures.Add("a timed clear is titled as an untimed key: '$t'") }
     } elseif ($t -match '^HUD runend result=depleted ' -and $t -notmatch ' title="Party wiped on pull \d+ of \d+ -- key stays at \+\d+"$') {
         $failures.Add("a wiped run's title does not name the pull it was lost on and the key level it keeps: '$t'")
     }
