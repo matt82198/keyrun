@@ -80,6 +80,9 @@ public static class PolicyReader
         "reason", "talents", "kicks", "dodge", "defensive", "utility", "hold", "focus", "pull",
     };
 
+    /// <summary>Every top-level field a policy file may hold, sorted (the guide documents each one).</summary>
+    public static IReadOnlyList<string> Fields { get; } = TopLevel.OrderBy(n => n, StringComparer.Ordinal).ToArray();
+
     /// <summary>Reads <paramref name="path"/>.</summary>
     /// <param name="path">The policy JSON file.</param>
     /// <param name="registry">The content it is checked against.</param>
