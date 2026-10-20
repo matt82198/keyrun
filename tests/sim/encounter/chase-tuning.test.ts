@@ -11,6 +11,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { createActor } from "../../../sim/combat/actors";
+import { yawBetween } from "../../../sim/core/fixed";
 import type { AbilityDef } from "../../../sim/combat/abilities";
 import { makeRules, type RulesConfig } from "../../../sim/combat/rules";
 import type { ActorState, SimState } from "../../../sim/encounter/types";
@@ -67,7 +68,10 @@ describe("chase.ts: per-enemy margin", () => {
   function chaseAt(distance: number, margin?: number): number {
     const enemy = { ...walker(), ...(margin !== undefined ? { chaseMarginMm: margin } : {}) };
     const player = createActor({ id: 1, kind: "player", classId: "w", role: "tank", pos: { x: 0, y: 0, z: distance }, maxHealth: 1, maxResource: 0 });
-    return chaseCommands(stateWith([enemy, player]), { 7: [{ at: "loop", every: 40, cast: "swing" }] }, { swing: SWING }).length;
+    // Counts CHASE steps only: since ENEMY-ENGAGE a chaser in reach still emits a zero-direction move that only turns
+    // it to face its target, which is not a step toward it (pinned separately below).
+    return chaseCommands(stateWith([enemy, player]), { 7: [{ at: "loop", every: 40, cast: "swing" }] }, { swing: SWING })
+      .filter((c) => c.kind === "move" && (c.dir.x !== 0 || c.dir.z !== 0)).length;
   }
   it("defaults to CHASE_MARGIN_MM", () => {
     expect(chaseAt(3000 - CHASE_MARGIN_MM)).toBe(0);
@@ -77,6 +81,16 @@ describe("chase.ts: per-enemy margin", () => {
     expect(chaseAt(2900, 100)).toBe(0);
     expect(chaseAt(2901, 100)).toBe(1);
     expect(chaseAt(2600)).toBe(1); // the same gap still chases under the 500 default
+  });
+  it("in reach emits only a turn to face the target (ENEMY-ENGAGE), and nothing once already facing it", () => {
+    const player = createActor({ id: 1, kind: "player", classId: "w", role: "tank", pos: { x: 0, y: 0, z: 1000 }, maxHealth: 1, maxResource: 0 });
+    const scripts = { 7: [{ at: "loop" as const, every: 40, cast: "swing" }] };
+    const face = yawBetween(walker().pos, player.pos);
+    expect(face).not.toBe(walker().yaw);
+    expect(chaseCommands(stateWith([walker(), player]), scripts, { swing: SWING })).toEqual([
+      { tick: 0, actorId: 7, kind: "move", dir: { x: 0, z: 0 }, yaw: face },
+    ]);
+    expect(chaseCommands(stateWith([{ ...walker(), yaw: face }, player]), scripts, { swing: SWING })).toEqual([]);
   });
 });
 
