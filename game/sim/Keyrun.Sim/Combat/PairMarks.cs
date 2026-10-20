@@ -109,7 +109,61 @@ public static class PairMarks
     public static List<MarkRing> Rings(SimState state, MarkRules? rules)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return new List<MarkRing>();
+        var rings = new List<MarkRing>();
+        if (rules is null)
+        {
+            return rings;
+        }
+        var spreadStrokes = SpreadStrokes(rules.SpreadRadiusMm);
+        var stackStrokes = new[]
+        {
+            new MarkStroke(rules.StackRadiusMm, 0, 1000),
+            new MarkStroke(IntMath.FloorDiv(rules.StackRadiusMm, 2), 0, 1000),
+        };
+        foreach (var actor in state.Actors.Values)
+        {
+            if (!actor.Alive)
+            {
+                continue;
+            }
+            if (NextEnd(actor, rules.SpreadEffectId, state.Tick) is int spreadEnds)
+            {
+                rings.Add(new MarkRing(actor.Id, MarkKind.Spread, rules.SpreadRadiusMm, spreadEnds, spreadStrokes));
+            }
+            if (NextEnd(actor, rules.StackEffectId, state.Tick) is int stackEnds)
+            {
+                rings.Add(new MarkRing(actor.Id, MarkKind.Stack, rules.StackRadiusMm, stackEnds, stackStrokes));
+            }
+        }
+        return rings;
+    }
+
+    // The earliest end tick among the actor's live instances of the effect (EndsTick >= now), or null for none.
+    private static int? NextEnd(ActorState actor, string effectId, int now)
+    {
+        int? end = null;
+        foreach (var e in actor.Effects)
+        {
+            if (e.EffectId == effectId && e.EndsTick >= now && (end is null || e.EndsTick < end))
+            {
+                end = e.EndsTick;
+            }
+        }
+        return end;
+    }
+
+    // SpreadDashes equal dashes, each half its 1/SpreadDashes slot, the first starting at 12 o'clock.
+    private static IReadOnlyList<MarkStroke> SpreadStrokes(long radiusMm)
+    {
+        // 8 dashes: a 125-permille slot each, the dash 62 of it (no signed division in the sim).
+        const int slot = 125;
+        const int dash = 62;
+        var strokes = new List<MarkStroke>(SpreadDashes);
+        for (var i = 0; i < SpreadDashes; i++)
+        {
+            strokes.Add(new MarkStroke(radiusMm, i * slot, (i * slot) + dash));
+        }
+        return strokes;
     }
 
     /// <summary>Dashes in a spread ring.</summary>

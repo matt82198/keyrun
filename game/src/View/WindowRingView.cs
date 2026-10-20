@@ -26,6 +26,10 @@ public partial class WindowRingView : Node3D
     private const float RingWidthM = 0.12f;
     private const int Segments = 48;
 
+    // The SPREAD and STACK status-chip colours (client/src/render/status-chips.ts #cc79a7, #56b4e9).
+    private static readonly Color SpreadMarkColor = new(0.8f, 0.475f, 0.655f, 0.85f);
+    private static readonly Color StackMarkColor = new(0.337f, 0.706f, 0.914f, 0.85f);
+
     private readonly Dictionary<string, int> _openedAt = new(StringComparer.Ordinal);
     private readonly HashSet<string> _seen = new(StringComparer.Ordinal);
     private readonly List<string> _stale = new();
@@ -152,6 +156,24 @@ public partial class WindowRingView : Node3D
             var key = FormattableString.Invariant($"f{windowId}:{patch.SetupActorId}:{patch.EndsTick}");
             var left = Remaining(key, state.Tick, patch.EndsTick, now);
             DrawBand(ActorView.ToMetres(patch.Pos), patch.RadiusMm * 0.001f, RingWidthM * 1.5f, left, BandOf(patch.SetupClass, floor: true), 750, ColorOf(windowId));
+        }
+
+        // PAIR-MARKS (BIBLE s3, shape plus colour): each marked player carries its mark's damage radius on the floor
+        // from landing to resolution. The shape comes from the sim (PairMarks.Rings): spread a dashed ring, stack two
+        // solid concentric rings; the colour matches the SPREAD/STACK status chips.
+        foreach (var ring in PairMarks.Rings(state, Driver.Run?.Content.Marks))
+        {
+            if (!state.Actors.TryGetValue(ring.ActorId, out var marked))
+            {
+                continue;
+            }
+            var before = Driver.PreviousState.Actors.TryGetValue(ring.ActorId, out var prev) ? prev : marked;
+            var centre = ActorView.ToMetres(before.Pos).Lerp(ActorView.ToMetres(marked.Pos), Driver.Alpha);
+            var color = ring.Kind == MarkKind.Spread ? SpreadMarkColor : StackMarkColor;
+            foreach (var stroke in ring.Strokes)
+            {
+                Strip(centre, stroke.RadiusMm * 0.001f, RingWidthM * 1.5f, stroke.FromPermille / 1000f, stroke.ToPermille / 1000f, color);
+            }
         }
 
         _stale.Clear();
