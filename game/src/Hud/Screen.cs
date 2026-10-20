@@ -61,6 +61,7 @@ public partial class Screen : Control
 
     private SimDriver? _driver;
     private Progression _progression = Progression.Start(1);
+    private ProgressionStore? _store;
     private ScreenState? _state;
     private string? _selected;
     private bool _banked;
@@ -144,7 +145,7 @@ public partial class Screen : Control
         _driver = HudNodes.FindDriver(this, DriverPath);
         if (_driver is not null)
         {
-            _progression = Progression.Start(_driver.Options.Seed);
+            LoadProgression(_driver.Options.Seed);
             _driver.Stepped += OnStepped;
             _driver.RunStarted += OnRunStarted;
         }
@@ -338,6 +339,10 @@ public partial class Screen : Control
         var right = queueBox.Position.X + caption.Max(line => HudNodes.Width(line, SmallFont));
         Proof(FormattableString.Invariant(
             $"SCREEN fit caption lines={caption.Count} right={Math.Ceiling(right)} viewport={Math.Floor(design.X)}"));
+        if (taken is not null)
+        {
+            SaveProgression("take"); // the reward is equipped: keep it before anything else can end the launch
+        }
     }
 
     private void Close()
@@ -467,6 +472,10 @@ public partial class Screen : Control
             ? FormattableString.Invariant($"SCREEN reroll slot={slot} ok=1 facet={result.Item.Facet.Id} charges={result.Item.Charges}")
             : FormattableString.Invariant($"SCREEN reroll slot={slot} ok=0 charges={result.Item.Charges} refused=\"{result.Refusal}\""));
         ProofItem(slot);
+        if (result.Ok)
+        {
+            SaveProgression("reroll"); // after the item line: ScreenSceneTest reads the line right after each reroll
+        }
     }
 
     private void Queue()
@@ -496,6 +505,7 @@ public partial class Screen : Control
         _banked = true;
         _progression = _progression.BankRun(result);
         Proof(FormattableString.Invariant($"SCREEN bank result={result.ToJs()} ash={Ash.ForResult(result)} total={_progression.AshTotal}"));
+        SaveProgression("bank");
         if (_driver.Options.Autorun)
         {
             _autorunStep = 0;
@@ -542,6 +552,49 @@ public partial class Screen : Control
         {
             HudNodes.Proof(_driver, line);
         }
+    }
+
+    // BIBLE s7 persistence (lane PROGRESSION-SAVE): the banked progression is loaded once per launch and saved after
+    // every change that keeps (the bank, a reward take, a reroll). ProgressionSavePlace picks the directory: user://
+    // in the interactive game, --progression-dir when given, and nowhere for a headless run without it (scene tests
+    // and CI never touch the real save). With no store this is exactly the old Progression.Start, and nothing prints.
+    private void LoadProgression(long seed)
+    {
+        var dir = Keyrun.Content.ProgressionSavePlace.Directory(
+            OS.GetCmdlineUserArgs(), DisplayServer.GetName() == "headless", ProjectSettings.GlobalizePath("user://"));
+        if (dir is null)
+        {
+            _progression = Progression.Start(seed);
+            return;
+        }
+        _store = new ProgressionStore(dir);
+        _progression = _store.Load(seed);
+        Proof(FormattableString.Invariant(
+            $"SCREEN progression load store=1 ash={_progression.AshTotal} runs={_progression.Runs} items={EquippedText()} path=\"{_store.FilePath}\""));
+    }
+
+    private void SaveProgression(string reason)
+    {
+        if (_store is null)
+        {
+            return;
+        }
+        var ok = _store.Save(_progression);
+        Proof(FormattableString.Invariant(
+            $"SCREEN progression save reason={reason} ok={(ok ? 1 : 0)} ash={_progression.AshTotal} runs={_progression.Runs} items={EquippedText()}"));
+    }
+
+    private string EquippedText()
+    {
+        var parts = Rewards.GearSlots
+            .Where(slot => _progression.Equipped.ContainsKey(slot))
+            .Select(slot =>
+            {
+                var item = _progression.Equipped[slot];
+                return FormattableString.Invariant($"{slot}:t{item.Tier}:{item.Facet.Id}:c{item.Charges}");
+            })
+            .ToList();
+        return parts.Count == 0 ? "none" : string.Join(",", parts);
     }
 
     private void ProofItem(string slot)
