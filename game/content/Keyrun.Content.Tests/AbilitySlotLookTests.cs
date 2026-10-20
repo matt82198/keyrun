@@ -102,4 +102,61 @@ public sealed class AbilitySlotLookTests
         Assert.True(AbilitySlotLook.ShowsOutOfRange(new RangeTarget(Alive: true, Hostile: true, RangeMm: Far), hostileAbility: true, AbilityRange));
         Assert.False(AbilitySlotLook.ShowsOutOfRange(new RangeTarget(Alive: false, Hostile: true, RangeMm: Far), hostileAbility: true, AbilityRange));
     }
+
+    // Finding f-4e8c87b7: the red icon alone (colour only) left the player guessing why a slot was red. The range
+    // decision now comes from one pure function, AbilitySlotLook.ForRange, whose result the icon tint, the edge and an
+    // "out of range" caption all read (shape plus colour, BIBLE s3). Pinned at the exact boundary.
+    private static SlotRangeLook Look(RangeTarget? target) => AbilitySlotLook.ForRange(target, hostileAbility: true, AbilityRange);
+
+    [Fact]
+    public void Target_exactly_at_range_shows_no_tint_and_no_caption()
+    {
+        var look = Look(new RangeTarget(Alive: true, Hostile: true, RangeMm: AbilityRange));
+        Assert.False(look.OutOfRange);
+        Assert.Null(look.Caption);
+        Assert.Equal(AbilitySlotLook.IconTint, look.IconModulate);
+    }
+
+    [Fact]
+    public void Target_one_mm_past_range_shows_red_icon_and_out_of_range_caption()
+    {
+        var look = Look(new RangeTarget(Alive: true, Hostile: true, RangeMm: AbilityRange + 1));
+        Assert.True(look.OutOfRange);
+        Assert.Equal(AbilitySlotLook.OutOfRangeTint, look.IconModulate);
+        Assert.Equal("out of range", look.Caption);
+        Assert.Equal(AbilitySlotLook.SlotEdge, look.Edge); // the reason reads on icon + caption, never a red border
+    }
+
+    [Fact]
+    public void No_target_shows_no_tint_and_no_caption()
+    {
+        var look = Look(null);
+        Assert.False(look.OutOfRange);
+        Assert.Null(look.Caption);
+        Assert.Equal(AbilitySlotLook.IconTint, look.IconModulate);
+    }
+
+    [Fact]
+    public void Caption_and_tint_never_disagree()
+    {
+        // Every state the bar can draw: the caption is present exactly when the icon is red.
+        var targets = new RangeTarget?[]
+        {
+            null,
+            new RangeTarget(true, true, AbilityRange),
+            new RangeTarget(true, true, AbilityRange + 1),
+            new RangeTarget(false, true, Far),
+            new RangeTarget(true, false, Far),
+        };
+        foreach (var target in targets)
+        {
+            foreach (var runOver in new[] { false, true })
+            {
+                var look = AbilitySlotLook.ForRange(target, hostileAbility: true, AbilityRange, runOver);
+                Assert.Equal(look.OutOfRange, look.Caption is not null);
+                Assert.Equal(look.OutOfRange, look.IconModulate == AbilitySlotLook.OutOfRangeTint);
+                Assert.Equal(AbilitySlotLook.ShowsOutOfRange(target, hostileAbility: true, AbilityRange, runOver), look.OutOfRange);
+            }
+        }
+    }
 }
