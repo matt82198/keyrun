@@ -59,7 +59,8 @@ public sealed record RulesConfig
 /// <item>Run the tick's commands in order: target, stopcast, move/dash, cast (an instant cast completes now, then
 /// its Windows and Payoff). A dead actor's commands are dropped except cast (the onDeath DEATH-CAST EXCEPTION).</item>
 /// <item>Push live actors apart, then clamp every actor to the bounds.</item>
-/// <item>Per actor: due periodic ticks, Window expiries, then the generic effect expiry; then floor expiries.</item>
+/// <item>Per actor: due periodic ticks, Window expiries, then the generic effect expiry; then floor expiries, then
+/// the C#-only combo clouds (<see cref="Combos.TickClouds"/>; none on an oracle run).</item>
 /// </list>
 /// The rules never advance state.Tick; <see cref="Core.Tick.Step"/> owns the tick.
 /// </summary>
@@ -196,6 +197,7 @@ public static class Rules
                 Effects.ExpireEffects(actor, state.Tick);
             }
             Windows.CheckFloorExpiries(state, wctx.Floor, emit);
+            Combos.TickClouds(state, cfg.Effects);
         };
     }
 

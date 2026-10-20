@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Combat;
@@ -18,6 +19,27 @@ public sealed record ComboDef(string Id, IReadOnlyList<EffectOp> Effects);
 /// </summary>
 /// <param name="ComboTable">Table name; <see cref="Abilities.OpKindErrors"/> rejects any other.</param>
 public sealed record ComboOp(string ComboTable) : EffectOp;
+
+/// <summary>
+/// <c>{op:"partyEffect"}</c>: a combo op that applies <paramref name="EffectId"/> to every living actor of the Payoff
+/// actor's faction (BIBLE section 4 Anthem: "Party gains 15% haste for 6 s."), not to the Window's carrier. C#-only
+/// (game/content/data/combo-riders.json); the frozen TS sim has no such op, so no oracle run carries it.
+/// </summary>
+/// <param name="EffectId">Effect id, e.g. "hasted".</param>
+/// <param name="DurationTicks">Duration.</param>
+/// <param name="Stacks">Stacks applied.</param>
+public sealed record PartyEffectOp(string EffectId, int DurationTicks, long Stacks) : EffectOp;
+
+/// <summary>
+/// <c>{op:"cloud"}</c>: a combo op that opens a <see cref="FloorCloud"/> centred on the Window's carrier (BIBLE section 4
+/// Steam: "a cloud that blinds enemies inside ... for 4 s"). While it lasts, each living enemy of the Payoff actor inside
+/// it carries <paramref name="EffectId"/> until the cloud ends (<see cref="Combos.TickClouds"/>). C#-only, like
+/// <see cref="PartyEffectOp"/>.
+/// </summary>
+/// <param name="EffectId">Effect id, e.g. "blinded".</param>
+/// <param name="DurationTicks">Cloud lifetime.</param>
+/// <param name="RadiusMm">Cloud radius, mm.</param>
+public sealed record CloudOp(string EffectId, int DurationTicks, long RadiusMm) : EffectOp;
 
 /// <summary>
 /// [setupClass][payoffClass] -&gt; ComboDef (sim/combat/combos.ts:34 ComboTable). Lookup-only: nothing iterates it,
@@ -68,7 +90,8 @@ public static class Combos
     /// <paramref name="target"/> (the Window's carrier): damage through mitigation (with the Pact weighting the
     /// caller passes; Payoff.cs passes the hooks' weighting inside RunAsCombo), heal, applyEffect, removeEffect
     /// ("*" = dispel), resource (credited to the Payoff actor), threat. interrupt, window, payoff and combo ops are
-    /// no-ops: combos do not chain.
+    /// no-ops: combos do not chain. C#-only: partyEffect applies to every living actor of the Payoff actor's faction,
+    /// and cloud opens a <see cref="FloorCloud"/> on the carrier (BIBLE section 4 Anthem and Steam).
     /// </summary>
     /// <param name="state">Sim state.</param>
     /// <param name="source">The Payoff actor.</param>
@@ -118,7 +141,69 @@ public static class Combos
                 case ThreatOp t:
                     Threat.AddThreat(target, source.Id, t.Amount ?? 0, t.MultiplierBp);
                     break;
+                case PartyEffectOp p:
+                    if (effectDefs.TryGetValue(p.EffectId, out var partyDef))
+                    {
+                        foreach (var member in state.Actors.Values)
+                        {
+                            if (member.Alive && member.Kind == source.Kind)
+                            {
+                                Effects.ApplyEffectInstance(member, partyDef, source.Id, p.DurationTicks, p.Stacks, state.Tick);
+                            }
+                        }
+                    }
+                    break;
+                case CloudOp c:
+                    OpenCloud(state, source, target, c, effectDefs);
+                    break;
             }
+        }
+    }
+
+    /// <summary>
+    /// Advances every open <see cref="FloorCloud"/> one step: a cloud whose end tick has come is removed; each other
+    /// cloud gives its effect, ending at the cloud's end, to every living actor of another faction standing inside it.
+    /// Rules.Make calls it once per step after floor expiries; on an oracle run there are no clouds, so it does nothing.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <param name="effectDefs">Effect definitions.</param>
+    public static void TickClouds(SimState state, IReadOnlyDictionary<string, EffectDef> effectDefs)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(effectDefs);
+        state.FloorClouds.RemoveAll(c => c.EndsTick <= state.Tick);
+        foreach (var cloud in state.FloorClouds)
+        {
+            ApplyCloud(state, cloud, effectDefs);
+        }
+    }
+
+    private static void OpenCloud(SimState state, ActorState source, ActorState target, CloudOp op, IReadOnlyDictionary<string, EffectDef> effectDefs)
+    {
+        var cloud = new FloorCloud
+        {
+            Id = op.EffectId + ":" + source.Id + ":" + state.Tick,
+            EffectId = op.EffectId,
+            SourceId = source.Id,
+            SourceKind = source.Kind,
+            Pos = target.Pos,
+            RadiusMm = op.RadiusMm,
+            EndsTick = state.Tick + op.DurationTicks,
+        };
+        state.FloorClouds.Add(cloud);
+        ApplyCloud(state, cloud, effectDefs);
+    }
+
+    private static void ApplyCloud(SimState state, FloorCloud cloud, IReadOnlyDictionary<string, EffectDef> effectDefs)
+    {
+        if (cloud.EndsTick <= state.Tick || !effectDefs.TryGetValue(cloud.EffectId, out var def))
+        {
+            return;
+        }
+        var enemies = state.Actors.Values.Where(a => a.Alive && a.Kind != cloud.SourceKind).ToList();
+        foreach (var id in Targeting.InCircle(cloud.Pos, cloud.RadiusMm, enemies))
+        {
+            Effects.ApplyEffectInstance(state.Actors[id], def, cloud.SourceId, cloud.EndsTick - state.Tick, 1, state.Tick);
         }
     }
 }
