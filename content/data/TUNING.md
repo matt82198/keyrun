@@ -95,10 +95,15 @@ Boss and elite slams (values as the data files hold them; `abilities/enemies.jso
 - `seed.slam` (The Seed, elite, 3000 hp): circle shape radius 2000, `range` 0, damage 150 physical, castTicks 20,
   cooldownTicks 100; script `loop every 100` with telegraph circle radius 2000, leadTicks 20.
 - `hollowWarden.slam` (The Hollow Warden, boss, 5000 hp): target shape, `range` 3000, damage 150 physical, castTicks 10,
-  cooldownTicks 60; script `loop every 300` (see cadences above) with telegraph circle radius 3000, leadTicks 10.
+  cooldownTicks 60; script `loop every 300` (see cadences above) with telegraph circle radius 3000, leadTicks 10,
+  `spansCast: true`.
 - `twins.slam` (Sundered Twin A, elite, 1000 hp; Twin B shares the ability): target shape, `range` 3000, damage 90
   physical, castTicks 10, cooldownTicks 60; script `loop every 400` (see cadences above) with telegraph circle
-  radius 3000, leadTicks 10 (Twin A's script).
+  radius 3000, leadTicks 10, `spansCast: true` (both Twins' scripts).
+
+`spansCast` (SLAM-TELEGRAPH, C# sim only; the frozen TS ignores it and oracle replays clear it): the telegraph resolves
+on the tick the cast lands (fire tick + castTicks) instead of the tick it starts, so with leadTicks 10 = castTicks 10
+the circle appears with the cast bar and resolves with the hit. Without it the circle resolved 10 ticks before the damage.
 
 ## Enemy movement (`// TUNE`)
 

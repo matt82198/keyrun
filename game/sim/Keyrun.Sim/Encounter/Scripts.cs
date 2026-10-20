@@ -14,7 +14,8 @@ public sealed record StepEnemyScriptsResult(IReadOnlyList<Command> Commands, IRe
 /// Enemy behaviour as data-driven state machines (sim/encounter/scripts.ts). Each tick, for every scripted actor in
 /// ascending id order and each step in script order: a living actor casts when the step fires on this tick, and
 /// announces the step's telegraph <c>leadTicks</c> ahead, with origin and yaw snapshotted from the caster now and
-/// <c>resolvesTick</c> on the cast tick. An onDeath step fires once, the first call that sees its actor dead (one
+/// <c>resolvesTick</c> on the cast tick (a <see cref="TelegraphSpec.SpansCast"/> telegraph: on the tick the cast lands,
+/// <see cref="SpanTicks"/>). An onDeath step fires once, the first call that sees its actor dead (one
 /// tick after the death event), with its telegraph on that same tick; the fire-once guarantee rides on
 /// <see cref="StepEnemyScriptsResult.FiredOnDeath"/>. Chase moves follow the casts.
 /// </summary>
@@ -112,6 +113,15 @@ public static class Scripts
 
     private static readonly IReadOnlyDictionary<string, ScriptAbility> NoAbilities = new Dictionary<string, ScriptAbility>();
 
+    /// <summary>
+    /// SLAM-TELEGRAPH: how far past the fire tick a telegraph resolves. A <see cref="TelegraphSpec.SpansCast"/>
+    /// telegraph resolves when its cast lands (the ability's cast time; 0 when the ability is unknown), so it is
+    /// announced on the tick <c>fire + castTicks - leadTicks</c> and its <c>resolvesTick</c> (announce + lead) is the
+    /// landing tick. Any other telegraph resolves on the fire tick (0), as scripts.ts does.
+    /// </summary>
+    private static int SpanTicks(ScriptStep step, TelegraphSpec tg, IReadOnlyDictionary<string, ScriptAbility> abilities) =>
+        tg.SpansCast && abilities.TryGetValue(step.Cast, out var ability) ? System.Math.Max(0, ability.CastTicks) : 0;
+
     /// <summary>scripts.ts:139 stepEnemyScripts (rules in the class summary). Never mutates <paramref name="state"/>.</summary>
     /// <param name="state">The tick's state.</param>
     /// <param name="scripts">Actor id to script.</param>
@@ -181,7 +191,7 @@ public static class Scripts
                 {
                     commands.Add(cast);
                 }
-                if (step.Telegraph is { } tg && FiresAt(step, tick + tg.LeadTicks))
+                if (step.Telegraph is { } tg && FiresAt(step, tick + tg.LeadTicks - SpanTicks(step, tg, abil)))
                 {
                     telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, tg));
                 }
