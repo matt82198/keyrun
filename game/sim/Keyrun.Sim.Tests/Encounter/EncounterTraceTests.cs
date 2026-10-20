@@ -65,7 +65,10 @@ public sealed class EncounterTraceTests
         var setup = EncounterTestKit.Setup(OracleRun.SetupNameOf(trace));
         var content = (JsObject)setup.Get("content")!;
         var dungeon = EncounterJson.ParseDungeon(setup.Get("dungeon")!);
-        var scripts = EncounterJson.ParseScripts(content.Get("enemyScripts")!);
+        // A frozen-TS replay, as RunSetup loads one: the TS drew every scheduled telegraph (TelegraphSpec.TsUnchecked).
+        var scripts = EncounterJson.ParseScripts(content.Get("enemyScripts")!).ToDictionary(
+            kv => kv.Key,
+            kv => (IReadOnlyList<ScriptStep>)kv.Value.Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { TsUnchecked = true } } : s).ToList());
         var abilities = EncounterJson.ParseAbilities(content.Get("abilities")!);
         var keyLevel = OracleRun.KeyLevel(setup);
         var records = OracleRun.Records(trace);
@@ -130,24 +133,30 @@ public sealed class EncounterTraceTests
                 tally.OnDeathCasts++;
             }
 
-            // Apply the oracle's own outcome of this step: deaths, then the pull spawn, then Slack.
-            var playerDeath = false;
+            // Apply the oracle's own outcome of this step: deaths, then the pull spawn, then death and wipe time (D46).
+            var playerDeaths = new HashSet<int>();
             foreach (var e in r.Events.Where(e => e.Type == "death"))
             {
                 var victim = state.Actors[(int)((JsInt)e.Get("actorId")!).Value];
                 victim.Alive = false;
-                playerDeath |= victim.Kind == ActorKind.Player;
+                if (victim.Kind == ActorKind.Player)
+                {
+                    playerDeaths.Add(victim.Id);
+                }
             }
             foreach (var a in spawned)
             {
                 state.Actors[a.Id] = a;
             }
-            if (playerDeath)
+            if (playerDeaths.Count > 0)
             {
-                encounter = Timer.SpendSlackOnDeath(encounter, r.T, ours.Add);
+                foreach (var _ in playerDeaths)
+                {
+                    encounter = Timer.ChargeDeath(encounter);
+                }
                 if (state.Actors.Values.Where(a => a.Kind == ActorKind.Player).All(a => !a.Alive))
                 {
-                    encounter = Timer.SpendSlackOnWipe(encounter, r.T, ours.Add);
+                    encounter = Timer.ChargeWipe(encounter);
                 }
             }
 

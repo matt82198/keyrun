@@ -111,6 +111,38 @@ public sealed record Progression
     /// <summary>The last banked run, or null before the first.</summary>
     public RunDelta? LastRun { get; init; }
 
+    /// <summary>
+    /// The talent build picked on the screen (BIBLE s6; f-83c5e369): forked ability id to picked option id, in ordinal
+    /// key order, empty when nothing is picked. The sim keeps only the ids; the content layer (Keyrun.Content
+    /// TalentPicks.Restore) checks them against the class's forks.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Talents { get; init; } = new SortedDictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// This progression with the screen's talent build replaced by <paramref name="choices"/> (a free respec is an
+    /// empty set). Stored in ordinal key order, so the save text does not depend on pick order.
+    /// </summary>
+    /// <param name="choices">Ability id to option id.</param>
+    /// <returns>The progression.</returns>
+    /// <exception cref="ArgumentException">An id is empty or an ability is picked twice.</exception>
+    public Progression WithTalents(IEnumerable<KeyValuePair<string, string>> choices)
+    {
+        ArgumentNullException.ThrowIfNull(choices);
+        var talents = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (ability, option) in choices)
+        {
+            if (string.IsNullOrEmpty(ability) || string.IsNullOrEmpty(option))
+            {
+                throw new ArgumentException("a talent pick needs an ability id and an option id", nameof(choices));
+            }
+            if (!talents.TryAdd(ability, option))
+            {
+                throw new ArgumentException($"ability \"{ability}\" is picked twice", nameof(choices));
+            }
+        }
+        return this with { Talents = talents };
+    }
+
     /// <summary>A fresh character whose crafting PRNG is seeded from <paramref name="seed"/>.</summary>
     /// <param name="seed">The seed.</param>
     /// <returns>The progression.</returns>

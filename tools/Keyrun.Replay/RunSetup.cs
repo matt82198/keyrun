@@ -153,7 +153,9 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
     /// SLAM-TELEGRAPH: a setup is a recording of the frozen TS run, and the TS has no <c>spansCast</c> rule (its
     /// telegraphs always resolve when the cast starts). The TS copies a content telegraph's fields into the setup
     /// verbatim, so a re-recorded setup can carry <c>spansCast: true</c>; it is cleared here so the replay keeps the
-    /// TS behaviour the trace recorded. Only the host and content-driven tests apply it.
+    /// TS behaviour the trace recorded. Only the host and content-driven tests apply it. TELEGRAPH-READY: every
+    /// telegraph is also marked <see cref="TelegraphSpec.TsUnchecked"/>, because the TS drew a scheduled step's
+    /// telegraph even when combat then refused its cast, and the trace records those telegraphs.
     /// </summary>
     private static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> TsScripts(IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts)
     {
@@ -161,7 +163,7 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
         foreach (var kv in scripts)
         {
             result[kv.Key] = kv.Value
-                .Select(s => s.Telegraph is { SpansCast: true } tg ? s with { Telegraph = tg with { SpansCast = false } } : s)
+                .Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { SpansCast = false, TsUnchecked = true } } : s)
                 .ToList();
         }
         return result;

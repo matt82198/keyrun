@@ -17,7 +17,7 @@ public sealed record WindowBandSegment(string ClassId, int Color, int StartPermi
 /// owns at least one Payoff ability (an ability carrying a <see cref="PayoffOp"/> or facet <see cref="ComboOp"/>), and
 /// the combo table holds its (setupClass, payoffClass) cell: the exact row for a target/self Window, the <c>"*"</c>
 /// field row for a floor Window. These are the same cells Keyrun.Sim's Payoff.TryClosePayoff and
-/// TryClosePayoffOnFloor look up (HostRunSetup.ToComboTables builds them from the same rows). Read-only over content;
+/// TryClosePayoffOnFloor look up (ContentCombos.ToComboTables builds them from the same rows). Read-only over content;
 /// pure and integer-only (game/CLAUDE.md purity rule). src/View/WindowRingView.cs draws one segment per closer.
 /// </summary>
 public static class WindowBandRule
