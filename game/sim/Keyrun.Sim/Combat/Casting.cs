@@ -64,7 +64,8 @@ public static class Casting
     }
 
     /// <summary>
-    /// sim/combat/casting.ts:54-81 startCast. Checks in order: silenced (an active Hush pulse), not_ready,
+    /// sim/combat/casting.ts:54-81 startCast. Checks in order: casting (a cast already in flight is never replaced,
+    /// BIBLE section 3; Stopcast is the only cancel), silenced (an active Hush pulse), not_ready,
     /// insufficient_resource, school_locked, then for a target shape target_required / invalid_target (missing or
     /// dead) / out_of_range. On success spends the cost, consumes a charge, starts the GCD, sets the cast fields and,
     /// when a target was given, the actor's target.
@@ -85,6 +86,12 @@ public static class Casting
         var rule = OverheatRuleOf(ctx, actor);
         // BIBLE section 5: at the threshold the next cast is the Overheat, and the Overheat is free.
         var overheat = rule is not null && actor.Resource >= rule.Threshold;
+        // BIBLE section 3 (cast bars are the enemy's language; a kick counts inside the cast): a busy caster rejects
+        // the new cast, so an in-flight cast is never silently replaced.
+        if (actor.CastId is not null)
+        {
+            return "casting";
+        }
         if (hooks is not null && hooks.IsSilenced(now))
         {
             return "silenced";

@@ -59,6 +59,8 @@ export function startCast(
   _point: Vec3 | undefined,
   now: Tick,
 ): string | null {
+  // BIBLE s3: a cast in flight is never silently replaced; a busy caster rejects the new cast (stopcast cancels).
+  if (actor.castId !== null) return "casting";
   const rules = getActiveEncounterRules();
   if (rules && shouldSilence(now, rules)) return "silenced";
   if (!isAbilityReady(actor, def, now)) return "not_ready";
