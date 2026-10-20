@@ -29,7 +29,7 @@ describe("server: phased recurring steps keep `every`", () => {
     expect(step.at).toBe(600);
     expect(step.every).toBe(scaleCastEvery(400, KEY));
     expect(step.every).not.toBe(400);
-    expect(step.telegraph!.leadTicks).toBe(scaleLeadTicks(100, KEY));
+    expect(step.telegraph!.leadTicks).toBe(scaleLeadTicks(140, KEY)); // content pair.json stackCall leadTicks (140 since SLAM-TELEGRAPH spansCast)
   });
 
   it("a scripted pull-2 run at key 2 emits >=2 STACK telegraphs during The Pair", () => {
