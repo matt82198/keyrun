@@ -183,4 +183,76 @@ public sealed class ScriptsTests
         var casts = Scripts.StepEnemyScripts(state, scripts).Commands.Cast<CastCommand>().Select(c => $"{c.ActorId}:{c.AbilityId}");
         Assert.Equal(new[] { "3:c", "7:b", "7:a" }, casts);
     }
+
+    // ---- STARTCAST-BUSY: a scripted cast for a busy caster is deferred, never dropped (scripts.test.ts) ----
+
+    private static readonly IReadOnlyDictionary<string, ScriptAbility> SlamLock = new Dictionary<string, ScriptAbility>
+    {
+        ["slam"] = new("slam", 0, "self", false, CastTicks: 10),
+        ["lock"] = new("lock", 0, "self", false, CastTicks: 0),
+    };
+
+    private static SimState Busy(int tick, string castId, int castEndsTick)
+    {
+        var s = StateAt(tick);
+        s.Actors[1].CastId = castId;
+        s.Actors[1].CastEndsTick = castEndsTick;
+        return s;
+    }
+
+    private static CastCommand[] Casts(StepEnemyScriptsResult r) => r.Commands.OfType<CastCommand>().ToArray();
+
+    [Fact(DisplayName = "Busy caster: same tick, the cast-time step is issued, the instant behind it is held, then issued when that cast ends")]
+    public void Busy_same_tick_instant_is_held_until_the_cast_ends()
+    {
+        var script = EncounterTestKit.Scripts(1, ScriptStep.Loop(300, "slam"), ScriptStep.Loop(600, "lock"));
+        var at600 = Scripts.StepEnemyScripts(StateAt(600), script, null, SlamLock);
+        Assert.Equal(new[] { new CastCommand(600, 1, "slam", 1) }, Casts(at600));
+        Assert.Equal(new[] { new DeferredCast(1, script[1][1]) }, at600.DeferredCasts);
+
+        var mid = Scripts.StepEnemyScripts(Busy(605, "slam", 610), script, null, SlamLock, at600.DeferredCasts);
+        Assert.Empty(Casts(mid));
+        Assert.Equal(at600.DeferredCasts, mid.DeferredCasts);
+
+        // Rules complete the slam (CastEndsTick == tick) before running commands, so the caster is free.
+        var end = Scripts.StepEnemyScripts(Busy(610, "slam", 610), script, null, SlamLock, mid.DeferredCasts);
+        Assert.Equal(new[] { new CastCommand(610, 1, "lock", 1) }, Casts(end));
+        Assert.Empty(end.DeferredCasts);
+    }
+
+    [Fact(DisplayName = "Busy caster: an instant ahead of a cast-time step in the same tick leaves the caster free, both issue")]
+    public void Busy_instant_first_leaves_the_caster_free()
+    {
+        var script = EncounterTestKit.Scripts(1, ScriptStep.Loop(600, "lock"), ScriptStep.Loop(300, "slam"));
+        var r = Scripts.StepEnemyScripts(StateAt(600), script, null, SlamLock);
+        Assert.Equal(new[] { "lock", "slam" }, Casts(r).Select(c => c.AbilityId).ToArray());
+        Assert.Empty(r.DeferredCasts);
+    }
+
+    [Fact(DisplayName = "Busy caster: a held telegraphed step re-draws its telegraph on the tick it is issued (BIBLE s3)")]
+    public void Busy_held_telegraphed_step_redraws_its_telegraph()
+    {
+        var script = EncounterTestKit.Scripts(1, ScriptStep.Loop(300, "slam") with { Telegraph = new TelegraphSpec("circle", 10) { Radius = 3000 } });
+        var held = Scripts.StepEnemyScripts(Busy(300, "other", 320), script, null, SlamLock);
+        Assert.Empty(Casts(held));
+        var issued = Scripts.StepEnemyScripts(Busy(320, "other", 320), script, null, SlamLock, held.DeferredCasts);
+        Assert.Equal(new[] { new CastCommand(320, 1, "slam", 1) }, Casts(issued));
+        var tg = Assert.Single(issued.TelegraphEvents);
+        Assert.Equal(320, tg.Tick);
+        Assert.Equal(330, ((JsInt)tg.Get("resolvesTick")!).Value);
+    }
+
+    [Fact(DisplayName = "Busy caster: a step that fires again while held is held once; a dead caster's held cast is dropped")]
+    public void Busy_held_once_and_dropped_on_death()
+    {
+        var script = EncounterTestKit.Scripts(1, ScriptStep.Loop(100, "lock"));
+        var first = Scripts.StepEnemyScripts(Busy(100, "long", 500), script, null, SlamLock);
+        var again = Scripts.StepEnemyScripts(Busy(200, "long", 500), script, null, SlamLock, first.DeferredCasts);
+        Assert.Equal(new[] { new DeferredCast(1, script[1][0]) }, again.DeferredCasts);
+        var dead = Busy(250, "long", 500);
+        dead.Actors[1].Alive = false;
+        var gone = Scripts.StepEnemyScripts(dead, script, null, SlamLock, again.DeferredCasts);
+        Assert.Empty(gone.Commands);
+        Assert.Empty(gone.DeferredCasts);
+    }
 }

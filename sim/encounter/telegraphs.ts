@@ -21,6 +21,7 @@
 import type { ActorId, SimState, Tick, Vec3 } from "./types";
 import type { BreakBarState } from "./breakbar";
 import type { EchoSpawnRequest, EncounterRules } from "./clauses";
+import type { DeferredCast } from "./deferred-casts";
 import { faceDir } from "../combat/targeting";
 
 export interface Telegraph {
@@ -59,6 +60,10 @@ export interface EncounterState {
    * writes this every tick. Optional, defaults to `[]` wherever read, same convention as
    * `firedOnDeath` above. */
   pendingEchoSpawns?: EchoSpawnRequest[];
+  /** STARTCAST-BUSY: scripted casts held for a busy caster (sim/encounter/scripts.ts DeferredCast), threaded
+   * through `stepEnemyScripts` each tick. Optional, defaults to `[]` wherever read, same convention as
+   * `firedOnDeath` above. */
+  deferredCasts?: DeferredCast[];
   /** Next actor id `stepEchoSpawns` will assign to a realized Echo add -- starts at
    * sim/encounter/index.ts's `ECHO_ACTOR_ID_BASE`, far above any dungeon/party id, so a spawned
    * add never collides with one. */

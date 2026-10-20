@@ -5,7 +5,7 @@ using Keyrun.Sim.Core;
 namespace Keyrun.Sim.Encounter;
 
 /// <summary>
-/// The encounter lane's slice of durable run state (sim/encounter/telegraphs.ts:40 EncounterState). Immutable: every
+/// The encounter lane's slice of durable run state (sim/encounter/telegraphs.ts:41 EncounterState). Immutable: every
 /// step returns a new value via <c>with</c>. The TS optional fields (firedOnDeath, pendingEchoSpawns,
 /// nextEchoActorId, nextTelegraphId) carry their read-time defaults here ({}, [], 1000000, 1), which is what
 /// <c>createRun</c> (sim/index.ts:106-117) and every reader (index.ts:119-121, echo-spawns.ts:42-47) use.
@@ -38,6 +38,9 @@ public sealed record EncounterState
 
     /// <summary>Actor id to the onDeath casts already fired for it (the scripts' fire-once contract).</summary>
     public IReadOnlyDictionary<int, IReadOnlyList<string>> FiredOnDeath { get; init; } = new SortedDictionary<int, IReadOnlyList<string>>();
+
+    /// <summary>STARTCAST-BUSY: scripted casts held for a busy caster (<see cref="CastDeferral"/>; TS deferredCasts, default []).</summary>
+    public IReadOnlyList<DeferredCast> DeferredCasts { get; init; } = Array.Empty<DeferredCast>();
 
     /// <summary>Echo adds queued but not yet spawned.</summary>
     public IReadOnlyList<EchoSpawnRequest> PendingEchoSpawns { get; init; } = Array.Empty<EchoSpawnRequest>();

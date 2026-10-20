@@ -228,4 +228,67 @@ describe("stepEnemyScripts", () => {
       expect(result.commands).toEqual([{ tick: 40, actorId: 1, kind: "cast", abilityId: "melee", targetId: 1 }]);
     });
   });
+
+  // STARTCAST-BUSY: startCast refuses a caster with a cast in flight, so a scripted cast that fires while its
+  // caster is busy is held and issued the first tick the caster is free (BIBLE s9: the Lock still happens).
+  describe("busy caster: a scripted cast is deferred, never dropped", () => {
+    const selfAbility = (id: string, castTicks: number): AbilityDef => ({
+      id, castTicks, gcdTicks: 0, cooldownTicks: 0, charges: 1, cost: { resource: "none", amount: 0 },
+      range: 0, shape: { kind: "self" }, interruptible: false, effects: [],
+    });
+    const ABILITIES = { slam: selfAbility("slam", 10), lock: selfAbility("lock", 0) };
+    const casts = (cmds: { kind: string }[]) => cmds.filter((c) => c.kind === "cast");
+    const busy = (tick: number, castId: string, castEndsTick: number): SimState => {
+      const s = stateAt(tick);
+      const a = s.actors[1]!;
+      a.castId = castId;
+      a.castEndsTick = castEndsTick;
+      return s;
+    };
+
+    it("same tick: the cast-time step is issued, the instant behind it is held, then issued when that cast ends", () => {
+      const script: EnemyScript = [{ at: "loop", every: 300, cast: "slam" }, { at: "loop", every: 600, cast: "lock" }];
+      const at600 = stepEnemyScripts(stateAt(600), { 1: script }, {}, ABILITIES);
+      expect(casts(at600.commands)).toEqual([{ tick: 600, actorId: 1, kind: "cast", abilityId: "slam", targetId: 1 }]);
+      expect(at600.deferredCasts).toEqual([{ actorId: 1, step: script[1] }]);
+
+      const mid = stepEnemyScripts(busy(605, "slam", 610), { 1: script }, {}, ABILITIES, at600.deferredCasts);
+      expect(casts(mid.commands)).toEqual([]);
+      expect(mid.deferredCasts).toEqual(at600.deferredCasts);
+
+      // rules.ts completes the slam (castEndsTick === tick) before it runs commands, so the caster is free.
+      const end = stepEnemyScripts(busy(610, "slam", 610), { 1: script }, {}, ABILITIES, mid.deferredCasts);
+      expect(casts(end.commands)).toEqual([{ tick: 610, actorId: 1, kind: "cast", abilityId: "lock", targetId: 1 }]);
+      expect(end.deferredCasts).toEqual([]);
+    });
+
+    it("an instant ahead of a cast-time step in the same tick leaves the caster free: both are issued", () => {
+      const script: EnemyScript = [{ at: "loop", every: 600, cast: "lock" }, { at: "loop", every: 300, cast: "slam" }];
+      const r = stepEnemyScripts(stateAt(600), { 1: script }, {}, ABILITIES);
+      expect(r.commands.flatMap((c) => (c.kind === "cast" ? [c.abilityId] : []))).toEqual(["lock", "slam"]);
+      expect(r.deferredCasts).toEqual([]);
+    });
+
+    it("a held telegraphed step re-draws its telegraph on the tick it is issued (BIBLE s3)", () => {
+      const tg = { shape: "circle" as const, radius: 3000, leadTicks: 10 };
+      const script: EnemyScript = [{ at: "loop", every: 300, cast: "slam", telegraph: tg }];
+      const held = stepEnemyScripts(busy(300, "other", 320), { 1: script }, {}, ABILITIES);
+      expect(casts(held.commands)).toEqual([]);
+      const issued = stepEnemyScripts(busy(320, "other", 320), { 1: script }, {}, ABILITIES, held.deferredCasts);
+      expect(casts(issued.commands)).toEqual([{ tick: 320, actorId: 1, kind: "cast", abilityId: "slam", targetId: 1 }]);
+      expect(issued.telegraphEvents).toEqual([expect.objectContaining({ tick: 320, cast: "slam", resolvesTick: 330 })]);
+    });
+
+    it("a step that fires again while still held is held once; a dead caster's held cast is dropped", () => {
+      const script: EnemyScript = [{ at: "loop", every: 100, cast: "lock" }];
+      const first = stepEnemyScripts(busy(100, "long", 500), { 1: script }, {}, ABILITIES);
+      const again = stepEnemyScripts(busy(200, "long", 500), { 1: script }, {}, ABILITIES, first.deferredCasts);
+      expect(again.deferredCasts).toEqual([{ actorId: 1, step: script[0] }]);
+      const dead = busy(250, "long", 500);
+      dead.actors[1]!.alive = false;
+      const gone = stepEnemyScripts(dead, { 1: script }, {}, ABILITIES, again.deferredCasts);
+      expect(gone.commands).toEqual([]);
+      expect(gone.deferredCasts).toEqual([]);
+    });
+  });
 });

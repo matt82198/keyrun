@@ -161,11 +161,11 @@ can be negative is a review defect unless the TS used trunc at that site.
 | sim/combat/threat.ts:11 | Math.trunc | TruncDiv |
 | sim/combat/cooldowns.ts:26 | Math.ceil(ticksRemaining / cooldownTicks) | CeilDiv |
 | sim/combat/effects.ts:132 | Math.ceil(used / perStack) | CeilDiv |
-| sim/encounter/telegraphs.ts:83 | `Math.round(r / STEP)` with `r = halfAngle`, which can be x.5 | RoundHalfUp over a rational |
-| sim/encounter/telegraphs.ts:104 | `halfAngle = clamp(angle1024, 0, 511) / 2`: a NON-INTEGER double for odd angles | keep it as a numerator over 2, never `int / 2` |
-| sim/encounter/telegraphs.ts:91-116, targeting.ts cone and line math | products such as `dot*dot` and `distSq*cos*cos` reach about 1e15 | `long` |
+| sim/encounter/telegraphs.ts:88 | `Math.round(r / STEP)` with `r = halfAngle`, which can be x.5 | RoundHalfUp over a rational |
+| sim/encounter/telegraphs.ts:109 | `halfAngle = clamp(angle1024, 0, 511) / 2`: a NON-INTEGER double for odd angles | keep it as a numerator over 2, never `int / 2` |
+| sim/encounter/telegraphs.ts:96-121, targeting.ts cone and line math | products such as `dot*dot` and `distSq*cos*cos` reach about 1e15 | `long` |
 | sim/encounter/clauses.ts:137 | Math.floor(tick / interval), non-negative | `/` |
-| sim/encounter/clauses.ts:136, scripts.ts:89, :94 | JS `%` on non-negative ticks | `%` |
+| sim/encounter/clauses.ts:136, scripts.ts:80, :85 | JS `%` on non-negative ticks | `%` |
 | sim/encounter/clauses.ts:145, tempo.ts:34, :40, :46 | Math.trunc | TruncDiv |
 | sim/encounter/rewards.ts:77 | Math.round(keyLevel) | RoundHalfUp |
 | sim/encounter/rewards.ts:83 | Math.floor((key - 2) / 2); key is clamped >= 2 | FloorDiv |

@@ -206,9 +206,9 @@ public sealed class EncounterTraceTests
     // and casts seed.lash; the re-recorded traces carry 11 / 14 telegraphs (was 9 / 13), k2 10 hits (was 9), k10 14 hits
     // (was 13) with 3 exact (was 2), measured by this replay against the regenerated oracle.
     [Theory]
-    [InlineData("bots-hv-k2-s7", 12, 12, 7, 0, 0, 1)] // STARTCAST-BUSY re-record: was 13, 12, 7, 0, 0, 1 (run ends at t1768, one boss telegraph fewer; tallied from the regenerated trace). DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k2-s11", 12, 12, 7, 0, 0, 1)] // STARTCAST-BUSY re-record: was 13, 12, 7, 0, 0, 1 (run ends at t1768, one boss telegraph fewer; tallied from the regenerated trace). DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 13, 13, 7, 0, 0, 2)] // STARTCAST-BUSY re-record: was 14, 13, 7, 0, 0, 2 (run ends at t2091, one boss telegraph fewer; tallied from the regenerated trace). QUENCH-REFUND re-record: was 14, 14, 7, 0, 0, 3 (the t1293 Quench whiff no longer refunds 20 Heat; measured by this replay)
+    [InlineData("bots-hv-k2-s7", 12, 12, 7, 0, 0, 1)] // STARTCAST-BUSY re-record: was 13, 12, 7, 0, 0, 1 (the t1764 Lock is held behind the slam, the boss dies at t1766 before the slam ends, so the run ends at t1768 and the t1833 cleave telegraph is never drawn; tallied from the regenerated trace). DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k2-s11", 12, 12, 7, 0, 0, 1)] // STARTCAST-BUSY re-record: was 13, 12, 7, 0, 0, 1 (same as k2-s7: the boss dies at t1766 inside the slam, the held Lock never opens, the t1833 cleave telegraph is never drawn; tallied from the regenerated trace). DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k10-s7", 14, 13, 7, 0, 0, 2)] // STARTCAST-BUSY re-record: unchanged (the t2032 Lock is held behind the slam and opens at t2042; the run still ends at t2140 and every telegraph and telegraph_hit event is identical to the previous trace). QUENCH-REFUND re-record: was 14, 14, 7, 0, 0, 3 (the t1293 Quench whiff no longer refunds 20 Heat; measured by this replay)
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

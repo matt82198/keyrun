@@ -162,7 +162,8 @@ public static class EncounterJson
                 Str(Req(o, "id", what), what + ".id"),
                 Long(Req(o, "range", what), what + ".range"),
                 Str(Req(shape, "kind", what + ".shape"), what + ".shape.kind"),
-                heals));
+                heals,
+                OptInt(o, "castTicks", what) ?? 0));
         }
         return result;
     }

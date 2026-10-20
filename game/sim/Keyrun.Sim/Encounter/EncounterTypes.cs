@@ -3,7 +3,7 @@ using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
 
-/// <summary>What schedules a <see cref="ScriptStep"/> (sim/encounter/scripts.ts:76 <c>at</c>).</summary>
+/// <summary>What schedules a <see cref="ScriptStep"/> (sim/encounter/scripts.ts:67 <c>at</c>).</summary>
 public enum StepTrigger
 {
     /// <summary><c>at: "loop"</c>: every <c>every</c> ticks, first at tick <c>every</c> (never tick 0).</summary>
@@ -30,7 +30,7 @@ public enum ScriptTargetOverride
 }
 
 /// <summary>
-/// A telegraph a script step announces <see cref="LeadTicks"/> before its cast (sim/encounter/scripts.ts:66 TelegraphSpec).
+/// A telegraph a script step announces <see cref="LeadTicks"/> before its cast (sim/encounter/scripts.ts:57 TelegraphSpec).
 /// </summary>
 /// <param name="Shape">"circle", "cone" or "line".</param>
 /// <param name="LeadTicks">Ticks between the announcement and the cast it warns of.</param>
@@ -50,7 +50,7 @@ public sealed record TelegraphSpec(string Shape, int LeadTicks)
 }
 
 /// <summary>
-/// One step of an enemy script (sim/encounter/scripts.ts:75 ScriptStep). <see cref="AtTick"/> is meaningful only
+/// One step of an enemy script (sim/encounter/scripts.ts:66 ScriptStep). <see cref="AtTick"/> is meaningful only
 /// for <see cref="StepTrigger.AtTick"/>; <see cref="Every"/> is the loop period or the phase-offset period.
 /// </summary>
 /// <param name="Trigger">How the step is scheduled.</param>
@@ -88,7 +88,8 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
 /// <param name="Range">Range in mm (<c>def.range</c>).</param>
 /// <param name="ShapeKind"><c>def.shape.kind</c>: "target", "self", "circle", "cone" or "line".</param>
 /// <param name="Heals">True when any effect op is <c>"heal"</c> (script-target.ts:61 isHealAbility).</param>
-public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals);
+/// <param name="CastTicks"><c>def.castTicks</c>; above 0 the cast stays in flight (deferred-casts.ts leavesCastInFlight).</param>
+public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals, int CastTicks = 0);
 
 /// <summary>One enemy a pull spawns (sim/encounter/pulls.ts:17 PullSpawn).</summary>
 /// <param name="ActorId">Actor id.</param>

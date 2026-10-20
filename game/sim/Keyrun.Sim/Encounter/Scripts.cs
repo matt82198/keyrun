@@ -4,11 +4,12 @@ using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
 
-/// <summary>One call's output (scripts.ts:118 StepEnemyScriptsResult).</summary>
+/// <summary>One call's output (scripts.ts:109 StepEnemyScriptsResult).</summary>
 /// <param name="Commands">Casts (then chase moves) for the caller to feed to combat this tick.</param>
 /// <param name="TelegraphEvents">"telegraph" events announced this tick.</param>
 /// <param name="FiredOnDeath">The fire-once map carried forward plus this call's onDeath casts; pass it back next call.</param>
-public sealed record StepEnemyScriptsResult(IReadOnlyList<Command> Commands, IReadOnlyList<SimEvent> TelegraphEvents, IReadOnlyDictionary<int, IReadOnlyList<string>> FiredOnDeath);
+/// <param name="DeferredCasts">Casts still held for a busy caster (<see cref="CastDeferral"/>); pass it back next call.</param>
+public sealed record StepEnemyScriptsResult(IReadOnlyList<Command> Commands, IReadOnlyList<SimEvent> TelegraphEvents, IReadOnlyDictionary<int, IReadOnlyList<string>> FiredOnDeath, IReadOnlyList<DeferredCast> DeferredCasts);
 
 /// <summary>
 /// Enemy behaviour as data-driven state machines (sim/encounter/scripts.ts). Each tick, for every scripted actor in
@@ -21,7 +22,7 @@ public sealed record StepEnemyScriptsResult(IReadOnlyList<Command> Commands, IRe
 public static class Scripts
 {
     /// <summary>
-    /// scripts.ts:86 firesAt: a loop fires at every positive multiple of <c>every</c> (never tick 0, never with every
+    /// scripts.ts:77 firesAt: a loop fires at every positive multiple of <c>every</c> (never tick 0, never with every
     /// 0 or absent); a numeric <c>at</c> with a positive every fires at <c>at + k * every</c>, otherwise only at
     /// <c>at</c>; onDeath never fires on schedule. Ticks are non-negative, so <c>%</c> matches JS (ORACLE.md s8).
     /// </summary>
@@ -69,7 +70,7 @@ public static class Scripts
         };
     }
 
-    // scripts.ts:99 telegraphEventAt: {tick, type, actorId, cast, shape, leadTicks, resolvesTick, origin, yaw,
+    // scripts.ts:90 telegraphEventAt: {tick, type, actorId, cast, shape, leadTicks, resolvesTick, origin, yaw,
     // radius?, angle1024?, length?, width?}.
     private static SimEvent TelegraphEventAt(int tick, int actorId, ActorState actor, string cast, TelegraphSpec tg)
     {
@@ -102,7 +103,7 @@ public static class Scripts
         return new SimEvent(tick, "telegraph", fields.ToArray());
     }
 
-    // scripts.ts:126 castCommand: null when the target resolution blocks it.
+    // scripts.ts:119 castCommand: null when the target resolution blocks it.
     private static CastCommand? CastCommandFor(SimState state, int actorId, ActorState actor, ScriptStep step, IReadOnlyDictionary<string, ScriptAbility> abilities)
     {
         abilities.TryGetValue(step.Cast, out var ability);
@@ -112,18 +113,22 @@ public static class Scripts
 
     private static readonly IReadOnlyDictionary<string, ScriptAbility> NoAbilities = new Dictionary<string, ScriptAbility>();
 
-    /// <summary>scripts.ts:139 stepEnemyScripts (rules in the class summary). Never mutates <paramref name="state"/>.</summary>
+    /// <summary>scripts.ts:132 stepEnemyScripts (rules in the class summary). Never mutates <paramref name="state"/>.</summary>
     /// <param name="state">The tick's state.</param>
     /// <param name="scripts">Actor id to script.</param>
     /// <param name="firedOnDeath">The previous call's <see cref="StepEnemyScriptsResult.FiredOnDeath"/>; null = none fired.</param>
     /// <param name="abilities">Ability views for targeting, range gating and chase; null = none known (legacy path).</param>
+    /// <param name="deferredCasts">The previous call's <see cref="StepEnemyScriptsResult.DeferredCasts"/>; null = none held.</param>
     public static StepEnemyScriptsResult StepEnemyScripts(
         SimState state,
         IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts,
         IReadOnlyDictionary<int, IReadOnlyList<string>>? firedOnDeath = null,
-        IReadOnlyDictionary<string, ScriptAbility>? abilities = null)
+        IReadOnlyDictionary<string, ScriptAbility>? abilities = null,
+        IReadOnlyList<DeferredCast>? deferredCasts = null)
     {
         var abil = abilities ?? NoAbilities;
+        var held = deferredCasts ?? System.Array.Empty<DeferredCast>();
+        var nextHeld = new List<DeferredCast>();
         var tick = state.Tick;
         var commands = new List<Command>();
         var telegraphEvents = new List<SimEvent>();
@@ -143,6 +148,21 @@ public static class Scripts
             {
                 continue;
             }
+            // STARTCAST-BUSY (scripts.ts / deferred-casts.ts): held casts are issued or re-held here; fire gates the
+            // tick's own steps.
+            var fire = CastDeferral.CasterGate(actorId, actor, tick, abil, held, nextHeld, (step, redraw) =>
+            {
+                if (CastCommandFor(state, actorId, actor, step, abil) is not { } cmd)
+                {
+                    return false;
+                }
+                commands.Add(cmd);
+                if (redraw && step.Telegraph is { } htg)
+                {
+                    telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, htg));
+                }
+                return true;
+            });
             foreach (var step in script)
             {
                 if (step.Trigger == StepTrigger.OnDeath)
@@ -177,9 +197,9 @@ public static class Scripts
                 {
                     continue;
                 }
-                if (FiresAt(step, tick) && CastCommandFor(state, actorId, actor, step, abil) is { } cast)
+                if (FiresAt(step, tick))
                 {
-                    commands.Add(cast);
+                    fire(step);
                 }
                 if (step.Telegraph is { } tg && FiresAt(step, tick + tg.LeadTicks))
                 {
@@ -194,6 +214,6 @@ public static class Scripts
         {
             fired2[kv.Key] = kv.Value;
         }
-        return new StepEnemyScriptsResult(commands, telegraphEvents, fired2);
+        return new StepEnemyScriptsResult(commands, telegraphEvents, fired2, nextHeld);
     }
 }
