@@ -70,10 +70,25 @@ function inflated(telegraphs: Telegraph[], marginMM: number): Telegraph[] {
 /** True if `self` is inside an active *ordinary* (non-floor) danger telegraph -- bot.ts's own
  * always-on tier already produces the escape move for those; this module defers to it rather than
  * emitting a second, possibly conflicting move (priority: telegraph escape > floor escape). */
+/**
+ * DEAD-CASTER-TELEGRAPH (design/BIBLE.md section 3, a dead enemy has no cast): true when `tg`'s caster is dead (or gone)
+ * and holds no cast in progress. A script telegraph is announced leadTicks before its cast fires and a dead actor's
+ * timed steps never fire, so such a telegraph warns of nothing although the sim keeps it until resolvesTick. A dead
+ * caster still mid-cast keeps it (its cast still completes). A telegraph with no sourceId is never spent.
+ * Mirrored by game/bots/Keyrun.Bots/shared/Positioning.cs IsSpent.
+ */
+export function isSpent(tg: Telegraph, state: BotView["state"]): boolean {
+  if (tg.sourceId === undefined) return false;
+  const caster = state.actors[tg.sourceId];
+  return !caster || (!caster.alive && caster.castId === null);
+}
+
 function ordinaryTelegraphDangerActive(view: BotView, self: ActorState): boolean {
   const tick = view.state.tick;
   const selfMM = { x: self.pos.x, z: self.pos.z };
-  const ordinary = view.telegraphs.filter((t) => t.danger && t.resolvesTick > tick && !isFloorPatchTelegraph(t));
+  const ordinary = view.telegraphs.filter(
+    (t) => t.danger && t.resolvesTick > tick && !isFloorPatchTelegraph(t) && !isSpent(t, view.state)
+  );
   return isInAnyDanger(selfMM, ordinary);
 }
 

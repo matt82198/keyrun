@@ -18,6 +18,7 @@ import { type PrngState, reactionDelayTicks, rollMistake } from "./skill.js";
 import { tankDecide, healerDecide, damageDecide } from "./roles.js";
 import { pingReactionCommands } from "./pings-policy.js";
 import type { PingEvent } from "./shared/pings.js";
+import { isSpent } from "./shared/floor.js";
 
 export interface BotMemory {
   skillDial: number;
@@ -41,7 +42,8 @@ export interface Bot {
 function dangerAvoidCommand(view: BotView, self: ActorState): Command | null {
   const tick = view.state.tick;
   const selfMM = { x: self.pos.x, z: self.pos.z };
-  const active = view.telegraphs.filter((t) => t.danger && t.resolvesTick > tick);
+  // DEAD-CASTER-TELEGRAPH: a telegraph whose caster died before its cast began warns of nothing (shared/floor.ts isSpent).
+  const active = view.telegraphs.filter((t) => t.danger && t.resolvesTick > tick && !isSpent(t, view.state));
   if (!isInAnyDanger(selfMM, active)) return null;
   const safe = nearestSafePoint(selfMM, active);
   if (!safe) return null;

@@ -113,6 +113,27 @@ public static class Positioning
     }
 
     /// <summary>
+    /// DEAD-CASTER-TELEGRAPH (no TS counterpart; design/BIBLE.md section 3, a dead enemy has no cast): true when
+    /// <paramref name="tg"/>'s caster is dead (or gone) and holds no cast in progress. A script telegraph is announced
+    /// leadTicks before its cast fires and a dead actor's timed steps never fire (Scripts.cs), so such a telegraph
+    /// warns of nothing although the sim keeps it until its resolvesTick. A dead caster still mid-cast keeps it:
+    /// Rules completes that cast regardless. Telegraphs with no <see cref="BotTelegraph.SourceId"/> are never spent.
+    /// </summary>
+    /// <param name="tg">Telegraph.</param>
+    /// <param name="state">The view's sim state.</param>
+    /// <returns>True when the telegraph can be ignored.</returns>
+    public static bool IsSpent(BotTelegraph tg, Keyrun.Sim.Core.SimState state)
+    {
+        ArgumentNullException.ThrowIfNull(tg);
+        ArgumentNullException.ThrowIfNull(state);
+        if (tg.SourceId is not { } sourceId)
+        {
+            return false;
+        }
+        return !state.Actors.TryGetValue(sourceId, out var caster) || (!caster.Alive && caster.CastId is null);
+    }
+
+    /// <summary>
     /// positioning.ts nearestSafePoint: searches outward square rings (step <paramref name="gridStepMm"/>) around
     /// <paramref name="from"/> for the nearest point in no danger telegraph that passes <paramref name="extraCheck"/>.
     /// Each ring's candidates are visited in squared-distance order, ties in generation order (JS sort is stable).

@@ -90,6 +90,16 @@ Enemy script cadences (tuned 2026-10-18 per Matt): `pair.meleeSwing` at 60 every
 `hollowWarden.slam` loop every 300 (was 60); `twins.slam` loop every 400 (was 60); `hollowWarden.cleave` stays
 loop every 160. The ability cooldown columns above are unchanged.
 
+Boss and elite slams (values as the data files hold them; `abilities/enemies.json` plus the script telegraphs in
+`enemies/*.json`; ticks at 20 Hz):
+- `seed.slam` (The Seed, elite, 3000 hp): circle shape radius 2000, `range` 0, damage 150 physical, castTicks 20,
+  cooldownTicks 100; script `loop every 100` with telegraph circle radius 2000, leadTicks 20.
+- `hollowWarden.slam` (The Hollow Warden, boss, 5000 hp): target shape, `range` 3000, damage 150 physical, castTicks 10,
+  cooldownTicks 60; script `loop every 300` (see cadences above) with telegraph circle radius 3000, leadTicks 10.
+- `twins.slam` (Sundered Twin A, elite, 1000 hp; Twin B shares the ability): target shape, `range` 3000, damage 90
+  physical, castTicks 10, cooldownTicks 60; script `loop every 400` (see cadences above) with telegraph circle
+  radius 3000, leadTicks 10 (Twin A's script).
+
 ## Enemy movement (`// TUNE`)
 
 [DECIDE Matt] `choir.melee` and `pair.melee` `speedMmPerTick` 207 = provisional 1.15x the 180 mm/tick
