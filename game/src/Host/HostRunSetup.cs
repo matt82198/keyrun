@@ -150,7 +150,10 @@ public sealed record HostRunSetup(
         dungeon = NavLayouts.PlaceDungeon(layout, dungeon);
         // PATH-PACKS (BIBLE s9.1): the layout's trash packs, required and optional, idle on the path from tick 0 and each
         // pulled whole by proximity, like a pull.
-        var (packs, packScripts) = LayoutPackGroups.Build(layout, dungeon, scripts);
+        // Mythic+ trash only a pack fields (hall.sentry) is scaled here exactly as a pull spawn is (ScaledTrashSpawn).
+        var (packs, packScripts) = LayoutPackGroups.Build(
+            layout, dungeon, scripts,
+            packOnly: PackOnlyTemplates(registry, layout, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false)));
 
         var run = registry.Run;
         var movement = new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm, nav.Extent);
@@ -559,13 +562,7 @@ public sealed record HostRunSetup(
                 for (var i = 0; i < group.Count; i++)
                 {
                     var actorId = nextId++;
-                    var spawn = new PullSpawn(actorId, def.Id, new Vec3(group.Spawn.X, 0, group.Spawn.Z), 0, def.MaxHealth)
-                    {
-                        SpeedMmPerTick = def.SpeedMmPerTick,
-                        ChaseMarginMm = def.ChaseMarginMm,
-                    };
-                    var scaled = Tempo.ScaleSpawn(spawn, keyLevel);
-                    spawns.Add(scaled with { Health = Affixes.ScaleHealth(scaled.Health, trashHealthBp) });
+                    spawns.Add(ScaledTrashSpawn(def, actorId, new Vec3(group.Spawn.X, 0, group.Spawn.Z), keyLevel, trashHealthBp));
                     scripts[actorId] = Tempo.ScaleScript(ToSim(def.Script), keyLevel);
                 }
             }
@@ -581,6 +578,44 @@ public sealed record HostRunSetup(
         }));
         scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel);
         return (new DungeonDef(dungeonDef.Id, pulls), scripts);
+    }
+
+    /// <summary>
+    /// One trash spawn as content/sim-adapt.ts toSimDungeon builds it (yaw 0; speed and chase margin only when the enemy
+    /// sets them), Tempo-scaled, then Fortified (trash health affix) on top.
+    /// </summary>
+    private static PullSpawn ScaledTrashSpawn(C.EnemyDef def, int actorId, Vec3 pos, int keyLevel, int trashHealthBp)
+    {
+        var spawn = new PullSpawn(actorId, def.Id, pos, 0, def.MaxHealth)
+        {
+            SpeedMmPerTick = def.SpeedMmPerTick,
+            ChaseMarginMm = def.ChaseMarginMm,
+        };
+        var scaled = Tempo.ScaleSpawn(spawn, keyLevel);
+        return scaled with { Health = Affixes.ScaleHealth(scaled.Health, trashHealthBp) };
+    }
+
+    /// <summary>
+    /// PATH-PACKS: a scaled template (<see cref="ScaledTrashSpawn"/>, Tempo-scaled script) for every layout pack enemy no
+    /// pull of <paramref name="dungeonDef"/> fields, such as the Hall Sentry; an enemy a pull fields is copied from that
+    /// pull's spawn by <see cref="LayoutPackGroups.Build"/> instead. Fails closed on an enemy id content does not define.
+    /// </summary>
+    private static IReadOnlyDictionary<string, PackTemplate> PackOnlyTemplates(
+        C.ContentRegistry registry, C.LayoutDef layout, C.DungeonDef dungeonDef, int keyLevel, int trashHealthBp)
+    {
+        var fielded = dungeonDef.Pulls.SelectMany(p => p.Enemies).Select(e => e.EnemyId).ToHashSet(StringComparer.Ordinal);
+        var templates = new SortedDictionary<string, PackTemplate>(StringComparer.Ordinal);
+        foreach (var pack in layout.Packs)
+        {
+            foreach (var group in pack.Enemies.Where(g => !fielded.Contains(g.EnemyId) && !templates.ContainsKey(g.EnemyId)))
+            {
+                var def = Enemy(registry, group.EnemyId, $"pack \"{pack.Id}\"");
+                templates[def.Id] = new PackTemplate(
+                    ScaledTrashSpawn(def, 0, Vec3.Zero, keyLevel, trashHealthBp),
+                    Tempo.ScaleScript(ToSim(def.Script), keyLevel));
+            }
+        }
+        return templates;
     }
 
     private static C.EnemyDef Enemy(C.ContentRegistry registry, string id, string where) =>
