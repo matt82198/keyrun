@@ -307,7 +307,9 @@ public partial class LabelView : Node3D
         var progress = Mathf.Clamp((now - start) / Mathf.Max(1f, end - start), 0f, 1f);
         var secondsLeft = Mathf.Max(0f, (end - now) / Tick.TickHz);
         var label = HudLayout.FitCastLabel(string.Empty, Driver.AbilityName(castId), FormattableString.Invariant($"  {secondsLeft:0.0}s"),
-            PlateStack.CastWidth, s => (int)Math.Ceiling(HudNodes.Width(s, CastFont)));
+            PlateStack.CastWidth, s => (int)Math.Ceiling(HudNodes.Width(s, CastFont)),
+            // The bar sits inside the caster's own on-screen plate, whose text already names the caster.
+            casterPlateShown: true);
         return new PlateCast(MarkOf(castId), progress, label);
     }
 

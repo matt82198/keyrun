@@ -816,6 +816,16 @@ Additional parked decisions (from the burn ledger):
   alive-or-dead rule from 53244968, which only existed to get a joiner past a shut gate. Why: Matt ruled out gates;
   with packs prespawned on the path a gate only added stalemates (PR #308 run C: the Chanter self-healing outside a
   shut gate, no run_end by tick 7000) and a leader rule that parked living bots on a body.
+- D45 **Orchestrator decisions 2026-10-21, tune later** (orchestrator, 2026-10-21, under Matt's verbatim: "make the rest of the
+  decisions and we will tune later"; reversible, tune later). The decisions:
+  - Death penalty: 15 s per death (the current 300-tick Slack cost stays), WoW Midnight-style.
+  - Gear tier power: keep the merged per-slot tier tables from #314; no flat +2%/tier.
+  - Rewards: every finished run, timed or depleted, offers the choice of three; a player who leaves mid-run gets nothing.
+  - Every enemy plate shows its cast bar.
+  - MVP line (D10 question): the full section 1 loop: screen, queue, dungeon, end-of-run choice.
+  - Tank: Warden passive armor 40% (PR #362), tune later.
+  - #329 (stuns stop interruptible casts) and #344 (break-bar stagger stops the Twins) both land; #344 is the boss-specific case.
+  - #325's held-cast/spansCast behaviour, #357 removing content-pull from the frozen set, and #358's dial-90 seed are accepted.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as

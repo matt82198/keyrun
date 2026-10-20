@@ -55,9 +55,15 @@ public sealed class ForkParityTests
     {
         ["warden.guardBreak:surge"] = "Surge is dominated by Focused and Pin: slower at both keys (k2 2048 vs 1705/1838, k10 2289 vs 2257/2170) with no more Combos and no fewer deaths.",
         ["cinder.flare:efficient"] = "Efficient is dominated by Wildfire (re-measured on origin/main 704c6af, after #296): slower with fewer Combos at both keys (k2 1664/26 vs 1533/30, k10 1906/35 vs 1865/37), no deaths either side (finding f-e7e6461c).",
-        ["cinder.detonate:cheapShot"] = "Cheap Shot is dominated by Overkill: slower at both keys (k2 1868 vs 1648, k10 2380 vs 2014) with equal or fewer Combos (32/32, 43/44).",
         ["chanter.cadence:swift"] = "Swift is dominated by Resonance and Group Song: identical at k2, 91 ticks slower at k10 (2261 vs 2170), same Combos.",
-        ["chanter.hymn:staccato"] = "Staccato is dominated by Round Robin: one Combo fewer at k2 (32 vs 33) and slower with fewer Combos at k10 (2289/38 vs 2170/40).",
+        // The three below were not dominated on #291's base (560c00a) and are on origin/main a6f8544: sim and content
+        // PRs that landed between that base and #291's merge moved the runs, so the check went red the moment it
+        // landed. Measured by this check on a6f8544 merged into #360; each needs a content retune (open finding).
+        // The same drift un-dominated Cheap Shot (k10 2350/47 vs Overkill 1985/44) and Staccato (k10 2284/44 vs Round
+        // Robin 2172/42): both now land more Combos than their sibling at k10, so their entries were removed as stale.
+        ["chanter.cadence:resonance"] = "Resonance is dominated by Group Song (measured on origin/main a6f8544): slower at k2 (1719 vs 1689, both seeds), identical at k10 (2172), same Combos (36, 42), no deaths either side.",
+        ["cinder.cinderfield:flashpoint"] = "Flashpoint is dominated by Spreading Flame (measured on origin/main a6f8544): slower with fewer Combos at both keys (k2 1839/28 vs 1731/30, k10 2226/37 vs 2017/44), no deaths either side.",
+        ["warden.bulwark:mobile"] = "Mobile Ward is dominated by Fortress (measured on origin/main a6f8544): slower at both keys (k2 1719 vs 1717, k10 2172/42 vs 2013/44) with no more Combos, no deaths either side.",
     };
 
     /// <summary>

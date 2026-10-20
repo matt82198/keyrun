@@ -5,10 +5,12 @@
  *
  * manifest.json records, per file, its byte size and FNV-1a 32 over its bytes; per trace, its
  * trace hash, record count, final tick and run result; the loadContent() counts lane 1D compares
- * against; and `frozenSourceHash`, an FNV-1a 32 over the frozen TypeScript sources the fixtures
- * were generated from (CR stripped so a CRLF checkout hashes like an LF one; *.md files excluded,
- * since documentation under a frozen root never changes behaviour). Any other edit under those
- * paths changes it, which the drift test reports as a freeze violation.
+ * against; and `frozenSources`, one FNV-1a 32 per frozen TypeScript source file the fixtures were
+ * generated from (CR stripped so a CRLF checkout hashes like an LF one; *.md files excluded, since
+ * documentation under a frozen root never changes behaviour). Any other edit under those paths
+ * changes that file's entry, which the drift test reports, by path, as a freeze violation. The
+ * manifest is written one member per line (renderManifest), so two PRs that edit different source
+ * files change different manifest lines and merge without a conflict (see tests/sim/golden/hash-map.ts).
  *
  * Usage:
  *   - Re-record (deliberately, with a reason in the PR): `ORACLE_WRITE=1 npx vitest run tests/oracle`
@@ -21,6 +23,9 @@ import { loadContent } from "@content/index";
 import { canonicalJson } from "./format";
 import { buildTraces, ORACLE_VERSION, SOURCE_SHA } from "./traces";
 import { buildVectors } from "./vectors";
+import { hashMapDrift, sortedHashMap, type HashMap } from "../sim/golden/hash-map";
+
+export { hashMapDrift };
 
 export const REPO_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 export const ORACLE_FIXTURE_DIR = join(REPO_ROOT, "game", "sim", "Keyrun.Sim.Tests", "Fixtures", "oracle");
@@ -56,21 +61,35 @@ function listFiles(abs: string): string[] {
   return out;
 }
 
-/** FNV-1a 32 over (path, CR-stripped bytes) of every non-.md file under FROZEN_ROOTS, sorted by path. */
-export function frozenSourceHash(root: string = REPO_ROOT): { hash: string; files: number } {
+/**
+ * Files under FROZEN_ROOTS that are generated OUTPUTS, not sources: no fixture reads them, and each has
+ * its own gate that recomputes it from the live sources. content-pull.json changes on every content PR
+ * (golden.test.ts checks its contentHashes against loadContent()), so hashing it here would put the same
+ * conflicting line back into the manifest that per-file entries remove.
+ */
+export const DERIVED_UNDER_FROZEN_ROOTS = new Set(["tests/sim/golden/content-pull.json"]);
+
+/**
+ * One FNV-1a 32 per non-.md source file under FROZEN_ROOTS (minus DERIVED_UNDER_FROZEN_ROOTS), keyed by
+ * repo-relative path and sorted: the hash covers the path, byte length and CR-stripped bytes.
+ */
+export function frozenSourceHashes(root: string = REPO_ROOT): HashMap {
   const files = FROZEN_ROOTS.flatMap((r) => listFiles(join(root, r)))
     .map((abs) => relative(root, abs).split(sep).join("/"))
-    .filter((rel) => !rel.endsWith(".md"))
-    .sort();
-  let h = 0x811c9dc5;
+    .filter((rel) => !rel.endsWith(".md") && !DERIVED_UNDER_FROZEN_ROOTS.has(rel));
   const enc = new TextEncoder();
-  for (const rel of files) {
-    const raw = readFileSync(join(root, rel));
-    const lf = Uint8Array.from(raw.filter((b) => b !== 0x0d));
-    h = fnvBytes(enc.encode(`${rel}\n${lf.length}\n`), h);
-    h = fnvBytes(lf, h);
-  }
-  return { hash: hex(h), files: files.length };
+  return sortedHashMap(
+    files.map((rel): [string, string] => {
+      const raw = readFileSync(join(root, rel));
+      const lf = Uint8Array.from(raw.filter((b) => b !== 0x0d));
+      return [rel, hex(fnvBytes(lf, fnvBytes(enc.encode(`${rel}\n${lf.length}\n`))))];
+    }),
+  );
+}
+
+/** manifest.json's text: sorted keys (canonicalJson) laid out one member per line, trailing newline. */
+export function renderManifest(manifest: object): string {
+  return `${JSON.stringify(JSON.parse(canonicalJson(manifest)), null, 2)}\n`;
 }
 
 function contentCounts(): Record<string, number> {
@@ -104,11 +123,10 @@ export function buildFixtures(): Record<string, string> {
     const bytes = enc.encode(files[name]!);
     listing[name] = { bytes: bytes.length, fnv: hex(fnvBytes(bytes)) };
   }
-  const src = frozenSourceHash();
   const manifest = {
     kind: "keyrun-oracle-manifest",
     version: ORACLE_VERSION,
-    source: { sha: SOURCE_SHA, frozenRoots: FROZEN_ROOTS, frozenSourceHash: src.hash, frozenSourceFiles: src.files },
+    source: { sha: SOURCE_SHA, frozenRoots: FROZEN_ROOTS, frozenSources: frozenSourceHashes() },
     contentCounts: contentCounts(),
     traces: traces.map((t) => ({
       name: t.name,
@@ -121,7 +139,7 @@ export function buildFixtures(): Record<string, string> {
     })),
     files: listing,
   };
-  files["manifest.json"] = `${canonicalJson(manifest)}\n`;
+  files["manifest.json"] = renderManifest(manifest);
   return files;
 }
 
