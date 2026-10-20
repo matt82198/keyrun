@@ -67,6 +67,15 @@ public static class Affixes
     }
 
     /// <summary>
+    /// The rotation index a run seeded with <paramref name="seed"/> carries (finding f-319aced5): the seed's low 31 bits,
+    /// so the index is non-negative, a replay with the same seed rebuilds the same affixes and Clause, and consecutive
+    /// seeds alternate Fortified and Tyrannical on keys 5-9 the way WoW's weeks do. Pure integer math, no clock.
+    /// </summary>
+    /// <param name="seed">The run seed.</param>
+    /// <returns>The rotation index for <see cref="AffixesFor"/> and the key-set Clause.</returns>
+    public static int RotationIndexFor(long seed) => (int)(seed & int.MaxValue);
+
+    /// <summary>
     /// The health multiplier, bp, for one enemy: 10000 plus Fortified's health on a non-boss enemy or Tyrannical's on
     /// the boss side, when that affix is on.
     /// </summary>

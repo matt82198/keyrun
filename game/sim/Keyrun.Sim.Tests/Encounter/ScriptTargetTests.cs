@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
 using Xunit;
@@ -155,7 +156,10 @@ public sealed class ScriptTargetTests
         enemy.ChaseMarginMm = margin;
         var player = EncounterTestKit.Actor(1, ActorKind.Player, new Vec3(0, 0, distance), health: 1);
         var state = EncounterTestKit.State(0, new PrngState(0, 0, 0, 0), enemy, player);
-        return Chase.ChaseCommands(state, EncounterTestKit.Scripts(7, ScriptStep.Loop(40, "swing")), Swing).Count;
+        // Counts CHASE steps only: since ENEMY-ENGAGE a chaser in reach still emits a zero-direction move that only turns
+        // it to face its target, which is not a step toward it (pinned in EnemyEngageTests; TS twin chase-tuning.test.ts).
+        return Chase.ChaseCommands(state, EncounterTestKit.Scripts(7, ScriptStep.Loop(40, "swing")), Swing)
+            .OfType<MoveCommand>().Count(c => c.Dir.X != 0 || c.Dir.Z != 0);
     }
 
     [Fact]

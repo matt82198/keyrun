@@ -7,7 +7,7 @@ namespace Keyrun.Sim.Tests;
 
 /// <summary>
 /// The run-end panel's title for a real finished run (<see cref="RunEndTitle.ForRun"/>, the one read RunEndView.Of
-/// draws). A timed clear that finished past par but inside its Slack must read "over par", never "within par" (P0:
+/// draws). A clear that finished past par must never read "within par"; under STATE.md D46 it is depleted (P0:
 /// wrong data shown to the player), and must equal the sim's <see cref="RunEndTitle.Of"/> for the same run. Every
 /// case ends on the same tick T; only par moves, so T lands exactly on par, on par+1, and on the last Slack tick.
 /// </summary>
@@ -54,21 +54,22 @@ public sealed class RunEndTitleForRunTests
     }
 
     [Fact]
-    public void A_clear_one_tick_past_par_inside_its_Slack_reads_over_par_not_within_par()
+    public void A_clear_one_tick_past_par_is_depleted_and_reads_key_stays_not_within_par()
     {
+        // STATE.md D46 (Mythic+ clock): par is the deadline, with no Slack grace past it.
         var run = EndedRun(EndTick() - 1);
-        Assert.Equal(RunResult.Timed, run.RunEnd.Result);
+        Assert.Equal(RunResult.Depleted, run.RunEnd.Result);
         Assert.NotEqual(RunEndTitle.WithinPar, RunEndTitle.ForRun(run, 0, 0));
-        Assert.Equal(RunEndTitle.OverPar, RunEndTitle.ForRun(run, 0, 0));
+        Assert.Equal(RunEndTitle.ClearedUntimed(run.Encounter.KeyLevel), RunEndTitle.ForRun(run, 0, 0));
         Assert.Equal(SimTitle(run), RunEndTitle.ForRun(run, 0, 0));
     }
 
     [Fact]
-    public void A_clear_on_the_last_Slack_tick_is_still_timed_and_reads_over_par()
+    public void A_clear_on_what_was_the_last_Slack_tick_is_depleted_and_reads_key_stays()
     {
         var run = EndedRun(EndTick() - Timer.InitialSlackTicks(2));
-        Assert.Equal(RunResult.Timed, run.RunEnd.Result);
-        Assert.Equal(RunEndTitle.OverPar, RunEndTitle.ForRun(run, 0, 0));
+        Assert.Equal(RunResult.Depleted, run.RunEnd.Result);
+        Assert.Equal(RunEndTitle.ClearedUntimed(run.Encounter.KeyLevel), RunEndTitle.ForRun(run, 0, 0));
         Assert.Equal(SimTitle(run), RunEndTitle.ForRun(run, 0, 0));
     }
 

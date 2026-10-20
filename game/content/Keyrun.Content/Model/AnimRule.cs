@@ -86,6 +86,13 @@ public static class AnimRule
         ["Unarmed_Melee_Attack_Kick"] = 400,
         ["Spellcast_Shoot"] = 300,
         ["Spellcast_Raise"] = 600,
+        // KF1-WINDUP (AbilityAnim.ActClip), measured the same way (hand.r; the shield hand.l for Block_Attack) on the
+        // Knight and Skeleton_Rogue tracks at 30 fps, rounded to 100 ms from 200, 733, 467, 333 and 767 ms.
+        ["1H_Melee_Attack_Slice_Horizontal"] = 200,
+        ["1H_Melee_Attack_Stab"] = 700,
+        ["Block_Attack"] = 500,
+        ["2H_Melee_Attack_Slice"] = 300,
+        ["1H_Melee_Attack_Jump_Chop"] = 800,
     };
 
     /// <summary>The contact frame of <paramref name="clip"/> in ms, or null for a clip not in the table.</summary>
