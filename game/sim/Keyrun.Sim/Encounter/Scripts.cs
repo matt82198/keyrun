@@ -10,7 +10,14 @@ namespace Keyrun.Sim.Encounter;
 /// <param name="Commands">Casts (then chase moves) for the caller to feed to combat this tick.</param>
 /// <param name="TelegraphEvents">"telegraph" events announced this tick.</param>
 /// <param name="FiredOnDeath">The fire-once map carried forward plus this call's onDeath casts; pass it back next call.</param>
-public sealed record StepEnemyScriptsResult(IReadOnlyList<Command> Commands, IReadOnlyList<SimEvent> TelegraphEvents, IReadOnlyDictionary<int, IReadOnlyList<string>> FiredOnDeath);
+public sealed record StepEnemyScriptsResult(IReadOnlyList<Command> Commands, IReadOnlyList<SimEvent> TelegraphEvents, IReadOnlyDictionary<int, IReadOnlyList<string>> FiredOnDeath)
+{
+    /// <summary>
+    /// TELEGRAPH-CANCEL: for each of <see cref="TelegraphEvents"/>, in the same order, the tick its cast is due to start
+    /// when the telegraph spans that cast (<see cref="TelegraphSpec.SpansCast"/>), else null. Empty = none spans a cast.
+    /// </summary>
+    public IReadOnlyList<int?> TelegraphCastStarts { get; init; } = Array.Empty<int?>();
+}
 
 /// <summary>
 /// Enemy behaviour as data-driven state machines (sim/encounter/scripts.ts). Each tick, for every scripted actor in
@@ -187,6 +194,7 @@ public static class Scripts
         var tick = state.Tick;
         var commands = new List<Command>();
         var telegraphEvents = new List<SimEvent>();
+        var castStarts = new List<int?>();
         var nextFired = new SortedDictionary<int, List<string>>();
         if (firedOnDeath is not null)
         {
@@ -229,6 +237,7 @@ public static class Scripts
                         if (step.Telegraph is { } dtg)
                         {
                             telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, dtg));
+                            castStarts.Add(null);
                         }
                     }
                     continue;
@@ -255,11 +264,13 @@ public static class Scripts
                     if (FiresAt(step, fireTick) && CastHeldAt(state, actorId, actor, script, abil, fireTick) == i)
                     {
                         telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, tg with { LeadTicks = lead }));
+                        castStarts.Add(fireTick);
                     }
                 }
                 else if (FiresAt(step, tick + tg.LeadTicks))
                 {
                     telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, tg));
+                    castStarts.Add(null);
                 }
             }
         }
@@ -270,6 +281,6 @@ public static class Scripts
         {
             fired2[kv.Key] = kv.Value;
         }
-        return new StepEnemyScriptsResult(commands, telegraphEvents, fired2);
+        return new StepEnemyScriptsResult(commands, telegraphEvents, fired2) { TelegraphCastStarts = castStarts };
     }
 }

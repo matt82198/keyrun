@@ -29,7 +29,23 @@ public sealed record Telegraph(int Id, int SourceId, string AbilityId, string Sh
 
     /// <summary>Line full width, mm (absent = 0).</summary>
     public long? Width { get; init; }
+
+    /// <summary>
+    /// TELEGRAPH-CANCEL (C#-only; null on every oracle run): for a telegraph that spans its cast
+    /// (<see cref="TelegraphSpec.SpansCast"/>), the tick that cast is due to start; it then lands on
+    /// <see cref="ResolvesTick"/>. From that tick on the telegraph stands for a cast under way, and
+    /// <see cref="Telegraphs.CancelUnlanded"/> cancels it the tick that cast stops being under way. Null: the telegraph
+    /// resolves when its cast starts, so there is nothing in flight to cancel.
+    /// </summary>
+    public int? CastStartTick { get; init; }
 }
+
+/// <summary>
+/// The registry after <see cref="Telegraphs.CancelUnlanded"/> (TELEGRAPH-CANCEL).
+/// </summary>
+/// <param name="Telegraphs">Still-pending telegraphs, in registry order.</param>
+/// <param name="Cancelled">The telegraphs cancelled this tick (their cast ended without landing), in registry order.</param>
+public sealed record TelegraphCancel(IReadOnlyList<Telegraph> Telegraphs, IReadOnlyList<Telegraph> Cancelled);
 
 /// <summary>One resolved telegraph and the living, non-source actors it hit, ascending by id.</summary>
 /// <param name="TelegraphId">The telegraph.</param>
@@ -225,6 +241,8 @@ public static class Telegraphs
     /// apply <paramref name="drift"/> (the Tide clause hook, lane 2C; identity when null), resolve, emit one
     /// <c>{tick, type:"telegraph_hit", telegraphId, actorIds}</c> per resolved telegraph, and drop the resolved.
     /// The "telegraph" events themselves are emitted by the caller (the encounter step), not here.
+    /// <paramref name="castStartTicks"/> (TELEGRAPH-CANCEL), aligned with <paramref name="newTelegraphEvents"/>, sets
+    /// each new telegraph's <see cref="Telegraph.CastStartTick"/>; null or shorter leaves the rest null.
     /// </summary>
     public static TelegraphAdvance Advance(
         SimState state,
@@ -232,9 +250,15 @@ public static class Telegraphs
         IReadOnlyList<SimEvent> newTelegraphEvents,
         int nextTelegraphId,
         Action<SimEvent> emit,
-        Func<IReadOnlyList<Telegraph>, IReadOnlyList<Telegraph>>? drift = null)
+        Func<IReadOnlyList<Telegraph>, IReadOnlyList<Telegraph>>? drift = null,
+        IReadOnlyList<int?>? castStartTicks = null)
     {
-        var registered = newTelegraphEvents.Select((e, i) => Register(e, nextTelegraphId + i)).ToList();
+        var registered = newTelegraphEvents
+            .Select((e, i) => Register(e, nextTelegraphId + i) with
+            {
+                CastStartTick = castStartTicks is not null && i < castStartTicks.Count ? castStartTicks[i] : null,
+            })
+            .ToList();
         IReadOnlyList<Telegraph> all = active.Concat(registered).ToList();
         if (drift is not null)
         {
@@ -250,5 +274,53 @@ public static class Telegraphs
         var resolved = new HashSet<int>(hits.Select(h => h.TelegraphId));
         var remaining = all.Where(t => !resolved.Contains(t.Id)).ToList();
         return new TelegraphAdvance(remaining, nextTelegraphId + registered.Count, hits);
+    }
+
+    /// <summary>
+    /// TELEGRAPH-CANCEL (wrong data shown is P0; BIBLE s3, "a floor telegraph drawn ahead of resolution"): run by the
+    /// run root after combat on tick <paramref name="tick"/>. A pending telegraph with a <see cref="Telegraph.CastStartTick"/>
+    /// at or before <paramref name="tick"/> stands for a cast under way that lands on its <see cref="Telegraph.ResolvesTick"/>.
+    /// When its caster is not casting that ability to land on that tick (the cast was kicked, stopped, replaced by the
+    /// caster's next cast, or never started), it emits <c>{tick, type:"telegraph_cancel", telegraphId, actorId, cast}</c>
+    /// and is dropped, so it never resolves into a <c>telegraph_hit</c> for a hit that cannot come. Integer ticks only;
+    /// registry order is kept. A telegraph with no CastStartTick (every oracle run) is never touched. A cast that lands
+    /// completes in combat on its ResolvesTick, after the encounter step resolved the telegraph, so a landing cast is
+    /// never cancelled.
+    /// </summary>
+    /// <param name="after">The state after this tick's combat.</param>
+    /// <param name="pending">The registry after this tick's <see cref="Advance"/>.</param>
+    /// <param name="tick">The tick just stepped.</param>
+    /// <param name="emit">Event sink.</param>
+    /// <returns>The registry with the cancelled telegraphs removed, and those telegraphs.</returns>
+    public static TelegraphCancel CancelUnlanded(SimState after, IReadOnlyList<Telegraph> pending, int tick, Action<SimEvent> emit)
+    {
+        ArgumentNullException.ThrowIfNull(after);
+        ArgumentNullException.ThrowIfNull(pending);
+        ArgumentNullException.ThrowIfNull(emit);
+        var cancelled = new List<Telegraph>();
+        foreach (var tg in pending)
+        {
+            if (tg.CastStartTick is not { } start || start > tick || tick >= tg.ResolvesTick)
+            {
+                continue;
+            }
+            var underWay = after.Actors.TryGetValue(tg.SourceId, out var caster) &&
+                caster.CastId == tg.AbilityId && caster.CastEndsTick == tg.ResolvesTick;
+            if (underWay)
+            {
+                continue;
+            }
+            cancelled.Add(tg);
+            emit(new SimEvent(tick, "telegraph_cancel",
+                ("telegraphId", JsValue.Int(tg.Id)),
+                ("actorId", JsValue.Int(tg.SourceId)),
+                ("cast", JsValue.Str(tg.AbilityId))));
+        }
+        if (cancelled.Count == 0)
+        {
+            return new TelegraphCancel(pending, cancelled);
+        }
+        var dropped = new HashSet<int>(cancelled.Select(t => t.Id));
+        return new TelegraphCancel(pending.Where(t => !dropped.Contains(t.Id)).ToList(), cancelled);
     }
 }

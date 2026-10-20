@@ -15,6 +15,10 @@ env:
   DOTNET_NOLOGO: "1"
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   game-test:
     runs-on: windows-latest
@@ -161,6 +165,36 @@ jobs:
           Write-Output $out
           if ($code -ne 0) { throw "GateCutawaySceneTest exited $code" }
           if ($out -notmatch '(?m)^GateCutawaySceneTest: PASS') { throw 'GateCutaway scene test did not print PASS' }
+
+      - name: Nameplate declutter test (must print PASS)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & ./game/src/Hud/NameplateDeclutterTest.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "NameplateDeclutterTest exited $code" }
+          if ($out -notmatch '(?m)^NameplateDeclutterTest: PASS') { throw 'NameplateDeclutter test did not print PASS' }
+
+      - name: Help hint scene test (must print PASS)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & ./game/src/Hud/HelpHintSceneTest.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "HelpHintSceneTest exited $code" }
+          if ($out -notmatch '(?m)^HelpHintSceneTest: PASS') { throw 'HelpHintSceneTest did not print PASS' }
+
+      - name: Combat text overlap test (1280x720 autorun, must print PASS)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & ./game/src/Hud/CombatTextOverlapTest.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "CombatTextOverlapTest exited $code" }
+          if ($out -notmatch '(?m)^CombatTextOverlapTest: PASS') { throw 'CombatTextOverlapTest did not print PASS' }
 
       - name: Boot smoke (headless, must print SMOKE ok)
         shell: pwsh
