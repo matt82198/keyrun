@@ -8,7 +8,11 @@ using Keyrun.Sim.Core;
 using Keyrun.Sim.Runs;
 using Keyrun.View;
 using HudLayout = Keyrun.Content.HudLayout;
+using PingEvent = Keyrun.Bots.Shared.PingEvent;
+using PingKind = Keyrun.Bots.Shared.PingKind;
+using PingWords = Keyrun.Bots.Shared.PingWords;
 using PixelPoint = Keyrun.Content.PixelPoint;
+using PointMm = Keyrun.Bots.PointMm;
 using PixelRect = Keyrun.Content.PixelRect;
 
 namespace Keyrun.Hud;
@@ -161,6 +165,12 @@ public static class HudObstacles
 /// "SPREAD: move apart" in the world (<see cref="HudDeclutter"/>.WorldPingLabel); STACK keeps its world label, the spot
 /// to group up on.
 /// </para>
+/// <para>
+/// PING-FEEDBACK (design/BIBLE.md s10, "the game turns it into the party's language ("kick", "stack here",
+/// "Window!")"): the human's G (<see cref="PlayerInput.Pinged"/>) puts the word <see cref="PingWords"/>.Say picks from
+/// the bots' own ping context over the pinged target (or the pinger, a spot ping, as SimDriver.RoutePing builds it)
+/// for <see cref="PingWords.ShowTicks"/> (2 s), laid out with the call labels.
+/// </para>
 /// </summary>
 public partial class Pings : Control
 {
@@ -174,6 +184,12 @@ public partial class Pings : Control
     private readonly List<PixelRect> _rects = new();
     private ulong _laidOutFrame = ulong.MaxValue;
     private SimDriver? _driver;
+    private PlayerInput? _input;
+    private Said? _said;
+
+    /// <summary>The human's input, whose G-ping (<see cref="PlayerInput.Pinged"/>) this node puts into words.</summary>
+    [Export]
+    public NodePath PlayerInputPath { get; set; } = new("../../../PlayerInput");
 
     /// <summary>The driver to read the run from.</summary>
     [Export]
@@ -210,6 +226,11 @@ public partial class Pings : Control
             _driver.Stepped += OnStepped;
             _driver.RunStarted += OnRunStarted;
         }
+        _input = GetNodeOrNull<PlayerInput>(PlayerInputPath);
+        if (_input is not null)
+        {
+            _input.Pinged += OnPinged;
+        }
     }
 
     /// <inheritdoc />
@@ -219,6 +240,10 @@ public partial class Pings : Control
         {
             _driver.Stepped -= OnStepped;
             _driver.RunStarted -= OnRunStarted;
+        }
+        if (_input is not null)
+        {
+            _input.Pinged -= OnPinged;
         }
     }
 
@@ -269,7 +294,8 @@ public partial class Pings : Control
             return;
         }
         var calls = PingCalls.Calls(run);
-        if (calls.Count == 0)
+        var said = SaidNow(run);
+        if (calls.Count == 0 && said is null)
         {
             return;
         }
@@ -320,6 +346,23 @@ public partial class Pings : Control
                 texts.Add(call.Text);
                 colors.Add(ColorOf(call.Label));
                 spots.Add(rect);
+            }
+        }
+        // PING-FEEDBACK: the human's ping word over the pinged target or spot, placed with the call labels.
+        if (said is { } s)
+        {
+            var world = ActorView.ToMetres(s.Pos) + new Vector3(0, s.TargetId is null ? 0.3f : 2.6f, 0);
+            if (!camera.IsPositionBehind(world))
+            {
+                var p = camera.UnprojectPosition(world);
+                var rect = HudLayout.PingLabelRect(new PixelPoint((int)Math.Round(p.X), (int)Math.Round(p.Y)),
+                    (int)Math.Ceiling(HudNodes.Width(s.Text, HudLayout.PingFont)));
+                if (HudLayout.Shows(rect, width, height))
+                {
+                    texts.Add(s.Text);
+                    colors.Add(SaidColor);
+                    spots.Add(rect);
+                }
             }
         }
         // STACK-PING-LABEL: one label per call per spot (the Pair's casters each raise their own STACK telegraph).
@@ -375,7 +418,43 @@ public partial class Pings : Control
     {
         _seen.Clear();
         _textLogged.Clear();
+        _said = null;
     }
+
+    private static Color SaidColor => HudNodes.Rgb(0xf0e442);
+
+    // The live ping word, following a pinged actor while it lives (else the spot it was on); null once expired.
+    private Said? SaidNow(Run run)
+    {
+        if (_said is not { } s || run.State.Tick >= s.UntilTick)
+        {
+            return null;
+        }
+        return s.TargetId is { } id && run.State.Actors.TryGetValue(id, out var a) && a.Alive ? s with { Pos = a.Pos } : s;
+    }
+
+    // PlayerInput.Pinged (raised inside the human's Sample, the pre-step run): the ping SimDriver.RoutePing builds (a
+    // target ping on the human's target, else a spot ping at the pinger), put into words from the same state the bots read.
+    private void OnPinged(int? targetId)
+    {
+        if (_driver?.Run is not { } run || !run.State.Actors.TryGetValue(SimDriver.WardenId, out var me))
+        {
+            return;
+        }
+        var tick = run.State.Tick;
+        var ping = targetId is { } target
+            ? new PingEvent(tick, SimDriver.WardenId, PingKind.Target) { TargetId = target }
+            : new PingEvent(tick, SimDriver.WardenId, PingKind.Spot) { Point = new PointMm(me.Pos.X, me.Pos.Z) };
+        var stackPending = PingCalls.Calls(run).Any(c => c.Source == PingSource.Telegraph && c.Label == "STACK");
+        var text = PingWords.Say(run.State.Actors, tick, ping, stackPending);
+        var pos = targetId is { } t && run.State.Actors.TryGetValue(t, out var pinged) ? pinged.Pos : me.Pos;
+        _said = new Said(text, targetId, pos, tick + PingWords.ShowTicks);
+        // One line per G press (interactive runs only: --autorun never pings), the proof the human saw the word.
+        GD.Print(FormattableString.Invariant(
+            $"HUD pingsay text=\"{text}\" kind={(targetId is null ? "spot" : "target")} target={(targetId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "none")} tick={tick} until={tick + PingWords.ShowTicks}"));
+    }
+
+    private readonly record struct Said(string Text, int? TargetId, Vec3 Pos, int UntilTick);
 
     private void OnStepped(int tick, IReadOnlyList<SimEvent> events)
     {
