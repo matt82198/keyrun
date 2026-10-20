@@ -125,6 +125,9 @@ public sealed class HudLayoutTests
     {
         var plates = new[] { new PixelRect(100, 300, 120, 30), new PixelRect(600, 300, 120, 30) };
         Assert.All(HudLayout.Separate(plates, 1280, 720), o => Assert.Equal(new PlateOffset(0, 0), o));
+        // Assert.All passes vacuously on an empty result, so pin one offset per plate: a Separate() that returned
+        // nothing would otherwise read as "nobody moved".
+        Assert.Equal(plates.Length, HudLayout.Separate(plates, 1280, 720).Count);
     }
 
     [Fact]
