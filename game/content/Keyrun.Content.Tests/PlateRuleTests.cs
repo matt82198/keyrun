@@ -89,4 +89,38 @@ public sealed class PlateRuleTests
         Assert.Equal(2049, PlateRule.PlateHeightMm(0, 2166, 831, boss: false));
         Assert.Equal(PlateRule.ScaledTopMm(2166, 831), Table.For("pair.melee").StandingHeightMm);
     }
+
+    // f-07f1b477: on the boss pull the Hollow Warden's plate ("The Hollow Warden", capped 5 m up) and the two Sundered
+    // Twin plates beside it collided, and HudLayout.Separate stacked all three in a column over the boss model. The boss
+    // is named on its unit frame, so its plate does not draw over its head as well (the OverheadCast rule, for plates).
+    private const int Boss = 900;
+    private const int TwinA = 901;
+    private const int TwinB = 902;
+
+    [Fact]
+    public void The_enemy_on_the_boss_frame_draws_no_overhead_plate()
+    {
+        Assert.False(PlateRule.DrawsOverhead(Boss, alive: true, human: false, bossFrameActorId: Boss));
+    }
+
+    [Fact]
+    public void The_Twins_beside_the_framed_boss_keep_their_overhead_plates()
+    {
+        Assert.True(PlateRule.DrawsOverhead(TwinA, alive: true, human: false, bossFrameActorId: Boss));
+        Assert.True(PlateRule.DrawsOverhead(TwinB, alive: true, human: false, bossFrameActorId: Boss));
+    }
+
+    [Fact]
+    public void With_no_boss_frame_every_living_non_human_actor_draws_its_plate()
+    {
+        Assert.True(PlateRule.DrawsOverhead(Boss, alive: true, human: false, bossFrameActorId: null));
+        Assert.True(PlateRule.DrawsOverhead(101, alive: true, human: false, bossFrameActorId: null));
+    }
+
+    [Fact]
+    public void The_human_and_the_dead_never_draw_a_plate()
+    {
+        Assert.False(PlateRule.DrawsOverhead(1, alive: true, human: true, bossFrameActorId: Boss));
+        Assert.False(PlateRule.DrawsOverhead(TwinA, alive: false, human: false, bossFrameActorId: Boss));
+    }
 }

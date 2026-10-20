@@ -183,6 +183,7 @@ public sealed class BackfillTests
         // seat opens with no added time and the joiner arrives with the run's current added time, never reset.
         Assert.False(d.Run.State.Actors[Healer].Alive);
         Assert.Equal(0, d.PenaltyAt[AbandonTick]);
+        Assert.True(d.Run.Encounter.PenaltyTicks > 0);
         Assert.Equal(Timer.DeathCostTicks(d.Run.Encounter.Rules), d.PenaltyAt[fill.FillTick]);
         Assert.Equal(d.PenaltyAt[fill.FillTick], fill.PenaltyTicks);
         Assert.Equal(d.Run.Encounter.PenaltyTicks, fill.PenaltyTicks);
