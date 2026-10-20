@@ -310,7 +310,8 @@ public sealed record HostRunSetup(
         return slots;
     }
 
-    // run-setup.ts:61 resolveVariant: Chanter's stance abilities always play their "mend" variant.
+    // run-setup.ts:61 resolveVariant: a stance ability's static Effects are its "mend" variant (the opening verse).
+    // BIBLE section 5: the variants also ride along, and the sim (Abilities.ResolveVerse) plays the caster's verse.
     private static AbilityDef ToSim(C.AbilityDef a)
     {
         if (a.Shape.Width is not null)
@@ -318,6 +319,15 @@ public sealed record HostRunSetup(
             throw new InvalidOperationException($"run setup: ability \"{a.Id}\" has a shape width (facet patches only)");
         }
         var ops = a.Variants is { } v && v.TryGetValue("mend", out var mend) ? mend : a.Effects;
+        Dictionary<string, IReadOnlyList<EffectOp>>? variants = null;
+        if (a.Variants is { } all)
+        {
+            variants = new Dictionary<string, IReadOnlyList<EffectOp>>(StringComparer.Ordinal);
+            foreach (var kv in all)
+            {
+                variants[kv.Key] = kv.Value.Select(o => ToSim(o, a.Id + " variant " + kv.Key)).ToList();
+            }
+        }
         return new AbilityDef
         {
             Id = a.Id,
@@ -331,6 +341,7 @@ public sealed record HostRunSetup(
             Interruptible = a.Interruptible,
             Effects = ops.Select(o => ToSim(o, a.Id)).ToList(),
             Tags = a.Tags.ToList(),
+            Variants = variants,
         };
     }
 
