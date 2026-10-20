@@ -541,8 +541,8 @@ public partial class Screen : Control
     /// every equipped item's Facet is applied on top with <see cref="Keyrun.Content.GearFacets.Resolve"/> in slot order.
     /// The patched content is converted to sim AbilityDefs by the same <see cref="HostRunSetup.Build"/> conversion the
     /// run itself is built with, so a talented or Facet-patched ability is exactly what the host would build if the
-    /// patch were the base definition. A Facet whose patched shape the conversion cannot play (a line width: facet
-    /// patches only, not in the sim shape) is skipped and reported, never a refused Queue.
+    /// patch were the base definition. A line width (twinStrike, infernoBolt) converts to the sim line's half-width, so
+    /// every shipped Facet applies; one the content cannot honour is still skipped and reported, never a refused Queue.
     /// </summary>
     /// <param name="withFacets">True to apply the gear layer.</param>
     /// <returns>The loadout, or null when content or the Key band is not there.</returns>
@@ -561,8 +561,7 @@ public partial class Screen : Control
                 reg.Facets,
                 Merge(reg.Abilities, talented),
                 cls,
-                Rewards.GearSlots.Where(_progression.Equipped.ContainsKey).Select(slot => (slot, _progression.Equipped[slot].Facet.Id)),
-                a => a.Shape.Width is not null ? "line width is not in the sim shape" : null);
+                Rewards.GearSlots.Where(_progression.Equipped.ContainsKey).Select(slot => (slot, _progression.Equipped[slot].Facet.Id)));
             foreach (var (id, def) in facets.Abilities)
             {
                 patched[id] = def;
