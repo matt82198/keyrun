@@ -181,6 +181,12 @@ public static class RoleShared
         {
             return null;
         }
+        // BOT-KICK-TIMING: in the dungeon (a layout run) the assigned kicker holds until Ledger.KickOpensTick, after a
+        // human reaction and into the back half of the cast, so its bar is seen. Inert in the oracle runner (no layout).
+        if (view.Layout is not null && tick < Ledger.KickOpensTick(view.State.Actors[assignment.TargetId]))
+        {
+            return null;
+        }
         return new CastCommand(tick, self.Id, interruptId, assignment.TargetId);
     }
 }
