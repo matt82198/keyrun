@@ -17,7 +17,9 @@ namespace Keyrun.Hud;
 /// Momentum. The run-over state (result, rewards, the Enter hint) is the run-end panel's (<see cref="RunEndPanel"/>).
 /// Each ability slot draws its CC0 icon (<see cref="Keyrun.Content.AbilityIcons"/>, lane ABILITY-ICONS) in place of the
 /// name text; a slot whose ability has no icon row keeps the name. Under --autorun it prints one "HUD bar slot=K
-/// ability=ID icon=PATH tex=WxH" line per slot when a run's setup arrives (HudSceneTest check 40).
+/// ability=ID icon=PATH tex=WxH" line per slot when a run's setup arrives (HudSceneTest check 40). Lane CHARGE-COOLDOWN:
+/// a multi-charge ability shows its ready charges in the corner and reads on cooldown only with none ready, counting
+/// down to the NEXT charge (<see cref="ChargeReadout"/>, the sim's own charge timestamp), not to the last one.
 /// </summary>
 public partial class AbilityBar : Control
 {
@@ -67,7 +69,79 @@ public partial class AbilityBar : Control
     public override void _Process(double delta)
     {
         RefreshIcons();
+        if (Driver?.Options.Autorun == true)
+        {
+            PrintRangeTint();
+        }
+        if (Driver?.Options is { } o && (o.Autorun || o.ReplayInput is not null))
+        {
+            PrintCharges();
+        }
         QueueRedraw();
+    }
+
+    // The ready-charge count last printed per multi-charge ability, so a "HUD bar charge" line prints only when that
+    // count changes (lane CHARGE-COOLDOWN), not on every tick of the countdown.
+    private readonly System.Collections.Generic.Dictionary<string, long> _lastChargeCount = new();
+
+    // Under --autorun or --replay-input: "HUD bar charge ability=ID charges=C/M shown=S tick=T" for each slot whose
+    // ability has more than one charge, S the seconds the slot draws at that tick ("none" while a charge is ready).
+    // Printed when the ready-charge count changes.
+    private void PrintCharges()
+    {
+        if (Driver?.Setup is not { } setup || Driver.Run is not { } run || !run.State.Actors.TryGetValue(setup.HumanActorId, out var me))
+        {
+            return;
+        }
+        foreach (var slot in setup.Slots)
+        {
+            if (!run.Content.Abilities.TryGetValue(slot.AbilityId, out var def) || def.Charges < 2)
+            {
+                continue;
+            }
+            var readout = ChargeReadout.For(me, def, run.State.Tick);
+            if (_lastChargeCount.TryGetValue(def.Id, out var last) && last == readout.Charges)
+            {
+                continue;
+            }
+            _lastChargeCount[def.Id] = readout.Charges;
+            var shown = readout.OnCooldown ? CooldownSeconds(readout) : "none";
+            GD.Print(FormattableString.Invariant($"HUD bar charge ability={def.Id} charges={readout.Charges}/{readout.MaxCharges} shown={shown} tick={run.State.Tick}"));
+        }
+    }
+
+    // The seconds a slot on cooldown draws: the wait until the NEXT charge, so a two-charge ability spent twice reads
+    // the time until it can be cast again, not until both charges are back (lane CHARGE-COOLDOWN).
+    private static string CooldownSeconds(ChargeReadout readout) =>
+        FormattableString.Invariant($"{readout.TicksToNextCharge / (float)Tick.TickHz:0.0}");
+
+    // The last "HUD bar range" line printed, so the line prints only when the tinted-slot count or the run-over state
+    // changes (lane TINT-RUNOVER, HudSceneTest check 41).
+    private string? _lastRangeLine;
+
+    // Under --autorun: "HUD bar range tinted=N over=0|1 tick=T", N the slots the bar draws with the out-of-range tint,
+    // over 1 once the run has ended for any result. Printed on change only.
+    private void PrintRangeTint()
+    {
+        if (Driver?.Setup is not { } setup || Driver.Run is not { } run || !run.State.Actors.TryGetValue(setup.HumanActorId, out var me))
+        {
+            return;
+        }
+        var tinted = 0;
+        foreach (var slot in setup.Slots)
+        {
+            if (run.Content.Abilities.TryGetValue(slot.AbilityId, out var def) && OutOfRange(run, me, def))
+            {
+                tinted++;
+            }
+        }
+        var line = FormattableString.Invariant($"HUD bar range tinted={tinted} over={(run.RunEnd.Result is not null ? 1 : 0)}");
+        if (line == _lastRangeLine)
+        {
+            return;
+        }
+        _lastRangeLine = line;
+        GD.Print(FormattableString.Invariant($"{line} tick={run.State.Tick}"));
     }
 
     // Loads each slot's icon once per run setup (not per frame) and, under --autorun, prints what each slot resolved.
@@ -138,12 +212,11 @@ public partial class AbilityBar : Control
             }
             var cdFraction = 0f;
             string? cdText = null;
-            if (def.CooldownTicks > 0 && me.Cooldowns.TryGetValue(def.Id, out var readyTick) && readyTick > now &&
-                Cooldowns.ChargesAvailable(me, def, now) < 1)
+            var charges = ChargeReadout.For(me, def, now);
+            if (charges.OnCooldown)
             {
-                var left = readyTick - now;
-                cdFraction = Mathf.Clamp((float)left / def.CooldownTicks, 0f, 1f);
-                cdText = $"{left / (float)Tick.TickHz:0.0}";
+                cdFraction = Mathf.Clamp((float)charges.TicksToNextCharge / charges.CooldownTicks, 0f, 1f);
+                cdText = CooldownSeconds(charges);
             }
             var gcd = def.GcdTicks > 0 && me.GcdReadyTick > now ? Mathf.Clamp((float)(me.GcdReadyTick - now) / def.GcdTicks, 0f, 1f) : 0f;
             var shortResource = def.Cost.Resource != "none" && me.Resource < def.Cost.Amount;
@@ -158,6 +231,15 @@ public partial class AbilityBar : Control
             {
                 DrawRect(new Rect2(rect.Position, new Vector2(rect.Size.X, rect.Size.Y * gcd)), GcdShade);
             }
+            if (charges.MaxCharges > 1)
+            {
+                // WoW style: a multi-charge ability shows its ready charges in the bottom-right corner.
+                var ready = FormattableString.Invariant($"{charges.Charges}");
+                var w = font.GetStringSize(ready, HorizontalAlignment.Left, -1, KeyFont).X;
+                var at = new Vector2(rect.End.X - w - 6, rect.End.Y - 6);
+                DrawStringOutline(font, at, ready, HorizontalAlignment.Left, -1, KeyFont, 4, Colors.Black);
+                DrawString(font, at, ready, HorizontalAlignment.Left, -1, KeyFont, Colors.White);
+            }
         }
 
         var pingRect = new Rect2(origin.X + (setup.Slots.Count * (Slot + Gap)), origin.Y, Slot, Slot);
@@ -166,15 +248,16 @@ public partial class AbilityBar : Control
     }
 
     // Lane RANGE-TINT-NOTARGET: the tint reads off the player's own selected target, never the cast's nearest-enemy
-    // fallback (CastTargeting.For), so no target or a dead or friendly one leaves every slot untinted; a cleared run has
-    // no living hostile left to target. The bar reads no run-over state: that is the run-end panel's (HudSceneTest 25).
+    // fallback (CastTargeting.For), so no target or a dead or friendly one leaves every slot untinted. Lane TINT-RUNOVER:
+    // once the run has ended for any result the tint is off too, since a depleted run can end with the player's target
+    // alive and out of range. The bar only reads that the run ended; the run-end panel draws the result (HudSceneTest 25).
     private static bool OutOfRange(Run run, ActorState me, AbilityDef def)
     {
         Keyrun.Content.RangeTarget? target = me.TargetId is { } id && id != me.Id && run.State.Actors.TryGetValue(id, out var t)
             ? new Keyrun.Content.RangeTarget(t.Alive, t.Kind != me.Kind, Casting.RangeMm(me, t))
             : null;
         var hostileAbility = def.Shape.Kind == ShapeKind.Target && Affinities.Of(def, run.Content.Effects) == Affinity.Hostile;
-        return Keyrun.Content.AbilitySlotLook.ShowsOutOfRange(target, hostileAbility, def.Range);
+        return Keyrun.Content.AbilitySlotLook.ShowsOutOfRange(target, hostileAbility, def.Range, runOver: run.RunEnd.Result is not null);
     }
 
     private void DrawSlot(Font font, Rect2 rect, string key, string name, float alpha, bool outOfRange, bool dashed, Texture2D? icon = null, float iconAlpha = 1f)
