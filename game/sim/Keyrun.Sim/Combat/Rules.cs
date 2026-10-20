@@ -63,7 +63,8 @@ public sealed record RulesConfig
 /// <list type="number">
 /// <item>Complete every cast whose castEndsTick is this tick (actors ascending), then its Windows and Payoff.</item>
 /// <item>Run the tick's commands in order: target, stopcast, move/dash, cast (an instant cast completes now, then
-/// its Windows and Payoff). A dead actor's commands are dropped except cast (the onDeath DEATH-CAST EXCEPTION).</item>
+/// its Windows and Payoff). A held spell-queue press whose lock is over joins them as its actor's cast command
+/// (<see cref="SpellQueue"/>). A dead actor's commands are dropped except cast (the onDeath DEATH-CAST EXCEPTION).</item>
 /// <item>Push live actors apart, then clamp every actor to the bounds.</item>
 /// <item>Per actor: due periodic ticks, Window expiries, then the generic effect expiry; then floor expiries, then
 /// the C#-only combo clouds (<see cref="Combos.TickClouds"/>; none on an oracle run).</item>
@@ -134,7 +135,10 @@ public static class Rules
                 }
             }
 
-            foreach (var cmd in commands)
+            // The spell queue window: a held press whose cast/GCD lock is over runs as its actor's cast command, in the
+            // fixed order (Combat/SpellQueue.cs).
+            var fired = new HashSet<Command>(ReferenceEqualityComparer.Instance);
+            foreach (var cmd in SpellQueue.WithFiring(state, commands, cfg.Abilities, fired))
             {
                 if (!state.Actors.TryGetValue(cmd.ActorId, out var actor))
                 {
@@ -169,6 +173,7 @@ public static class Rules
                         // context) cannot hand the silence back.
                         var castHooks = actor.Kind == ActorKind.Player ? hooks : noClause;
                         var err = Casting.StartCast(state, actor, def, c.TargetId, c.Point, state.Tick, castHooks, ctx);
+                        SpellQueue.AfterPress(actor, def, c, err, fired.Contains(c), state.Tick);
                         if (err is null && def.CastTicks == 0)
                         {
                             var resolved = Abilities.ResolveVerse(def, actor);

@@ -10,7 +10,7 @@
  * Usage: `import { abilityReady, readyAndAffordable, ledgerKickCommand, inLull } from "./shared.js"`
  */
 import type { ActorState, BotView, Command, Tick } from "../types.js";
-import { resolveInterrupt, isCasting } from "../shared/ledger.js";
+import { resolveInterrupt, isCastLocked } from "../shared/ledger.js";
 import { resolveKit, priorityInterruptAbilityIds, type EffectiveKit } from "../kits.js";
 
 /**
@@ -34,11 +34,12 @@ export function isOffGcd(kit: Pick<EffectiveKit, "offGcdAbilityIds"> | undefined
 }
 
 /**
- * Not mid-cast (the sim refuses a press then), off cooldown and off the GCD; an ability in the kit's offGcdAbilityIds
- * only waits for its own cooldown.
+ * Not locked out by its own cast (the sim refuses a press then, except in the spell queue window's last ticks, where
+ * it holds the press until the cast ends: isCastLocked), off cooldown and off the GCD; an ability in the kit's
+ * offGcdAbilityIds only waits for its own cooldown.
  */
 export function abilityReady(self: ActorState, abilityId: string, tick: Tick, kit?: Pick<EffectiveKit, "offGcdAbilityIds">): boolean {
-  return !isCasting(self, tick) && (self.cooldowns[abilityId] ?? 0) <= tick && (isOffGcd(kit, abilityId) || self.gcdReadyTick <= tick);
+  return !isCastLocked(self, tick) && (self.cooldowns[abilityId] ?? 0) <= tick && (isOffGcd(kit, abilityId) || self.gcdReadyTick <= tick);
 }
 
 export function affordable(self: ActorState, abilityId: string, kit: EffectiveKit): boolean {

@@ -16,6 +16,7 @@
  * Usage: `import { resolveInterrupt } from "./ledger.js"`
  */
 import type { ActorId, ActorState, Tick } from "../types.js";
+import { SPELL_QUEUE_WINDOW_TICKS } from "../../../sim/combat/spell-queue.js";
 
 export interface CastingTarget {
   actorId: ActorId;
@@ -80,6 +81,20 @@ export function isCasting(a: ActorState, tick: Tick): boolean {
   return a.castId !== null && (a.castEndsTick ?? Number.MAX_SAFE_INTEGER) > tick;
 }
 
+/**
+ * True when `a`'s cast under way still locks it out of a press at `tick`: casting with more than
+ * SPELL_QUEUE_WINDOW_TICKS ticks left. Inside the last window ticks the sim queues a press and fires it on the tick
+ * the cast ends (sim/combat/spell-queue.ts), so a bot presses there. Mirrors Readiness.cs IsCastLocked.
+ */
+export function isCastLocked(a: ActorState, tick: Tick): boolean {
+  return isCasting(a, tick) && (a.castEndsTick ?? Number.MAX_SAFE_INTEGER) - tick > SPELL_QUEUE_WINDOW_TICKS;
+}
+
+/** The tick a press by `a` at `tick` lands as far as its own cast goes: now, or the end of the cast under way. */
+export function landingTick(a: ActorState, tick: Tick): Tick {
+  return isCasting(a, tick) ? (a.castEndsTick ?? Number.MAX_SAFE_INTEGER) : tick;
+}
+
 export function resolveInterrupt(
   actors: Record<ActorId, ActorState>,
   interruptAbilityId: string,
@@ -90,11 +105,17 @@ export function resolveInterrupt(
 ): InterruptAssignment | null {
   const targetId = selectPriorityCastTarget(castingEnemies(actors), priorityAbilityIds);
   if (targetId === null) return null;
+  // Spell queue window (isCastLocked): a kicker in the last window ticks of its own cast counts, its kick landing when
+  // that cast ends, but only when that tick is still inside the enemy's cast. The kick that lands first wins, ties to
+  // the lowest id (BIBLE s3: intended tick, fixed tiebreak). Mirrors Ledger.cs ResolveInterrupt.
+  const targetEnds = actors[targetId]?.castEndsTick ?? Number.MAX_SAFE_INTEGER;
   const ready = eligibleClassmates.filter((id) => {
     const a = actors[id];
-    return a && a.alive && !isCasting(a, tick) && (a.cooldowns[interruptAbilityId] ?? 0) <= tick && (interruptOffGcd || a.gcdReadyTick <= tick);
+    return a && a.alive && !isCastLocked(a, tick) && landingTick(a, tick) < targetEnds && (a.cooldowns[interruptAbilityId] ?? 0) <= tick && (interruptOffGcd || a.gcdReadyTick <= tick);
   });
-  const kickerId = selectKicker(ready);
+  if (ready.length === 0) return null;
+  const firstLanding = Math.min(...ready.map((id) => landingTick(actors[id]!, tick)));
+  const kickerId = selectKicker(ready.filter((id) => landingTick(actors[id]!, tick) === firstLanding));
   if (kickerId === null) return null;
   return { targetId, kickerId };
 }

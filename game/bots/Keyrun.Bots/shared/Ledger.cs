@@ -105,13 +105,23 @@ public static class Ledger
         {
             return null;
         }
+        // Spell queue window (Readiness.IsCastLocked): a kicker in the last window ticks of its own cast counts, its
+        // kick landing when that cast ends, but only when that tick is still inside the enemy's cast. The kick that
+        // lands first wins, ties to the lowest id (BIBLE s3: intended tick, fixed tiebreak).
+        var targetEnds = actors[targetId.Value].CastEndsTick ?? int.MaxValue;
         var ready = eligibleClassmates.Where(id =>
             actors.TryGetValue(id, out var a)
             && a.Alive
-            && !Readiness.IsCasting(a, tick)
+            && !Readiness.IsCastLocked(a, tick)
+            && Readiness.LandingTick(a, tick) < targetEnds
             && Readiness.CooldownReadyTick(a, interruptAbilityId) <= tick
             && (interruptOffGcd || a.GcdReadyTick <= tick)).ToList();
-        var kickerId = SelectKicker(ready);
+        if (ready.Count == 0)
+        {
+            return null;
+        }
+        var firstLanding = ready.Min(id => Readiness.LandingTick(actors[id], tick));
+        var kickerId = SelectKicker(ready.Where(id => Readiness.LandingTick(actors[id], tick) == firstLanding).ToList());
         return kickerId is null ? null : new InterruptAssignment(targetId.Value, kickerId.Value);
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Bots.Shared;
@@ -73,9 +74,31 @@ public static class Readiness
         return self.CastId is not null && (self.CastEndsTick ?? int.MaxValue) > tick;
     }
 
+    /// <summary>
+    /// True when <paramref name="self"/>'s cast under way still locks it out of a press at <paramref name="tick"/>: it
+    /// is casting and more than <see cref="SpellQueue.WindowTicks"/> ticks remain. Inside the last window ticks a press
+    /// is queued by the sim and fires on the tick the cast ends (Combat/SpellQueue.cs), so a bot presses there.
+    /// Mirrors ledger.ts isCastLocked.
+    /// </summary>
+    /// <param name="self">Actor.</param>
+    /// <param name="tick">Current tick.</param>
+    /// <returns>True while the cast blocks a press.</returns>
+    public static bool IsCastLocked(ActorState self, int tick) =>
+        IsCasting(self, tick) && (long)(self.CastEndsTick ?? int.MaxValue) - tick > SpellQueue.WindowTicks;
+
+    /// <summary>
+    /// The tick a press by <paramref name="self"/> at <paramref name="tick"/> lands, as far as its own cast goes: now,
+    /// or the end of the cast under way when the press is queued behind it.
+    /// </summary>
+    /// <param name="self">Actor.</param>
+    /// <param name="tick">Current tick.</param>
+    /// <returns>The landing tick.</returns>
+    public static int LandingTick(ActorState self, int tick) =>
+        IsCasting(self, tick) ? self.CastEndsTick ?? int.MaxValue : tick;
+
     private static bool AbilityReady(ActorState self, string abilityId, int tick, bool offGcd)
     {
         ArgumentNullException.ThrowIfNull(self);
-        return !IsCasting(self, tick) && CooldownReadyTick(self, abilityId) <= tick && (offGcd || self.GcdReadyTick <= tick);
+        return !IsCastLocked(self, tick) &&CooldownReadyTick(self, abilityId) <= tick && (offGcd || self.GcdReadyTick <= tick);
     }
 }
