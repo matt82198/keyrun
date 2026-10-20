@@ -11,5 +11,9 @@
       { "op": "damage", "amount": 150, "school": "fire" },
       { "op": "cloud", "effectId": "blinded", "durationTicks": 80, "radiusMm": 2500 }
     ]
+  },
+  {
+    "id": "seedbloom-field",
+    "effects": []
   }
 ]

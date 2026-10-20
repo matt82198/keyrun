@@ -46,11 +46,23 @@ public sealed class ComboRiderTests
     }
 
     [Fact]
-    public void Only_anthem_and_steam_have_riders_and_the_frozen_combo_rows_are_unchanged()
+    public void Seedbloom_field_rider_has_no_effects_so_the_Seed_teaches_with_no_stakes()
+    {
+        // BIBLE section 9.6 item 3 (finding f-ff4ce040): the frozen row is 120 physical, which field Combos fire onto
+        // the closer; the rider keeps the Combo (and so the Seed bonus) but takes the stakes away.
+        ContentRegistry reg = ContentLoader.Load();
+
+        Assert.Empty(reg.ComboRiders["seedbloom-field"].Effects);
+        DamageOp frozen = Assert.IsType<DamageOp>(Assert.Single(reg.Combos["seedbloom-field"].Effects));
+        Assert.Equal(120, frozen.Amount);
+    }
+
+    [Fact]
+    public void Only_anthem_steam_and_seedbloom_field_have_riders_and_the_frozen_combo_rows_are_unchanged()
     {
         ContentRegistry reg = ContentLoader.Load();
 
-        Assert.Equal(new[] { "anthem", "steam" }, reg.ComboRiders.Keys.OrderBy(k => k, System.StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "anthem", "seedbloom-field", "steam" }, reg.ComboRiders.Keys.OrderBy(k => k, System.StringComparer.Ordinal).ToArray());
         Assert.IsType<ApplyEffectOp>(Assert.Single(reg.Combos["anthem"].Effects));
         Assert.Equal("blinded", Assert.IsType<ApplyEffectOp>(reg.Combos["steam"].Effects[1]).EffectId);
     }
