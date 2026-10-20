@@ -94,7 +94,7 @@ public static class Casting
             actor.Resource -= def.Cost.Amount;
         }
         Cooldowns.ConsumeCharge(actor, def, now);
-        Cooldowns.StartGcd(actor, now, def.GcdTicks);
+        Cooldowns.StartGcd(actor, now, Riposte.GcdTicksFor(actor, def, now));
         actor.CastId = def.Id;
         actor.CastStartTick = now;
         actor.CastEndsTick = now + ChilledCastTicks(actor, def.CastTicks, rule, ctx, now);
