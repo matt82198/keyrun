@@ -51,6 +51,7 @@ public static class ContentValidator
         CheckPairMarks(reg);
         CheckForces(reg);
         LayoutValidator.Check(reg);
+        GearValidator.Check(reg);
     }
 
     /// <summary>
@@ -179,8 +180,12 @@ public static class ContentValidator
         if (ops is null) return;
         foreach (EffectOp op in ops)
         {
-            if (!riderOps && op is PartyEffectOp or CloudOp)
-                Fail(where + " uses the C#-only combo op \"" + (op is CloudOp ? "cloud" : "partyEffect") + "\", allowed only in " + ContentLoader.ComboRidersFile);
+            if (!riderOps && op is PartyEffectOp or CloudOp or CloserBurnOp)
+                Fail(where + " uses the C#-only combo op \"" + (op switch { CloudOp => "cloud", CloserBurnOp => "closerBurn", _ => "partyEffect" })
+                    + "\", allowed only in " + ContentLoader.ComboRidersFile);
+            if (op is CloserBurnOp burn && !(burn.MaxHealthBp > 0 && burn.MaxHealthBp <= burn.CapBp && burn.CapBp < 10000))
+                Fail(where + " closerBurn needs 0 < maxHealthBp <= capBp < 10000 (the burn alone must never kill a closer at full health), got maxHealthBp "
+                    + burn.MaxHealthBp + " and capBp " + burn.CapBp);
             if (op is PartyEffectOp party && party.DurationTicks <= 0)
                 Fail(where + " partyEffect durationTicks must be positive, got " + party.DurationTicks);
             if (op is CloudOp cloud && cloud.DurationTicks <= 0)

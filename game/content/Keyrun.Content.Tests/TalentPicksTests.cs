@@ -58,7 +58,10 @@ public sealed class TalentPicksTests
 
         Assert.Equal(1, picks.Count);
         Assert.Equal("riposte", picks.PickedOption(fork));
-        Assert.Equal(0, strike.GcdTicks); // Riposte's patch
+        // Riposte's patch is tags only. The free GCD is conditional (only after Brace, sim Combat/Riposte.cs), so the
+        // patch must NOT zero the GCD outright (f-d37651d1: gcdTicks 0 made every Strike GCD-free).
+        Assert.Contains("riposte:free-after-brace", strike.Tags);
+        Assert.Equal(Reg.Abilities["warden.strike"].GcdTicks, strike.GcdTicks);
         Assert.Equal(Reg.Abilities["warden.strike"].Effects, strike.Effects); // Rend's patch is gone
     }
 
