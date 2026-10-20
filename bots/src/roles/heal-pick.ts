@@ -19,6 +19,7 @@ import type { ActorState, BotView, Command } from "../types.js";
 import { getContentRegistry, type EffectiveKit } from "../kits.js";
 import { moveToward } from "../shared/command.js";
 import { readyAndAffordable } from "./shared.js";
+import { swapsVerseWithoutHealing } from "../kit-heals.js";
 
 /** Fallback reach for an ally-targeted heal when no registry is injected (or no range is known). */
 export const HEAL_RANGE_MM = 30 * 1000;
@@ -35,7 +36,12 @@ function dist(a: ActorState, b: ActorState): number {
 
 export function healCommands(view: BotView, self: ActorState, kit: EffectiveKit, target: ActorState): Command[] {
   const tick = view.state.tick;
-  const ready = (id: string | null): id is string => id !== null && readyAndAffordable(self, id, tick, kit);
+  const reg = getContentRegistry();
+  const leavesVerse = (id: string): boolean => {
+    const def = reg?.abilities.get(id);
+    return def !== undefined && swapsVerseWithoutHealing(def, self.resource >= 1 ? "mend" : "ward", reg?.effects);
+  };
+  const ready = (id: string | null): id is string => id !== null && readyAndAffordable(self, id, tick, kit) && !leavesVerse(id);
   const { selfHealAbilityId, groupHealAbilityId, groupHealRadiusMm, targetHealAbilityId } = kit.heals;
   const d = dist(self, target);
 
