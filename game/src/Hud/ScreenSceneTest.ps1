@@ -28,6 +28,10 @@
          the in-run help line no longer shows through the screen);
      11. "SCREEN fit clause n=<1..3> lines=<n> widest=<px> box=<px>" with widest <= box (each Clause description is
          wrapped inside its card), and "SCREEN fit caption lines=<n> right=<px> viewport=<px>" with right <= viewport.
+     12. "SCREEN queue facets applied=1 skipped=0", "SCREEN queue facet actor=1 slot=<slot> facet=<the item's facet>
+         ability=<id> <stats> base <stats>" with the queued stats differing from the base (lane FACET-APPLIED,
+         BIBLE s7: before it no Facet patch reached any run and none of these lines exist: RED), and no
+         "SCREEN run facet ..." line (that line reports a run the Queue started, which only --requeue does).
   Before 3D there is no screen and none of 2-8 appear (RED). Before HUD-FU there is no caption line: 9 fails (RED).
   Before SCREEN-OVERFLOW 10-11 fail (RED); with the wrap removed the fit lines report widest > box (RED).
 
@@ -262,8 +266,37 @@ if (-not $panelFit) {
     $failures.Add("the talent panel runs past the viewport: '$panelFit'")
 }
 
+# Lane FACET-APPLIED (BIBLE s7 "Facets retag or reshape an ability"): the equipped item's Facet reaches the run. The
+# request's own RunOptions carries the human's kit with the Facet patch applied (content/apply.ts applyLoadout order:
+# talents, then facets in slot order), the object SimDriver.StartRun passes to RunRoot.CreateRun. The Facet is the one
+# the screen last showed on the taken item (after both rerolls). Before the lane the facet patch was read nowhere and
+# none of these lines exist (RED).
+$facetStats = '(shape=\S+ range=\S+ cast=\S+ cooldown=\S+ charges=\S+ cost=\S+ effects=\S+ tags=\S+)'
+$equippedFacet = $null
+if ($items.Count -gt 0 -and $items[-1] -match ' facet=(\S+) ') { $equippedFacet = $Matches[1] }
+$qFacets = $lines | Where-Object { $_ -match '^SCREEN queue facets ' } | Select-Object -First 1
+$qFacet = $lines | Where-Object { $_ -match '^SCREEN queue facet actor=' } | Select-Object -First 1
+$rFacet = $lines | Where-Object { $_ -match '^SCREEN run facet actor=' } | Select-Object -First 1
+if (-not $qFacets -or $qFacets -notmatch '^SCREEN queue facets applied=1 skipped=0$') { $failures.Add("expected 'SCREEN queue facets applied=1 skipped=0' (the equipped Facet is not in the queued run options), got '$qFacets'") }
+$facetAbility = $null
+$queuedStats = $null
+if (-not $qFacet) {
+    $failures.Add("no 'SCREEN queue facet actor=1 slot=...' line (the equipped Facet does not patch the queued kit)")
+} elseif ($qFacet -notmatch "^SCREEN queue facet actor=1 slot=$slot facet=$([regex]::Escape([string]$equippedFacet)) ability=(warden\.\w+) $facetStats base $facetStats$") {
+    $failures.Add("malformed or wrong queued facet line: '$qFacet' (expected actor=1 slot=$slot facet=$equippedFacet)")
+} else {
+    $facetAbility = $Matches[1]
+    $queuedStats = $Matches[2]
+    if ($Matches[2] -eq $Matches[3]) { $failures.Add("the queued Facet does not change its ability from the base: '$qFacet'") }
+}
+# "SCREEN run facet ..." reports the run a Queue STARTED. Plain --autorun (no --requeue) never starts the queued run
+# (SimDriver.StartQueuedRun), so the line must be absent here: a line would be a report about the old, ended run.
+if ($rFacet) {
+    $failures.Add("a 'SCREEN run facet' line without a started run (it reads a run the Queue did not start): '$rFacet'")
+}
+
 Write-Output '--- asserted SCREEN lines ---'
-foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $picked, $queue, $caption, $helpHidden, $helpShown) + $fits + @($capFit, $tOpen) + $forkRows + $picks + @($tClose, $qTalents, $qTalent) + $cardFits + @($panelFit)) {
+foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $picked, $queue, $caption, $helpHidden, $helpShown) + $fits + @($capFit, $tOpen) + $forkRows + $picks + @($tClose, $qTalents, $qTalent) + $cardFits + @($panelFit, $qFacets, $qFacet, $rFacet)) {
     if ($l) { Write-Output $l }
 }
 
