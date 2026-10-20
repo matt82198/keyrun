@@ -110,8 +110,9 @@ Tempo shrinks the lead but not the cast time (key 2: Cleave 39 < 40, Seed 19 < 2
 at least castTicks: the shape and the bar start on the same tick. It is drawn only when its cast will start (the
 StartCast checks: cooldown/charges, GCD, cost, lockout, target and range), so a script step refused `not_ready` (key 2:
 Cleave every 156 vs cooldown 160, Seed slam 98 vs 100, lash 196 vs 200) shows nothing instead of a telegraph with no hit.
-The Pair's `pair.spreadMark` and `pair.stackCall` telegraphs (leadTicks 100, castTicks 40; key 2 every 392 vs cooldown 400)
-also carry `spansCast: true`: drawn about 60 ticks before the cast, down until the mark lands, never for a refused cast.
+The Pair's `pair.spreadMark` and `pair.stackCall` telegraphs (castTicks 40; key 2 every 392 vs cooldown 400) also carry
+`spansCast: true`, with leadTicks 140 (was 100): the lead now counts to the mark landing, so 140 keeps the old 100-tick
+warning before the cast starts (97 at key 2, was 98), and the circle stays down until the mark lands, never for a refused cast.
 
 ## Enemy movement (`// TUNE`)
 
