@@ -28,6 +28,12 @@ public sealed record RunOptions
     public IReadOnlyDictionary<int, IReadOnlyDictionary<string, AbilityDef>>? Loadouts { get; init; }
 
     /// <summary>
+    /// Actor id to that actor's summed gear stats (BIBLE s7, <see cref="GearPower.Sum"/>), or null. C#-only, no TS
+    /// counterpart: CreateRun puts them on the party actor; an id not in the party is refused.
+    /// </summary>
+    public IReadOnlyDictionary<int, GearStats>? Gear { get; init; }
+
+    /// <summary>
     /// run-options.ts:92 resolveEncounterRules: <paramref name="clauseId"/> folded onto
     /// <c>content.EncounterRules ?? DefaultEncounterRules(keyLevel)</c>, or that base unchanged when no id is given.
     /// </summary>

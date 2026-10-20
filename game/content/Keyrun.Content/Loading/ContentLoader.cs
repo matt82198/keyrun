@@ -40,7 +40,11 @@ public static class ContentLoader
         ForcesFile,
         PacksFile,
         HazardsFile,
+        GearFile,
     };
+
+    /// <summary>C#-only gear table (game/content/data/gear.json; BIBLE section 7 "Five slots", "Tier is power").</summary>
+    public const string GearFile = "gear.json";
 
     /// <summary>
     /// C#-only forces table and route (game/content/data/forces.json; BIBLE section 9.2): the bar's size, every
@@ -140,6 +144,7 @@ public static class ContentLoader
             Forces = ReadOne<ForcesTable>(source, ForcesFile)[0],
             Packs = ById("pack", ReadArray<PackDef>(source, PacksFile)),
             Hazards = ById("hazard", ReadArray<HazardDef>(source, HazardsFile)),
+            Gear = ById("gear item", ReadArray<GearItemDef>(source, GearFile)),
         };
 
         ContentValidator.Validate(registry);
