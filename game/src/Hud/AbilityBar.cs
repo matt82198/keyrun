@@ -197,7 +197,7 @@ public partial class AbilityBar : Control
         var now = run.State.Tick;
 
         DrawMeter(font, new Rect2(origin.X, origin.Y - 44, width, 16), me.Health, me.MaxHealth, HealthFill, $"{Driver.DisplayName(me)}  {me.Health} / {me.MaxHealth}");
-        DrawMeter(font, new Rect2(origin.X, origin.Y - 24, width, 14), me.Resource, me.MaxResource, MomentumFill, $"Momentum {me.Resource}");
+        DrawMeter(font, new Rect2(origin.X, origin.Y - 24, width, 14), me.Resource, me.MaxResource, MomentumFill, $"{Keyrun.Content.ResourceLabel.For(Driver.Registry!.Classes[me.ClassId].Loop.Resource)} {me.Resource}");
 
         for (var i = 0; i < setup.Slots.Count; i++)
         {
