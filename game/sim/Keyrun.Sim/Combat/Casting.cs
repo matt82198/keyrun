@@ -315,6 +315,11 @@ public static class Casting
     /// applyEffect (an unknown effect id is skipped), removeEffect ("*" = dispel), threat, interrupt. window, payoff,
     /// combo and resource ops do nothing per target (Windows.cs and <see cref="CompleteCastOn"/> run them).
     /// Returns true when an interrupt op landed on this target.
+    /// C# deviation in behaviour (HEAL-NEVER-HOSTILE, D28 the C# sim is the oracle): a heal op, or an applyEffect whose
+    /// effect is beneficial (<see cref="EffectsRemove.PolarityOf"/>: a HoT, a shield, a haste), lands only on the
+    /// caster's own faction. The TS "target" shape keeps whatever the caster targets when the cast completes and a
+    /// mixed area resolves hostile, so the Chanter's Cadence (Mend) HoT ticked on the Choir Acolyte and the Pair in
+    /// policy playtests. Every other op on the same ability (damage, the Attuned Window, a slow) still lands.
     /// </summary>
     private static bool ApplyEffects(SimState state, ActorState source, ActorState target, IReadOnlyList<EffectOp> ops, CastContext ctx, Action<SimEvent> emit)
     {
@@ -327,10 +332,14 @@ public static class Casting
                     Mitigation.DealDamage(state.Tick, source, target, d.Amount, ctx.Effects, emit, source.Id, ctx.Hooks.Weighting);
                     break;
                 case HealOp h:
-                    Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
+                    if (target.Kind == source.Kind)
+                    {
+                        Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
+                    }
                     break;
                 case ApplyEffectOp a:
-                    if (ctx.Effects.TryGetValue(a.EffectId, out var effDef))
+                    if (ctx.Effects.TryGetValue(a.EffectId, out var effDef) &&
+                        (target.Kind == source.Kind || EffectsRemove.PolarityOf(effDef) != EffectPolarity.Beneficial))
                     {
                         Effects.ApplyEffectInstance(target, effDef, source.Id, a.DurationTicks, a.Stacks, state.Tick);
                     }
