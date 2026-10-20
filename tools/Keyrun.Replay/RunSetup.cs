@@ -135,7 +135,7 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
                 Long(Req(bounds, "maxX", "bounds"), "bounds.maxX"),
                 Long(Req(bounds, "minZ", "bounds"), "bounds.minZ"),
                 Long(Req(bounds, "maxZ", "bounds"), "bounds.maxZ")),
-            EnemyScripts = EncounterJson.ParseScripts(Req(c, "enemyScripts", "content")),
+            EnemyScripts = TsScripts(EncounterJson.ParseScripts(Req(c, "enemyScripts", "content"))),
             KeyLevel = c.Get("keyLevel") is { } k ? Int(k, "content.keyLevel") : null,
             ParTicks = c.Get("parTicks") is { } p ? Int(p, "content.parTicks") : null,
             Combos = c.Get("combos") is { } combos ? Table(combos, "content.combos") : null,
@@ -147,6 +147,24 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
                 ? Obj(clauses, "content.clauses").Members.ToDictionary(kv => kv.Key, kv => Clause(kv.Value, "content.clauses." + kv.Key), StringComparer.Ordinal)
                 : null,
         };
+    }
+
+    /// <summary>
+    /// SLAM-TELEGRAPH: a setup is a recording of the frozen TS run, and the TS has no <c>spansCast</c> rule (its
+    /// telegraphs always resolve when the cast starts). The TS copies a content telegraph's fields into the setup
+    /// verbatim, so a re-recorded setup can carry <c>spansCast: true</c>; it is cleared here so the replay keeps the
+    /// TS behaviour the trace recorded. Only the host and content-driven tests apply it.
+    /// </summary>
+    private static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> TsScripts(IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts)
+    {
+        var result = new SortedDictionary<int, IReadOnlyList<ScriptStep>>();
+        foreach (var kv in scripts)
+        {
+            result[kv.Key] = kv.Value
+                .Select(s => s.Telegraph is { SpansCast: true } tg ? s with { Telegraph = tg with { SpansCast = false } } : s)
+                .ToList();
+        }
+        return result;
     }
 
     private static Dictionary<string, AbilityDef> Abilities(JsValue v, string what) =>
