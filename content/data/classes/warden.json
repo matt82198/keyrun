@@ -61,7 +61,7 @@
         {
           "id": "warcry",
           "name": "Warcry",
-          "text": "Strike also applies Sundered to two adjacent enemies.",
+          "text": "Strike applies Sundered to two adjacent enemies: its target and the nearest other enemy in the cone.",
           "patch": {
             "shape": {
               "kind": "cone",
@@ -145,7 +145,7 @@
         {
           "id": "surge",
           "name": "Surge",
-          "text": "Costs a short cooldown; grants far more Momentum.",
+          "text": "Adds a 2-second cooldown; grants far more Momentum.",
           "patch": {
             "cooldownTicks": 40,
             "effects": [
@@ -198,7 +198,7 @@
         {
           "id": "mobile",
           "name": "Mobile Ward",
-          "text": "Bulwark becomes a self-aura instead of a floor patch.",
+          "text": "Bulwark braces only you instead of every ally in the circle; the floor patch still plants.",
           "patch": {
             "shape": {
               "kind": "self"
