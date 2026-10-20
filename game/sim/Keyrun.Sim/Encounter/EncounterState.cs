@@ -33,6 +33,12 @@ public sealed record EncounterState
     /// <summary>True once the Slack bank has hit 0 (or the run ended depleted).</summary>
     public bool Depleted { get; init; }
 
+    /// <summary>
+    /// Player deaths this run (MPLUS-DEATH-PENALTY, BIBLE s8): one per player death, same-tick deaths each counted, as
+    /// the Mythic+ timer counts them. <see cref="Timer.DeathPenaltyTicks"/> turns it into the time the deaths cost.
+    /// </summary>
+    public int Deaths { get; init; }
+
     /// <summary>Encounter tunables and the active Clause.</summary>
     public EncounterRules Rules { get; init; } = Clauses.DefaultEncounterRules(1);
 

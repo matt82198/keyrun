@@ -67,6 +67,18 @@ public static class Timer
     public static EncounterState SpendSlackOnWipe(EncounterState encounter, int tick, Action<SimEvent> emit) =>
         SpendSlack(encounter, WipeSlackCostTicks, tick, emit);
 
+    /// <summary>
+    /// The time the run's deaths have cost (MPLUS-DEATH-PENALTY): <see cref="EncounterState.Deaths"/> times
+    /// <see cref="DeathSlackCostTicks"/>, the "Deaths: N (-Xs)" figure of a Mythic+ timer. Wipe costs are not in it.
+    /// </summary>
+    /// <param name="encounter">The encounter.</param>
+    /// <returns>Ticks lost to deaths.</returns>
+    public static long DeathPenaltyTicks(EncounterState encounter)
+    {
+        ArgumentNullException.ThrowIfNull(encounter);
+        return (long)Math.Max(0, encounter.Deaths) * DeathSlackCostTicks;
+    }
+
     /// <summary>timer.ts:54 isOverPar: strictly past par.</summary>
     public static bool IsOverPar(int runTimerTicks, EncounterState encounter) => runTimerTicks > encounter.ParTicks;
 
