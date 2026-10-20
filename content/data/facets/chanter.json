@@ -212,7 +212,7 @@
     "id": "chanter.ring.cheapDissonance",
     "slot": "ring",
     "abilityId": "chanter.dissonance",
-    "text": "Dissonance costs much less Verse and is tagged Cheap Cast.",
+    "text": "Dissonance is tagged Cheap Cast; it already costs no Verse.",
     "patch": {
       "cost": {
         "resource": "verse",
@@ -263,7 +263,7 @@
     "id": "chanter.keystone.grandCadence",
     "slot": "keystone",
     "abilityId": "chanter.cadence",
-    "text": "Cadence becomes a much larger party-wide area and opens the Window on cast.",
+    "text": "Cadence becomes a large party-wide area instead of a single target.",
     "patch": {
       "shape": {
         "kind": "circle",

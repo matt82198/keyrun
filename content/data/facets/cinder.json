@@ -16,7 +16,7 @@
     "id": "cinder.weapon.wideningFlare",
     "slot": "weapon",
     "abilityId": "cinder.flare",
-    "text": "Flare's area grows substantially.",
+    "text": "Flare becomes an area burst instead of a single target.",
     "patch": {
       "shape": {
         "kind": "circle",
@@ -207,7 +207,7 @@
     "id": "cinder.ring.overflowValve",
     "slot": "ring",
     "abilityId": "cinder.coldSnap",
-    "text": "Cold Snap dumps much less Heat and is tagged Partial Dump.",
+    "text": "Cold Snap dumps an extra 30 Heat and is tagged Partial Dump.",
     "patch": {
       "cost": {
         "resource": "heat",
@@ -262,7 +262,7 @@
     "id": "cinder.keystone.eternalFlare",
     "slot": "keystone",
     "abilityId": "cinder.flare",
-    "text": "Flare's cooldown falls sharply and it becomes a Payoff, closing Windows.",
+    "text": "Flare gains a short cooldown and becomes a Payoff, closing Windows.",
     "patch": {
       "cooldownTicks": 20,
       "tagAdd": [
