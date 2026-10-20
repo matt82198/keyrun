@@ -16,6 +16,7 @@ public sealed class PolicyReaderTests
           "kicks": [ { "cast": "choir.healCast", "kickers": ["cinder", "chanter"] } ],
           "dodge": { "telegraphs": true, "floor": false },
           "defensive": { "warden": 35, "cinder": 50 },
+          "mitigate": ["warden"],
           "utility": ["chanter"],
           "hold": { "chanter.chorus": ["seed", "boss"] },
           "focus": ["choir.lieutenant"],
@@ -38,6 +39,7 @@ public sealed class PolicyReaderTests
         Assert.False(p.DodgeFloor);
         Assert.Equal(35, p.Defensive["warden"]);
         Assert.Equal(50, p.Defensive["cinder"]);
+        Assert.Equal(new[] { "warden" }, p.Mitigate);
         Assert.Equal(new[] { "chanter" }, p.Utility);
         Assert.Equal(new[] { "seed", "boss" }, p.Hold["chanter.chorus"]);
         Assert.Equal(new[] { "choir.lieutenant" }, p.Focus);
@@ -52,6 +54,7 @@ public sealed class PolicyReaderTests
         Assert.False(p.DodgeTelegraphs);
         Assert.False(p.DodgeFloor);
         Assert.Empty(p.Defensive);
+        Assert.Empty(p.Mitigate);
         Assert.Empty(p.Utility);
         Assert.Empty(p.Hold);
         Assert.Empty(p.Focus);
@@ -70,6 +73,8 @@ public sealed class PolicyReaderTests
     [InlineData("{\"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"warden\"], \"when\": 1}]}", "unknown field \"when\"")]
     [InlineData("{\"dodge\": {\"telegraphs\": \"yes\"}}", "must be true or false")]
     [InlineData("{\"defensive\": {\"warden\": 0}}", "1-99")]
+    [InlineData("{\"mitigate\": [\"rogue\"]}", "mitigate: unknown class \"rogue\"")]
+    [InlineData("{\"mitigate\": \"warden\"}", "mitigate must be an array")]
     [InlineData("{\"hold\": {\"warden.strike\": [\"vault\"]}}", "unknown pull \"vault\"")]
     [InlineData("{\"hold\": {\"choir.healCast\": [\"boss\"]}}", "not a player ability")]
     [InlineData("{\"focus\": [\"choir.cantor\"]}", "unknown enemy \"choir.cantor\"")]

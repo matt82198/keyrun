@@ -1045,13 +1045,13 @@
       "targetId": 1000
     }
   ],
-  "expectedHash": "aacd0470",
+  "expectedHash": "113b8042",
   "eventCounts": {
     "damage": 25,
     "cast_complete": 25,
     "window_opened": 3,
     "combo": 3,
-    "heal": 1
+    "heal": 3
   },
   "why": "Any change to expectedHash is either a deliberate content/sim behaviour change (explain it in the PR body) or a regression (fix the code -- never retune this fixture to match, see sim/CLAUDE.md's 'Replays are golden tests'). eventCounts exists for the same reason: a silent behaviour change should fail with a readable diff, not just a hash mismatch. NOTE: enemy swings DO execute (targeting + chase landed): choir.meleeSwing hits the party from tick 40, guarded by tests/sim/encounter/golden-melee.test.ts. contentHashes pins the content version per registry entry, so two content PRs touch different lines.",
   "contentHashes": {
@@ -1083,7 +1083,7 @@
       "fnv": "8a842402"
     },
     "abilities/choir.healCast": {
-      "fnv": "53a3ceca"
+      "fnv": "429391f8"
     },
     "abilities/choir.meleeSwing": {
       "fnv": "d129f5cb"

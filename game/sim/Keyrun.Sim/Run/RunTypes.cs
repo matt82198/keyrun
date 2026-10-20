@@ -91,6 +91,14 @@ public sealed record RunContent
     public NavLayout? Layout { get; init; }
 
     /// <summary>
+    /// PATH-PACKS (BIBLE section 9.1; layout runs only): the layout's trash packs, each standing idle from tick 0
+    /// (<see cref="LayoutPacks.SpawnAllIdle"/>) and engaging whole by proximity or damage as one <see cref="Aggro.GroupsOf"/>
+    /// group with pull index -1. Their members' scripts ride in <see cref="EnemyScripts"/>.
+    /// Null or empty = no packs (every oracle run).
+    /// </summary>
+    public IReadOnlyList<PackGroup>? Packs { get; init; }
+
+    /// <summary>
     /// This content with its movement fields taken from the host's validated <paramref name="movement"/>
     /// (the run-root side of <see cref="RulesConfig.WithMovement"/>: the host never hard-codes speed, radius or bounds).
     /// </summary>
@@ -152,7 +160,8 @@ public sealed record Run(SimState State, EncounterState Encounter, DungeonDef Du
 /// <param name="AbandonRequested">An explicit human quit: ends the run "abandoned" this tick.</param>
 /// <param name="OpenSeats">
 /// Actor ids of abandoned, unfilled seats (C#-only, STATE.md D27; <see cref="Backfill.Step"/> passes them): an open seat's
-/// idle actor does not hold a layout pull back. Null = none.
+/// idle actor never engages a layout group and is not in the run, so it never holds a dead party's run open
+/// (<see cref="RunWiring.IsWipe"/>, STATE.md D44). Null = none.
 /// </param>
 public sealed record StepRunOpts(bool AbandonRequested = false, IReadOnlyList<int>? OpenSeats = null);
 

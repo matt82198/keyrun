@@ -38,8 +38,16 @@
          (Scripts.WillStart), so the floor and the HUD must not call SPREAD/STACK for it. Before SLAM-TELEGRAPH this
          check asserted the opposite: a ping from the telegraph the sim drew after run_end for that dead-target cast.
          Run C (check 11) proves the live-run call.
-    Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:  -- --autorun --ticks <PartyTicks>
+    Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:
+        -- --autorun --ticks <PartyTicks> --careless-seat <CarelessSeat>
         (default 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
+        (--careless-seat S@T:GROUP, CARELESS-SEAT, default 3@300:pair; Matt 2026-10-20, verbatim: "no a bad player will
+        accidentally aggro more groups, just test it naturally", STATE.md D43: under PRESPAWN-AGGRO the Warden walks
+        into every ring first, so no enemy ever picked a bot seat. Bot seat S (the Cinder) plays carelessly from run tick
+        T, mid-Choir: it strays off the party toward the idle Pair down the open path (no corridor is walled since
+        STATE.md D44, PATH-TO-BOSS), and walks into the Pair's aggro ring ahead of the Warden. The sim's own aggro rule engages
+        the Pair on it and the Pair's own targeting (no threat yet, so the nearest living player) goes for it. Nothing
+        makes an enemy hit a bot; check 12's bot-damage line comes from that pull.)
       9. "HUD party seat=1 name=Warden", "seat=2 name=Chanter", "seat=3 name=Cinder" (BotCommandSource drives 2, 3);
      10. in pull 1 (before the Pair spawns): a Chanter heal on a party seat and a Cinder damage hit on an enemy (at
          seed 1 the 3B healer role spends every GCD on heals and never casts Dissonance; the Cinder kit has no heal);
@@ -212,15 +220,22 @@
          lines, one per slot 1-5, Q, E, R, F (tex is the loaded Texture2D's size, so a missing file or an unmapped id
          reads icon=none tex=none and fails). Before ABILITY-ICONS the bar draws only text: no "HUD bar" line, 40 RED.
     Run N (lane TINT-RUNOVER, a non-clear run end with a living out-of-range target; three-seat party, key 2):
-        -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (default 1400 and 2@600, no --joiner-key)
+        -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (default 1400 and 2@200, no --joiner-key)
         (the bar prints "HUD bar range tinted=N over=0|1 tick=T" under --autorun whenever the count of range-tinted
-        slots or the run-over state changes. At seed 1 the Chanter leaves at 600, the Warden dies at 1014 with the
-        Choir enemy it targeted alive and out of range, the bar tints 4 slots at 1025, and the party wipes: run_end
-        depleted at 1271)
+        slots or the run-over state changes. At seed 1 the Chanter leaves at 200, still at the entrance (14771,-998),
+        the Warden dies at 427 where he stands (19246,-405), the Cinder at 583, and the Choir enemy the Warden
+        targeted (100) walks on to the Chanter, 3216 mm from the Warden's body, past his 3000 mm reach: the bar tints 4
+        slots at 585, and the party wipes: run_end depleted at 840.
+        Why 2@200, not 2@600 (PRESPAWN-AGGRO, PR #308): the Choir now engages at its aggro ring (pull_start 76) and
+        not on room entry, so by 600 the Chanter has walked up into the fight and the whole party stands within about
+        3.7 m of the Warden. With 2@600 he died at 895 and his target stayed within 1855 mm of his body (inside his
+        reach) until the wipe at 1308, so the live tint never showed and the control could not happen (CI run
+        39486265558, "HUD bar range tinted=0 over=1 tick=1308" its only range line). The assertion is unchanged; only
+        the leave tick moves, so the party still wipes with the Warden's target alive and out of range.)
      41. a "HUD runend result=depleted ... cleared=0" line (the run did not clear), at least one "HUD bar range
          tinted=N over=0" line with N > 0 (control: the live run tints), at least one "over=1" line, and every
          "over=1" line reads tinted=0. Before TINT-RUNOVER the bar passed no runOver and printed "tinted=4 over=1
-         tick=1271": 41 RED.
+         tick=1271" (the 2@600 run before PRESPAWN-AGGRO): 41 RED.
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -229,6 +244,7 @@ param(
     [int]$Ticks = 600,
     [int]$PingTicks = 600,
     [int]$PartyTicks = 7000,
+    [string]$CarelessSeat = '3@300:pair',
     [int]$BossTicks = 600,
     [int]$QueueTicks = 600,
     [int]$BackfillTicks = 3500,
@@ -243,7 +259,7 @@ param(
     [int]$YawFrames = 900,
     [int]$HeadingFrames = 420,
     [int]$TintTicks = 1400,
-    [string]$TintAbandon = '2@600',
+    [string]$TintAbandon = '2@200',
     [switch]$HeadingOnly
 )
 $ErrorActionPreference = 'Stop'
@@ -571,8 +587,9 @@ if (-not $runEndB) { $failures.Add("run B: no 'HUD runend ... title=""Party wipe
 # ---- Run C: the three-seat bot party (lane 3H) -------------------------------------------------------------------
 # The human Warden (seat 1) plus a Chanter (healer) and a Cinder (damage) driven by Keyrun.Bots through
 # BotCommandSource. Run twice with the same seed: the bot command streams must hash equal (determinism).
-$c = Invoke-Arena $PartyTicks @()
-$c2 = Invoke-Arena $PartyTicks @()
+# CARELESS-SEAT (STATE.md D43): one bot seat plays carelessly and pulls the Pair itself (header, run C).
+$c = Invoke-Arena $PartyTicks @('--careless-seat', $CarelessSeat)
+$c2 = Invoke-Arena $PartyTicks @('--careless-seat', $CarelessSeat)
 if ($c.Code -ne 0) { $failures.Add("run C: godot exited $($c.Code) (expected 0)") }
 $seats = @()
 foreach ($s in @(@{ Seat = 1; Name = 'Warden' }, @{ Seat = 2; Name = 'Chanter' }, @{ Seat = 3; Name = 'Cinder' })) {

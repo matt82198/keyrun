@@ -33,7 +33,8 @@
     "charges": 1,
     "range": 25000,
     "shape": {
-      "kind": "target"
+      "kind": "circle",
+      "radius": 25000
     },
     "interruptible": true,
     "tags": [
@@ -42,7 +43,7 @@
     "effects": [
       {
         "op": "heal",
-        "amount": 300
+        "amount": 3000
       }
     ],
     "cost": {
