@@ -180,6 +180,20 @@ public static class Timer
     public static int NextKeyLevel(int keyLevel, int tier) => keyLevel + Math.Clamp(tier, 0, 3);
 
     /// <summary>
+    /// The key level the end-of-run screen reopens at (BIBLE s8, finding f-7c7abdf4): a timed run raises the key by its
+    /// <see cref="UpgradeTier"/> (+1, +2 within 80% of par, +3 within 60%, on the run clock, D46); a depleted or
+    /// abandoned run keeps the key at the level it was played at, never lower (Matt 2026-10-20: "an untimed key stays
+    /// at the same level, with no drop").
+    /// </summary>
+    /// <param name="keyLevel">The key the run was played at.</param>
+    /// <param name="result">The run result.</param>
+    /// <param name="clockTicks">The run clock at the finish (<see cref="ClockTicks"/>: elapsed plus death and wipe time, D46).</param>
+    /// <param name="parTicks">Par.</param>
+    /// <returns>The next key level (the caller clamps to its band).</returns>
+    public static int KeyAfterRun(int keyLevel, RunResult result, long clockTicks, int parTicks) =>
+        result == RunResult.Timed ? NextKeyLevel(keyLevel, UpgradeTier(result, clockTicks, parTicks)) : keyLevel;
+
+    /// <summary>
     /// timer.ts finishRun: always emits <c>{tick, type:"finish", result}</c>; abandoned when not completed, else
     /// timed when <see cref="IsTimed"/> (the run clock within par) and depleted otherwise.
     /// </summary>
