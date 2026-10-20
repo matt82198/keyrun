@@ -78,7 +78,7 @@ public sealed class ReferenceTests
         }
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(49, refs.Checked); // vacuity guard: exact ref count from the JSON
+        Assert.Equal(50, refs.Checked); // vacuity guard: exact ref count from the JSON (Overflow keeps Cold Snap stunned: +1)
     }
 
     [Fact]

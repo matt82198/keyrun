@@ -138,9 +138,80 @@ public sealed record TalentPicks
             Interruptible = patch.Interruptible ?? ability.Interruptible,
             Tags = patch.Tags ?? ability.Tags,
             Effects = patch.Effects ?? ability.Effects,
-            Variants = patch.Variants ?? ability.Variants,
+            Variants = patch.Variants ?? PatchVariants(ability, patch.Effects),
         };
     }
+
+    /// <summary>
+    /// A verse ability plays its variant, not its Effects (BIBLE s5: "Every other ability behaves differently per
+    /// verse"; the sim's Abilities.ResolveVerse replaces Effects with the caster's verse), so an Effects-only talent
+    /// patch must reach every variant or its text is false in both verses. The patch's edit against the base Effects
+    /// is replayed on each variant: an op the patch changes replaces the variant's op in the same slot (patched values
+    /// win), an op the patch adds is appended, an op the patch drops is removed, and every variant-only op is kept.
+    /// A slot is the op kind plus its window, effect, table or resource id, matched by occurrence (the n-th base op of
+    /// a slot pairs with the n-th patch op and the n-th variant op of that slot). No effects patch or no variants
+    /// leaves the base variants unchanged; a patch that sets Variants itself still replaces them whole.
+    /// </summary>
+    /// <param name="ability">The base ability.</param>
+    /// <param name="effects">The patch's Effects, or null when the patch leaves them alone.</param>
+    /// <returns>The variants the talented ability plays.</returns>
+    private static ValueMap<ValueList<EffectOp>>? PatchVariants(AbilityDef ability, ValueList<EffectOp>? effects)
+    {
+        if (effects is null || ability.Variants is not { Count: > 0 } variants) return ability.Variants;
+        var replace = new Dictionary<(string Slot, int N), EffectOp>();
+        var drop = new HashSet<(string Slot, int N)>();
+        var add = new List<EffectOp>();
+        foreach (var (op, slot, n) in Occurrences(effects))
+        {
+            var from = Nth(ability.Effects, slot, n);
+            if (from is null) add.Add(op);
+            else if (!Equals(from, op)) replace[(slot, n)] = op;
+        }
+        foreach (var (_, slot, n) in Occurrences(ability.Effects))
+        {
+            if (Nth(effects, slot, n) is null) drop.Add((slot, n));
+        }
+        if (replace.Count == 0 && drop.Count == 0 && add.Count == 0) return variants;
+        return new ValueMap<ValueList<EffectOp>>(variants.Select(kv =>
+        {
+            var ops = new List<EffectOp>();
+            foreach (var (op, slot, n) in Occurrences(kv.Value))
+            {
+                if (drop.Contains((slot, n))) continue;
+                ops.Add(replace.TryGetValue((slot, n), out var to) ? to : op);
+            }
+            ops.AddRange(add);
+            return new KeyValuePair<string, ValueList<EffectOp>>(kv.Key, new ValueList<EffectOp>(ops));
+        }));
+    }
+
+    // Each op with its slot and its 0-based occurrence index within that slot.
+    private static IEnumerable<(EffectOp Op, string Slot, int N)> Occurrences(IEnumerable<EffectOp> ops)
+    {
+        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var op in ops)
+        {
+            var slot = Slot(op);
+            seen.TryGetValue(slot, out var n);
+            seen[slot] = n + 1;
+            yield return (op, slot, n);
+        }
+    }
+
+    private static EffectOp? Nth(IEnumerable<EffectOp> ops, string slot, int n) =>
+        ops.Where(o => Slot(o) == slot).Skip(n).FirstOrDefault();
+
+    private static string Slot(EffectOp op) => op switch
+    {
+        WindowOp w => "window:" + w.WindowId,
+        ApplyEffectOp a => "applyEffect:" + a.EffectId,
+        RemoveEffectOp r => "removeEffect:" + r.EffectId,
+        PartyEffectOp p => "partyEffect:" + p.EffectId,
+        CloudOp c => "cloud:" + c.EffectId,
+        ComboOp c => "combo:" + c.ComboTable,
+        ResourceOp r => "resource:" + r.Resource,
+        _ => op.GetType().Name,
+    };
 
     // Choices in fork order, so two builds with the same picks are equal however they were reached.
     private ValueMap<string> Canonical(IReadOnlyDictionary<string, string> chosen) =>
