@@ -36,6 +36,11 @@ async function startNetServer(repoRoot: string): Promise<{ port: number; close()
 
 const REPO_ROOT = normalize(fileURLToPath(new URL("../../../", import.meta.url)));
 const LOCAL = "/client/index.html?key=5&dungeon=hollow-vault&class=warden";
+// The DOWNED case needs a party member to die. Since SLAM-TELEGRAPH's Pair leadTicks 140 the key-5 bots dodge every
+// mark and nobody dies all run (it times at tick 3176), so the case waited out its 120 s timeout. At key 2 the
+// first player dies at tick 1678; tests/client/sim-host/downed-premise.test.ts pins that premise headlessly, so a
+// content change that removes the death fails there in seconds instead of timing out here.
+const LOCAL_DOWNED = "/client/index.html?key=2&dungeon=hollow-vault&class=warden";
 const MIME: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8", ".css": "text/css; charset=utf-8", ".map": "application/json; charset=utf-8" };
 const SHOTS = process.env.KEYRUN_E2E_SHOT_DIR;
 
@@ -100,7 +105,7 @@ describe("status chips, Downed, dash trail, ?net=1 parity (headless Chromium)", 
   });
 
   it("local: a dead party member stays on the floor as a DOWNED tag", async () => {
-    const page = await open(browser!, origin + LOCAL + "&hz=120");
+    const page = await open(browser!, origin + LOCAL_DOWNED + "&hz=120");
     await page.waitForFunction(() => Object.values(window.__keyrunReadability!.nameTags()).includes("DOWNED"), undefined, { timeout: 120_000, polling: 250 });
     await shot(page, "local-downed");
     await page.close();
