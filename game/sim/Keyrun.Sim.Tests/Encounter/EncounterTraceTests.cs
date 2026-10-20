@@ -208,7 +208,7 @@ public sealed class EncounterTraceTests
     [Theory]
     [InlineData("bots-hv-k2-s7", 13, 12, 7, 0, 0, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
     [InlineData("bots-hv-k2-s11", 13, 12, 7, 0, 0, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 14, 14, 7, 0, 0, 3)]
+    [InlineData("bots-hv-k10-s7", 14, 13, 7, 0, 0, 2)] // QUENCH-REFUND re-record: was 14, 14, 7, 0, 0, 3 (the t1293 Quench whiff no longer refunds 20 Heat; measured by this replay)
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {
