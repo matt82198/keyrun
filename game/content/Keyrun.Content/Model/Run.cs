@@ -13,6 +13,23 @@ public sealed record RunConfig
 
     /// <summary>The XZ box every actor is clamped into, mm.</summary>
     public required ArenaBounds ArenaBounds { get; init; }
+
+    /// <summary>The Cinder Heat/Overheat rule's Chill (BIBLE section 5); not in the frozen content/data.</summary>
+    public required HeatOverheatConfig HeatOverheat { get; init; }
+}
+
+/// <summary>
+/// BIBLE section 5 (Cinder): "At 100 the next cast is a free Overheat that dumps Heat to 0 and applies Chill (slower
+/// casts for 3 s)." The threshold is the heat-overheat class loop max (classes/cinder.json loop.max); this names the
+/// Chill the Overheat applies to the caster.
+/// </summary>
+public sealed record HeatOverheatConfig
+{
+    /// <summary>The effect id the Overheat applies (must exist in the effects; "chill", hasteBp -3000).</summary>
+    public required string ChillEffectId { get; init; }
+
+    /// <summary>Chill duration, ticks (positive; 60 = 3 s at 20 Hz).</summary>
+    public required int ChillTicks { get; init; }
 }
 
 /// <summary>Shared actor movement values.</summary>
