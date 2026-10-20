@@ -18,7 +18,7 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// Every pull of both scripted oracle runs (hollow-vault k2 and k10, the Tempo-scaled content the host plays) is run
 /// on its own through the real <see cref="RunRoot.StepRun"/> path with the party standing on the pull and too healthy
 /// to die, so every enemy script, not just the Seed's, fires its full schedule; each telegraph must be followed by its
-/// own cast, started by the same caster on the telegraph's resolvesTick.
+/// own cast, started by the same caster on the telegraph's resolvesTick (a spansCast telegraph: castTicks before it).
 /// </summary>
 public sealed class TelegraphHonestTests
 {
@@ -78,11 +78,23 @@ public sealed class TelegraphHonestTests
     [InlineData("hollow-vault-k10.setup.json")]
     public void Every_scripted_telegraph_is_followed_by_its_cast(string setupFile)
     {
-        var setup = RunSetup.Load(OracleFixtures.PathOf(setupFile), 7);
+        var path = OracleFixtures.PathOf(setupFile);
+        var loaded = RunSetup.Load(path, 7);
+        // The host plays the content's telegraphs as written, spansCast included (HostRunSetup copies it); RunSetup
+        // clears spansCast so oracle replays stay TS-equal, so the scripts are re-read here with it kept.
+        var raw = (JsObject)((JsObject)JsValue.Parse(System.IO.File.ReadAllText(path))).Get("content")!;
+        var setup = loaded with { Content = loaded.Content with { EnemyScripts = EncounterJson.ParseScripts(raw.Get("enemyScripts")!) } };
+        Assert.Contains(setup.Content.EnemyScripts.Values.SelectMany(s => s), s => s.Telegraph is { SpansCast: true });
         var lies = new List<string>();
         var unannounced = new List<string>();
         var total = 0;
         var castersSeen = new HashSet<string>();
+        // SLAM-TELEGRAPH (#313): a spansCast telegraph resolves on the tick its cast LANDS, so its cast starts castTicks
+        // earlier (Tempo never scales castTicks); any other telegraph resolves on the cast's start tick.
+        int Span(int actor, string cast) =>
+            setup.Content.EnemyScripts.TryGetValue(actor, out var sc) &&
+            sc.Any(s => s.Cast == cast && s.Telegraph is { SpansCast: true }) &&
+            setup.Content.Abilities.TryGetValue(cast, out var d) && d.CastTicks > 0 ? d.CastTicks : 0;
         foreach (var pull in setup.Dungeon.Pulls)
         {
             var w = WatchPull(setup, pull);
@@ -94,9 +106,10 @@ public sealed class TelegraphHonestTests
                 {
                     continue; // its cast tick lies past the watch
                 }
-                if (!w.Casts.Contains((actor, cast, resolves)))
+                var start = resolves - Span(actor, cast);
+                if (!w.Casts.Contains((actor, cast, start)))
                 {
-                    lies.Add(string.Create(CultureInfo.InvariantCulture, $"{pull.Id}: actor {actor} {cast} telegraphed at {tick}, no cast at {resolves}"));
+                    lies.Add(string.Create(CultureInfo.InvariantCulture, $"{pull.Id}: actor {actor} {cast} telegraphed at {tick} to resolve at {resolves}, no cast started at {start}"));
                 }
             }
             // The converse, so the fix cannot pass by dropping telegraphs: every cast of a telegraphed step was announced.
@@ -104,7 +117,8 @@ public sealed class TelegraphHonestTests
             {
                 var telegraphed = setup.Content.EnemyScripts.TryGetValue(actor, out var script) &&
                     script.Any(s => s.Cast == cast && s.Trigger != StepTrigger.OnDeath && s.Telegraph is not null);
-                if (telegraphed && !w.Telegraphs.Any(t => t.Actor == actor && t.Cast == cast && t.Resolves == castTick))
+                var resolvesAt = castTick + Span(actor, cast);
+                if (telegraphed && resolvesAt < WatchTicks && !w.Telegraphs.Any(t => t.Actor == actor && t.Cast == cast && t.Resolves == resolvesAt))
                 {
                     unannounced.Add(string.Create(CultureInfo.InvariantCulture, $"{pull.Id}: actor {actor} {cast} cast at {castTick} with no telegraph"));
                 }
