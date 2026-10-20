@@ -58,6 +58,21 @@ public class StartCastBusyGuardTests
     }
 
     [Fact]
+    public void A_dead_caster_still_starts_its_on_death_cast()
+    {
+        // BIBLE section 9 (The Seed drops its Window on death): the onDeath step is the only cast a dead actor makes,
+        // and it must fire even when the Seed died mid-cast (oracle bots-hv-k10-s7, seed.deathBloom at t1776).
+        var caster = Make(CasterId, ActorKind.Enemy);
+        var target = Make(TargetId, ActorKind.Player, x: 1000);
+        var state = At(10, caster, target);
+        Assert.Null(Casting.StartCast(state, caster, Heal, null, null, 10));
+        caster.Alive = false;
+
+        Assert.Null(Casting.StartCast(state, caster, Instant, TargetId, null, 20));
+        Assert.Equal("enemy.instant", caster.CastId);
+    }
+
+    [Fact]
     public void A_new_cast_starts_once_the_first_is_stopped()
     {
         var caster = Make(CasterId, ActorKind.Enemy);

@@ -87,8 +87,10 @@ public static class Casting
         // BIBLE section 5: at the threshold the next cast is the Overheat, and the Overheat is free.
         var overheat = rule is not null && actor.Resource >= rule.Threshold;
         // BIBLE section 3 (cast bars are the enemy's language; a kick counts inside the cast): a busy caster rejects
-        // the new cast, so an in-flight cast is never silently replaced.
-        if (actor.CastId is not null)
+        // the new cast, so an in-flight cast is never silently replaced. A dead caster is exempt: its only casts are
+        // onDeath script steps (Rules' DEATH-CAST EXCEPTION), and BIBLE section 9 needs the Seed's on-death Window
+        // even when it died mid-cast.
+        if (actor.Alive && actor.CastId is not null)
         {
             return "casting";
         }
