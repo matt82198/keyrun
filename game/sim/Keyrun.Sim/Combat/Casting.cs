@@ -314,6 +314,90 @@ public static class Casting
     }
 
     /// <summary>
+    /// BIBLE section 9.3 (Mythic+ stops): the control effects that end an interruptible cast when they land on its
+    /// caster. "stunned" is Shatter's and Charge's stun and Cold Snap's freeze (content/data/abilities/cinder.json
+    /// applies "stunned"); "silenced" is Ward Dissonance's silence; "frozen" is reserved for a future freeze effect.
+    /// </summary>
+    public static readonly IReadOnlyList<string> StopEffectIds = new[] { "stunned", "silenced", "frozen" };
+
+    /// <summary>
+    /// The live stop-effect instances on every actor, as (actorId, effectId, sourceId, endsTick) marks. Taken at the
+    /// start of a combat step so <see cref="StopControlledCasts"/> can tell a control that LANDED this step (a new
+    /// instance, or a refresh that moved its end tick) from one the caster already carried.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <returns>The marks.</returns>
+    public static HashSet<(int ActorId, string EffectId, int SourceId, int EndsTick)> StopMarks(SimState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var marks = new HashSet<(int, string, int, int)>();
+        foreach (var actor in state.Actors.Values)
+        {
+            foreach (var inst in actor.Effects)
+            {
+                if (IsStopEffect(inst.EffectId))
+                {
+                    marks.Add((actor.Id, inst.EffectId, inst.SourceId, inst.EndsTick));
+                }
+            }
+        }
+        return marks;
+    }
+
+    /// <summary>
+    /// BIBLE section 9.3 "Stops as well as kicks": every living actor whose interruptible cast is live and that gained
+    /// a stop effect this step (absent from <paramref name="before"/>) has its cast ended with an
+    /// <c>interrupt {by: "stop"}</c> event. The stop counts as an interrupt for Echo (Clauses.PendingEchoSpawns reads
+    /// every "interrupt" event) but locks no school and refunds nothing: Quench's refund needs its own interrupt op to
+    /// land (<see cref="CompleteCastOn"/>). A stop on a cast that is not interruptible, or on an idle actor, does nothing.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <param name="before">The step-start <see cref="StopMarks"/>.</param>
+    /// <param name="ctx">Abilities (the cast's interruptible flag).</param>
+    /// <param name="emit">Event sink.</param>
+    public static void StopControlledCasts(SimState state, HashSet<(int ActorId, string EffectId, int SourceId, int EndsTick)> before, CastContext ctx, Action<SimEvent> emit)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(ctx);
+        foreach (var actor in state.Actors.Values)
+        {
+            if (!actor.Alive || actor.CastId is null || !ctx.Abilities.TryGetValue(actor.CastId, out var castDef) || !castDef.Interruptible)
+            {
+                continue;
+            }
+            var landed = actor.Effects.Find(inst =>
+                IsStopEffect(inst.EffectId) && inst.EndsTick > state.Tick && !before.Contains((actor.Id, inst.EffectId, inst.SourceId, inst.EndsTick)));
+            if (landed is null)
+            {
+                continue;
+            }
+            var abilityId = actor.CastId;
+            ClearCast(actor);
+            emit(new SimEvent(
+                state.Tick,
+                "interrupt",
+                ("sourceId", JsValue.Int(landed.SourceId)),
+                ("targetId", JsValue.Int(actor.Id)),
+                ("abilityId", JsValue.Str(abilityId)),
+                ("school", JsValue.Str(Abilities.AbilitySchool(castDef))),
+                ("by", JsValue.Str("stop"))));
+        }
+    }
+
+    private static bool IsStopEffect(string effectId)
+    {
+        foreach (var id in StopEffectIds)
+        {
+            if (id == effectId)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
     /// sim/combat/casting.ts:141-162 interruptCast: a no-op when the target is idle, casting something unknown, or
     /// casting something not interruptible. Otherwise clears the cast, pushes a <c>lockout:&lt;school&gt;</c> instance
     /// ending at tick + lockoutTicks, and emits "interrupt".

@@ -119,6 +119,7 @@ public static class Rules
             var noClause = new ClauseHooks(null);
             var ctx = new CastContext(cfg.Abilities, cfg.Effects, cfg.LockoutTicks) { Hooks = hooks, Overheat = cfg.Overheat };
             var wctx = new WindowsContext(cfg.Effects, combos, fieldCombos, new FloorWindowRegistry(state.FloorWindows), hooks);
+            var stopMarks = Casting.StopMarks(state);
 
             foreach (var actor in state.Actors.Values.ToList())
             {
@@ -178,6 +179,8 @@ public static class Rules
                         break;
                 }
             }
+            // BIBLE 9.3: a stun, freeze or silence that landed this step ends an interruptible cast (a stop).
+            Casting.StopControlledCasts(state, stopMarks, ctx, emit);
 
             var actors = state.Actors.Values.ToList();
             for (var i = 0; i < actors.Count; i++)
