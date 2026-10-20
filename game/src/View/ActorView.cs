@@ -135,7 +135,7 @@ public partial class ActorView : Node3D
         GetNode<MeshInstance3D>("Body").Visible = false;
         GetNode<MeshInstance3D>("Nose").Visible = false;
         _model = model;
-        _animator = ActorAnimator.TryCreate(model, row.Clips);
+        _animator = ActorAnimator.TryCreate(model, row.Clips, row.ScalePermille);
         // A body bound while its actor is alive rises with its spawn clip (enemies; party rows have none and idle).
         if (actor.Alive)
         {
