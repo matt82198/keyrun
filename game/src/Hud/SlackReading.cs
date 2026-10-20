@@ -29,10 +29,13 @@ public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, 
     /// <summary>True when the run clock is strictly past par (the key would not be timed).</summary>
     public bool OverPar => ClockTicks > ParTicks;
 
-    /// <summary>The bar label: "Deaths 3 (+45s)", or "DEPLETED" once a lasting wipe ended the run.</summary>
+    /// <summary>
+    /// The bar label: "Deaths 3 (+45s)", or "Wiped -- key stays +7" once a lasting wipe ended the run. An untimed key
+    /// keeps its level (Matt 2026-10-20, f-7c7abdf4), and a WoW player reads "depleted" as the key dropping.
+    /// </summary>
     public string Label => Depleted
-        ? "DEPLETED"
-        : FormattableString.Invariant($"Deaths {Deaths} (+{Math.Max(0, PenaltyTicks) / Tick.TickHz}s)");
+        ? FormattableString.Invariant($"Wiped -- key stays +{KeyLevel}")
+        :FormattableString.Invariant($"Deaths {Deaths} (+{Math.Max(0, PenaltyTicks) / Tick.TickHz}s)");
 
     /// <summary>The timer label, on the run clock: "+2  0:57 / par 12:00".</summary>
     public string TimerLabel => FormattableString.Invariant($"+{KeyLevel}  {Clock((int)Math.Min(int.MaxValue, ClockTicks))} / par {Clock(ParTicks)}");
