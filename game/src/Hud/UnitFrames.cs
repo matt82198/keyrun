@@ -48,6 +48,59 @@ public static class UnitFrameModel
     }
 }
 
+/// <summary>One row of a unit frame, in pixels from the frame's top edge.</summary>
+/// <param name="Top">The row's top edge.</param>
+/// <param name="Bottom">The row's bottom edge.</param>
+public readonly record struct FrameRow(float Top, float Bottom);
+
+/// <summary>
+/// A unit frame's vertical layout (Godot-free): the name, the health bar, then the cast row and the Break bar row
+/// (BREAK-BAR) each only when present, stacked under the health bar.
+/// </summary>
+/// <param name="Height">The frame's height.</param>
+/// <param name="Cast">The cast row, or null when the enemy is not casting.</param>
+/// <param name="Break">The Break bar row, or null when the frame has no Break bar.</param>
+public sealed record UnitFrameRows(float Height, FrameRow? Cast, FrameRow? Break)
+{
+    /// <summary>The health bar's top edge.</summary>
+    public const float HealthTop = 24;
+
+    /// <summary>The health bar's bottom edge.</summary>
+    public const float HealthBottom = 37;
+
+    /// <summary>The cast row's height.</summary>
+    public const float CastHeight = 15;
+
+    /// <summary>The space between rows and under the last row.</summary>
+    public const float Pad = 4;
+
+    /// <summary>
+    /// The layout for a frame. BOSS-CAST-ROW (HUD-DECLUTTER): an idle enemy's frame reserves no cast row, so the
+    /// Break bar row (or the frame's bottom edge) sits directly under the health bar; a live cast opens its row under
+    /// the health bar for exactly as long as it lasts, and nothing moves while it does.
+    /// </summary>
+    /// <param name="casting">The frame's enemy has a live cast.</param>
+    /// <param name="breakBar">The frame carries a Break bar row.</param>
+    /// <returns>The layout.</returns>
+    public static UnitFrameRows For(bool casting, bool breakBar)
+    {
+        var y = HealthBottom;
+        FrameRow? cast = null;
+        if (casting)
+        {
+            cast = new FrameRow(y + Pad, y + Pad + CastHeight);
+            y += Pad + CastHeight;
+        }
+        FrameRow? brk = null;
+        if (breakBar)
+        {
+            brk = new FrameRow(y + Pad, y + BreakBar.RowHeight);
+            y += BreakBar.RowHeight;
+        }
+        return new UnitFrameRows(y + Pad, cast, brk);
+    }
+}
+
 /// <summary>
 /// The enemy unit frames (HUD-DECLUTTER), down the right edge under the Slack bar: the enemy's name, a health bar with
 /// its health, and its live cast as a bar under the health (amber frame when interruptible, grey when not), so the
@@ -57,7 +110,6 @@ public static class UnitFrameModel
 public partial class UnitFrames : Control
 {
     private const float FrameWidth = 260;
-    private const float FrameHeight = 60;
     private const float Gap = 8;
     private const float RightGutter = 16;
     private const float Top = 124;
@@ -73,6 +125,7 @@ public partial class UnitFrames : Control
 
     private readonly HashSet<string> _shown = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _castLogged = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _rowsLogged = new(StringComparer.Ordinal);
     private SimDriver? _driver;
 
     /// <summary>The driver to read the run from.</summary>
@@ -156,10 +209,10 @@ public partial class UnitFrames : Control
             var frames = UnitFrameModel.Build(run.State, HumanId);
             for (var i = 0; i < frames.Count; i++)
             {
-                if (FrameHeightOf(frames[i]) > FrameHeight)
+                if (RowsOf(frames[i]).Break is { } row)
                 {
                     var r = FrameRect(frames, i);
-                    return new Rect2(r.Position.X + 8, r.Position.Y + FrameHeight - 2, r.Size.X - 16, BreakBar.RowHeight - 4);
+                    return new Rect2(r.Position.X + 8, r.Position.Y + row.Top, r.Size.X - 16, row.Bottom - row.Top);
                 }
             }
             return null;
@@ -177,9 +230,22 @@ public partial class UnitFrames : Control
         return new Rect2(Size.X - RightGutter - FrameWidth, y, FrameWidth, FrameHeightOf(frames[index]));
     }
 
-    private float FrameHeightOf(UnitFrame frame) =>
-        FrameHeight + (frame.Kind == "boss" && _driver?.Run is { } run &&
-            Keyrun.Sim.Encounter.BossBreakBarReadout.For(run.Encounter, frame.ActorId) is not null ? BreakBar.RowHeight : 0);
+    private float FrameHeightOf(UnitFrame frame) => RowsOf(frame).Height;
+
+    // The frame's rows: a cast row while its enemy casts, a Break bar row when the boss has a Break bar (BossBreakBarReadout).
+    private UnitFrameRows RowsOf(UnitFrame frame)
+    {
+        if (_driver?.Run is not { } run)
+        {
+            return UnitFrameRows.For(casting: false, breakBar: false);
+        }
+        var casting = run.State.Actors.TryGetValue(frame.ActorId, out var actor) && IsCasting(actor);
+        var breakBar = frame.Kind == "boss" && Keyrun.Sim.Encounter.BossBreakBarReadout.For(run.Encounter, frame.ActorId) is not null;
+        return UnitFrameRows.For(casting, breakBar);
+    }
+
+    private static bool IsCasting(ActorState actor) =>
+        actor.CastId is not null && actor.CastStartTick is not null && actor.CastEndsTick is not null;
 
     private void DrawFrame(Rect2 rect, UnitFrame frame, ActorState actor, Run run)
     {
@@ -187,21 +253,23 @@ public partial class UnitFrames : Control
         DrawRect(rect, frame.Kind == "boss" ? BossEdge : TargetEdge, filled: false, width: 2f);
         HudNodes.Text(this, rect.Position + new Vector2(8, 18), _driver!.DisplayName(actor), NameFont, Colors.White);
 
-        var hp = new Rect2(rect.Position.X + 8, rect.Position.Y + 24, rect.Size.X - 16, 13);
+        var rows = RowsOf(frame);
+        var hp = new Rect2(rect.Position.X + 8, rect.Position.Y + UnitFrameRows.HealthTop, rect.Size.X - 16, UnitFrameRows.HealthBottom - UnitFrameRows.HealthTop);
         var frac = actor.MaxHealth <= 0 ? 0f : Mathf.Clamp((float)actor.Health / actor.MaxHealth, 0f, 1f);
         DrawRect(hp, new Color(0, 0, 0, 0.5f));
         DrawRect(new Rect2(hp.Position, new Vector2(hp.Size.X * frac, hp.Size.Y)), HealthFill);
         DrawString(ThemeDB.FallbackFont, new Vector2(hp.Position.X + 4, hp.End.Y - 2),
             FormattableString.Invariant($"{actor.Health} / {actor.MaxHealth}"), HorizontalAlignment.Left, -1, SmallFont, Colors.White);
 
-        if (actor.CastId is not { } castId || actor.CastStartTick is not { } start || actor.CastEndsTick is not { } end)
+        if (actor.CastId is not { } castId || actor.CastStartTick is not { } start || actor.CastEndsTick is not { } end ||
+            rows.Cast is not { } castRow)
         {
             return;
         }
         var now = run.State.Tick + _driver.Alpha;
         var progress = Mathf.Clamp((now - start) / Mathf.Max(1f, end - start), 0f, 1f);
         var secondsLeft = Mathf.Max(0f, (end - now) / Tick.TickHz);
-        var cast = new Rect2(hp.Position.X, hp.End.Y + 4, hp.Size.X, 15);
+        var cast = new Rect2(hp.Position.X, rect.Position.Y + castRow.Top, hp.Size.X, castRow.Bottom - castRow.Top);
         var interruptible = run.Content.Abilities.TryGetValue(castId, out var def) && def.Interruptible;
         DrawRect(cast, new Color(0.05f, 0.05f, 0.07f, 0.85f));
         DrawRect(new Rect2(cast.Position, new Vector2(cast.Size.X * progress, cast.Size.Y)), CastFill);
@@ -219,10 +287,16 @@ public partial class UnitFrames : Control
     {
         _shown.Clear();
         _castLogged.Clear();
+        _rowsLogged.Clear();
     }
 
-    // Proof lines (autorun only): "HUD unitframe kind=K actor=A name="N" hp=H/M" when a frame first shows an enemy, and
-    // "HUD unitframe cast kind=K actor=A ability=X interruptible=0|1" once per cast start on a shown frame.
+    private static string Row(FrameRow? row) =>
+        row is { } r ? FormattableString.Invariant($"{r.Top:0}-{r.Bottom:0}") : "none";
+
+    // Proof lines (autorun only): "HUD unitframe kind=K actor=A name="N" hp=H/M" when a frame first shows an enemy,
+    // "HUD unitframe cast kind=K actor=A ability=X interruptible=0|1" once per cast start on a shown frame, and
+    // "HUD unitframe rows kind=K actor=A height=H hp=T-B cast=T-B|none start=S|- spell="X" break=T-B|none tick=N"
+    // whenever a shown frame's row layout changes (rows in pixels from the frame's top edge).
     private void OnStepped(int tick, IReadOnlyList<SimEvent> events)
     {
         if (_driver?.Run is not { } run || !_driver.Options.Autorun)
@@ -240,6 +314,14 @@ public partial class UnitFrames : Control
             {
                 HudNodes.Proof(_driver, FormattableString.Invariant(
                     $"HUD unitframe kind={f.Kind} actor={f.ActorId} name=\"{_driver.DisplayName(actor)}\" hp={actor.Health}/{actor.MaxHealth}"));
+            }
+            var rows = RowsOf(f);
+            var rowsLine = FormattableString.Invariant(
+                $"HUD unitframe rows kind={f.Kind} actor={f.ActorId} height={rows.Height:0} hp={UnitFrameRows.HealthTop:0}-{UnitFrameRows.HealthBottom:0} cast={Row(rows.Cast)} start={(rows.Cast is null ? "-" : FormattableString.Invariant($"{actor.CastStartTick}"))} spell=\"{(rows.Cast is not null && actor.CastId is { } sid ? _driver.AbilityName(sid) : "")}\" break={Row(rows.Break)}");
+            if (!_rowsLogged.TryGetValue(key, out var lastRows) || lastRows != rowsLine)
+            {
+                _rowsLogged[key] = rowsLine;
+                HudNodes.Proof(_driver, rowsLine + FormattableString.Invariant($" tick={tick}"));
             }
             if (actor.CastId is { } castId && actor.CastStartTick is { } start && actor.CastEndsTick is not null &&
                 (!_castLogged.TryGetValue(key, out var last) || last != start))
