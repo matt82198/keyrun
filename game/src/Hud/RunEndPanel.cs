@@ -165,6 +165,12 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     /// <summary>The run's bonus rewards (the Seed's loot, lane SEED-LOOT-VIEW); empty when none was earned.</summary>
     public RunRewards Bonus { get; init; } = RunRewards.Empty;
 
+    /// <summary>
+    /// The key move drawn right under the result (BIBLE s8, Matt 2026-10-20: timed moves the key by its chest tier,
+    /// untimed holds it), or null for a view built without a run.
+    /// </summary>
+    public KeyMove? Key { get; init; }
+
     /// <summary>The line drawn under the result, "Bonus loot: ...", or null when <see cref="Bonus"/> has none.</summary>
     public string? BonusLabel { get; init; }
 
@@ -229,20 +235,17 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         // the full content dungeon, so a --pull 2 start that wipes in the Pair reads "pull 2 of 4", not the sliced
         // run dungeon's "1 of 3").
         var lost = cleared ? null : ObjectiveModel.Build(run, registry);
-        var title = (result, cleared) switch
-        {
-            (RunResult.Abandoned, _) => "Run abandoned",
-            // An untimed key stays at its level (Matt 2026-10-20, f-7c7abdf4): the title names the kept level.
-            (_, false) => RunEndTitle.Wiped(lost!.Number, lost.Total, run.Encounter.KeyLevel),
-            (RunResult.Timed, true) => "Run cleared -- within par",
-            _ => RunEndTitle.ClearedUntimed(run.Encounter.KeyLevel),
-        };
+        // One source with the sim (RunEndTitle.ForRun -> RunEndTitle.Of): a timed clear that finished past par but
+        // inside its Slack reads "over par", never "within par"; an untimed key names the level it keeps (Of ->
+        // RunEndTitle.Wiped / ClearedUntimed: Matt 2026-10-20, f-7c7abdf4).
+        var title = RunEndTitle.ForRun(run, lost?.Number ?? 0, lost?.Total ?? 0)!;
         var rewards = bonus?.Rewards ?? RunRewards.Empty;
         return new RunEndView(result, tick, title, cleared, choices, log.CausesFor(localSeat))
         {
             Bonus = rewards,
             BonusLabel = BonusLabelOf(rewards.BonusLoot, registry),
             LateCombos = combos?.LinesFor(localSeat) ?? Array.Empty<ComboBlameLine>(),
+            Key = KeyMove.ForRun(run),
         };
     }
 
@@ -251,6 +254,11 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     public IEnumerable<string> LogLines()
     {
         yield return FormattableString.Invariant($"HUD runend result={Result.ToJs()} choices={Choices.Count} cleared={(Cleared ? 1 : 0)} tick={ResultTick} title=\"{Title}\"");
+        if (Key is { } key)
+        {
+            // "HUD runend key from=7 to=10 tier=3": the level the panel shows and the screen reopens at.
+            yield return key.LogLine();
+        }
         for (var i = 0; i < Choices.Count; i++)
         {
             var c = Choices[i];
@@ -388,15 +396,23 @@ public partial class RunEndPanel : Control
             return;
         }
         // Lane SEED-LOOT-VIEW: a run that earned bonus loot gets one more line under the result; the rest moves down.
-        var bonusShift = view.BonusLabel is null ? 0f : BonusLineHeight;
+        // The key line (the key's new level, BIBLE s8) sits directly under the result, above any bonus line.
+        var keyShift = view.Key is null ? 0f : BonusLineHeight;
+        var bonusShift = keyShift + (view.BonusLabel is null ? 0f : BonusLineHeight);
         var placed = LayoutPanel(HeightOf(view), out _, out _);
         var panel = new Rect2(new Vector2(placed.X, placed.Y) - GetGlobalRect().Position, placed.Width, placed.Height);
         DrawRect(panel, new Color(0.06f, 0.07f, 0.09f, 0.94f));
         DrawRect(panel, new Color(1f, 0.85f, 0.5f), filled: false, width: 2f);
         HudNodes.Text(this, panel.Position + new Vector2(20, 34), view.Title, TitleFont, new Color(1f, 0.85f, 0.5f));
+        if (view.Key is { } keyMove)
+        {
+            // An upgrade reads green, a held key reads the calm body color.
+            var keyColor = keyMove.To > keyMove.From ? new Color(0.5f, 1f, 0.6f) : new Color(0.85f, 0.88f, 0.95f);
+            HudNodes.Text(this, panel.Position + new Vector2(20, 34 + BonusLineHeight), keyMove.Line, CardFont + 2, keyColor);
+        }
         if (view.BonusLabel is { } bonusLabel)
         {
-            HudNodes.Text(this, panel.Position + new Vector2(20, 34 + BonusLineHeight), bonusLabel, CardFont, new Color(1f, 0.85f, 0.5f));
+            HudNodes.Text(this, panel.Position + new Vector2(20, 34 + keyShift + BonusLineHeight), bonusLabel, CardFont, new Color(1f, 0.85f, 0.5f));
         }
         // Lane 3D-c: in the interactive game Enter opens the between-runs screen; only --solo restarts at once.
         var enter = _driver?.StartsOnScreen == true ? "Enter opens the between-runs screen" : "Enter starts a fresh run";
@@ -463,7 +479,7 @@ public partial class RunEndPanel : Control
     /// <returns>Pixels.</returns>
     private static int HeightOf(RunEndView view)
     {
-        var bonus = view.BonusLabel is null ? 0f : BonusLineHeight;
+        var bonus = (view.BonusLabel is null ? 0f : BonusLineHeight) + (view.Key is null ? 0f : BonusLineHeight);
         var combos = view.LateCombos.Count == 0 ? 0f : ((view.LateCombos.Count + 1) * LineStep) + 12;
         return (int)(PanelHeight + bonus + combos);
     }
