@@ -189,6 +189,12 @@
                 "effectId": "chill"
               },
               {
+                "op": "applyEffect",
+                "effectId": "stunned",
+                "durationTicks": 20,
+                "stacks": 1
+              },
+              {
                 "op": "payoff"
               }
             ]
