@@ -184,8 +184,63 @@ if (-not $capFit) {
     $failures.Add("the Queue caption is cut off at the window edge: '$capFit'")
 }
 
+# Lane BIBLE-TALENTS-UI (BIBLE s6 "one fork of two or three mutually exclusive options; 12-15 choices per class";
+# "Respec is free on the screen, always"): the autorun script presses T, 1, Down, 2, Backspace, 1, T before Enter.
+# Expected, in order between the screen opening and Queue: the panel opens on the Warden's 5 forks with 0 picks, 12-15
+# options in all; fork 1 (warden.strike) takes Rend; fork 2 takes its second side (picks=2); the respec clears both and
+# leaves Ash at the banked 30; fork 2 takes its first side (picks=1); the panel closes holding picks=1. Every option
+# card's wrapped description fits its card (widest <= box, not clipped, text_bottom <= card_bottom) and the panel stays
+# inside the 1280x720 viewport. Before this lane there is no talent panel and every line below is missing (RED).
+$talentLines = @()
+if ($open -and $queue) {
+    $talentLines = @($lines[(IndexOf $open)..(IndexOf $queue)] | Where-Object { $_ -match '^SCREEN (talents?|fit talents?) ' })
+}
+$tOpen = $talentLines | Where-Object { $_ -match '^SCREEN talents open=1 class=warden forks=5 picks=0 applied=0$' } | Select-Object -First 1
+if (-not $tOpen) { $failures.Add("no 'SCREEN talents open=1 class=warden forks=5 picks=0 applied=0' line before Queue (got: $($talentLines | Select-Object -First 2))") }
+$forkRows = @($talentLines | Where-Object { $_ -match '^SCREEN talent fork=[1-5] ability=warden\.\w+ options=[\w,-]+ picked=-$' })
+$optionCount = 0
+foreach ($r in $forkRows) { if ($r -match ' options=([\w,-]+) ') { $optionCount += @($Matches[1] -split ',').Count } }
+if ($forkRows.Count -ne 5) { $failures.Add("expected 5 unpicked 'SCREEN talent fork=<n>' rows, got $($forkRows.Count)") }
+if ($optionCount -lt 12 -or $optionCount -gt 15) { $failures.Add("the Warden's forks offer $optionCount options in all (bible: 12-15)") }
+$fork2 = $forkRows | Where-Object { $_ -match '^SCREEN talent fork=2 ' } | Select-Object -First 1
+$f2opts = @()
+if ($fork2 -and $fork2 -match ' ability=(\S+) options=([\w,-]+) ') { $f2ability = $Matches[1]; $f2opts = @($Matches[2] -split ',') }
+$picks = @($talentLines | Where-Object { $_ -match '^SCREEN talent (pick|respec) ' })
+$expectPicks = @(
+    '^SCREEN talent pick fork=1 ability=warden\.strike option=rend picks=1$',
+    $(if ($f2opts.Count -ge 2) { "^SCREEN talent pick fork=2 ability=$([regex]::Escape($f2ability)) option=$($f2opts[1]) picks=2$" } else { '^NEVER$' }),
+    '^SCREEN talent respec picks=0 ash=30 ash_after=30$',
+    $(if ($f2opts.Count -ge 1) { "^SCREEN talent pick fork=2 ability=$([regex]::Escape($f2ability)) option=$($f2opts[0]) picks=1$" } else { '^NEVER$' })
+)
+if ($picks.Count -ne $expectPicks.Count) {
+    $failures.Add("expected $($expectPicks.Count) talent pick/respec lines, got $($picks.Count): $($picks -join ' | ')")
+} else {
+    for ($i = 0; $i -lt $expectPicks.Count; $i++) {
+        if ($picks[$i] -notmatch $expectPicks[$i]) { $failures.Add("talent step $($i + 1) is '$($picks[$i])', expected /$($expectPicks[$i])/") }
+    }
+}
+$tClose = $talentLines | Where-Object { $_ -match '^SCREEN talents open=0 class=warden forks=5 picks=1 applied=0$' } | Select-Object -First 1
+if (-not $tClose) { $failures.Add("no 'SCREEN talents open=0 class=warden forks=5 picks=1 applied=0' line (the build is not kept when the panel closes)") }
+$cardFits = @($talentLines | Where-Object { $_ -match '^SCREEN fit talent fork=' })
+if ($cardFits.Count -ne $optionCount -or $cardFits.Count -eq 0) { $failures.Add("expected one 'SCREEN fit talent' line per option ($optionCount), got $($cardFits.Count)") }
+foreach ($f in $cardFits) {
+    if ($f -notmatch '^SCREEN fit talent fork=\d option=\d lines=(\d+) widest=(\d+) box=(\d+) clipped=(\d) text_bottom=(\d+) card_bottom=(\d+)$') {
+        $failures.Add("malformed talent fit line: '$f'")
+    } elseif ([int]$Matches[2] -gt [int]$Matches[3] -or $Matches[4] -ne '0' -or [int]$Matches[5] -gt [int]$Matches[6] -or [int]$Matches[1] -lt 1) {
+        $failures.Add("a talent description does not fit its card: '$f'")
+    }
+}
+$panelFit = $talentLines | Where-Object { $_ -match '^SCREEN fit talents ' } | Select-Object -First 1
+if (-not $panelFit) {
+    $failures.Add("no 'SCREEN fit talents right=<px> bottom=<px> viewport=<w>x<h>' line")
+} elseif ($panelFit -notmatch '^SCREEN fit talents right=(\d+) bottom=(\d+) viewport=(\d+)x(\d+)$') {
+    $failures.Add("malformed talent panel fit line: '$panelFit'")
+} elseif ([int]$Matches[1] -gt [int]$Matches[3] -or [int]$Matches[2] -gt [int]$Matches[4]) {
+    $failures.Add("the talent panel runs past the viewport: '$panelFit'")
+}
+
 Write-Output '--- asserted SCREEN lines ---'
-foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $picked, $queue, $caption, $helpHidden, $helpShown) + $fits + @($capFit)) {
+foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $picked, $queue, $caption, $helpHidden, $helpShown) + $fits + @($capFit, $tOpen) + $forkRows + $picks + @($tClose) + $cardFits + @($panelFit)) {
     if ($l) { Write-Output $l }
 }
 
