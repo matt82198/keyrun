@@ -91,6 +91,9 @@ public sealed record HostRunSetup(
         new RosterSlot("cinder", ActorRole.Damage, -700, SupportMaxHealth),
     };
 
+    /// <summary>The class of the human's seat (the screen's Character tab pick; "warden" by default).</summary>
+    public string HumanClassId => Party.First(p => p.Id == HumanActorId).ClassId;
+
     /// <summary>The bot seats: every party member but the human, ascending by actor id.</summary>
     public IReadOnlyList<int> BotActorIds => Party.Where(p => p.Id != HumanActorId).Select(p => p.Id).OrderBy(id => id).ToList();
 
