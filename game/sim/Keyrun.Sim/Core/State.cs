@@ -228,6 +228,13 @@ public sealed class ActorState
     /// <summary>Per-actor chase margin override; null = encounter/chase.ts CHASE_MARGIN_MM.</summary>
     public long? ChaseMarginMm { get; set; }
 
+    /// <summary>
+    /// PRESPAWN-AGGRO (C#-only; BIBLE section 9.1): true while the actor's group stands idle in formation, before it
+    /// engages. An idle enemy runs no script, casts nothing, never chases and is never auto-targeted; it can still be
+    /// hit, and taking damage engages its whole group. False for every actor of an oracle run.
+    /// </summary>
+    public bool Idle { get; set; }
+
     /// <summary>A deep copy (effects, cooldowns and threat are copied, not shared).</summary>
     public ActorState Clone()
     {
