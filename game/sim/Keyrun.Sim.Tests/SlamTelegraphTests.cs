@@ -109,7 +109,8 @@ public sealed class SlamTelegraphTests
 
         var drawn = events.Where(e => e.Type == "telegraph" && Int(e, "actorId") == actor && Str(e, "cast") == cast).ToList();
         Assert.True(drawn.Count >= minLanded, $"{cast} by {actor}: {drawn.Count} telegraphs drawn, expected at least {minLanded}");
-        foreach (var tg in drawn)
+        // A telegraph resolving on or after the last stepped tick has a landing the run never reached: not judged.
+        foreach (var tg in drawn.Where(e => Int(e, "resolvesTick") < run.State.Tick))
         {
             var resolves = Int(tg, "resolvesTick");
             Assert.True(
@@ -160,20 +161,28 @@ public sealed class SlamTelegraphTests
     private const int SeedActor = 108;
 
     /// <summary>A Seed-only run (k2 oracle content, the Seed's script from content/data/enemies/seed.json), the party in lash range.</summary>
-    private static (List<SimEvent> Events, Dictionary<int, IReadOnlyList<Telegraph>> Pending, Run Run, IReadOnlyList<ScriptStep> Script) PlaySeed()
+    private static (List<SimEvent> Events, Dictionary<int, IReadOnlyList<Telegraph>> Pending, Run Run, IReadOnlyList<ScriptStep> Script) PlaySeed() =>
+        PlayEnemy("seed.json", "seed.elite", SeedActor, Ticks);
+
+    /// <summary>
+    /// A one-enemy run: k2 oracle content, <paramref name="enemyId"/>'s script from content/data/enemies/<paramref name="file"/>
+    /// (Tempo-scaled to key 2) on actor <paramref name="actorId"/> at the origin, the party 1 m away, stepped
+    /// <paramref name="ticks"/> ticks with no party commands.
+    /// </summary>
+    private static (List<SimEvent> Events, Dictionary<int, IReadOnlyList<Telegraph>> Pending, Run Run, IReadOnlyList<ScriptStep> Script) PlayEnemy(string file, string enemyId, int actorId, int ticks)
     {
-        var path = Path.Combine(ContentRoots.RepoRootAbove(OracleFixtures.Directory), "content", "data", "enemies", "seed.json");
-        var seedDef = ((JsArray)JsValue.Parse(File.ReadAllText(path))).Items.Cast<JsObject>().Single(e => ((JsString)e.Get("id")!).Value == "seed.elite");
-        var script = Tempo.ScaleScript(EncounterJson.ParseScript(seedDef.Get("script")!), Key);
+        var path = Path.Combine(ContentRoots.RepoRootAbove(OracleFixtures.Directory), "content", "data", "enemies", file);
+        var enemyDef = ((JsArray)JsValue.Parse(File.ReadAllText(path))).Items.Cast<JsObject>().Single(e => ((JsString)e.Get("id")!).Value == enemyId);
+        var script = Tempo.ScaleScript(EncounterJson.ParseScript(enemyDef.Get("script")!), Key);
         var setup = RunSetup.Load(OracleFixtures.PathOf("hollow-vault-k2.setup.json"), BossTestKit.Seed);
         var dungeon = new DungeonDef("hollow-vault", new[]
         {
-            new PullDef("seed", new[] { new PullSpawn(SeedActor, "seed.elite", new Vec3(0, 0, 0), 512, 60000) }),
+            new PullDef("solo", new[] { new PullSpawn(actorId, enemyId, new Vec3(0, 0, 0), 512, 60000) }),
         });
         var content = setup.Content with
         {
             Bounds = new Keyrun.Sim.Combat.Bounds(-20000, 20000, -20000, 20000),
-            EnemyScripts = new Dictionary<int, IReadOnlyList<ScriptStep>> { [SeedActor] = script },
+            EnemyScripts = new Dictionary<int, IReadOnlyList<ScriptStep>> { [actorId] = script },
             BreakBarSources = null,
             KeyLevel = null,
             ParTicks = null,
@@ -188,7 +197,7 @@ public sealed class SlamTelegraphTests
         var run = RunRoot.CreateRun(BossTestKit.Seed, party, dungeon, content);
         var events = new List<SimEvent>();
         var pending = new Dictionary<int, IReadOnlyList<Telegraph>>();
-        while (run.State.Tick < Ticks)
+        while (run.State.Tick < ticks)
         {
             var tick = run.State.Tick;
             var stepped = RunRoot.StepRun(run, Array.Empty<Command>());
@@ -197,6 +206,18 @@ public sealed class SlamTelegraphTests
             pending[tick] = run.Encounter.Telegraphs;
         }
         return (events, pending, run, script);
+    }
+
+    private const int PairActor = 103;
+
+    [Fact(DisplayName = "The Pair draws its spread and stack telegraphs only for casts that land, and keeps them down until they land")]
+    public void Pair_spread_and_stack_telegraphs_only_for_casts_that_land()
+    {
+        // Key 2: spreadMark loops every 392 and stackCall every 392 from tick 600, both on a 400-tick cooldown, so the
+        // casts at 784 and 992 are refused not_ready. 1500 ticks covers two landings of each (432, 1216; 640, 1424).
+        var (events, pending, run, script) = PlayEnemy("pair.json", "pair.melee", PairActor, 1500);
+        AssertSpansCast(events, pending, run, PairActor, "pair.spreadMark", script, 2, requireDamage: false);
+        AssertSpansCast(events, pending, run, PairActor, "pair.stackCall", script, 2, requireDamage: false);
     }
 
     [Fact(DisplayName = "The Seed's slam and lash keep their floor telegraph down until they land and resolve it on the damage tick")]
