@@ -9,7 +9,7 @@ namespace Keyrun.Content;
 /// <summary>
 /// Loads every content kind from the verbatim content/data JSON into a typed, validated
 /// <see cref="ContentRegistry"/>: the C# mirror of content/index.ts <c>loadContent()</c>, reading
-/// the same 19 files in the same order, plus the C#-only run.json, layout.json and theme.json (theme.json is read by ThemeLoader). Fails closed with <see cref="ContentLoadException"/> on
+/// the same 19 files in the same order, plus the C#-only run.json, layout.json, theme.json (theme.json is read by ThemeLoader) and combo-riders.json. Fails closed with <see cref="ContentLoadException"/> on
 /// any unknown property, missing required field, null in a non-optional field, non-integer
 /// number, unknown enum or op, duplicate id, unresolved cross-reference, or unlisted/missing file.
 /// </summary>
@@ -35,7 +35,14 @@ public static class ContentLoader
         RunFile,
         LayoutFile,
         ThemeFile,
+        ComboRidersFile,
     };
+
+    /// <summary>
+    /// C#-only combo riders (game/content/data/combo-riders.json, same logical root): replacement effects for combos
+    /// whose BIBLE section 4 effect the frozen combos.json cannot express (Anthem, Steam). Not read by the TS loadContent.
+    /// </summary>
+    public const string ComboRidersFile = "combo-riders.json";
 
     /// <summary>
     /// C#-only per-room dressing (game/content/data/theme.json, same logical root; ROOM-THEMING-1). Listed so the file
@@ -113,6 +120,7 @@ public static class ContentLoader
                 ReadArray<FacetDef>(source, Facets + "chanter.json")),
             Run = ReadOne<RunConfig>(source, RunFile)[0],
             Layout = ReadOne<LayoutDef>(source, LayoutFile)[0],
+            ComboRiders = ById("combo rider", ReadArray<ComboRider>(source, ComboRidersFile)),
         };
 
         ContentValidator.Validate(registry);
