@@ -92,6 +92,19 @@ public static class Tempo
     public static IReadOnlyList<ScriptStep> ScaleScript(IReadOnlyList<ScriptStep> script, int keyLevel) =>
         script.Select(s => ScaleStep(s, keyLevel)).ToList();
 
+    /// <summary>TEMPO-CAST-FLOOR: the shortest period a step may repeat its cast (cooldown and cast time).</summary>
+    public static int CastFloorTicks(int cooldownTicks, int castTicks) => 0;
+
+    /// <summary>TEMPO-CAST-FLOOR: <see cref="ScaleCastEvery(int, int)"/> never below the cast's floor.</summary>
+    public static int ScaleCastEvery(int baseEveryTicks, int keyLevel, int castFloorTicks) => ScaleCastEvery(baseEveryTicks, keyLevel);
+
+    /// <summary>TEMPO-CAST-FLOOR: <see cref="ScaleStep(ScriptStep, int)"/> with the cast's floor applied to <c>every</c>.</summary>
+    public static ScriptStep ScaleStep(ScriptStep step, int keyLevel, Func<string, int> castFloorTicks) => ScaleStep(step, keyLevel);
+
+    /// <summary>TEMPO-CAST-FLOOR: <see cref="ScaleStep(ScriptStep, int, Func{string, int})"/> over every step, in order.</summary>
+    public static IReadOnlyList<ScriptStep> ScaleScript(IReadOnlyList<ScriptStep> script, int keyLevel, Func<string, int> castFloorTicks) =>
+        script.Select(s => ScaleStep(s, keyLevel, castFloorTicks)).ToList();
+
     /// <summary>content-dungeon.ts:61 scaleSpawns (one spawn): health scaled, everything else kept.</summary>
     public static PullSpawn ScaleSpawn(PullSpawn spawn, int keyLevel) => spawn with { Health = ScaleHealth(spawn.Health, keyLevel) };
 }
