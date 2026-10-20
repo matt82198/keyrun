@@ -4,6 +4,7 @@ using Godot;
 using Keyrun.Host;
 using Keyrun.Sim.Core;
 using Keyrun.View;
+using CombatTextRule = Keyrun.Content.CombatTextRule;
 using HudLayout = Keyrun.Content.HudLayout;
 using PixelPoint = Keyrun.Content.PixelPoint;
 using PixelRect = Keyrun.Content.PixelRect;
@@ -14,7 +15,9 @@ namespace Keyrun.Hud;
 /// Floating combat text (HUD-DECLUTTER, Matt 2026-10-19: "only show the played characters damage numbers in fight"):
 /// one rising, fading number over the target for each hit the human's seat lands
 /// (<see cref="HudDeclutter.WorldDamageNumber"/>). Bots' hits spawn nothing, and damage the party takes reads as health
-/// leaving the party frames, never as a number over a bot. Reads the sim events only.
+/// leaving the party frames, never as a number over a bot. Reads the sim events only. Lane MISS-VIEW: the human's own
+/// "miss" event (a blinded hit, PR #223) floats "MISS" the same way (<see cref="CombatTextRule.HumanMiss"/>); a bot's or
+/// an enemy's miss shows nothing.
 /// <para>
 /// Lane COMBATTEXT-OVERLAP (finding f-caae8653): numbers are laid out once per process frame with
 /// <see cref="HudClearance.PlaceNumber"/> clear of every name plate (the box LabelView draws before separation,
@@ -235,21 +238,32 @@ public partial class CombatText : Control
         var human = _driver.Setup?.HumanActorId ?? SimDriver.WardenId;
         foreach (var e in events)
         {
+            if (CombatTextRule.HumanMiss(e.Type, (e.Get("sourceId") as JsInt)?.Value, (e.Get("targetId") as JsInt)?.Value, human, out var missed))
+            {
+                // Lane MISS-VIEW: the human's blinded hit (a "miss" event, Mitigation.DealDamage) floats "MISS" over its
+                // target; a bot's or an enemy's miss shows nothing. Own proof prefix, so "HUD fct" stays damage-only.
+                _numbers.Add(new Number(missed, CombatTextRule.MissText, WorldOf(missed)));
+                HudNodes.Proof(_driver, FormattableString.Invariant($"HUD miss source={human} target={missed} text={CombatTextRule.MissText}"));
+                continue;
+            }
             if (!HudDeclutter.WorldDamageNumber(e, human, out var sourceId, out var targetId, out var amount))
             {
                 continue;
             }
-            var world = _driver.State.Actors.TryGetValue(targetId, out var target) ? ActorView.ToMetres(target.Pos) : Vector3.Zero;
-            _numbers.Add(new Number(targetId, amount, world));
+            _numbers.Add(new Number(targetId, amount.ToString(System.Globalization.CultureInfo.InvariantCulture), WorldOf(targetId)));
             HudNodes.Proof(_driver, FormattableString.Invariant($"HUD fct source={sourceId} target={targetId} amount={amount}"));
         }
     }
 
-    private sealed class Number(int targetId, long amount, Vector3 world)
+    // Where a new number starts: its target's feet, or the origin when the target is gone.
+    private Vector3 WorldOf(int targetId) =>
+        _driver!.State.Actors.TryGetValue(targetId, out var target) ? ActorView.ToMetres(target.Pos) : Vector3.Zero;
+
+    private sealed class Number(int targetId, string text, Vector3 world)
     {
         public int TargetId { get; } = targetId;
 
-        public string Text { get; } = amount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        public string Text { get; } = text;
 
         public Vector3 World { get; } = world;
 
