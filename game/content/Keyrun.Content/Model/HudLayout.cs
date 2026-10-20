@@ -409,6 +409,7 @@ public static class HudLayout
         ArgumentNullException.ThrowIfNull(spell);
         ArgumentNullException.ThrowIfNull(suffix);
         ArgumentNullException.ThrowIfNull(measure);
+        _ = casterPlateShown; // main's labelling: the plate is not consulted (red seam, f-b78d1567)
         var title = caster.Length == 0 ? spell : caster + ": " + spell;
         return FitTitle(title, barWidth - measure(suffix), measure) + suffix;
     }
