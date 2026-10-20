@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Keyrun.Content;
 
@@ -10,7 +11,12 @@ namespace Keyrun.Content;
 /// </summary>
 public static class BotGear
 {
-    /// <summary>The bot's default loadout for <paramref name="cls"/>: (slot id, facet id) in canonical slot order.</summary>
+    /// <summary>
+    /// The bot's default loadout for <paramref name="cls"/>: (slot id, facet id) in canonical slot order
+    /// (<see cref="GearFacets.SlotOrder"/>). Each slot holds the slot's first Facet, in content (registry) order, whose
+    /// ability is in the class kit: a tier-1 starter item (tier changes no stat). A slot with no such Facet is left
+    /// empty. Pure content data, no PRNG draw, so it is the same for every seed and every run.
+    /// </summary>
     /// <param name="registry">The content.</param>
     /// <param name="cls">The bot's class.</param>
     /// <returns>The loadout.</returns>
@@ -18,7 +24,17 @@ public static class BotGear
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(cls);
-        return Array.Empty<(string, string)>();
+        var kit = GearFacets.Kit(cls);
+        var loadout = new List<(string Slot, string FacetId)>();
+        foreach (var slot in GearFacets.SlotOrder)
+        {
+            var facet = registry.Facets.Values.FirstOrDefault(f => f.Slot == slot && kit.Contains(f.AbilityId));
+            if (facet is not null)
+            {
+                loadout.Add((GearFacets.SlotId(slot), facet.Id));
+            }
+        }
+        return loadout;
     }
 
     /// <summary>

@@ -890,7 +890,9 @@ public partial class SimDriver : Node
             dungeon = dungeon with { Pulls = dungeon.Pulls.Skip(Options.StartPull - 1).ToList() };
         }
         // Lane NAV-CORE: a --pull N run starts its party in pull N's room (HostRunSetup.PartyFor), else in the Entrance.
-        var created = RunRoot.CreateRun(Options.Seed, setup.PartyFor(dungeon), dungeon, setup.Content, request?.ToRunOptions());
+        // Bot seats wear their default gear (HostRunSetup.BotLoadouts, BIBLE s6 parity) next to the request's loadouts.
+        var party = setup.PartyFor(dungeon);
+        var created = RunRoot.CreateRun(Options.Seed, party, dungeon, setup.Content, setup.WithBotLoadouts(request?.ToRunOptions(), party));
         // 3F's hand-off (its decision 6): arm the boss on the created run's encounter.
         var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
         Run = run;
@@ -901,6 +903,11 @@ public partial class SimDriver : Node
         _bots?.Reset();
         _log?.Line(FormattableString.Invariant(
             $"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} dungeon={setup.Dungeon.Id} key={setup.Content.KeyLevel} clause={run.Encounter.Rules.ActiveClauseId ?? "none"} seed={Options.Seed} actors={run.State.Actors.Count}"));
+        foreach (var (actor, gear) in setup.BotGear.Where(kv => party.Any(p => p.Id == kv.Key)).OrderBy(kv => kv.Key))
+        {
+            _log?.Line(FormattableString.Invariant(
+                $"GEAR bot actor={actor} applied={gear.Applied.Count} skipped={gear.Skipped.Count} facets={(gear.Applied.Count > 0 ? string.Join(',', gear.Applied.Select(f => f.FacetId)) : "-")}"));
+        }
         var boss = run.Encounter.Boss?.Config ?? throw new InvalidOperationException("SimDriver: the run's boss is not armed");
         _log?.Line(FormattableString.Invariant(
             $"BOSS armed twins={boss.Twins.Count} lockAt={boss.LockThresholdBp / 100} window={boss.LockWindowTicks} bar={boss.TwinsBar.Id} boss={boss.BossActorId}"));
