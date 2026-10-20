@@ -66,8 +66,8 @@ describe("run-setup: buildRunSetup runOptions (Clause + loadout)", () => {
     const base = registry.abilities.get("warden.strike");
     const patched = setup.runOptions.loadouts?.[setup.humanActorId]?.["warden.strike"];
     expect(patched).toBeDefined();
-    expect(patched?.gcdTicks).toBe(0); // riposte's patch: "Strike costs no GCD ..."
-    expect(patched?.gcdTicks).not.toBe(base?.gcdTicks);
+    expect(patched?.tags).toContain("riposte:free-after-brace"); // riposte's patch (tags only; the free GCD is conditional, f-d37651d1)
+    expect(patched?.tags).not.toEqual(base?.tags);
   });
 
   it("leaves runOptions.loadouts undefined for null/undefined loadout (no persisted build)", () => {

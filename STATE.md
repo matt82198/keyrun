@@ -250,6 +250,9 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
     Record: `powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/godot.ps1 --path game '--' --record-input
     game/fixtures/input/my-run.input-log.json --log build/my-run.txt`. Replay with `--replay-input` on the same path. Camera
     yaw is recorded, pitch is not.
+  - Launch lock (keyrun PR #301, merged as 69a0e1e2): every game launch now goes through the single-instance launch lock.
+    A second launch exits with code 4. Each run is capped at 300 seconds (override with KEYRUN_GODOT_TIMEOUT_SEC), and the
+    process tree is killed when the cap is hit.
   - 2026-10-18 SECOND-PASS ORACLE VERDICT (SUPERSEDED by the third pass above; read-only Haiku oracle, ~19:08Z, source reads at 4b35c98): D10
     MET-WITH-TUNING-GAP. Supersedes the first-pass NOT-MET in DECISIONS AND OBSERVATIONS (d). Code path exists for every
     Phase 3 row and the screen-to-run path is wired; the gap is balance, not wiring. Decisive line:
@@ -288,6 +291,8 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   0. SCREENS proof lane (running 2026-10-18; output C:/Users/Mattt/Desktop/keyrun-screens/) makes the first frames of run C.
      Follow-up SCREENS-TOOL lane promotes the capture script to tools/godot/screens.ps1, adds the ffmpeg frames-to-mp4 step,
      and documents both in game/CLAUDE.md. WHY: D15, a visible change is judged from frames, not a headless log.
+     Frame and video captures are taken by the orchestrator, not by lanes. Lanes never launch Godot, keyrun.exe,
+     *SceneTest.ps1, screens.ps1, or E2eAssert replays. WHY: parallel game launches froze the host on 2026-10-20.
   1. Matt records a human-played run to the boss (record command above) and judges it by feel, with the D15 frames. Only this
      moves D10 and the Phase 3 exit.
   1a. DONE 2026-10-19 00:54Z: ART-PLAN ladder lane 1 NAV-CORE, PR #163 MERGED 76c7f32 (block "Phase 3.5" below). Lanes
@@ -628,6 +633,8 @@ Additional parked decisions (from the burn ledger):
   ships screenshots and a frame sequence of the run (PNG frames plus an mp4 made with ffmpeg, installed on this box) into a stated
   folder, and the orchestrator views them before accepting the work. Phase 5 feel judgments use them too. A headless log alone no
   longer closes a visible row.
+  Acceptance flow (2026-10-20): a lane flags the visible change in its PR. The orchestrator captures the frames one at a
+  time under the launch lock. Matt watching is still the acceptance.
 - D16 **The demo gets a real dungeon and real character models** (Matt, 2026-10-18 23:35Z, verbatim: "we need to design an actual
   dungeon and character models for the demo lmfao"; "it cant be just kovakks"). Rule: the art and navigation pass in
   design/ART-PLAN.md (Phase 3.5 "Look and route", a ten-lane ladder, lane 1 first) turns the capsules on a grey grid into a

@@ -124,6 +124,8 @@ public static class Combos
     /// <param name="effectDefs">Effect definitions.</param>
     /// <param name="emit">Event sink.</param>
     /// <param name="weighting">The active Pact weighting, or null.</param>
+    /// <param name="overheat">The step's Overheat rules, or null: a removeEffect of the Payoff actor's own Chill clears
+    /// it from the Payoff actor (<see cref="Casting.RemoveEffectHolder"/>; Flashfire, finding f-9efbee75).</param>
     public static void ApplyComboEffects(
         SimState state,
         ActorState source,
@@ -131,7 +133,8 @@ public static class Combos
         IReadOnlyList<EffectOp> ops,
         IReadOnlyDictionary<string, EffectDef> effectDefs,
         Action<SimEvent> emit,
-        DamageWeighting? weighting = null)
+        DamageWeighting? weighting = null,
+        IReadOnlyDictionary<string, OverheatRule>? overheat = null)
     {
         foreach (var op in ops)
         {
@@ -163,7 +166,7 @@ public static class Combos
                     }
                     else
                     {
-                        Effects.RemoveEffectInstances(target, r.EffectId);
+                        Effects.RemoveEffectInstances(Casting.RemoveEffectHolder(source, target, r.EffectId, overheat), r.EffectId);
                     }
                     break;
                 case ResourceOp res:

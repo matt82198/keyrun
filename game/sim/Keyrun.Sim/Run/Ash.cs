@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
 
@@ -164,4 +165,180 @@ public sealed record Progression
 
     private Dictionary<string, Item> With(string slot, Item item) =>
         new(Equipped, StringComparer.Ordinal) { [slot] = item };
+}
+
+/// <summary>
+/// One Facet's ability patch in sim types (content/schema/facet.ts FacetPatch, applied as the frozen TS
+/// content/apply-patch.ts applyPatch): each non-null direct field replaces the ability's, then <see cref="TagAdd"/>
+/// merges into the tags (no duplicates, base order kept), <see cref="TagRemove"/> drops tags, and
+/// <see cref="EffectsAppend"/> appends after the base ops. The host converts the content patch (HostRunSetup.GearPatches);
+/// the sim never reads Keyrun.Content. No facet in content/data sets both a direct and a merged form of the same field,
+/// so the direct-then-merged order is the TS key order for every shipped facet.
+/// </summary>
+public sealed record GearPatch
+{
+    /// <summary>Replacement cast time, ticks.</summary>
+    public int? CastTicks { get; init; }
+
+    /// <summary>Replacement GCD, ticks.</summary>
+    public int? GcdTicks { get; init; }
+
+    /// <summary>Replacement cooldown, ticks.</summary>
+    public int? CooldownTicks { get; init; }
+
+    /// <summary>Replacement charges.</summary>
+    public long? Charges { get; init; }
+
+    /// <summary>Replacement cost.</summary>
+    public AbilityCost? Cost { get; init; }
+
+    /// <summary>Replacement range, mm.</summary>
+    public long? Range { get; init; }
+
+    /// <summary>Replacement shape.</summary>
+    public AbilityShape? Shape { get; init; }
+
+    /// <summary>Replacement interruptible flag.</summary>
+    public bool? Interruptible { get; init; }
+
+    /// <summary>Replacement tags.</summary>
+    public IReadOnlyList<string>? Tags { get; init; }
+
+    /// <summary>Replacement ops.</summary>
+    public IReadOnlyList<EffectOp>? Effects { get; init; }
+
+    /// <summary>Replacement verse variants.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<EffectOp>>? Variants { get; init; }
+
+    /// <summary>Tags merged into the ability's tags.</summary>
+    public IReadOnlyList<string>? TagAdd { get; init; }
+
+    /// <summary>Tags removed from the ability's tags.</summary>
+    public IReadOnlyList<string>? TagRemove { get; init; }
+
+    /// <summary>Ops appended after the ability's ops.</summary>
+    public IReadOnlyList<EffectOp>? EffectsAppend { get; init; }
+
+    /// <summary>The patched ability; <paramref name="ability"/> itself is never changed and its id is kept.</summary>
+    /// <param name="ability">The base (or already patched) ability.</param>
+    /// <returns>The patched ability.</returns>
+    public AbilityDef ApplyTo(AbilityDef ability)
+    {
+        ArgumentNullException.ThrowIfNull(ability);
+        var next = ability with
+        {
+            CastTicks = CastTicks ?? ability.CastTicks,
+            GcdTicks = GcdTicks ?? ability.GcdTicks,
+            CooldownTicks = CooldownTicks ?? ability.CooldownTicks,
+            Charges = Charges ?? ability.Charges,
+            Cost = Cost ?? ability.Cost,
+            Range = Range ?? ability.Range,
+            Shape = Shape ?? ability.Shape,
+            Interruptible = Interruptible ?? ability.Interruptible,
+            Tags = Tags ?? ability.Tags,
+            Effects = Effects ?? ability.Effects,
+            Variants = Variants ?? ability.Variants,
+        };
+        if (TagAdd is not null)
+        {
+            next = next with { Tags = (next.Tags ?? Array.Empty<string>()).Concat(TagAdd).Distinct(StringComparer.Ordinal).ToList() };
+        }
+        if (TagRemove is not null)
+        {
+            var drop = new HashSet<string>(TagRemove, StringComparer.Ordinal);
+            next = next with { Tags = (next.Tags ?? Array.Empty<string>()).Where(t => !drop.Contains(t)).ToList() };
+        }
+        if (EffectsAppend is not null)
+        {
+            next = next with { Effects = next.Effects.Concat(EffectsAppend).ToList() };
+        }
+        return next;
+    }
+}
+
+/// <summary>
+/// The gear a character brings into a run (BIBLE s7: an item is a Tier plus one Facet). <see cref="Gear"/> is every
+/// equipped item in <see cref="Rewards.GearSlots"/> order, so the Facets are carried and visible whether or not they
+/// change a rule; <see cref="Abilities"/> is the wearer's kit after each Facet's <see cref="GearPatch"/> (slot order, so
+/// a later slot patching the same ability applies on top). <see cref="ToRunOptions"/> hands it to createRun through
+/// <see cref="RunOptions.Loadouts"/>, the run root's facet patch layer. Tier carries no rule here (no sim mechanism
+/// reads it yet).
+/// </summary>
+/// <param name="ActorId">The wearer's actor id.</param>
+/// <param name="Gear">Equipped items, slot order.</param>
+/// <param name="Abilities">Patched abilities by id (only those a Facet changed).</param>
+/// <param name="UnappliedFacetIds">Facets carried without a rule change: no patch was supplied for them, or their
+/// ability is not in the base kit.</param>
+public sealed record GearLoadout(
+    int ActorId,
+    IReadOnlyList<Item> Gear,
+    IReadOnlyDictionary<string, AbilityDef> Abilities,
+    IReadOnlyList<string> UnappliedFacetIds)
+{
+    /// <summary>The equipped Facets, slot order.</summary>
+    public IReadOnlyList<Facet> Facets => Gear.Select(i => i.Facet).ToList();
+
+    /// <summary>Builds the wearer's loadout from the equipped gear.</summary>
+    /// <param name="progression">The character's progression.</param>
+    /// <param name="actorId">The wearer's actor id.</param>
+    /// <param name="baseAbilities">The run's base ability map (RunContent.Abilities).</param>
+    /// <param name="patchesByFacetId">Each Facet's patch, by Facet id; a Facet with no entry is carried unapplied.</param>
+    /// <returns>The loadout.</returns>
+    public static GearLoadout Of(
+        Progression progression,
+        int actorId,
+        IReadOnlyDictionary<string, AbilityDef> baseAbilities,
+        IReadOnlyDictionary<string, GearPatch> patchesByFacetId)
+    {
+        ArgumentNullException.ThrowIfNull(progression);
+        ArgumentNullException.ThrowIfNull(baseAbilities);
+        ArgumentNullException.ThrowIfNull(patchesByFacetId);
+        var gear = new List<Item>();
+        var patched = new Dictionary<string, AbilityDef>(StringComparer.Ordinal);
+        var unapplied = new List<string>();
+        foreach (var slot in Rewards.GearSlots)
+        {
+            if (!progression.Equipped.TryGetValue(slot, out var item))
+            {
+                continue;
+            }
+            gear.Add(item);
+            var facet = item.Facet;
+            if (!patchesByFacetId.TryGetValue(facet.Id, out var patch) || !baseAbilities.TryGetValue(facet.AbilityId, out var baseDef))
+            {
+                unapplied.Add(facet.Id);
+                continue;
+            }
+            patched[facet.AbilityId] = patch.ApplyTo(patched.TryGetValue(facet.AbilityId, out var current) ? current : baseDef);
+        }
+        return new GearLoadout(actorId, gear, patched, unapplied);
+    }
+
+    /// <summary>
+    /// <paramref name="options"/> with the patched kit as the wearer's loadout (the Clause and every other seat's
+    /// loadout kept; a gear patch overrides the wearer's own entry for the same ability). Returns
+    /// <paramref name="options"/> itself (same reference, possibly null) when no Facet changed an ability, so a run
+    /// without gear is created exactly as before.
+    /// </summary>
+    /// <param name="options">The run options, or null.</param>
+    /// <returns>The options.</returns>
+    public RunOptions? ToRunOptions(RunOptions? options)
+    {
+        if (Abilities.Count == 0)
+        {
+            return options;
+        }
+        var loadouts = options?.Loadouts is { } existing
+            ? new Dictionary<int, IReadOnlyDictionary<string, AbilityDef>>(existing)
+            : new Dictionary<int, IReadOnlyDictionary<string, AbilityDef>>();
+        var mine = loadouts.TryGetValue(ActorId, out var own)
+            ? new Dictionary<string, AbilityDef>(own, StringComparer.Ordinal)
+            : new Dictionary<string, AbilityDef>(StringComparer.Ordinal);
+        foreach (var kv in Abilities)
+        {
+            mine[kv.Key] = kv.Value;
+        }
+        loadouts[ActorId] = mine;
+        return (options ?? new RunOptions()) with { Loadouts = loadouts };
+    }
 }

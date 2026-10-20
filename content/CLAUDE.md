@@ -41,18 +41,18 @@ of loaded content through a real run.
   `content/index.ts`'s validator special-cases `"*"` so it never needs to resolve to a real effect
   id) but the op is currently a no-op against a live actor's effects list until sim adds
   dispellableTag-driven "any" removal.
-- **`sim/encounter/scripts.ts`'s `ScriptStep.at` has no death trigger or phase offset.** It is
-  `"loop" | number` only (a numeric `at` fires exactly once; only `"loop"` repeats, always starting
-  at exactly `every`). The Seed's `seed.deathBloom` ability (a floor Window dropped on death) is
-  valid data but currently unscripted -- there is no `onDeath` trigger to hang it on. Two staggered
-  casts that used to fire at different phases of the same period (`pair.spreadMark`/
-  `pair.stackCall`) now both fire on the same `every: 400` loop instead, since a numeric `at` with
-  an `every` alongside it does not repeat under the real semantics.
-- **Sundered Twins' Break bar is unwired.** The mechanism exists
-  (`sim/encounter/breakbar.ts`'s `BreakBarState`/`drainBreakBar`), but nothing in
-  `sim/index.ts`'s `stepRun` or `sim/encounter/index.ts`'s `stepEncounter` yet builds a
-  `BreakBarState` from `EnemyDef.breakBarId`/`breakBars` or feeds interrupt/control-tagged commands
-  into `drainBreakBar` per tick.
+- **`sim/encounter/scripts.ts`'s `ScriptStep.at` is `"loop" | "onDeath" | number`.** `"loop"`
+  repeats every `every` ticks, first firing at tick `every`. A numeric `at` with no `every` fires
+  once; with an `every` it is a phase offset that fires at `at`, `at+every`, ... (`pair.stackCall`
+  in `content/data/enemies/pair.json` is `at: 600, every: 400`). `"onDeath"` fires once, on the
+  first tick after its actor is dead (`firedOnDeath`, threaded by `sim/encounter/index.ts`). The
+  Seed's `seed.deathBloom` is scripted that way (`content/data/enemies/seed.json`), and sim/combat's
+  rules.ts lets a dead actor's `cast` through for it. `pair.spreadMark` (`"loop"`, every 400) and
+  `pair.stackCall` (offset 600, every 400) no longer share a phase.
+- **Sundered Twins' Break bar is wired.** `sim/encounter/index.ts`'s `stepEncounter` builds a
+  `BreakBarState` from `breakBarWiring` once both twins are alive and drains it per tick with
+  `drainBreakBar`. `sim/index.ts`'s `stepRun` supplies that wiring from `content.breakBarSources`
+  (`EnemyDef.breakBarId`/`breakBars` in `content/schema/enemy.ts` is the authoring side).
 
 ### Schema additions beyond the canonical contract (documented here, not silent)
 - `AbilityDef.variants?: Record<string, EffectOp[]>`  -  per-stance effect override, used only by
