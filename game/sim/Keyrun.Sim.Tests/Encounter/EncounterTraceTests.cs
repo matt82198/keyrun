@@ -208,9 +208,12 @@ public sealed class EncounterTraceTests
     [Theory]
     // SLAM-TELEGRAPH Pair leadTicks 140 re-record: k2 was 13, 12, 7, 0, 0, 1 and k10 was 14, 14, 7, 0, 0, 3; the new
     // values are tallied from the re-recorded TS traces with this replay's rules (the same tally reproduces the old ones).
+    // Merged with QUENCH-REFUND (main: k2 13, 12, 7, 0, 0, 1; k10 14, 13, 7, 0, 0, 2) and re-recorded on the merged
+    // tree: the same tally of the merged traces gives the SLAM-TELEGRAPH rows below unchanged (it reproduces both
+    // parents' rows from their own traces).
     [InlineData("bots-hv-k2-s7", 12, 12, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
     [InlineData("bots-hv-k2-s11", 12, 12, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 17, 17, 7, 0, 0, 3)] // LOCK-TELEGRAPH re-record: the Lock circle (drawn t2015, resolves t2032) and its hit (was 16, 16, 7, 0, 0, 3; tallied from the trace, the same tally reproduces the old row)
+    [InlineData("bots-hv-k10-s7", 17, 17, 7, 0, 0, 3)] // LOCK-TELEGRAPH re-record: the Lock circle and its hit (was 16, 16, 7, 0, 0, 3). On the tree merged with main the re-recorded TS trace has 17 telegraph and 17 telegraph_hit events (main's had 16/16); the PR's pre-merge row was also 17, 17
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

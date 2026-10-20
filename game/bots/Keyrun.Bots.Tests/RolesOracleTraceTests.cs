@@ -142,13 +142,13 @@ public sealed class RolesOracleTraceTests
     }
 
     [Fact(DisplayName = "bot oracle > bots-hv-k2-s7 replays every tick from C#-generated bot commands")]
-    public void Key2Seed7() => AssertDrives("bots-hv-k2-s7", "67b9605f"); // SLAM-TELEGRAPH Pair leadTicks 140 (was c3d7a583; TS manifest re-record); was 4df1e3f1; re-recorded: healer no longer swaps verse to self-heal. DEAD-CASTER-TELEGRAPH (was 902b84a7), KF3-SEED-ENGAGE (was 71eb4d2e)
+    public void Key2Seed7() => AssertDrives("bots-hv-k2-s7", "13473efa"); // SLAM-TELEGRAPH Pair leadTicks 140 + QUENCH-REFUND, re-recorded on the merged tree (SLAM-TELEGRAPH alone 67b9605f, QUENCH-REFUND alone 1f9fd280; before both c3d7a583); was 4df1e3f1; re-recorded: healer no longer swaps verse to self-heal. DEAD-CASTER-TELEGRAPH (was 902b84a7), KF3-SEED-ENGAGE (was 71eb4d2e)
 
     [Fact(DisplayName = "bot oracle > bots-hv-k2-s11 replays every tick from C#-generated bot commands")]
-    public void Key2Seed11() => AssertDrives("bots-hv-k2-s11", "67b9605f"); // SLAM-TELEGRAPH Pair leadTicks 140 (was c3d7a583; TS manifest re-record); was 4df1e3f1; re-recorded: healer no longer swaps verse to self-heal. DEAD-CASTER-TELEGRAPH (was 902b84a7), KF3-SEED-ENGAGE (was 71eb4d2e)
+    public void Key2Seed11() => AssertDrives("bots-hv-k2-s11", "13473efa"); // SLAM-TELEGRAPH Pair leadTicks 140 + QUENCH-REFUND, re-recorded on the merged tree (SLAM-TELEGRAPH alone 67b9605f, QUENCH-REFUND alone 1f9fd280; before both c3d7a583); was 4df1e3f1; re-recorded: healer no longer swaps verse to self-heal. DEAD-CASTER-TELEGRAPH (was 902b84a7), KF3-SEED-ENGAGE (was 71eb4d2e)
 
     [Fact(DisplayName = "bot oracle > bots-hv-k10-s7 replays every tick from C#-generated bot commands")]
-    public void Key10Seed7() => AssertDrives("bots-hv-k10-s7", "96b75ecc"); // LOCK-TELEGRAPH Lock castTicks 20 plus its circle (was c076efdb; TS manifest re-record), SLAM-TELEGRAPH Pair leadTicks 140 (was 3b33f4ad; TS manifest re-record), DEAD-CASTER-TELEGRAPH (was 8c7e9098), CAST-RANGE-RECHECK (the t1760 seed.lash on actor 1 at 2093 mm now misses; was 867dee64), KF3-SEED-ENGAGE (was e1286ac0; SLAM-TELEGRAPH B1 was 27a3ceaf); equals the TS manifest
+    public void Key10Seed7() => AssertDrives("bots-hv-k10-s7", "988fdb9d"); // LOCK-TELEGRAPH Lock castTicks 20 plus its circle, re-recorded on the tree merged with main (was 5791f0ff; LOCK-TELEGRAPH on its pre-merge base 96b75ecc; TS manifest re-record), SLAM-TELEGRAPH Pair leadTicks 140 + QUENCH-REFUND, re-recorded on the merged tree (SLAM-TELEGRAPH alone c076efdb, QUENCH-REFUND alone 15f41e2e; before both 3b33f4ad), DEAD-CASTER-TELEGRAPH (was 8c7e9098), CAST-RANGE-RECHECK (the t1760 seed.lash on actor 1 at 2093 mm now misses; was 867dee64), KF3-SEED-ENGAGE (was e1286ac0; SLAM-TELEGRAPH B1 was 27a3ceaf); equals the TS manifest
 
     [Fact(DisplayName = "bot oracle > anti-vacuity: with no roles the bots diverge from the trace")]
     public void NoRolesDiverge()

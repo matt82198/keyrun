@@ -252,6 +252,9 @@ public static class Casting
     /// The targets-resolved half of completeCast (casting.ts:101-110): every op on each target in order, then each
     /// "resource" op credited to the CASTER once per cast (not per target), then "cast_complete", then the cast is
     /// cleared. Split out so the oracle cast ledger can drive it with traced targets (as 2A split ResolveModified).
+    /// BIBLE section 5 (Quench "refunds 20 Heat on a successful kick"): on an ability that carries an "interrupt"
+    /// op, its resource ops are a kick refund and credit only when at least one interrupt landed; a whiff refunds
+    /// nothing. Abilities with no interrupt op credit unconditionally, as before.
     /// </summary>
     /// <param name="state">Sim state.</param>
     /// <param name="actor">The caster.</param>
@@ -264,13 +267,19 @@ public static class Casting
         ArgumentNullException.ThrowIfNull(def);
         ArgumentNullException.ThrowIfNull(targets);
         ArgumentNullException.ThrowIfNull(ctx);
+        var landed = false;
+        var isKick = false;
         foreach (var target in targets)
         {
-            ApplyEffects(state, actor, target, def.Effects, ctx, emit);
+            landed |= ApplyEffects(state, actor, target, def.Effects, ctx, emit);
         }
         foreach (var op in def.Effects)
         {
-            if (op is ResourceOp r)
+            isKick |= op is InterruptOp;
+        }
+        foreach (var op in def.Effects)
+        {
+            if (op is ResourceOp r && (landed || !isKick))
             {
                 Mitigation.CreditResource(actor, r.Delta);
             }
@@ -287,9 +296,11 @@ public static class Casting
     /// sim/combat/casting.ts:113-138 applyEffects: damage (through mitigation, with the Pact weighting), heal,
     /// applyEffect (an unknown effect id is skipped), removeEffect ("*" = dispel), threat, interrupt. window, payoff,
     /// combo and resource ops do nothing per target (Windows.cs and <see cref="CompleteCastOn"/> run them).
+    /// Returns true when an interrupt op landed on this target.
     /// </summary>
-    private static void ApplyEffects(SimState state, ActorState source, ActorState target, IReadOnlyList<EffectOp> ops, CastContext ctx, Action<SimEvent> emit)
+    private static bool ApplyEffects(SimState state, ActorState source, ActorState target, IReadOnlyList<EffectOp> ops, CastContext ctx, Action<SimEvent> emit)
     {
+        var interrupted = false;
         foreach (var op in ops)
         {
             switch (op)
@@ -320,10 +331,11 @@ public static class Casting
                     Threat.AddThreat(target, source.Id, t.Amount ?? 0, t.MultiplierBp);
                     break;
                 case InterruptOp:
-                    InterruptCast(state, target, source.Id, ctx, emit);
+                    interrupted |= InterruptCast(state, target, source.Id, ctx, emit);
                     break;
             }
         }
+        return interrupted;
     }
 
     /// <summary>
@@ -336,12 +348,13 @@ public static class Casting
     /// <param name="sourceId">The kicker.</param>
     /// <param name="ctx">Abilities and lockout length.</param>
     /// <param name="emit">Event sink.</param>
-    public static void InterruptCast(SimState state, ActorState target, int sourceId, CastContext ctx, Action<SimEvent> emit)
+    /// <returns>True when the kick landed (a cast was cleared and "interrupt" emitted), false on a no-op.</returns>
+    public static bool InterruptCast(SimState state, ActorState target, int sourceId, CastContext ctx, Action<SimEvent> emit)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         if (target.CastId is null || !ctx.Abilities.TryGetValue(target.CastId, out var castDef) || !castDef.Interruptible)
         {
-            return;
+            return false;
         }
         var school = Abilities.AbilitySchool(castDef);
         var abilityId = target.CastId;
@@ -361,5 +374,6 @@ public static class Casting
             ("targetId", JsValue.Int(target.Id)),
             ("abilityId", JsValue.Str(abilityId)),
             ("school", JsValue.Str(school))));
+        return true;
     }
 }
