@@ -14,7 +14,9 @@ namespace Keyrun.View;
 /// a one-shot plays to its end whether the actor moves or not, then returns to run or idle. Lane 4: a spawn clip once when the body is first bound (<see cref="PlaySpawn"/>; skeletons
 /// rise out of the floor, held until it ends unless the actor dies), and the hit clip as the stagger reaction when a
 /// fresh <see cref="ActorBinding.StaggerEffectId"/> effect lands (the Twins' break bar emptying). Read-only: it never
-/// writes sim state. A model without an AnimationPlayer gets no animator (<see cref="TryCreate"/> returns null), so it
+/// writes sim state. KF1: the swing one-shot starts at <see cref="AnimRule.SwingStartMs"/> (its blow lands on the hit
+/// tick, not 300 to 800 ms after it), and a caster the sim's <c>interrupt</c> event targets plays the hit clip (a kick
+/// flinch). A model without an AnimationPlayer gets no animator (<see cref="TryCreate"/> returns null), so it
 /// keeps its static pose.
 /// </summary>
 public sealed class ActorAnimator
@@ -32,6 +34,7 @@ public sealed class ActorAnimator
     private readonly string? _hit;
     private readonly string? _death;
     private readonly string? _spawn;
+    private readonly float _actStartSeconds;
     private string? _oneShot;
     private bool _dead;
     private bool _spawning;
@@ -47,6 +50,8 @@ public sealed class ActorAnimator
         _hit = Match(names, clips.Hit, loop: false);
         _death = Match(names, clips.Death, loop: false);
         _spawn = clips.Spawn is null ? null : Match(names, clips.Spawn, loop: false);
+        // KF1: the swing starts just before its contact frame, so the blow lands on the sim's hit tick.
+        _actStartSeconds = AnimRule.SwingStartMs(clips.Act) / 1000f;
     }
 
     /// <summary>The clip names this animator resolved, for the ACTOR log line ("idle=Idle move=Running_A ...").</summary>
@@ -92,7 +97,7 @@ public sealed class ActorAnimator
     /// events (the <c>cast_complete</c> for this actor is the swing signal, <see cref="AnimRule.Resolved"/>).
     /// </summary>
     public void Update(ActorState before, ActorState now, bool newTick, float speedMps,
-        IReadOnlyList<SimEvent>? events = null)
+        IReadOnlyList<SimEvent>? events = null, int tick = -1)
     {
         if (!now.Alive)
         {
@@ -132,7 +137,7 @@ public sealed class ActorAnimator
             Casting: now.CastId is not null && _cast is not null,
             Acted: _act is not null && (AnimRule.Resolved(now.Id, Pairs(events)) || now.GcdReadyTick > before.GcdReadyTick),
             Hurt: _hit is not null && now.Health < before.Health,
-            Staggered: _hit is not null && StaggerLanded(before, now),
+            Staggered: _hit is not null && (StaggerLanded(before, now) || AnimRule.Kicked(now.Id, Targets(events))),
             Playing: playing);
         var decision = AnimRule.Decide(facts);
         var clip = ClipFor(decision.Clip);
@@ -141,10 +146,12 @@ public sealed class ActorAnimator
             _oneShot = clip;
             if (decision.Restart)
             {
+                var from = decision.Clip == AnimClip.Act ? _actStartSeconds : 0f;
                 _player.Play(clip, Blend);
-                _player.Seek(0, true);
-                // Proof line (like ACTOR): which one-shot started, on whom, and whether the body was moving.
-                GD.Print($"ANIM oneshot actor={now.Id} clip={clip} kind={decision.Clip} moving={(facts.Moving ? 1 : 0)}");
+                _player.Seek(from, true);
+                // Proof line (like ACTOR): which one-shot started, on whom, on which tick, from where in the clip.
+                GD.Print(FormattableString.Invariant(
+                    $"ANIM oneshot actor={now.Id} tick={tick} clip={clip} kind={decision.Clip} from={from:0.00} moving={(facts.Moving ? 1 : 0)}"));
             }
             return;
         }
@@ -173,6 +180,19 @@ public sealed class ActorAnimator
         foreach (var e in events)
         {
             yield return (e.Type, e.Get("actorId") is JsInt id ? (int)id.Value : null);
+        }
+    }
+
+    // One step's events as (type, targetId) pairs for AnimRule.Kicked.
+    private static IEnumerable<(string Type, int? TargetId)> Targets(IReadOnlyList<SimEvent>? events)
+    {
+        if (events is null)
+        {
+            yield break;
+        }
+        foreach (var e in events)
+        {
+            yield return (e.Type, e.Get("targetId") is JsInt id ? (int)id.Value : null);
         }
     }
 
