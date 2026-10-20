@@ -316,17 +316,24 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
   4. Matt plays a run (Phase 5 measurement).
   5. Only then re-run the s10 plan-vs-output check and record PHASE 3 EXIT and D10 (MET / MET-WITH-TUNING-GAP / NOT-MET).
   6. Phase 4: TS deletion after parity. Blocked on step 5.
-  7. D30 aggro and taunt-swap (NOT implemented; waits for Matt's ruling on the BIBLE wording and the R1 conflicts in the D30
-     PR body). Where it plugs in, file names only (game/ domain map):
-     - Pull-range warning: the engage test is game/sim/Keyrun.Sim/Encounter/Aggro.cs (R1 branch rewrite/r1-sim-route,
-       not on main) with Encounter/Pulls.cs; the "about to pull / in range" readout is a new sim readout beside
-       Encounter/BossBreakBarReadout.cs, drawn by game/src/Hud/ (UnitFrames.cs, PartyFrames.cs, Objective.cs, plus an
-       off-screen edge indicator) and the aggro ring view under game/src/Host/.
-     - No damage-based aggro steal: game/sim/Keyrun.Sim/Combat/Threat.cs and Combat/Targeting.cs (target held until a
-       taunt or a deliberate pull), Encounter/Chase.cs and Encounter/ScriptTarget.cs (who an enemy chases and casts at).
+  7. D30 aggro and taunt-swap (NOT implemented; the BIBLE wording and the open questions wait for Matt in the D30 PR
+     body). Body pulls STAY: nothing here may stop a player walking into a ring from engaging it. Where it plugs in, file
+     names only (game/ domain map):
+     - Pull-range warning (warning only, never blocks the pull): the engage test is
+       game/sim/Keyrun.Sim/Encounter/Aggro.cs (R1 branch rewrite/r1-sim-route, not on main; reuse Aggro.InRing and
+       Aggro.GroupsOf with a warning margin, never a second engage rule) with Encounter/Pulls.cs (RingCenter); the
+       "non-tank about to pull / in range" readout is a new pure sim readout beside Encounter/BossBreakBarReadout.cs;
+       it is drawn as an on-screen marker plus an off-screen edge arrow by game/src/Hud/ (beside Objective.cs and
+       PartyFrames.cs, kept clear via HudClearance.cs), projected through game/src/View/CameraRig.cs, next to the aggro
+       ring floor view (new, beside game/src/View/WindowRingView.cs and DungeonBuilder.cs).
+     - No threat meter once engaged (only a taunt moves an enemy): enemy targeting in
+       game/sim/Keyrun.Sim/Encounter/ScriptTarget.cs (ThreatThenNearest) and Encounter/Chase.cs, the threat table in
+       Combat/Threat.cs (AddMomentumSpentThreat) and the threat ops it is fed from (Combat/Casting.cs, Combat/Combos.cs,
+       Combat/Rules.cs; content/data/classes/warden.json, content/data/combos.json lock-warden).
      - Tank-mark taunt swap: a boss script step in Encounter/Boss.cs and Encounter/Scripts.cs, its cast bar and telegraph
-       through Combat/Casting.cs and Encounter/Telegraphs.cs, the lethal touch through Combat/Effects.cs and Combat/Damage.cs,
-       the taunt on the R key via Combat/Abilities.cs and content/data/classes/*.json, and bot timing in game/bots/.
+       through Combat/Casting.cs and Encounter/Telegraphs.cs (views game/src/View/CastBarView.cs, TelegraphView.cs), the
+       lethal touch through Combat/Effects.cs and Combat/Damage.cs, the taunt on the R key via Combat/Abilities.cs and
+       content/data/classes/*.json, and bot timing in game/bots/Keyrun.Bots/Roles/ (Tank.cs, TankEngage.cs).
 
 ## STATE-R9 checkpoint (2026-10-19 05:05Z)
 WHY: #175 to #181 finished the Phase 3.5 ladder and added decisions D25 and D26; the next session must resume from disk, not
@@ -710,29 +717,32 @@ Additional parked decisions (from the burn ledger):
   carries rules the TS one never had, so a check against TS can only record, not judge.
 - D29 **lane row files: lanes write game/lanes/<branch>.md, the fold lane merges them post-squash (aesop BUILDLOG 2026-10-19 17:50Z)**
   (orchestrator, 2026-10-19, lane LANE-ROW-FILES; reversible). Why: three keyrun PRs in one day each needed an Opus resume only to append one line to game/CLAUDE.md and BUILDLOG.md.
-- D30 **AGGRO AND TAUNT-SWAP: no threat meter, no accidental pulls, a Kalphite King style tank mark** (Matt 2026-10-20,
-  verbatim: "do you remember the kalphite king direction? I was saying for keyrun, that is an awesome design... no aggro
+- D30 **AGGRO AND TAUNT-SWAP: body pulls stay, a pull-range warning, no threat meter, a Kalphite King style tank mark**
+  (Matt 2026-10-20, verbatim (1): "do you remember the kalphite king direction? I was saying for keyrun, that is an awesome design... no aggro
   meters. We should have warnings on screen if a dps or non tank is about to pull or in range because that is annoying and
   ruins runs for off screen design issue, but no pulling aggro unless they intentionally do. KK has a mechanic that death
   touches the tank, and someone must taunt the next tick or the tank gets one shot, then the tank taunts it back... that is
   coordination we are going for but with wow phenominal combat and dungeon design, just less buttons and more intentioned
-  strategy"). Direction recorded; design/BIBLE.md is NOT yet amended (proposed wording waits for Matt in the PR that added
-  this entry). The rules it implies:
-  1. No threat meter and no damage-based aggro steal. Enemies stay on the tank unless someone acts on purpose: a taunt or a
-     deliberate pull.
-  2. Proximity alone never pulls a pack for a non-tank. Instead the screen warns when a DPS or healer is about to pull or
-     is in pull range, including for packs that are off screen.
-  3. A signature boss mechanic in the spirit of Kalphite King's tank mark: the boss marks the tank with a lethal touch,
+  strategy"). Correction, verbatim (2), after "no pulling aggro unless they intentionally do" was summarised as "walking
+  near a pack never pulls it": "No just a warning arrow or something, the classic butt pull should still be possible lmfao".
+  Direction recorded; design/BIBLE.md is NOT yet amended (proposed wording waits for Matt in the PR body). The rules:
+  1. Body pulls stay. Walking into a pack's aggro range DOES pull it, for anyone (BIBLE 9.1 prespawn engage unchanged).
+  2. The screen warns (e.g. an arrow) when a DPS or healer is about to pull or is in pull range, including packs off
+     screen. Warning only: it never prevents the pull.
+  3. No threat meter. Once engaged, damage or healing never steals an enemy off the tank. Only a taunt (an intentional
+     act) moves it.
+  4. A signature boss mechanic in the spirit of Kalphite King's tank mark: the boss marks the tank with a lethal touch,
      another player must taunt on the next tick or the tank dies, then the tank taunts back. It is a timing game between
      two people (BIBLE section 4) and a cast-bar plus telegraph read (BIBLE section 3). Precedent: the WoW tank swap,
      research/06-encounter-and-boss-design.md:27.
-  4. Fewer buttons, more intentional strategy: it must fit the five-button classes and the ten-keybind budget (BIBLE
-     sections 0 and 2, D4).
-  Open conflicts with BIBLE 9.1 (proximity engage by any party member), BIBLE 5 (Warden threat from Momentum; only the
-  Warden has a taunt) and the in-flight R1 PRESPAWN-AGGRO work (rewrite/r1-sim-route, Encounter/Aggro.cs) are listed in
-  the PR body for Matt; no lane resolves them silently.
-  Why: Matt names off-screen accidental pulls as a run-ruiner (test 3, "no run ruined by one mistake") and wants tanking
-  coordination to be a deliberate two-player timing read, not a meter.
+  5. Fewer buttons, more intentional strategy: it must fit the five buttons of BIBLE section 0 (and the keybind budget
+     of section 2, D4).
+  Open questions for Matt (PR body): BIBLE 5 Warden threat from Momentum spent and the ScriptTarget threat-then-nearest
+  retarget on main act as a hidden threat table; only the Warden has a taunt (R), so who takes the mark in a one-Warden
+  party; BIBLE 9.1 has no warning yet. The R1 PRESPAWN-AGGRO proximity engage (Encounter/Aggro.cs) is ALLOWED by rule 1.
+  No lane resolves these silently.
+  Why: Matt names off-screen accidental pulls as a run-ruiner, so the fix is information (a warning), not a rule that
+  removes the butt pull; and he wants tanking coordination to be a deliberate two-player timing read, not a meter.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
