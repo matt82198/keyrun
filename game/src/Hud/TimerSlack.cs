@@ -32,6 +32,33 @@ public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, 
     /// <summary>The timer label: "+2  0:12 / par 12:00".</summary>
     public string TimerLabel => FormattableString.Invariant($"+{KeyLevel}  {Clock(RunTimerTicks)} / par {Clock(ParTicks)}");
 
+    /// <summary>
+    /// Fill fraction of the timer strip, [0, 1]: the run timer against par plus the full bank (M1 TIMER-TIERS: the
+    /// run is timed up to par plus the Slack left), so the strip fills at the latest a clean run can still be timed.
+    /// </summary>
+    public float TimerFraction => Span <= 0 ? 0f : Math.Clamp((float)RunTimerTicks / Span, 0f, 1f);
+
+    /// <summary>Where the +3 mark sits on the timer strip (60% of par, <see cref="SimTimer.UpgradeThreeParBp"/>).</summary>
+    public float PlusThreeMark => Mark(SimTimer.UpgradeThreeParBp);
+
+    /// <summary>Where the +2 mark sits on the timer strip (80% of par, <see cref="SimTimer.UpgradeTwoParBp"/>).</summary>
+    public float PlusTwoMark => Mark(SimTimer.UpgradeTwoParBp);
+
+    /// <summary>Where par sits on the timer strip (the +1 band runs from here to par plus the Slack left).</summary>
+    public float ParMark => Mark(10000);
+
+    /// <summary>
+    /// The upgrade a finish on this tick would earn (<see cref="SimTimer.UpgradeTier"/>): 3, 2 or 1 while the run is
+    /// still inside par plus the Slack left, 0 once it is not.
+    /// </summary>
+    public int PaceTier => !Depleted && RunTimerTicks <= (long)ParTicks + SlackTicks
+        ? SimTimer.UpgradeTier(Keyrun.Sim.Encounter.RunResult.Timed, RunTimerTicks, ParTicks)
+        : 0;
+
+    private long Span => (long)ParTicks + BankTicks;
+
+    private float Mark(int parBp) => Span <= 0 ? 0f : Math.Clamp((float)((long)ParTicks * parBp / 10000) / Span, 0f, 1f);
+
     /// <summary>"HUD slack ticks=620 of=620 depleted=0 timer=0 par=14400".</summary>
     public string LogLine() => FormattableString.Invariant(
         $"HUD slack ticks={SlackTicks} of={BankTicks} depleted={(Depleted ? 1 : 0)} timer={RunTimerTicks} par={ParTicks}");
@@ -118,6 +145,16 @@ public partial class TimerSlack : Control
         var timer = s.TimerLabel;
         var color = s.OverPar ? new Color(1f, 0.5f, 0.4f) : new Color(0.85f, 0.88f, 0.95f);
         HudNodes.Text(this, new Vector2(bar.End.X - HudNodes.Width(timer, Font) - 6, bar.End.Y - 3), timer, Font, color);
+
+        // M1 TIMER-TIERS: a 3 px timer strip along the bar's bottom edge (inside the slot, so HudClearance is unchanged)
+        // with the +3 (60% of par), +2 (80% of par) and par marks; past par the run is still timed while Slack is left.
+        var strip = new Rect2(bar.Position.X, bar.End.Y - 3, bar.Size.X, 3);
+        DrawRect(new Rect2(strip.Position, new Vector2(strip.Size.X * s.TimerFraction, strip.Size.Y)), color);
+        foreach (var mark in new[] { s.PlusThreeMark, s.PlusTwoMark, s.ParMark })
+        {
+            var x = strip.Position.X + (strip.Size.X * mark);
+            DrawLine(new Vector2(x, strip.Position.Y - 3), new Vector2(x, strip.End.Y), Colors.White, 1f);
+        }
     }
 
     private void OnRunStarted()
