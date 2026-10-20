@@ -88,7 +88,17 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
 /// <param name="Range">Range in mm (<c>def.range</c>).</param>
 /// <param name="ShapeKind"><c>def.shape.kind</c>: "target", "self", "circle", "cone" or "line".</param>
 /// <param name="Heals">True when any effect op is <c>"heal"</c> (script-target.ts:61 isHealAbility).</param>
-public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals);
+public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals)
+{
+    /// <summary>
+    /// TELEGRAPH-HONEST (C#-only): <c>def.cooldownTicks</c>, so the scheduler can tell whether a cast it is about to
+    /// telegraph will be off cooldown on its cast tick. 0 = no cooldown (also the default for views built without it).
+    /// </summary>
+    public int CooldownTicks { get; init; }
+
+    /// <summary>TELEGRAPH-HONEST (C#-only): <c>def.charges</c> (1, a single charge, by default).</summary>
+    public long Charges { get; init; } = 1;
+}
 
 /// <summary>One enemy a pull spawns (sim/encounter/pulls.ts:17 PullSpawn).</summary>
 /// <param name="ActorId">Actor id.</param>
