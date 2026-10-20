@@ -64,6 +64,12 @@ public sealed record RunContent
     /// <summary>Field ComboTable for floor-patch Windows, or null.</summary>
     public ComboTable? FieldCombos { get; init; }
 
+    /// <summary>
+    /// Class id to its Heat/Overheat rule (BIBLE section 5 Cinder), or null for none. Null on every oracle run; a host
+    /// builds it from content. A class with a rule opens the run at 0 Heat (<see cref="Actors.StartingResource"/>).
+    /// </summary>
+    public IReadOnlyDictionary<string, OverheatRule>? Overheat { get; init; }
+
     /// <summary>Break-bar sources in their JS key order, or null for none (stepRun then drains none).</summary>
     public IReadOnlyList<BreakBarSource>? BreakBarSources { get; init; }
 
