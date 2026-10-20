@@ -33,6 +33,8 @@ export interface EffectiveKit {
   resourceBuilderAbilityIds: string[];
   heals: HealKit;
   tauntAbilityId: string | null;
+  /** Slotted abilities whose own gcdTicks is 0 (off the GCD); absent or empty for a fallback kit. */
+  offGcdAbilityIds?: readonly string[];
   loopKind: LoopKind | null;
   resource: string | null;
   resourceMax: number | null;
@@ -69,6 +71,7 @@ export function resolveKit(classId: string, fallback: BotView["classKit"]): Effe
       resourceMax: kit.resourceMax,
       heals: kit.heals,
       tauntAbilityId: kit.tauntAbilityId,
+      offGcdAbilityIds: kit.offGcdAbilityIds ?? [],
     };
   }
   return {

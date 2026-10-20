@@ -75,6 +75,12 @@ public sealed record ClassKit
 
     /// <summary>The threat-op utility (Warden's Taunt), or null.</summary>
     public required string? TauntAbilityId { get; init; }
+
+    /// <summary>
+    /// Every slotted ability (five rotational, then interrupt, defensive, utility, movement) whose own gcdTicks is 0:
+    /// off the GCD, so readiness never waits for it (finding f-80b5cf16, the sim's Cooldowns.IsAbilityReady).
+    /// </summary>
+    public IReadOnlyList<string> OffGcdAbilityIds { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>Port of bots/src/kits.ts buildClassKit and its constants.</summary>
@@ -183,6 +189,20 @@ public static class Kits
             StanceSwapAbilityId = stanceSwapAbilityId,
             Heals = KitHeals.ClassifyHeals(rotationalDefs, effects),
             TauntAbilityId = KitHeals.TauntAbilityId(utilityDef),
+            OffGcdAbilityIds = OffGcdIds(slots, abilities),
         };
+    }
+
+    private static List<string> OffGcdIds(ClassAbilitySlots slots, IReadOnlyDictionary<string, AbilityDef> abilities)
+    {
+        var ids = new List<string>();
+        foreach (var id in new[] { slots.Rot1, slots.Rot2, slots.Rot3, slots.Rot4, slots.Rot5, slots.Interrupt, slots.Defensive, slots.Utility, slots.Movement })
+        {
+            if (abilities.TryGetValue(id, out var def) && def.GcdTicks == 0 && !ids.Contains(id))
+            {
+                ids.Add(id);
+            }
+        }
+        return ids;
     }
 }

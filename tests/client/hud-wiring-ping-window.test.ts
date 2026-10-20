@@ -152,11 +152,18 @@ describe("hud-wiring: a spot ping lands at the crosshair's floor point (item 6)"
 
 describe("hud-wiring: target pings carry cast/window context (item 4)", () => {
   it("reads Kick! when pinged mid-way through the lieutenant's interruptible heal", async () => {
-    const { h } = await targetingLieutenant();
-    let snap = h.tick();
-    for (let i = 0; i < 300 && !(lt(snap).cast?.abilityId === HEAL && lt(snap).cast?.kickable); i++) snap = h.tick();
+    // Finding f-80b5cf16: a gcdTicks-0 kick is off the GCD, so a bot kicks the heal on the first tick it sees it and
+    // the heal reads kickable after one step only: the step it starts on. Find that step on a probe run, then press G
+    // on the same step of an identical run (bots decide on the pre-step state, so they cannot kick it that step).
+    const probe = (await targetingLieutenant()).h;
+    let snap = probe.tick();
+    let steps = 1;
+    for (; steps < 300 && !(lt(snap).cast?.abilityId === HEAL && lt(snap).cast?.kickable); steps++) snap = probe.tick();
     expect(lt(snap).cast?.kickable).toBe(true);
-    h.tick([G]);
+    const { h } = await targetingLieutenant();
+    for (let i = 1; i < steps; i++) h.tick();
+    const pinged = h.tick([G]);
+    expect(lt(pinged).cast?.abilityId).toBe(HEAL);
     const { event, label } = h.lastPing();
     expect(event).toMatchObject({ kind: "target", targetId: LIEUTENANT });
     expect(label).toBe("Kick!");

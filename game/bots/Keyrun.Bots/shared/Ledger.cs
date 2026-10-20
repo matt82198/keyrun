@@ -88,13 +88,15 @@ public static class Ledger
     /// <param name="eligibleClassmates">Candidate kickers.</param>
     /// <param name="tick">Current tick.</param>
     /// <param name="priorityAbilityIds">Priority-cast list.</param>
+    /// <param name="interruptOffGcd">True when the interrupt's own gcdTicks is 0: a kicker need not be off the GCD.</param>
     /// <returns>The assignment, or null.</returns>
     public static InterruptAssignment? ResolveInterrupt(
         SortedDictionary<int, ActorState> actors,
         string interruptAbilityId,
         IEnumerable<int> eligibleClassmates,
         int tick,
-        IReadOnlyList<string>? priorityAbilityIds = null)
+        IReadOnlyList<string>? priorityAbilityIds = null,
+        bool interruptOffGcd = false)
     {
         ArgumentNullException.ThrowIfNull(actors);
         ArgumentNullException.ThrowIfNull(eligibleClassmates);
@@ -107,7 +109,7 @@ public static class Ledger
             actors.TryGetValue(id, out var a)
             && a.Alive
             && Readiness.CooldownReadyTick(a, interruptAbilityId) <= tick
-            && a.GcdReadyTick <= tick).ToList();
+            && (interruptOffGcd || a.GcdReadyTick <= tick)).ToList();
         var kickerId = SelectKicker(ready);
         return kickerId is null ? null : new InterruptAssignment(targetId.Value, kickerId.Value);
     }

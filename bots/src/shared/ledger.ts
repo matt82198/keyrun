@@ -77,13 +77,14 @@ export function resolveInterrupt(
   interruptAbilityId: string,
   eligibleClassmates: readonly ActorId[],
   tick: Tick,
-  priorityAbilityIds: readonly string[] = []
+  priorityAbilityIds: readonly string[] = [],
+  interruptOffGcd = false
 ): InterruptAssignment | null {
   const targetId = selectPriorityCastTarget(castingEnemies(actors), priorityAbilityIds);
   if (targetId === null) return null;
   const ready = eligibleClassmates.filter((id) => {
     const a = actors[id];
-    return a && a.alive && (a.cooldowns[interruptAbilityId] ?? 0) <= tick && a.gcdReadyTick <= tick;
+    return a && a.alive && (a.cooldowns[interruptAbilityId] ?? 0) <= tick && (interruptOffGcd || a.gcdReadyTick <= tick);
   });
   const kickerId = selectKicker(ready);
   if (kickerId === null) return null;

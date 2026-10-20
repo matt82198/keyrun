@@ -25,9 +25,43 @@ public static class Readiness
     /// <param name="abilityId">Ability.</param>
     /// <param name="tick">Current tick.</param>
     /// <returns>True when castable now (resource cost is not checked).</returns>
-    public static bool AbilityReady(ActorState self, string abilityId, int tick)
+    public static bool AbilityReady(ActorState self, string abilityId, int tick) => AbilityReady(self, abilityId, tick, offGcd: false);
+
+    /// <summary>
+    /// roles/shared.ts abilityReady with the kit: an ability in <see cref="EffectiveKit.OffGcdAbilityIds"/> (its own
+    /// gcdTicks is 0) is off the GCD and only waits for its own cooldown, as the sim's Cooldowns.IsAbilityReady.
+    /// </summary>
+    /// <param name="self">Actor.</param>
+    /// <param name="abilityId">Ability.</param>
+    /// <param name="tick">Current tick.</param>
+    /// <param name="kit">The actor's resolved kit.</param>
+    /// <returns>True when castable now (resource cost is not checked).</returns>
+    public static bool AbilityReady(ActorState self, string abilityId, int tick, EffectiveKit kit)
+    {
+        ArgumentNullException.ThrowIfNull(kit);
+        return AbilityReady(self, abilityId, tick, IsOffGcd(kit, abilityId));
+    }
+
+    /// <summary>True when <paramref name="abilityId"/>'s own gcdTicks is 0 per <paramref name="kit"/>.</summary>
+    /// <param name="kit">The resolved kit.</param>
+    /// <param name="abilityId">Ability.</param>
+    /// <returns>True when the ability is off the GCD.</returns>
+    public static bool IsOffGcd(EffectiveKit kit, string abilityId)
+    {
+        ArgumentNullException.ThrowIfNull(kit);
+        foreach (var id in kit.OffGcdAbilityIds)
+        {
+            if (string.Equals(id, abilityId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool AbilityReady(ActorState self, string abilityId, int tick, bool offGcd)
     {
         ArgumentNullException.ThrowIfNull(self);
-        return CooldownReadyTick(self, abilityId) <= tick && self.GcdReadyTick <= tick;
+        return CooldownReadyTick(self, abilityId) <= tick && (offGcd || self.GcdReadyTick <= tick);
     }
 }

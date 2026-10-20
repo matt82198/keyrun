@@ -113,7 +113,7 @@ public static class TankEngage
         var d = RoleShared.Dist(self, target);
 
         var tauntRange = RangeOf(view, kit.TauntAbilityId) ?? DefaultReachMm;
-        if (loose is not null && !string.IsNullOrEmpty(kit.TauntAbilityId) && d <= tauntRange && RoleShared.AbilityReady(self, kit.TauntAbilityId, tick))
+        if (loose is not null && !string.IsNullOrEmpty(kit.TauntAbilityId) && d <= tauntRange && RoleShared.AbilityReady(self, kit.TauntAbilityId, tick, kit))
         {
             output.Add(new CastCommand(tick, self.Id, kit.TauntAbilityId, target.Id));
             return output;

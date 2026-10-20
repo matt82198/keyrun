@@ -272,8 +272,9 @@ public sealed class PolicyBot : IBot
             {
                 continue;
             }
-            var interrupt = view.Kits.ResolveKit(seat.ClassId, view.ClassKit).InterruptAbilityId;
-            if (string.IsNullOrEmpty(interrupt) || !Readiness.AbilityReady(seat, interrupt, tick))
+            var seatKit = view.Kits.ResolveKit(seat.ClassId, view.ClassKit);
+            var interrupt = seatKit.InterruptAbilityId;
+            if (string.IsNullOrEmpty(interrupt) || !Readiness.AbilityReady(seat, interrupt, tick, seatKit))
             {
                 continue;
             }
@@ -334,7 +335,7 @@ public sealed class PolicyBot : IBot
     {
         var defensive = kit.DefensiveAbilityId;
         if (string.IsNullOrEmpty(defensive) || !_policy.Defensive.TryGetValue(self.ClassId, out var pct) ||
-            self.MaxHealth <= 0 || self.Health * 100 > pct * self.MaxHealth || !Readiness.AbilityReady(self, defensive, tick))
+            self.MaxHealth <= 0 || self.Health * 100 > pct * self.MaxHealth || !Readiness.AbilityReady(self, defensive, tick, kit))
         {
             _defensiveAt = null;
             return null;

@@ -274,7 +274,7 @@ public sealed class TelegraphTests
                 }
             }
         }
-        Assert.Equal(46, count); // DEAD-CASTER-TELEGRAPH re-record: was 42 (k2-s7 11 -> 13, k2-s11 11 -> 13); scripted-pull 6 + bots-hv k2-s7 11, k2-s11 11, k10-s7 14 (KF3-SEED-ENGAGE seed.lash; 37 after SLAM-TELEGRAPH B1, 34 after D14)
+        Assert.Equal(41, count); // ZERO-GCD f-80b5cf16 re-record: was 46 (telegraph events counted per trace: scripted-pull 6, k2-s7 12 -> 10, k2-s11 12 -> 10, k10-s7 16 -> 15); DEAD-CASTER-TELEGRAPH re-record: was 42 (k2-s7 11 -> 13, k2-s11 11 -> 13); scripted-pull 6 + bots-hv k2-s7 11, k2-s11 11, k10-s7 14 (KF3-SEED-ENGAGE seed.lash; 37 after SLAM-TELEGRAPH B1, 34 after D14)
         Assert.Subset(new SortedSet<string>(new[] { "circle", "cone", "line" }), shapes);
     }
 
