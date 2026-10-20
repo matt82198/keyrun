@@ -33,7 +33,7 @@ public static class Affinities
         {
             switch (op)
             {
-                case DamageOp or InterruptOp:
+                case DamageOp or InterruptOp or DamagePctOp or PullOp:
                     hostile = true;
                     break;
                 case HealOp:

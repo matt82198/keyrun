@@ -17,6 +17,29 @@ public sealed record DamageOp : EffectOp
     public required string School { get; init; }
 }
 
+/// <summary>
+/// <c>{"op":"damagePct"}</c>: C#-only (BIBLE 9.3 Searing Hex) damage of <see cref="MaxHealthBp"/> of the target's max
+/// health, then mitigated like <see cref="DamageOp"/>. No oracle content carries it.
+/// </summary>
+public sealed record DamagePctOp : EffectOp
+{
+    /// <summary>Share of the target's max health, basis points.</summary>
+    public required int MaxHealthBp { get; init; }
+
+    /// <summary>Damage school tag, e.g. "fire".</summary>
+    public required string School { get; init; }
+}
+
+/// <summary>
+/// <c>{"op":"pull"}</c>: C#-only (BIBLE 9.3 Undertow) movement of the target <see cref="DistanceMm"/> toward the caster,
+/// never past it, clamped to walkable space by the run. No oracle content carries it.
+/// </summary>
+public sealed record PullOp : EffectOp
+{
+    /// <summary>Pull distance, mm.</summary>
+    public required int DistanceMm { get; init; }
+}
+
 /// <summary><c>{"op":"heal"}</c>: restore <see cref="Amount"/> health.</summary>
 public sealed record HealOp : EffectOp
 {

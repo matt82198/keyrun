@@ -53,6 +53,15 @@ public sealed record MovementConfig
 }
 
 /// <summary>
+/// <c>{op:"pull", distanceMm}</c>: C#-only op (BIBLE 9.3 Undertow, "pulls the target 5000 mm toward the Chorister")
+/// moving the target up to <paramref name="DistanceMm"/> toward the caster, never past it
+/// (<see cref="Movement.PullToward"/>). Combat then clamps to the arena bounds and a layout run clamps to walkable
+/// space against the pre-step position (Run.StepLayout), so a pull stops at a wall. No oracle content carries it.
+/// </summary>
+/// <param name="DistanceMm">Pull distance, mm.</param>
+public sealed record PullOp(long DistanceMm) : EffectOp;
+
+/// <summary>
 /// Port of sim/combat/movement.ts: integer movement in mm/tick from move commands (with a basis-point
 /// movement modifier), equal-radius actor push-out in the XZ plane, and bounds clamping. Every division is
 /// the TS <c>Math.trunc</c>, i.e. C# integer <c>/</c> (ORACLE.md section 8, movement.ts:46-48, :61, :67-68).
@@ -101,6 +110,58 @@ public static class Movement
         ArgumentNullException.ThrowIfNull(actor);
         ArgumentNullException.ThrowIfNull(config);
         ApplyMovement(actor, dir, actor.SpeedMmPerTick ?? config.BaseSpeedMmPerTick, movementModBp, yaw);
+    }
+
+    /// <summary>
+    /// BIBLE 9.3 Undertow: moves <paramref name="target"/> straight toward <paramref name="source"/> by
+    /// <paramref name="distanceMm"/>, or onto the source when it is closer than that (each component
+    /// <c>trunc(delta * distance / |delta|)</c>). A target on the source, a dead target, or a non-positive distance
+    /// does not move. Walls are the caller's clamp (<see cref="PullTowardWalkable"/>, or combat's bounds clamp).
+    /// </summary>
+    /// <param name="target">The actor pulled.</param>
+    /// <param name="source">The puller.</param>
+    /// <param name="distanceMm">Pull distance, mm.</param>
+    public static void PullToward(ActorState target, ActorState source, long distanceMm)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(source);
+        if (!target.Alive || distanceMm <= 0)
+        {
+            return;
+        }
+        var dx = source.Pos.X - target.Pos.X;
+        var dz = source.Pos.Z - target.Pos.Z;
+        var dist = Isqrt((dx * dx) + (dz * dz));
+        if (dist == 0)
+        {
+            return;
+        }
+        if (dist <= distanceMm)
+        {
+            target.Pos = target.Pos with { X = source.Pos.X, Z = source.Pos.Z };
+            return;
+        }
+        target.Pos = target.Pos with
+        {
+            X = target.Pos.X + IntMath.TruncDiv(dx * distanceMm, dist),
+            Z = target.Pos.Z + IntMath.TruncDiv(dz * distanceMm, dist),
+        };
+    }
+
+    /// <summary>
+    /// <see cref="PullToward"/> then the walkable-space rule (<see cref="ClampToWalkable"/>) against the target's
+    /// position before the pull: a pull that would cross a wall stops at the edge of the box the target stood in.
+    /// </summary>
+    /// <param name="target">The actor pulled.</param>
+    /// <param name="source">The puller.</param>
+    /// <param name="distanceMm">Pull distance, mm.</param>
+    /// <param name="open">The open boxes.</param>
+    public static void PullTowardWalkable(ActorState target, ActorState source, long distanceMm, IReadOnlyList<Bounds> open)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        var pre = target.Pos;
+        PullToward(target, source, distanceMm);
+        target.Pos = ClampToWalkable(pre, target.Pos, open);
     }
 
     /// <summary>Push-out at the config actor radius.</summary>
