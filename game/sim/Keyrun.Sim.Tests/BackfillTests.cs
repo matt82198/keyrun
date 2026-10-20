@@ -179,10 +179,12 @@ public sealed class BackfillTests
         }
         Assert.Equal(control.Run.Encounter.SlackTicks, d.Run.Encounter.SlackTicks);
 
-        // The joiner arrives with the run's current Slack: the healer's death (tick 80) spent some after the abandon,
-        // and the refill neither restores the abandon-time bank nor resets it.
+        // The joiner arrives with the run's current Slack. STATE.md D35: the healer's death (tick 80) adds time to the
+        // run clock and no longer drains the bank, so the bank is the abandon-time bank and the death time is kept.
         Assert.False(d.Run.State.Actors[Healer].Alive);
-        Assert.True(d.SlackAt[fill.FillTick] < d.SlackAt[AbandonTick]);
+        Assert.Equal(d.SlackAt[AbandonTick], d.SlackAt[fill.FillTick]);
+        Assert.True(d.Run.Encounter.PenaltyTicks > 0);
+        Assert.Equal(control.Run.Encounter.PenaltyTicks, d.Run.Encounter.PenaltyTicks);
         Assert.Equal(d.SlackAt[fill.FillTick], fill.SlackTicks);
         Assert.Equal(d.Run.Encounter.SlackTicks, fill.SlackTicks);
     }

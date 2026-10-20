@@ -15,10 +15,11 @@ public sealed class RunEndTitleTests
         EncounterTestKit.BaseEncounter(slack: Timer.InitialSlackTicks(2), par: Par, keyLevel: 2);
 
     [Fact]
-    public void A_clean_run_past_par_still_finishes_timed_so_the_title_cannot_trust_the_result_alone()
+    public void A_clean_run_past_par_finishes_depleted_with_no_Slack_grace()
     {
+        // STATE.md D35 (Mythic+ clock): par is the deadline; the Slack bank no longer extends it.
         var encounter = CleanEncounter();
-        Assert.Equal(RunResult.Timed, Timer.FinishRun(encounter, Par + 500, completed: true, _ => { }));
+        Assert.Equal(RunResult.Depleted, Timer.FinishRun(encounter, Par + 500, completed: true, _ => { }));
         Assert.True(Timer.IsOverPar(Par + 500, encounter));
     }
 

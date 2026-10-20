@@ -789,6 +789,19 @@ Additional parked decisions (from the burn ledger):
   always counts. The validator requires 0 < base <= cap < 100%, so the burn alone can never kill a
   closer at full health at any key or gear Tier. Why: the closer is both source and target of a field Combo, so the
   Pact's comboDamageBp and any future gear power riding damageDoneBp scaled a raw number with no ceiling.
+- D35 **MPLUS CLOCK ONLY: deaths add time to the run clock; a key depletes only when that clock passes par** (Matt,
+  2026-10-20, verbatim: "lean into m+ design heavily" and "almost exact to wow"; orchestrator decision under the
+  decide-and-report grant, PR #373 MPLUS-DEATH-PENALTY; reversible). Each player death adds 15 s (300 ticks) to the
+  run clock, every death counted including same-tick ones, and a full wipe adds 25 s (500 ticks) on top; a Clause's
+  `EncounterRules.DeathSlackCostTicks`/`WipeSlackCostTicks` replace the constants when set. A completed run is timed
+  when elapsed plus that added time is no later than par, and the +1/+2/+3 upgrade tiers are measured on the same
+  clock. The Slack bank no longer drains, emits no `depleted` event and no longer extends the deadline past par; its
+  constants stay in Timer.cs (C#) and timer.ts (TS reference) as tunables. An unrecovered full wipe still ends the run
+  depleted. Supersedes design/BIBLE.md s8's Slack-bank depletion (a dry bank depleting a key that is under par) and
+  M1 TIMER-TIERS' "par plus the Slack left" deadline for the dungeon. Why: Matt's later Mythic+ instruction asks
+  for WoW's model, where deaths only cost clock time. Oracle: frozenSourceHash 3bbd15f8 -> 1510da11, every traceHash
+  unchanged. Follow-up (not in this PR): the HUD Slack bar (game/src/Hud/TimerSlack.cs) and HudSceneTest.ps1 check 5
+  still read the bank.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
