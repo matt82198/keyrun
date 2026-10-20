@@ -101,8 +101,8 @@ describe("server: run-options wiring (Clause + loadout)", () => {
     const patched = resolveLoadoutAbilities(registry, "warden", { talentChoices: { "warden.strike": "riposte" }, gear: [] });
     const base = registry.abilities.get("warden.strike");
     expect(base).toBeDefined();
-    expect(patched["warden.strike"]?.gcdTicks).toBe(0); // riposte's patch: "Strike costs no GCD ..."
-    expect(patched["warden.strike"]?.gcdTicks).not.toBe(base?.gcdTicks);
+    expect(patched["warden.strike"]?.tags).toContain("riposte:free-after-brace"); // riposte's patch (tags only; the free GCD is conditional, f-d37651d1)
+    expect(patched["warden.strike"]?.tags).not.toEqual(base?.tags);
   });
 
   it("SAME DATA THAT DRIVES THE WIRE: firstQueuerOptions folds a real Clause into RunOptions.clauseId for the actor the role maps to", () => {
@@ -113,6 +113,6 @@ describe("server: run-options wiring (Clause + loadout)", () => {
     expect(options?.loadouts).toBeUndefined();
 
     const withLoadout = firstQueuerOptions(sc, { role: "tank", loadout: { talentChoices: { "warden.strike": "riposte" }, gear: [] } });
-    expect(withLoadout?.loadouts?.[1]?.["warden.strike"]?.gcdTicks).toBe(0); // actorId 1 == tank slot (roster.ts)
+    expect(withLoadout?.loadouts?.[1]?.["warden.strike"]?.tags).toContain("riposte:free-after-brace"); // actorId 1 == tank slot (roster.ts)
   });
 });

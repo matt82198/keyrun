@@ -43,12 +43,36 @@ internal static class BossTestKit
         new BreakBarSource("twinsBreak", new[] { TwinA, TwinB }, 100, 34, 20, new[] { new BreakBarOnEmptyEffect("stunned", 100, 1) }));
 
     /// <summary>A boss-only run at the given boss health (max 60000), armed with <see cref="Config"/> unless told not to.</summary>
-    public static Run BuildRun(long bossHealth = 60000, bool armed = true, long seed = Seed)
+    public static Run BuildRun(long bossHealth = 60000, bool armed = true, long seed = Seed) =>
+        Build(RunSetup.Load(OracleFixtures.PathOf("hollow-vault-k2.setup.json"), seed), 60000, bossHealth, armed, seed);
+
+    /// <summary>
+    /// The boss's spawn (and max) health as the shipped content gives it: the k2 oracle setup's Tempo-scaled boss pull
+    /// (content/data hollowWarden.boss maxHealth 5000, ContentCountTests; Tempo-scaled for key 2), not the kit's 60000.
+    /// </summary>
+    public static long ShippedBossMaxHealth(long seed = Seed) =>
+        ShippedBossSpawn(RunSetup.Load(OracleFixtures.PathOf("hollow-vault-k2.setup.json"), seed)).Health;
+
+    /// <summary>
+    /// The same boss-only run as <see cref="BuildRun"/> (position, party, script, <see cref="Config"/>), but the boss
+    /// spawns at the shipped content's max health (<see cref="ShippedBossMaxHealth"/>), so a rule that reads its
+    /// threshold off the boss's MaxHealth is exercised at the shipped number. <paramref name="bossHealth"/> null = full.
+    /// </summary>
+    public static Run BuildShippedRun(long? bossHealth = null, bool armed = true, long seed = Seed)
     {
         var setup = RunSetup.Load(OracleFixtures.PathOf("hollow-vault-k2.setup.json"), seed);
+        var max = ShippedBossSpawn(setup).Health;
+        return Build(setup, max, bossHealth ?? max, armed, seed);
+    }
+
+    private static PullSpawn ShippedBossSpawn(RunSetup setup) =>
+        setup.Dungeon.Pulls.Single(p => p.Id == "boss").Spawns.Single(s => s.ActorId == Boss);
+
+    private static Run Build(RunSetup setup, long bossMaxHealth, long bossHealth, bool armed, long seed)
+    {
         var dungeon = new DungeonDef("hollow-vault", new[]
         {
-            new PullDef("boss", new[] { new PullSpawn(Boss, "hollowWarden.boss", new Vec3(0, 0, 0), 512, 60000) }),
+            new PullDef("boss", new[] { new PullSpawn(Boss, "hollowWarden.boss", new Vec3(0, 0, 0), 512, bossMaxHealth) }),
         });
         var content = setup.Content with
         {

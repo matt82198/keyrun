@@ -105,6 +105,15 @@ public static class Bot
         // waits at the gate, so nothing presses into the gate clamp.
         // KF2 (BOTS-ENGAGE-CHOIR): a bot in the leader seat walks the route between fights, so a party with no human
         // leading reaches the next pull instead of idling at the Entrance. Skill-dial-free like the follow walk.
+        // SEED-BLOOM-TEACHES (BIBLE s9.6 item 3): while an encounter floor Window (the Seed's Death Bloom) is open, a bot
+        // that can land a Payoff in it walks into the ring and lands it, ahead of travel and its role; skill-dial-free like
+        // travel. Inert in the oracle runner (no layout), like the travel it outranks. See EncounterWindow.
+        if (avoid is null && !pingCommands.Any() && EncounterWindow.Decide(view, self) is { } bloom)
+        {
+            commands.AddRange(bloom);
+            return new BotDecision(commands, memory, prng);
+        }
+
         var lead = avoid is null && !pingCommands.Any() ? Follow.LeadCommand(view, self) : null;
         if (lead is not null)
         {
