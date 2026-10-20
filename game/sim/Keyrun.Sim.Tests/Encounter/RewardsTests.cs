@@ -45,7 +45,9 @@ public sealed class RewardsTests
     {
         for (var seed = 0; seed < 100; seed++)
         {
-            Assert.All(Rewards.RollRewardChoices(seed, 3, RunResult.Timed, Rewards.GearSlots), i => Assert.True(i.Tier <= 8));
+            var items = Rewards.RollRewardChoices(seed, 3, RunResult.Timed, Rewards.GearSlots);
+            Assert.Equal(3, items.Count);
+            Assert.All(items, i => Assert.True(i.Tier <= 8));
         }
     }
 
@@ -56,7 +58,9 @@ public sealed class RewardsTests
         {
             foreach (var result in new[] { RunResult.Depleted, RunResult.Abandoned })
             {
-                Assert.All(Rewards.RollRewardChoices(seed, 20, result, Rewards.GearSlots), i => Assert.True(i.Tier <= 8));
+                var items = Rewards.RollRewardChoices(seed, 20, result, Rewards.GearSlots);
+                Assert.Equal(3, items.Count);
+                Assert.All(items, i => Assert.True(i.Tier <= 8));
             }
         }
     }
@@ -66,7 +70,9 @@ public sealed class RewardsTests
     {
         for (var seed = 0; seed < 100; seed++)
         {
-            Assert.All(Rewards.RollRewardChoices(seed, Rewards.HardBisMinKey - 1, RunResult.Timed, Rewards.GearSlots), i => Assert.True(i.Tier <= 8));
+            var items = Rewards.RollRewardChoices(seed, Rewards.HardBisMinKey - 1, RunResult.Timed, Rewards.GearSlots);
+            Assert.Equal(3, items.Count);
+            Assert.All(items, i => Assert.True(i.Tier <= 8));
         }
     }
 
