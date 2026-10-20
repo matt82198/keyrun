@@ -154,7 +154,7 @@ public sealed class BackfillGateTests
         var r = Driven.Value;
         foreach (var e in r.Events.Where(e => e.Type is "room_enter" or "pull_start" or "pull_clear" or "gate_closed" or "gate_open" or "run_end" or "death"))
         {
-            _output.WriteLine($"{e.Tick} {e.Type} {(e.Type == "room_enter" ? ((JsInt)e.Get("actorId")!).Value + " " + ((JsString)e.Get("room")!).Value : e.Type is "gate_closed" or "gate_open" ? ((JsString)e.Get("room")!).Value : e.Type is "run_end" or "death" ? string.Empty : ((JsString)e.Get("pullId")!).Value)}");
+            _output.WriteLine($"{e.Tick} {e.Type} {(e.Type == "room_enter" ? ((JsInt)e.Get("actorId")!).Value + " " + ((JsString)e.Get("room")!).Value : e.Type is "gate_closed" or "gate_open" ? ((JsString)e.Get("room")!).Value : e.Type == "death" ? "actor " + ((JsInt)e.Get("actorId")!).Value : e.Type == "run_end" ? string.Empty : ((JsString)e.Get("pullId")!).Value)}");
         }
         var closed = GateTick(r, "gate_closed");
         var opened = GateTick(r, "gate_open");

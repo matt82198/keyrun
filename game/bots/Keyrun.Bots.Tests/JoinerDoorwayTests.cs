@@ -212,6 +212,14 @@ public sealed class JoinerDoorwayTests
         {
             _output.WriteLine($"{e.Tick} {e.Type} {(e.Type == "room_enter" ? KeyOf(e).Actor + " " + KeyOf(e).Room : e.Type is "gate_closed" or "gate_open" ? ((JsString)e.Get("room")!).Value : e.Type == "run_end" ? string.Empty : ((JsString)e.Get("pullId")!).Value)}");
         }
+        foreach (var e in r.Events.Where(e => e.Type == "death"))
+        {
+            _output.WriteLine($"{e.Tick} death actor {((JsInt)e.Get("actorId")!).Value}");
+        }
+        foreach (var a in r.Final.State.Actors.Values.Where(a => a.Kind == ActorKind.Player || (a.Alive && !a.Idle)))
+        {
+            _output.WriteLine($"final tick {r.Final.State.Tick}: {a.Id} {a.ClassId} alive={a.Alive} idle={a.Idle} hp={a.Health} pos=({a.Pos.X},{a.Pos.Z}) target={a.TargetId}");
+        }
 
         // Non-vacuity: the seat is refilled, and the joiner walks through pair-hall's doorway after it.
         Assert.NotNull(r.FillTick);
