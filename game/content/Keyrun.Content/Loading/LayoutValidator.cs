@@ -88,8 +88,8 @@ public static class LayoutValidator
             LayoutBox b = boxes[k];
             if (b.Pull is null)
             {
-                if (b.Trigger is not null || b.Origin is not null || b.Start is not null)
-                    Fail("box \"" + b.Id + "\" has a trigger, origin or start but no pull");
+                if (b.Trigger is not null || b.Origin is not null || b.Start is not null || b.AggroMm is not null)
+                    Fail("box \"" + b.Id + "\" has a trigger, origin, start or aggroMm but no pull");
                 continue;
             }
             if (b.Kind != LayoutBoxKind.Room) Fail("corridor \"" + b.Id + "\" holds pull \"" + b.Pull + "\" (pulls live in rooms)");
@@ -137,6 +137,7 @@ public static class LayoutValidator
         if (trigger.MinX != room.MinX + TriggerInsetMm || trigger.MaxX != room.MaxX || trigger.MinZ != room.MinZ || trigger.MaxZ != room.MaxZ)
             Fail(where + " trigger must be its room shrunk " + TriggerInsetMm + " mm from the entry door (x " + (room.MinX + TriggerInsetMm) + ".." + room.MaxX + ", z " + room.MinZ + ".." + room.MaxZ + ")");
         if (!InRect(trigger, start)) Fail(where + " start is outside its trigger");
+        if (room.AggroMm is { } aggro && aggro <= 0) Fail(where + " aggroMm must be positive");
 
         IEnumerable<LayoutPoint> spawns;
         if (room.Pull == LayoutDef.BossPullId)

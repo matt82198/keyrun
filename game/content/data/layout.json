@@ -33,7 +33,8 @@
       "pull": "boss",
       "trigger": { "minX": 84000, "maxX": 110000, "minZ": -14000, "maxZ": 14000 },
       "origin": { "x": 93500, "z": 0 },
-      "start": { "x": 86500, "z": 0 }
+      "start": { "x": 86500, "z": 0 },
+      "aggroMm": 7100
     }
   ],
   "route": [

@@ -84,6 +84,28 @@ public sealed class LayoutConfigTests
     }
 
     [Fact]
+    public void The_warden_arena_sets_the_boss_aggro_radius_and_no_other_room_does()
+    {
+        LayoutDef layout = ContentLoader.Load().Layout;
+        Assert.Equal(7100, layout.Boxes.Single(b => b.Id == "warden-arena").AggroMm);
+        Assert.All(layout.Boxes.Where(b => b.Id != "warden-arena"), b => Assert.Null(b.AggroMm));
+    }
+
+    [Fact]
+    public void A_non_positive_aggro_radius_is_rejected()
+    {
+        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "warden-arena")["aggroMm"] = 0));
+        Assert.Contains("aggroMm must be positive", ex.Message);
+    }
+
+    [Fact]
+    public void An_aggro_radius_on_a_box_with_no_pull_is_rejected()
+    {
+        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "corridor-4")["aggroMm"] = 7100));
+        Assert.Contains("aggroMm but no pull", ex.Message);
+    }
+
+    [Fact]
     public void Missing_layout_json_is_rejected()
     {
         var ex = LoadFails(new MutableSource().Remove(LayoutFile));

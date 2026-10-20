@@ -11,6 +11,7 @@ using Keyrun.Tools.Replay;
 using Xunit;
 using Xunit.Abstractions;
 using SimDungeon = Keyrun.Sim.Encounter.DungeonDef;
+using SimPull = Keyrun.Sim.Encounter.PullDef;
 
 namespace Keyrun.Bots.Tests;
 
@@ -86,6 +87,23 @@ public sealed class BossAggroRingTests
         Assert.NotEmpty(engaging);
         Assert.All(engaging, p => Assert.True(Math.Abs(p.X - MainEngageX) <= ToleranceMm,
             $"the boss engaged with a member at x {p.X}; main engaged at x {MainEngageX} (+-{ToleranceMm})"));
+    }
+
+    [Fact(DisplayName = "Boss aggro ring: PlaceDungeon gives the host-built boss pull (HostRunSetup.ToSimDungeon shape) the arena's aggroMm, and trash pulls keep the default")]
+    public void PlaceDungeon_carries_the_arena_radius_onto_the_host_boss_pull()
+    {
+        var registry = ContentLoader.Load();
+        var arena = registry.Layout.Boxes.Single(b => b.Pull == LayoutDef.BossPullId);
+        Assert.NotNull(arena.AggroMm);
+        // HostRunSetup.cs ToSimDungeon builds the boss pull at the origin with no radius, then Build calls PlaceDungeon.
+        var hostShaped = new SimDungeon("hollow-vault", new[]
+        {
+            new SimPull("seed", new[] { new PullSpawn(108, "x", new Vec3(10000, 0, 0), 0, 1) }),
+            new SimPull(LayoutDef.BossPullId, new[] { new PullSpawn(900, "x", Vec3.Zero, 0, 1) }),
+        });
+        var placed = NavLayouts.PlaceDungeon(registry.Layout, hostShaped);
+        Assert.Equal(arena.AggroMm!.Value, placed.Pulls.Single(p => p.Id == LayoutDef.BossPullId).AggroMm);
+        Assert.Equal(Pulls.DefaultAggroMm, placed.Pulls.Single(p => p.Id == "seed").AggroMm);
     }
 
     // The party presses on the closed Hollow Door from the Seed chamber's east wall for 300 ticks; true if the boss engaged.

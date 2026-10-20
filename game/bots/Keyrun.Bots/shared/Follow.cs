@@ -54,7 +54,8 @@ public static class NavLayouts
             {
                 Pos = boss ? new Vec3(origin.X, s.Pos.Y, origin.Z) : new Vec3(origin.X + s.Pos.X, s.Pos.Y, origin.Z + s.Pos.Z),
             }).ToList();
-            return pull with { Spawns = spawns };
+            // PRESPAWN-AGGRO: the room's per-group aggro radius (layout.json aggroMm), else the pull's own.
+            return pull with { Spawns = spawns, AggroMm = room.AggroMm ?? pull.AggroMm };
         }).ToList();
         return dungeon with { Pulls = pulls };
     }

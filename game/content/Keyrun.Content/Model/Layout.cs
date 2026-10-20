@@ -81,6 +81,13 @@ public sealed record LayoutBox
 
     /// <summary>Where the tank slot stands when a run starts at this room's pull (<c>--pull N</c>; inside the trigger). Pull rooms only.</summary>
     public LayoutPoint? Start { get; init; }
+
+    /// <summary>
+    /// A pull room's aggro radius, mm (PRESPAWN-AGGRO, BIBLE section 9.1: content may set the radius per group), or null =
+    /// the sim default (4000). NavLayouts.PlaceDungeon copies it onto the room's pull, so the host and the bots agree.
+    /// Pull rooms only, positive.
+    /// </summary>
+    public int? AggroMm { get; init; }
 }
 
 /// <summary>An XZ rectangle, mm.</summary>

@@ -541,7 +541,8 @@ public sealed record HostRunSetup(
         }
 
         var boss = Enemy(registry, dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss");
-        // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon stands it at the arena origin.
+        // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon (Build, after this) stands it at the
+        // arena origin and gives it the arena's aggroMm (layout.json), the same helper the bots use.
         pulls.Add(new PullDef(C.LayoutDef.BossPullId, new[]
         {
             new PullSpawn(BossActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp)),
