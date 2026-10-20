@@ -23,6 +23,12 @@ namespace Keyrun.View;
 /// The font size is fixed, so the boss and Twin plates read the same from the door
 /// as up close.
 /// </para>
+/// <para>
+/// NAMEPLATE-DECLUTTER (Matt 2026-10-19, "reduce screen clutter"): before Separate, plates of the SAME name whose boxes
+/// share a pixel fold into one plate (<see cref="HudDeclutter"/>.PlateCrowds), drawn at the target's spot when the
+/// target is among them, as "Paired Warrior x5" (target: "&gt; Paired Warrior x5 &lt;"), so five Pair Warriors on one
+/// spot no longer stand in a tall column. Plates of different names still separate.
+/// </para>
 /// </summary>
 public partial class LabelView : Node3D
 {
@@ -41,6 +47,8 @@ public partial class LabelView : Node3D
     private readonly Dictionary<int, Node3D> _spawned = new();
     private readonly List<int> _gone = new();
     private readonly List<Shown> _shown = new();
+    private readonly List<Drawn> _drawn = new();
+    private readonly HashSet<string> _crowdLogged = new(StringComparer.Ordinal);
 
     private Control? _canvas;
 
@@ -141,11 +149,29 @@ public partial class LabelView : Node3D
                 body.QueueFree();
             }
         }
+        LayoutPlates();
         _canvas?.QueueRedraw();
     }
 
     private void DrawPlates()
     {
+        if (_canvas is null)
+        {
+            return;
+        }
+        var font = ThemeDB.FallbackFont;
+        foreach (var d in _drawn)
+        {
+            var centre = d.Rect.X + (d.Rect.Width / 2f);
+            Line(font, new Vector2(centre, d.Rect.Y + PlatePad + NameFont), d.Text, NameFont, d.Targeted ? TargetColor : Colors.White);
+        }
+    }
+
+    // Places this frame's plates (every process frame, so the proof lines report what draws): project, sort nearest
+    // first, fold same-name crowds (HudDeclutter.PlateCrowds), then HudLayout.Separate.
+    private void LayoutPlates()
+    {
+        _drawn.Clear();
         var camera = GetViewport()?.GetCamera3D();
         if (_canvas is null || camera is null)
         {
@@ -169,11 +195,8 @@ public partial class LabelView : Node3D
             {
                 continue;
             }
-            var name = plate.Targeted ? "> " + plate.BaseName + " <" : plate.BaseName;
-            var w = (int)Math.Ceiling(HudNodes.Width(name, NameFont)) + (2 * PlatePad);
-            var h = NameFont + (2 * PlatePad);
-            var rect = new PixelRect((int)Math.Round(screen.X) - (w / 2), (int)Math.Round(screen.Y) - h, w, h);
-            _shown.Add(new Shown(plate, name, rect, origin.DistanceSquaredTo(plate.Anchor)));
+            var anchor = new PixelPoint((int)Math.Round(screen.X), (int)Math.Round(screen.Y));
+            _shown.Add(new Shown(plate, PlateRect(anchor, plate.BaseName), anchor, origin.DistanceSquaredTo(plate.Anchor)));
         }
         if (_shown.Count == 0)
         {
@@ -181,15 +204,58 @@ public partial class LabelView : Node3D
         }
         _shown.Sort((a, b) => a.Depth.CompareTo(b.Depth));
 
-        var offsets = HudLayout.Separate(_shown.Select(s => s.Rect).ToList(), width, height, Obstacles(width, height));
-        var font = ThemeDB.FallbackFont;
-        for (var i = 0; i < _shown.Count; i++)
+        var crowds = HudDeclutter.PlateCrowds(_shown.Select(s => new PlateCandidate(s.Plate.BaseName, s.Rect, s.Plate.Targeted)).ToList());
+        var wanted = new List<Drawn>();
+        for (var ci = 0; ci < crowds.Count; ci++)
         {
-            var s = _shown[i];
-            var r = s.Rect.Offset(offsets[i].Dx, offsets[i].Dy);
-            var centre = r.X + (r.Width / 2f);
-            var nameColor = s.Plate.Targeted ? TargetColor : Colors.White;
-            Line(font, new Vector2(centre, r.Y + PlatePad + NameFont), s.Name, NameFont, nameColor);
+            // NAMEPLATE-DECLUTTER: one plate per same-name crowd, at its leader (the target when it is in the crowd).
+            var c = crowds[ci];
+            var s = _shown[c.Leader];
+            var targeted = c.Members.Any(m => _shown[m].Plate.Targeted);
+            var text = HudDeclutter.PlateText(s.Plate.BaseName, c.Members.Count, targeted);
+            wanted.Add(new Drawn(text, PlateRect(s.Anchor, text), targeted, ci));
+        }
+        var offsets = HudLayout.Separate(wanted.Select(d => d.Rect).ToList(), width, height, Obstacles(width, height));
+        for (var i = 0; i < wanted.Count; i++)
+        {
+            _drawn.Add(wanted[i] with { Rect = wanted[i].Rect.Offset(offsets[i].Dx, offsets[i].Dy) });
+        }
+        LogCrowds(crowds);
+    }
+
+    private static PixelRect PlateRect(PixelPoint anchor, string text)
+    {
+        var w = (int)Math.Ceiling(HudNodes.Width(text, NameFont)) + (2 * PlatePad);
+        var h = NameFont + (2 * PlatePad);
+        return new PixelRect(anchor.X - (w / 2), anchor.Y - h, w, h);
+    }
+
+    // NAMEPLATE-DECLUTTER proof (autorun only): "HUD platecrowd name="N" crowd=C drawn=D target=T marked=M" when C >= 2
+    // same-name plates share one spot: D plates of the crowd draw, T is 1 when the Warden's target is in it, M is 1 when
+    // a drawn plate of it carries the "> name <" mark. Printed once per distinct line.
+    private void LogCrowds(IReadOnlyList<PlateCrowd> crowds)
+    {
+        if (Driver is null || !Driver.Options.Autorun)
+        {
+            return;
+        }
+        for (var ci = 0; ci < crowds.Count; ci++)
+        {
+            var c = crowds[ci];
+            if (c.Members.Count < 2)
+            {
+                continue;
+            }
+            var name = _shown[c.Leader].Plate.BaseName;
+            var target = c.Members.Any(m => _shown[m].Plate.Targeted);
+            var drawn = _drawn.Count(d => d.Crowd == ci);
+            var mark = _drawn.Any(d => d.Crowd == ci && d.Targeted && d.Text.StartsWith("> ", StringComparison.Ordinal));
+            var line = FormattableString.Invariant(
+                $"HUD platecrowd name=\"{name}\" crowd={c.Members.Count} drawn={drawn} target={(target ? 1 : 0)} marked={(target && mark ? 1 : 0)}");
+            if (_crowdLogged.Add(line))
+            {
+                HudNodes.Proof(Driver, line);
+            }
         }
     }
 
@@ -286,5 +352,7 @@ public partial class LabelView : Node3D
         public bool Targeted { get; set; }
     }
 
-    private readonly record struct Shown(Plate Plate, string Name, PixelRect Rect, float Depth);
+    private readonly record struct Shown(Plate Plate, PixelRect Rect, PixelPoint Anchor, float Depth);
+
+    private readonly record struct Drawn(string Text, PixelRect Rect, bool Targeted, int Crowd);
 }
