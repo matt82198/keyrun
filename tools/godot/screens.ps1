@@ -12,12 +12,18 @@
   Stops when the run-end EVENT line appears in the --log file (one more interval is
   captured after it so the run-end panel is in the frames), when the game process
   exits, or when MaxSeconds passes. A process still alive at the end is
-  stopped by PID. Then builds <OutDir>\<Name>.mp4 from this run's frames with
+  stopped with its whole process tree. Then builds <OutDir>\<Name>.mp4 from this run's frames with
   ffmpeg, unless -NoVideo is given.
 
   The Godot binary is resolved the same way as tools/godot/godot.ps1: the
   KEYRUN_GODOT environment variable, else the winget install under %LOCALAPPDATA%.
   Exit 2 when it cannot be found.
+
+  Single instance (tools/godot/launch-lock.ps1): the capture takes the same machine-wide launch lock as
+  tools/godot/godot.ps1 before it starts Godot, and holds it until the game is stopped. While another live process
+  holds it, this exits 5 at once and launches nothing. The game runs in a kill-on-close job object, so killing this
+  script also kills the game. MaxSeconds is clamped to KEYRUN_GODOT_TIMEOUT_SEC (default 300). Captures are the
+  orchestrator's step; lanes never run this script.
 
 .PARAMETER OutDir
   Folder for the frames and the mp4. Created if missing. Required.
@@ -43,7 +49,8 @@
 
 .NOTES
   Exit codes: 0 success, 1 no frames captured, 2 Godot binary missing,
-  3 ffmpeg missing, 4 ffmpeg failed. Frames are kept on every exit path.
+  3 ffmpeg missing, 4 ffmpeg failed, 5 another Godot instance holds the launch lock.
+  Frames are kept on every exit path.
 #>
 param(
     [Parameter(Mandatory = $true)][string]$OutDir,
@@ -87,6 +94,14 @@ if ($dotnetRoot) {
 if (-not $env:MSBUILDDISABLENODEREUSE) { $env:MSBUILDDISABLENODEREUSE = '1' }
 if (-not $env:UseSharedCompilation) { $env:UseSharedCompilation = 'false' }
 if (-not $env:DOTNET_CLI_USE_MSBUILD_SERVER) { $env:DOTNET_CLI_USE_MSBUILD_SERVER = '0' }
+
+# One launch path: the same lock, cap and tree kill as tools/godot/godot.ps1.
+. (Join-Path $PSScriptRoot 'launch-lock.ps1')
+$capSeconds = Get-KeyrunGodotTimeoutSec
+if ($MaxSeconds -gt $capSeconds) {
+    Write-Output ("SCREENS MaxSeconds {0} clamped to the launch cap {1}s (KEYRUN_GODOT_TIMEOUT_SEC)" -f $MaxSeconds, $capSeconds)
+    $MaxSeconds = $capSeconds
+}
 
 $godotArgList = @($GodotArgs -split '\s+' | Where-Object { $_ })
 
@@ -238,7 +253,16 @@ function Save-ScreenShot {
     return [pscustomobject]@{ Path = $Path; Size = ("{0}x{1}" -f $b.Width, $b.Height) }
 }
 
+$launchLock = Enter-KeyrunLaunchLock -Owner ("screens.ps1 -Name {0}" -f $Name)
+if (-not $launchLock.Acquired) {
+    Write-Output ("FAILED: {0}" -f $launchLock.Message)
+    exit 5
+}
+$job = New-KeyrunProcessJob
+$proc = $null
+try {
 $proc = Start-Process -FilePath $godot -ArgumentList $godotArgList -WorkingDirectory $repo -PassThru
+if (-not $job.Attach($proc)) { Write-Output ("WARN pid={0} not placed in a kill-on-close job; the stop still tree-kills it" -f $proc.Id) }
 Write-Output ("LAUNCH pid={0} godot={1} log={2}" -f $proc.Id, $godot, $logPath)
 
 $start = Get-Date
@@ -290,8 +314,14 @@ while ($true) {
 }
 
 if (-not $proc.HasExited) {
-    Stop-Process -Id $proc.Id -Force
-    Write-Output ("STOP pid={0} (still alive, stopped by PID)" -f $proc.Id)
+    Stop-KeyrunProcessTree $proc.Id
+    Write-Output ("STOP pid={0} (still alive, stopped with its process tree)" -f $proc.Id)
+}
+} finally {
+    if ($proc -and -not $proc.HasExited) { Stop-KeyrunProcessTree $proc.Id }
+    $job.Terminate()
+    $job.Dispose()
+    Exit-KeyrunLaunchLock $launchLock
 }
 Write-Output ("DONE reason='{0}' frames={1} elapsed={2}s folder={3}" -f $reason, $saved.Count, [int](((Get-Date) - $start).TotalSeconds), $outDirFull)
 Write-Output ("SCREENS stop={0}" -f $reason)
