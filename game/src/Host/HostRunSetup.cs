@@ -140,7 +140,7 @@ public sealed record HostRunSetup(
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
 
         // Lane NAV-CORE (STATE.md D18): the dungeon's rooms and corridors. Pulls stand in their rooms, the party in the
-        // Entrance, and the sim spawns each pull on room entry and gates each corridor on the pull before it.
+        // Entrance; every pull stands idle from tick 0 and engages on its aggro ring, along one open path (STATE.md D44).
         var layout = registry.Layout;
         if (!string.Equals(layout.Dungeon, dungeonDef.Id, StringComparison.Ordinal))
         {
@@ -572,7 +572,8 @@ public sealed record HostRunSetup(
         }
 
         var boss = Enemy(registry, dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss");
-        // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon stands it at the arena origin.
+        // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon (Build, after this) stands it at the
+        // arena origin and gives it the arena's aggroMm (layout.json), the same helper the bots use.
         pulls.Add(new PullDef(C.LayoutDef.BossPullId, new[]
         {
             new PullSpawn(BossActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp)),

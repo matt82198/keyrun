@@ -39,7 +39,7 @@ BIBLE.md D4. Player health 2000, Choir trash health 6000, Pair 1200, Seed 3000, 
 | chanter.cleanse | 0 | 0 | 160 | 1 | - | - |
 | chanter.glide | 0 | 0 | 200 | 2 | - | - |
 | choir.meleeSwing | 0 | 0 | 40 | 1 | - | dmg:70 |
-| choir.healCast | 80 | 0 | 200 | 1 | - | heal:300 |
+| choir.healCast | 80 | 0 | 200 | 1 | - | heal:3000 to the pack, circle 25000 (was heal:300, one target; CHOIR-PACK-HEAL, BIBLE 9.3 "Heals its pack") |
 | pair.meleeSwing | 0 | 0 | 40 | 1 | - | dmg:70 |
 | pair.spreadMark / stackCall | 40 | 0 | 400 | 1 | - | mark only |
 | seed.slam | 20 | 0 | 100 | 1 | - | dmg:150 |

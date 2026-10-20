@@ -21,6 +21,12 @@ public sealed record EncounterState
     /// <summary>Index of the active pull.</summary>
     public int PullIndex { get; init; }
 
+    /// <summary>
+    /// PRESPAWN-AGGRO (C#-only; BIBLE section 9.1): the ids of every group (pull or pack) that has engaged, in engage
+    /// order. A group engages once and stays engaged. On a run without a layout a pull engages when it spawns.
+    /// </summary>
+    public IReadOnlyList<string> Engaged { get; init; } = Array.Empty<string>();
+
     /// <summary>Slack bank, ticks.</summary>
     public int SlackTicks { get; init; }
 
@@ -30,7 +36,7 @@ public sealed record EncounterState
     /// <summary>Key level.</summary>
     public int KeyLevel { get; init; }
 
-    /// <summary>True once the Slack bank has hit 0 (or the run ended depleted).</summary>
+    /// <summary>True once an unrecovered full wipe ended the run depleted (STATE.md D46: deaths never set it).</summary>
     public bool Depleted { get; init; }
 
     /// <summary>
@@ -39,11 +45,25 @@ public sealed record EncounterState
     /// </summary>
     public int Deaths { get; init; }
 
+    /// <summary>
+    /// Time the run's deaths and wipes have added to the run clock, ticks (STATE.md D46, Mythic+): each death adds
+    /// <see cref="Timer.DeathCostTicks"/>, each full wipe <see cref="Timer.WipeCostTicks"/> on top.
+    /// <see cref="Timer.ClockTicks"/> is the elapsed run timer plus this.
+    /// </summary>
+    public int PenaltyTicks { get; init; }
+
     /// <summary>Encounter tunables and the active Clause.</summary>
     public EncounterRules Rules { get; init; } = Clauses.DefaultEncounterRules(1);
 
     /// <summary>Actor id to the onDeath casts already fired for it (the scripts' fire-once contract).</summary>
     public IReadOnlyDictionary<int, IReadOnlyList<string>> FiredOnDeath { get; init; } = new SortedDictionary<int, IReadOnlyList<string>>();
+
+    /// <summary>
+    /// CAST-FINISH: actor id to the indices of its script steps that came due while it was casting and wait for that
+    /// cast to land, in the order they will fire (<see cref="StepEnemyScriptsResult.PendingSteps"/>). Always empty on a
+    /// frozen-TS replay (<see cref="ScriptStep.TsCastReplace"/>).
+    /// </summary>
+    public IReadOnlyDictionary<int, IReadOnlyList<int>> PendingSteps { get; init; } = new SortedDictionary<int, IReadOnlyList<int>>();
 
     /// <summary>Echo adds queued but not yet spawned.</summary>
     public IReadOnlyList<EchoSpawnRequest> PendingEchoSpawns { get; init; } = Array.Empty<EchoSpawnRequest>();

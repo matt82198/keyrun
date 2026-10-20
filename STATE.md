@@ -789,6 +789,33 @@ Additional parked decisions (from the burn ledger):
   always counts. The validator requires 0 < base <= cap < 100%, so the burn alone can never kill a
   closer at full health at any key or gear Tier. Why: the closer is both source and target of a field Combo, so the
   Pact's comboDamageBp and any future gear power riding damageDoneBp scaled a raw number with no ceiling.
+- D43 **CARELESS-SEAT: a bot seat is hit because a careless player pulls a group, never because a test makes an enemy
+  hit it** (Matt 2026-10-20, verbatim: "no a bad player will accidentally aggro more groups, just test it naturally";
+  PR #308, PRESPAWN-AGGRO; D34-D42 are claimed by open PRs #338 and #342; reversible). Under PRESPAWN-AGGRO the Warden
+  walks into every aggro ring first and an enemy with no threat goes for the nearest living player, so no enemy ever
+  picked a bot seat and HudSceneTest run C's private-log seat filter check (a bot seat takes damage) had nothing to
+  read. Matt ruled out making enemies target bots, loosening the check, or retuning its constants. Instead a bot seat
+  can play carelessly (`Keyrun.Bots.Careless`, host flag `--careless-seat S@T:GROUP`): from tick T it strays off the
+  party toward the idle group GROUP until that group engages, and the sim's own aggro and targeting rules do the rest.
+  Run C runs with `--careless-seat 3@300:pair`. Why: the bot-damage check proves a real path (a bot pulls, the pack it
+  pulled goes for it), not a scripted one.
+- D44 **PATH-TO-BOSS: no gates; one forward path to the boss with prespawned packs; a run wipes when no living seated
+  player remains; bots follow the lowest living seat** (Matt 2026-10-21, verbatim: "no more gates, just path to boss
+  with packs as you said, make the rest of the decisions and we will tune later" and "just build the game"; earlier
+  "everything should be prespawned with an aggro distance" and "honestly just lean into m+ design heavily while in the
+  dungeon"; PR #308, folds PR #359; supersedes D27's gate and D18's gated corridors; reversible, every rule is code or
+  data and can be retuned). (1) Gates removed: no room gate shuts on an engage (no `gate_closed`/`gate_open`, no clamp,
+  no gate view or cut-away) and layout.json gates no corridor, so nothing walls the party in, out or forward. The
+  layout is one chain of rooms and corridors, so the flow is forward by layout; each pack stands idle on that path and
+  engages on its aggro ring (PRESPAWN-AGGRO), and a run completes only when every pull is cleared (the pull index), so
+  skipping is a pull you still owe, M+ style. (2) Wipe rule: a run wipes when no living player who is actually in the
+  run remains (`RunWiring.IsWipe`); an abandoned or unfilled seat (`StepRunOpts.OpenSeats`) never holds a dead party's
+  run open, in or out of combat; the wipe pays the wipe Slack on the last seated death, then 100 ticks of grace and a
+  depleted finish, as before. (3) Leader: bots follow the lowest-seat LIVING player (`Follow.Leader`), and that seat
+  leads the path when it is a bot (`Follow.LeadCommand`), so a dead leader passes the lead on; this replaces the
+  alive-or-dead rule from 53244968, which only existed to get a joiner past a shut gate. Why: Matt ruled out gates;
+  with packs prespawned on the path a gate only added stalemates (PR #308 run C: the Chanter self-healing outside a
+  shut gate, no run_end by tick 7000) and a leader rule that parked living bots on a body.
 - D45 **Orchestrator decisions 2026-10-21, tune later** (orchestrator, 2026-10-21, under Matt's verbatim: "make the rest of the
   decisions and we will tune later"; reversible, tune later). The decisions:
   - Death penalty: 15 s per death (the current 300-tick Slack cost stays), WoW Midnight-style.
@@ -799,6 +826,16 @@ Additional parked decisions (from the burn ledger):
   - Tank: Warden passive armor 40% (PR #362), tune later.
   - #329 (stuns stop interruptible casts) and #344 (break-bar stagger stops the Twins) both land; #344 is the boss-specific case.
   - #325's held-cast/spansCast behaviour, #357 removing content-pull from the frozen set, and #358's dial-90 seed are accepted.
+- D46 **MPLUS CLOCK ONLY: deaths add time to the run clock; a key times or not purely on that clock** (orchestrator,
+  2026-10-20, from Matt's verbatim "honestly just lean into m+ design heavily while in the dungeon" and "it should feel
+  almost exact to wow"; reversible, tune later). Each player death adds 300 ticks (15 s) to the run clock, counted per
+  player including same-tick deaths (#373); a full wipe adds 500 ticks more. There is no Slack bank that fails the key
+  once drained: a completed run is timed when elapsed plus that added time is within par, and the +2/+3 tiers are
+  measured on the same clock (Timer.ClockTicks, KeyMove.ForRun). An unrecovered full wipe still ends the run depleted.
+  This supersedes BIBLE section 8's Slack bank for the dungeon; the bank constants stay in Timer.cs as tunables. WHY:
+  in WoW Mythic+ a death only costs time, it never fails the key on its own; under the bank, three deaths at +2 (900
+  ticks against a 620-tick bank) depleted a key that was far ahead of par. The HUD bar now reads the run clock and
+  "Deaths N (+Xs)" (TimerSlack.cs). Tune later: the 15 s / 25 s costs and whether the HUD bar keeps its shape.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as

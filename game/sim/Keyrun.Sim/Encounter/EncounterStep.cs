@@ -61,8 +61,23 @@ public static class EncounterStep
             scripts = boss.Scripts;
         }
 
+        // PRESPAWN-AGGRO (BIBLE section 9.1): an idle group runs no script, so it casts, telegraphs and chases nothing
+        // until it engages. No actor of an oracle run is idle, so this keeps every script there.
+        if (scripts.Keys.Any(id => state.Actors.TryGetValue(id, out var a) && a.Idle))
+        {
+            var awake = new SortedDictionary<int, IReadOnlyList<ScriptStep>>();
+            foreach (var (id, script) in scripts)
+            {
+                if (!(state.Actors.TryGetValue(id, out var a) && a.Idle))
+                {
+                    awake[id] = script;
+                }
+            }
+            scripts = awake;
+        }
+
         // index.ts:119-123: scripts, emit their telegraph events, register them.
-        var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities);
+        var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities, encounter.PendingSteps);
         foreach (var e in scripted.TelegraphEvents)
         {
             emit(e);
@@ -112,6 +127,7 @@ public static class EncounterStep
             Telegraphs = advance.Telegraphs,
             BreakBars = breakBars,
             FiredOnDeath = scripted.FiredOnDeath,
+            PendingSteps = scripted.PendingSteps,
             NextTelegraphId = advance.NextTelegraphId,
         };
         if (boss is not null)

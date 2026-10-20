@@ -103,7 +103,7 @@ public sealed class PolicyBot : IBot
 
         // 2. Travel between rooms, as the scripted runner does (walking the route is not a skill the plan names).
         var follow = LastDodge is null ? Follow.FollowCommand(view, self) : null;
-        var travelling = follow is not null || (LastDodge is null && Follow.ShutRoom(view, self) is not null);
+        var travelling = follow is not null;
         if (follow is not null)
         {
             commands.Add(follow);

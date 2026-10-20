@@ -41,22 +41,23 @@ public sealed record KeyMove(int From, int To, int Tier)
     /// <summary>The move for a finished run.</summary>
     /// <param name="result">The run result.</param>
     /// <param name="keyLevel">The key the run was played at.</param>
-    /// <param name="finishTick">The finish tick (the run timer).</param>
+    /// <param name="clockTicks">The run clock at the finish (<see cref="Timer.ClockTicks"/>: elapsed plus death and wipe time, D46).</param>
     /// <param name="parTicks">Par.</param>
     /// <returns>The move.</returns>
-    public static KeyMove Of(RunResult result, int keyLevel, int finishTick, int parTicks)
+    public static KeyMove Of(RunResult result, int keyLevel, long clockTicks, int parTicks)
     {
-        var tier = Timer.UpgradeTier(result, finishTick, parTicks);
+        var tier = Timer.UpgradeTier(result, clockTicks, parTicks);
         // Timer.KeyAfterRun is the one sim rule for the key after a run (f-7c7abdf4: an untimed key keeps its level);
         // a timed raise is then held inside the screen's band. Tier 0 is exactly the untimed case (a timed run is tier 1+).
-        var after = Timer.KeyAfterRun(keyLevel, result, finishTick, parTicks);
+        var after = Timer.KeyAfterRun(keyLevel, result, clockTicks, parTicks);
         var to = tier == 0 ? after : Math.Clamp(after, ScreenState.MinKey, ScreenState.MaxKey);
         return new KeyMove(keyLevel, Math.Max(keyLevel, to), tier);
     }
 
     /// <summary>
     /// The move for <paramref name="run"/>, or null while it is live. The finish tick is the run end's tick (the run
-    /// clock keeps advancing after the end, RUN-END-FREEZE), the same read the screen's bank uses.
+    /// clock keeps advancing after the end, RUN-END-FREEZE), the same read the screen's bank uses, plus the time the
+    /// run's deaths and wipes added to the clock (D46).
     /// </summary>
     /// <param name="run">The run.</param>
     /// <returns>The move, or null.</returns>
@@ -67,6 +68,7 @@ public sealed record KeyMove(int From, int To, int Tier)
         {
             return null;
         }
-        return Of(result, run.Encounter.KeyLevel, run.RunEnd.ResultTick ?? run.State.RunTimerTicks, run.Encounter.ParTicks);
+        var clock = Timer.ClockTicks(run.Encounter, run.RunEnd.ResultTick ?? run.State.RunTimerTicks);
+        return Of(result, run.Encounter.KeyLevel, clock, run.Encounter.ParTicks);
     }
 }

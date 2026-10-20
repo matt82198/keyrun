@@ -11,7 +11,7 @@
       "origin": { "x": 21500, "z": 0 },
       "start": { "x": 14500, "z": 0 }
     },
-    { "id": "corridor-2", "kind": "corridor", "minX": 25000, "maxX": 33000, "minZ": -1500, "maxZ": 1500, "gate": "choir" },
+    { "id": "corridor-2", "kind": "corridor", "minX": 25000, "maxX": 33000, "minZ": -1500, "maxZ": 1500 },
     {
       "id": "pair-hall", "kind": "room", "minX": 32000, "maxX": 56000, "minZ": -6000, "maxZ": 6000,
       "pull": "pair",
@@ -19,7 +19,7 @@
       "origin": { "x": 38500, "z": 0 },
       "start": { "x": 36500, "z": 0 }
     },
-    { "id": "corridor-3", "kind": "corridor", "minX": 55000, "maxX": 63000, "minZ": -1500, "maxZ": 1500, "gate": "pair" },
+    { "id": "corridor-3", "kind": "corridor", "minX": 55000, "maxX": 63000, "minZ": -1500, "maxZ": 1500 },
     {
       "id": "seed-chamber", "kind": "room", "minX": 62000, "maxX": 76000, "minZ": -7000, "maxZ": 7000,
       "pull": "seed",
@@ -27,13 +27,14 @@
       "origin": { "x": 63500, "z": 0 },
       "start": { "x": 66500, "z": 0 }
     },
-    { "id": "corridor-4", "kind": "corridor", "minX": 75000, "maxX": 83000, "minZ": -1500, "maxZ": 1500, "gate": "seed" },
+    { "id": "corridor-4", "kind": "corridor", "minX": 75000, "maxX": 83000, "minZ": -1500, "maxZ": 1500 },
     {
       "id": "warden-arena", "kind": "room", "minX": 82000, "maxX": 110000, "minZ": -14000, "maxZ": 14000,
       "pull": "boss",
       "trigger": { "minX": 84000, "maxX": 110000, "minZ": -14000, "maxZ": 14000 },
       "origin": { "x": 93500, "z": 0 },
-      "start": { "x": 86500, "z": 0 }
+      "start": { "x": 86500, "z": 0 },
+      "aggroMm": 7100
     }
   ],
   "route": [

@@ -159,7 +159,8 @@ public sealed record Run(SimState State, EncounterState Encounter, DungeonDef Du
 /// <param name="AbandonRequested">An explicit human quit: ends the run "abandoned" this tick.</param>
 /// <param name="OpenSeats">
 /// Actor ids of abandoned, unfilled seats (C#-only, STATE.md D27; <see cref="Backfill.Step"/> passes them): an open seat's
-/// idle actor does not hold a layout pull back. Null = none.
+/// idle actor never engages a layout group and is not in the run, so it never holds a dead party's run open
+/// (<see cref="RunWiring.IsWipe"/>, STATE.md D44). Null = none.
 /// </param>
 public sealed record StepRunOpts(bool AbandonRequested = false, IReadOnlyList<int>? OpenSeats = null);
 
