@@ -20,8 +20,26 @@ public sealed class SkillDialTests
     [Fact(DisplayName = "skill dial > is a pure function of the dial: same dial always yields the same delay")]
     public void PureFunctionOfDial()
     {
-        Assert.Equal(Skill.ReactionDelayTicks(37), Skill.ReactionDelayTicks(37));
-        Assert.Equal(Skill.ReactionDelayTicks(37), Skill.ReactionDelayTicks(37));
+        // Pinned by hand from skill.ts reactionDelayTicks: Math.round(10 - (9 * clamp(dial, 0, 100)) / 100),
+        // with JS Math.round (ties toward +infinity).
+        //   dial   0: 10 - 0    = 10    -> 10
+        //   dial  37: 10 - 3.33 = 6.67  -> 7
+        //   dial  50: 10 - 4.5  = 5.5   -> 6 (the tie rounds up, not to even)
+        //   dial 100: 10 - 9    = 1     -> 1
+        // Each dial is asked twice so a stateful implementation (a counter, a drifting cache) cannot pass.
+        foreach (var (dial, ticks) in new[] { (0.0, 10), (37.0, 7), (50.0, 6), (100.0, 1) })
+        {
+            Assert.Equal(ticks, Skill.ReactionDelayTicks(dial));
+            Assert.Equal(ticks, Skill.ReactionDelayTicks(dial));
+        }
+
+        // The formula is non-increasing in the dial: a more skilled bot never waits longer.
+        for (var dial = 0; dial < 100; dial++)
+        {
+            Assert.True(
+                Skill.ReactionDelayTicks(dial + 1) <= Skill.ReactionDelayTicks(dial),
+                $"reaction delay rose from dial {dial} to {dial + 1}");
+        }
     }
 
     [Fact(DisplayName = "skill dial > clamps out-of-range dials")]
