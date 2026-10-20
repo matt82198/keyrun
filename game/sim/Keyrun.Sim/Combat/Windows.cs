@@ -259,8 +259,8 @@ public static class Windows
     }
 
     /// <summary>
-    /// The ability tag (Warden's Warcry talent, content classes/warden.json "Strike also applies Sundered to two
-    /// adjacent enemies.") that spreads an on-target Window to <see cref="MultiTargetCount"/> of the resolved targets.
+    /// The ability tag (Warden's Warcry talent, content classes/warden.json "Strike applies Sundered to two adjacent
+    /// enemies: its target and the nearest other enemy in the cone.") that spreads an on-target Window to <see cref="MultiTargetCount"/> of the resolved targets.
     /// </summary>
     public const string MultiTargetTag = "warcry:multi-target";
 
