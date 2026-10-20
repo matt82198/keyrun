@@ -50,7 +50,7 @@ public static class Chase
         foreach (var actorId in scripts.Keys.OrderBy(k => k))
         {
             var script = scripts[actorId];
-            if (!state.Actors.TryGetValue(actorId, out var actor) || script is null || !actor.Alive || actor.CastId is not null)
+            if (!state.Actors.TryGetValue(actorId, out var actor) || script is null || !actor.Alive || actor.Idle || actor.CastId is not null)
             {
                 continue;
             }

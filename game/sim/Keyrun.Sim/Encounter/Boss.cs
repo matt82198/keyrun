@@ -264,7 +264,8 @@ public static class BossRules
         var next = boss;
         var spawned = new List<ActorState>();
 
-        if (!next.TwinsSpawned && state.Actors.TryGetValue(cfg.BossActorId, out var bossActor) && bossActor.Alive)
+        // PRESPAWN-AGGRO: a prespawned boss stands idle in its arena; the Twins join it on its engage, not at run start.
+        if (!next.TwinsSpawned && state.Actors.TryGetValue(cfg.BossActorId, out var bossActor) && bossActor.Alive && !bossActor.Idle)
         {
             foreach (var twin in cfg.Twins)
             {

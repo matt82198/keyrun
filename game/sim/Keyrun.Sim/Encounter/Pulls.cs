@@ -12,6 +12,71 @@ namespace Keyrun.Sim.Encounter;
 /// </summary>
 public static class Pulls
 {
+    /// <summary>A group's aggro radius when content sets none, mm (BIBLE section 9.1: 4000).</summary>
+    public const long DefaultAggroMm = 4000;
+
+    /// <summary>
+    /// PRESPAWN-AGGRO: the centre of <paramref name="pull"/>'s aggro ring, <see cref="PullDef.AggroCenter"/> or the
+    /// integer mean (truncated toward zero) of its spawn points; the origin for a pull with no spawns.
+    /// </summary>
+    public static Vec3 RingCenter(PullDef pull)
+    {
+        ArgumentNullException.ThrowIfNull(pull);
+        return pull.AggroCenter ?? MeanOf(pull.Spawns);
+    }
+
+    /// <summary>The integer mean of <paramref name="spawns"/>' points (truncated toward zero), or the origin when empty.</summary>
+    public static Vec3 MeanOf(IReadOnlyList<PullSpawn> spawns)
+    {
+        ArgumentNullException.ThrowIfNull(spawns);
+        if (spawns.Count == 0)
+        {
+            return Vec3.Zero;
+        }
+        long x = 0, y = 0, z = 0;
+        foreach (var s in spawns)
+        {
+            x += s.Pos.X;
+            y += s.Pos.Y;
+            z += s.Pos.Z;
+        }
+        return new Vec3(x / spawns.Count, y / spawns.Count, z / spawns.Count);
+    }
+
+    /// <summary>
+    /// PRESPAWN-AGGRO (BIBLE section 9.1): every pull's actors, idle (<see cref="ActorState.Idle"/>) at their spawn
+    /// points, the boss pull included. Emits nothing: a group's <c>pull_start</c> comes on its engage tick.
+    /// </summary>
+    public static IReadOnlyList<ActorState> SpawnAllIdle(DungeonDef dungeon)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        var actors = new List<ActorState>();
+        foreach (var pull in dungeon.Pulls)
+        {
+            foreach (var spawn in pull.Spawns)
+            {
+                var actor = SpawnActor(spawn);
+                actor.Idle = true;
+                actors.Add(actor);
+            }
+        }
+        return actors;
+    }
+
+    /// <summary>True once group <paramref name="groupId"/> (a pull or pack id) has engaged.</summary>
+    public static bool IsEngaged(EncounterState encounter, string groupId)
+    {
+        ArgumentNullException.ThrowIfNull(encounter);
+        return encounter.Engaged.Contains(groupId, StringComparer.Ordinal);
+    }
+
+    /// <summary>True once pull <paramref name="pullIndex"/> has engaged; false for an out-of-range index.</summary>
+    public static bool IsEngaged(EncounterState encounter, DungeonDef dungeon, int pullIndex)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        return pullIndex >= 0 && pullIndex < dungeon.Pulls.Count && IsEngaged(encounter, dungeon.Pulls[pullIndex].Id);
+    }
+
     // pulls.ts:38 spawnActor: an untargeted enemy at full health, role none, no resource, tuning copied only when set.
     private static ActorState SpawnActor(PullSpawn spawn) => new()
     {
@@ -187,7 +252,9 @@ public sealed record NavLayout
     /// <param name="pre">The actor's position before the move.</param>
     /// <param name="post">The position the move reached (already walkable-clamped).</param>
     /// <returns>The gated position.</returns>
-    public static Vec3 GateClamp(Combat.Bounds room, Vec3 pre, Vec3 post)
+    /// <param name="admitOutsider">PRESPAWN-AGGRO: true lets an actor outside step in (the gate shuts behind the party,
+    /// BIBLE section 9.1, so a party member still in the doorway when the first one engages is not shut out).</param>
+    public static Vec3 GateClamp(Combat.Bounds room, Vec3 pre, Vec3 post, bool admitOutsider = false)
     {
         var wasIn = Combat.Movement.Contains(room, pre);
         var isIn = Combat.Movement.Contains(room, post);
@@ -195,7 +262,7 @@ public sealed record NavLayout
         {
             return Combat.Movement.ClampPoint(post, room);
         }
-        return !wasIn && isIn ? pre : post;
+        return !wasIn && isIn && !admitOutsider ? pre : post;
     }
 
     /// <summary>The highest-index box holding <paramref name="p"/> (open or not), or -1 when none does.</summary>

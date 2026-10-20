@@ -21,6 +21,12 @@ public sealed record EncounterState
     /// <summary>Index of the active pull.</summary>
     public int PullIndex { get; init; }
 
+    /// <summary>
+    /// PRESPAWN-AGGRO (C#-only; BIBLE section 9.1): the ids of every group (pull or pack) that has engaged, in engage
+    /// order. A group engages once and stays engaged. On a run without a layout a pull engages when it spawns.
+    /// </summary>
+    public IReadOnlyList<string> Engaged { get; init; } = Array.Empty<string>();
+
     /// <summary>Slack bank, ticks.</summary>
     public int SlackTicks { get; init; }
 
