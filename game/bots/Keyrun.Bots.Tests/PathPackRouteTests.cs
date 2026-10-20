@@ -28,7 +28,23 @@ public sealed class PathPackRouteTests
     private const int LeaderId = 1;
     private const int MaxTicks = 8000;
 
-    private sealed record PackRun(List<SimEvent> Events, Dictionary<string, IReadOnlyList<int>> MembersAtEngage, IReadOnlyList<PackGroup> Packs, LayoutDef Layout, Run Final);
+    /// <summary>
+    /// The least distance, mm, any party member may stand from an enemy on the tick that enemy first enters the state
+    /// (Matt 2026-10-20: "not literally spawning enemies on the player").
+    /// </summary>
+    private const long MinSpawnClearMm = 5000;
+
+    /// <summary>One actor's first appearance: the tick it entered the state and its squared XZ distance (mm^2) to the nearest party member.</summary>
+    private sealed record Appearance(int Tick, int ActorId, long NearestPartyD2);
+
+    private sealed record PackRun(
+        List<SimEvent> Events,
+        Dictionary<string, IReadOnlyList<int>> MembersAtEngage,
+        IReadOnlyList<PackGroup> Packs,
+        LayoutDef Layout,
+        Run Initial,
+        List<Appearance> Appearances,
+        Run Final);
 
     private static readonly Lazy<PackRun> Route = new(Drive);
 
@@ -47,6 +63,11 @@ public sealed class PathPackRouteTests
         var party = NavLayouts.PlaceParty(layoutDef, setup.Party.Take(3).ToList(), dungeon.Pulls[0].Id);
         var content = setup.Content with { Layout = nav, Bounds = nav.Extent, Packs = packs, EnemyScripts = scripts };
         var run = RunRoot.CreateRun(Seed, party, dungeon, content, setup.Options);
+        var initial = run;
+        var appearances = run.State.Actors.Values
+            .Where(a => a.Kind != ActorKind.Player)
+            .Select(a => new Appearance(run.State.Tick, a.Id, NearestPartyD2(run.State, a.Pos)))
+            .ToList();
 
         var kits = KitRegistry.From(registry);
         var bots = new SortedDictionary<int, IBot>();
@@ -77,15 +98,59 @@ public sealed class PathPackRouteTests
                 }
             }
             var stepped = RunRoot.StepRun(run, commands);
+            var previous = run.State;
             run = stepped.Run;
             events.AddRange(stepped.Events);
+            foreach (var a in run.State.Actors.Values.Where(a => a.Kind != ActorKind.Player && !previous.Actors.ContainsKey(a.Id)))
+            {
+                appearances.Add(new Appearance(run.State.Tick, a.Id, NearestPartyD2(run.State, a.Pos)));
+            }
             foreach (var e in stepped.Events.Where(e => e.Type == "pack_engage"))
             {
                 var pack = packs.First(p => p.Id == ((JsString)e.Get("packId")!).Value);
                 members[pack.Id] = pack.Spawns.Select(s => s.ActorId).Where(run.State.Actors.ContainsKey).ToList();
             }
         }
-        return new PackRun(events, members, packs, layoutDef, run);
+        return new PackRun(events, members, packs, layoutDef, initial, appearances, run);
+    }
+
+    // Squared XZ distance from p to the nearest party (player) actor, alive or dead; long.MaxValue with no party.
+    private static long NearestPartyD2(SimState state, Vec3 p) => state.Actors.Values
+        .Where(a => a.Kind == ActorKind.Player)
+        .Select(a => ((a.Pos.X - p.X) * (a.Pos.X - p.X)) + ((a.Pos.Z - p.Z) * (a.Pos.Z - p.Z)))
+        .DefaultIfEmpty(long.MaxValue)
+        .Min();
+
+    [Fact(DisplayName = "Path packs: every pack member, required and optional, stands idle in the state from tick 0")]
+    public void Every_pack_member_stands_idle_from_tick_zero()
+    {
+        var r = Route.Value;
+        Assert.Equal(0, r.Initial.State.Tick);
+        Assert.Equal(r.Layout.Packs.Select(p => p.Id), r.Packs.Select(p => p.Id));
+        Assert.Contains(r.Layout.Packs, p => p.Optional);
+        Assert.Contains(r.Layout.Packs, p => !p.Optional);
+        foreach (var pack in r.Packs)
+        {
+            Assert.NotEmpty(pack.Spawns);
+            foreach (var spawn in pack.Spawns)
+            {
+                Assert.True(r.Initial.State.Actors.TryGetValue(spawn.ActorId, out var a), $"pack {pack.Id} member {spawn.ActorId} is not in the state at tick 0");
+                Assert.True(a!.Alive && a.Idle && a.Kind == ActorKind.Enemy, $"pack {pack.Id} member {spawn.ActorId} at tick 0: alive={a.Alive} idle={a.Idle} kind={a.Kind}");
+            }
+        }
+    }
+
+    [Fact(DisplayName = "Path packs: no enemy ever enters the state within 5 m of a party member")]
+    public void No_enemy_enters_the_state_on_the_party()
+    {
+        var r = Route.Value;
+        Assert.NotEmpty(r.Appearances);
+        var close = r.Appearances.Where(x => x.NearestPartyD2 < MinSpawnClearMm * MinSpawnClearMm).ToList();
+        Assert.True(close.Count == 0, "enemies entered the state within " + MinSpawnClearMm + " mm of a party member: " +
+            string.Join(", ", close.Select(x => FormattableString.Invariant($"actor {x.ActorId} at tick {x.Tick} (d2 {x.NearestPartyD2})"))));
+        // Every pack member is among the tick-0 appearances: none is added later.
+        var packIds = r.Packs.SelectMany(p => p.Spawns).Select(s => s.ActorId).ToHashSet();
+        Assert.All(r.Appearances.Where(x => packIds.Contains(x.ActorId)), x => Assert.Equal(0, x.Tick));
     }
 
     private static string Stop(SimEvent e) => e.Type == "pack_engage" ? ((JsString)e.Get("packId")!).Value : ((JsString)e.Get("pullId")!).Value;
