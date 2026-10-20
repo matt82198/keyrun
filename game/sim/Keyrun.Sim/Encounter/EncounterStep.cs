@@ -71,7 +71,7 @@ public static class EncounterStep
 
         // index.ts:129-135: Tide drift, resolve, emit hits, drop the resolved.
         var advance = Telegraphs.Advance(state, encounter.Telegraphs, scripted.TelegraphEvents, encounter.NextTelegraphId, emit,
-            all => Clauses.DriftTelegraphs(all, encounter.Rules));
+            all => Clauses.DriftTelegraphs(all, encounter.Rules), scripted.TelegraphCastStarts);
 
         // index.ts:137-141: reset cooldowns of existing bars.
         var breakBars = new JsRecord<BreakBarState>();
