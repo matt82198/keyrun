@@ -48,6 +48,7 @@ public static class ContentValidator
         CheckFacets(reg);
         CheckRun(reg.Run);
         CheckHeatOverheat(reg);
+        CheckClassArmor(reg);
         CheckForces(reg);
         LayoutValidator.Check(reg);
         GearValidator.Check(reg);
@@ -138,6 +139,16 @@ public static class ContentValidator
         if (!reg.Effects.ContainsKey(h.ChillEffectId))
             Fail("run heatOverheat.chillEffectId \"" + h.ChillEffectId + "\" is not an effect");
         if (h.ChillTicks <= 0) Fail("run heatOverheat.chillTicks must be positive, got " + h.ChillTicks);
+    }
+
+    // design/BIBLE.md section 3.1: armor is a passive class trait, capped at 90% so a hit always lands.
+    private static void CheckClassArmor(ContentRegistry reg)
+    {
+        foreach (var (classId, armorBp) in reg.Run.ClassArmorBp)
+        {
+            if (!reg.Classes.ContainsKey(classId)) Fail("run classArmorBp has unknown class \"" + classId + "\"");
+            if (armorBp < 0 || armorBp > 9000) Fail("run classArmorBp." + classId + " must be in [0, 9000], got " + armorBp);
+        }
     }
 
     private static void CheckRun(RunConfig run)

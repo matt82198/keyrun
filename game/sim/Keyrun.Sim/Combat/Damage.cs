@@ -65,9 +65,20 @@ public static class Damage
             return new DamageResult(rawAmount, 0, 0, 0, false);
         }
         var pactAmount = weighting is null ? rawAmount : weighting(rawAmount);
-        var modifiedAmount = ApplyModifiers(pactAmount, sourceModBp, targetModBp);
+        var modifiedAmount = ApplyArmor(ApplyModifiers(pactAmount, sourceModBp, targetModBp), target.ArmorBp);
         return ResolveModified(tick, target, rawAmount, modifiedAmount, defs, emit, sourceId);
     }
+
+    /// <summary>
+    /// C#-only stage after <see cref="ApplyModifiers"/> (design/BIBLE.md section 3.1): the target keeps
+    /// <c>trunc(amount * (10000 - armorBp) / 10000)</c>. It multiplies with the summed damageTakenBp (Brace, Vigil,
+    /// Bulwark), so mitigation never stacks to immunity. 0 armor (every oracle run) returns the amount unchanged.
+    /// </summary>
+    /// <param name="amount">The amount after modifiers (non-negative).</param>
+    /// <param name="armorBp">The target's armor, bp in [0, 10000).</param>
+    /// <returns>The amount the target takes.</returns>
+    public static long ApplyArmor(long amount, long armorBp) =>
+        armorBp == 0 ? amount : Math.Max(0, IntMath.TruncDiv(amount * (Effects.BpDenom - armorBp), Effects.BpDenom));
 
     /// <summary>
     /// The post-modifier half of applyDamage, sim/combat/damage.ts:57-75, split out so oracle traces (which record
