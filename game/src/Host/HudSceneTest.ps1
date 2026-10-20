@@ -244,6 +244,12 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
 $wrapper = Join-Path $repo 'tools/godot/godot.ps1'
 $failures = New-Object System.Collections.Generic.List[string]
 
+# One launch lock for the whole sequence (tools/godot/launch-lock.ps1): no other launch can interleave, and every
+# launch below runs one after another through godot.ps1. Exit 2 when another Godot instance holds the lock.
+. (Join-Path $repo 'tools/godot/launch-lock.ps1')
+$launchLock = Enter-KeyrunLaunchLock -Owner 'HudSceneTest.ps1' -ExitCodeOnBusy 2
+try {
+
 function Invoke-Arena([int]$n, [string[]]$extra) {
     # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
     $guard = (3 * $n) + 240
@@ -652,6 +658,9 @@ foreach ($f in @(& (Join-Path $PSScriptRoot 'WardenEngagesTest.ps1') -Lines $cRu
 # 13c. Lane HUD-DECLUTTER: friendly casts in the party frames, only the human's damage numbers, enemy health in unit
 # frames, enemy cast bars kept (src/Hud/HudDeclutterTest.ps1 holds the four checks and their RED on main).
 foreach ($f in @(& (Join-Path $PSScriptRoot '../Hud/HudDeclutterTest.ps1') -Lines $cRun)) { $failures.Add("run C: $f") }
+# 13d. Lane fix/target-frame-after-death (P0): a cleared run's objective counts the enemies still alive at run_end (a
+# Sundered Twin that outlives the boss), never "No enemies remain" over a live target frame (src/Hud/ObjectiveClearTest.ps1).
+foreach ($f in @(& (Join-Path $PSScriptRoot '../Hud/ObjectiveClearTest.ps1') -Lines $cRun)) { $failures.Add("run C: $f") }
 
 # ---- Run D: the armed boss (lane 3I) -----------------------------------------------------------------------------
 # From pull 4 (the boss pull): no key reaches the boss from pull 1 under autorun (see the header for the sweep).
@@ -1134,3 +1143,6 @@ if ($failures.Count -gt 0) {
 }
 Write-Output "HudSceneTest: PASS ticks=$Ticks pingTicks=$PingTicks partyTicks=$PartyTicks bossTicks=$BossTicks queueTicks=$QueueTicks backfillTicks=$BackfillTicks abandonSeat=$AbandonSeat wipeFrames=$WipeFrames pingAt=$PingAt pingFrames=$PingFrames recordFrames=$RecordFrames recordEvents=$recN yawAt=$YawAt yawTo=$YawTo yawFrames=$YawFrames yawCompared=$comparedL"
 exit 0
+} finally {
+    Exit-KeyrunLaunchLock $launchLock
+}
