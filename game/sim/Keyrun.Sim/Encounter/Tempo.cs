@@ -32,8 +32,8 @@ public static class Tempo
     /// <summary>Health +3% per key level above 1 (tempo.ts:23).</summary>
     public const int HealthBpPerKey = 300;
 
-    /// <summary>Keys at which one extra mechanic unlocks (tempo.ts:25).</summary>
-    public static readonly IReadOnlyList<int> MechanicUnlockKeys = new[] { 5, 10, 15 };
+    // tempo.ts:25 MECHANIC_UNLOCK_KEYS (one extra mechanic at keys 5, 10 and 15) is superseded by Fortified and
+    // Tyrannical (BIBLE s8, Matt 2026-10-20; plan M5): the key's extra difficulty is Affixes.AffixesFor.
 
     private static long KeysAbove1(int keyLevel) => Math.Max(0, keyLevel - 1);
 
@@ -62,9 +62,6 @@ public static class Tempo
         var bp = BpDenom + (HealthBpPerKey * KeysAbove1(keyLevel));
         return IntMath.TruncDiv(baseHealth * bp, BpDenom);
     }
-
-    /// <summary>tempo.ts:48 unlockedMechanicCount: how many of keys 5, 10, 15 the key has reached.</summary>
-    public static int UnlockedMechanicCount(int keyLevel) => MechanicUnlockKeys.Count(k => keyLevel >= k);
 
     /// <summary>
     /// content-dungeon.ts:48 scaleStep: the telegraph's lead is scaled; a loop's <c>every</c> is scaled, defaulting
