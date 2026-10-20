@@ -492,19 +492,23 @@ public partial class Screen : Control
         {
             return;
         }
+        // The loadout here only reports what each layer contributes. The request is QueuedKit.Queue's: the talent kit and
+        // the gear stats, never the Facets (finding f-494ea8ef: the host's RunStart.Of applies each Facet once from the
+        // progression; a Facet-patched kit on the request was patched a second time).
         var loadout = s.Locked ? null : RunLoadout(withFacets: true);
-        var (locked, request) = s.Queue(loadout?.Loadouts);
+        var (locked, request) = _driver?.Registry is { } reg
+            ? QueuedKit.Queue(s, reg, _talents, _progression, SimDriver.HumanClassId)
+            : s.Queue();
         _state = locked;
         if (request is null)
         {
             return;
         }
         // BIBLE s7 "Tier is power": the five slots' summed stats ride the request onto the human's actor.
-        if (_driver?.Setup is { } gearSetup && GearTotal() is { } gear)
+        foreach (var (actor, gear) in request.Gear ?? new Dictionary<int, GearStats>())
         {
-            request = request with { Gear = new Dictionary<int, GearStats> { [gearSetup.HumanActorId] = gear } };
             Proof(FormattableString.Invariant(
-                $"SCREEN queue gear actor={gearSetup.HumanActorId} damageDoneBp={gear.DamageDoneBp} damageTakenBp={gear.DamageTakenBp}"));
+                $"SCREEN queue gear actor={actor} damageDoneBp={gear.DamageDoneBp} damageTakenBp={gear.DamageTakenBp}"));
         }
         LastRequest = request;
         Proof(FormattableString.Invariant($"SCREEN queue dungeon={request.DungeonId} key={request.KeyLevel} clause={request.ClauseId}"));
@@ -609,8 +613,9 @@ public partial class Screen : Control
     }
 
     // BIBLE s7: one line for the Facets the request hands the run (and how many equipped Facets were skipped), then one
-    // per applied Facet with its ability's queued value next to the base (read from the request's RunOptions), and one
-    // per skipped Facet with the reason.
+    // per applied Facet with its ability's queued value next to the base (read from the options the host will create the
+    // run with: HostRunSetup.StartFor, the call SimDriver.StartQueuedRun makes, since the Facets are layered there and
+    // not on the request), and one per skipped Facet with the reason.
     private void ProofQueuedFacets(QueueRequest request, Keyrun.Content.FacetResolution? facets)
     {
         Proof(FormattableString.Invariant($"SCREEN queue facets applied={facets?.Applied.Count ?? 0} skipped={facets?.Skipped.Count ?? 0}"));
@@ -618,7 +623,9 @@ public partial class Screen : Control
         {
             return;
         }
-        var loadouts = request.ToRunOptions().Loadouts;
+        var loadouts = _driver?.Setup is { } setup && _driver.Registry is { } reg
+            ? setup.StartFor(request, _progression, reg, SimDriver.HumanClassId).Options?.Loadouts
+            : request.ToRunOptions().Loadouts;
         var baseKit = _driver?.Setup?.Content.Abilities;
         foreach (var f in facets.Applied)
         {
