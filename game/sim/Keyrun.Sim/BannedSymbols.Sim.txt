@@ -1,0 +1,1 @@
+T:System.HashCode;purity rule (game/CLAUDE.md), the sim is deterministic: HashCode is randomly seeded per process
