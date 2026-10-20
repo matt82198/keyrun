@@ -94,4 +94,56 @@ public sealed class AffixesTests
         Assert.Equal(1, options.RotationIndex);
         Assert.Null(RunOptions.ForKey(ClauseIds, 2, 1, 5).ClauseId);
     }
+
+    private static ClauseDef Def(string id, ClauseKind kind, params (string, long)[] ps)
+    {
+        var d = new Dictionary<string, long>(StringComparer.Ordinal);
+        foreach (var (k, v) in ps)
+        {
+            d[k] = v;
+        }
+        return new ClauseDef(id, id, kind, d, id);
+    }
+
+    private static readonly IReadOnlyDictionary<string, ClauseDef> ClauseDefs = new Dictionary<string, ClauseDef>(StringComparer.Ordinal)
+    {
+        ["echo"] = Def("echo", ClauseKind.Echo, ("addMaxHealth", 600), ("spawnDelayTicks", 40)),
+        ["tide"] = Def("tide", ClauseKind.Tide, ("driftMmPerTick", 50)),
+        ["hush"] = Def("hush", ClauseKind.Hush, ("intervalTicks", 900), ("silenceDurationTicks", 40)),
+        ["pact"] = Def("pact", ClauseKind.Pact, ("comboDamageBp", 2000), ("soloDamageBp", -1000)),
+    };
+
+    [Theory]
+    [InlineData(5, 0)]
+    [InlineData(5, 1)]
+    [InlineData(9, 2)]
+    [InlineData(10, 0)]
+    [InlineData(10, 3)]
+    [InlineData(15, 1)]
+    public void The_key_set_Clause_layers_on_top_of_the_affixes_and_a_second_Clause_never_stacks(int key, int rotation)
+    {
+        var affixes = Affixes.AffixesFor(BibleTable, key, rotation);
+        Assert.Equal(key >= 10 ? 2 : 1, affixes.Names.Count);
+
+        var options = RunOptions.ForKey(ClauseIds, key, rotation, 5);
+        Assert.NotNull(options.ClauseId);
+        Assert.Equal(rotation, options.RotationIndex);
+        var rules = Clauses.ApplyClause(Clauses.DefaultEncounterRules(key), ClauseDefs[options.ClauseId!]);
+        Assert.Equal(options.ClauseId, rules.ActiveClauseId);
+
+        // The Clause does not change the affixes: same key and rotation, same Fortified/Tyrannical set.
+        Assert.Equal(affixes, Affixes.AffixesFor(BibleTable, key, rotation));
+        var other = ClauseDefs.Keys.First(id => id != options.ClauseId);
+        Assert.Throws<ClauseAlreadyActiveException>(() => Clauses.ApplyClause(rules, ClauseDefs[other]));
+    }
+
+    [Fact]
+    public void Key_4_carries_neither_an_affix_nor_a_Clause()
+    {
+        for (var r = 0; r < 4; r++)
+        {
+            Assert.Empty(Affixes.AffixesFor(BibleTable, 4, r).Names);
+            Assert.Null(RunOptions.ForKey(ClauseIds, 4, r, 5).ClauseId);
+        }
+    }
 }
