@@ -152,6 +152,8 @@ public static class RunRoot
         events.AddRange(stepped.Events);
 
         var nextState = RunWiring.ApplyBreakBarPatches(stepped.State, enc.EffectPatches, content.Effects);
+        // f-8b3fff18: the stagger stun lands now, so a staggered actor's pending cast ends before it can resolve.
+        nextState = RunWiring.StopCasts(nextState, enc.Staggered, emit);
         var nextEncounter = enc.Encounter;
         var activeScripts = run.ActiveScripts;
         if (layout is null)
