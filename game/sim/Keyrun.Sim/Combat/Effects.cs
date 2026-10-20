@@ -13,6 +13,16 @@ namespace Keyrun.Sim.Combat;
 public readonly record struct ModifierTotals(long DamageDoneBp, long DamageTakenBp, long HasteBp, long MovementBp);
 
 /// <summary>
+/// <c>{op:"damagePct", maxHealthBp, school}</c>: C#-only damage of a share of the TARGET's max health (BIBLE 9.3
+/// Searing Hex, "a magic burn of 25% of the target's max health over 6 s", as a periodic op of 500 bp every 24
+/// ticks). The amount is <see cref="Effects.PctOfMaxHealth"/>, then it runs through mitigation like a damage op. No
+/// oracle content carries it.
+/// </summary>
+/// <param name="MaxHealthBp">Share of the target's max health, bp.</param>
+/// <param name="School">School tag.</param>
+public sealed record DamagePctOp(long MaxHealthBp, string School) : EffectOp;
+
+/// <summary>
 /// Port of sim/combat/effects.ts: effect instance lifecycle (apply/refresh/stack, expiry, periodic ticks),
 /// modifier aggregation in basis points, and the absorb pool the damage pipeline consumes. Instances keep
 /// insertion order, which every iteration below relies on for determinism.
@@ -21,6 +31,16 @@ public static class Effects
 {
     /// <summary>Basis-point denominator (sim/combat/effects.ts:31 BP_DENOM).</summary>
     public const long BpDenom = 10000;
+
+    /// <summary>The <see cref="DamagePctOp"/> amount: floor(maxHealth * bp / 10000), never negative.</summary>
+    /// <param name="target">The actor hit.</param>
+    /// <param name="maxHealthBp">Share of its max health, bp.</param>
+    /// <returns>Raw damage.</returns>
+    public static long PctOfMaxHealth(ActorState target, long maxHealthBp)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return Math.Max(0, IntMath.FloorDiv(target.MaxHealth * maxHealthBp, BpDenom));
+    }
 
     /// <summary>
     /// sim/combat/effects.ts:33-55 applyEffectInstance. The same effect from the same source stacks (capped at

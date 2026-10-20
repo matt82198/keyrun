@@ -124,7 +124,7 @@ public static class Casting
         Cooldowns.StartGcd(actor, now, def.GcdTicks);
         actor.CastId = def.Id;
         actor.CastStartTick = now;
-        actor.CastEndsTick = now + ChilledCastTicks(actor, def.CastTicks, rule, ctx, now);
+        actor.CastEndsTick = now + HastedCastTicks(actor, def.CastTicks, rule, ctx, now);
         actor.CastIsOverheat = overheat;
         if (targetId is not null)
         {
@@ -141,19 +141,27 @@ public static class Casting
         ctx?.Overheat is { } rules && rules.TryGetValue(actor.ClassId, out var rule) ? rule : null;
 
     /// <summary>
-    /// BIBLE section 5 Chill, "slower casts": while the caster holds its rule's Chill, a cast takes
-    /// castTicks * 10000 / (10000 + hasteBp) ticks (floor; Chill's hasteBp -3000 makes 20 ticks 28). An instant cast
-    /// stays instant. No rule, no Chill, or a Chill with no haste penalty leaves the content cast time unchanged.
+    /// Cast time under haste: a cast takes castTicks * 10000 / (10000 + hasteBp) ticks (floor), hasteBp summed over the
+    /// caster's live effects. BIBLE section 5 Chill, "slower casts" (hasteBp -3000 makes 20 ticks 28), and BIBLE 9.3
+    /// Stoked, "20% cast speed" (hasteBp 2500 makes Stoke's 70 ticks 56, 2000 bp shorter). An instant cast stays
+    /// instant; no context, no haste, or a total at or below -10000 leaves the content cast time unchanged.
     /// </summary>
-    private static int ChilledCastTicks(ActorState actor, int castTicks, OverheatRule? rule, CastContext? ctx, int now)
+    private static int HastedCastTicks(ActorState actor, int castTicks, OverheatRule? rule, CastContext? ctx, int now)
     {
-        if (rule is null || ctx is null || castTicks <= 0 || !ctx.Effects.TryGetValue(rule.ChillEffectId, out var chill))
+        _ = rule;
+        if (ctx is null || castTicks <= 0)
         {
             return castTicks;
         }
-        var haste = chill.Modifiers.HasteBp ?? 0;
-        var chilled = actor.Effects.Exists(e => e.EffectId == rule.ChillEffectId && e.EndsTick > now);
-        if (!chilled || haste >= 0 || Effects.BpDenom + haste <= 0)
+        long haste = 0;
+        foreach (var inst in actor.Effects)
+        {
+            if (inst.EndsTick > now && ctx.Effects.TryGetValue(inst.EffectId, out var def))
+            {
+                haste += (def.Modifiers.HasteBp ?? 0) * inst.Stacks;
+            }
+        }
+        if (haste == 0 || Effects.BpDenom + haste <= 0)
         {
             return castTicks;
         }
@@ -282,6 +290,12 @@ public static class Casting
             {
                 case DamageOp d:
                     Mitigation.DealDamage(state.Tick, source, target, d.Amount, ctx.Effects, emit, source.Id, ctx.Hooks.Weighting);
+                    break;
+                case DamagePctOp p:
+                    Mitigation.DealDamage(state.Tick, source, target, Effects.PctOfMaxHealth(target, p.MaxHealthBp), ctx.Effects, emit, source.Id, ctx.Hooks.Weighting);
+                    break;
+                case PullOp pull:
+                    Movement.PullToward(target, source, pull.DistanceMm);
                     break;
                 case HealOp h:
                     Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
