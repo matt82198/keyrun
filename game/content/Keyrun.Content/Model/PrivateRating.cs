@@ -48,7 +48,9 @@ public static class PrivateRating
         {
             return 0;
         }
-        return 0; // RED stub: the fix commit scores the run
+        var window = Math.Max(1L, (long)run.ParTicks * WindowPercent / 100);
+        var under = Math.Clamp((long)run.ParTicks - run.ClearTicks, 0L, window);
+        return Base(run.KeyLevel) + (int)(under * PerLevel / window);
     }
 
     /// <summary>
@@ -122,7 +124,7 @@ public sealed class PrivateRecord
 
     /// <summary>The proof line the Screen prints about the rating: whether one is shown, never its value.</summary>
     /// <returns>"SCREEN rating private=1 shown=0|1".</returns>
-    public string LogLine() => "SCREEN rating " + ScreenText(); // RED stub: leaks the number into the shared log
+    public string LogLine() => "SCREEN rating private=1 shown=" + (Best.Count > 0 ? "1" : "0");
 
     /// <summary>The canonical version-1 JSON (bests in dungeon id order).</summary>
     /// <returns>The JSON text.</returns>
