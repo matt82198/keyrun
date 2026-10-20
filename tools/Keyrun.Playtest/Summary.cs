@@ -17,7 +17,7 @@ namespace Keyrun.Playtest;
 /// <param name="RunNumber">The playtester's run number, or null.</param>
 public sealed record SummaryHeader(string? PlayerId, string? PolicyPath, string LogPath, int KeyBefore, int KeyAfter, int? RunNumber);
 
-/// <summary>Writes summary.json (game/playtest/GUIDE.md "Reading the run summary" explains every field).</summary>
+/// <summary>Writes summary.json (tools/Keyrun.Playtest/GUIDE.md "Reading what happened" explains the fields).</summary>
 public static class Summary
 {
     /// <summary>Ticks per second (20 Hz).</summary>
@@ -123,6 +123,13 @@ public static class Summary
                 w.WriteEndObject();
             }
             w.WriteEndArray();
+
+            w.WriteStartObject("enemiesFought");
+            foreach (var (id, name) in stats.EnemiesFought)
+            {
+                w.WriteString(id, name);
+            }
+            w.WriteEndObject();
 
             w.WriteStartObject("damageTakenByEnemyAbility");
             foreach (var (ability, amount) in stats.DamageTakenByAbility.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal))

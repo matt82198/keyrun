@@ -13,7 +13,7 @@ namespace Keyrun.Playtest;
 public sealed record KickRule(string Cast, IReadOnlyList<string> Kickers);
 
 /// <summary>
-/// A playtester's plan for one run (game/playtest/GUIDE.md "The policy file"). The bots do only what the plan says:
+/// A playtester's plan for one run (tools/Keyrun.Playtest/GUIDE.md "The plan file"). The bots do only what the plan says:
 /// a field left out means the bots do not do that thing at all (no kicks, no dodging, no defensives, no utility), never
 /// that a hidden script fills it in. No policy file at all is the old scripted party, unchanged.
 /// </summary>

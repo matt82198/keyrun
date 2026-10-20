@@ -149,6 +149,8 @@ public sealed class RunStats
                 {
                     var target = I(e, "targetId");
                     var source = I(e, "sourceId");
+                    NoteFought(actors, source, target);
+                    NoteFought(actors, target, source);
                     if (!actors.TryGetValue(target, out var t) || t.Kind != ActorKind.Player)
                     {
                         break;
@@ -211,6 +213,19 @@ public sealed class RunStats
                     }
                     break;
             }
+        }
+    }
+
+    /// <summary>Enemy ids the party traded damage with, to their display names (the ids a plan's focus list takes).</summary>
+    public SortedDictionary<string, string> EnemiesFought { get; } = new(StringComparer.Ordinal);
+
+    // Records the enemy side of a damage event between an enemy and a player.
+    private void NoteFought(SortedDictionary<int, ActorState> actors, int enemyId, int playerId)
+    {
+        if (actors.TryGetValue(enemyId, out var en) && en.Kind == ActorKind.Enemy &&
+            actors.TryGetValue(playerId, out var pl) && pl.Kind == ActorKind.Player)
+        {
+            EnemiesFought[en.ClassId] = NameOf(en);
         }
     }
 
