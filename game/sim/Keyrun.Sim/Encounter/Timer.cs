@@ -6,7 +6,7 @@ namespace Keyrun.Sim.Encounter;
 /// <summary>How a run ended (sim/encounter/timer.ts:58 RunResult).</summary>
 public enum RunResult
 {
-    /// <summary>"timed": completed with Slack left.</summary>
+    /// <summary>"timed": completed no later than par plus the Slack left.</summary>
     Timed,
 
     /// <summary>"depleted": completed, but the Slack bank ran out.</summary>
@@ -70,13 +70,76 @@ public static class Timer
     /// <summary>timer.ts:54 isOverPar: strictly past par.</summary>
     public static bool IsOverPar(int runTimerTicks, EncounterState encounter) => runTimerTicks > encounter.ParTicks;
 
+    /// <summary>A timed run finishing within this share of par upgrades the key by +2 (BIBLE s8: "within 80% of par").</summary>
+    public const int UpgradeTwoParBp = 8000;
+
+    /// <summary>A timed run finishing within this share of par upgrades the key by +3 (BIBLE s8: "within 60% of par").</summary>
+    public const int UpgradeThreeParBp = 6000;
+
+    private const int ParBpDenom = 10000;
+
+    /// <summary>
+    /// The last tick a completed run can finish on and still be timed (BIBLE s8, M1 TIMER-TIERS): par plus the Slack
+    /// still left. Slack is grace on top of par, so every death or wipe it pays for pulls the deadline in.
+    /// </summary>
+    /// <param name="encounter">The encounter, for its par and its Slack left.</param>
+    /// <returns>The deadline tick (the run timer counts from tick 0).</returns>
+    public static long DeadlineTicks(EncounterState encounter)
+    {
+        ArgumentNullException.ThrowIfNull(encounter);
+        return (long)encounter.ParTicks + Math.Max(0, encounter.SlackTicks);
+    }
+
+    /// <summary>
+    /// True when a completed run finishing on <paramref name="finishTick"/> is timed: the bank never ran dry (a wipe
+    /// past its grace forces the depleted flag) and the finish is no later than <see cref="DeadlineTicks"/>.
+    /// </summary>
+    /// <param name="encounter">The encounter at the finish.</param>
+    /// <param name="finishTick">The finish tick, which is the run timer (both start at 0 and step together).</param>
+    /// <returns>True when timed.</returns>
+    public static bool IsTimed(EncounterState encounter, int finishTick)
+    {
+        ArgumentNullException.ThrowIfNull(encounter);
+        return !encounter.Depleted && finishTick <= DeadlineTicks(encounter);
+    }
+
+    /// <summary>
+    /// The key upgrade a finished run earns (BIBLE s8, Mythic+ upgrade tiers measured against par, never against par
+    /// plus Slack): 0 for a depleted or abandoned run (Matt 2026-10-20: an untimed key stays at its level), else +3
+    /// within <see cref="UpgradeThreeParBp"/> of par, +2 within <see cref="UpgradeTwoParBp"/>, and +1 otherwise.
+    /// </summary>
+    /// <param name="result">The run result.</param>
+    /// <param name="finishTick">The finish tick (the run timer).</param>
+    /// <param name="parTicks">Par.</param>
+    /// <returns>0, 1, 2 or 3.</returns>
+    public static int UpgradeTier(RunResult result, int finishTick, int parTicks)
+    {
+        if (result != RunResult.Timed)
+        {
+            return 0;
+        }
+        var scaled = (long)finishTick * ParBpDenom;
+        if (scaled <= (long)parTicks * UpgradeThreeParBp)
+        {
+            return 3;
+        }
+        return scaled <= (long)parTicks * UpgradeTwoParBp ? 2 : 1;
+    }
+
+    /// <summary>The key level after a run: <paramref name="keyLevel"/> raised by <see cref="UpgradeTier"/>, never lowered.</summary>
+    /// <param name="keyLevel">The key the run was played at.</param>
+    /// <param name="tier">The run's upgrade tier, 0-3.</param>
+    /// <returns>The next key level (the caller clamps to its band).</returns>
+    public static int NextKeyLevel(int keyLevel, int tier) => keyLevel + Math.Clamp(tier, 0, 3);
+
     /// <summary>
     /// timer.ts:61 finishRun: always emits <c>{tick, type:"finish", result}</c>; abandoned when not completed, else
-    /// depleted or timed by the bank.
+    /// timed when <see cref="IsTimed"/> (par plus the Slack left, M1 TIMER-TIERS) and depleted otherwise.
     /// </summary>
     public static RunResult FinishRun(EncounterState encounter, int tick, bool completed, Action<SimEvent> emit)
     {
-        var result = !completed ? RunResult.Abandoned : encounter.Depleted ? RunResult.Depleted : RunResult.Timed;
+        ArgumentNullException.ThrowIfNull(encounter);
+        var result = !completed ? RunResult.Abandoned : IsTimed(encounter, tick) ? RunResult.Timed : RunResult.Depleted;
         emit(new SimEvent(tick, "finish", ("result", JsValue.Str(result.ToJs()))));
         return result;
     }

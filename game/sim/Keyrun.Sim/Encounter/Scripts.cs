@@ -43,6 +43,32 @@ public static class Scripts
         }
     }
 
+    /// <summary>
+    /// SEED-PULL-TEACHES (C#-only, layout runs; STATE.md D27): <paramref name="step"/> on a clock that starts at
+    /// <paramref name="originTick"/>, the tick its pull started. A loop of period E fires at origin + k*E (k &gt;= 1),
+    /// a numeric <c>at</c> at origin + at (+ k*every); onDeath is unchanged, and origin 0 returns the step itself, so a
+    /// run whose pulls start at tick 0 schedules exactly as <see cref="FiresAt"/> always has. Without it a room-entry
+    /// pull runs on the run clock, and an elite could start its first slam a few ticks after it appeared, with that
+    /// slam's telegraph due before the elite existed.
+    /// </summary>
+    /// <param name="step">The content step (already Tempo-scaled).</param>
+    /// <param name="originTick">The pull's pull_start tick.</param>
+    /// <returns>The step scheduled from <paramref name="originTick"/>.</returns>
+    public static ScriptStep StartingAt(ScriptStep step, int originTick)
+    {
+        System.ArgumentNullException.ThrowIfNull(step);
+        if (originTick == 0)
+        {
+            return step;
+        }
+        return step.Trigger switch
+        {
+            StepTrigger.Loop when step.Every is { } every && every > 0 => step with { Trigger = StepTrigger.AtTick, AtTick = originTick + every },
+            StepTrigger.AtTick => step with { AtTick = originTick + step.AtTick },
+            _ => step,
+        };
+    }
+
     // scripts.ts:99 telegraphEventAt: {tick, type, actorId, cast, shape, leadTicks, resolvesTick, origin, yaw,
     // radius?, angle1024?, length?, width?}.
     private static SimEvent TelegraphEventAt(int tick, int actorId, ActorState actor, string cast, TelegraphSpec tg)
