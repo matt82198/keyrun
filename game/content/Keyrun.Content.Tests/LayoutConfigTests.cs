@@ -28,7 +28,8 @@ public sealed class LayoutConfigTests
             new[] { "entrance", "corridor-1", "choir-room", "corridor-2", "pair-hall", "corridor-3", "seed-chamber", "corridor-4", "warden-arena" },
             layout.Boxes.Select(b => b.Id).ToArray());
         Assert.Equal(new[] { "choir", "pair", "seed", "boss" }, layout.Boxes.Where(b => b.Pull is not null).Select(b => b.Pull!).ToArray());
-        Assert.Equal(new[] { "choir", "pair", "seed" }, layout.Boxes.Where(b => b.Gate is not null).Select(b => b.Gate!).ToArray());
+        // PATH-TO-BOSS (STATE.md D44): one open path to the boss; no corridor is walled until a pull clears.
+        Assert.DoesNotContain(layout.Boxes, b => b.Gate is not null);
         Assert.Equal(layout.Boxes.Count, layout.Route.Count);
         Assert.Contains(LayoutFile, ContentLoader.Files);
     }

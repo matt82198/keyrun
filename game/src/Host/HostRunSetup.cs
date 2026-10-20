@@ -134,7 +134,7 @@ public sealed record HostRunSetup(
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
 
         // Lane NAV-CORE (STATE.md D18): the dungeon's rooms and corridors. Pulls stand in their rooms, the party in the
-        // Entrance, and the sim spawns each pull on room entry and gates each corridor on the pull before it.
+        // Entrance; every pull stands idle from tick 0 and engages on its aggro ring, along one open path (STATE.md D44).
         var layout = registry.Layout;
         if (!string.Equals(layout.Dungeon, dungeonDef.Id, StringComparison.Ordinal))
         {

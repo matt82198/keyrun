@@ -87,7 +87,7 @@ public static class RunRoot
     /// layout group idle at creation, even with the party standing in the active pull's room outside its aggro ring, so a
     /// host that asks for a fight start engages the active pull here, exactly as an aggro-ring engage would (its actors
     /// stop being idle, <see cref="EncounterState.Engaged"/> records it, enemies target the tank). No event is emitted
-    /// (createRun has no event sink), and the room gate holds from the first step, as it did for a D27 creation spawn.
+    /// (createRun has no event sink).
     /// The input run is not modified. Unchanged for a run without a layout, a finished dungeon or an engaged pull.
     /// </summary>
     /// <param name="run">A freshly created run.</param>
@@ -209,9 +209,11 @@ public static class RunRoot
         nextState = RunWiring.MergeActors(nextState, echo.Spawned);
 
         RunWiring.FixupTargeting(nextState);
-        nextEncounter = RunWiring.ApplyDeathsAndWipe(nextState, nextEncounter, events, nextState.Tick, emit);
+        // PATH-TO-BOSS (STATE.md D44): an open (abandoned or unfilled) seat is not in the run, so it never holds a wipe open.
+        var openSeats = opts?.OpenSeats;
+        nextEncounter = RunWiring.ApplyDeathsAndWipe(nextState, nextEncounter, events, nextState.Tick, emit, openSeats);
 
-        var runEnd = RunWiring.CheckRunEnd(run.RunEnd, nextState, nextEncounter, run.Dungeon, nextState.Tick, opts?.AbandonRequested ?? false, emit);
+        var runEnd = RunWiring.CheckRunEnd(run.RunEnd, nextState, nextEncounter, run.Dungeon, nextState.Tick, opts?.AbandonRequested ?? false, emit, openSeats);
         if (runEnd.Result is RunResult result && run.RunEnd.Result is null)
         {
             if (result == RunResult.Depleted)
@@ -253,21 +255,14 @@ public static class RunRoot
 
     /// <summary>
     /// The layout rules after combat (STATE.md D18; no TS counterpart): (1) every actor that moved off the open boxes is
-    /// put back by <see cref="Movement.ClampToWalkable"/> against its pre-step position (a gated box opens on the tick its
-    /// pull clears) and, while the active pull is engaged, by its room's closed gate (STATE.md D27,
-    /// <see cref="NavLayout.GateClamp"/>; <c>gate_open {room}</c> on the tick the pull clears); (2) <c>room_enter</c> for
-    /// each living player that stepped into a room box; (3) PRESPAWN-AGGRO (BIBLE section 9.1): every group whose aggro
-    /// ring holds a living party member, or one of whose members took damage, engages (<see cref="Aggro"/>), and the
-    /// active pull's room gate shuts (<c>gate_closed {room}</c>) on its engage tick.
+    /// put back by <see cref="Movement.ClampToWalkable"/> against its pre-step position; no room gate holds anyone in or
+    /// out of an engaged room (PATH-TO-BOSS, STATE.md D44, which removed the D27 gate: the party walks one forward path
+    /// and the packs sit along it); (2) <c>room_enter</c> for each living player that stepped into a room box;
+    /// (3) PRESPAWN-AGGRO (BIBLE section 9.1): every group whose aggro ring holds a living party member, or one of whose
+    /// members took damage, engages (<see cref="Aggro"/>).
     /// </summary>
     private static (SimState State, EncounterState Encounter) StepLayout(NavLayout layout, Run run, SimState next, EncounterState encounter, Action<SimEvent> emit, IReadOnlyList<int>? openSeats)
     {
-        // ROOM-LOCK-IN (STATE.md D27): the active pull's room is gated from its engage until its pull_clear. The gate
-        // holds this tick when the pull was already engaged before the step and did not clear during it.
-        var priorIndex = run.Encounter.PullIndex;
-        var priorFought = Pulls.IsEngaged(run.Encounter, run.Dungeon, priorIndex);
-        var locked = priorFought && priorIndex == encounter.PullIndex ? layout.RoomFor(run.Dungeon.Pulls[priorIndex].Id) : null;
-
         var open = layout.OpenBoxes(run.Dungeon, encounter.PullIndex);
         foreach (var actor in next.Actors.Values)
         {
@@ -279,16 +274,6 @@ public static class RunRoot
             }
             var pre = run.State.Actors.TryGetValue(actor.Id, out var was) ? was.Pos : actor.Pos;
             actor.Pos = Movement.ClampToWalkable(pre, actor.Pos, open);
-            if (locked is not null)
-            {
-                actor.Pos = NavLayout.GateClamp(locked.Box, pre, actor.Pos);
-            }
-        }
-
-        if (priorFought && priorIndex != encounter.PullIndex && layout.RoomFor(run.Dungeon.Pulls[priorIndex].Id) is { } cleared)
-        {
-            // Stamped like the pull_clear it follows (the encounter step's tick).
-            emit(new SimEvent(run.State.Tick, "gate_open", ("room", JsValue.Str(cleared.Id))));
         }
 
         foreach (var actor in next.Actors.Values)
@@ -306,20 +291,9 @@ public static class RunRoot
             }
         }
 
-        var index = encounter.PullIndex;
-        var activeWasEngaged = Pulls.IsEngaged(encounter, run.Dungeon, index);
         var groups = Aggro.GroupsOf(run.Dungeon, next.Tick);
         var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);
-
-        // D27 at engage: the active pull's gate shuts on the tick it engages, or, for a pull engaged before it became the
-        // active one, on the tick it does.
-        var activeChanged = index != priorIndex;
-        if (index < run.Dungeon.Pulls.Count && Pulls.IsEngaged(encounter, run.Dungeon, index) && (!activeWasEngaged || activeChanged) &&
-            layout.RoomFor(run.Dungeon.Pulls[index].Id) is { } room)
-        {
-            emit(new SimEvent(next.Tick, "gate_closed", ("room", JsValue.Str(room.Id))));
-        }
         return (next, encounter);
     }
 }

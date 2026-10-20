@@ -201,15 +201,17 @@ public static class RunWiring
 
     /// <summary>
     /// run-wiring.ts:129 applyDeathsAndWipe: when this tick's events carry a player death, spends the death cost, plus
-    /// the wipe cost when every player is dead, forwarding <c>depleted</c> through <paramref name="emit"/>.
+    /// the wipe cost when the party has wiped (<see cref="IsWipe"/>), forwarding <c>depleted</c> through
+    /// <paramref name="emit"/>.
     /// </summary>
     /// <param name="state">The post-tick state.</param>
     /// <param name="encounter">The encounter state.</param>
     /// <param name="events">Every event of the tick so far.</param>
     /// <param name="tick">The post-step tick.</param>
     /// <param name="emit">Event sink.</param>
+    /// <param name="openSeats">Abandoned or unfilled seats' actor ids (<see cref="StepRunOpts.OpenSeats"/>), or null.</param>
     /// <returns>The encounter after Slack spend (itself when no player died).</returns>
-    public static EncounterState ApplyDeathsAndWipe(SimState state, EncounterState encounter, IReadOnlyList<SimEvent> events, int tick, Action<SimEvent> emit)
+    public static EncounterState ApplyDeathsAndWipe(SimState state, EncounterState encounter, IReadOnlyList<SimEvent> events, int tick, Action<SimEvent> emit, IReadOnlyList<int>? openSeats = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(encounter);
@@ -222,22 +224,45 @@ public static class RunWiring
             return encounter;
         }
         var next = Timer.SpendSlackOnDeath(encounter, tick, emit);
-        if (AllPlayersDead(state))
+        if (IsWipe(state, openSeats))
         {
             next = Timer.SpendSlackOnWipe(next, tick, emit);
         }
         return next;
     }
 
-    private static bool AllPlayersDead(SimState state)
+    /// <summary>
+    /// True when the party has wiped: the state holds at least one player and no living player who is actually in the
+    /// run remains (PATH-TO-BOSS, STATE.md D44; run-wiring.ts allPlayersDead when no seat is open). A seat in
+    /// <paramref name="openSeats"/> (abandoned, or unfilled while it waits for a joiner) is not in the run, so its idle
+    /// body never holds a dead party's run open, in or out of combat. It resolves like any full wipe (BIBLE s8: the
+    /// wipe Slack cost, then <see cref="WipeGraceTicks"/> and a depleted finish).
+    /// </summary>
+    /// <param name="state">The post-tick state.</param>
+    /// <param name="openSeats">Abandoned or unfilled seats' actor ids, or null (none open).</param>
+    /// <returns>True on a wipe.</returns>
+    public static bool IsWipe(SimState state, IReadOnlyList<int>? openSeats = null)
     {
-        var players = state.Actors.Values.Where(a => a.Kind == ActorKind.Player).ToList();
-        return players.Count > 0 && players.All(a => !a.Alive);
+        ArgumentNullException.ThrowIfNull(state);
+        var anyPlayer = false;
+        foreach (var a in state.Actors.Values)
+        {
+            if (a.Kind != ActorKind.Player)
+            {
+                continue;
+            }
+            anyPlayer = true;
+            if (a.Alive && (openSeats is null || !openSeats.Contains(a.Id)))
+            {
+                return false;
+            }
+        }
+        return anyPlayer;
     }
 
     /// <summary>
     /// run-wiring.ts:153 checkRunEnd: idempotent once ended. The run is complete when the pull index is past the last
-    /// pull (finish timed or depleted); an abandon request finishes it abandoned; a full wipe lasting
+    /// pull (finish timed or depleted); an abandon request finishes it abandoned; a wipe (<see cref="IsWipe"/>) lasting
     /// <see cref="WipeGraceTicks"/> finishes it with depleted forced. Each finish emits <c>finish</c>.
     /// </summary>
     /// <param name="prev">The previous terminal state.</param>
@@ -247,8 +272,9 @@ public static class RunWiring
     /// <param name="tick">The post-step tick.</param>
     /// <param name="abandonRequested">The host's abandon signal.</param>
     /// <param name="emit">Event sink.</param>
+    /// <param name="openSeats">Abandoned or unfilled seats' actor ids (<see cref="StepRunOpts.OpenSeats"/>), or null.</param>
     /// <returns>The next terminal state.</returns>
-    public static RunEndState CheckRunEnd(RunEndState prev, SimState state, EncounterState encounter, DungeonDef dungeon, int tick, bool abandonRequested, Action<SimEvent> emit)
+    public static RunEndState CheckRunEnd(RunEndState prev, SimState state, EncounterState encounter, DungeonDef dungeon, int tick, bool abandonRequested, Action<SimEvent> emit, IReadOnlyList<int>? openSeats = null)
     {
         ArgumentNullException.ThrowIfNull(prev);
         ArgumentNullException.ThrowIfNull(state);
@@ -266,7 +292,7 @@ public static class RunWiring
         {
             return new RunEndState(Timer.FinishRun(encounter, tick, false, emit), tick, prev.WipeStartTick);
         }
-        if (AllPlayersDead(state))
+        if (IsWipe(state, openSeats))
         {
             var wipeStart = prev.WipeStartTick ?? tick;
             if (tick - wipeStart >= WipeGraceTicks)

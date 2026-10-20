@@ -133,7 +133,7 @@ public sealed class NavLayoutRunTests
         Assert.DoesNotContain(s.Events, e => e.Type is "pull_start" or "gate_closed");
     }
 
-    [Fact(DisplayName = "Nav run: a host fight start (--pull N) engages the active pull at creation; the gate holds from the first step and the next pull stays idle")]
+    [Fact(DisplayName = "Nav run: a host fight start (--pull N) engages the active pull at creation; no gate holds the party and the next pull stays idle")]
     public void A_fight_start_engages_the_active_pull_at_creation()
     {
         // The party stands in room-1 but outside p1's aggro ring (the --pull N placement): nothing engages by itself.
@@ -148,14 +148,15 @@ public sealed class NavLayoutRunTests
         Assert.Equal(1, run.State.Actors[101].TargetId);
         Assert.True(run.State.Actors[201].Idle, "p2 engaged with p1");
 
-        // ROOM-LOCK-IN from the first step: walking west for 20 s never leaves room-1 while p1 lives.
+        // PATH-TO-BOSS (STATE.md D44): no gate from the first step; walking west leaves room-1 while p1 lives.
         for (var i = 0; i < 400; i++)
         {
             var s = Step(run, new MoveCommand(run.State.Tick, 1, new Dir2(-1000, 0), 0));
-            Assert.DoesNotContain(s.Events, e => e.Type == "pull_start");
+            Assert.DoesNotContain(s.Events, e => e.Type is "pull_start" or "gate_closed" or "gate_open");
             run = s.Run;
         }
-        Assert.Equal(Room1.MinX, run.State.Actors[1].Pos.X);
+        Assert.True(run.State.Actors[1].Pos.X < Room1.MinX, $"the fight start held the Warden in room-1: {run.State.Actors[1].Pos}");
+        Assert.True(run.State.Actors[101].Alive);
         Assert.True(run.State.Actors[201].Idle);
 
         // Idempotent, and inert without a layout (every oracle run).

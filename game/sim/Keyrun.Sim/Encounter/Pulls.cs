@@ -201,12 +201,13 @@ public static class Pulls
 /// <param name="Id">Box id; a room's id is what <c>room_enter</c> names.</param>
 /// <param name="Box">The box, mm.</param>
 /// <param name="IsRoom">True for a room (entering it emits <c>room_enter</c>), false for a corridor.</param>
-/// <param name="GatePullId">The pull whose clear opens this box (forward-only), or null = always open.</param>
+/// <param name="GatePullId">The pull whose clear opens this box, or null = always open. The shipped layout gates no box
+/// (PATH-TO-BOSS, STATE.md D44: one open path to the boss); the rule stays for a layout that asks for it.</param>
 public sealed record NavBox(string Id, Combat.Bounds Box, bool IsRoom, string? GatePullId);
 
 /// <summary>
-/// A pull's room-entry trigger. Since STATE.md D27 it names the pull's room (the room box holding <paramref name="Box"/>,
-/// <see cref="NavLayout.RoomFor"/>); the pull spawns the first tick every living party member stands in that room box.
+/// A pull's trigger box. It names the pull's room (the room box holding <paramref name="Box"/>, <see cref="NavLayout.RoomFor"/>);
+/// since PRESPAWN-AGGRO the pull engages on its aggro ring, not on this box, and since STATE.md D44 no gate shuts on it.
 /// </summary>
 /// <param name="PullId">The pull id.</param>
 /// <param name="Box">The trigger box, mm.</param>
@@ -215,8 +216,8 @@ public sealed record NavTrigger(string PullId, Combat.Bounds Box);
 /// <summary>
 /// The rooms-and-corridors layout a host arms a run with (<see cref="Runs.RunContent.Layout"/>; STATE.md D18,
 /// design/ART-PLAN.md section 3). New behaviour with no TS oracle: a run without a layout (every oracle run) never reads
-/// it. Walkable space is the open boxes; a pull spawns on room entry, never on the previous clear; a gated box opens
-/// when its pull clears.
+/// it. Walkable space is the open boxes (a gated box, which the shipped layout no longer has, opens when its pull
+/// clears); every pull stands idle from tick 0 and engages on its aggro ring (PRESPAWN-AGGRO), never on the previous clear.
 /// </summary>
 public sealed record NavLayout
 {
@@ -280,25 +281,6 @@ public sealed record NavLayout
             b.Box.MinX <= t.MinX && t.MaxX <= b.Box.MaxX && b.Box.MinZ <= t.MinZ && t.MaxZ <= b.Box.MaxZ);
     }
 
-    /// <summary>
-    /// The closed entry gate of <paramref name="room"/> (STATE.md D27; integers, no randomness): an actor that stood
-    /// inside the room box before the move stays inside it (its move is clamped to the room edge), an actor that stood
-    /// outside cannot step into it (its move is refused, it stays at <paramref name="pre"/>); any other move is kept.
-    /// </summary>
-    /// <param name="room">The locked room box.</param>
-    /// <param name="pre">The actor's position before the move.</param>
-    /// <param name="post">The position the move reached (already walkable-clamped).</param>
-    /// <returns>The gated position.</returns>
-    public static Vec3 GateClamp(Combat.Bounds room, Vec3 pre, Vec3 post)
-    {
-        var wasIn = Combat.Movement.Contains(room, pre);
-        var isIn = Combat.Movement.Contains(room, post);
-        if (wasIn && !isIn)
-        {
-            return Combat.Movement.ClampPoint(post, room);
-        }
-        return !wasIn && isIn ? pre : post;
-    }
 
     /// <summary>The highest-index box holding <paramref name="p"/> (open or not), or -1 when none does.</summary>
     public int BoxIndexAt(Vec3 p)

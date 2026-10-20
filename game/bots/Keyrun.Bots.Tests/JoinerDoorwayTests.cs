@@ -16,10 +16,10 @@ using SimDungeon = Keyrun.Sim.Encounter.DungeonDef;
 namespace Keyrun.Bots.Tests;
 
 /// <summary>
-/// JOINER-DOORWAY (STATE.md D27; design/BIBLE.md sections 4 and 10). <see cref="BackfillGateTests"/>' run, driven to its
-/// end instead of stopping just after pair-hall's <c>gate_open</c>: seat 2 is abandoned in the Choir, refilled on the
-/// tick pair-hall's gate shuts, waits outside it, then follows the party through every later doorway. A room entry is
-/// one event: the joiner (and every seat) emits <c>room_enter</c> once per room, never flickering across a doorway.
+/// JOINER-DOORWAY (design/BIBLE.md sections 4 and 10; the room gate of STATE.md D27 is gone since D44). A backfill run
+/// driven to its end: seat 2 is abandoned in the Choir, refilled when pair-hall engages, walks in to the party, then
+/// follows it through every later doorway. A room entry is one event: the joiner (and every seat) emits
+/// <c>room_enter</c> once per room, never flickering across a doorway.
 /// </summary>
 public sealed class JoinerDoorwayTests
 {
@@ -27,8 +27,8 @@ public sealed class JoinerDoorwayTests
     private const int LeaderId = 1;
     private const int JoinerId = 2;
     private const int MaxTicks = 12000;
-    // Scenario setup, not an assertion. 1500 -> 1000 (prespawn aggro), the same drive as BackfillGateTests (see the
-    // reason there): the healerless Warden died at 1273 in the Pair, so nobody led the joiner on.
+    // Scenario setup, not an assertion. 1500 -> 1000 (prespawn aggro): the healerless Warden died at 1273 in the Pair,
+    // so nobody led the joiner on.
     private const int HealthCap = 1000;
     private const string GatedRoom = "pair-hall";
 
@@ -78,7 +78,7 @@ public sealed class JoinerDoorwayTests
             var tick = run.State.Tick;
             if (!abandoned && run.Encounter.PullIndex == 0 && run.State.Actors.Values.Count(a => a.Alive && a.Kind == ActorKind.Enemy && !a.Idle) == 1)
             {
-                // As in BackfillGateTests: seat 2 leaves as the Choir's last enemy is fought.
+                // Seat 2 leaves as the Choir's last enemy is fought.
                 book = Backfill.Abandon(book, run, JoinerId);
                 abandoned = true;
             }

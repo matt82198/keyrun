@@ -101,8 +101,6 @@ public static class Bot
         // (the reaction delay would leave it a third of the leader's speed), and skips its role. In a fight it started
         // outside the fight's room, it walks in the same way while its role still decides (its casts are kept, its own
         // moves dropped). A dodge or a ping reaction wins over both. Inert in the oracle runner: its view carries no layout.
-        // Shut out of the party's locked room (BACKFILL-GATE, Follow.ShutRoom), its role's moves stay dropped while it
-        // waits at the gate, so nothing presses into the gate clamp.
         // KF2 (BOTS-ENGAGE-CHOIR): a bot in the leader seat walks the route between fights, so a party with no human
         // leading reaches the next pull instead of idling at the Entrance. Skill-dial-free like the follow walk.
         var lead = avoid is null && !pingCommands.Any() ? Follow.LeadCommand(view, self) : null;
@@ -113,7 +111,7 @@ public static class Bot
         }
 
         var follow = avoid is null && !pingCommands.Any() ? Follow.FollowCommand(view, self) : null;
-        var travelling = follow is not null || (avoid is null && !pingCommands.Any() && Follow.ShutRoom(view, self) is not null);
+        var travelling = follow is not null;
         if (follow is not null)
         {
             commands.Add(follow);

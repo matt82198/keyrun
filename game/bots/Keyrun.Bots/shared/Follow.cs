@@ -118,12 +118,10 @@ public static class Follow
     }
 
     /// <summary>
-    /// The party's leader: the player actor in the lowest seat, alive or dead (the human seat is actor 1), the same seat
-    /// <see cref="LeadCommand"/> leads from. A leader's death never hands the lead to the next living seat, because that
-    /// seat walks no route (LeadCommand keeps the dead seat): with the living-only rule a fallen leader left a living bot
-    /// as a leader that never moved, so a joiner refilled outside the party's locked room (BACKFILL-GATE) never walked in
-    /// after <c>gate_open</c> (BIBLE sections 1 and 10: backfill instead of abandonment). The party regroups on the
-    /// fallen leader's body instead. Null when no player lives.
+    /// The party's leader (PATH-TO-BOSS, STATE.md D44): the LIVING player actor in the lowest seat (the human seat is
+    /// actor 1), the same seat <see cref="LeadCommand"/> leads from. A dead leader passes the lead on: the next living
+    /// seat walks the path (LeadCommand) and the other bots follow it, so a fallen tank never strands the party on his
+    /// body. Null when no player lives.
     /// </summary>
     /// <param name="state">The state.</param>
     /// <returns>The leader, or null when no player lives.</returns>
@@ -131,20 +129,14 @@ public static class Follow
     {
         ArgumentNullException.ThrowIfNull(state);
         ActorState? best = null;
-        var anyAlive = false;
         foreach (var a in state.Actors.Values)
         {
-            if (a.Kind != ActorKind.Player)
-            {
-                continue;
-            }
-            anyAlive |= a.Alive;
-            if (best is null || a.Id < best.Id)
+            if (a.Kind == ActorKind.Player && a.Alive && (best is null || a.Id < best.Id))
             {
                 best = a;
             }
         }
-        return anyAlive ? best : null;
+        return best;
     }
 
     /// <summary>
@@ -189,7 +181,8 @@ public static class Follow
     /// <summary>
     /// A forward step along the route: inside box k (the highest box holding the walker) walk at route point k, so the
     /// walker crosses each room (and its trigger) to the next doorway and ends at the last box's goal point. Null at the
-    /// goal. A gate that is still closed simply holds the walker at the doorway (the sim clamps the move).
+    /// goal. The path is open to the boss (STATE.md D44): the packs along it, not gates, stop the walker, because walking
+    /// into a pack's aggro ring starts a fight and the roles take over.
     /// </summary>
     /// <param name="tick">Command tick.</param>
     /// <param name="self">The walker.</param>
@@ -250,8 +243,8 @@ public static class Follow
 
     /// <summary>
     /// The leader seat's travel when that seat is a bot (KF2, BOTS-ENGAGE-CHOIR): on a layout run, while no engaged enemy
-    /// lives (PRESPAWN-AGGRO: an idle prespawned group is not a fight), the bot in the party's lowest player seat (alive
-    /// or dead, so a human leader's death never hands the lead to a bot) walks the route like the scripted leader
+    /// lives (PRESPAWN-AGGRO: an idle prespawned group is not a fight), the bot in the party's lowest LIVING player seat
+    /// (<see cref="Leader"/>; a dead human leader passes the lead to it, STATE.md D44) walks the route like the scripted leader
     /// (<see cref="LeadRoute"/>): in a pull room whose pull has not engaged (every enemy standing in that room is alive
     /// and idle) while a living party member is still outside the room, it walks to <see cref="HoldPoint"/> (outside the
     /// pull's aggro ring) and waits there for the party; once the party is in, and anywhere else, it walks the route
@@ -270,8 +263,7 @@ public static class Follow
         {
             return null;
         }
-        var seat = view.State.Actors.Values.Where(a => a.Kind == ActorKind.Player).Select(a => a.Id).DefaultIfEmpty(-1).Min();
-        if (seat != self.Id)
+        if (Leader(view.State)?.Id != self.Id)
         {
             return null;
         }
@@ -342,7 +334,7 @@ public static class Follow
 
     /// <summary>
     /// The bot's travel move on a layout run (<see cref="BotView.Layout"/>) with the content formation in the view and a
-    /// leader (<see cref="Leader"/>, alive or dead) other than the bot: a walk along the route to its formation slot
+    /// living leader (<see cref="Leader"/>, the lowest living seat) other than the bot: a walk along the route to its formation slot
     /// behind the leader while no enemy lives; during a fight with the leader in a room, a walk to its slot pulled <see cref="FightGoalInsetMm"/> inside
     /// that room while the bot stands outside the room shrunk by <see cref="FightInsetMm"/> (still in the corridor or the
     /// doorway, KF2c), and with the leader in no room only while the bot shares no box with him. A bot already in the
@@ -364,11 +356,6 @@ public static class Follow
         if (Leader(view.State) is not { } leader || leader.Id == self.Id)
         {
             return null;
-        }
-        if (ShutRoom(view, self) is { } shut)
-        {
-            // BACKFILL-GATE (STATE.md D27): the party is locked in behind a shut gate; wait outside it, never press it.
-            return WalkTo(view.State.Tick, self, layout, GateWaitPoint(layout, shut, self.Pos));
         }
         if (SlotFor(layout, content.Formation, leader, self.ClassId) is not { } slot)
         {
@@ -397,70 +384,6 @@ public static class Follow
             return WalkTo(view.State.Tick, self, layout, Movement.ClampPoint(slot, Inset(leaderRoom.Box, FightInsetMm)));
         }
         return WalkTo(view.State.Tick, self, layout, slot);
-    }
-
-    /// <summary>
-    /// How far outside a shut room a bot waits (BACKFILL-GATE), mm: the room's doorway route point, which stands 500 mm
-    /// inside the room box, moved this far back along the route, so the wait point is 2000 mm clear of the room wall
-    /// (still in the 8000 mm corridor on layout.json) and an arrival within <see cref="ArriveMm"/> never touches the gate.
-    /// </summary>
-    public const long GateWaitMm = 2500;
-
-    /// <summary>
-    /// The room whose gate shuts <paramref name="self"/> out (STATE.md D27, BACKFILL-GATE): on a layout run, while an
-    /// enemy lives and the leader (not the bot) stands in a room box, a bot outside that box is outside a shut gate. A
-    /// layout pull spawns only with every living player inside its room (ROOM-LOCK-IN) and <see cref="NavLayout.GateClamp"/>
-    /// keeps outside actors out until <c>gate_open</c> (with the <c>pull_clear</c>, after which no enemy lives), so the
-    /// bot outside is one whose seat was refilled while the party was locked in. Null otherwise; inert without a layout.
-    /// </summary>
-    /// <param name="view">This tick's view.</param>
-    /// <param name="self">The bot.</param>
-    /// <returns>The shut room, or null.</returns>
-    public static NavBox? ShutRoom(BotView view, ActorState self)
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(self);
-        if (view.Layout is not { } layout || Leader(view.State) is not { } leader || leader.Id == self.Id || !AnyLivingEnemy(view.State))
-        {
-            return null;
-        }
-        return RoomAt(layout, leader.Pos) is { } room && !Movement.Contains(room.Box, self.Pos) ? room : null;
-    }
-
-    /// <summary>
-    /// Where a bot shut out of <paramref name="room"/> (box k) waits, on its own side: behind the room, the entry doorway
-    /// (route point k-1) moved <see cref="GateWaitMm"/> toward route point k-2 (for k = 1, straight away from route point
-    /// k); ahead of it, the exit doorway (route point k) moved toward route point k+1. Integers only.
-    /// </summary>
-    /// <param name="layout">The layout.</param>
-    /// <param name="room">The shut room.</param>
-    /// <param name="from">The bot's position.</param>
-    /// <returns>The wait point.</returns>
-    public static Vec3 GateWaitPoint(NavLayout layout, NavBox room, Vec3 from)
-    {
-        ArgumentNullException.ThrowIfNull(layout);
-        ArgumentNullException.ThrowIfNull(room);
-        var k = -1;
-        for (var i = 0; i < layout.Boxes.Count && k < 0; i++)
-        {
-            k = string.Equals(layout.Boxes[i].Id, room.Id, StringComparison.Ordinal) ? i : -1;
-        }
-        var (low, _) = Span(layout, from);
-        if (k > 0 && low < k)
-        {
-            var door = layout.Route[k - 1];
-            var away = k >= 2 ? layout.Route[k - 2] : new Vec3((2 * door.X) - layout.Route[k].X, door.Y, (2 * door.Z) - layout.Route[k].Z);
-            return Toward(door, away, GateWaitMm);
-        }
-        return k >= 0 && k + 1 < layout.Route.Count ? Toward(layout.Route[k], layout.Route[k + 1], GateWaitMm) : from;
-    }
-
-    private static Vec3 Toward(Vec3 from, Vec3 to, long mm)
-    {
-        var dx = to.X - from.X;
-        var dz = to.Z - from.Z;
-        var length = Movement.Isqrt((dx * dx) + (dz * dz));
-        return length <= mm ? to : new Vec3(from.X + IntMath.TruncDiv(dx * mm, length), from.Y, from.Z + IntMath.TruncDiv(dz * mm, length));
     }
 
     /// <summary>

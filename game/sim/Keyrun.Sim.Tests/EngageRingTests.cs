@@ -10,16 +10,15 @@ using Xunit;
 namespace Keyrun.Sim.Tests;
 
 /// <summary>
-/// ROOM-LOCK-IN (keyrun STATE.md D27; design/BIBLE.md sections 4 and 9.1), re-derived for PRESPAWN-AGGRO (BIBLE section
-/// 9.1, "everything is prespawned with an aggro distance"; "room lock-in moves to engage"): on a layout run every pull's
-/// enemies stand idle in their room from tick 0. A pull engages (<c>pull_start</c>) on the first tick a LIVING party
-/// member stands inside its aggro ring (<see cref="Pulls.DefaultAggroMm"/> around <see cref="Pulls.RingCenter"/>), or
-/// when one of its enemies takes damage; walking into its room is not enough. On that tick the room's entry gate closes
-/// (<c>gate_closed {room}</c>): an actor inside the room box cannot leave it and an actor outside cannot enter it. It
-/// reopens on the pull's <c>pull_clear</c> (<c>gate_open {room}</c>). An idle enemy deals no damage and is never
-/// auto-targeted. A dead member never engages anything.
+/// ENGAGE-RING (PRESPAWN-AGGRO, design/BIBLE.md section 9.1, "everything is prespawned with an aggro distance"; was
+/// ROOM-LOCK-IN, STATE.md D27, whose room gate PATH-TO-BOSS removed, STATE.md D44): on a layout run every pull's enemies
+/// stand idle in their room from tick 0. A pull engages (<c>pull_start</c>) on the first tick a LIVING party member
+/// stands inside its aggro ring (<see cref="Pulls.DefaultAggroMm"/> around <see cref="Pulls.RingCenter"/>), or when one
+/// of its enemies takes damage; walking into its room is not enough. No gate shuts on the engage: the party can leave the
+/// room mid-fight and nobody is held out of it. An idle enemy deals no damage and is never auto-targeted. A dead member
+/// never engages anything.
 /// </summary>
-public sealed class RoomLockInTests
+public sealed class EngageRingTests
 {
     private static readonly Bounds Entrance = new(-5000, 5000, -5000, 5000);
     private static readonly Bounds Corridor1 = new(4000, 12000, -1000, 1000);
@@ -41,7 +40,7 @@ public sealed class RoomLockInTests
             new NavBox("entrance", Entrance, true, null),
             new NavBox("corridor-1", Corridor1, false, null),
             new NavBox("room-1", Room1, true, null),
-            new NavBox("corridor-2", Corridor2, false, "p1"),
+            new NavBox("corridor-2", Corridor2, false, null),
             new NavBox("room-2", Room2, true, null),
         },
         new[] { new NavTrigger("p1", Trigger1), new NavTrigger("p2", Trigger2) },
@@ -121,7 +120,7 @@ public sealed class RoomLockInTests
         throw new InvalidOperationException("p1 never engaged");
     }
 
-    [Fact(DisplayName = "Room lock-in (a): a party standing in the room but outside the aggro ring engages nothing (no spawn on room entry)")]
+    [Fact(DisplayName = "Engage ring (a): a party standing in the room but outside the aggro ring engages nothing (no spawn on room entry)")]
     public void Entering_the_room_engages_nothing()
     {
         var (run, events) = BothInsideShortOfTheRing(CreateTwo());
@@ -134,7 +133,7 @@ public sealed class RoomLockInTests
         Assert.True(Movement.Contains(Room1, run.State.Actors[1].Pos), $"the Warden should stand inside room-1, at {run.State.Actors[1].Pos}");
         Assert.True(Movement.Contains(Room1, run.State.Actors[2].Pos), $"the Chanter should stand inside room-1, at {run.State.Actors[2].Pos}");
         Assert.Contains(events, e => e.Type == "room_enter" && Room(e) == "room-1");
-        Assert.DoesNotContain(events, e => e.Type is "pull_start" or "gate_closed" or "pull_clear");
+        Assert.DoesNotContain(events, e => e.Type is "pull_start" or "pull_clear");
         var enemy = run.State.Actors[101];
         Assert.True(enemy.Idle, "p1 engaged with nobody in its aggro ring");
         Assert.Equal(new Vec3(22000, 0, 2000), enemy.Pos);
@@ -142,7 +141,7 @@ public sealed class RoomLockInTests
         Assert.Equal(0, run.Encounter.PullIndex);
     }
 
-    [Fact(DisplayName = "Room lock-in (b): the pull engages and the gate closes on the tick the first living member reaches the aggro ring")]
+    [Fact(DisplayName = "Engage ring (b): the pull engages on the tick the first living member reaches the aggro ring, and no gate shuts")]
     public void The_pull_engages_on_the_tick_a_member_reaches_the_ring()
     {
         var run = BothInsideShortOfTheRing(CreateTwo()).Run;
@@ -160,9 +159,7 @@ public sealed class RoomLockInTests
                 var start = Assert.Single(s.Events, e => e.Type == "pull_start");
                 Assert.Equal("p1", ((JsString)start.Get("pullId")!).Value);
                 Assert.Equal(startTick, start.Tick);
-                var gate = Assert.Single(s.Events, e => e.Type == "gate_closed");
-                Assert.Equal("room-1", Room(gate));
-                Assert.Equal(startTick, gate.Tick);
+                Assert.DoesNotContain(s.Events, e => e.Type is "gate_closed" or "gate_open");
                 Assert.False(s.Run.State.Actors[101].Idle);
                 Assert.True(s.Run.State.Actors[201].Idle, "p2 engaged with p1");
                 Assert.Equal(new[] { "p1" }, s.Run.Encounter.Engaged);
@@ -176,7 +173,7 @@ public sealed class RoomLockInTests
         Assert.NotNull(startTick);
     }
 
-    [Fact(DisplayName = "Room lock-in (c): an idle pull's enemies deal no damage and are never auto-targeted; damage engages the whole group")]
+    [Fact(DisplayName = "Engage ring (c): an idle pull's enemies deal no damage and are never auto-targeted; damage engages the whole group")]
     public void Idle_enemies_are_inert_until_damage_engages_the_group()
     {
         var dungeon = new DungeonDef("nav", new[]
@@ -216,54 +213,34 @@ public sealed class RoomLockInTests
         Assert.Null(hit.Run.State.Actors[201].TargetId);
     }
 
-    [Fact(DisplayName = "Room lock-in (d): the gate holds the party in the room from the engage to pull_clear, then opens")]
-    public void The_gate_holds_the_party_in_until_pull_clear()
+    [Fact(DisplayName = "Engage ring (d): no gate holds the party in an engaged room, and no gate event fires through the clear")]
+    public void No_gate_holds_the_party_in_an_engaged_room()
     {
-        var run = WardenEngages(BothInsideShortOfTheRing(CreateTwo()).Run).Run;
+        var engaged = WardenEngages(BothInsideShortOfTheRing(CreateTwo()).Run);
+        var run = engaged.Run;
+        var events = engaged.Events.ToList();
         Assert.False(run.State.Actors[101].Idle);
 
-        // Both walk west for longer than it takes to reach the Entrance: the gate keeps them in room-1.
-        for (var i = 0; i < 400; i++)
+        // Both walk west mid-fight: nothing holds them in room-1 (PATH-TO-BOSS, STATE.md D44).
+        for (var i = 0; i < 200 && (Movement.Contains(Room1, run.State.Actors[1].Pos) || Movement.Contains(Room1, run.State.Actors[2].Pos)); i++)
         {
-            run = Step(run, West(run.State.Tick, 1), West(run.State.Tick, 2)).Run;
-            Assert.True(Movement.Contains(Room1, run.State.Actors[1].Pos), $"the Warden left the locked room: {run.State.Actors[1].Pos}");
-            Assert.True(Movement.Contains(Room1, run.State.Actors[2].Pos), $"the Chanter left the locked room: {run.State.Actors[2].Pos}");
+            var s = Step(run, West(run.State.Tick, 1), West(run.State.Tick, 2));
+            events.AddRange(s.Events);
+            run = s.Run;
         }
-        // The front walker stands on the room edge (the other is held behind it by actor spacing).
-        Assert.Equal(Room1.MinX, Math.Min(run.State.Actors[1].Pos.X, run.State.Actors[2].Pos.X));
+        Assert.False(Movement.Contains(Room1, run.State.Actors[1].Pos), $"the Warden is held in the engaged room: {run.State.Actors[1].Pos}");
+        Assert.False(Movement.Contains(Room1, run.State.Actors[2].Pos), $"the Chanter is held in the engaged room: {run.State.Actors[2].Pos}");
+        Assert.False(run.State.Actors[101].Idle);
 
         var killed = Step(run, new CastCommand(run.State.Tick, 1, "nuke", 101));
         var cleared = Step(killed.Run);
-        var clearEvents = killed.Events.Concat(cleared.Events).ToList();
-        Assert.Contains(clearEvents, e => e.Type == "pull_clear");
-        var open = Assert.Single(clearEvents, e => e.Type == "gate_open");
-        Assert.Equal("room-1", Room(open));
-        Assert.Equal(clearEvents.First(e => e.Type == "pull_clear").Tick, open.Tick);
-
-        run = cleared.Run;
-        for (var i = 0; i < 100; i++)
-        {
-            run = Step(run, West(run.State.Tick, 1)).Run;
-        }
-        Assert.True(run.State.Actors[1].Pos.X < Room1.MinX, $"the gate should be open after pull_clear: {run.State.Actors[1].Pos}");
+        events.AddRange(killed.Events);
+        events.AddRange(cleared.Events);
+        Assert.Contains(events, e => e.Type == "pull_clear");
+        Assert.DoesNotContain(events, e => e.Type is "gate_closed" or "gate_open");
     }
 
-    [Fact(DisplayName = "Room lock-in (d): a closed gate keeps an outside actor out and an inside actor in")]
-    public void The_gate_rule_blocks_both_directions()
-    {
-        // Outside to inside: the move is refused (the actor stays where it was).
-        var outside = new Vec3(10500, 0, 0);
-        Assert.Equal(outside, NavLayout.GateClamp(Room1, outside, new Vec3(11500, 0, 0)));
-
-        // Inside to outside: the actor stops on the room edge.
-        Assert.Equal(new Vec3(11000, 0, 200), NavLayout.GateClamp(Room1, new Vec3(11400, 0, 0), new Vec3(10600, 0, 200)));
-
-        // Moves that keep their side are untouched.
-        Assert.Equal(new Vec3(12000, 0, 0), NavLayout.GateClamp(Room1, new Vec3(11400, 0, 0), new Vec3(12000, 0, 0)));
-        Assert.Equal(new Vec3(9000, 0, 0), NavLayout.GateClamp(Room1, new Vec3(10000, 0, 0), new Vec3(9000, 0, 0)));
-    }
-
-    [Fact(DisplayName = "Room lock-in (e): a dead member standing inside the aggro ring engages nothing")]
+    [Fact(DisplayName = "Engage ring (e): a dead member standing inside the aggro ring engages nothing")]
     public void A_dead_member_in_the_ring_engages_nothing()
     {
         var run = RunRoot.CreateRun(
@@ -281,13 +258,13 @@ public sealed class RoomLockInTests
         for (var i = 0; i < 50; i++)
         {
             var s = Step(run);
-            Assert.DoesNotContain(s.Events, e => e.Type is "pull_start" or "gate_closed");
+            Assert.DoesNotContain(s.Events, e => e.Type == "pull_start");
             run = s.Run;
         }
         Assert.True(run.State.Actors[101].Idle);
     }
 
-    [Fact(DisplayName = "Room lock-in (f): a linked group engages on the tick the group it is linked to engages")]
+    [Fact(DisplayName = "Engage ring (f): a linked group engages on the tick the group it is linked to engages")]
     public void A_linked_group_engages_with_its_link()
     {
         var run = CreateTwo(Dungeon(health: 5000, p2Links: new[] { "p1" }));
@@ -297,12 +274,10 @@ public sealed class RoomLockInTests
         Assert.False(hit.Run.State.Actors[101].Idle);
         Assert.False(hit.Run.State.Actors[201].Idle);
         Assert.Equal(new[] { "p1", "p2" }, hit.Run.Encounter.Engaged);
-        // Only the active pull's room shuts.
-        var gate = Assert.Single(hit.Events, e => e.Type == "gate_closed");
-        Assert.Equal("room-1", Room(gate));
+        Assert.DoesNotContain(hit.Events, e => e.Type is "gate_closed" or "gate_open");
     }
 
-    [Fact(DisplayName = "Room lock-in: a party with no living member engages no pull")]
+    [Fact(DisplayName = "Engage ring: a party with no living member engages no pull")]
     public void A_dead_party_starts_no_pull()
     {
         var run = CreateTwo();
@@ -314,12 +289,12 @@ public sealed class RoomLockInTests
         for (var i = 0; i < 50; i++)
         {
             var s = Step(run);
-            Assert.DoesNotContain(s.Events, e => e.Type is "pull_start" or "gate_closed");
+            Assert.DoesNotContain(s.Events, e => e.Type == "pull_start");
             run = s.Run;
         }
     }
 
-    [Fact(DisplayName = "Room lock-in: every trigger lies in a room box, and RoomFor names it")]
+    [Fact(DisplayName = "Engage ring: every trigger lies in a room box, and RoomFor names it")]
     public void RoomFor_names_the_room_holding_the_trigger()
     {
         var layout = Layout();

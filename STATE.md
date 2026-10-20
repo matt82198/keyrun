@@ -723,6 +723,23 @@ Additional parked decisions (from the burn ledger):
   party toward the idle group GROUP until that group engages, and the sim's own aggro and targeting rules do the rest.
   Run C runs with `--careless-seat 3@300:pair`. Why: the bot-damage check proves a real path (a bot pulls, the pack it
   pulled goes for it), not a scripted one.
+- D44 **PATH-TO-BOSS: no gates; one forward path to the boss with prespawned packs; a run wipes when no living seated
+  player remains; bots follow the lowest living seat** (Matt 2026-10-21, verbatim: "no more gates, just path to boss
+  with packs as you said, make the rest of the decisions and we will tune later" and "just build the game"; earlier
+  "everything should be prespawned with an aggro distance" and "honestly just lean into m+ design heavily while in the
+  dungeon"; PR #308, folds PR #359; supersedes D27's gate and D18's gated corridors; reversible, every rule is code or
+  data and can be retuned). (1) Gates removed: no room gate shuts on an engage (no `gate_closed`/`gate_open`, no clamp,
+  no gate view or cut-away) and layout.json gates no corridor, so nothing walls the party in, out or forward. The
+  layout is one chain of rooms and corridors, so the flow is forward by layout; each pack stands idle on that path and
+  engages on its aggro ring (PRESPAWN-AGGRO), and a run completes only when every pull is cleared (the pull index), so
+  skipping is a pull you still owe, M+ style. (2) Wipe rule: a run wipes when no living player who is actually in the
+  run remains (`RunWiring.IsWipe`); an abandoned or unfilled seat (`StepRunOpts.OpenSeats`) never holds a dead party's
+  run open, in or out of combat; the wipe pays the wipe Slack on the last seated death, then 100 ticks of grace and a
+  depleted finish, as before. (3) Leader: bots follow the lowest-seat LIVING player (`Follow.Leader`), and that seat
+  leads the path when it is a bot (`Follow.LeadCommand`), so a dead leader passes the lead on; this replaces the
+  alive-or-dead rule from 53244968, which only existed to get a joiner past a shut gate. Why: Matt ruled out gates;
+  with packs prespawned on the path a gate only added stalemates (PR #308 run C: the Chanter self-healing outside a
+  shut gate, no run_end by tick 7000) and a leader rule that parked living bots on a body.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as

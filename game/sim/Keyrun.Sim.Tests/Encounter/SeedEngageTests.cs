@@ -17,8 +17,8 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// D27 room lock-in). The Seed pull of the shipped content (the hollow-vault k2 oracle setup, recorded from
 /// content/data) is placed into the real seed-chamber of game/content/data/layout.json exactly as the host places it
 /// (room origin plus the content spawn offset), and the three host seats walk in from corridor-3 until the Seed engages
-/// (PRESPAWN-AGGRO, BIBLE section 9.1: the first tick one of them stands in its aggro ring), so <c>pull_start</c> and
-/// <c>gate_closed seed-chamber</c> fire; then they stand still on the ring's edge and never cast. Within
+/// (PRESPAWN-AGGRO, BIBLE section 9.1: the first tick one of them stands in its aggro ring), so <c>pull_start</c> fires
+/// (no gate shuts since STATE.md D44); then they stand still on the ring's edge and never cast. Within
 /// <see cref="WithinTicks"/> of <c>pull_start</c> the Seed must either close distance on a party actor or land damage
 /// on one; a Seed that only slams from its spawn point lets a party parked on its ring kill it for free.
 /// </summary>
@@ -128,13 +128,13 @@ public sealed class SeedEngageTests
 
     private static long Dist(Vec3 a, Vec3 b) => Fixed.Isqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Z - b.Z) * (a.Z - b.Z)));
 
-    [Fact(DisplayName = "KF3 Seed engage: the gate closes on the tick the party reaches the Seed's aggro ring")]
-    public void The_gate_closes_on_the_parked_party()
+    [Fact(DisplayName = "KF3 Seed engage: the Seed engages on the tick the party reaches its aggro ring, and no gate shuts (D44)")]
+    public void The_seed_engages_on_the_parked_party_with_no_gate()
     {
         var played = StandAtTheDoor();
-        var gate = Assert.Single(played.Events, e => e.Type == "gate_closed");
-        Assert.Equal("seed-chamber", ((JsString)gate.Get("room")!).Value);
-        Assert.Equal(played.StartTick, gate.Tick);
+        var start = Assert.Single(played.Events, e => e.Type == "pull_start" && ((JsString)e.Get("pullId")!).Value == "seed");
+        Assert.Equal(played.StartTick, start.Tick);
+        Assert.DoesNotContain(played.Events, e => e.Type is "gate_closed" or "gate_open");
     }
 
     [Fact(DisplayName = "KF3 Seed engage: within its cast budget the Seed closes on or hits a party parked on its aggro ring")]
