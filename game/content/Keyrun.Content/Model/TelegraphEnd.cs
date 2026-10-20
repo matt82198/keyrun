@@ -26,6 +26,7 @@ public static class TelegraphEnd
     public static TelegraphEndKind Of(string eventType) => eventType switch
     {
         "telegraph_hit" => TelegraphEndKind.Flash,
+        "telegraph_cancel" => TelegraphEndKind.Vanish,
         _ => TelegraphEndKind.None,
     };
 }

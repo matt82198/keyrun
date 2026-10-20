@@ -11,7 +11,8 @@ namespace Keyrun.View;
 /// Draws the sim's pending telegraphs on the floor. For each telegraph id SimDriver reports it spawns
 /// one Telegraph.tscn instance: a faint full-size outline plus a red fill that grows from the origin
 /// as the lead time runs out. When the sim's <c>telegraph_hit</c> event for that id arrives it flashes
-/// bright and fades, then frees the instance. A cone draws its own angle and a circle the full turn
+/// bright and fades, then frees the instance; a <c>telegraph_cancel</c> (the cast was kicked, stopped or replaced, so
+/// nothing lands) frees it at once with no flash (<see cref="TelegraphEnd"/>). A cone draws its own angle and a circle the full turn
 /// (<see cref="TelegraphFan"/>); a line still draws as its cone stand-in until it gets its own mesh.
 /// </summary>
 public partial class TelegraphView : Node3D
@@ -114,9 +115,19 @@ public partial class TelegraphView : Node3D
             {
                 _leadStart[((int)src.Value, (int)due.Value)] = e.Tick;
             }
-            else if (TelegraphEnd.Of(e.Type) == TelegraphEndKind.Flash && e.Get("telegraphId") is JsInt id && _shown.TryGetValue((int)id.Value, out var s))
+            else if (TelegraphEnd.Of(e.Type) is var end && end != TelegraphEndKind.None &&
+                     e.Get("telegraphId") is JsInt id && _shown.TryGetValue((int)id.Value, out var s))
             {
-                s.ResolvedAge ??= 0f;
+                if (end == TelegraphEndKind.Flash)
+                {
+                    s.ResolvedAge ??= 0f;
+                }
+                else
+                {
+                    // TELEGRAPH-CANCEL: the cast was kicked, stopped or replaced; nothing lands, so no flash.
+                    s.Root.QueueFree();
+                    _shown.Remove((int)id.Value);
+                }
             }
         }
     }
