@@ -37,6 +37,12 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
 $wrapper = Join-Path $repo 'tools/godot/godot.ps1'
 $failures = New-Object System.Collections.Generic.List[string]
 
+# One launch lock for all three launches (tools/godot/launch-lock.ps1); they run one after another. Exit 2 when
+# another Godot instance holds the lock.
+. (Join-Path $repo 'tools/godot/launch-lock.ps1')
+$launchLock = Enter-KeyrunLaunchLock -Owner 'RunEndBonusSceneTest.ps1' -ExitCodeOnBusy 2
+try {
+
 function Invoke-Arena([int]$n, [string[]]$extra) {
     # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
     $guard = (3 * $n) + 240
@@ -119,3 +125,6 @@ if ($failures.Count -gt 0) {
 }
 Write-Output "RunEndBonusSceneTest: PASS ticks=$Ticks partyTicks=$PartyTicks seedWindowEnds=$seedEnds seedCombo=$(if ($seedCombo) { 1 } else { 0 })"
 exit 0
+} finally {
+    Exit-KeyrunLaunchLock $launchLock
+}
