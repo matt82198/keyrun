@@ -106,6 +106,7 @@ public static class Casting
         {
             actor.TargetId = targetId;
         }
+        Threat.AddMomentumSpentThreat(state, actor, def.Cost);
         return null;
     }
 
