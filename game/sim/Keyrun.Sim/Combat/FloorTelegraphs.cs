@@ -111,4 +111,78 @@ public static class FloorTelegraphs
         }
         return output;
     }
+
+    /// <summary>
+    /// One drawable <see cref="CloudShape"/> per open combo cloud (<see cref="SimState.FloorClouds"/>,
+    /// <c>endsTick &gt; tick</c>), in opening order: what the arena view draws for a Steam blind cloud. Centre, radius
+    /// and end come straight from the sim's <see cref="FloorCloud"/>; the opening tick is read from the cloud id
+    /// (effectId:sourceId:openingTick, see <see cref="FloorCloud.Id"/>). A cloud whose id carries no readable opening
+    /// tick is taken as opened on the current tick, so it draws full rather than not at all.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <returns>The shapes; empty once every cloud has ended.</returns>
+    public static List<CloudShape> DeriveCloudShapes(SimState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var output = new List<CloudShape>();
+        foreach (var cloud in state.FloorClouds)
+        {
+            if (cloud.EndsTick <= state.Tick)
+            {
+                continue;
+            }
+            var opened = OpeningTickOf(cloud.Id) is { } t && t <= state.Tick ? t : state.Tick;
+            output.Add(new CloudShape(CloudPrefix + cloud.Id, cloud.EffectId, cloud.Pos.X, cloud.Pos.Z, cloud.RadiusMm, opened, cloud.EndsTick));
+        }
+        return output;
+    }
+
+    // The trailing ":<digits>" of a cloud id, or null when there is none.
+    private static int? OpeningTickOf(string id)
+    {
+        var colon = id.LastIndexOf(':');
+        if (colon < 0 || colon == id.Length - 1 || id.Length - colon - 1 > 9)
+        {
+            return null;
+        }
+        var value = 0;
+        for (var i = colon + 1; i < id.Length; i++)
+        {
+            var c = id[i];
+            if (c < '0' || c > '9')
+            {
+                return null;
+            }
+            value = (value * 10) + (c - '0');
+        }
+        return value;
+    }
+}
+
+/// <summary>
+/// The drawable shape of one open combo cloud (BIBLE section 4 Steam: "a cloud that blinds enemies inside (they miss)
+/// for 4 s"): a floor circle of <paramref name="RadiusMm"/> at its centre, alive from <paramref name="OpenedTick"/> until
+/// <paramref name="EndsTick"/>. Integer math only, like the rest of the sim.
+/// </summary>
+/// <param name="Id">The cloud telegraph id (<c>cloud:&lt;cloudId&gt;</c>).</param>
+/// <param name="EffectId">The effect the cloud gives, e.g. "blinded".</param>
+/// <param name="CenterX">Centre x, mm.</param>
+/// <param name="CenterZ">Centre z, mm.</param>
+/// <param name="RadiusMm">Radius, mm.</param>
+/// <param name="OpenedTick">The tick it opened.</param>
+/// <param name="EndsTick">The tick it ends.</param>
+public sealed record CloudShape(string Id, string EffectId, long CenterX, long CenterZ, long RadiusMm, int OpenedTick, int EndsTick)
+{
+    /// <summary>Its whole life, ticks (at least 1).</summary>
+    public int LifeTicks => Math.Max(1, EndsTick - OpenedTick);
+
+    /// <summary>Ticks left at <paramref name="tick"/>, never below 0.</summary>
+    /// <param name="tick">The tick.</param>
+    /// <returns>Ticks left.</returns>
+    public int TicksLeft(int tick) => Math.Max(0, EndsTick - tick);
+
+    /// <summary>The share of its life left at <paramref name="tick"/>, permille: 1000 at open, 0 at the end.</summary>
+    /// <param name="tick">The tick.</param>
+    /// <returns>0..1000.</returns>
+    public int LeftPermille(int tick) => (int)Math.Clamp(TicksLeft(tick) * 1000L / LifeTicks, 0L, 1000L);
 }

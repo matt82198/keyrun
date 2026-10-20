@@ -51,7 +51,6 @@
           "name": "Riposte",
           "text": "Strike costs no GCD when it follows Brace.",
           "patch": {
-            "gcdTicks": 0,
             "tags": [
               "setup:sundered",
               "riposte:free-after-brace"
