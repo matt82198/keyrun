@@ -11,7 +11,8 @@ namespace Keyrun.View;
 /// <summary>
 /// Cast bars, drawn in screen space over the 3D view: one above every casting actor's head (the sim carries a cast as
 /// state: CastId, CastStartTick, CastEndsTick), filled by the fraction of the cast elapsed at the displayed fractional
-/// tick, with "caster: ability" and the seconds left. An interruptible cast has an amber frame (kick it), an
+/// tick, with the ability and the seconds left ("caster: ability" only when no name plate names the caster, f-b78d1567,
+/// <see cref="LabelView.ShowsPlate"/>). An interruptible cast has an amber frame (kick it), an
 /// uninterruptible one grey. The Warden's own cast also shows as a wide bar above the ability bar. When the sim
 /// interrupts a cast the bar turns red and reads "caster: ability interrupted"; a completed cast flashes green; both
 /// fade out.
@@ -27,6 +28,11 @@ namespace Keyrun.View;
 /// bar stays inside the viewport with the top bar's 16 px side gutter, clear of the top bar and the party frames, and the
 /// label is cut with <see cref="HudLayout"/>.FitCastLabel to the bar's width. <see cref="BarRects"/> exposes this frame's
 /// blocks so <c>Pings</c> and <c>LabelView</c> keep their text clear of them.
+/// </para>
+/// <para>
+/// STACKED-PLATES (Matt 2026-10-20, ledger f-e933a2b7): enemy casts now draw on their name plates (LabelView, laid out by
+/// <see cref="PlateStack"/>), so the over-head bars are off unless <see cref="OverheadBars"/> is set; this node still
+/// tracks the fading endings (<see cref="Endings"/>), prints the cast proof lines and draws the Warden's wide bar.
 /// </para>
 /// </summary>
 public partial class CastBarView : Control
@@ -45,6 +51,7 @@ public partial class CastBarView : Control
 
     private readonly List<Ending> _endings = new();
     private readonly Dictionary<int, int> _castLogged = new();
+    private readonly Dictionary<int, int> _labelLogged = new();
     private readonly List<Bar> _bars = new();
     private readonly List<PixelRect> _rects = new();
     private ulong _laidOutFrame = ulong.MaxValue;
@@ -61,9 +68,39 @@ public partial class CastBarView : Control
     [Export]
     public NodePath UnitFramesPath { get; set; } = new("../HudRoot/UnitFrames");
 
+    /// <summary>
+    /// The name plates (f-b78d1567): a caster whose plate is drawn (<see cref="LabelView.ShowsPlate"/>) gets a label of the
+    /// ability alone; absent, every label keeps "caster: ability".
+    /// </summary>
+    [Export]
+    public NodePath LabelsPath { get; set; } = new("../../Labels");
+
     /// <summary>Gap between the player's cast bar and the bottom of the screen, px (clears the ability bar).</summary>
     [Export]
     public float PlayerBarBottomGap { get; set; } = 150;
+
+    /// <summary>
+    /// STACKED-PLATES (ledger f-e933a2b7): false (the default) leaves every enemy's cast to its name plate (LabelView
+    /// draws the bar, the kick mark and the fading ending under the name), so this node draws only the Warden's wide bar
+    /// and <see cref="BarRects"/> is empty. True restores the free-floating over-head bars.
+    /// </summary>
+    [Export]
+    public bool OverheadBars { get; set; }
+
+    /// <summary>
+    /// The casts that just ended (interrupted or completed) and are fading, with their remaining opacity 1..0, for
+    /// every caster; LabelView draws an enemy's on its plate.
+    /// </summary>
+    public IEnumerable<CastEnding> Endings
+    {
+        get
+        {
+            foreach (var e in _endings)
+            {
+                yield return new CastEnding(e.ActorId, e.Name, e.Interrupted, 1f - (e.Age / FadeSeconds));
+            }
+        }
+    }
 
     /// <summary>
     /// This frame's over-head bar blocks (the label band plus the bar) in viewport pixels, live and fading casts alike.
@@ -168,7 +205,7 @@ public partial class CastBarView : Control
         _bars.Clear();
         _rects.Clear();
         var camera = GetViewport()?.GetCamera3D();
-        if (Driver is null || camera is null)
+        if (!OverheadBars || Driver is null || camera is null)
         {
             return;
         }
@@ -180,6 +217,8 @@ public partial class CastBarView : Control
 
         var now = Driver.State.Tick + Driver.Alpha;
         var unitFrames = Frames();
+        // f-b78d1567: the plate owner says whose name is already drawn over the head; never guessed here.
+        var plates = GetNodeOrNull<LabelView>(LabelsPath);
         foreach (var (id, actor) in Driver.State.Actors)
         {
             if (!actor.Alive || actor.CastId is not { } castId || actor.CastStartTick is not { } start || actor.CastEndsTick is not { } end)
@@ -195,7 +234,8 @@ public partial class CastBarView : Control
             var progress = Mathf.Clamp((now - start) / Mathf.Max(1f, end - start), 0f, 1f);
             var secondsLeft = Mathf.Max(0f, (end - now) / Tick.TickHz);
             var label = HudLayout.FitCastLabel(Driver.DisplayName(actor), Driver.AbilityName(castId), $"  {secondsLeft:0.0}s",
-                HudLayout.CastBarWidth, Measure);
+                HudLayout.CastBarWidth, Measure, casterPlateShown: plates?.ShowsPlate(id) == true);
+            LogCastLabel(id, start, label);
             AddBar(camera, id, width, height, progress, Fill, FrameOf(castId), label);
         }
         foreach (var e in _endings)
@@ -207,7 +247,7 @@ public partial class CastBarView : Control
             var color = new Color(e.Interrupted ? InterruptedColor : DoneColor, 1f - (e.Age / FadeSeconds));
             var caster = Driver.State.Actors.TryGetValue(e.ActorId, out var a) ? Driver.DisplayName(a) : string.Empty;
             var label = HudLayout.FitCastLabel(caster, e.Interrupted ? $"{e.Name} interrupted" : e.Name, string.Empty,
-                HudLayout.CastBarWidth, Measure);
+                HudLayout.CastBarWidth, Measure, casterPlateShown: plates?.ShowsPlate(e.ActorId) == true);
             AddBar(camera, e.ActorId, width, height, 1f, color, color, label);
         }
         if (_bars.Count == 0)
@@ -245,6 +285,18 @@ public partial class CastBarView : Control
         {
             _bars.Add(new Bar(anchor, depth, progress, fill, frame, label));
         }
+    }
+
+    // f-b78d1567 proof (autorun only): one "HUD castlabel actor=A label=L" line per over-head cast, the label as first drawn,
+    // so a plated caster's line reads the ability and seconds alone.
+    private void LogCastLabel(int actorId, int start, string label)
+    {
+        if (Driver is null || !Driver.Options.Autorun || (_labelLogged.TryGetValue(actorId, out var last) && last == start))
+        {
+            return;
+        }
+        _labelLogged[actorId] = start;
+        HudNodes.Proof(Driver, FormattableString.Invariant($"HUD castlabel actor={actorId} label={label}"));
     }
 
     // The enemy unit frames this frame shows (NAMEPLATE-DECLUTTER: their enemies' casts draw there, not over the head).
@@ -311,6 +363,7 @@ public partial class CastBarView : Control
     {
         _endings.Clear();
         _castLogged.Clear();
+        _labelLogged.Clear();
     }
 
     // HUD-DECLUTTER proof (autorun only): one "HUD castbar actor=A kind=player|enemy where=frame|overhead ability=X"
@@ -337,6 +390,13 @@ public partial class CastBarView : Control
                 $"HUD castbar actor={id} kind={HudDeclutter.Side(actor)} where={HudDeclutter.CastPlacement(actor, unitFrames)} ability={castId}"));
         }
     }
+
+    /// <summary>One fading cast ending.</summary>
+    /// <param name="ActorId">The caster.</param>
+    /// <param name="Name">The ability's display name.</param>
+    /// <param name="Interrupted">True when the cast was kicked, false when it completed.</param>
+    /// <param name="Opacity">1 when it just ended, falling to 0 over the fade.</param>
+    public readonly record struct CastEnding(int ActorId, string Name, bool Interrupted, float Opacity);
 
     private readonly record struct Bar(PixelPoint Anchor, float Depth, float Progress, Color Fill, Color Frame, string Label);
 

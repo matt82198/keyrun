@@ -85,6 +85,49 @@ public static class Casting
         var rule = OverheatRuleOf(ctx, actor);
         // BIBLE section 5: at the threshold the next cast is the Overheat, and the Overheat is free.
         var overheat = rule is not null && actor.Resource >= rule.Threshold;
+        if (StartError(state, actor, def, targetId, now, hooks, overheat) is { } err)
+        {
+            return err;
+        }
+        if (!overheat)
+        {
+            actor.Resource -= def.Cost.Amount;
+        }
+        Cooldowns.ConsumeCharge(actor, def, now);
+        Cooldowns.StartGcd(actor, now, Riposte.GcdTicksFor(actor, def, now));
+        actor.CastId = def.Id;
+        actor.CastStartTick = now;
+        actor.CastEndsTick = now + ChilledCastTicks(actor, def.CastTicks, rule, ctx, now);
+        actor.CastIsOverheat = overheat;
+        if (targetId is not null)
+        {
+            actor.TargetId = targetId;
+        }
+        if (!overheat)
+        {
+            Threat.AddMomentumSpentThreat(state, actor, def.Cost);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The checks <see cref="StartCast"/> makes, in its order, with no side effects: null when a cast of
+    /// <paramref name="def"/> on <paramref name="targetId"/> would start on tick <paramref name="now"/>, else
+    /// StartCast's error code. SLAM-TELEGRAPH: a spansCast script telegraph is drawn only when this says its cast starts.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <param name="actor">The caster.</param>
+    /// <param name="def">The ability.</param>
+    /// <param name="targetId">The target, or null.</param>
+    /// <param name="now">The tick the cast would start.</param>
+    /// <param name="hooks">Clause hooks (null for an enemy: enemies are never silenced).</param>
+    /// <param name="overheat">True when the cast is a free Overheat (players only).</param>
+    /// <returns>Null when the cast would start, else the error code.</returns>
+    public static string? StartError(SimState state, ActorState actor, AbilityDef def, int? targetId, int now, ClauseHooks? hooks = null, bool overheat = false)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(def);
         if (hooks is not null && hooks.IsSilenced(now))
         {
             return "silenced";
@@ -116,29 +159,29 @@ public static class Casting
                 return "out_of_range";
             }
         }
-        if (!overheat)
-        {
-            actor.Resource -= def.Cost.Amount;
-        }
-        Cooldowns.ConsumeCharge(actor, def, now);
-        Cooldowns.StartGcd(actor, now, def.GcdTicks);
-        actor.CastId = def.Id;
-        actor.CastStartTick = now;
-        actor.CastEndsTick = now + ChilledCastTicks(actor, def.CastTicks, rule, ctx, now);
-        actor.CastIsOverheat = overheat;
-        if (targetId is not null)
-        {
-            actor.TargetId = targetId;
-        }
-        if (!overheat)
-        {
-            Threat.AddMomentumSpentThreat(state, actor, def.Cost);
-        }
         return null;
     }
 
     private static OverheatRule? OverheatRuleOf(CastContext? ctx, ActorState actor) =>
         ctx?.Overheat is { } rules && rules.TryGetValue(actor.ClassId, out var rule) ? rule : null;
+
+    /// <summary>
+    /// Who a non-dispel removeEffect op clears (finding f-9efbee75): the caster when the effect is the caster's own
+    /// Overheat Chill (BIBLE section 5 Cold Snap "dumps Heat, clears Chill"; section 4 Flashfire "refunds Cinder 30 Heat
+    /// and clears Chill"), else the target. C#-only: with no Overheat rule (every oracle run) it is always the target,
+    /// as the TS.
+    /// </summary>
+    /// <param name="source">The caster (or the Payoff actor of a combo).</param>
+    /// <param name="target">The op's target.</param>
+    /// <param name="effectId">The effect being removed.</param>
+    /// <param name="overheat">The step's Overheat rules, or null.</param>
+    /// <returns>The actor whose instances of <paramref name="effectId"/> are removed.</returns>
+    public static ActorState RemoveEffectHolder(ActorState source, ActorState target, string effectId, IReadOnlyDictionary<string, OverheatRule>? overheat)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return overheat is not null && overheat.TryGetValue(source.ClassId, out var rule)
+            && string.Equals(rule.ChillEffectId, effectId, StringComparison.Ordinal) ? source : target;
+    }
 
     /// <summary>
     /// BIBLE section 5 Chill, "slower casts": while the caster holds its rule's Chill, a cast takes
@@ -299,7 +342,7 @@ public static class Casting
                     }
                     else
                     {
-                        Effects.RemoveEffectInstances(target, r.EffectId);
+                        Effects.RemoveEffectInstances(RemoveEffectHolder(source, target, r.EffectId, ctx.Overheat), r.EffectId);
                     }
                     break;
                 case ThreatOp t:
