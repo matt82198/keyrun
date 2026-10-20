@@ -75,6 +75,8 @@ export function toTelegraphSnapshot(t: Telegraph): ClassedTelegraphSnapshot {
   return { ...geometry(t), telegraphClass: telegraphClassFor(t.abilityId) };
 }
 
+/** DEAD-CASTER-TELEGRAPH: the bot shape also carries the caster (bots/src/shared/floor.ts isSpent); the render
+ * snapshot does not. */
 export function toBotTelegraph(t: Telegraph): BotTelegraph {
-  return geometry(t);
+  return { ...geometry(t), sourceId: t.sourceId };
 }

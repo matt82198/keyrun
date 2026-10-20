@@ -1,0 +1,2 @@
+- DOCS-SLAMS-CURRENCY TUNING.md now lists the Seed, Hollow Warden and Sundered Twin slams with their real range, damage, telegraph lead and cooldown values (docs only, no data value changed), and the HudSceneTest.ps1 header comment cites the run_end tick the game-e2e log actually shows (3430, run 39318059212) instead of the stale 3457; docs only, no code or budget line touched.
+BUILDLOG: DOCS-SLAMS-CURRENCY brought TUNING.md's boss slam entries and HudSceneTest.ps1's stale 3457 run_end comment in line with the merged data and the latest completed main run log, docs only.
