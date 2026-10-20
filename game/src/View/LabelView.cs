@@ -234,42 +234,6 @@ public partial class LabelView : Node3D
         LogCrowds(crowds);
     }
 
-    /// <summary>
-    /// True when <paramref name="actorId"/>'s name plate is drawn this frame, alone or as a member of a same-name crowd
-    /// plate (which still shows the name): the plate is visible (alive, not the Warden) and its anchor projects in front
-    /// of the camera inside the viewport, the same test LayoutPlates places plates by. CastBarView asks this so a plated
-    /// caster's cast label names only the ability (f-b78d1567, <c>HudLayout.FitCastLabel</c>).
-    /// </summary>
-    /// <param name="actorId">The actor.</param>
-    /// <returns>Whether a plate names that actor on screen.</returns>
-    public bool ShowsPlate(int actorId)
-    {
-        var camera = GetViewport()?.GetCamera3D();
-        if (camera is null || !_plates.TryGetValue(actorId, out var plate))
-        {
-            return false;
-        }
-        var view = GetViewport().GetVisibleRect().Size;
-        return PlateOnScreen(camera, plate, (int)view.X, (int)view.Y, out _);
-    }
-
-    // A visible plate whose anchor is in front of the camera and inside the viewport, with its projected pixel.
-    private static bool PlateOnScreen(Camera3D camera, Plate plate, int width, int height, out PixelPoint anchor)
-    {
-        anchor = default;
-        if (!plate.Visible || camera.IsPositionBehind(plate.Anchor))
-        {
-            return false;
-        }
-        var screen = camera.UnprojectPosition(plate.Anchor);
-        if (screen.X < 0 || screen.X > width || screen.Y < 0 || screen.Y > height)
-        {
-            return false;
-        }
-        anchor = new PixelPoint((int)Math.Round(screen.X), (int)Math.Round(screen.Y));
-        return true;
-    }
-
     private static PixelRect PlateRect(PixelPoint anchor, string text)
     {
         var w = (int)Math.Ceiling(HudNodes.Width(text, NameFont)) + (2 * PlatePad);
@@ -343,6 +307,42 @@ public partial class LabelView : Node3D
             obstacles.AddRange(pings.LabelRects);
         }
         return obstacles;
+    }
+
+    /// <summary>
+    /// True when <paramref name="actorId"/>'s name plate is drawn this frame, alone or as a member of a same-name crowd
+    /// plate (which still shows the name): the plate is visible (alive, not the Warden) and its anchor projects in front
+    /// of the camera inside the viewport, the same test LayoutPlates places plates by. CastBarView asks this so a plated
+    /// caster's cast label names only the ability (f-b78d1567, <c>HudLayout.FitCastLabel</c>).
+    /// </summary>
+    /// <param name="actorId">The actor.</param>
+    /// <returns>Whether a plate names that actor on screen.</returns>
+    public bool ShowsPlate(int actorId)
+    {
+        var camera = GetViewport()?.GetCamera3D();
+        if (camera is null || !_plates.TryGetValue(actorId, out var plate))
+        {
+            return false;
+        }
+        var view = GetViewport().GetVisibleRect().Size;
+        return PlateOnScreen(camera, plate, (int)view.X, (int)view.Y, out _);
+    }
+
+    // A visible plate whose anchor is in front of the camera and inside the viewport, with its projected pixel.
+    private static bool PlateOnScreen(Camera3D camera, Plate plate, int width, int height, out PixelPoint anchor)
+    {
+        anchor = default;
+        if (!plate.Visible || camera.IsPositionBehind(plate.Anchor))
+        {
+            return false;
+        }
+        var screen = camera.UnprojectPosition(plate.Anchor);
+        if (screen.X < 0 || screen.X > width || screen.Y < 0 || screen.Y > height)
+        {
+            return false;
+        }
+        anchor = new PixelPoint((int)Math.Round(screen.X), (int)Math.Round(screen.Y));
+        return true;
     }
 
     private void EnsureBody(int id, ActorState actor)
