@@ -28,6 +28,11 @@ namespace Keyrun.View;
 /// label is cut with <see cref="HudLayout"/>.FitCastLabel to the bar's width. <see cref="BarRects"/> exposes this frame's
 /// blocks so <c>Pings</c> and <c>LabelView</c> keep their text clear of them.
 /// </para>
+/// <para>
+/// STACKED-PLATES (Matt 2026-10-20, ledger f-e933a2b7): enemy casts now draw on their name plates (LabelView, laid out by
+/// <see cref="PlateStack"/>), so the over-head bars are off unless <see cref="OverheadBars"/> is set; this node still
+/// tracks the fading endings (<see cref="Endings"/>), prints the cast proof lines and draws the Warden's wide bar.
+/// </para>
 /// </summary>
 public partial class CastBarView : Control
 {
@@ -64,6 +69,29 @@ public partial class CastBarView : Control
     /// <summary>Gap between the player's cast bar and the bottom of the screen, px (clears the ability bar).</summary>
     [Export]
     public float PlayerBarBottomGap { get; set; } = 150;
+
+    /// <summary>
+    /// STACKED-PLATES (ledger f-e933a2b7): false (the default) leaves every enemy's cast to its name plate (LabelView
+    /// draws the bar, the kick mark and the fading ending under the name), so this node draws only the Warden's wide bar
+    /// and <see cref="BarRects"/> is empty. True restores the free-floating over-head bars.
+    /// </summary>
+    [Export]
+    public bool OverheadBars { get; set; }
+
+    /// <summary>
+    /// The casts that just ended (interrupted or completed) and are fading, with their remaining opacity 1..0, for
+    /// every caster; LabelView draws an enemy's on its plate.
+    /// </summary>
+    public IEnumerable<CastEnding> Endings
+    {
+        get
+        {
+            foreach (var e in _endings)
+            {
+                yield return new CastEnding(e.ActorId, e.Name, e.Interrupted, 1f - (e.Age / FadeSeconds));
+            }
+        }
+    }
 
     /// <summary>
     /// This frame's over-head bar blocks (the label band plus the bar) in viewport pixels, live and fading casts alike.
@@ -168,7 +196,7 @@ public partial class CastBarView : Control
         _bars.Clear();
         _rects.Clear();
         var camera = GetViewport()?.GetCamera3D();
-        if (Driver is null || camera is null)
+        if (!OverheadBars || Driver is null || camera is null)
         {
             return;
         }
@@ -337,6 +365,13 @@ public partial class CastBarView : Control
                 $"HUD castbar actor={id} kind={HudDeclutter.Side(actor)} where={HudDeclutter.CastPlacement(actor, unitFrames)} ability={castId}"));
         }
     }
+
+    /// <summary>One fading cast ending.</summary>
+    /// <param name="ActorId">The caster.</param>
+    /// <param name="Name">The ability's display name.</param>
+    /// <param name="Interrupted">True when the cast was kicked, false when it completed.</param>
+    /// <param name="Opacity">1 when it just ended, falling to 0 over the fade.</param>
+    public readonly record struct CastEnding(int ActorId, string Name, bool Interrupted, float Opacity);
 
     private readonly record struct Bar(PixelPoint Anchor, float Depth, float Progress, Color Fill, Color Frame, string Label);
 
