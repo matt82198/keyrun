@@ -45,7 +45,12 @@ public static class RunRoot
 
         var state = SimState.Create(seed);
         var players = party
-            .Select(m => Actors.Create(m.Id, ActorKind.Player, m.ClassId, m.Role, m.Pos, m.MaxHealth, m.MaxResource, m.Yaw ?? 0))
+            .Select(m =>
+            {
+                var actor = Actors.Create(m.Id, ActorKind.Player, m.ClassId, m.Role, m.Pos, m.MaxHealth, m.MaxResource, m.Yaw ?? 0);
+                actor.Resource = Actors.StartingResource(m.ClassId, m.MaxResource, content.Overheat);
+                return actor;
+            })
             .ToList();
         state = RunWiring.MergeActors(state, players);
 
