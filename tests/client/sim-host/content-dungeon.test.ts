@@ -90,7 +90,7 @@ describe("content-dungeon: phased recurring steps keep `every`", () => {
     expect(step.at).toBe(600);
     expect(step.every).toBe(scaleCastEvery(400, KEY));
     expect(step.every).not.toBe(400); // key 2 really does scale (392), so "unscaled" is caught
-    expect(step.telegraph!.leadTicks).toBe(scaleLeadTicks(100, KEY));
+    expect(step.telegraph!.leadTicks).toBe(scaleLeadTicks(140, KEY)); // content pair.json stackCall leadTicks (140 since SLAM-TELEGRAPH spansCast)
   });
 
   it("a scripted pull-2 run at key 2 emits >=2 STACK telegraphs during The Pair", () => {
