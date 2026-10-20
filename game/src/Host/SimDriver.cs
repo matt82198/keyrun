@@ -362,6 +362,9 @@ public interface ICommandSource
 /// that starts a run (<see cref="StartQueuedRun"/>) also leaves the queue, so it never also refills a seat. The joiner's
 /// commands are the seat's own command source (PlayerInput for seat 1, BotCommandSource for 2 and 3), whose commands
 /// are dropped while the seat is open.</para>
+/// <para>Lane QUEUE-READY (BIBLE s10 "ready check on pop"): a Queue press pops a ready check on the Queue node and the run
+/// starts on <see cref="Keyrun.Hud.Queue.PartyReady"/> (every seat accepted), not on the press; Enter is the ready check's
+/// while one is up (<see cref="Keyrun.Hud.Queue.Checking"/>), so it never also reopens the screen.</para>
 /// </remarks>
 public partial class SimDriver : Node
 {
@@ -601,7 +604,7 @@ public partial class SimDriver : Node
     /// <inheritdoc />
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (Options.Autorun || Run?.RunEnd.Result is not { } result || _screen?.IsOpen == true ||
+        if (Options.Autorun || Run?.RunEnd.Result is not { } result || _screen?.IsOpen == true || _queue?.Checking == true ||
             @event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Enter or Key.KpEnter })
         {
             return;
@@ -630,6 +633,10 @@ public partial class SimDriver : Node
         if (_screen is not null)
         {
             _screen.Queued -= StartQueuedRun;
+        }
+        if (_queue is not null)
+        {
+            _queue.PartyReady -= StartQueuedRun;
         }
         if (_player is not null)
         {
@@ -763,7 +770,16 @@ public partial class SimDriver : Node
             return;
         }
         _screen = screen;
-        _screen.Queued += StartQueuedRun;
+        // BIBLE s10 "ready check on pop": the Queue node pops a ready check on every Screen.Queued and raises PartyReady
+        // once the party accepts; that, not the press itself, starts the run. No Queue node: the press starts it.
+        if (_queue is not null)
+        {
+            _queue.PartyReady += StartQueuedRun;
+        }
+        else
+        {
+            _screen.Queued += StartQueuedRun;
+        }
         if (StartsOnScreen && Run is null)
         {
             // Lane 3D-b: the first run is the one the player queues on the screen (Queued -> StartQueuedRun).
