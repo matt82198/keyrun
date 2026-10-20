@@ -15,6 +15,7 @@ import type { Keybinds } from "./input/keybinds.js";
 import type { ActorPool } from "./render/actors.js";
 import { CastFxPool } from "./render/cast-fx.js";
 import { OnboardingOverlay } from "./hud/onboarding.js";
+import { inputReadiness, installInputReady } from "./input-ready.js";
 import { actorName, type DisplayInfo } from "./sim-host/display-info.js";
 
 export interface KeyrunReadabilityView {
@@ -51,6 +52,8 @@ export function mountReadability(app: HTMLElement, scene: THREE.Scene, keybinds:
     status: (id: number) => actorPool.statusOf(id),
     onboardingDismissed: () => onboarding.root.dataset.dismissed === "true",
   });
+  inputReadiness.bindOnboarding(() => onboarding.root.dataset.dismissed === "true");
+  installInputReady(window); // read-only window.__keyrunInputReady for the e2e (input-ready.ts)
   return {
     castFx,
     onReady(display: DisplayInfo | undefined, humanClassId: string | undefined): void {
