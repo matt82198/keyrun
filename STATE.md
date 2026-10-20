@@ -326,11 +326,13 @@ Phase status from git evidence (checkpoint 2026-10-18; `git log --oneline -40 or
        it is drawn as an on-screen marker plus an off-screen edge arrow by game/src/Hud/ (beside Objective.cs and
        PartyFrames.cs, kept clear via HudClearance.cs), projected through game/src/View/CameraRig.cs, next to the aggro
        ring floor view (new, beside game/src/View/WindowRingView.cs and DungeonBuilder.cs).
-     - No threat meter once engaged (only a taunt moves an enemy): enemy targeting in
+     - No threat meter once engaged (the engaging holder keeps it; only an explicit take-threat ability op moves it,
+       Momentum spent no longer does): enemy targeting in
        game/sim/Keyrun.Sim/Encounter/ScriptTarget.cs (ThreatThenNearest) and Encounter/Chase.cs, the threat table in
        Combat/Threat.cs (AddMomentumSpentThreat) and the threat ops it is fed from (Combat/Casting.cs, Combat/Combos.cs,
        Combat/Rules.cs; content/data/classes/warden.json, content/data/combos.json lock-warden).
-     - Tank-mark taunt swap: a boss script step in Encounter/Boss.cs and Encounter/Scripts.cs, its cast bar and telegraph
+     - Tank-mark swap (FAR FUTURE, not POC; constraint now: holder transfer is one generic ability op any class can
+       carry): a boss script step in Encounter/Boss.cs and Encounter/Scripts.cs, its cast bar and telegraph
        through Combat/Casting.cs and Encounter/Telegraphs.cs (views game/src/View/CastBarView.cs, TelegraphView.cs), the
        lethal touch through Combat/Effects.cs and Combat/Damage.cs, the taunt on the R key via Combat/Abilities.cs and
        content/data/classes/*.json, and bot timing in game/bots/Keyrun.Bots/Roles/ (Tank.cs, TankEngage.cs).
@@ -729,18 +731,23 @@ Additional parked decisions (from the burn ledger):
   1. Body pulls stay. Walking into a pack's aggro range DOES pull it, for anyone (BIBLE 9.1 prespawn engage unchanged).
   2. The screen warns (e.g. an arrow) when a DPS or healer is about to pull or is in pull range, including packs off
      screen. Warning only: it never prevents the pull.
-  3. No threat meter. Once engaged, damage or healing never steals an enemy off the tank. Only a taunt (an intentional
-     act) moves it.
-  4. A signature boss mechanic in the spirit of Kalphite King's tank mark: the boss marks the tank with a lethal touch,
-     another player must taunt on the next tick or the tank dies, then the tank taunts back. It is a timing game between
-     two people (BIBLE section 4) and a cast-bar plus telegraph read (BIBLE section 3). Precedent: the WoW tank swap,
-     research/06-encounter-and-boss-design.md:27.
+  Ruling, verbatim (3), on the PR's open questions: "The warden should maintain initial threat. Once threat is
+  initialized, it cant be taken except for abilities... and yes this would mean other characters need some toolkit to
+  take threat, or an upgraded ability, this is a boss mechanic that would exist way down the road, it was just an example
+  to not narrow the architecture too much".
+  3. No threat meter. The engaging holder (normally the Warden) keeps the enemy from engage. Damage, healing and Momentum
+     spent never move an engaged enemy. Only abilities that explicitly take threat move it: the taunt now; other classes'
+     threat-taking tools or upgraded abilities later.
+  4. ARCHITECTURE CONSTRAINT, not POC scope: a far-future boss mechanic in the spirit of Kalphite King's tank mark (the
+     boss marks the tank with a lethal touch, another player must take threat on the next tick or the tank dies, then
+     the tank takes it back; a timing game between two people, BIBLE section 4, read through cast bar plus telegraph,
+     section 3; precedent research/06-encounter-and-boss-design.md:27). So holder transfer must be a generic ability op
+     that any class's ability can carry, never a Warden-only special case.
   5. Fewer buttons, more intentional strategy: it must fit the five buttons of BIBLE section 0 (and the keybind budget
      of section 2, D4).
-  Open questions for Matt (PR body): BIBLE 5 Warden threat from Momentum spent and the ScriptTarget threat-then-nearest
-  retarget on main act as a hidden threat table; only the Warden has a taunt (R), so who takes the mark in a one-Warden
-  party; BIBLE 9.1 has no warning yet. The R1 PRESPAWN-AGGRO proximity engage (Encounter/Aggro.cs) is ALLOWED by rule 1.
-  No lane resolves these silently.
+  Resolved by ruling (3): Momentum-spent threat (BIBLE 5) no longer moves an engaged enemy; the mark-taker question is
+  far-future (a generic take-threat op, other classes get it later). Still open: BIBLE wording (PR body). The R1
+  PRESPAWN-AGGRO proximity engage (Encounter/Aggro.cs) is ALLOWED by rule 1.
   Why: Matt names off-screen accidental pulls as a run-ruiner, so the fix is information (a warning), not a rule that
   removes the butt pull; and he wants tanking coordination to be a deliberate two-player timing read, not a meter.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
