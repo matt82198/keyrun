@@ -666,7 +666,8 @@ public partial class Screen : Control
         // M1 TIMER-TIERS (BIBLE s8): a timed run raises the key by its tier (+1, +2 within 80% of par, +3 within 60%);
         // a depleted or abandoned run keeps the key at the level it was played at (Matt 2026-10-20: no drop).
         // KeyMove is the one read of that move, shared with the run-end panel's key line, so the panel and the reopened
-        // screen never disagree about the level.
+        // screen never disagree about the level. It uses the same tick fallback (ResultTick ?? RunTimerTicks) as main's
+        // tier read, and clamps the raise to the key range.
         var move = KeyMove.ForRun(_driver.Run)!;
         _state = ScreenState.Open(SimDriver.DungeonId, _state?.ClauseIds ?? ClauseIds(), move.To);
         Proof(FormattableString.Invariant($"SCREEN key from={move.From} to={_state.KeyLevel} tier={move.Tier}"));
