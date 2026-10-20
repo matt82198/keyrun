@@ -11,9 +11,9 @@ using Keyrun.Sim.Runs;
 
 namespace Keyrun.Hud;
 
-/// <summary>One thing that hurt or downed a seat, aggregated per enemy (Godot-free).</summary>
+/// <summary>One thing that hurt or downed a seat, aggregated per enemy kind (display name; Godot-free).</summary>
 /// <param name="Seat">The player seat it hit.</param>
-/// <param name="SourceId">The enemy actor id.</param>
+/// <param name="SourceId">The enemy actor id (the lowest of its kind when several actors share the name).</param>
 /// <param name="SourceName">The enemy's display name.</param>
 /// <param name="Damage">Health damage dealt to the seat (the damage events' <c>healthDamage</c>).</param>
 /// <param name="Hits">Damage events.</param>
@@ -73,17 +73,57 @@ public sealed class PrivateRunLog
     }
 
     /// <summary>
-    /// <paramref name="seat"/>'s own causes: the killing blow first, then by damage descending, then by source id.
+    /// <paramref name="seat"/>'s own causes, one row per enemy kind (lane WHAT-GOT-YOU: actors sharing a display name
+    /// merge, damage and hits summed, <see cref="CauseRows.MergeByName"/>): the killing blow first, then by damage
+    /// descending, then by the kind's lowest source id.
     /// </summary>
     /// <param name="seat">The local player's seat.</param>
     /// <returns>Only entries whose seat is <paramref name="seat"/>.</returns>
-    public IReadOnlyList<DeathCause> CausesFor(int seat) => _entries
-        .Where(kv => kv.Key.Seat == seat)
-        .Select(kv => new DeathCause(kv.Key.Seat, kv.Key.Source, kv.Value.Name, kv.Value.Damage, kv.Value.Hits, kv.Value.Killing))
-        .OrderByDescending(c => c.KillingBlow)
-        .ThenByDescending(c => c.Damage)
-        .ThenBy(c => c.SourceId)
+    public IReadOnlyList<DeathCause> CausesFor(int seat) => CauseRows.MergeByName(_entries
+            .Where(kv => kv.Key.Seat == seat)
+            .OrderBy(kv => kv.Key.Source)
+            .Select(kv => new CauseRow(kv.Key.Seat, kv.Key.Source, kv.Value.Name, kv.Value.Damage, kv.Value.Hits, kv.Value.Killing)))
+        .Select(c => new DeathCause(c.Seat, c.SourceId, c.SourceName, c.Damage, c.Hits, c.KillingBlow))
         .ToList();
+
+    private static int? Int(SimEvent e, string key) =>
+        e.Get(key) is JsInt v && v.Value >= int.MinValue && v.Value <= int.MaxValue ? (int)v.Value : null;
+}
+
+/// <summary>
+/// The run's <c>combo_denied</c> events for the private "which half was late" lines (BIBLE s4, lane COMBO-BLAME):
+/// collected per step in emission order, reduced by <see cref="ComboBlame.For"/> to the local seat's own denials only.
+/// Godot-free.
+/// </summary>
+public sealed class PrivateComboLog
+{
+    private readonly List<DeniedCombo> _denied = new();
+
+    /// <summary>Forgets everything (a fresh run).</summary>
+    public void Clear() => _denied.Clear();
+
+    /// <summary>Records one step's <c>combo_denied</c> events (Payoff.cs TryClosePayoff and TryClosePayoffOnFloor).</summary>
+    /// <param name="events">The step's events.</param>
+    public void Observe(IReadOnlyList<SimEvent> events)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        foreach (var e in events)
+        {
+            if (e.Type != "combo_denied" || Int(e, "payoffActorId") is not { } payoff)
+            {
+                continue;
+            }
+            var setup = Int(e, "setupActorId") ?? 0;
+            var window = e.Get("windowId") is JsString w ? w.Value : string.Empty;
+            var reason = e.Get("reason") is JsString r ? r.Value : string.Empty;
+            _denied.Add(new DeniedCombo(payoff, setup, window, reason));
+        }
+    }
+
+    /// <summary>The seat's own lines (<see cref="ComboBlame.For"/>: deduped, capped, never another seat's).</summary>
+    /// <param name="seat">The local player's seat.</param>
+    /// <returns>The lines.</returns>
+    public IReadOnlyList<ComboBlameLine> LinesFor(int seat) => ComboBlame.For(seat, _denied);
 
     private static int? Int(SimEvent e, string key) =>
         e.Get(key) is JsInt v && v.Value >= int.MinValue && v.Value <= int.MaxValue ? (int)v.Value : null;
@@ -128,6 +168,9 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     /// <summary>The line drawn under the result, "Bonus loot: ...", or null when <see cref="Bonus"/> has none.</summary>
     public string? BonusLabel { get; init; }
 
+    /// <summary>The local seat's own denied Payoffs (lane COMBO-BLAME); empty when none, never another seat's.</summary>
+    public IReadOnlyList<ComboBlameLine> LateCombos { get; init; } = Array.Empty<ComboBlameLine>();
+
     /// <summary>
     /// "Bonus loot: Seed drop -- Death Bloom (field) Combo" for each entry (the Combo's content name, else its id),
     /// or null when <paramref name="loot"/> is empty.
@@ -164,8 +207,9 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     /// <param name="registry">Content, or null (placeholder facets; the wipe title numbers pulls within the run's dungeon).</param>
     /// <param name="classKit">The local player's class kit ability ids (the facet pool's scope).</param>
     /// <param name="bonus">The run's Seed bonus fold, or null (no bonus loot).</param>
+    /// <param name="combos">The run's denied Combos, or null (no late-combo lines).</param>
     /// <returns>The view, or null while the run is live.</returns>
-    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log, ContentRegistry? registry, IReadOnlySet<string> classKit, SeedBonusLog? bonus = null)
+    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log, ContentRegistry? registry, IReadOnlySet<string> classKit, SeedBonusLog? bonus = null, PrivateComboLog? combos = null)
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(log);
@@ -197,6 +241,7 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         {
             Bonus = rewards,
             BonusLabel = BonusLabelOf(rewards.BonusLoot, registry),
+            LateCombos = combos?.LinesFor(localSeat) ?? Array.Empty<ComboBlameLine>(),
         };
     }
 
@@ -214,6 +259,11 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         foreach (var cause in Causes)
         {
             yield return cause.LogLine();
+        }
+        // Lane COMBO-BLAME: "HUD runend combo seat=1 window=W reason=R half=payoff count=N", the local seat's only.
+        foreach (var late in LateCombos)
+        {
+            yield return late.LogLine();
         }
         // Lane SEED-LOOT-VIEW: "HUD runend bonus count=1 seedWindowEnds=4571 label="Bonus loot: ..."" (no label when
         // nothing was earned; seedWindowEnds=none when the run never saw the Seed's Window open).
@@ -237,9 +287,11 @@ public partial class RunEndPanel : Control
     private const int TitleFont = 24;
     private const int CardFont = 14;
     private const float BonusLineHeight = 22;
+    private const float LineStep = CardFont + 6;
 
     private readonly PrivateRunLog _log = new();
     private readonly SeedBonusLog _bonus = new();
+    private readonly PrivateComboLog _combos = new();
     private SimDriver? _driver;
     private RunEndView? _view;
     private int? _taken;
@@ -336,7 +388,7 @@ public partial class RunEndPanel : Control
         }
         // Lane SEED-LOOT-VIEW: a run that earned bonus loot gets one more line under the result; the rest moves down.
         var bonusShift = view.BonusLabel is null ? 0f : BonusLineHeight;
-        var placed = LayoutPanel((int)(PanelHeight + bonusShift), out _, out _);
+        var placed = LayoutPanel(HeightOf(view), out _, out _);
         var panel = new Rect2(new Vector2(placed.X, placed.Y) - GetGlobalRect().Position, placed.Width, placed.Height);
         DrawRect(panel, new Color(0.06f, 0.07f, 0.09f, 0.94f));
         DrawRect(panel, new Color(1f, 0.85f, 0.5f), filled: false, width: 2f);
@@ -390,6 +442,29 @@ public partial class RunEndPanel : Control
                 $"{cause.SourceName}: {cause.Damage} damage in {cause.Hits} hit{(cause.Hits == 1 ? string.Empty : "s")}{(cause.KillingBlow ? "  (downed you)" : string.Empty)}");
             HudNodes.Text(this, new Vector2(panel.Position.X + 32, cy), text, CardFont, cause.KillingBlow ? new Color(1f, 0.55f, 0.45f) : Colors.White);
         }
+
+        // Lane COMBO-BLAME (BIBLE s4): which half of the pair was late, this seat's own denials only, under the causes'
+        // three-line slot so the block sits at the same place whatever the cause count.
+        if (view.LateCombos.Count > 0)
+        {
+            var ly = panel.Position.Y + 210 + bonusShift + (ComboBlame.MaxLines * LineStep) + LineStep + 6;
+            HudNodes.Text(this, new Vector2(panel.Position.X + 20, ly), "Combos you were late on (only you see this):", CardFont, new Color(0.85f, 0.88f, 0.95f));
+            foreach (var late in view.LateCombos)
+            {
+                ly += LineStep;
+                HudNodes.Text(this, new Vector2(panel.Position.X + 32, ly), late.Text(), CardFont, new Color(1f, 0.75f, 0.45f));
+            }
+        }
+    }
+
+    /// <summary>The panel height: the base, one bonus line when loot was earned, and the late-combo block when any.</summary>
+    /// <param name="view">The view.</param>
+    /// <returns>Pixels.</returns>
+    private static int HeightOf(RunEndView view)
+    {
+        var bonus = view.BonusLabel is null ? 0f : BonusLineHeight;
+        var combos = view.LateCombos.Count == 0 ? 0f : ((view.LateCombos.Count + 1) * LineStep) + 12;
+        return (int)(PanelHeight + bonus + combos);
     }
 
     private static IEnumerable<string> Wrap(string text, float width, int size)
@@ -418,6 +493,7 @@ public partial class RunEndPanel : Control
     {
         _log.Clear();
         _bonus.Clear();
+        _combos.Clear();
         _view = null;
         _taken = null;
     }
@@ -431,20 +507,21 @@ public partial class RunEndPanel : Control
         var registry = _driver.Registry;
         _log.Observe(events, run.State, classId => Names.Actor(registry, classId));
         _bonus.Observe(run);
+        _combos.Observe(events);
         if (_view is not null || run.RunEnd.Result is null)
         {
             return;
         }
         // The human's class kit scopes the reward facet pool (the Screen's reroll pool, Screen.SlotPool).
         var kit = new HashSet<string>(setup.Slots.Select(s => s.AbilityId), StringComparer.Ordinal);
-        if (RunEndView.Of(run, setup.HumanActorId, _log, registry, kit, _bonus) is { } view)
+        if (RunEndView.Of(run, setup.HumanActorId, _log, registry, kit, _bonus, _combos) is { } view)
         {
             _view = view;
             foreach (var line in view.LogLines())
             {
                 HudNodes.Proof(_driver, line);
             }
-            var panel = LayoutPanel((int)(PanelHeight + (view.BonusLabel is null ? 0f : BonusLineHeight)), out var ability, out var party);
+            var panel = LayoutPanel(HeightOf(view), out var ability, out var party);
             var size = GetViewport()?.GetVisibleRect().Size ?? Size;
             HudNodes.Proof(_driver, FormattableString.Invariant(
                 $"HUD runend layout panel={HudClearance.Format(panel)} abilitybar={HudClearance.Format(ability)} party={HudClearance.Format(party)} viewport={(int)size.X}x{(int)size.Y}"));
