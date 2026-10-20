@@ -121,9 +121,9 @@ Parallel waves (from the dependencies): A = 0, 2, 5. A2 = 1. B = 3, 6. C = 4, 12
   rest of the run, and an actor pushed at either is clamped. Walking back from the Seed chamber into West rooms is
   allowed, and the East stair stays shut. The door stays shut when the Seed is cleared at 999 points, and opens on the
   tick forces reach 1000 with the Seed cleared (in either order). The validator rejects a branching layout with no
-  door, with a seal naming an unknown box, or with a branch that has no stair to the Seed chamber. It also enforces
-  the density rule (bible 9.1): the validator rejects any walking-line stretch longer than 28800 mm (160 ticks at
-  180 mm/tick) between engages, and any room on the walking line with no teaching pull and no pack ring.
+  door, with a seal naming an unknown box, or with a branch that has no stair to the Seed chamber. There is no
+  walking-distance check: walking between packs is part of the route decision, and the stakes come from the timer
+  and the forces bar (bible 9.1, "Zero downtime means stakes, not spawns").
 - **Depends on:** 1, 2 (ContentLoader.cs), 3 (Run.cs).
 - **Wait for:** none.
 

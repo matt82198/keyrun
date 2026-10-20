@@ -244,8 +244,8 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
   branch's doorway close for the rest of the run, and so does the other branch's stair into the Seed chamber.
   Inside the taken branch every room stays open in both directions, and so does the stair between the branch and the
   Seed chamber. A party that skipped too much can walk back to a pack it skipped in its own branch. That walk is a
-  time cost the party chose, not a softlock. Nothing reopens a sealed doorway. Dead travel is the most-cited killer
-  of a run's fun (research/02:50-54, :113-114), so a walk back only ever undoes a skip the party made itself.
+  time cost the party chose, not a softlock. Nothing reopens a sealed doorway. The walk back is paid for on the
+  run timer, so a skip is a gamble against par, and a skip that falls short costs the party its own time.
 - **Optional packs do not gate.** A pack stands beside the walking line with its **aggro ring** drawn on the floor:
   a grey dashed ring at the pack's aggro radius (4000 mm by default). It is not a danger shape, so it never reads as
   a telegraph. The pack engages by the prespawn rule above.
@@ -259,10 +259,13 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
   (research/01:29-34, research/06:42-46). The aggro ring is the visible pull radius. Every ring along a branch can be
   seen from that branch's doorway, so the tank can plan a chain pull (two rings entered together) or a single pull
   before stepping in, and adjust it live (research/01:106-107).
-- **Density rule.** No stretch of the walking line runs more than 160 ticks (8 s at the party's 180 mm/tick) from
-  one engage (a teaching pull or a pack ring) to the next, and no room on the walking line is empty. A skip means
-  walking past enemies, never through an empty room. Dead travel is the most-cited killer of a run's fun
-  (research/02:50-54).
+- **Zero downtime means stakes, not spawns.** **Clarification (Matt, 2026-10-20), recorded verbatim:** "when i say
+  0 downtime, i mean the high stakes m+ introduces, not literally spawning enemies on the player". No moment of the
+  run is free, because one continuous timer runs against par from the first tick (section 8), so every pull and
+  every walk spends the same clock as the boss (research/06:64-71). The forces bar must be filled before the Hollow
+  Door (9.5), so every skip, chain pull and walk back is a choice made against that clock (research/01:29-34). A wipe
+  costs Slack, and a slow or greedy route costs par and can deplete the key (section 8). Walking between packs is
+  normal and is part of the route decision. No rule here limits walking distance or puts enemies on the party.
 - **What an optional pack pays.** Fellowship's trash pays nothing (research/09:60-61). Here, every optional pack
   killed adds Ash to the run's bank, shown on the run-end panel. A run that opens the Hollow Door at 110% forces or
   more raises one of the three end-of-run options by one tier, never past 10. That overflow upgrade is the reward
