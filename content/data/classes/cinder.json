@@ -208,7 +208,7 @@
         {
           "id": "chainReaction",
           "name": "Chain Reaction",
-          "text": "Detonate becomes an area burst.",
+          "text": "Detonate becomes an area burst but costs more Heat.",
           "patch": {
             "shape": {
               "kind": "circle",
