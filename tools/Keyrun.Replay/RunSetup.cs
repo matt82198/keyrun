@@ -341,7 +341,7 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
 
     private static RunOptions ParseOptions(JsObject o)
     {
-        OnlyKeys(o, "runOptions", "clauseId", "loadouts");
+        OnlyKeys(o, "runOptions", "clauseId", "loadouts", "rotationIndex");
         Dictionary<int, IReadOnlyDictionary<string, AbilityDef>>? loadouts = null;
         if (o.Get("loadouts") is { } l)
         {
@@ -359,6 +359,9 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
         {
             ClauseId = o.Get("clauseId") is { } id ? Str(id, "runOptions.clauseId") : null,
             Loadouts = loadouts,
+            // The weekly affix rotation index the run was recorded at (absent = 0): a replay takes it from the trace,
+            // never from the replay's date.
+            RotationIndex = o.Get("rotationIndex") is { } r ? Int(r, "runOptions.rotationIndex") : 0,
         };
     }
 }

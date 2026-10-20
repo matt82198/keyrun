@@ -212,7 +212,9 @@
      Before HOST-HEADING a recording keeps the legacy heading (reason=input-log), writes no startHeading, and a replay
      ignores the field: 36-39 fail (RED). -HeadingOnly runs the source checks and run M alone.
      Run K1's byte comparison with the committed example ignores the one "startHeading" header line (the example
-     predates the field and fixtures are not regenerated); K1 asserts that line separately.
+     predates the field and fixtures are not regenerated); K1 asserts that line separately. K1's and L1's comparisons
+     also leave out the "rotationIndex" header line (the weekly affix rotation, AffixWeek.cs): K1 asserts it is there,
+     L1 that it is 0 (L1 replays a log without one, so its run is built at 0, never at today's week).
     Run A also carries the ability bar icons (lane ABILITY-ICONS; the bar prints one line per slot under --autorun):
      40. nine "HUD bar slot=<key> ability=warden.<id> icon=res://assets/kenney-board-game-icons/<file>.png tex=64x64"
          lines, one per slot 1-5, Q, E, R, F (tex is the loaded Texture2D's size, so a missing file or an unmapped id
@@ -329,6 +331,17 @@ function Get-StartHeadingText([string]$path) {
     if ($hit.Success) { return $hit.Groups[1].Value }
     return $null
 }
+
+# The weekly affix rotation (AffixWeek.cs): every recording carries a "rotationIndex" header line, the index the run was
+# built with (this reset week's, Tuesday 15:00 UTC, or --rotation N's on a live run, the replayed log's on a replay, 0 for a log that has none). The committed
+# examples predate the field, so the byte comparisons leave that one line out and assert it separately.
+function Get-RotationIndexText([string]$path) {
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
+    $hit = [regex]::Match([IO.File]::ReadAllText($path), '(?m)^  "rotationIndex": ([0-9]+),$')
+    if ($hit.Success) { return $hit.Groups[1].Value }
+    return $null
+}
+function Remove-RotationIndexLine([string]$text) { return $text -replace '(?m)^  "rotationIndex": [0-9]+,\n', '' }
 
 # One interactive launch for run M: exit code and output lines.
 function Invoke-Interactive([int]$frames, [string[]]$userArgs) {
@@ -976,7 +989,8 @@ if (-not $recDone) {
         # is asserted here and left out of the byte comparison (the fixture is not regenerated).
         $kHeading = Get-StartHeadingText $recPath
         if ($null -eq $kHeading) { $failures.Add("run K1: the input log has no `"startHeading`" header line") }
-        $recText = ([IO.File]::ReadAllText($recPath)) -replace '(?m)^  "startHeading": [^,\r\n]+,\n', ''
+        if ($null -eq (Get-RotationIndexText $recPath)) { $failures.Add("run K1: the input log has no `"rotationIndex`" header line (the weekly affix rotation is not recorded)") }
+        $recText = Remove-RotationIndexLine (([IO.File]::ReadAllText($recPath)) -replace '(?m)^  "startHeading": [^,\r\n]+,\n', '')
         if (-not (Test-Path -LiteralPath $examplePath)) {
             $failures.Add("run K1: no committed example at $examplePath")
         } elseif ($recText -cne [IO.File]::ReadAllText($examplePath)) {
@@ -1075,7 +1089,10 @@ if (-not $recDoneL) {
         if (@($lEvents | Where-Object { $_.key -eq 'W' -and $_.pressed }).Count -ne 1) { $failures.Add('run L1: the input log does not hold the replayed W press') }
         if (-not (Test-Path -LiteralPath $yawExamplePath)) {
             $failures.Add("run L1: no committed example at $yawExamplePath")
-        } elseif ([Convert]::ToBase64String([IO.File]::ReadAllBytes($lRecPath)) -ne [Convert]::ToBase64String([IO.File]::ReadAllBytes($yawExamplePath))) {
+        } elseif ((Get-RotationIndexText $lRecPath) -ne '0') {
+            # L1 replays <walk>, which has no rotationIndex, so the run is built at 0 and records 0, never this week's.
+            $failures.Add("run L1: the input log's rotationIndex is '$(Get-RotationIndexText $lRecPath)' (want 0: the replayed log's, not today's week)")
+        } elseif ((Remove-RotationIndexLine ([IO.File]::ReadAllText($lRecPath))) -cne [IO.File]::ReadAllText($yawExamplePath)) {
             $failures.Add("run L1: the recorded log differs from the committed example $yawExamplePath (regenerate it from run L1 with a stated reason)")
         }
     }
