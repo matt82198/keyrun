@@ -10,7 +10,7 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// Seed Window loot (BIBLE s9 item 3, ENGINE-PLAN s5 lane 2C): the Seed elite drops a Window on death; a Combo
 /// landed in that Window sets a bonus-loot entry in the run's rewards. This is NEW behaviour (the frozen TS has no
 /// bonus loot), so it has no oracle trace of its own. It is checked against the real key-2 oracle trace's pull 3
-/// (the Seed pull: deathBloom opens "seedbloom" at t1469, ends t1569 since DEAD-CASTER-TELEGRAPH (the Seed dies at t1468; every injected Combo tick below moved +29 with it); t1440 to t1540 since KF3-SEED-ENGAGE (the Seed walks to the party; t1447 to t1547 after the 2026-10-18 content tuning, STATE.md D14; t2706 to t2806 before it): the oracle stream as recorded has no Combo in
+/// (the Seed pull: deathBloom opens "seedbloom" at t1407, ends t1507 since BOTS-FIVE-BUTTONS (the Seed dies at t1406; every injected Combo tick moved -62); t1469 to t1569 since DEAD-CASTER-TELEGRAPH (the Seed dies at t1468; every injected Combo tick below moved +29 with it); t1440 to t1540 since KF3-SEED-ENGAGE (the Seed walks to the party; t1447 to t1547 after the 2026-10-18 content tuning, STATE.md D14; t2706 to t2806 before it): the oracle stream as recorded has no Combo in
 /// that Window, so the entry is absent; the same stream with one field Combo injected, shaped exactly as
 /// sim/combat/payoff.ts:118-129 emits it, has the entry.
 /// </summary>
@@ -66,18 +66,18 @@ public sealed class SeedLootTests
         var (rule, records) = Pull3();
         var rewards = Observe(rule, records);
         Assert.Empty(rewards.BonusLoot);
-        // The rule did see the oracle's Seed Window open (window_opened seedbloom, setupActorId 108, endsTick 1569).
-        Assert.Equal(1569, rewards.SeedWindowEndsTick); // DEAD-CASTER-TELEGRAPH re-record: was 1540
+        // The rule did see the oracle's Seed Window open (window_opened seedbloom, setupActorId 108, endsTick 1507).
+        Assert.Equal(1507, rewards.SeedWindowEndsTick); // BOTS-FIVE-BUTTONS re-record: was 1569 (DEAD-CASTER-TELEGRAPH: was 1540)
     }
 
     [Fact]
     public void A_Combo_landed_in_the_Seed_Window_sets_one_bonus_entry()
     {
         var (rule, records) = Pull3();
-        // DEAD-CASTER-TELEGRAPH re-record: was a Combo at t1461 (Window t1440..1540); now t1490 (Window t1469..1569).
-        var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]> { [1491] = new[] { FieldCombo(1490) } });
+        // BOTS-FIVE-BUTTONS re-record (the Seed dies t1406, Window t1407..1507; every tick below moved -62): was t1490. DEAD-CASTER-TELEGRAPH re-record: was a Combo at t1461 (Window t1440..1540); now t1490 (Window t1469..1569).
+        var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]> { [1429] = new[] { FieldCombo(1428) } });
         var entry = Assert.Single(rewards.BonusLoot);
-        Assert.Equal(new BonusLootEntry("seed", "seedbloom", "seedbloom-field", 1490, SeedActorId, 1), entry);
+        Assert.Equal(new BonusLootEntry("seed", "seedbloom", "seedbloom-field", 1428, SeedActorId, 1), entry);
     }
 
     [Fact]
@@ -86,11 +86,11 @@ public sealed class SeedLootTests
         var (rule, records) = Pull3();
         var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]>
         {
-            // DEAD-CASTER-TELEGRAPH re-record: was Combos at t1461 and t1491; now t1490 and t1520.
-            [1491] = new[] { FieldCombo(1490) },
-            [1521] = new[] { FieldCombo(1520) },
+            // BOTS-FIVE-BUTTONS re-record: was t1490 and t1520. DEAD-CASTER-TELEGRAPH re-record: was Combos at t1461 and t1491; now t1490 and t1520.
+            [1429] = new[] { FieldCombo(1428) },
+            [1459] = new[] { FieldCombo(1458) },
         });
-        Assert.Equal(1490, Assert.Single(rewards.BonusLoot).Tick);
+        Assert.Equal(1428, Assert.Single(rewards.BonusLoot).Tick);
     }
 
     [Fact]
@@ -100,10 +100,10 @@ public sealed class SeedLootTests
         // Before the Window opened, after it ended, in another actor's Window, and in another Window id.
         var rewards = Observe(rule, records, new Dictionary<int, SimEvent[]>
         {
-            // DEAD-CASTER-TELEGRAPH re-record: was t1433 / t1541 / t1462; now t1462 / t1570 / t1491 (Window t1469..1569).
-            [1463] = new[] { FieldCombo(1462) },
-            [1571] = new[] { FieldCombo(1570) },
-            [1492] = new[] { FieldCombo(1491, setupActorId: 3), FieldCombo(1491, windowId: "kindled") },
+            // BOTS-FIVE-BUTTONS re-record: was t1462 / t1570 / t1491 (Window t1469..1569); now t1400 / t1508 / t1429 (Window t1407..1507). DEAD-CASTER-TELEGRAPH re-record: was t1433 / t1541 / t1462; now t1462 / t1570 / t1491 (Window t1469..1569).
+            [1401] = new[] { FieldCombo(1400) },
+            [1509] = new[] { FieldCombo(1508) },
+            [1430] = new[] { FieldCombo(1429, setupActorId: 3), FieldCombo(1429, windowId: "kindled") },
         });
         Assert.Empty(rewards.BonusLoot);
     }

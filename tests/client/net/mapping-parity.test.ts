@@ -59,7 +59,11 @@ describe("net codec: events", () => {
   const base = (): ServerWireSnapshot => new Room("codec-ev", loadServerContent()).tick().snapshot;
 
   it("a quiet tick carries an empty events channel on the wire", () => {
-    const s = base();
+    // BOTS-FIVE-BUTTONS: tick 0 is no longer quiet (the Chanter bot Refrains into Ward before the pull,
+    // bots/src/roles/healer-idle.ts); tick 1 is, and the precondition below still checks it.
+    const room = new Room("codec-ev", loadServerContent());
+    room.tick();
+    const s = room.tick().snapshot;
     expect(s.events).toEqual([]);
     expect(toClientSnapshot(overTheWire(s)).events).toEqual([]);
   });

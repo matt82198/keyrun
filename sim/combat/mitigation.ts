@@ -30,9 +30,24 @@ export function dealDamage(
   emit: (e: SimEvent) => void,
   sourceId: ActorId,
 ): DamageResult {
+  // BOTS-FIVE-BUTTONS (D28 recording, mirrors game/sim/Keyrun.Sim/Combat/Mitigation.cs DealDamage): a living
+  // target hit by a blinded source (bible section 4, Steam: "they miss") takes nothing and a "miss" event
+  // replaces "damage". The bots now close Kindled with Dissonance, so the oracle runs carry Steam's blind.
+  if (source && target.alive && isBlinded(source, state.tick)) {
+    emit({ tick: state.tick, type: "miss", sourceId, targetId: target.id, rawAmount });
+    return { rawAmount, modifiedAmount: 0, absorbed: 0, healthDamage: 0, died: false };
+  }
   const sourceModBp = source ? aggregateModifiers(source, defs).damageDoneBp : 0;
   const targetModBp = aggregateModifiers(target, defs).damageTakenBp;
   return applyDamage(state, target, rawAmount, sourceModBp, targetModBp, defs, emit, sourceId);
+}
+
+/** The status id that makes its carrier miss (Mitigation.cs BlindedEffectId). */
+export const BLINDED_EFFECT_ID = "blinded";
+
+/** True while `actor` carries an unexpired "blinded" instance (endsTick > now, as Mitigation.cs IsBlinded). */
+export function isBlinded(actor: ActorState, now: Tick): boolean {
+  return actor.effects.some((e) => e.effectId === BLINDED_EFFECT_ID && e.endsTick > now);
 }
 
 /** Adds `delta` to the actor's resource, clamped to [0, maxResource]. */

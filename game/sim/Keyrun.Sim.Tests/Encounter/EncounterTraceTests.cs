@@ -206,9 +206,9 @@ public sealed class EncounterTraceTests
     // and casts seed.lash; the re-recorded traces carry 11 / 14 telegraphs (was 9 / 13), k2 10 hits (was 9), k10 14 hits
     // (was 13) with 3 exact (was 2), measured by this replay against the regenerated oracle.
     [Theory]
-    [InlineData("bots-hv-k2-s7", 13, 12, 7, 0, 0, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k2-s11", 13, 12, 7, 0, 0, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 14, 14, 7, 0, 0, 3)]
+    [InlineData("bots-hv-k2-s7", 9, 9, 7, 0, 1, 1)] // BOTS-FIVE-BUTTONS re-record: was 13, 12, 7, 0, 0, 1 (run ends t1637, was t1838). DEAD-CASTER-TELEGRAPH: was 11, 10, 7, 0, 1, 1
+    [InlineData("bots-hv-k2-s11", 9, 9, 7, 0, 1, 1)] // BOTS-FIVE-BUTTONS re-record: was 13, 12, 7, 0, 0, 1. DEAD-CASTER-TELEGRAPH: was 11, 10, 7, 0, 1, 1
+    [InlineData("bots-hv-k10-s7", 14, 14, 7, 0, 0, 0)] // BOTS-FIVE-BUTTONS re-record: was 14, 14, 7, 0, 0, 3
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

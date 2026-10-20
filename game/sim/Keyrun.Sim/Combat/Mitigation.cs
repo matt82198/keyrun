@@ -15,7 +15,8 @@ public static class Mitigation
     /// source contributes 0, :33), the target's damageTakenBp always (:34), then <see cref="Damage.ApplyDamage"/>.
     /// C#-only rule (bible section 4, Steam): a living target hit by a source that <see cref="IsBlinded"/> takes
     /// nothing (no health, no absorb consumed) and a "miss" event (sourceId, targetId, rawAmount) replaces "damage".
-    /// No oracle trace applies "blinded", so parity is unaffected.
+    /// BOTS-FIVE-BUTTONS (STATE.md D28): the bot oracle runs now close Kindled as Steam, so the frozen TS twin
+    /// (sim/combat/mitigation.ts isBlinded) records the same miss.
     /// </summary>
     /// <param name="tick">Current tick.</param>
     /// <param name="source">The attacker, or null when it is gone.</param>

@@ -200,12 +200,24 @@ describe("hud-wiring: the bar is told which payoff keys a Window has made live (
 
   it("as cinder: your own class's Kindled never lights your bar (no self-combo)", async () => {
     const h = await harness(setupFor("cinder"));
-    let kindledTicks = 0;
+    // BOTS-FIVE-BUTTONS: the warden bot now casts Strike, so Sundered (a warden Window the Cinder closes as
+    // Shatter) also opens; on those ticks the bar lights with exactly Cinder's Payoffs. Every other tick,
+    // including every tick an enemy carries only Kindled, the bar must be unlit.
+    let kindledOnlyTicks = 0;
+    let otherClassLit = 0;
     for (let i = 0; i < 400; i++) {
       const snap = h.tick([], i < 10);
-      if (snap.actors.some((a) => a.kind === "enemy" && a.window?.setupClass === "cinder")) kindledTicks += 1;
-      expect(h.payoffArgs[h.payoffArgs.length - 1]?.size ?? 0).toBe(0);
+      const arg = h.payoffArgs[h.payoffArgs.length - 1];
+      const otherClosable = snap.actors.some((a) => a.kind === "enemy" && a.alive && a.window && a.window.setupClass !== "cinder" && snap.tick < a.window.endsTick);
+      if (otherClosable) {
+        expect([...(arg ?? [])].sort()).toEqual(["cinder.coldSnap", "cinder.detonate"]);
+        otherClassLit += 1;
+        continue;
+      }
+      if (snap.actors.some((a) => a.kind === "enemy" && a.window?.setupClass === "cinder")) kindledOnlyTicks += 1;
+      expect(arg?.size ?? 0).toBe(0);
     }
-    expect(kindledTicks).toBeGreaterThan(0);
+    expect(kindledOnlyTicks).toBeGreaterThan(0);
+    expect(otherClassLit).toBeGreaterThan(0);
   });
 });

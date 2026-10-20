@@ -17,6 +17,10 @@ import { removeDispellableEffects } from "./effects-remove";
 import { applyHeal } from "./damage";
 import { creditResource, dealDamage } from "./mitigation";
 import { addThreat } from "./threat";
+import { inCircle } from "./targeting";
+
+/** Combos.cs HealPulseRadiusMm: the Chanter's Hymn patch radius (content/data/abilities/chanter.json). */
+export const HEAL_PULSE_RADIUS_MM = 2200;
 
 export interface ComboDef {
   id: string;
@@ -59,7 +63,18 @@ export function applyComboEffects(
       applyHeal(state, target, op.amount, source.id, emit);
     } else if (op.op === "applyEffect") {
       const def = effectDefs[op.effectId];
-      if (def) applyEffectInstance(target, def, source.id, op.durationTicks, op.stacks, state.tick);
+      if (!def) continue;
+      // BOTS-FIVE-BUTTONS (D28 recording; mirrors Combos.cs ApplyHealPulseToAllies, BIBLE section 4 Consecrate):
+      // a heal-over-time closed on a carrier of another faction goes to the Payoff actor's living allies within
+      // HEAL_PULSE_RADIUS_MM of the carrier, never to the carrier.
+      if (def.periodic?.op.op === "heal" && target.kind !== source.kind) {
+        const allies = Object.values(state.actors).filter((a) => a.alive && a.kind === source.kind);
+        for (const id of inCircle(target.pos, HEAL_PULSE_RADIUS_MM, allies)) {
+          applyEffectInstance(state.actors[id]!, def, source.id, op.durationTicks, op.stacks, state.tick);
+        }
+      } else {
+        applyEffectInstance(target, def, source.id, op.durationTicks, op.stacks, state.tick);
+      }
     } else if (op.op === "removeEffect") {
       if (op.effectId === "*") removeDispellableEffects(source, target, effectDefs);
       else removeEffectInstances(target, op.effectId);
