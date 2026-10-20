@@ -16,6 +16,10 @@ namespace Keyrun.View;
 /// interrupts a cast the bar turns red and reads "caster: ability interrupted"; a completed cast flashes green; both
 /// fade out.
 /// <para>
+/// HUD-DECLUTTER (Matt 2026-10-19): only enemies get an over-head bar. A party member's cast (the human's and the
+/// bots') is drawn inside its party frame (<c>PartyFrames</c>); the Warden's wide bar over the ability bar stays.
+/// </para>
+/// <para>
 /// HUD-POLISH-2 (design/ART-PLAN.md section 2, no HUD text overlaps another): the over-head bars are laid out once a
 /// frame by <see cref="HudLayout"/>.CastBars, nearest the camera first, so two casts side by side never intersect, every
 /// bar stays inside the viewport with the top bar's 16 px side gutter, clear of the top bar and the party frames, and the
@@ -38,6 +42,7 @@ public partial class CastBarView : Control
     private static readonly Color DoneColor = new(0.35f, 0.85f, 0.4f, 1f);
 
     private readonly List<Ending> _endings = new();
+    private readonly Dictionary<int, int> _castLogged = new();
     private readonly List<Bar> _bars = new();
     private readonly List<PixelRect> _rects = new();
     private ulong _laidOutFrame = ulong.MaxValue;
@@ -49,6 +54,10 @@ public partial class CastBarView : Control
     /// <summary>The party frames, a HUD obstacle the bars keep clear of (absent: no party-frame obstacle).</summary>
     [Export]
     public NodePath PartyFramesPath { get; set; } = new("../HudRoot/PartyFrames");
+
+    /// <summary>The enemy unit frames (HUD-DECLUTTER), a HUD obstacle the bars keep clear of.</summary>
+    [Export]
+    public NodePath UnitFramesPath { get; set; } = new("../HudRoot/UnitFrames");
 
     /// <summary>Gap between the player's cast bar and the bottom of the screen, px (clears the ability bar).</summary>
     [Export]
@@ -78,7 +87,7 @@ public partial class CastBarView : Control
         if (Driver is not null)
         {
             Driver.Stepped += OnStepped;
-            Driver.RunStarted += _endings.Clear;
+            Driver.RunStarted += OnRunStarted;
         }
     }
 
@@ -88,7 +97,7 @@ public partial class CastBarView : Control
         if (Driver is not null)
         {
             Driver.Stepped -= OnStepped;
-            Driver.RunStarted -= _endings.Clear;
+            Driver.RunStarted -= OnRunStarted;
         }
     }
 
@@ -174,6 +183,11 @@ public partial class CastBarView : Control
             {
                 continue;
             }
+            // HUD-DECLUTTER: a party member's cast is drawn in its party frame, never over its head.
+            if (!HudDeclutter.OverheadCast(actor))
+            {
+                continue;
+            }
             var progress = Mathf.Clamp((now - start) / Mathf.Max(1f, end - start), 0f, 1f);
             var secondsLeft = Mathf.Max(0f, (end - now) / Tick.TickHz);
             var label = HudLayout.FitCastLabel(Driver.DisplayName(actor), Driver.AbilityName(castId), $"  {secondsLeft:0.0}s",
@@ -182,6 +196,10 @@ public partial class CastBarView : Control
         }
         foreach (var e in _endings)
         {
+            if (Driver.State.Actors.TryGetValue(e.ActorId, out var ender) && !HudDeclutter.OverheadCast(ender))
+            {
+                continue;
+            }
             var color = new Color(e.Interrupted ? InterruptedColor : DoneColor, 1f - (e.Age / FadeSeconds));
             var caster = Driver.State.Actors.TryGetValue(e.ActorId, out var a) ? Driver.DisplayName(a) : string.Empty;
             var label = HudLayout.FitCastLabel(caster, e.Interrupted ? $"{e.Name} interrupted" : e.Name, string.Empty,
@@ -198,6 +216,10 @@ public partial class CastBarView : Control
         if (HudObstacles.PartyFrames(GetNodeOrNull<Control>(PartyFramesPath), Driver.State) is { } frames)
         {
             obstacles.Add(frames);
+        }
+        if (GetNodeOrNull<UnitFrames>(UnitFramesPath) is { } units)
+        {
+            obstacles.AddRange(units.FrameRects);
         }
         var anchors = new PixelPoint[_bars.Count];
         for (var i = 0; i < _bars.Count; i++)
@@ -262,6 +284,7 @@ public partial class CastBarView : Control
         {
             return;
         }
+        LogCastStarts();
         foreach (var e in events)
         {
             if (e.Type == "interrupt" && e.Get("targetId") is JsInt target && e.Get("abilityId") is JsString ability)
@@ -273,6 +296,36 @@ public partial class CastBarView : Control
             {
                 _endings.Add(new Ending((int)actor.Value, Driver.AbilityName(done.Value), interrupted: false));
             }
+        }
+    }
+
+    private void OnRunStarted()
+    {
+        _endings.Clear();
+        _castLogged.Clear();
+    }
+
+    // HUD-DECLUTTER proof (autorun only): one "HUD castbar actor=A kind=player|enemy where=frame|overhead ability=X"
+    // line per cast start, the placement Layout uses (HudDeclutter.OverheadCast).
+    private void LogCastStarts()
+    {
+        if (Driver is null || !Driver.Options.Autorun)
+        {
+            return;
+        }
+        foreach (var (id, actor) in Driver.State.Actors)
+        {
+            if (!actor.Alive || actor.CastId is not { } castId || actor.CastStartTick is not { } start)
+            {
+                continue;
+            }
+            if (_castLogged.TryGetValue(id, out var last) && last == start)
+            {
+                continue;
+            }
+            _castLogged[id] = start;
+            HudNodes.Proof(Driver, FormattableString.Invariant(
+                $"HUD castbar actor={id} kind={HudDeclutter.Side(actor)} where={HudDeclutter.CastPlacement(actor)} ability={castId}"));
         }
     }
 

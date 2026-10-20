@@ -155,6 +155,36 @@ public sealed class HudLayoutTests
         Assert.Equal(labels[0], placed[0]);
     }
 
+    // STACK-PING-LABEL: the Pair's casters each raise their own STACK telegraph at the same tick, a few pixels apart,
+    // so one party call drew five "STACK: group up" rows over the pack. One call on one spot draws one label.
+
+    [Fact]
+    public void One_stack_call_from_five_casters_on_one_spot_draws_one_label()
+    {
+        var texts = Enumerable.Repeat("STACK: group up", 5).ToArray();
+        var labels = Enumerable.Range(0, 5)
+            .Select(i => HudLayout.PingLabelRect(new PixelPoint(760 + (i * 8), 427 + (i * 6)), Measure(texts[i])))
+            .ToArray();
+        IReadOnlyList<int> shown = HudLayout.DistinctPings(texts, labels);
+        Assert.True(shown.Count == 1, $"one STACK call on one spot drew {shown.Count} labels: [{string.Join(", ", shown)}]");
+        Assert.Equal(0, shown[0]);
+    }
+
+    [Fact]
+    public void Different_calls_and_far_apart_spots_each_keep_their_label()
+    {
+        // A SPREAD and a STACK on one body are two calls; the same call on two bodies 300 px apart is two spots.
+        var texts = new[] { "SPREAD: move apart", "STACK: group up", "SPREAD: move apart", "SPREAD: move apart" };
+        var labels = new[]
+        {
+            HudLayout.PingLabelRect(new PixelPoint(400, 400), Measure(texts[0])),
+            HudLayout.PingLabelRect(new PixelPoint(404, 402), Measure(texts[1])),
+            HudLayout.PingLabelRect(new PixelPoint(700, 400), Measure(texts[2])),
+            HudLayout.PingLabelRect(new PixelPoint(406, 404), Measure(texts[3])),
+        };
+        Assert.Equal(new[] { 0, 1, 2 }, HudLayout.DistinctPings(texts, labels));
+    }
+
     [Fact]
     public void Floor_labels_keep_clear_of_cast_bars_and_the_callout()
     {

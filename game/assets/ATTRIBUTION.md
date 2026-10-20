@@ -103,3 +103,34 @@ section 5).
   Warden boss reuses the Adventurers `Knight.glb` above (no copy).
 - Local additions (ours, not the pack's): the Godot `.import` sidecars (embedded images kept uncompressed,
   `gltf/embedded_image_handling=3`; light baking off), the same settings as the Adventurers sidecars.
+
+## Kenney Board Game Icons 1.1
+
+- Folder: `game/assets/kenney-board-game-icons/`
+- Author: Kenney (www.kenney.nl)
+- Source used: https://kenney.nl/assets/board-game-icons (archive
+  `kenney.nl/media/pages/assets/board-game-icons/19cae04050-1721645690/kenney_board-game-icons.zip`, 1039954 bytes,
+  sha256 05f4358381d8b16b303b2f056393b76ce3f6a58228599e88caa2eab11d4c2946).
+- Downloaded: 2026-10-19
+- License as written in the pack's `License.txt` (copied beside the icons as `LICENSE.txt`):
+
+  > Board Game Icons (1.1)
+  >
+  > Created/distributed by Kenney (www.kenney.nl)
+  > Creation date: 22-07-2024
+  >
+  > License: (Creative Commons Zero, CC0)
+  > http://creativecommons.org/publicdomain/zero/1.0/
+  >
+  > This content is free to use in personal, educational and commercial projects.
+  > Support us by crediting Kenney or www.kenney.nl (this is not mandatory)
+
+  (The file continues with donate, Patreon and Twitter links; it carries no further terms.)
+
+- Files copied (pack file names kept; from `PNG/Default (64px)/`, 25 icons, 12172 bytes): `arrow_diagonal.png`,
+  `arrow_right.png`, `book_open.png`, `campfire.png`, `chess_knight.png`, `dice_shield.png`, `exploding.png`, `fire.png`,
+  `flag_triangle.png`, `flask_empty.png`, `flask_full.png`, `hand.png`, `hand_cross.png`, `hexagon_tile.png`,
+  `hourglass.png`, `pawns.png`, `rhombus.png`, `shield.png`, `skull.png`, `structure_wall.png`,
+  `structure_watchtower.png`, `suit_hearts.png`, `suit_hearts_broken.png`, `sword.png`, `tag_shield.png`, and
+  `License.txt`. Which ability draws which icon is the table in `game/content/Keyrun.Content/Model/AbilityIcons.cs`.
+- Local additions (ours, not the pack's): the Godot `.import` sidecars (lossless, no mipmaps).
