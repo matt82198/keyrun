@@ -82,7 +82,7 @@ public static class SeedLoot
             {
                 result = result with { SeedWindowEndsTick = ends };
             }
-            else if (e.Type == "combo" && result.SeedWindowEndsTick is { } endsTick && e.Tick <= endsTick && result.BonusLoot.Count == 0)
+            else if (e.Type == "combo" && result.SeedWindowEndsTick is { } endsTick && e.Tick <= endsTick + 1 && result.BonusLoot.Count == 0)
             {
                 var entry = new BonusLootEntry("seed", rule.WindowId, StrField(e, "comboId") ?? string.Empty, e.Tick, rule.SeedActorId,
                     IntField(e, "payoffActorId") ?? throw new ArgumentException("combo event lacks payoffActorId", nameof(events)));
