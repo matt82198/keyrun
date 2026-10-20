@@ -131,6 +131,14 @@ public sealed record Run(SimState State, EncounterState Encounter, DungeonDef Du
     /// <summary>The Seed loot rule resolved from the content at <see cref="RunRoot.CreateRun"/>, or null when no enemy's
     /// onDeath cast opens a Window (then <see cref="Rewards"/> stays empty).</summary>
     public SeedLootRule? SeedRule { get; init; }
+
+    /// <summary>
+    /// SEED-PULL-TEACHES (C#-only, layout runs): the enemy scripts the encounter steps, with each room-entry pull's
+    /// actors on their pull's own clock (<see cref="Scripts.StartingAt"/>, set by <see cref="RunRoot.StepRun"/> on the
+    /// tick the pull spawns). Null = <see cref="RunContent.EnemyScripts"/> unchanged (every run without a layout, and a
+    /// layout run before its first room-entry spawn).
+    /// </summary>
+    public IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>>? ActiveScripts { get; init; }
 }
 
 /// <summary>Options a host may pass to one <see cref="RunRoot.StepRun"/> (sim/run-types.ts:84 StepRunOpts).</summary>
