@@ -18,4 +18,20 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
+  <!--
+    Compiler-time copy of the purity rule: BannedSymbols.txt bans float math, randomness and
+    clocks, and RS0030 is an error under TreatWarningsAsErrors, so an impure call fails the
+    build in seconds. PurityTests stays the authoritative (IL-level) check; this is earlier,
+    not instead. Analyzer: Microsoft.CodeAnalysis.BannedApiAnalyzers, MIT, build-time only.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="BannedSymbols.txt" />
+    <!-- Sim-only extra (HashCode): Keyrun.Content's ValueList/ValueMap structural GetHashCode uses it. -->
+    <AdditionalFiles Include="BannedSymbols.Sim.txt" />
+  </ItemGroup>
+
 </Project>
