@@ -366,7 +366,7 @@ public interface ICommandSource
 public partial class SimDriver : Node
 {
     /// <summary>The human Warden's actor id.</summary>
-    public const int WardenId = 1;
+    public const int WardenId = ScriptedWarden.WardenId;
 
     /// <summary>The dungeon played.</summary>
     public const string DungeonId = "hollow-vault";

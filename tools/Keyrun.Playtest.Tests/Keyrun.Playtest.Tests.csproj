@@ -27,6 +27,8 @@
   <ItemGroup>
     <!-- The host's Godot-free bot command source, the reference "today's bot run" for NoPolicyParityTests. -->
     <Compile Include="../../game/src/Host/BotCommandSource.cs" Link="Host/BotCommandSource.cs" />
+    <!-- The autorun Warden (seat 1 of HudSceneTest runs F and G), for HostBackfillRunTests. -->
+    <Compile Include="../../game/src/Host/ScriptedWarden.cs" Link="Host/ScriptedWarden.cs" />
   </ItemGroup>
 
   <ItemGroup>
