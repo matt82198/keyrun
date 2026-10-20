@@ -6,7 +6,8 @@
  * manifest.json records, per file, its byte size and FNV-1a 32 over its bytes; per trace, its
  * trace hash, record count, final tick and run result; the loadContent() counts lane 1D compares
  * against; and `frozenSourceHash`, an FNV-1a 32 over the frozen TypeScript sources the fixtures
- * were generated from (CR stripped so a CRLF checkout hashes like an LF one). Any edit under those
+ * were generated from (CR stripped so a CRLF checkout hashes like an LF one; *.md files excluded,
+ * since documentation under a frozen root never changes behaviour). Any other edit under those
  * paths changes it, which the drift test reports as a freeze violation.
  *
  * Usage:
@@ -55,10 +56,11 @@ function listFiles(abs: string): string[] {
   return out;
 }
 
-/** FNV-1a 32 over (path, CR-stripped bytes) of every file under FROZEN_ROOTS, sorted by path. */
+/** FNV-1a 32 over (path, CR-stripped bytes) of every non-.md file under FROZEN_ROOTS, sorted by path. */
 export function frozenSourceHash(root: string = REPO_ROOT): { hash: string; files: number } {
   const files = FROZEN_ROOTS.flatMap((r) => listFiles(join(root, r)))
     .map((abs) => relative(root, abs).split(sep).join("/"))
+    .filter((rel) => !rel.endsWith(".md"))
     .sort();
   let h = 0x811c9dc5;
   const enc = new TextEncoder();
