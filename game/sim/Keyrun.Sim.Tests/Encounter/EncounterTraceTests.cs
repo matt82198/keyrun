@@ -65,10 +65,13 @@ public sealed class EncounterTraceTests
         var setup = EncounterTestKit.Setup(OracleRun.SetupNameOf(trace));
         var content = (JsObject)setup.Get("content")!;
         var dungeon = EncounterJson.ParseDungeon(setup.Get("dungeon")!);
-        // A frozen-TS replay, as RunSetup loads one: the TS drew every scheduled telegraph (TelegraphSpec.TsUnchecked).
+        // A frozen-TS replay, as RunSetup loads one: the TS drew every scheduled telegraph (TelegraphSpec.TsUnchecked)
+        // and fired every step on schedule, mid-cast or not (ScriptStep.TsCastReplace).
         var scripts = EncounterJson.ParseScripts(content.Get("enemyScripts")!).ToDictionary(
             kv => kv.Key,
-            kv => (IReadOnlyList<ScriptStep>)kv.Value.Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { TsUnchecked = true } } : s).ToList());
+            kv => (IReadOnlyList<ScriptStep>)kv.Value
+                .Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { TsUnchecked = true } } : s)
+                .Select(s => s with { TsCastReplace = true }).ToList());
         var abilities = EncounterJson.ParseAbilities(content.Get("abilities")!);
         var keyLevel = OracleRun.KeyLevel(setup);
         var records = OracleRun.Records(trace);
@@ -220,9 +223,15 @@ public sealed class EncounterTraceTests
     // Merged with QUENCH-REFUND (main: k2 13, 12, 7, 0, 0, 1; k10 14, 13, 7, 0, 0, 2) and re-recorded on the merged
     // tree: the same tally of the merged traces gives the SLAM-TELEGRAPH rows below unchanged (it reproduces both
     // parents' rows from their own traces).
-    [InlineData("bots-hv-k2-s7", 10, 10, 7, 0, 0, 0)] // NO-PRESS-MID-CAST re-record: was 10, 9, 7, 0, 1, 1 (measured by this replay); ZERO-GCD f-80b5cf16 re-record: was 12, 12 (measured by this replay); DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k2-s11", 10, 10, 7, 0, 0, 0)] // NO-PRESS-MID-CAST re-record: was 10, 9, 7, 0, 1, 1 (measured by this replay); ZERO-GCD f-80b5cf16 re-record: was 12, 12 (measured by this replay); DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 15, 14, 7, 0, 0, 3)] // NO-PRESS-MID-CAST re-record: was 15, 15 (measured by this replay); ZERO-GCD f-80b5cf16 re-record: was 16, 16 (measured by this replay)
+    // ENEMY-ENGAGE (in-reach chasers turn to face their target) merged with SLAM-TELEGRAPH and re-recorded on the merged
+    // tree: the same tally gives the SLAM-TELEGRAPH rows unchanged (ENEMY-ENGAGE alone: k2 12, 12, 7, 0, 0, 1; k10
+    // 14, 14, 7, 0, 0, 3; the tally reproduces both parents' committed rows from their own traces).
+    // ZERO-GCD + NO-PRESS-MID-CAST (f-80b5cf16) merged with ENEMY-ENGAGE and re-recorded on the merged tree, measured by
+    // this replay (ZERO-GCD + NO-PRESS-MID-CAST alone: k2 10, 10, 7, 0, 0, 0; k10 15, 14, 7, 0, 0, 3; main: k2 12, 12,
+    // 7, 0, 1, 1; k10 16, 16, 7, 0, 0, 3).
+    [InlineData("bots-hv-k2-s7", 10, 10, 7, 0, 0, 0)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k2-s11", 10, 10, 7, 0, 0, 0)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k10-s7", 15, 15, 7, 0, 0, 3)]
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

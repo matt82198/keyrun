@@ -65,7 +65,12 @@ export function chaseCommands(
     const { targetId } = resolveScriptTarget({ state, caster: actor });
     const target = targetId !== undefined ? state.actors[targetId] : undefined;
     if (!target || !target.alive) continue;
-    if (rangeMm(actor, target) <= Math.max(0, engage - (actor.chaseMarginMm ?? CHASE_MARGIN_MM))) continue;
+    if (rangeMm(actor, target) <= Math.max(0, engage - (actor.chaseMarginMm ?? CHASE_MARGIN_MM))) {
+      // ENEMY-ENGAGE: in reach, the chaser still turns to face its target (a zero-direction move only turns).
+      const face = yawBetween(actor.pos, target.pos);
+      if (face !== actor.yaw) out.push({ tick: state.tick, actorId, kind: "move", dir: { x: 0, z: 0 }, yaw: face });
+      continue;
+    }
     const delta = { x: target.pos.x - actor.pos.x, y: 0, z: target.pos.z - actor.pos.z };
     const dir = normaliseTo(delta, 1000);
     out.push({

@@ -19,16 +19,16 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 298808,
-      "fnv": "8c65db40"
+      "bytes": 306078,
+      "fnv": "d3f86838"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 268243,
-      "fnv": "ac6f799f"
+      "bytes": 271024,
+      "fnv": "07f6c894"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 268240,
-      "fnv": "2195dc08"
+      "bytes": 271021,
+      "fnv": "ffa4c12d"
     },
     "content-pull.setup.json": {
       "bytes": 22502,
@@ -36,7 +36,7 @@
     },
     "content-pull.trace.jsonl": {
       "bytes": 30412,
-      "fnv": "41721054"
+      "fnv": "e71fc2fb"
     },
     "fixed.vectors.json": {
       "bytes": 300060,
@@ -434,7 +434,7 @@
         "fnv": "f593d495"
       },
       "sim/encounter/chase.ts": {
-        "fnv": "94642368"
+        "fnv": "4685b155"
       },
       "sim/encounter/clauses.ts": {
         "fnv": "122a3f67"
@@ -507,7 +507,7 @@
       "result": null,
       "setup": "content-pull.setup.json",
       "trace": "content-pull.trace.jsonl",
-      "traceHash": "5bdadaf1"
+      "traceHash": "efb93c11"
     },
     {
       "finalTick": 600,
@@ -525,7 +525,7 @@
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "d6621e57"
+      "traceHash": "306aeb4f"
     },
     {
       "finalTick": 2048,
@@ -534,16 +534,16 @@
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "d6621e57"
+      "traceHash": "306aeb4f"
     },
     {
-      "finalTick": 2289,
+      "finalTick": 2315,
       "name": "bots-hv-k10-s7",
-      "records": 2290,
+      "records": 2316,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "888c2c8e"
+      "traceHash": "e87ad70a"
     }
   ],
   "version": 1
