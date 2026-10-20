@@ -112,6 +112,62 @@ public static class Scripts
 
     private static readonly IReadOnlyDictionary<string, ScriptAbility> NoAbilities = new Dictionary<string, ScriptAbility>();
 
+    /// <summary>
+    /// TELEGRAPH-HONEST (C#-only; design/BIBLE.md section 3, telegraphs are the enemy's language): combat will accept
+    /// <paramref name="actor"/>'s cast of <paramref name="cast"/> on <paramref name="castTick"/> as far as its cooldown
+    /// clock decides, judged from the actor's state now: the GCD is over by then and at least one charge is back
+    /// (the same arithmetic as Combat Cooldowns.ChargesAvailable, integer CeilDiv). An unknown ability is not judged.
+    /// </summary>
+    /// <param name="actor">The caster, as it stands this tick.</param>
+    /// <param name="cast">The ability id.</param>
+    /// <param name="castTick">The tick the cast is due.</param>
+    /// <param name="abilities">Ability views.</param>
+    /// <returns>True when the cooldown clock lets the cast start on <paramref name="castTick"/>.</returns>
+    public static bool ReadyAt(ActorState actor, string cast, int castTick, IReadOnlyDictionary<string, ScriptAbility> abilities)
+    {
+        System.ArgumentNullException.ThrowIfNull(actor);
+        System.ArgumentNullException.ThrowIfNull(abilities);
+        if (!abilities.TryGetValue(cast, out var ability))
+        {
+            return true;
+        }
+        if (castTick < actor.GcdReadyTick)
+        {
+            return false;
+        }
+        if (ability.CooldownTicks <= 0 || !actor.Cooldowns.TryGetValue(ability.Id, out var nextReady) || castTick >= nextReady)
+        {
+            return true;
+        }
+        return ability.Charges - IntMath.CeilDiv(nextReady - castTick, ability.CooldownTicks) >= 1;
+    }
+
+    /// <summary>
+    /// TELEGRAPH-HONEST: step <paramref name="index"/> of <paramref name="script"/>, due on <paramref name="castTick"/>,
+    /// will really start its cast there, so it may be telegraphed. Two rules, both read off state that is already
+    /// fixed when the telegraph is announced: (1) the cooldown clock lets it start (<see cref="ReadyAt"/>; without this a
+    /// Tempo-scaled loop shorter than its ability's cooldown, seed.slam every 98 ticks against 100 at key 2, drew every
+    /// second slam and combat refused the cast); (2) no LATER step of the same script fires a ready cast on that same
+    /// tick, since combat runs the actor's casts in script order and the later one replaces it (the unarmed boss's
+    /// lock loop on the slam's tick). A telegraph whose cast is refused announces a cast that never comes.
+    /// </summary>
+    private static bool WillCast(ActorState actor, IReadOnlyList<ScriptStep> script, int index, int castTick, IReadOnlyDictionary<string, ScriptAbility> abilities)
+    {
+        if (!ReadyAt(actor, script[index].Cast, castTick, abilities))
+        {
+            return false;
+        }
+        for (var j = index + 1; j < script.Count; j++)
+        {
+            var later = script[j];
+            if (later.Trigger != StepTrigger.OnDeath && FiresAt(later, castTick) && ReadyAt(actor, later.Cast, castTick, abilities))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /// <summary>scripts.ts:139 stepEnemyScripts (rules in the class summary). Never mutates <paramref name="state"/>.</summary>
     /// <param name="state">The tick's state.</param>
     /// <param name="scripts">Actor id to script.</param>
@@ -143,8 +199,9 @@ public static class Scripts
             {
                 continue;
             }
-            foreach (var step in script)
+            for (var i = 0; i < script.Count; i++)
             {
+                var step = script[i];
                 if (step.Trigger == StepTrigger.OnDeath)
                 {
                     if (actor.Alive)
@@ -181,7 +238,7 @@ public static class Scripts
                 {
                     commands.Add(cast);
                 }
-                if (step.Telegraph is { } tg && FiresAt(step, tick + tg.LeadTicks))
+                if (step.Telegraph is { } tg && FiresAt(step, tick + tg.LeadTicks) && WillCast(actor, script, i, tick + tg.LeadTicks, abil))
                 {
                     telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, tg));
                 }

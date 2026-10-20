@@ -96,7 +96,8 @@ public static class RunWiring
 
     /// <summary>
     /// The encounter's view of each ability (what sim/encounter/script-target.ts and chase.ts read off the AbilityDef
-    /// stepEncounter receives): id, range, shape kind as its TS string, and whether any op heals.
+    /// stepEncounter receives): id, range, shape kind as its TS string, and whether any op heals; plus, C#-only
+    /// (TELEGRAPH-HONEST), its cooldown and charges, which the script scheduler reads before it telegraphs a cast.
     /// </summary>
     /// <param name="abilities">The run's abilities.</param>
     /// <returns>Ability id to its script view.</returns>
@@ -107,7 +108,11 @@ public static class RunWiring
         foreach (var kv in abilities)
         {
             var def = kv.Value;
-            views[kv.Key] = new ScriptAbility(def.Id, def.Range, ShapeKindJs(def.Shape.Kind), def.Effects.Any(op => op is HealOp));
+            views[kv.Key] = new ScriptAbility(def.Id, def.Range, ShapeKindJs(def.Shape.Kind), def.Effects.Any(op => op is HealOp))
+            {
+                CooldownTicks = def.CooldownTicks,
+                Charges = def.Charges,
+            };
         }
         return views;
     }
