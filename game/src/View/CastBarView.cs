@@ -259,6 +259,18 @@ public partial class CastBarView : Control
         }
     }
 
+    // f-b78d1567 proof (autorun only): one "HUD castlabel actor=A label=L" line per over-head cast, the label as first drawn,
+    // so a plated caster's line reads the ability and seconds alone.
+    private void LogCastLabel(int actorId, int start, string label)
+    {
+        if (Driver is null || !Driver.Options.Autorun || (_labelLogged.TryGetValue(actorId, out var last) && last == start))
+        {
+            return;
+        }
+        _labelLogged[actorId] = start;
+        HudNodes.Proof(Driver, FormattableString.Invariant($"HUD castlabel actor={actorId} label={label}"));
+    }
+
     // The enemy unit frames this frame shows (NAMEPLATE-DECLUTTER: their enemies' casts draw there, not over the head).
     private IReadOnlyList<UnitFrame> Frames() =>
         Driver is null ? Array.Empty<UnitFrame>() : UnitFrameModel.Build(Driver.State, Driver.Setup?.HumanActorId ?? SimDriver.WardenId);
@@ -349,18 +361,6 @@ public partial class CastBarView : Control
             HudNodes.Proof(Driver, FormattableString.Invariant(
                 $"HUD castbar actor={id} kind={HudDeclutter.Side(actor)} where={HudDeclutter.CastPlacement(actor, unitFrames)} ability={castId}"));
         }
-    }
-
-    // f-b78d1567 proof (autorun only): one "HUD castlabel actor=A label=L" line per over-head cast, the label as first drawn,
-    // so a plated caster's line reads the ability and seconds alone.
-    private void LogCastLabel(int actorId, int start, string label)
-    {
-        if (Driver is null || !Driver.Options.Autorun || (_labelLogged.TryGetValue(actorId, out var last) && last == start))
-        {
-            return;
-        }
-        _labelLogged[actorId] = start;
-        HudNodes.Proof(Driver, FormattableString.Invariant($"HUD castlabel actor={actorId} label={label}"));
     }
 
     private readonly record struct Bar(PixelPoint Anchor, float Depth, float Progress, Color Fill, Color Frame, string Label);
