@@ -166,14 +166,15 @@ public partial class AbilityBar : Control
     }
 
     // Lane RANGE-TINT-NOTARGET: the tint reads off the player's own selected target, never the cast's nearest-enemy
-    // fallback (CastTargeting.For), so no target, a dead or friendly one, or a finished run leaves every slot untinted.
+    // fallback (CastTargeting.For), so no target or a dead or friendly one leaves every slot untinted; a cleared run has
+    // no living hostile left to target. The bar reads no run-over state: that is the run-end panel's (HudSceneTest 25).
     private static bool OutOfRange(Run run, ActorState me, AbilityDef def)
     {
         Keyrun.Content.RangeTarget? target = me.TargetId is { } id && id != me.Id && run.State.Actors.TryGetValue(id, out var t)
             ? new Keyrun.Content.RangeTarget(t.Alive, t.Kind != me.Kind, Casting.RangeMm(me, t))
             : null;
         var hostileAbility = def.Shape.Kind == ShapeKind.Target && Affinities.Of(def, run.Content.Effects) == Affinity.Hostile;
-        return Keyrun.Content.AbilitySlotLook.ShowsOutOfRange(target, hostileAbility, def.Range, run.RunEnd.Result is not null);
+        return Keyrun.Content.AbilitySlotLook.ShowsOutOfRange(target, hostileAbility, def.Range);
     }
 
     private void DrawSlot(Font font, Rect2 rect, string key, string name, float alpha, bool outOfRange, bool dashed, Texture2D? icon = null, float iconAlpha = 1f)

@@ -45,9 +45,10 @@ public static class AbilitySlotLook
     /// <param name="target">The player's current target, or null when none is selected.</param>
     /// <param name="hostileAbility">The ability is a hostile single-target cast.</param>
     /// <param name="abilityRangeMm">The ability's range in mm; 0 or less means it has none.</param>
-    /// <param name="runOver">The run has ended.</param>
+    /// <param name="runOver">The run has ended; false by default, since the ability bar reads no run-over state (the
+    /// run-end panel owns it) and a cleared run leaves no living hostile target to tint against.</param>
     /// <returns>True when the slot is tinted.</returns>
-    public static bool ShowsOutOfRange(RangeTarget? target, bool hostileAbility, long abilityRangeMm, bool runOver) =>
+    public static bool ShowsOutOfRange(RangeTarget? target, bool hostileAbility, long abilityRangeMm, bool runOver = false) =>
         !runOver && hostileAbility && abilityRangeMm > 0 &&
         target is { Alive: true, Hostile: true } t && t.RangeMm > abilityRangeMm;
 }

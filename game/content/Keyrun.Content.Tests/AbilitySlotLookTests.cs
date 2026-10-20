@@ -93,4 +93,13 @@ public sealed class AbilitySlotLookTests
         var target = new RangeTarget(Alive: true, Hostile: true, RangeMm: Far);
         Assert.False(AbilitySlotLook.ShowsOutOfRange(target, hostileAbility: true, AbilityRange, runOver: true));
     }
+
+    [Fact]
+    public void Bar_call_without_run_state_tints_a_living_far_target_and_not_a_cleared_one()
+    {
+        // The ability bar passes no run-over flag (the run-end panel owns that state); on a cleared run the player's
+        // target is a corpse, so the three-argument call alone leaves the slot untinted.
+        Assert.True(AbilitySlotLook.ShowsOutOfRange(new RangeTarget(Alive: true, Hostile: true, RangeMm: Far), hostileAbility: true, AbilityRange));
+        Assert.False(AbilitySlotLook.ShowsOutOfRange(new RangeTarget(Alive: false, Hostile: true, RangeMm: Far), hostileAbility: true, AbilityRange));
+    }
 }
