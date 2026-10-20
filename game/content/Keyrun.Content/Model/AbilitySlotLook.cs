@@ -36,4 +36,24 @@ public static class AbilitySlotLook
     /// <param name="outOfRange">The cast's target is out of range.</param>
     /// <returns>The edge width.</returns>
     public static int EdgeWidth(bool outOfRange) => 2;
+
+    /// <summary>
+    /// Whether a slot shows the out-of-range tint (lane RANGE-TINT-NOTARGET). Like WoW, the tint only reads while the
+    /// player has a living hostile target that is farther than the ability's range: never with no target, a dead or
+    /// friendly target, a non-hostile or range-less ability, or once the run is over.
+    /// </summary>
+    /// <param name="target">The player's current target, or null when none is selected.</param>
+    /// <param name="hostileAbility">The ability is a hostile single-target cast.</param>
+    /// <param name="abilityRangeMm">The ability's range in mm; 0 or less means it has none.</param>
+    /// <param name="runOver">The run has ended.</param>
+    /// <returns>True when the slot is tinted.</returns>
+    public static bool ShowsOutOfRange(RangeTarget? target, bool hostileAbility, long abilityRangeMm, bool runOver) =>
+        !runOver && hostileAbility && abilityRangeMm > 0 &&
+        target is { Alive: true, Hostile: true } t && t.RangeMm > abilityRangeMm;
 }
+
+/// <summary>The player's current target as the ability bar's range tint sees it (Godot- and sim-free).</summary>
+/// <param name="Alive">The target is alive.</param>
+/// <param name="Hostile">The target is hostile to the player.</param>
+/// <param name="RangeMm">The player's range to the target, in mm.</param>
+public readonly record struct RangeTarget(bool Alive, bool Hostile, long RangeMm);

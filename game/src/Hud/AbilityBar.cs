@@ -147,7 +147,7 @@ public partial class AbilityBar : Control
             }
             var gcd = def.GcdTicks > 0 && me.GcdReadyTick > now ? Mathf.Clamp((float)(me.GcdReadyTick - now) / def.GcdTicks, 0f, 1f) : 0f;
             var shortResource = def.Cost.Resource != "none" && me.Resource < def.Cost.Amount;
-            var outOfRange = def.Shape.Kind == ShapeKind.Target && def.Range > 0 && OutOfRange(run, me, def);
+            var outOfRange = OutOfRange(run, me, def);
             DrawSlot(font, rect, key, Driver.AbilityName(def.Id), shortResource ? 0.45f : 1f, outOfRange, false, icon, cdFraction > 0f ? CooldownIconAlpha : 1f);
             if (cdFraction > 0f)
             {
@@ -165,10 +165,15 @@ public partial class AbilityBar : Control
         DrawSlot(font, pingRect, pingKey, "Ping", 0.8f, false, true);
     }
 
+    // Lane RANGE-TINT-NOTARGET: the tint reads off the player's own selected target, never the cast's nearest-enemy
+    // fallback (CastTargeting.For), so no target, a dead or friendly one, or a finished run leaves every slot untinted.
     private static bool OutOfRange(Run run, ActorState me, AbilityDef def)
     {
-        var target = CastTargeting.For(run, me.Id, def.Id);
-        return target != me.Id && run.State.Actors.TryGetValue(target, out var t) && Casting.RangeMm(me, t) > def.Range;
+        Keyrun.Content.RangeTarget? target = me.TargetId is { } id && id != me.Id && run.State.Actors.TryGetValue(id, out var t)
+            ? new Keyrun.Content.RangeTarget(t.Alive, t.Kind != me.Kind, Casting.RangeMm(me, t))
+            : null;
+        var hostileAbility = def.Shape.Kind == ShapeKind.Target && Affinities.Of(def, run.Content.Effects) == Affinity.Hostile;
+        return Keyrun.Content.AbilitySlotLook.ShowsOutOfRange(target, hostileAbility, def.Range, run.RunEnd.Result is not null);
     }
 
     private void DrawSlot(Font font, Rect2 rect, string key, string name, float alpha, bool outOfRange, bool dashed, Texture2D? icon = null, float iconAlpha = 1f)

@@ -33,4 +33,64 @@ public sealed class AbilitySlotLookTests
         Assert.Equal(AbilitySlotLook.IconTint, AbilitySlotLook.IconModulate(outOfRange: false));
         Assert.False(RedDominant(AbilitySlotLook.IconModulate(outOfRange: false)));
     }
+
+    // Lane RANGE-TINT-NOTARGET: like WoW, the red range tint only reads while the player has a living hostile target
+    // out of that ability's range. A 5000 mm ability against a target 20000 mm away is out of range when it counts.
+    private const long AbilityRange = 5000;
+    private const long Far = 20000;
+
+    [Fact]
+    public void Living_hostile_target_out_of_range_is_tinted()
+    {
+        var target = new RangeTarget(Alive: true, Hostile: true, RangeMm: Far);
+        Assert.True(AbilitySlotLook.ShowsOutOfRange(target, hostileAbility: true, AbilityRange, runOver: false));
+    }
+
+    [Fact]
+    public void Living_hostile_target_in_range_is_not_tinted()
+    {
+        var target = new RangeTarget(Alive: true, Hostile: true, RangeMm: AbilityRange);
+        Assert.False(AbilitySlotLook.ShowsOutOfRange(target, hostileAbility: true, AbilityRange, runOver: false));
+    }
+
+    [Fact]
+    public void No_target_is_not_tinted()
+    {
+        Assert.False(AbilitySlotLook.ShowsOutOfRange(null, hostileAbility: true, AbilityRange, runOver: false));
+    }
+
+    [Fact]
+    public void Dead_target_is_not_tinted()
+    {
+        var corpse = new RangeTarget(Alive: false, Hostile: true, RangeMm: Far);
+        Assert.False(AbilitySlotLook.ShowsOutOfRange(corpse, hostileAbility: true, AbilityRange, runOver: false));
+    }
+
+    [Fact]
+    public void Friendly_target_is_not_tinted()
+    {
+        var ally = new RangeTarget(Alive: true, Hostile: false, RangeMm: Far);
+        Assert.False(AbilitySlotLook.ShowsOutOfRange(ally, hostileAbility: true, AbilityRange, runOver: false));
+    }
+
+    [Fact]
+    public void Non_hostile_ability_is_not_tinted()
+    {
+        var target = new RangeTarget(Alive: true, Hostile: true, RangeMm: Far);
+        Assert.False(AbilitySlotLook.ShowsOutOfRange(target, hostileAbility: false, AbilityRange, runOver: false));
+    }
+
+    [Fact]
+    public void Ranged_less_ability_is_not_tinted()
+    {
+        var target = new RangeTarget(Alive: true, Hostile: true, RangeMm: Far);
+        Assert.False(AbilitySlotLook.ShowsOutOfRange(target, hostileAbility: true, abilityRangeMm: 0, runOver: false));
+    }
+
+    [Fact]
+    public void After_run_end_nothing_is_tinted()
+    {
+        var target = new RangeTarget(Alive: true, Hostile: true, RangeMm: Far);
+        Assert.False(AbilitySlotLook.ShowsOutOfRange(target, hostileAbility: true, AbilityRange, runOver: true));
+    }
 }
