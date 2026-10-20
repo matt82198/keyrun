@@ -82,6 +82,32 @@ public static class RunRoot
     }
 
     /// <summary>
+    /// A host start that begins in its fight (the <c>--pull N</c> test start: NavLayouts.PlaceParty "a --pull N run
+    /// starts in its fight"; STATE.md D27 spawned that pull at creation). PRESPAWN-AGGRO (BIBLE section 9.1) leaves every
+    /// layout group idle at creation, even with the party standing in the active pull's room outside its aggro ring, so a
+    /// host that asks for a fight start engages the active pull here, exactly as an aggro-ring engage would (its actors
+    /// stop being idle, <see cref="EncounterState.Engaged"/> records it, enemies target the tank). No event is emitted
+    /// (createRun has no event sink), and the room gate holds from the first step, as it did for a D27 creation spawn.
+    /// The input run is not modified. Unchanged for a run without a layout, a finished dungeon or an engaged pull.
+    /// </summary>
+    /// <param name="run">A freshly created run.</param>
+    /// <returns>The run with its active pull engaged.</returns>
+    public static Run EngageStartPull(Run run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var index = run.Encounter.PullIndex;
+        if (run.Content.Layout is null || index < 0 || index >= run.Dungeon.Pulls.Count || Pulls.IsEngaged(run.Encounter, run.Dungeon, index))
+        {
+            return run;
+        }
+        var state = run.State.Clone();
+        var groups = Aggro.GroupsOf(run.Dungeon, state.Tick);
+        var encounter = Aggro.Engage(state, run.Encounter, groups, new[] { run.Dungeon.Pulls[index].Id }, state.Tick, static _ => { });
+        RunWiring.FixupTargeting(state);
+        return run with { State = state, Encounter = encounter };
+    }
+
+    /// <summary>
     /// The Seed's loot rule (BIBLE s9 item 3): <see cref="SeedLoot.RuleFor"/> over the enemy scripts, lowest actor id
     /// first, with an ability's windowId taken from its first <see cref="WindowOp"/>; null when none opens a Window.
     /// </summary>

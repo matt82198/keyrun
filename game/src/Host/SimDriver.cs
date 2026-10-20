@@ -894,6 +894,13 @@ public partial class SimDriver : Node
         }
         // Lane NAV-CORE: a --pull N run starts its party in pull N's room (HostRunSetup.PartyFor), else in the Entrance.
         var created = RunRoot.CreateRun(Options.Seed, setup.PartyFor(dungeon), dungeon, setup.Content, request?.ToRunOptions());
+        if (Options.StartPull > 1)
+        {
+            // A --pull N start begins in pull N's fight (NavLayouts.PlaceParty; STATE.md D27 spawned it at creation).
+            // PRESPAWN-AGGRO leaves that pull idle with the party at its room start, outside the aggro ring, so an idle
+            // human never fights (HudSceneTest runs I and K1 never wiped): engage it here, the host's explicit fight start.
+            created = RunRoot.EngageStartPull(created);
+        }
         // 3F's hand-off (its decision 6): arm the boss on the created run's encounter.
         var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
         Run = run;
@@ -908,8 +915,8 @@ public partial class SimDriver : Node
         _log?.Line(FormattableString.Invariant(
             $"BOSS armed twins={boss.Twins.Count} lockAt={boss.LockThresholdBp / 100} window={boss.LockWindowTicks} bar={boss.TwinsBar.Id} boss={boss.BossActorId}"));
         // createRun spawns pull 0 and drops its pull_start (it has no event sink); the log names it here. On a layout
-        // run every group stands idle from tick 0 (PRESPAWN-AGGRO) and none is engaged at creation: each pull_start
-        // comes on its aggro-radius engage and RunLog names it then.
+        // run every group stands idle from tick 0 (PRESPAWN-AGGRO) and none is engaged at creation except a --pull N start's
+        // (EngageStartPull above): each other pull_start comes on its aggro-radius engage and RunLog names it then.
         if (Pulls.IsEngaged(run.Encounter, dungeon, run.Encounter.PullIndex))
         {
             _log?.PullSpawn(run.Encounter.PullIndex, dungeon);
