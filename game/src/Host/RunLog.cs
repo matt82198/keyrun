@@ -16,7 +16,9 @@ namespace Keyrun.Host;
 /// (canonical JSON, the trace format ORACLE.md uses), the host lines <see cref="CombatNarrator"/> derives from state
 /// (PULL, CHASE, CAST), and free-form lines (RUN, FRAME, AUTORUN). Lines go to the Godot console and, with
 /// <c>--log FILE</c>, to that file (UTF-8, no BOM, LF). TICK lines reach the console only in autorun, so interactive
-/// play is not flooded at 20 lines a second. This is the harness log (BIBLE s10: not player-facing).
+/// play is not flooded at 20 lines a second. This is the harness log (BIBLE s10: not player-facing); the private
+/// player-facing views of the same events are Hud/RunEndPanel.cs PrivateRunLog (what got you) and PrivateComboLog
+/// (which half of a Combo was late, from combo_denied, BIBLE s4).
 /// </summary>
 public sealed class RunLog : IDisposable
 {
