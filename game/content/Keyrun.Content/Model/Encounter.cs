@@ -89,6 +89,13 @@ public sealed record TelegraphSpec
 
     /// <summary>Ticks between telegraph start and the cast landing.</summary>
     public required int LeadTicks { get; init; }
+
+    /// <summary>
+    /// SLAM-TELEGRAPH (BIBLE s3): true when the telegraph resolves on the tick the cast lands (fire tick plus the
+    /// ability's castTicks) rather than when it starts, so the floor shape stays down for the whole cast bar. Absent =
+    /// false (the frozen TS rule). Only valid on a step whose ability has castTicks &gt; 0.
+    /// </summary>
+    public bool? SpansCast { get; init; }
 }
 
 /// <summary>How a <see cref="ScriptAt"/> trigger fires.</summary>

@@ -98,13 +98,17 @@ export function completeCast(state: SimState, actor: ActorState, ctx: CastContex
     clearCast(actor);
     return;
   }
+  let landed = false;
   for (const target of resolveTargets(state, actor, def)) {
-    applyEffects(state, actor, target, def.effects, ctx, emit);
+    if (applyEffects(state, actor, target, def.effects, ctx, emit)) landed = true;
   }
   // "resource" ops credit the CASTER, once per completed cast (not once per resolved target):
   // the op has no target field (abilities.ts), so a builder's momentum/heat is the caster's.
+  // BIBLE s5 Quench: on an ability with an "interrupt" op the resource op is a kick refund and
+  // credits only when an interrupt landed (Casting.cs CompleteCastOn).
+  const isKick = def.effects.some((op) => op.op === "interrupt");
   for (const op of def.effects) {
-    if (op.op === "resource") creditResource(actor, op.delta);
+    if (op.op === "resource" && (landed || !isKick)) creditResource(actor, op.delta);
   }
   emit({ tick: state.tick, type: "cast_complete", actorId: actor.id, abilityId: def.id });
   clearCast(actor);
@@ -117,7 +121,8 @@ function applyEffects(
   ops: EffectOp[],
   ctx: CastContext,
   emit: (e: SimEvent) => void,
-): void {
+): boolean {
+  let interrupted = false;
   for (const op of ops) {
     if (op.op === "damage") {
       dealDamage(state, source, target, op.amount, ctx.effects, emit, source.id);
@@ -132,22 +137,23 @@ function applyEffects(
     } else if (op.op === "threat") {
       addThreat(target, source.id, op.amount ?? 0, op.multiplierBp);
     } else if (op.op === "interrupt") {
-      interruptCast(state, target, source.id, ctx, emit);
+      if (interruptCast(state, target, source.id, ctx, emit)) interrupted = true;
     }
   }
+  return interrupted;
 }
 
-/** No-op if the target is not currently casting, or its cast is not interruptible. */
+/** No-op (returns false) if the target is not currently casting, or its cast is not interruptible; true when it lands. */
 export function interruptCast(
   state: SimState,
   target: ActorState,
   sourceId: ActorId,
   ctx: CastContext,
   emit: (e: SimEvent) => void,
-): void {
-  if (target.castId === null) return;
+): boolean {
+  if (target.castId === null) return false;
   const castDef = ctx.abilities[target.castId];
-  if (!castDef || !castDef.interruptible) return;
+  if (!castDef || !castDef.interruptible) return false;
   const school = abilitySchool(castDef);
   const abilityId = target.castId;
   clearCast(target);
@@ -159,4 +165,5 @@ export function interruptCast(
     nextPeriodicTick: null,
   });
   emit({ tick: state.tick, type: "interrupt", sourceId, targetId: target.id, abilityId, school });
+  return true;
 }
