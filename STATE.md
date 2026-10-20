@@ -876,6 +876,18 @@ Additional parked decisions (from the burn ledger):
   in WoW Mythic+ a death only costs time, it never fails the key on its own; under the bank, three deaths at +2 (900
   ticks against a 620-tick bank) depleted a key that was far ahead of par. The HUD bar now reads the run clock and
   "Deaths N (+Xs)" (TimerSlack.cs). Tune later: the 15 s / 25 s costs and whether the HUD bar keeps its shape.
+- D50 **ENEMY-NO-PUSH: a player and an enemy never push each other, either way; two players or two enemies still do**
+  (orchestrator, 2026-10-20, from Matt's verbatim "it should feel almost exact to wow"; branch feat/no-push-rule, for
+  integrate/playable-dungeon; D47-D49 are claimed by open PR #388; reversible). The step's push-out runs only for a pair of
+  one kind (`Movement.BodiesCollide`, TS twin `bodiesCollide` in sim/combat/movement.ts; idle and dead bodies are still
+  never pushed). Player-player push-out is kept for now (WoW has none either; removing it is a separate follow-up). WHY:
+  in WoW enemies never collide with or shove players. With the room gates gone (D44), the Pair's five melee bodies pushed
+  the standing solo Warden about 18 m down the corridor in HudSceneTest run B, he lived to tick 355, past the Pair's
+  first mark telegraph (tick 296), and the HUD called SPREAD for a cast that never starts (check 8, wrong data shown).
+  With the rule he dies at tick 208 and no call shows (RunBSoloPairTests). Re-recorded: content-pull oracle trace
+  traceHash 4dc08fbd -> fc9969ed and golden expectedHash 113b8042 -> d0c64466. Forced follow-up: all five Pair bodies now
+  reach the tank, so at `pair.meleeSwing` 70 the kick-plan party wipes on the Pair (ChoirLessonTests red). The Pair
+  retune that this forces is done on integrate/playable-dungeon, together with #333's damaging marks, not here.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
