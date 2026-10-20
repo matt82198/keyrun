@@ -400,8 +400,10 @@ public static class HudLayout
     /// <param name="suffix">Text kept whole after the title ("  2.5s"), or empty.</param>
     /// <param name="barWidth">The bar's width in pixels.</param>
     /// <param name="measure">The bar font's width of a string, in pixels.</param>
+    /// <param name="casterPlateShown">True when the caster's name plate is drawn this frame.</param>
     /// <returns>The label; <paramref name="measure"/> of it is at most <paramref name="barWidth"/> when the suffix fits.</returns>
-    public static string FitCastLabel(string caster, string spell, string suffix, int barWidth, Func<string, int> measure)
+    public static string FitCastLabel(string caster, string spell, string suffix, int barWidth, Func<string, int> measure,
+        bool casterPlateShown)
     {
         ArgumentNullException.ThrowIfNull(caster);
         ArgumentNullException.ThrowIfNull(spell);

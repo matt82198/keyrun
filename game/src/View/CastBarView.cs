@@ -195,7 +195,7 @@ public partial class CastBarView : Control
             var progress = Mathf.Clamp((now - start) / Mathf.Max(1f, end - start), 0f, 1f);
             var secondsLeft = Mathf.Max(0f, (end - now) / Tick.TickHz);
             var label = HudLayout.FitCastLabel(Driver.DisplayName(actor), Driver.AbilityName(castId), $"  {secondsLeft:0.0}s",
-                HudLayout.CastBarWidth, Measure);
+                HudLayout.CastBarWidth, Measure, casterPlateShown: false);
             AddBar(camera, id, width, height, progress, Fill, FrameOf(castId), label);
         }
         foreach (var e in _endings)
@@ -207,7 +207,7 @@ public partial class CastBarView : Control
             var color = new Color(e.Interrupted ? InterruptedColor : DoneColor, 1f - (e.Age / FadeSeconds));
             var caster = Driver.State.Actors.TryGetValue(e.ActorId, out var a) ? Driver.DisplayName(a) : string.Empty;
             var label = HudLayout.FitCastLabel(caster, e.Interrupted ? $"{e.Name} interrupted" : e.Name, string.Empty,
-                HudLayout.CastBarWidth, Measure);
+                HudLayout.CastBarWidth, Measure, casterPlateShown: false);
             AddBar(camera, e.ActorId, width, height, 1f, color, color, label);
         }
         if (_bars.Count == 0)
