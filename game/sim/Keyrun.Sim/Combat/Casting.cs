@@ -147,6 +147,8 @@ public static class Casting
             ClearCast(actor);
             return;
         }
+        // BIBLE section 5: a verse ability plays the caster's verse variant (no variants = unchanged, every oracle def).
+        def = Abilities.ResolveVerse(def, actor);
         CompleteCastOn(state, actor, def, Targeting.ResolveTargets(state, actor, def, Affinities.Of(def, ctx.Effects)), ctx, emit);
     }
 
