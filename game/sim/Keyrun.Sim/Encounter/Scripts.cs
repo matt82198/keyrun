@@ -267,8 +267,14 @@ public static class Scripts
                         castStarts.Add(fireTick);
                     }
                 }
-                else if (FiresAt(step, tick + tg.LeadTicks))
+                else if (FiresAt(step, tick + tg.LeadTicks)
+                    && (tg.TsUnchecked || CastHeldAt(state, actorId, actor, script, abil, tick + tg.LeadTicks) == i))
                 {
+                    // TELEGRAPH-READY: a telegraph that resolves on its cast's start tick is drawn, like the spansCast
+                    // one, only when that cast will start then. Keyed Tempo shrinks a loop's period below the
+                    // ability's cooldown (the Seed's slam at key 2: every 98, cooldown 100), and without this every
+                    // second telegraph announced a cast that combat refused not_ready. A frozen-TS replay
+                    // (TelegraphSpec.TsUnchecked) keeps the TS rule its oracle trace recorded.
                     telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, tg));
                     castStarts.Add(null);
                 }

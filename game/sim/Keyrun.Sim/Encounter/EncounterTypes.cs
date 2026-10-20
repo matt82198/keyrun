@@ -57,6 +57,14 @@ public sealed record TelegraphSpec(string Shape, int LeadTicks)
     /// starts. C#-only; oracle replays never apply it (tools/Keyrun.Replay RunSetup clears it).
     /// </summary>
     public bool SpansCast { get; init; }
+
+    /// <summary>
+    /// TELEGRAPH-READY: true only on a frozen-TS replay (tools/Keyrun.Replay RunSetup sets it beside clearing
+    /// <see cref="SpansCast"/>). The TS drew a telegraph whenever its step was scheduled, even for a cast combat then
+    /// refused, and the oracle traces record that, so such a replay keeps the TS rule. Every other run (the host, and
+    /// content-driven tests) draws a telegraph only for a cast that will start. C#-only, never read from JSON.
+    /// </summary>
+    public bool TsUnchecked { get; init; }
 }
 
 /// <summary>
