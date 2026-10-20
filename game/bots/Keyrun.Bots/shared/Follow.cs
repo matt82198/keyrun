@@ -117,21 +117,34 @@ public static class Follow
         return state.Actors.Values.Any(a => a.Alive && a.Kind == ActorKind.Enemy && !a.Idle);
     }
 
-    /// <summary>The party's leader: the living player actor with the lowest id (the human seat is actor 1).</summary>
+    /// <summary>
+    /// The party's leader: the player actor in the lowest seat, alive or dead (the human seat is actor 1), the same seat
+    /// <see cref="LeadCommand"/> leads from. A leader's death never hands the lead to the next living seat, because that
+    /// seat walks no route (LeadCommand keeps the dead seat): with the living-only rule a fallen leader left a living bot
+    /// as a leader that never moved, so a joiner refilled outside the party's locked room (BACKFILL-GATE) never walked in
+    /// after <c>gate_open</c> (BIBLE sections 1 and 10: backfill instead of abandonment). The party regroups on the
+    /// fallen leader's body instead. Null when no player lives.
+    /// </summary>
     /// <param name="state">The state.</param>
     /// <returns>The leader, or null when no player lives.</returns>
     public static ActorState? Leader(SimState state)
     {
         ArgumentNullException.ThrowIfNull(state);
         ActorState? best = null;
+        var anyAlive = false;
         foreach (var a in state.Actors.Values)
         {
-            if (a.Alive && a.Kind == ActorKind.Player && (best is null || a.Id < best.Id))
+            if (a.Kind != ActorKind.Player)
+            {
+                continue;
+            }
+            anyAlive |= a.Alive;
+            if (best is null || a.Id < best.Id)
             {
                 best = a;
             }
         }
-        return best;
+        return anyAlive ? best : null;
     }
 
     /// <summary>
@@ -329,8 +342,8 @@ public static class Follow
 
     /// <summary>
     /// The bot's travel move on a layout run (<see cref="BotView.Layout"/>) with the content formation in the view and a
-    /// living leader other than the bot: a walk along the route to its formation slot behind the leader while no enemy
-    /// lives; during a fight with the leader in a room, a walk to its slot pulled <see cref="FightGoalInsetMm"/> inside
+    /// leader (<see cref="Leader"/>, alive or dead) other than the bot: a walk along the route to its formation slot
+    /// behind the leader while no enemy lives; during a fight with the leader in a room, a walk to its slot pulled <see cref="FightGoalInsetMm"/> inside
     /// that room while the bot stands outside the room shrunk by <see cref="FightInsetMm"/> (still in the corridor or the
     /// doorway, KF2c), and with the leader in no room only while the bot shares no box with him. A bot already in the
     /// leader's room whose slot falls outside it (the leader near the entry wall) walks to that slot pulled
