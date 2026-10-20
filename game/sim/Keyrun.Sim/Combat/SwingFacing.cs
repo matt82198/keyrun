@@ -52,8 +52,8 @@ public static class SwingFacing
                     def.Shape.Kind is ShapeKind.Target or ShapeKind.Circle &&
                     actor.TargetId is int targetId)
                 {
-                    _ = targetId; // MUTANT (implementation removed): a swing never starts a hold
-                    return null;
+                    var hold = new FacingHold(targetId, actor.Pos);
+                    return Valid(state, actor, hold) ? hold : null;
                 }
                 return null;
             }
