@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace Keyrun.Content;
 
 /// <summary>
@@ -35,6 +38,90 @@ public static class CombatTextRule
             return false;
         }
         missedTargetId = (int)target;
+        return true;
+    }
+
+    // Lane DMG-NUMBERS (finding f-07a02dc5): where a floating number draws.
+
+    /// <summary>Pixels between the target's plate edge and a number placed beside it.</summary>
+    public const int SideGap = 8;
+
+    /// <summary>Pixels a number keeps from every rectangle it avoids (plates, cast bars, HUD blocks, other numbers).</summary>
+    public const int Clearance = 3;
+
+    /// <summary>How far a number drifts sideways, away from the plate, over its life.</summary>
+    public const int DriftSidePx = 24;
+
+    /// <summary>How far a number drifts down, away from the plate and the cast bar over it, over its life.</summary>
+    public const int DriftDownPx = 16;
+
+    /// <summary>The most a number is moved up or down off its spot beside the plate before that side counts as blocked.</summary>
+    public const int MaxShiftPx = 48;
+
+    /// <summary>
+    /// Where one floating number (a damage number or <see cref="MissText"/>) draws, given its target's plate as it is
+    /// drawn (after LabelView's separation). The number never spawns on the plate or the cast bar over the target's
+    /// head: it starts level with the plate, <see cref="SideGap"/> past its right edge, and drifts
+    /// <see cref="DriftSidePx"/> further sideways and <see cref="DriftDownPx"/> down over its life, away from the plate.
+    /// It is then moved the least distance up or down (<see cref="HudLayout.Separate(IReadOnlyList{PixelRect}, int, int, IReadOnlyList{PixelRect})"/>'s
+    /// rule, at most <see cref="MaxShiftPx"/>) until it is <see cref="Clearance"/> clear of every
+    /// <paramref name="avoid"/> rectangle and of <paramref name="beside"/>. When the right side leaves the viewport or
+    /// has no clear spot, the mirror spot on the plate's left is tried; with neither, the number is not drawn (null)
+    /// rather than drawn over a plate or a bar. Pure, display only; never a rule.
+    /// </summary>
+    /// <param name="beside">The target's drawn plate (or, with no plate on screen, the box the number would float in).</param>
+    /// <param name="width">The number's box width (text plus outline).</param>
+    /// <param name="height">The number's box height (font plus outline).</param>
+    /// <param name="age">The number's age as a fraction of its life, 0 to 1.</param>
+    /// <param name="viewportWidth">Viewport width in pixels.</param>
+    /// <param name="viewportHeight">Viewport height in pixels.</param>
+    /// <param name="avoid">The plates, cast bars, HUD blocks and numbers already placed this frame.</param>
+    /// <returns>The number's box, or null when it has no clear spot this frame.</returns>
+    public static PixelRect? PlaceNumber(
+        PixelRect beside, int width, int height, float age, int viewportWidth, int viewportHeight, IReadOnlyList<PixelRect> avoid)
+    {
+        ArgumentNullException.ThrowIfNull(avoid);
+        var t = Math.Clamp(age, 0f, 1f);
+        var side = SideGap + (int)Math.Round(DriftSidePx * t);
+        var y = beside.Y + ((beside.Height - height) / 2) + (int)Math.Round(DriftDownPx * t);
+        var grown = new List<PixelRect>(avoid.Count + 1) { Grow(beside) };
+        foreach (var r in avoid)
+        {
+            grown.Add(Grow(r));
+        }
+        foreach (var x in new[] { beside.Right + side, beside.X - side - width })
+        {
+            var box = new PixelRect(x, y, width, height);
+            if (box.X < 0 || box.Right > viewportWidth)
+            {
+                continue;
+            }
+            var offset = HudLayout.Separate(new[] { box }, viewportWidth, viewportHeight, grown)[0];
+            var placed = box.Offset(offset.Dx, offset.Dy);
+            if (offset.Dx == 0 && Math.Abs(offset.Dy) <= MaxShiftPx && Clear(placed, grown, viewportHeight))
+            {
+                return placed;
+            }
+        }
+        return null;
+    }
+
+    private static PixelRect Grow(PixelRect r) =>
+        new(r.X - Clearance, r.Y - Clearance, r.Width + (2 * Clearance), r.Height + (2 * Clearance));
+
+    private static bool Clear(PixelRect box, List<PixelRect> grown, int viewportHeight)
+    {
+        if (box.Y < 0 || box.Bottom > viewportHeight)
+        {
+            return false;
+        }
+        foreach (var r in grown)
+        {
+            if (box.Intersects(r))
+            {
+                return false;
+            }
+        }
         return true;
     }
 }

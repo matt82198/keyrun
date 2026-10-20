@@ -25,6 +25,14 @@ namespace Keyrun.Hud;
 /// bar), so a number never sits on a nameplate or a panel. When the run ends (the run-end panel opens) every live
 /// number is cleared and none spawn until the next run.
 /// </para>
+/// <para>
+/// Lane DMG-NUMBERS (finding f-07a02dc5): the over-head spot is where the plate and the cast bar label draw, so a
+/// number moved only off the plate's pre-separation box still landed on a separated neighbour plate or on the cast bar
+/// label. Numbers now go beside the target's plate as LabelView draws it (<see cref="DrawnPlates"/>, the same
+/// separation and obstacles), drifting sideways and down away from it, clear of every drawn plate, every cast bar
+/// block (<c>CastBarView.BarRects</c>), every ping label, the HUD panels and the numbers placed before them
+/// (<see cref="CombatTextRule.PlaceNumber"/>). MISS text follows the same rule.
+/// </para>
 /// </summary>
 public partial class CombatText : Control
 {
@@ -53,6 +61,14 @@ public partial class CombatText : Control
     /// <summary>The enemy unit frames, HUD blocks numbers keep clear of.</summary>
     [Export]
     public NodePath UnitFramesPath { get; set; } = new("../UnitFrames");
+
+    /// <summary>The over-head cast bars (Arena Hud/CastBars), whose blocks numbers and plates keep clear of.</summary>
+    [Export]
+    public NodePath CastBarsPath { get; set; } = new("../../CastBars");
+
+    /// <summary>The SPREAD/STACK world labels, which plates (and so numbers) keep clear of.</summary>
+    [Export]
+    public NodePath PingsPath { get; set; } = new("../Pings");
 
     /// <inheritdoc />
     public override void _Ready()
@@ -117,8 +133,10 @@ public partial class CombatText : Control
         }
     }
 
-    // Places every live number for this frame: where it floats over its target (rising with age), then moved off the
-    // name plates and HUD panels. The first placement of a number prints its proof line.
+    // Places every live number for this frame: beside its target's drawn plate, drifting away from it, clear of every
+    // drawn plate, cast bar, ping label, HUD panel and number placed before it (CombatTextRule.PlaceNumber). The first
+    // placement of a number prints its proof line; "raw" there is the old over-head spot (rising with age), the one
+    // that sits on the plate, so raw_hit=1 shows the collision the placement avoided.
     private void Layout()
     {
         var camera = GetViewport()?.GetCamera3D();
@@ -133,17 +151,23 @@ public partial class CombatText : Control
         var view = GetViewport().GetVisibleRect().Size;
         var width = (int)view.X;
         var height = (int)view.Y;
-        var plates = PlateRects(camera, width, height);
-        var avoid = new List<PixelRect>(plates.Values) { HudLayout.TopBar(width, height).Band(width) };
-        avoid.AddRange(PanelRects(view));
+        var band = HudLayout.TopBar(width, height).Band(width);
+        var bars = GetNodeOrNull<CastBarView>(CastBarsPath)?.BarRects ?? Array.Empty<PixelRect>();
+        var pings = GetNodeOrNull<Pings>(PingsPath)?.LabelRects ?? Array.Empty<PixelRect>();
+        var frames = FrameRects();
+        var plates = DrawnPlates(camera, width, height, band, frames, bars, pings);
+        var avoid = new List<PixelRect>(plates.Values) { band, AbilityBarRect(view) };
+        avoid.AddRange(bars);
+        avoid.AddRange(pings);
+        avoid.AddRange(frames);
         foreach (var n in _numbers)
         {
-            var world = n.World;
+            var feet = n.World;
             if (_driver.State.Actors.TryGetValue(n.TargetId, out var target))
             {
-                world = ActorView.ToMetres(target.Pos);
+                feet = ActorView.ToMetres(target.Pos);
             }
-            world += new Vector3(0, AnchorHeightM, 0);
+            var world = feet + new Vector3(0, AnchorHeightM, 0);
             if (camera.IsPositionBehind(world))
             {
                 n.Placed = null;
@@ -152,22 +176,68 @@ public partial class CombatText : Control
             var screen = camera.UnprojectPosition(world);
             var baseline = new PixelPoint((int)Math.Round(screen.X), (int)Math.Round(screen.Y - (RisePx * (n.Age / LifeSeconds))));
             var raw = HudClearance.NumberRect(baseline, (int)Math.Ceiling(HudNodes.Width(n.Text, FontSize)), FontSize, OutlineSize);
-            var placed = HudClearance.PlaceNumber(raw, width, height, avoid);
+            var hasPlate = plates.TryGetValue(n.TargetId, out var plate);
+            var placed = CombatTextRule.PlaceNumber(hasPlate ? plate : raw, raw.Width, raw.Height, n.Age / LifeSeconds, width, height, avoid);
             n.Placed = placed;
-            if (!n.Logged && plates.TryGetValue(n.TargetId, out var plate))
+            if (placed is not { } box)
+            {
+                continue;
+            }
+            avoid.Add(box);
+            if (!n.Logged && hasPlate)
             {
                 n.Logged = true;
                 HudNodes.Proof(_driver, FormattableString.Invariant(
-                    $"HUD numbers place target={n.TargetId} plate={HudClearance.Format(plate)} number={HudClearance.Format(placed)} raw_hit={(raw.Intersects(plate) ? 1 : 0)}"));
+                    $"HUD numbers place target={n.TargetId} plate={HudClearance.Format(plate)} number={HudClearance.Format(box)} raw_hit={(raw.Intersects(plate) ? 1 : 0)}"));
+                var barHit = 0;
+                foreach (var b in bars)
+                {
+                    barHit |= box.Intersects(b) ? 1 : 0;
+                }
+                var plateHit = 0;
+                foreach (var p in plates.Values)
+                {
+                    plateHit |= box.Intersects(p) ? 1 : 0;
+                }
+                HudNodes.Proof(_driver, FormattableString.Invariant(
+                    $"HUD numbers clear target={n.TargetId} text={n.Text} bars={bars.Count} plates={plates.Count} bar_hit={barHit} plate_hit={plateHit}"));
             }
         }
     }
 
-    // The box every visible name plate takes (LabelView: every living actor but the Warden, anchor in front of the
-    // camera and on screen), keyed by actor id.
-    private Dictionary<int, PixelRect> PlateRects(Camera3D camera, int width, int height)
+    // The box every visible name plate draws in, keyed by actor id, exactly as LabelView.DrawPlates lays it out: every
+    // living actor but the Warden whose anchor is in front of the camera and on screen, its pre-separation box
+    // (HudClearance.PlateRect), nearest the camera first, separated (HudLayout.Separate) from the same obstacles
+    // LabelView uses (top bar band, party frames, unit frames, cast bars, ping labels).
+    private Dictionary<int, PixelRect> DrawnPlates(
+        Camera3D camera, int width, int height, PixelRect band, List<PixelRect> frames, IReadOnlyList<PixelRect> bars, IReadOnlyList<PixelRect> pings)
     {
-        var rects = new Dictionary<int, PixelRect>();
+        var raw = PlateRects(camera, width, height);
+        var ids = new List<int>(raw.Keys);
+        ids.Sort((a, b) => raw[a].Depth.CompareTo(raw[b].Depth));
+        var boxes = new List<PixelRect>(ids.Count);
+        foreach (var id in ids)
+        {
+            boxes.Add(raw[id].Rect);
+        }
+        var obstacles = new List<PixelRect> { band };
+        obstacles.AddRange(frames);
+        obstacles.AddRange(bars);
+        obstacles.AddRange(pings);
+        var offsets = HudLayout.Separate(boxes, width, height, obstacles);
+        var drawn = new Dictionary<int, PixelRect>(ids.Count);
+        for (var i = 0; i < ids.Count; i++)
+        {
+            drawn[ids[i]] = boxes[i].Offset(offsets[i].Dx, offsets[i].Dy);
+        }
+        return drawn;
+    }
+
+    // The box every visible name plate takes before separation (LabelView: every living actor but the Warden, anchor
+    // in front of the camera and on screen) and its anchor's squared distance to the camera, keyed by actor id.
+    private Dictionary<int, (PixelRect Rect, float Depth)> PlateRects(Camera3D camera, int width, int height)
+    {
+        var rects = new Dictionary<int, (PixelRect Rect, float Depth)>();
         var state = _driver!.State;
         var targetId = state.Actors.TryGetValue(SimDriver.WardenId, out var me) ? me.TargetId : null;
         foreach (var (id, actor) in state.Actors)
@@ -191,13 +261,14 @@ public partial class CombatText : Control
             var name = _driver.DisplayName(actor);
             name = id == targetId ? "> " + name + " <" : name;
             var nameWidth = (int)Math.Ceiling(HudNodes.Width(name, HudClearance.PlateNameFont));
-            rects[id] = HudClearance.PlateRect(new PixelPoint((int)Math.Round(screen.X), (int)Math.Round(screen.Y)), nameWidth);
+            var rect = HudClearance.PlateRect(new PixelPoint((int)Math.Round(screen.X), (int)Math.Round(screen.Y)), nameWidth);
+            rects[id] = (rect, camera.GlobalPosition.DistanceSquaredTo(anchor));
         }
         return rects;
     }
 
-    // The HUD panels a number keeps out of: the party frames, the unit frames and the ability bar footprint.
-    private List<PixelRect> PanelRects(Vector2 view)
+    // The HUD frames plates and numbers keep out of: the party frames and the unit frames.
+    private List<PixelRect> FrameRects()
     {
         var rects = new List<PixelRect>();
         if (HudObstacles.PartyFrames(GetNodeOrNull<Control>(PartyFramesPath), _driver!.State) is { } frames)
@@ -208,9 +279,14 @@ public partial class CombatText : Control
         {
             rects.AddRange(units.FrameRects);
         }
-        var bar = AbilityBar.Footprint(view, (_driver.Setup?.Slots.Count ?? 0) + 1);
-        rects.Add(new PixelRect((int)bar.Position.X, (int)bar.Position.Y, (int)Math.Ceiling(bar.Size.X), (int)Math.Ceiling(bar.Size.Y)));
         return rects;
+    }
+
+    // The ability bar footprint (the player's meters plus the slot row), a block numbers keep out of.
+    private PixelRect AbilityBarRect(Vector2 view)
+    {
+        var bar = AbilityBar.Footprint(view, (_driver!.Setup?.Slots.Count ?? 0) + 1);
+        return new PixelRect((int)bar.Position.X, (int)bar.Position.Y, (int)Math.Ceiling(bar.Size.X), (int)Math.Ceiling(bar.Size.Y));
     }
 
     private void OnRunStarted()
