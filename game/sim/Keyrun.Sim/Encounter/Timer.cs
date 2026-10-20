@@ -143,7 +143,7 @@ public static class Timer
     /// <param name="parTicks">Par.</param>
     /// <returns>The next key level (the caller clamps to its band).</returns>
     public static int KeyAfterRun(int keyLevel, RunResult result, int finishTick, int parTicks) =>
-        result == RunResult.Timed ? NextKeyLevel(keyLevel, UpgradeTier(result, finishTick, parTicks)) : keyLevel - 1;
+        result == RunResult.Timed ? NextKeyLevel(keyLevel, UpgradeTier(result, finishTick, parTicks)) : keyLevel;
 
     /// <summary>
     /// timer.ts:61 finishRun: always emits <c>{tick, type:"finish", result}</c>; abandoned when not completed, else
