@@ -67,22 +67,22 @@ considered". Before this, the Warden (400 health) had no passive mitigation: alo
 Brace on cooldown it died at tick 160 (8 s), and one key-10 Fortified Acolyte swing took 91 (23% of its health).
 WoW M+ keeps a tank alive with three layers, and Keyrun copies all three:
 
-1. **Passive armor (always on).** The Warden removes **40% (4000 bp)** of every hit, after the bp modifiers
+1. **Passive armor (always on).** The Warden removes **35% (3500 bp)** of every hit, after the bp modifiers
    (game/content/data/run.json `classArmorBp`; `Damage.ApplyArmor`). It is a percent, so it scales with Fortified
    and Tempo instead of being outgrown, and it **multiplies** with the active layer instead of adding to it, so the
-   full stack never reaches immunity. 40% is a WoW plate tank's armor reduction against same-level mobs.
+   full stack never reaches immunity. 35% sits just under a WoW plate tank's 40% against same-level mobs: it is the measured value that keeps the Playtest suite green with key scale pressure (#364).
 2. **Active mitigation (buttons already in the kit).** Brace -40% for 60 ticks every 300 (20% uptime, the "press it
    for the big hit" cooldown); Vigil -30% for 100 ticks for 50 Momentum (the Shield Block / Ironfur rhythm the
-   Warden earns by hitting); Bulwark -15% for anyone in the patch. Taken during Brace: 60% x 60% = 36%. Brace + Vigil
-   + Bulwark + armor: 15% x 60% = 9%, never 0.
+   Warden earns by hitting); Bulwark -15% for anyone in the patch. Taken during Brace: 60% x 65% = 39%. Brace + Vigil
+   + Bulwark + armor: 15% x 65% = 9.75%, never 0.
 3. **Healer throughput.** The tank alone buys the healer's reaction budget: **an unhealed Warden with only Brace on
-   cooldown lives at least 10 s (200 ticks) on a key-1 pull** (measured: Choir pull 240 ticks; key 5 333, key 10
-   297). The healer's job is the rest: sustained healing on the tank should match the tank's mitigated incoming
+   cooldown lives at least 10 s (200 ticks) on a key-1 pull** (measured at 3500 bp: Choir pull 200 ticks, exactly the window; key 5 259, key 10
+   231). The healer's job is the rest: sustained healing on the tank should match the tank's mitigated incoming
    damage on trash (key-1 Choir: two Acolytes x 42 per 40 ticks = 42 health/s, about 10% of the Warden per second)
    and burst past it after a big hit. The Chanter's healing (Consecrate pulses, the Hymn field) is not retuned here.
 
-**One-shot guard:** at key 10 (Fortified + Tempo), no trash hit may take a fifth of the tank's health (measured: 54
-of 400). Boss hits are bigger by design (Cleave 220 raw, 132 after armor) and are telegraphed: that is Brace's job.
+**One-shot guard:** at key 10 (Fortified + Tempo), no trash hit may take a fifth of the tank's health (measured: 59
+of 400). Boss hits are bigger by design (Cleave 220 raw, 143 after armor) and are telegraphed: that is Brace's job.
 Tests: tools/Keyrun.Playtest.Tests/TankSurvivabilityTests.cs.
 
 ## 4. Synergy: Windows and Combos (Keyrun's own system)

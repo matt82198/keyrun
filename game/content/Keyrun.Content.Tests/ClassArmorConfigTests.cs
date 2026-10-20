@@ -24,7 +24,7 @@ public sealed class ClassArmorConfigTests
     {
         var armor = ContentLoader.Load().Run.ClassArmorBp;
 
-        Assert.Equal(4000, armor["warden"]);
+        Assert.Equal(3500, armor["warden"]);
         Assert.False(armor.ContainsKey("cinder"));
         Assert.False(armor.ContainsKey("chanter"));
     }

@@ -21,6 +21,6 @@
     "tyrannical": { "healthBp": 2500, "damageBp": 1500 }
   },
   "classArmorBp": {
-    "warden": 4000
+    "warden": 3500
   }
 }
