@@ -11,7 +11,8 @@ namespace Keyrun.View;
 /// <summary>
 /// Cast bars, drawn in screen space over the 3D view: one above every casting actor's head (the sim carries a cast as
 /// state: CastId, CastStartTick, CastEndsTick), filled by the fraction of the cast elapsed at the displayed fractional
-/// tick, with "caster: ability" and the seconds left. An interruptible cast has an amber frame (kick it), an
+/// tick, with the ability and the seconds left ("caster: ability" only when no name plate names the caster, f-b78d1567,
+/// <see cref="LabelView.ShowsPlate"/>). An interruptible cast has an amber frame (kick it), an
 /// uninterruptible one grey. The Warden's own cast also shows as a wide bar above the ability bar. When the sim
 /// interrupts a cast the bar turns red and reads "caster: ability interrupted"; a completed cast flashes green; both
 /// fade out.
@@ -50,6 +51,7 @@ public partial class CastBarView : Control
 
     private readonly List<Ending> _endings = new();
     private readonly Dictionary<int, int> _castLogged = new();
+    private readonly Dictionary<int, int> _labelLogged = new();
     private readonly List<Bar> _bars = new();
     private readonly List<PixelRect> _rects = new();
     private ulong _laidOutFrame = ulong.MaxValue;
@@ -65,6 +67,13 @@ public partial class CastBarView : Control
     /// <summary>The enemy unit frames (HUD-DECLUTTER), a HUD obstacle the bars keep clear of.</summary>
     [Export]
     public NodePath UnitFramesPath { get; set; } = new("../HudRoot/UnitFrames");
+
+    /// <summary>
+    /// The name plates (f-b78d1567): a caster whose plate is drawn (<see cref="LabelView.ShowsPlate"/>) gets a label of the
+    /// ability alone; absent, every label keeps "caster: ability".
+    /// </summary>
+    [Export]
+    public NodePath LabelsPath { get; set; } = new("../../Labels");
 
     /// <summary>Gap between the player's cast bar and the bottom of the screen, px (clears the ability bar).</summary>
     [Export]
@@ -208,6 +217,8 @@ public partial class CastBarView : Control
 
         var now = Driver.State.Tick + Driver.Alpha;
         var unitFrames = Frames();
+        // f-b78d1567: the plate owner says whose name is already drawn over the head; never guessed here.
+        var plates = GetNodeOrNull<LabelView>(LabelsPath);
         foreach (var (id, actor) in Driver.State.Actors)
         {
             if (!actor.Alive || actor.CastId is not { } castId || actor.CastStartTick is not { } start || actor.CastEndsTick is not { } end)
@@ -223,7 +234,8 @@ public partial class CastBarView : Control
             var progress = Mathf.Clamp((now - start) / Mathf.Max(1f, end - start), 0f, 1f);
             var secondsLeft = Mathf.Max(0f, (end - now) / Tick.TickHz);
             var label = HudLayout.FitCastLabel(Driver.DisplayName(actor), Driver.AbilityName(castId), $"  {secondsLeft:0.0}s",
-                HudLayout.CastBarWidth, Measure);
+                HudLayout.CastBarWidth, Measure, casterPlateShown: plates?.ShowsPlate(id) == true);
+            LogCastLabel(id, start, label);
             AddBar(camera, id, width, height, progress, Fill, FrameOf(castId), label);
         }
         foreach (var e in _endings)
@@ -235,7 +247,7 @@ public partial class CastBarView : Control
             var color = new Color(e.Interrupted ? InterruptedColor : DoneColor, 1f - (e.Age / FadeSeconds));
             var caster = Driver.State.Actors.TryGetValue(e.ActorId, out var a) ? Driver.DisplayName(a) : string.Empty;
             var label = HudLayout.FitCastLabel(caster, e.Interrupted ? $"{e.Name} interrupted" : e.Name, string.Empty,
-                HudLayout.CastBarWidth, Measure);
+                HudLayout.CastBarWidth, Measure, casterPlateShown: plates?.ShowsPlate(e.ActorId) == true);
             AddBar(camera, e.ActorId, width, height, 1f, color, color, label);
         }
         if (_bars.Count == 0)
@@ -273,6 +285,18 @@ public partial class CastBarView : Control
         {
             _bars.Add(new Bar(anchor, depth, progress, fill, frame, label));
         }
+    }
+
+    // f-b78d1567 proof (autorun only): one "HUD castlabel actor=A label=L" line per over-head cast, the label as first drawn,
+    // so a plated caster's line reads the ability and seconds alone.
+    private void LogCastLabel(int actorId, int start, string label)
+    {
+        if (Driver is null || !Driver.Options.Autorun || (_labelLogged.TryGetValue(actorId, out var last) && last == start))
+        {
+            return;
+        }
+        _labelLogged[actorId] = start;
+        HudNodes.Proof(Driver, FormattableString.Invariant($"HUD castlabel actor={actorId} label={label}"));
     }
 
     // The enemy unit frames this frame shows (NAMEPLATE-DECLUTTER: their enemies' casts draw there, not over the head).
@@ -339,6 +363,7 @@ public partial class CastBarView : Control
     {
         _endings.Clear();
         _castLogged.Clear();
+        _labelLogged.Clear();
     }
 
     // HUD-DECLUTTER proof (autorun only): one "HUD castbar actor=A kind=player|enemy where=frame|overhead ability=X"
