@@ -231,17 +231,24 @@ public sealed record HostRunSetup(
     public C.LayoutDef? Layout { get; init; }
 
     /// <summary>
-    /// The human's equipped gear as a run loadout (BIBLE s7): every equipped item carried, and each Facet's content
-    /// patch applied to the human's kit (<see cref="GearLoadout.Of"/> over <see cref="GearPatches"/>). Pass
-    /// <see cref="GearLoadout.ToRunOptions"/> of it to <see cref="RunRoot.CreateRun"/>; with nothing equipped that
-    /// returns the options unchanged, so the run is created exactly as before.
+    /// The options a run is created with (BIBLE s7, finding f-f9b80112): the request's Clause and talents plus the
+    /// human's equipped gear, every slot and the keystone included, each Facet's content patch stacked on the human's
+    /// (talented) kit (<see cref="RunStart.Of"/> over <see cref="GearPatches"/>). SimDriver.StartRun passes
+    /// <see cref="RunStart.Options"/> to <see cref="RunRoot.CreateRun"/>. With no progression (no screen yet) or nothing
+    /// equipped the options are the request's alone, so such a run is created exactly as before.
     /// </summary>
-    /// <param name="progression">The character's progression.</param>
+    /// <param name="request">The queued request, or null.</param>
+    /// <param name="progression">The screen's progression, or null.</param>
     /// <param name="registry">The content.</param>
     /// <param name="humanClassId">The human's class (scopes the Facets and fills an appended Window's setupClass).</param>
-    /// <returns>The loadout.</returns>
-    public GearLoadout GearFor(Progression progression, C.ContentRegistry registry, string humanClassId) =>
-        GearLoadout.Of(progression, HumanActorId, Content.Abilities, GearPatches(registry, humanClassId));
+    /// <returns>The run start.</returns>
+    public RunStart StartFor(QueueRequest? request, Progression? progression, C.ContentRegistry registry, string humanClassId) =>
+        RunStart.Of(
+            request,
+            progression,
+            HumanActorId,
+            Content.Abilities,
+            progression is null ? new Dictionary<string, GearPatch>(StringComparer.Ordinal) : GearPatches(registry, humanClassId));
 
     /// <summary>
     /// The sim patch of every content Facet on <paramref name="classId"/>'s kit (content/schema/facet.ts FacetPatch to
