@@ -77,10 +77,11 @@ public sealed class PrespawnAggroTests
             Assert.True(run.State.Actors.TryGetValue(s.ActorId, out var a), $"enemy {s.ActorId} ({s.ClassId}) does not exist at tick 0");
             Assert.True(a!.Alive);
             Assert.True(a.Idle, $"enemy {s.ActorId} ({s.ClassId}) is not idle at tick 0");
-            Assert.Equal(s.Pos, a.Pos);
+            AssertPlacedOnItsPoint(s, a.Pos, spawns, run.Content.ActorRadiusMm);
             Assert.Null(a.TargetId);
         }
         Assert.Empty(run.Encounter.Engaged);
+        var placed = PlacedAtTickZero(run, spawns);
 
         var events = new List<SimEvent>();
         for (var i = 0; i < 200; i++)
@@ -92,14 +93,61 @@ public sealed class PrespawnAggroTests
         }
         Assert.DoesNotContain(events, e => e.Type is "pull_start" or "gate_closed" or "telegraph" or "damage" or "pack_engage");
         // No idle enemy moves (BIBLE section 9.1 "it does not move unless it is a patrol"), bodies the content stacks on one
-        // spawn point (the Choir pair, the five Pair melee) included: actor spacing never shoves an idle body.
+        // spawn point (the Choir pair, the five Pair melee) included: actor spacing never shoves an idle body. Each stays
+        // where it was placed at tick 0.
         Assert.All(spawns, s =>
         {
             var a = run.State.Actors[s.ActorId];
             Assert.True(a.Idle);
-            Assert.Equal(s.Pos, a.Pos);
+            Assert.Equal(placed[s.ActorId], a.Pos);
         });
     }
+
+    [Fact(DisplayName = "Prespawn aggro (PR #308): a pull the content stacks on one spawn point stands separated from tick 0 (no two bodies of a pull overlap, every body in its room)")]
+    public void A_pull_stacked_on_one_point_stands_separated_from_tick_zero()
+    {
+        var (run, dungeon) = RealRun(null, AtEntrance);
+        var radius = run.Content.ActorRadiusMm;
+        Assert.True(radius > 0, $"the k2 content has actor radius {radius}");
+        var minDist = 2 * radius;
+        var nav = run.Content.Layout!;
+        Assert.Contains(dungeon.Pulls, p => p.Spawns.GroupBy(s => (s.Pos.X, s.Pos.Z)).Any(g => g.Count() >= 5));
+        foreach (var pull in dungeon.Pulls)
+        {
+            var bodies = pull.Spawns.Select(s => run.State.Actors[s.ActorId]).ToList();
+            for (var i = 0; i < bodies.Count; i++)
+            {
+                for (var j = i + 1; j < bodies.Count; j++)
+                {
+                    var dx = bodies[j].Pos.X - bodies[i].Pos.X;
+                    var dz = bodies[j].Pos.Z - bodies[i].Pos.Z;
+                    Assert.True((dx * dx) + (dz * dz) >= minDist * minDist,
+                        $"pull {pull.Id}: enemies {bodies[i].Id} at {bodies[i].Pos} and {bodies[j].Id} at {bodies[j].Pos} overlap at tick 0 (push-out radius {radius} mm)");
+                }
+            }
+            if (nav.RoomFor(pull.Id) is { } room)
+            {
+                Assert.All(bodies, a => Assert.True(Movement.Contains(room.Box, a.Pos), $"pull {pull.Id}: enemy {a.Id} placed at {a.Pos}, outside its room {room.Id}"));
+            }
+        }
+    }
+
+    // A body stands at its content spawn point at tick 0, or, when the content stacks k bodies on that point, beside it:
+    // same y and z, x within (k - 1) * radius of the point (a single row of non-overlapping bodies centred on it).
+    private static void AssertPlacedOnItsPoint(PullSpawn s, Vec3 at, IReadOnlyList<PullSpawn> spawns, long radiusMm)
+    {
+        var k = spawns.Count(o => o.Pos.X == s.Pos.X && o.Pos.Z == s.Pos.Z);
+        if (k == 1)
+        {
+            Assert.Equal(s.Pos, at);
+            return;
+        }
+        Assert.True(at.Y == s.Pos.Y && at.Z == s.Pos.Z && Math.Abs(at.X - s.Pos.X) <= (k - 1) * radiusMm,
+            $"stacked enemy {s.ActorId} (one of {k} on {s.Pos}) placed at {at}");
+    }
+
+    private static Dictionary<int, Vec3> PlacedAtTickZero(Run run, IReadOnlyList<PullSpawn> spawns) =>
+        spawns.ToDictionary(s => s.ActorId, s => run.State.Actors[s.ActorId].Pos);
 
     // The party at the layout start (layout.json start x 4000, the Entrance), seats 1200 mm apart on z.
     private static Vec3 AtEntrance(int seat) => new(4000, 0, (seat - 1) * 1200);
@@ -109,6 +157,7 @@ public sealed class PrespawnAggroTests
     {
         var (run, dungeon) = RealRun(null, AtEntrance);
         var spawns = dungeon.Pulls.SelectMany(p => p.Spawns).ToList();
+        var placed = PlacedAtTickZero(run, spawns);
         for (var i = 0; i < 200; i++)
         {
             var tick = run.State.Tick;
@@ -120,7 +169,7 @@ public sealed class PrespawnAggroTests
                 var a = run.State.Actors[s.ActorId];
                 Assert.True(a.Idle, $"tick {tick}: enemy {s.ActorId} ({s.ClassId}) engaged with the party at the Entrance");
                 Assert.True(a.TargetId is null, $"tick {tick}: idle enemy {s.ActorId} ({s.ClassId}) has target {a.TargetId}");
-                Assert.True(s.Pos == a.Pos, $"tick {tick}: idle enemy {s.ActorId} ({s.ClassId}) moved from {s.Pos} to {a.Pos}");
+                Assert.True(placed[s.ActorId] == a.Pos, $"tick {tick}: idle enemy {s.ActorId} ({s.ClassId}) moved from {placed[s.ActorId]} to {a.Pos}");
             }
         }
     }
@@ -134,6 +183,7 @@ public sealed class PrespawnAggroTests
         var center = Pulls.RingCenter(choir);
         var radius = choir.AggroMm;
         var spawns = dungeon.Pulls.SelectMany(p => p.Spawns).ToList();
+        var placed = PlacedAtTickZero(run, spawns);
         bool PartyInRing(Run r) => new[] { 1, 2, 3 }.Any(id => r.State.Actors[id].Alive && Aggro.InRing(r.State.Actors[id].Pos, center, radius));
 
         int? engage = null;
@@ -151,7 +201,7 @@ public sealed class PrespawnAggroTests
                 foreach (var s in spawns)
                 {
                     var a = run.State.Actors[s.ActorId];
-                    Assert.True(a.Idle && a.TargetId is null && a.Pos == s.Pos, $"tick {tick}: enemy {s.ActorId} ({s.ClassId}) acted before any engage: idle={a.Idle} target={a.TargetId} pos={a.Pos}");
+                    Assert.True(a.Idle && a.TargetId is null && a.Pos == placed[s.ActorId], $"tick {tick}: enemy {s.ActorId} ({s.ClassId}) acted before any engage: idle={a.Idle} target={a.TargetId} pos={a.Pos}");
                 }
                 continue;
             }
@@ -166,7 +216,7 @@ public sealed class PrespawnAggroTests
                 Assert.True(choirIds.Contains(s.ActorId) ? !a.Idle : a.Idle, $"tick {tick}: enemy {s.ActorId} ({s.ClassId}) idle={a.Idle} on the Choir's engage tick");
                 if (!choirIds.Contains(s.ActorId))
                 {
-                    Assert.True(a.TargetId is null && a.Pos == s.Pos, $"tick {tick}: enemy {s.ActorId} outside the Choir acted on its engage");
+                    Assert.True(a.TargetId is null && a.Pos == placed[s.ActorId], $"tick {tick}: enemy {s.ActorId} outside the Choir acted on its engage");
                 }
             }
         }
