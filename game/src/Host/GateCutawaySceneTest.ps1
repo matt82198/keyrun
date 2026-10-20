@@ -7,7 +7,7 @@
   Boots the real game (Main.tscn -> Arena.tscn) headless at --fixed-fps 60 and replays the deterministic run C (the
   scripted Warden plus the two bot seats from the Entrance, the default seed):
 
-      godot --headless --path game --fixed-fps 60 -- --autorun --ticks N
+      godot --headless --path game --fixed-fps 60 -- --autorun --ticks N --view-size 1280x720
 
   src/View/RoomGateView.cs prints, on stdout only:
     GATEVIEW shut room=R tick=C ... box=(minX,maxX,minZ,maxZ,minY,maxY) inTree=True   the shut gate's solid box, mm
@@ -23,6 +23,19 @@
     4. at least one probe has a shut gate between camera and party (cut away), and at least one has a shut gate that
        is not (fully visible: the player still sees the door shut behind the party).
   Before GATE-CUTAWAY the probe carried no sight lines and no gate was ever cut away (RED).
+
+  GATE-FOREGROUND (BIBLE s1, the dungeon reads clearly from Queue into the first pull): the probe also prints
+    scr=R:(x0,y0,x1,y1,near);..|none bar=(x0,y0,x1,y1) party=(x,y,depth);..|none
+  (every on-screen shut gate's projected screen rect and nearest view depth, cut or drawn, the ability bar footprint,
+  each sight target projected with its view depth; px and mm, exactly what the view's last cut used). A gate is in the
+  foreground when its rect overlaps the bar, or contains a party point and its nearest corner is nearer the camera than
+  that point; the view cuts such a gate too, so check 3 reads "cut= is exactly the shut gates some sight line crosses or
+  that stand in the foreground". This test asserts, at every probe with a gate shut:
+    5. the probe carries scr=, bar= and party=;
+    6. no drawn (not cut) gate's screen rect overlaps the ability bar footprint;
+    7. no drawn gate stands in front of a party point inside its screen rect;
+    8. at least one probe cut a gate for the foreground alone, and at least one projected a drawn gate.
+  Before GATE-FOREGROUND the Choir entry gate was drawn in the foreground under the ability bar (RED: 51 probes).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/GateCutawaySceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -43,7 +56,8 @@ $failures = New-Object System.Collections.Generic.List[string]
 $ErrorActionPreference = 'Continue'
 # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
 $guardFrames = (3 * $Ticks) + 240
-$out = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guardFrames '--' --autorun --ticks $Ticks 2>&1 | Out-String
+# --view-size: a headless window is 64x64; the screen checks (5-7) frame and project at the shipped 1280x720.
+$out = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guardFrames '--' --autorun --ticks $Ticks --view-size 1280x720 2>&1 | Out-String
 $code = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 
@@ -109,6 +123,11 @@ $between = New-Object System.Collections.Generic.List[string]
 $behind = New-Object System.Collections.Generic.List[string]
 $checked = 0
 $noSight = 0
+$noScreen = 0
+$drawn = 0
+$fore = New-Object System.Collections.Generic.List[string]
+$underBar = New-Object System.Collections.Generic.List[string]
+$overParty = New-Object System.Collections.Generic.List[string]
 foreach ($p in $probes) {
     if ($p -notmatch '^GATEVIEW probe tick=(\d+) shut=(\S+) cut=(\S+) cam=(\(\S+?\)) at=(\S+)') {
         $noSight++
@@ -125,8 +144,47 @@ foreach ($p in $probes) {
         continue
     }
     $checked++
+    $camText = $Matches[4]
+    # GATE-FOREGROUND: the screen rects the view cut on (every shut gate on screen), the bar and the party points.
+    $rects = @{}
+    $bar = $null
+    $pts = @()
+    if ($p -notmatch ' scr=(\S+) bar=\((-?\d+),(-?\d+),(-?\d+),(-?\d+)\) party=(\S+)') {
+        $noScreen++
+        if ($noScreen -le 3) { $failures.Add("probe line without scr=, bar= and party=: '$p'") }
+    } else {
+        $bar = @([double]$Matches[2], [double]$Matches[3], [double]$Matches[4], [double]$Matches[5])
+        $scrText = $Matches[1]
+        $partyText = $Matches[6]
+        $pts = if ($partyText -eq 'none') { @() } else { @($partyText -split ';' | ForEach-Object { , (Parse-Point $_) }) }
+        if ($scrText -ne 'none') {
+            foreach ($r in ($scrText -split ';')) {
+                if ($r -notmatch '^(\S+?):\((-?\d+),(-?\d+),(-?\d+),(-?\d+),(-?\d+)\)$') {
+                    $failures.Add("probe tick=${t}: bad scr= entry '$r'")
+                    continue
+                }
+                $rects[$Matches[1]] = @([double]$Matches[2], [double]$Matches[3], [double]$Matches[4], [double]$Matches[5], [double]$Matches[6])
+            }
+        }
+    }
     $want = New-Object System.Collections.Generic.List[string]
     foreach ($room in $shut) {
+        # Foreground (recomputed here): the gate's rect overlaps the bar, or holds a party point it is nearer than.
+        $underThis = $false
+        $overThis = $null
+        if ($rects.ContainsKey($room) -and $null -ne $bar) {
+            $x0, $y0, $x1, $y1, $near = $rects[$room]
+            if ($x0 -lt $bar[2] -and $x1 -gt $bar[0] -and $y0 -lt $bar[3] -and $y1 -gt $bar[1]) { $underThis = $true }
+            foreach ($q in $pts) {
+                if ($q[0] -ge $x0 -and $q[0] -le $x1 -and $q[1] -ge $y0 -and $q[1] -le $y1 -and $near -lt $q[2]) { $overThis = $q; break }
+            }
+            if (-not ($cut -contains $room)) {
+                $drawn++
+                if ($underThis) { $underBar.Add("tick=$t room=$room scr=($x0,$y0,$x1,$y1) bar=($($bar -join ','))") }
+                if ($null -ne $overThis) { $overParty.Add("tick=$t room=$room scr=($x0,$y0,$x1,$y1) near=$near party=($($overThis -join ','))") }
+            }
+        }
+        $foreground = $underThis -or ($null -ne $overThis)
         if (-not $boxes.ContainsKey($room)) {
             $failures.Add("probe tick=$t names shut room '$room' with no shut box line")
             continue
@@ -139,16 +197,24 @@ foreach ($p in $probes) {
         $isCut = $cut -contains $room
         if ($crossed -and $isCut) { $between.Add("tick=$t room=$room") }
         if (-not $crossed -and -not $isCut) { $behind.Add("tick=$t room=$room") }
+        if (-not $crossed -and $foreground -and $isCut) { $fore.Add("tick=$t room=$room") }
         if ($crossed -and -not $isCut) {
-            $failures.Add("probe tick=${t}: the shut $room gate sits between camera and party but is not cut away (cam=$($Matches[4]))")
+            $failures.Add("probe tick=${t}: the shut $room gate sits between camera and party but is not cut away (cam=$camText)")
         }
-        if (-not $crossed -and $isCut) {
-            $failures.Add("probe tick=${t}: the shut $room gate is cut away but no sight line crosses it")
+        if (-not $crossed -and -not $foreground -and $isCut) {
+            $failures.Add("probe tick=${t}: the shut $room gate is cut away but no sight line crosses it and it is not in the foreground")
         }
     }
     foreach ($room in $cut) {
         if ($shut -notcontains $room) { $failures.Add("probe tick=$t cuts '$room', which is not shut") }
     }
+}
+if ($noScreen -gt 3) { $failures.Add("... $noScreen probe lines without scr=/bar=/party= in all") }
+if ($underBar.Count -gt 0) {
+    $failures.Add("$($underBar.Count) probe(s) draw a shut gate over the ability bar; first: $($underBar[0])")
+}
+if ($overParty.Count -gt 0) {
+    $failures.Add("$($overParty.Count) probe(s) draw a shut gate in front of the party; first: $($overParty[0])")
 }
 if ($noSight -gt 3) { $failures.Add("... $noSight probe lines without sight lines in all") }
 if ($between.Count -lt 1) { $failures.Add('no probe with a shut gate between camera and party in the cut-away state') }
@@ -159,6 +225,10 @@ $outLines | Select-Object -Last 4 | ForEach-Object { Write-Output $_ }
 Write-Output '--- view gate lines ---'
 foreach ($l in $shutLines) { Write-Output $l }
 Write-Output "probes=$($probes.Count) shutProbes=$checked between=$($between.Count) behind=$($behind.Count)"
+if ($drawn -lt 1) { $failures.Add('no probe projected a drawn shut gate (scr= never named a gate)') }
+if ($fore.Count -lt 1) { $failures.Add('no probe with a shut gate cut for standing in the foreground') }
+Write-Output "drawn=$drawn fore=$($fore.Count) underBar=$($underBar.Count) overParty=$($overParty.Count)"
+if ($fore.Count -gt 0) { Write-Output "first foreground cut: $($fore[0])" }
 if ($between.Count -gt 0) { Write-Output "first cut: $($between[0])" }
 if ($behind.Count -gt 0) { Write-Output "first visible: $($behind[0])" }
 
@@ -167,5 +237,5 @@ if ($failures.Count -gt 0) {
     $failures | Select-Object -First 12 | ForEach-Object { Write-Output "  - $_" }
     exit 1
 }
-Write-Output "GateCutawaySceneTest: PASS ticks=$Ticks gates=$($shutLines.Count) shutProbes=$checked cut=$($between.Count) visible=$($behind.Count)"
+Write-Output "GateCutawaySceneTest: PASS ticks=$Ticks gates=$($shutLines.Count) shutProbes=$checked cut=$($between.Count) visible=$($behind.Count) drawn=$drawn fore=$($fore.Count) underBar=0 overParty=0"
 exit 0

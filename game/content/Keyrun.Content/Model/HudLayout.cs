@@ -349,6 +349,49 @@ public static class HudLayout
         SeparateInGutter(labels, viewportWidth, viewportHeight, obstacles);
 
     /// <summary>
+    /// STACK-PING-LABEL: which SPREAD/STACK world labels to draw, as input indices in input order. A label is dropped
+    /// when an earlier kept label with the same text sits within <see cref="PingLabelReach"/> of it on both axes: the
+    /// Pair's casters each raise their own STACK telegraph at one tick, a few pixels apart, which drew one row per
+    /// caster for a single call. One call on one spot draws once; different calls, or the same call on spots further
+    /// apart, each keep their label.
+    /// </summary>
+    /// <param name="texts">Each label's text ("STACK: group up").</param>
+    /// <param name="labels">Each label's <see cref="PingLabelRect"/> where its ping projects, in call order.</param>
+    /// <returns>The indices of the labels to draw, ascending.</returns>
+    public static IReadOnlyList<int> DistinctPings(IReadOnlyList<string> texts, IReadOnlyList<PixelRect> labels)
+    {
+        ArgumentNullException.ThrowIfNull(texts);
+        ArgumentNullException.ThrowIfNull(labels);
+        if (texts.Count != labels.Count)
+        {
+            throw new ArgumentException("one text per label", nameof(texts));
+        }
+        var kept = new List<int>();
+        for (var i = 0; i < labels.Count; i++)
+        {
+            var same = false;
+            foreach (var k in kept)
+            {
+                if (string.Equals(texts[k], texts[i], StringComparison.Ordinal)
+                    && SpanGap(labels[k].X, labels[k].Right, labels[i].X, labels[i].Right) <= PingLabelReach
+                    && SpanGap(labels[k].Y, labels[k].Bottom, labels[i].Y, labels[i].Bottom) <= PingLabelReach)
+                {
+                    same = true;
+                    break;
+                }
+            }
+            if (!same)
+            {
+                kept.Add(i);
+            }
+        }
+        return kept;
+    }
+
+    // The empty space between spans [a0, a1) and [b0, b1); 0 when they overlap.
+    private static int SpanGap(int a0, int a1, int b0, int b1) => Math.Max(0, Math.Max(a0, b0) - Math.Min(a1, b1));
+
+    /// <summary>
     /// A cast bar's label: "caster: spell" clipped with <see cref="FitTitle"/> so that it plus <paramref name="suffix"/>
     /// (the seconds left) fits <paramref name="barWidth"/>; the suffix is always kept whole.
     /// </summary>

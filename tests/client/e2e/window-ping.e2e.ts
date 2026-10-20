@@ -23,6 +23,8 @@ import { chromium, type Browser, type Page } from "playwright";
 const PLAY_QUERY = "/client/index.html?key=5&dungeon=hollow-vault&class=warden";
 const REPO_ROOT = normalize(fileURLToPath(new URL("../../../", import.meta.url)));
 const SHOTS = process.env.KEYRUN_E2E_WP_SHOTS;
+// Optional: KEYRUN_E2E_CPU_THROTTLE=<n> slows the page's main thread n-fold (CDP), to mimic a slow CI runner.
+const CPU_THROTTLE = Number(process.env.KEYRUN_E2E_CPU_THROTTLE ?? "1");
 // A G press is dropped silently when the actor pinged fewer than PING_RATE_LIMIT_TICKS (20) sim ticks
 // earlier (client/src/input/ping.ts derivePingEvent): no label, no signal. pingAndRead therefore re-presses
 // G after each per-attempt waitForFunction timeout. The bound is PING_ATTEMPTS, so a ping that never lands
@@ -64,9 +66,23 @@ const shot = async (page: Page, name: string): Promise<void> => {
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `wp-${name}-after.png`) });
 };
 
+// The page state a ping failure is diagnosed from: labels drawn (vs `before`), the sim tick and the input
+// sampler's tick (client/src/input-ready.ts; a ping is stamped with the input tick but expires against the
+// sim tick), and the input-ready flag.
+async function pingDiagnostics(page: Page, before: number): Promise<string> {
+  const state = await page.evaluate(() => ({
+    pingsLength: window.__keyrunPings?.labels().length ?? null,
+    simTick: window.__keyrunInputTicks?.sim ?? null,
+    inputTick: window.__keyrunInputTicks?.input ?? null,
+    inputReady: window.__keyrunInputReady ?? null,
+  }));
+  return `[window-ping diagnostics after ${PING_ATTEMPTS} G presses: ${JSON.stringify({ pingsBefore: before, ...state })}]`;
+}
+
 // Presses G and waits, on the pings label list, for the ping to be drawn. Each attempt waits up to 3 s for
 // the label; a timeout means the press was rate-limited (see PING_ATTEMPTS above), so G is pressed again.
-// The last attempt's timeout is rethrown unchanged, so a ping that never lands still fails the test.
+// The last attempt's timeout still fails the test, rethrown with the page's ping/tick/readiness state
+// appended (pingDiagnostics) so a CI failure says WHY no label was drawn.
 async function pingAndRead(page: Page): Promise<Shown> {
   const before = (await pings(page)).length;
   for (let attempt = 1; ; attempt++) {
@@ -75,7 +91,7 @@ async function pingAndRead(page: Page): Promise<Shown> {
       await page.waitForFunction((n) => window.__keyrunPings!.labels().length > n, before, { timeout: 3_000 });
       break;
     } catch (err) {
-      if (attempt >= PING_ATTEMPTS) throw err;
+      if (attempt >= PING_ATTEMPTS) throw new Error(`${(err as Error).message} ${await pingDiagnostics(page, before)}`, { cause: err });
     }
   }
   const all = await pings(page);
@@ -94,10 +110,13 @@ describe("window + ping readability (headless Chromium, real playable)", () => {
     server = served.server;
     browser = await chromium.launch();
     page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    if (CPU_THROTTLE > 1) await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: CPU_THROTTLE });
     await page.goto(served.origin + PLAY_QUERY, { waitUntil: "load" });
     await page.waitForFunction(() => document.querySelectorAll(".hud-ability-slot[data-ability-id]").length === 9 && !!window.__keyrunPings, undefined, { timeout: 20_000 });
     await page.mouse.click(640, 360);
     await page.keyboard.press("KeyB"); // dismiss onboarding without casting
+    // No G before the input sampler is live and the overlay is gone (client/src/input-ready.ts).
+    await page.waitForFunction(() => window.__keyrunInputReady === true, undefined, { timeout: 20_000 });
   });
 
   after(async () => {
