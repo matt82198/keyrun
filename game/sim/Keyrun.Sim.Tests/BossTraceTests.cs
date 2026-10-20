@@ -78,43 +78,6 @@ public sealed class BossTraceTests
             File.WriteAllText(GoldenPath(), actual, new UTF8Encoding(false));
         }
         var golden = File.ReadAllText(GoldenPath());
-        if (golden != actual)
-        {
-            Assert.Fail(MismatchReport(golden, actual));
-        }
-    }
-
-    /// <summary>
-    /// The failure message of a golden mismatch: the first differing line (1-based) with both sides, then the whole
-    /// actual trace as gzip+base64 in numbered <c>BOSSGOLDEN:i:chunk</c> lines. A deliberate rule change can then take
-    /// the new golden from the CI log (decode the chunks in order) instead of a local test run. Same strictness as
-    /// before: any byte difference fails.
-    /// </summary>
-    private static string MismatchReport(string golden, string actual)
-    {
-        var g = golden.Split('\n');
-        var a = actual.Split('\n');
-        var line = 0;
-        while (line < g.Length && line < a.Length && g[line] == a[line])
-        {
-            line++;
-        }
-        var report = new StringBuilder()
-            .Append("boss trace differs from the golden at line ").Append(line + 1).Append('\n')
-            .Append("golden: ").Append(line < g.Length ? g[line] : "<end>").Append('\n')
-            .Append("actual: ").Append(line < a.Length ? a[line] : "<end>").Append('\n');
-        using var buffer = new MemoryStream();
-        using (var gzip = new System.IO.Compression.GZipStream(buffer, System.IO.Compression.CompressionLevel.SmallestSize, leaveOpen: true))
-        {
-            var bytes = new UTF8Encoding(false).GetBytes(actual);
-            gzip.Write(bytes, 0, bytes.Length);
-        }
-        var encoded = Convert.ToBase64String(buffer.ToArray());
-        const int Chunk = 4000;
-        for (int i = 0, n = 0; i < encoded.Length; i += Chunk, n++)
-        {
-            report.Append("BOSSGOLDEN:").Append(n).Append(':').Append(encoded, i, Math.Min(Chunk, encoded.Length - i)).Append('\n');
-        }
-        return report.ToString();
+        Assert.Equal(golden, actual);
     }
 }
