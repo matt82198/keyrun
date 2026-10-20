@@ -100,7 +100,9 @@ public static class ProgressionSave
     /// <summary>
     /// Writes <paramref name="progression"/> to <paramref name="path"/>, creating its directory. The text goes to a
     /// sibling temp file first and then replaces the save, so a crash mid-write leaves the previous save intact.
-    /// Never throws.
+    /// A save that is there but this build cannot read (a newer version, corrupt text, a read error) is never written
+    /// over: it is first moved aside to <see cref="UnreadableBackupPath"/>, so the fresh character a failed load fell
+    /// back to cannot destroy the player's real one. A readable save is replaced in place, as always. Never throws.
     /// </summary>
     /// <param name="path">The save file.</param>
     /// <param name="progression">The progression.</param>
@@ -116,6 +118,7 @@ public static class ProgressionSave
                 Directory.CreateDirectory(dir);
             }
             File.WriteAllText(temp, Serialize(progression), Utf8NoBom);
+            PreserveIfUnreadable(path);
             File.Move(temp, path, overwrite: true);
             return null;
         }
@@ -130,6 +133,49 @@ public static class ProgressionSave
                 // The temp file is best-effort cleanup; the save error below is the one that matters.
             }
             return $"progression not saved: {e.Message}";
+        }
+    }
+
+    /// <summary>
+    /// The first free sibling backup name for an unreadable save at <paramref name="path"/>:
+    /// <c>progression.json.unreadable-1</c>, then <c>-2</c> and so on, so an earlier backup is never overwritten.
+    /// </summary>
+    /// <param name="path">The save file.</param>
+    /// <returns>A path that does not exist yet.</returns>
+    public static string UnreadableBackupPath(string path)
+    {
+        for (var n = 1; ; n++)
+        {
+            var candidate = FormattableString.Invariant($"{path}.unreadable-{n}");
+            if (!File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    // Moves an existing save this build cannot load out of the way before it is replaced. A missing or readable save
+    // is left alone. A failed read counts as unreadable; if the move itself fails the exception aborts the save, which
+    // leaves the original file where it was.
+    private static void PreserveIfUnreadable(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+        string text;
+        try
+        {
+            text = File.ReadAllText(path, Utf8NoBom);
+        }
+        catch (Exception)
+        {
+            File.Move(path, UnreadableBackupPath(path), overwrite: false);
+            return;
+        }
+        if (Load(text, seed: 1).Error is not null)
+        {
+            File.Move(path, UnreadableBackupPath(path), overwrite: false);
         }
     }
 
