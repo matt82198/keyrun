@@ -8,7 +8,7 @@ using static Keyrun.Sim.Tests.CombatTestKit;
 namespace Keyrun.Sim.Tests;
 
 /// <summary>
-/// Warden's Warcry talent (content/data/classes/warden.json "Strike also applies Sundered to two adjacent enemies."):
+/// Warden's Warcry talent (content/data/classes/warden.json "Strike applies Sundered to two adjacent enemies: its target and the nearest other enemy in the cone."):
 /// a Strike carrying the "warcry:multi-target" tag opens Sundered on its primary target and on the
 /// enemy in the cone nearest that target, two in total. Driven through the real cast pipeline (Rules.Make).
 /// </summary>
