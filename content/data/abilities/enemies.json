@@ -252,9 +252,10 @@
     "gcdTicks": 0,
     "cooldownTicks": 60,
     "charges": 1,
-    "range": 3000,
+    "range": 0,
     "shape": {
-      "kind": "target"
+      "kind": "circle",
+      "radius": 3000
     },
     "interruptible": false,
     "tags": [],
@@ -341,9 +342,10 @@
     "gcdTicks": 0,
     "cooldownTicks": 60,
     "charges": 1,
-    "range": 3000,
+    "range": 0,
     "shape": {
-      "kind": "target"
+      "kind": "circle",
+      "radius": 3000
     },
     "interruptible": false,
     "tags": [],

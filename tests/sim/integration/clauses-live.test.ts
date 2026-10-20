@@ -60,7 +60,9 @@ describe("Tide: telegraph origin drifts and hits an actor outside the original c
 
   const DUNGEON: DungeonDef = {
     id: "tide-pull",
-    pulls: [{ id: "boss", spawns: [{ actorId: BOSS_ID, classId: "boss", pos: { x: 0, y: 0, z: 0 }, yaw: 0, health: 5000 }] }],
+    // speedMmPerTick 0: the boss stays at the origin so only Tide's drift moves the circle (a damage circle is an
+    // engaging cast since CHASE-AREA-REACH, and a boss free to walk would chase the dummy into its own circle).
+    pulls: [{ id: "boss", spawns: [{ actorId: BOSS_ID, classId: "boss", pos: { x: 0, y: 0, z: 0 }, yaw: 0, health: 5000, speedMmPerTick: 0 }] }],
   };
 
   function content(withClauses: boolean): RunContent {

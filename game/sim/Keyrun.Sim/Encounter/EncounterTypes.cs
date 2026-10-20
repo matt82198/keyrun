@@ -117,6 +117,13 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
 /// <param name="Heals">True when any effect op is <c>"heal"</c> (script-target.ts:61 isHealAbility).</param>
 public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals)
 {
+    /// <summary>
+    /// A caster-centred damage area's reach, mm: <c>def.shape.radius</c> when the shape is a circle or cone and an
+    /// effect op is <c>"damage"</c>, else null (sim/encounter/chase.ts engageReachMm). <see cref="Chase"/> counts it
+    /// toward the engage range as it counts a target-shaped cast's <see cref="Range"/>.
+    /// </summary>
+    public long? AreaReachMm { get; init; }
+
     /// <summary>The ability's cast time, ticks (<c>def.castTicks</c>); read only for a <see cref="TelegraphSpec.SpansCast"/> telegraph.</summary>
     public int CastTicks { get; init; }
 
