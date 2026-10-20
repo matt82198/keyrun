@@ -35,6 +35,10 @@ jobs:
   game-e2e:
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      # Per-launch wall-clock cap of tools/godot/godot.ps1 (default 300s for local launches). A cold runner's
+      # --build-solutions and export can run longer; 660s stays under the 12-minute step timeouts below.
+      KEYRUN_GODOT_TIMEOUT_SEC: '660'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
