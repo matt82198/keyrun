@@ -45,6 +45,14 @@ public sealed record BossConfig(int BossActorId, IReadOnlyList<BossTwinSpec> Twi
     /// gate). The Lock is opened by <see cref="BossRules"/> instead.
     /// </summary>
     public IReadOnlyList<string> SuppressedBossCasts { get; init; } = new[] { "hollowWarden.lock" };
+
+    /// <summary>
+    /// LOCK-TELEGRAPH (BIBLE s3 "Cast bars are the enemy's language", f-dfafcec6): true when each Lock begins with the
+    /// boss casting its Lock ability (the first of <see cref="SuppressedBossCasts"/>) for that ability's castTicks, with
+    /// a cast bar and its script step's floor telegraph, the Window opening on the tick the cast lands. False (the
+    /// default, and every synthetic test config) opens the Window on the tick the Lock is due, with no cast.
+    /// </summary>
+    public bool CastLock { get; init; }
 }
 
 /// <summary>One open Lock Window on the boss.</summary>
