@@ -206,7 +206,8 @@ public static class Windows
 
     /// <summary>
     /// The targets-resolved half of applyWindowsAndCombos (windows.ts:174-189): opens every window op against the
-    /// first target, then, for a Payoff, tries the first target's Window and falls back to a floor patch unless that
+    /// first target (an on-target op of a <see cref="MultiTargetTag"/> ability: against each of
+    /// <see cref="MultiTargetRecipients"/>, a C# deviation for Warcry), then, for a Payoff, tries the first target's Window and falls back to a floor patch unless that
     /// attempt closed or was denied. The burst table is <see cref="WindowsContext.Combos"/>, or the one a
     /// <see cref="ComboOp"/> names. Split out so the oracle cast ledger can drive it with traced targets.
     /// </summary>
@@ -223,12 +224,22 @@ public static class Windows
         ArgumentNullException.ThrowIfNull(targets);
         ArgumentNullException.ThrowIfNull(ctx);
         var primary = targets.Count > 0 ? targets[0] : null;
+        var multi = def.Tags?.Contains(MultiTargetTag) == true;
         foreach (var op in def.Effects)
         {
-            if (op is WindowOp w)
+            if (op is not WindowOp w)
             {
-                OpenWindow(state, actor, w, ctx.Floor, emit, primary);
+                continue;
             }
+            if (multi && w.OnTarget && w.Self != true)
+            {
+                foreach (var dest in MultiTargetRecipients(actor, targets))
+                {
+                    OpenWindow(state, actor, w, ctx.Floor, emit, dest);
+                }
+                continue;
+            }
+            OpenWindow(state, actor, w, ctx.Floor, emit, primary);
         }
         var comboOp = def.Effects.OfType<ComboOp>().FirstOrDefault();
         if (comboOp is null && !def.Effects.Any(op => op is PayoffOp))
@@ -245,6 +256,46 @@ public static class Windows
             }
         }
         Payoff.TryClosePayoffOnFloor(state, actor, ctx.Floor, ctx.FieldCombos, ctx.Effects, emit, ctx.Hooks);
+    }
+
+    /// <summary>
+    /// The ability tag (Warden's Warcry talent, content classes/warden.json "Strike also applies Sundered to two
+    /// adjacent enemies.") that spreads an on-target Window to <see cref="MultiTargetCount"/> of the resolved targets.
+    /// </summary>
+    public const string MultiTargetTag = "warcry:multi-target";
+
+    /// <summary>How many targets a <see cref="MultiTargetTag"/> ability opens its on-target Window on.</summary>
+    public const int MultiTargetCount = 2;
+
+    /// <summary>
+    /// The targets a <see cref="MultiTargetTag"/> ability opens its on-target Window on: the primary (the caster's
+    /// target when it is among <paramref name="targets"/>, else the first), then the targets nearest the primary
+    /// (squared XZ distance, ties to the lower id), up to <see cref="MultiTargetCount"/> in total. "Adjacent" means
+    /// nearest to the primary; fewer targets give fewer recipients.
+    /// </summary>
+    /// <param name="actor">The caster.</param>
+    /// <param name="targets">Resolved targets, in id order.</param>
+    /// <returns>Recipients, primary first.</returns>
+    internal static IReadOnlyList<ActorState> MultiTargetRecipients(ActorState actor, IReadOnlyList<ActorState> targets)
+    {
+        if (targets.Count == 0)
+        {
+            return targets;
+        }
+        var primary = targets.FirstOrDefault(t => actor.TargetId is int tid && t.Id == tid) ?? targets[0];
+        var rest = targets
+            .Where(t => t.Id != primary.Id)
+            .OrderBy(t => Dist2(primary, t))
+            .ThenBy(t => t.Id)
+            .Take(MultiTargetCount - 1);
+        return new[] { primary }.Concat(rest).ToList();
+    }
+
+    private static long Dist2(ActorState a, ActorState b)
+    {
+        var dx = a.Pos.X - b.Pos.X;
+        var dz = a.Pos.Z - b.Pos.Z;
+        return (dx * dx) + (dz * dz);
     }
 
     private static ComboTable TableNamed(WindowsContext ctx, string name) => name switch
