@@ -23,7 +23,12 @@ namespace Keyrun.Hud;
 /// Progression (Ash, gear, the crafting PRNG) is the pure <see cref="Progression"/> and the Key band the pure
 /// <see cref="ScreenState"/>; this node renders them and maps input. Ash is banked when the run ends, win or lose,
 /// whether or not a reward is taken. Under <c>--autorun</c> every change prints a "SCREEN ..." proof line and a short
-/// script drives the screen through the real input path (take reward 1, reroll three times, key up, Clause 2, Queue).
+/// script drives the screen through the real input path (take reward 1, reroll three times, key up, Clause 2, the
+/// talent panel: T, pick fork 1 side 1, Down, pick side 2, free respec, pick again, T, then Queue).
+/// <para>Talents (BIBLE s6, lane BIBLE-TALENTS-UI): T opens the <see cref="TalentPanel"/> over the Character and Key
+/// bands; the build is the pure <see cref="TalentPicks"/> for the human's class, kept across opens, and Backspace
+/// respecs for free (Ash is untouched). The picks are not yet handed to the run: that needs the host run setup to
+/// resolve <see cref="TalentPicks.Resolve"/> into RunOptions.Loadouts (named in the PR as the missing hook).</para>
 /// </summary>
 public partial class Screen : Control
 {
@@ -45,8 +50,14 @@ public partial class Screen : Control
     private static readonly Color Calm = new(0.7f, 0.85f, 1f);
     private static readonly Color Good = new(0.5f, 1f, 0.6f);
 
-    // The autorun script: one key per frame once the run has ended (keys 1, R, R, R, Right, 2, Enter).
-    private static readonly Key[] AutorunKeys = { Key.Key1, Key.R, Key.R, Key.R, Key.Right, Key.Key2, Key.Enter };
+    // The autorun script: one key per frame once the run has ended (keys 1, R, R, R, Right, 2, then the talent panel
+    // T, 1, Down, 2, Backspace, 1, T, then Enter).
+    private static readonly Key[] AutorunKeys =
+    {
+        Key.Key1, Key.R, Key.R, Key.R, Key.Right, Key.Key2,
+        Key.T, Key.Key1, Key.Down, Key.Key2, Key.Backspace, Key.Key1, Key.T,
+        Key.Enter,
+    };
 
     private SimDriver? _driver;
     private Progression _progression = Progression.Start(1);
@@ -56,6 +67,16 @@ public partial class Screen : Control
     private int _autorunStep = -1;
     private int _autorunWait;
     private string _status = string.Empty;
+    private Keyrun.Content.TalentPicks? _talents;
+
+    /// <summary>The human's talent build, or null before the first open (or with no content).</summary>
+    public Keyrun.Content.TalentPicks? Talents => _talents;
+
+    /// <summary>True while the talent panel is up (only while the screen is).</summary>
+    public bool TalentsOpen { get; private set; }
+
+    /// <summary>The selected fork row in the talent panel (Up/Down).</summary>
+    public int TalentFork { get; private set; }
 
     /// <summary>Raised when Queue is pressed, with the one key and one Clause the party queued.</summary>
     public event Action<QueueRequest>? Queued;
@@ -116,6 +137,10 @@ public partial class Screen : Control
     {
         AddToGroup(GroupName);
         MouseFilter = MouseFilterEnum.Ignore;
+        if (GetNodeOrNull<TalentPanel>(TalentPanel.NodeName) is null)
+        {
+            AddChild(new TalentPanel { Name = TalentPanel.NodeName });
+        }
         _driver = HudNodes.FindDriver(this, DriverPath);
         if (_driver is not null)
         {
@@ -188,6 +213,61 @@ public partial class Screen : Control
         ProofKeyBand();
     }
 
+    /// <summary>Opens or closes the talent panel (T). Out of combat by construction: only while the screen is up.</summary>
+    public void ToggleTalents()
+    {
+        if (!IsOpen || _talents is not { } picks)
+        {
+            return;
+        }
+        TalentsOpen = !TalentsOpen;
+        TalentFork = Math.Clamp(TalentFork, 0, Math.Max(0, picks.ForkCount - 1));
+        Proof(FormattableString.Invariant(
+            $"SCREEN talents open={(TalentsOpen ? 1 : 0)} class={picks.ClassId} forks={picks.ForkCount} picks={picks.Count} applied=0"));
+        if (TalentsOpen)
+        {
+            ProofTalents();
+        }
+    }
+
+    /// <summary>Picks side <paramref name="option"/> (0-based) of fork <paramref name="fork"/>; out-of-range input is ignored.</summary>
+    /// <param name="fork">The fork index.</param>
+    /// <param name="option">The option index.</param>
+    public void PickTalent(int fork, int option)
+    {
+        if (!TalentsOpen || _talents is not { } picks || fork < 0 || fork >= picks.ForkCount ||
+            option < 0 || option >= picks.Forks[fork].Options.Count)
+        {
+            return;
+        }
+        _talents = picks.Pick(fork, option);
+        TalentFork = fork;
+        var f = _talents.Forks[fork];
+        Proof(FormattableString.Invariant(
+            $"SCREEN talent pick fork={fork + 1} ability={f.AbilityId} option={f.Options[option].Id} picks={_talents.Count}"));
+    }
+
+    /// <summary>Clears every talent pick for free (BIBLE s6 "Respec is free on the screen, always"): Ash is untouched.</summary>
+    public void RespecTalents()
+    {
+        if (!TalentsOpen || _talents is not { } picks)
+        {
+            return;
+        }
+        var ash = _progression.AshTotal;
+        _talents = picks.Respec();
+        Proof(FormattableString.Invariant($"SCREEN talent respec picks={_talents.Count} ash={ash} ash_after={_progression.AshTotal}"));
+    }
+
+    /// <summary>The human class's display name (the talent panel's title).</summary>
+    /// <returns>The name.</returns>
+    public string TalentClassName() => ClassName();
+
+    /// <summary>An ability's display name (the talent panel's fork rows).</summary>
+    /// <param name="abilityId">The ability id.</param>
+    /// <returns>The name.</returns>
+    public string TalentAbilityName(string abilityId) => _driver?.AbilityName(abilityId) ?? abilityId;
+
     /// <summary>The display name and description of a Clause.</summary>
     /// <param name="clauseId">The id.</param>
     /// <returns>Name and text.</returns>
@@ -205,7 +285,7 @@ public partial class Screen : Control
         DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.05f, 0.06f, 0.08f, 0.97f));
         HudNodes.Text(this, new Vector2(Margin, Margin + 4), "Between runs", TitleFont, Gold);
         HudNodes.Text(this, new Vector2(Margin, Size.Y - 18),
-            "1-3 Clause    Left/Right key    Tab item    R reroll Facet    Enter queue", SmallFont, Calm);
+            "1-3 Clause    Left/Right key    Tab item    R reroll Facet    T talents    Enter queue", SmallFont, Calm);
 
         DrawCharacter(l.Character);
         DrawKey(l.Key, state);
@@ -223,6 +303,10 @@ public partial class Screen : Control
         var key = _state?.KeyLevel ?? _driver?.Options.KeyLevel ?? ScreenState.MinKey;
         _state = ScreenState.Open(SimDriver.DungeonId, ClauseIds(), key);
         _status = string.Empty;
+        if (_talents is null && _driver?.Registry is { } talentReg && talentReg.Classes.TryGetValue(SimDriver.HumanClassId, out var talentClass))
+        {
+            _talents = Keyrun.Content.TalentPicks.Start(talentClass);
+        }
         IsOpen = true;
         MouseFilter = MouseFilterEnum.Stop;
         if (_driver is { } d && !d.Options.Autorun && DisplayServer.GetName() != "headless")
@@ -259,6 +343,7 @@ public partial class Screen : Control
     private void Close()
     {
         IsOpen = false;
+        TalentsOpen = false;
         SetHelpVisible(true);
         MouseFilter = MouseFilterEnum.Ignore;
         if (GetNodeOrNull<Control>("ClausePick") is { } pick)
@@ -270,8 +355,15 @@ public partial class Screen : Control
     // Returns true when the key was the screen's (Enter is not consumed, so the host's restart still sees it).
     private bool HandleKey(Key key)
     {
+        if (TalentsOpen)
+        {
+            return HandleTalentKey(key);
+        }
         switch (key)
         {
+            case Key.T:
+                ToggleTalents();
+                return true;
             case Key.Key1 or Key.Kp1:
                 PickClause(0);
                 return true;
@@ -298,6 +390,40 @@ public partial class Screen : Control
                 return false;
             default:
                 return false;
+        }
+    }
+
+    // The talent panel is modal over the Character and Key bands: only its keys (and Enter, which still queues).
+    private bool HandleTalentKey(Key key)
+    {
+        switch (key)
+        {
+            case Key.T or Key.Escape:
+                ToggleTalents();
+                return true;
+            case Key.Up:
+                TalentFork = Math.Max(0, TalentFork - 1);
+                return true;
+            case Key.Down:
+                TalentFork = Math.Min(Math.Max(0, (_talents?.ForkCount ?? 1) - 1), TalentFork + 1);
+                return true;
+            case Key.Key1 or Key.Kp1:
+                PickTalent(TalentFork, 0);
+                return true;
+            case Key.Key2 or Key.Kp2:
+                PickTalent(TalentFork, 1);
+                return true;
+            case Key.Key3 or Key.Kp3:
+                PickTalent(TalentFork, 2);
+                return true;
+            case Key.Backspace or Key.Delete:
+                RespecTalents();
+                return true;
+            case Key.Enter or Key.KpEnter:
+                Queue();
+                return false;
+            default:
+                return true;
         }
     }
 
@@ -558,6 +684,12 @@ public partial class Screen : Control
             pick.Position = l.Pick.Position;
             pick.Size = l.Pick.Size;
         }
+        if (GetNodeOrNull<TalentPanel>(TalentPanel.NodeName) is { } talents)
+        {
+            var t = TalentsFor(Size);
+            talents.Position = t.Position;
+            talents.Size = t.Size;
+        }
         return (l.Character, l.Key, l.Queue, l.KeyDown, l.KeyUp);
     }
 
@@ -574,6 +706,42 @@ public partial class Screen : Control
         var keyUp = new Rect2(key.Position.X + 150, key.Position.Y + 44, 40, 40);
         var pick = new Rect2(key.Position.X + 14, key.Position.Y + 128, key.Size.X - 28, 3 * 72);
         return (character, key, queue, keyDown, keyUp, pick);
+    }
+
+    // The talent panel covers the Character and Key bands and leaves the Queue box visible.
+    private static Rect2 TalentsFor(Vector2 size)
+    {
+        var l = LayoutFor(size);
+        return new Rect2(l.Character.Position, new Vector2(l.Key.End.X - l.Character.Position.X, l.Character.Size.Y));
+    }
+
+    // One "SCREEN talent fork=..." line per fork and a fit line per option card, laid out at the design viewport.
+    private void ProofTalents()
+    {
+        if (_talents is not { } picks)
+        {
+            return;
+        }
+        for (var f = 0; f < picks.ForkCount; f++)
+        {
+            var fork = picks.Forks[f];
+            Proof(FormattableString.Invariant(
+                $"SCREEN talent fork={f + 1} ability={fork.AbilityId} options={string.Join(',', fork.Options.Select(o => o.Id))} picked={picks.PickedOption(f) ?? "-"}"));
+        }
+        var panel = TalentsFor(DesignSize());
+        var design = DesignSize();
+        foreach (var card in TalentPanel.Cards(panel.Size, picks))
+        {
+            var text = picks.Forks[card.Fork].Options[card.Option].Text;
+            var lines = TalentPanel.TextLines(text, card.Rect);
+            var widest = lines.Count == 0 ? 0f : lines.Max(line => HudNodes.Width(line, TalentPanel.TextFont));
+            var clipped = lines.Count > 0 && lines[^1].EndsWith("...", StringComparison.Ordinal) && !text.EndsWith("...", StringComparison.Ordinal) ? 1 : 0;
+            var bottom = panel.Position.Y + card.Rect.Position.Y + TalentPanel.TextBottom(Math.Max(1, lines.Count));
+            Proof(FormattableString.Invariant(
+                $"SCREEN fit talent fork={card.Fork + 1} option={card.Option + 1} lines={lines.Count} widest={Math.Ceiling(widest)} box={Math.Floor(TalentPanel.TextWidthFor(card.Rect.Size.X))} clipped={clipped} text_bottom={Math.Ceiling(bottom)} card_bottom={Math.Floor(panel.Position.Y + card.Rect.End.Y)}"));
+        }
+        Proof(FormattableString.Invariant(
+            $"SCREEN fit talents right={Math.Ceiling(panel.End.X)} bottom={Math.Ceiling(panel.End.Y)} viewport={Math.Floor(design.X)}x{Math.Floor(design.Y)}"));
     }
 
     // project.godot display/window/size/viewport_width and _height (1280x720).
