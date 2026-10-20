@@ -46,6 +46,9 @@ public partial class ActorView : Node3D
     private Node3D? _model;
     private ActorAnimator? _animator;
     private SimState? _seenState;
+    private SimState? _facingState;
+    private FacingHold? _hold;
+    private FacingHold? _holdBefore;
     private Vector3 _lastPosition;
     private bool _hasLastPosition;
     private int _measureIn = -1;
@@ -223,9 +226,17 @@ public partial class ActorView : Node3D
         Visible = now.Alive || (_animator?.HoldsDeath ?? false); // a model plays its death clip instead of vanishing
         SetShadows(now.Alive);
         // CAST-FACING: a caster is drawn facing its cast target (CastFacing.RenderYaw), never its sim Yaw alone.
+        // KF1-FACING: an instant swing resolves inside one step, so the swinger is held facing whom it struck
+        // (SwingFacing) until it moves, the target dies, or it resolves a cone, line or self ability.
         var abilities = Driver.Run?.Content.Abilities;
-        var fromYaw = CastFacing.RenderYaw(Driver.PreviousState, before, abilities);
-        var toYaw = CastFacing.RenderYaw(Driver.State, now, abilities);
+        if (!ReferenceEquals(Driver.State, _facingState))
+        {
+            _facingState = Driver.State;
+            _holdBefore = _hold;
+            _hold = SwingFacing.After(Driver.State, now, Driver.LastEvents, abilities, _hold);
+        }
+        var fromYaw = SwingFacing.RenderYaw(Driver.PreviousState, before, abilities, _holdBefore);
+        var toYaw = SwingFacing.RenderYaw(Driver.State, now, abilities, _hold);
         Rotation = new Vector3(0, -YawRadians(fromYaw, toYaw, t), 0);
     }
 
