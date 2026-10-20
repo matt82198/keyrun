@@ -60,6 +60,7 @@ public sealed class ProgressionSaveTests : IDisposable
         Assert.Equal(expected.Runs, actual.Runs);
         Assert.Equal(expected.Prng, actual.Prng);
         Assert.Equal(expected.LastRun, actual.LastRun);
+        Assert.Equal(expected.Talents, actual.Talents);
         Assert.Equal(expected.Equipped.Keys.OrderBy(k => k, StringComparer.Ordinal), actual.Equipped.Keys.OrderBy(k => k, StringComparer.Ordinal));
         foreach (var (slot, item) in expected.Equipped)
         {
@@ -200,6 +201,63 @@ public sealed class ProgressionSaveTests : IDisposable
         var error = ProgressionSave.SaveFile(Path.Combine(blocker, ProgressionSave.FileName), Played());
 
         Assert.False(string.IsNullOrEmpty(error));
+    }
+
+    // BIBLE s6 talents (f-83c5e369): the screen's build is ability id to picked option id, kept in the same save.
+    private static readonly KeyValuePair<string, string>[] Build =
+    {
+        new("warden.strike", "rend"),
+        new("warden.guardBreak", "pin"),
+    };
+
+    [Fact]
+    public void Talent_picks_round_trip_and_write_the_same_text_whatever_order_they_were_picked()
+    {
+        var a = Played().WithTalents(Build);
+        var b = Played().WithTalents(Build.Reverse());
+
+        var loaded = ProgressionSave.Load(ProgressionSave.Serialize(a), seed: 999);
+
+        Assert.Null(loaded.Error);
+        Assert.Equal("rend", loaded.Progression.Talents["warden.strike"]);
+        Assert.Equal("pin", loaded.Progression.Talents["warden.guardBreak"]);
+        AssertSame(a, loaded.Progression);
+        Assert.Equal(ProgressionSave.Serialize(a), ProgressionSave.Serialize(b));
+        Assert.Equal(ProgressionSave.Serialize(a), ProgressionSave.Serialize(loaded.Progression));
+    }
+
+    [Fact]
+    public void Banking_taking_and_crafting_keep_the_talent_picks()
+    {
+        var p = Progression.Start(7).WithTalents(Build).BankRun(RunResult.Timed).Take(Weapon());
+        p = p.Reroll("weapon", WeaponPool).Progression;
+
+        Assert.Equal(2, p.Talents.Count);
+        Assert.Equal("rend", p.Talents["warden.strike"]);
+    }
+
+    [Fact]
+    public void A_save_written_before_talents_existed_loads_with_no_picks()
+    {
+        var loaded = ProgressionSave.Load("{\"v\":1,\"ash\":30,\"runs\":1,\"prng\":[1,2,3,4],\"equipped\":[],\"last\":null}", seed: 5);
+
+        Assert.Null(loaded.Error);
+        Assert.Equal(30, loaded.Progression.AshTotal);
+        Assert.Empty(loaded.Progression.Talents);
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("{\"warden.strike\":3}")]
+    [InlineData("{\"warden.strike\":\"\"}")]
+    public void A_malformed_talents_member_is_a_fresh_character_and_the_reason(string talents)
+    {
+        var loaded = ProgressionSave.Load(
+            "{\"v\":1,\"ash\":30,\"runs\":1,\"prng\":[1,2,3,4],\"equipped\":[],\"last\":null,\"talents\":" + talents + "}", seed: 5);
+
+        Assert.False(string.IsNullOrEmpty(loaded.Error));
+        Assert.Equal(0, loaded.Progression.AshTotal);
+        Assert.Empty(loaded.Progression.Talents);
     }
 
     // A save from a newer build: a valid v1 body with the version bumped. This build cannot read it, but the player's
