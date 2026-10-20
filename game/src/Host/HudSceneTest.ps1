@@ -619,8 +619,15 @@ $lockC = First $c.Lines '^EVENT \{"actorId":900,"endsTick":\d+,"lockIndex":1,"ti
 if (-not $lockC -or [array]::IndexOf($c.Lines, $lockC) -gt $iRunEnd) {
     $failures.Add("run C: the Lock never opened before run_end (no 'EVENT {""actorId"":900,...,""lockIndex"":1,...,""type"":""lock_open""}' line)")
 }
-$botHit = First $c.Lines '^EVENT \{.*"healthDamage":[1-9]\d*,.*"sourceId":(1\d\d|900),"targetId":[23],.*"type":"damage"'
-if (-not $botHit) { $failures.Add('run C: no enemy damaged a bot seat, so the private-log seat filter is not exercised') }
+# HOLDER-LOCK (STATE.md D30): every engaged enemy stays on its holder, and the autorun Warden (seat 1) engages every
+# pull, so in run C no enemy damages a bot seat any more (measured on dcfb978: all six cause rows are seat 1). The old
+# "an enemy damaged a bot seat" requirement is gone; the run instead must show enemy damage landing on the holder,
+# seat 1. The private-log seat filter above is no longer exercised by run C (no foreign cause exists to filter).
+$enemyDmg = '^EVENT \{.*"healthDamage":[1-9]\d*,.*"sourceId":(1\d\d|90\d),"targetId":(\d+),.*"type":"damage"'
+$holderHits = @($c.Lines | Where-Object { $_ -match $enemyDmg -and $Matches[2] -eq '1' }).Count
+$botHits = @($c.Lines | Where-Object { $_ -match $enemyDmg -and ($Matches[2] -eq '2' -or $Matches[2] -eq '3') }).Count
+Write-Host "HOLDER-LOCK run C: enemy damage on seat 1=$holderHits, on bot seats=$botHits"
+if ($holderHits -eq 0) { $failures.Add('run C: no enemy damaged seat 1, the Warden that engages and holds every pull (HOLDER-LOCK D30)') }
 $botsC = First $c.Lines '^BOTS done commands=\d+ hash=[0-9a-f]{16}$'
 $botsC2 = First $c2.Lines '^BOTS done commands=\d+ hash=[0-9a-f]{16}$'
 if (-not $botsC) { $failures.Add('run C: no "BOTS done commands=N hash=H" line') }

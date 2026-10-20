@@ -38,7 +38,7 @@ public sealed class HolderLockTests
         Tags = new[] { "utility" },
     };
 
-    private static Run BuildRun(long tankX, long healerX, long dpsX, long tankHealth = 100000)
+    private static Run BuildRun(long tankX, long healerX, long dpsX, long tankHealth = 100000, long dpsZ = 0)
     {
         var abilities = new Dictionary<string, AbilityDef>(StringComparer.Ordinal)
         {
@@ -57,7 +57,7 @@ public sealed class HolderLockTests
         {
             RunTestKit.Member(Tank, "warden", ActorRole.Tank, tankX, 0, tankHealth, 100),
             RunTestKit.Member(Healer, "chanter", ActorRole.Healer, healerX, 0, 100000, 100),
-            RunTestKit.Member(Dps, "cinder", ActorRole.Damage, dpsX, 0, 100000, 100),
+            RunTestKit.Member(Dps, "cinder", ActorRole.Damage, dpsX, dpsZ, 100000, 100),
         };
         var dungeon = RunTestKit.OnePull("holder-lock", "p0", RunTestKit.Spawn(Enemy, "test.brute", 0, 0, 1000000));
         return RunRoot.CreateRun(Seed, party, dungeon, content);
@@ -73,10 +73,12 @@ public sealed class HolderLockTests
     [Fact]
     public void A_dps_out_damaging_and_out_threatening_the_tank_never_takes_the_enemy()
     {
-        // Tank nearest on engage; the DPS then nukes every tick and walks right up to the enemy.
-        var run = BuildRun(tankX: 1000, healerX: -1800, dpsX: 1800);
+        // Tank nearest on engage (1000 mm); the DPS starts 1800 mm off on the z axis, nukes every tick and walks
+        // straight at the enemy to 900 mm. Its path never crosses the tank's body (actor radius 400): on main it was
+        // the first version put it behind the tank on the x axis (1800 vs 1000, bodies touching) and collision held it.
+        var run = BuildRun(tankX: 1000, healerX: -1800, dpsX: 0, dpsZ: 1800);
         var commands = Every(0, 39, t => new CastCommand(t, Dps, Nuke.Id, Enemy))
-            .Concat(Every(0, 5, t => new MoveCommand(t, Dps, new Dir2(-1000, 0), 0)))
+            .Concat(Every(0, 4, t => new MoveCommand(t, Dps, new Dir2(0, -1000), 0)))
             .ToArray();
 
         var (after, events) = RunTestKit.StepUntil(run, 40, commands);
