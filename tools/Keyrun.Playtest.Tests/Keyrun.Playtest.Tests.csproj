@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Keyrun.Playtest.Tests: the playtest harness gates (policy parsing, the key ledger rule, no-policy parity with the
+    scripted bot run, and that a policy seat does only what its plan says).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Keyrun.Playtest.Tests</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>12.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The host's Godot-free bot command source, the reference "today's bot run" for NoPolicyParityTests. -->
+    <Compile Include="../../game/src/Host/BotCommandSource.cs" Link="Host/BotCommandSource.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Keyrun.Playtest/Keyrun.Playtest.csproj" />
+    <ProjectReference Include="../../game/sim/Keyrun.Sim/Keyrun.Sim.csproj" />
+    <ProjectReference Include="../../game/content/Keyrun.Content/Keyrun.Content.csproj" />
+    <ProjectReference Include="../../game/bots/Keyrun.Bots/Keyrun.Bots.csproj" />
+  </ItemGroup>
+
+</Project>

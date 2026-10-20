@@ -34,12 +34,31 @@ namespace Keyrun.View;
 /// as <see cref="PlateRects"/> (each plate's box and the actors folded into it), so CombatText places its numbers clear
 /// of the plates where they actually draw instead of a copy of this layout that never folded a crowd.
 /// </para>
+/// <para>
+/// STACKED-PLATES (Matt 2026-10-20, ledger f-e933a2b7: "enemy nameplates stack vertically with interruptible cast bars,
+/// hover to interrupt like WoW"): a casting enemy's plate carries its cast bar under the name (except an enemy a unit
+/// frame shows, whose cast stays on that frame only, NAMEPLATE-DECLUTTER) (spell and seconds left,
+/// fill by elapsed fraction) with a mark left of the bar: an amber diamond and amber frame when the cast can be kicked,
+/// a grey square and grey frame when it cannot (shape and colour, BIBLE s3); a kicked cast turns the bar red and a
+/// completed one green while it fades (<c>CastBarView.Endings</c>). A casting enemy is never folded into a same-name
+/// crowd. Plates are placed by <see cref="PlateStack"/>.Layout (nearest first, lowest id on a tie, moved only up or
+/// down, no two blocks share a pixel); CastBarView no longer draws enemy bars over heads. <see cref="PlateRects"/> holds
+/// each whole block, which PlayerInput hovers: a hovered enemy plate is the mouseover unit the Q kick goes at.
+/// </para>
 /// </summary>
 public partial class LabelView : Node3D
 {
     private const int NameFont = 15;
+    private const int CastFont = 12;
     private const int PlatePad = 4;
     private const int OutlineSize = 4;
+
+    private static readonly Color CastBack = new(0.05f, 0.05f, 0.07f, 0.85f);
+    private static readonly Color CastFill = new(0.95f, 0.72f, 0.2f, 0.95f);
+    private static readonly Color KickColor = new(1f, 0.6f, 0.1f, 1f);
+    private static readonly Color LockedColor = new(0.55f, 0.55f, 0.6f, 1f);
+    private static readonly Color InterruptedColor = new(0.9f, 0.15f, 0.12f, 1f);
+    private static readonly Color DoneColor = new(0.35f, 0.85f, 0.4f, 1f);
 
     private static readonly Color MeleeColor = new(0.78f, 0.22f, 0.2f);
     private static readonly Color LieutenantColor = new(0.62f, 0.3f, 0.85f);
@@ -55,6 +74,8 @@ public partial class LabelView : Node3D
     private readonly List<Drawn> _drawn = new();
     private readonly List<DrawnPlate> _plateRects = new();
     private readonly HashSet<string> _crowdLogged = new(StringComparer.Ordinal);
+    private readonly Dictionary<int, int> _castLogged = new();
+    private readonly Dictionary<int, CastBarView.CastEnding> _endings = new();
 
     private Control? _canvas;
 
@@ -121,8 +142,9 @@ public partial class LabelView : Node3D
         }
         var state = Driver.State;
         var targetId = state.Actors.TryGetValue(SimDriver.WardenId, out var me) ? me.TargetId : null;
+        var frames = UnitFrameModel.Build(state, Driver.Setup?.HumanActorId ?? SimDriver.WardenId);
         // f-07f1b477: the enemy the boss unit frame names draws no over-head plate (PlateRule.DrawsOverhead).
-        var bossFrameId = UnitFrameModel.Build(state, SimDriver.WardenId).FirstOrDefault(f => f.Kind == "boss")?.ActorId;
+        var bossFrameId = frames.FirstOrDefault(f => f.Kind == "boss")?.ActorId;
         foreach (var (id, actor) in state.Actors)
         {
             EnsureBody(id, actor);
@@ -148,6 +170,21 @@ public partial class LabelView : Node3D
             var t = Driver.Alpha;
             plate.Anchor = ActorView.ToMetres(before.Pos).Lerp(ActorView.ToMetres(actor.Pos), t) + new Vector3(0, PlateHeight(actor), 0);
             plate.Targeted = id == targetId;
+            // NAMEPLATE-DECLUTTER still holds: an enemy a unit frame shows (the boss, the Warden's target) has its cast on
+            // that frame only, so its plate carries no second bar (HudDeclutter.OverheadCast).
+            plate.CastOnPlate = actor.Kind != ActorKind.Player && HudDeclutter.OverheadCast(actor, frames);
+            plate.CastId = plate.CastOnPlate ? actor.CastId : null;
+            plate.CastStart = actor.CastStartTick;
+            plate.CastEnd = actor.CastEndsTick;
+            LogPlateCast(id, plate);
+        }
+        _endings.Clear();
+        if (GetNodeOrNull<CastBarView>(CastBarsPath) is { } castBars)
+        {
+            foreach (var e in castBars.Endings)
+            {
+                _endings[e.ActorId] = e;
+            }
         }
 
         _gone.Clear();
@@ -179,9 +216,104 @@ public partial class LabelView : Node3D
         var font = ThemeDB.FallbackFont;
         foreach (var d in _drawn)
         {
-            var centre = d.Rect.X + (d.Rect.Width / 2f);
-            Line(font, new Vector2(centre, d.Rect.Y + PlatePad + NameFont), d.Text, NameFont, d.Targeted ? TargetColor : Colors.White);
+            var name = d.Placed.Name;
+            var centre = name.X + (name.Width / 2f);
+            Line(font, new Vector2(centre, name.Y + PlatePad + NameFont), d.Text, NameFont, d.Targeted ? TargetColor : Colors.White);
+            DrawCast(font, d);
         }
+    }
+
+    // STACKED-PLATES: the cast rows under a plate's name: the spell label, the kick/locked mark (diamond or square, amber
+    // or grey) and the bar (filled by elapsed fraction, framed in the mark's colour); a just-ended cast fades red
+    // (kicked) or green (completed) at full width.
+    private void DrawCast(Font font, Drawn d)
+    {
+        if (d.Placed.CastBar is not { } bar || d.Placed.Mark is not { } markBox || PlateStack.CastLabel(d.Placed) is not { } band)
+        {
+            return;
+        }
+        Color frame;
+        Color fill;
+        float progress;
+        float alpha;
+        string label;
+        CastMark mark;
+        if (d.Cast is { } cast)
+        {
+            mark = cast.Mark;
+            frame = mark == CastMark.Kick ? KickColor : LockedColor;
+            fill = CastFill;
+            progress = cast.Progress;
+            alpha = 1f;
+            label = cast.Label;
+        }
+        else if (d.Ending is { } end)
+        {
+            mark = CastMark.Locked;
+            alpha = Mathf.Clamp(end.Opacity, 0f, 1f);
+            frame = new Color(end.Interrupted ? InterruptedColor : DoneColor, alpha);
+            fill = frame;
+            progress = 1f;
+            label = end.Interrupted ? $"{end.Name} interrupted" : end.Name;
+        }
+        else
+        {
+            return;
+        }
+        var barRect = new Rect2(bar.X, bar.Y, bar.Width, bar.Height);
+        _canvas!.DrawRect(barRect, new Color(CastBack, CastBack.A * alpha));
+        _canvas.DrawRect(new Rect2(bar.X, bar.Y, bar.Width * progress, bar.Height), fill);
+        _canvas.DrawRect(barRect, frame, filled: false, width: 2f);
+        if (d.Cast is not null)
+        {
+            var points = PlateStack.MarkShape(mark, markBox);
+            var poly = new Vector2[points.Length];
+            for (var i = 0; i < points.Length; i++)
+            {
+                poly[i] = new Vector2(points[i].X, points[i].Y);
+            }
+            _canvas.DrawColoredPolygon(poly, frame);
+        }
+        var text = HudLayout.FitTitle(label, band.Width, s => (int)Math.Ceiling(HudNodes.Width(s, CastFont)));
+        var at = new Vector2(band.X + ((band.Width - HudNodes.Width(text, CastFont)) / 2f), band.Bottom - 3);
+        _canvas.DrawStringOutline(font, at, text, HorizontalAlignment.Left, -1, CastFont, 3, new Color(Outline, Outline.A * alpha));
+        _canvas.DrawString(font, at, text, HorizontalAlignment.Left, -1, CastFont, new Color(1, 1, 1, alpha));
+    }
+
+    // STACKED-PLATES proof (autorun only): "HUD platecast actor=A ability=X mark=kick|locked" once per cast start.
+    private void LogPlateCast(int id, Plate plate)
+    {
+        if (Driver is null || !Driver.Options.Autorun || plate.CastId is not { } castId || plate.CastStart is not { } start)
+        {
+            return;
+        }
+        if (_castLogged.TryGetValue(id, out var last) && last == start)
+        {
+            return;
+        }
+        _castLogged[id] = start;
+        var mark = MarkOf(castId) == CastMark.Kick ? "kick" : "locked";
+        HudNodes.Proof(Driver, $"HUD platecast actor={id} ability={castId} mark={mark}");
+    }
+
+    private CastMark MarkOf(string castId) =>
+        PlateStack.MarkOf(Driver?.Run?.Content.Abilities.TryGetValue(castId, out var def) == true && def.Interruptible);
+
+    // The live cast a plate draws this frame, or null when its actor is not casting.
+    private PlateCast? CastOf(Plate plate)
+    {
+        if (Driver is null || plate.CastId is not { } castId || plate.CastStart is not { } start || plate.CastEnd is not { } end)
+        {
+            return null;
+        }
+        var now = Driver.State.Tick + Driver.Alpha;
+        var progress = Mathf.Clamp((now - start) / Mathf.Max(1f, end - start), 0f, 1f);
+        var secondsLeft = Mathf.Max(0f, (end - now) / Tick.TickHz);
+        var label = HudLayout.FitCastLabel(string.Empty, Driver.AbilityName(castId), FormattableString.Invariant($"  {secondsLeft:0.0}s"),
+            PlateStack.CastWidth, s => (int)Math.Ceiling(HudNodes.Width(s, CastFont)),
+            // The bar sits inside the caster's own on-screen plate, whose text already names the caster.
+            casterPlateShown: true);
+        return new PlateCast(MarkOf(castId), progress, label);
     }
 
     // Places this frame's plates (every process frame, so the proof lines report what draws): project, sort nearest
@@ -204,16 +336,10 @@ public partial class LabelView : Node3D
         var origin = camera.GlobalPosition;
         foreach (var plate in _plates.Values)
         {
-            if (!plate.Visible || camera.IsPositionBehind(plate.Anchor))
+            if (!PlateOnScreen(camera, plate, width, height, out var anchor))
             {
                 continue;
             }
-            var screen = camera.UnprojectPosition(plate.Anchor);
-            if (screen.X < 0 || screen.X > width || screen.Y < 0 || screen.Y > height)
-            {
-                continue;
-            }
-            var anchor = new PixelPoint((int)Math.Round(screen.X), (int)Math.Round(screen.Y));
             _shown.Add(new Shown(plate, PlateRect(anchor, plate.BaseName), anchor, origin.DistanceSquaredTo(plate.Anchor)));
         }
         if (_shown.Count == 0)
@@ -222,8 +348,11 @@ public partial class LabelView : Node3D
         }
         _shown.Sort((a, b) => a.Depth.CompareTo(b.Depth));
 
-        var crowds = HudDeclutter.PlateCrowds(_shown.Select(s => new PlateCandidate(s.Plate.BaseName, s.Rect, s.Plate.Targeted)).ToList());
-        var wanted = new List<Drawn>();
+        // STACKED-PLATES: a casting enemy (or one whose cast is fading) keeps a plate of its own (PlateStack.FoldKey).
+        var crowds = HudDeclutter.PlateCrowds(_shown.Select(s => new PlateCandidate(
+            PlateStack.FoldKey(s.Plate.BaseName, s.Plate.Id, ShowsCast(s.Plate)), s.Rect, s.Plate.Targeted)).ToList());
+        var specs = new List<PlateSpec>(crowds.Count);
+        var byLeader = new Dictionary<int, (string Text, bool Targeted, int Crowd, PlateCast? Cast, CastBarView.CastEnding? Ending)>();
         for (var ci = 0; ci < crowds.Count; ci++)
         {
             // NAMEPLATE-DECLUTTER: one plate per same-name crowd, at its leader (the target when it is in the crowd).
@@ -231,17 +360,23 @@ public partial class LabelView : Node3D
             var s = _shown[c.Leader];
             var targeted = c.Members.Any(m => _shown[m].Plate.Targeted);
             var text = HudDeclutter.PlateText(s.Plate.BaseName, c.Members.Count, targeted);
-            wanted.Add(new Drawn(text, PlateRect(s.Anchor, text), targeted, ci));
+            var cast = CastOf(s.Plate);
+            CastBarView.CastEnding? ending = cast is null && s.Plate.CastOnPlate && _endings.TryGetValue(s.Plate.Id, out var e) ? e : null;
+            byLeader[s.Plate.Id] = (text, targeted, ci, cast, ending);
+            specs.Add(new PlateSpec(s.Plate.Id, s.Anchor, PlateRect(s.Anchor, text).Width, (long)Math.Round(s.Depth * 1000f), cast is not null || ending is not null));
         }
-        var offsets = HudLayout.Separate(wanted.Select(d => d.Rect).ToList(), width, height, Obstacles(width, height));
-        for (var i = 0; i < wanted.Count; i++)
+        foreach (var placed in PlateStack.Layout(specs, width, height, Obstacles(width, height)))
         {
-            var drawn = wanted[i] with { Rect = wanted[i].Rect.Offset(offsets[i].Dx, offsets[i].Dy) };
+            var info = byLeader[placed.Id];
+            var drawn = new Drawn(info.Text, placed, info.Targeted, info.Crowd, info.Cast, info.Ending);
             _drawn.Add(drawn);
-            _plateRects.Add(new DrawnPlate(drawn.Rect, crowds[drawn.Crowd].Members.Select(m => _shown[m].Plate.Id).ToArray()));
+            _plateRects.Add(new DrawnPlate(placed.Block, crowds[info.Crowd].Members.Select(m => _shown[m].Plate.Id).ToArray()));
         }
         LogCrowds(crowds);
     }
+
+    // True when the plate shows a cast this frame: an enemy casting, or its just-ended cast still fading.
+    private bool ShowsCast(Plate plate) => plate.CastOnPlate && (plate.CastId is not null || _endings.ContainsKey(plate.Id));
 
     private static PixelRect PlateRect(PixelPoint anchor, string text)
     {
@@ -318,6 +453,42 @@ public partial class LabelView : Node3D
         return obstacles;
     }
 
+    /// <summary>
+    /// True when <paramref name="actorId"/>'s name plate is drawn this frame, alone or as a member of a same-name crowd
+    /// plate (which still shows the name): the plate is visible (alive, not the Warden) and its anchor projects in front
+    /// of the camera inside the viewport, the same test LayoutPlates places plates by. CastBarView asks this so a plated
+    /// caster's cast label names only the ability (f-b78d1567, <c>HudLayout.FitCastLabel</c>).
+    /// </summary>
+    /// <param name="actorId">The actor.</param>
+    /// <returns>Whether a plate names that actor on screen.</returns>
+    public bool ShowsPlate(int actorId)
+    {
+        var camera = GetViewport()?.GetCamera3D();
+        if (camera is null || !_plates.TryGetValue(actorId, out var plate))
+        {
+            return false;
+        }
+        var view = GetViewport().GetVisibleRect().Size;
+        return PlateOnScreen(camera, plate, (int)view.X, (int)view.Y, out _);
+    }
+
+    // A visible plate whose anchor is in front of the camera and inside the viewport, with its projected pixel.
+    private static bool PlateOnScreen(Camera3D camera, Plate plate, int width, int height, out PixelPoint anchor)
+    {
+        anchor = default;
+        if (!plate.Visible || camera.IsPositionBehind(plate.Anchor))
+        {
+            return false;
+        }
+        var screen = camera.UnprojectPosition(plate.Anchor);
+        if (screen.X < 0 || screen.X > width || screen.Y < 0 || screen.Y > height)
+        {
+            return false;
+        }
+        anchor = new PixelPoint((int)Math.Round(screen.X), (int)Math.Round(screen.Y));
+        return true;
+    }
+
     private void EnsureBody(int id, ActorState actor)
     {
         if (_spawned.ContainsKey(id) || Actors is null || ActorScene is null || HasStaticView(id))
@@ -372,9 +543,20 @@ public partial class LabelView : Node3D
         public Vector3 Anchor { get; set; }
 
         public bool Targeted { get; set; }
+
+        public bool CastOnPlate { get; set; }
+
+        /// <summary>The enemy's live cast (null for a party member or an enemy not casting).</summary>
+        public string? CastId { get; set; }
+
+        public int? CastStart { get; set; }
+
+        public int? CastEnd { get; set; }
     }
 
     private readonly record struct Shown(Plate Plate, PixelRect Rect, PixelPoint Anchor, float Depth);
 
-    private readonly record struct Drawn(string Text, PixelRect Rect, bool Targeted, int Crowd);
+    private readonly record struct PlateCast(CastMark Mark, float Progress, string Label);
+
+    private readonly record struct Drawn(string Text, StackedPlate Placed, bool Targeted, int Crowd, PlateCast? Cast, CastBarView.CastEnding? Ending);
 }
