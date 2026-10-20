@@ -42,7 +42,7 @@ public sealed class SeedEngageTests
     /// <param name="output">The sink.</param>
     public SeedEngageTests(ITestOutputHelper output) => _out = output;
 
-    private sealed record LayoutRoom(string Id, Bounds Box, bool IsRoom, string? Gate, string? Pull, Bounds? Trigger, Vec3? Origin);
+    internal sealed record LayoutRoom(string Id, Bounds Box, bool IsRoom, string? Gate, string? Pull, Bounds? Trigger, Vec3? Origin);
 
     private static string LayoutPath()
     {
@@ -57,7 +57,7 @@ public sealed class SeedEngageTests
 
     // The same mapping as Keyrun.Bots NavLayouts.ToSim (game/bots/Keyrun.Bots/shared/Follow.cs), read straight from the
     // shipped layout file so the room the test stands in is the room the game builds.
-    private static (NavLayout Nav, List<LayoutRoom> Rooms) Layout()
+    internal static (NavLayout Nav, List<LayoutRoom> Rooms) Layout()
     {
         var root = (JsObject)JsValue.Parse(File.ReadAllText(LayoutPath()));
         var rooms = ((JsArray)root.Get("boxes")!).Items.Cast<JsObject>().Select(b => new LayoutRoom(

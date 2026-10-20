@@ -139,7 +139,7 @@ public static class RunRoot
             run.State,
             run.Encounter,
             layout is null ? run.Dungeon : UnspawnedAsEmpty(run.State, run.Dungeon, run.Encounter.PullIndex),
-            content.EnemyScripts,
+            run.ActiveScripts ?? content.EnemyScripts,
             emit,
             wiring,
             RunWiring.ScriptAbilitiesOf(content.Abilities));
@@ -153,6 +153,7 @@ public static class RunRoot
 
         var nextState = RunWiring.ApplyBreakBarPatches(stepped.State, enc.EffectPatches, content.Effects);
         var nextEncounter = enc.Encounter;
+        var activeScripts = run.ActiveScripts;
         if (layout is null)
         {
             if (nextEncounter.PullIndex != run.Encounter.PullIndex)
@@ -162,7 +163,13 @@ public static class RunRoot
         }
         else
         {
+            var index = nextEncounter.PullIndex;
+            var unspawned = index < run.Dungeon.Pulls.Count && !Pulls.IsSpawned(nextState, run.Dungeon, index);
             nextState = StepLayout(layout, run, nextState, nextEncounter, emit, opts?.OpenSeats);
+            if (unspawned && Pulls.IsSpawned(nextState, run.Dungeon, index))
+            {
+                activeScripts = OnPullClock(activeScripts ?? content.EnemyScripts, run.Dungeon.Pulls[index], nextState.Tick);
+            }
         }
         var echo = EchoSpawns.Step(nextEncounter, nextState, events, nextState.Tick, emit);
         nextEncounter = echo.Encounter;
@@ -184,8 +191,32 @@ public static class RunRoot
         // SEED-LOOT-AWARD: the run root awards the Seed bonus itself (SeedLoot.cs summary: "the run root calls Observe
         // once per tick with that tick's events").
         var rewards = run.SeedRule is { } seedRule ? SeedLoot.Observe(run.Rewards, seedRule, events) : run.Rewards;
-        var next = new Run(nextState, nextEncounter, run.Dungeon, run.Content, runEnd) { Rewards = rewards, SeedRule = run.SeedRule };
+        var next = new Run(nextState, nextEncounter, run.Dungeon, run.Content, runEnd)
+        {
+            Rewards = rewards,
+            SeedRule = run.SeedRule,
+            ActiveScripts = activeScripts,
+        };
         return new RunStepResult(next, events);
+    }
+
+    // SEED-PULL-TEACHES (STATE.md D27, design/BIBLE.md sections 3 and 9): a room-entry pull's scripts run on the pull's
+    // own clock from its pull_start tick, so its first cast and that cast's telegraph fall inside the fight whatever tick
+    // the party walked in on. Every other actor's script is kept as it is.
+    private static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> OnPullClock(
+        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts, PullDef pull, int startTick)
+    {
+        var ids = pull.Spawns.Select(s => s.ActorId).ToHashSet();
+        if (startTick == 0 || !scripts.Keys.Any(ids.Contains))
+        {
+            return scripts;
+        }
+        var shifted = new SortedDictionary<int, IReadOnlyList<ScriptStep>>();
+        foreach (var (actorId, script) in scripts)
+        {
+            shifted[actorId] = ids.Contains(actorId) ? script.Select(s => Scripts.StartingAt(s, startTick)).ToList() : script;
+        }
+        return shifted;
     }
 
     // A layout run's active pull before its room is entered has no actors in the state, and pulls.ts counts a missing
