@@ -91,34 +91,109 @@ public sealed class SlamTelegraphTests
 
     private static string? Str(SimEvent e, string key) => e.Get(key) is JsString s ? s.Value : null;
 
+    /// <summary>
+    /// For every <paramref name="cast"/> by <paramref name="actor"/> that lands (cast_complete): a telegraph resolves on
+    /// the landing tick, and it is on the floor (pending in the registry) for the last <c>min(castTicks, lead)</c> ticks
+    /// before it, where lead is the step's Tempo-scaled telegraph lead. With lead &gt;= castTicks that is the whole cast
+    /// bar; Tempo may shrink the lead below the cast time (BIBLE s8), never the warning before the hit.
+    /// </summary>
+    private static void AssertSpansCast(
+        List<SimEvent> events, Dictionary<int, IReadOnlyList<Telegraph>> pending, Run run, int actor, string cast,
+        IReadOnlyList<ScriptStep> script, int minLanded, bool requireDamage)
+    {
+        var castTicks = run.Content.Abilities[cast].CastTicks;
+        Assert.True(castTicks > 0, $"{cast}: castTicks {castTicks}, no cast bar");
+        var lead = script.Single(s => s.Cast == cast).Telegraph?.LeadTicks ?? 0;
+        Assert.True(lead > 0, $"{cast}: no floor telegraph in the script");
+        var window = Math.Min(castTicks, lead);
+
+        var landed = events.Where(e => e.Type == "cast_complete" && Int(e, "actorId") == actor && Str(e, "abilityId") == cast).ToList();
+        Assert.True(landed.Count >= minLanded, $"{cast} by {actor}: {landed.Count} casts landed, expected at least {minLanded}");
+        foreach (var done in landed)
+        {
+            var hitTick = done.Tick;
+            if (requireDamage)
+            {
+                Assert.Contains(events, e => e.Type == "damage" && e.Tick == hitTick && Int(e, "sourceId") == actor);
+            }
+
+            var telegraph = events.SingleOrDefault(e => e.Type == "telegraph" && Int(e, "actorId") == actor && Str(e, "cast") == cast && Int(e, "resolvesTick") == hitTick);
+            Assert.True(telegraph is not null, $"{cast} by {actor} landed on tick {hitTick} with no telegraph resolving on that tick");
+            Assert.True(telegraph!.Tick <= hitTick - window, $"{cast} by {actor}: telegraph drawn on tick {telegraph.Tick}, later than {hitTick - window}");
+
+            for (var t = hitTick - window; t < hitTick; t++)
+            {
+                Assert.True(
+                    pending[t].Any(tg => tg.SourceId == actor && tg.AbilityId == cast && tg.ResolvesTick == hitTick),
+                    $"{cast} by {actor}: no floor telegraph on tick {t}, {hitTick - t} ticks before it lands on {hitTick}");
+            }
+        }
+    }
+
     [Fact(DisplayName = "The Warden's slam and both Twins' slams keep their floor telegraph down for the whole cast and resolve it on the damage tick")]
     public void Slam_telegraphs_span_the_cast_and_resolve_with_the_damage()
     {
         var (events, pending, run) = Play();
-        var casts = new (int Actor, string Slam)[] { (BossTestKit.Boss, BossSlam), (BossTestKit.TwinA, TwinSlam), (BossTestKit.TwinB, TwinSlam) };
-        foreach (var (actor, slam) in casts)
+        var enemies = ContentEnemies();
+        AssertSpansCast(events, pending, run, BossTestKit.Boss, BossSlam, ContentScript(enemies, "hollowWarden.boss"), 2, requireDamage: true);
+        AssertSpansCast(events, pending, run, BossTestKit.TwinA, TwinSlam, ContentScript(enemies, "hollowWarden.twinA"), 2, requireDamage: true);
+        AssertSpansCast(events, pending, run, BossTestKit.TwinB, TwinSlam, ContentScript(enemies, "hollowWarden.twinB"), 2, requireDamage: true);
+    }
+
+    [Fact(DisplayName = "The Warden's Cleave keeps its cone telegraph down until the cleave lands")]
+    public void Cleave_telegraph_spans_the_cast()
+    {
+        var (events, pending, run) = Play();
+        AssertSpansCast(events, pending, run, BossTestKit.Boss, "hollowWarden.cleave", ContentScript(ContentEnemies(), "hollowWarden.boss"), 3, requireDamage: false);
+    }
+
+    private const int SeedActor = 108;
+
+    /// <summary>A Seed-only run (k2 oracle content, the Seed's script from content/data/enemies/seed.json), the party in lash range.</summary>
+    private static (List<SimEvent> Events, Dictionary<int, IReadOnlyList<Telegraph>> Pending, Run Run, IReadOnlyList<ScriptStep> Script) PlaySeed()
+    {
+        var path = Path.Combine(ContentRoots.RepoRootAbove(OracleFixtures.Directory), "content", "data", "enemies", "seed.json");
+        var seedDef = ((JsArray)JsValue.Parse(File.ReadAllText(path))).Items.Cast<JsObject>().Single(e => ((JsString)e.Get("id")!).Value == "seed.elite");
+        var script = Tempo.ScaleScript(EncounterJson.ParseScript(seedDef.Get("script")!), Key);
+        var setup = RunSetup.Load(OracleFixtures.PathOf("hollow-vault-k2.setup.json"), BossTestKit.Seed);
+        var dungeon = new DungeonDef("hollow-vault", new[]
         {
-            var castTicks = run.Content.Abilities[slam].CastTicks;
-            Assert.True(castTicks > 0, $"{slam}: castTicks {castTicks}, no cast bar");
-
-            var landed = events.Where(e => e.Type == "cast_complete" && Int(e, "actorId") == actor && Str(e, "abilityId") == slam).ToList();
-            Assert.True(landed.Count >= 2, $"{slam} by {actor}: {landed.Count} casts landed in {Ticks} ticks, expected at least 2");
-            foreach (var done in landed)
-            {
-                var hitTick = done.Tick;
-                Assert.Contains(events, e => e.Type == "damage" && e.Tick == hitTick && Int(e, "sourceId") == actor);
-
-                var telegraph = events.SingleOrDefault(e => e.Type == "telegraph" && Int(e, "actorId") == actor && Str(e, "cast") == slam && Int(e, "resolvesTick") == hitTick);
-                Assert.True(telegraph is not null, $"{slam} by {actor} landed on tick {hitTick} with no telegraph resolving on that tick");
-                Assert.True(telegraph!.Tick <= hitTick - castTicks, $"{slam} by {actor}: telegraph drawn on tick {telegraph.Tick}, after its cast began on {hitTick - castTicks}");
-
-                for (var t = hitTick - castTicks; t < hitTick; t++)
-                {
-                    Assert.True(
-                        pending[t].Any(tg => tg.SourceId == actor && tg.AbilityId == slam && tg.ResolvesTick == hitTick),
-                        $"{slam} by {actor}: no floor telegraph on tick {t}, {hitTick - t} ticks before its damage on {hitTick}");
-                }
-            }
+            new PullDef("seed", new[] { new PullSpawn(SeedActor, "seed.elite", new Vec3(0, 0, 0), 512, 60000) }),
+        });
+        var content = setup.Content with
+        {
+            Bounds = new Keyrun.Sim.Combat.Bounds(-20000, 20000, -20000, 20000),
+            EnemyScripts = new Dictionary<int, IReadOnlyList<ScriptStep>> { [SeedActor] = script },
+            BreakBarSources = null,
+            KeyLevel = null,
+            ParTicks = null,
+            Clauses = null,
+        };
+        var party = new[]
+        {
+            RunTestKit.Member(BossTestKit.Warden, "warden", ActorRole.Tank, 0, 1000, BossTestKit.PartyHealth, 100),
+            RunTestKit.Member(BossTestKit.Chanter, "chanter", ActorRole.Healer, 500, 1000, BossTestKit.PartyHealth, 1),
+            RunTestKit.Member(BossTestKit.Cinder, "cinder", ActorRole.Damage, -500, 1000, BossTestKit.PartyHealth, 100),
+        };
+        var run = RunRoot.CreateRun(BossTestKit.Seed, party, dungeon, content);
+        var events = new List<SimEvent>();
+        var pending = new Dictionary<int, IReadOnlyList<Telegraph>>();
+        while (run.State.Tick < Ticks)
+        {
+            var tick = run.State.Tick;
+            var stepped = RunRoot.StepRun(run, Array.Empty<Command>());
+            events.AddRange(stepped.Events);
+            run = stepped.Run;
+            pending[tick] = run.Encounter.Telegraphs;
         }
+        return (events, pending, run, script);
+    }
+
+    [Fact(DisplayName = "The Seed's slam and lash keep their floor telegraph down until they land and resolve it on the damage tick")]
+    public void Seed_slam_and_lash_telegraphs_span_the_cast()
+    {
+        var (events, pending, run, script) = PlaySeed();
+        AssertSpansCast(events, pending, run, SeedActor, "seed.slam", script, 2, requireDamage: true);
+        AssertSpansCast(events, pending, run, SeedActor, "seed.lash", script, 2, requireDamage: true);
     }
 }

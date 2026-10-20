@@ -57,11 +57,12 @@ public sealed class DangerousCastTelegraphTests
     }
 
     [Fact]
-    public void Boss_and_twins_slam_telegraphs_span_the_cast()
+    public void Every_dangerous_cast_telegraph_spans_the_cast()
     {
-        // SLAM-TELEGRAPH: the floor circle stays down for the whole cast bar and resolves when the slam lands.
-        var slams = DangerousSteps().Where(s => s.Ability.Id is "hollowWarden.slam" or "twins.slam").ToList();
-        Assert.Equal(3, slams.Count); // the boss, Twin A, Twin B
+        // SLAM-TELEGRAPH: the floor shape stays down for the whole cast bar and resolves when the cast lands
+        // (seed.slam, seed.lash, hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam).
+        var slams = DangerousSteps().ToList();
+        Assert.Equal(6, slams.Count);
         Assert.All(slams, s =>
         {
             Assert.True(s.Step.Telegraph?.SpansCast == true, s.Enemy.Id + " -> " + s.Ability.Id + " telegraph does not span its cast");
