@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Combat;
@@ -51,6 +52,20 @@ public static class Actors
     /// <param name="actor">The actor.</param>
     /// <returns><see cref="Abilities.MendVerse"/> or <see cref="Abilities.WardVerse"/>.</returns>
     public static string Verse(ActorState actor) => actor.Resource >= 1 ? Abilities.MendVerse : Abilities.WardVerse;
+
+    /// <summary>
+    /// The resource a party actor opens a run with. A class with an <see cref="OverheatRule"/> (the Cinder) opens at
+    /// 0 Heat, because BIBLE section 5 says Heat "rises per cast" toward the Overheat; every other class (and every
+    /// class when no rule is set, as on every oracle run) opens at full resource, as actors.ts createActor does.
+    /// </summary>
+    /// <param name="classId">The actor's class.</param>
+    /// <param name="maxResource">The class loop max.</param>
+    /// <param name="overheat">Class id to Overheat rule, or null for none.</param>
+    /// <returns>The starting resource.</returns>
+    public static long StartingResource(string classId, long maxResource, IReadOnlyDictionary<string, OverheatRule>? overheat)
+    {
+        return overheat is not null && overheat.ContainsKey(classId) ? 0 : maxResource;
+    }
 
     /// <summary>sim/combat/actors.ts:47-50 reviveActor: alive again at <paramref name="health"/>, or full health.</summary>
     /// <param name="actor">The actor.</param>
