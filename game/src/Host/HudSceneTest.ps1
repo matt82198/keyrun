@@ -215,15 +215,22 @@
          lines, one per slot 1-5, Q, E, R, F (tex is the loaded Texture2D's size, so a missing file or an unmapped id
          reads icon=none tex=none and fails). Before ABILITY-ICONS the bar draws only text: no "HUD bar" line, 40 RED.
     Run N (lane TINT-RUNOVER, a non-clear run end with a living out-of-range target; three-seat party, key 2):
-        -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (default 1400 and 2@600, no --joiner-key)
+        -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (default 1400 and 2@200, no --joiner-key)
         (the bar prints "HUD bar range tinted=N over=0|1 tick=T" under --autorun whenever the count of range-tinted
-        slots or the run-over state changes. At seed 1 the Chanter leaves at 600, the Warden dies at 1014 with the
-        Choir enemy it targeted alive and out of range, the bar tints 4 slots at 1025, and the party wipes: run_end
-        depleted at 1271)
+        slots or the run-over state changes. At seed 1 the Chanter leaves at 200, still at the entrance (14771,-998),
+        the Warden dies at 427 where he stands (19246,-405), the Cinder at 583, and the Choir enemy the Warden
+        targeted (100) walks on to the Chanter, 3216 mm from the Warden's body, past his 3000 mm reach: the bar tints 4
+        slots at 585, and the party wipes: run_end depleted at 840.
+        Why 2@200, not 2@600 (PRESPAWN-AGGRO, PR #308): the Choir now engages at its aggro ring (pull_start 76) and
+        not on room entry, so by 600 the Chanter has walked up into the fight and the whole party stands within about
+        3.7 m of the Warden. With 2@600 he died at 895 and his target stayed within 1855 mm of his body (inside his
+        reach) until the wipe at 1308, so the live tint never showed and the control could not happen (CI run
+        39486265558, "HUD bar range tinted=0 over=1 tick=1308" its only range line). The assertion is unchanged; only
+        the leave tick moves, so the party still wipes with the Warden's target alive and out of range.)
      41. a "HUD runend result=depleted ... cleared=0" line (the run did not clear), at least one "HUD bar range
          tinted=N over=0" line with N > 0 (control: the live run tints), at least one "over=1" line, and every
          "over=1" line reads tinted=0. Before TINT-RUNOVER the bar passed no runOver and printed "tinted=4 over=1
-         tick=1271": 41 RED.
+         tick=1271" (the 2@600 run before PRESPAWN-AGGRO): 41 RED.
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -247,7 +254,7 @@ param(
     [int]$YawFrames = 900,
     [int]$HeadingFrames = 420,
     [int]$TintTicks = 1400,
-    [string]$TintAbandon = '2@600',
+    [string]$TintAbandon = '2@200',
     [switch]$HeadingOnly
 )
 $ErrorActionPreference = 'Stop'
