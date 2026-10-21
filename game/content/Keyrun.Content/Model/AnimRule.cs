@@ -37,8 +37,14 @@ public enum AnimClip
 /// <param name="Hurt">This step dropped the actor's health.</param>
 /// <param name="Staggered">This step applied or refreshed the stagger effect (<see cref="ActorBinding.StaggerEffectId"/>).</param>
 /// <param name="Playing">The one-shot still playing from an earlier frame, or <see cref="AnimClip.None"/>.</param>
+/// <param name="Released">
+/// This step's events hold the actor's own <see cref="AnimRule.ResolveEvent"/> (a cast or instant resolved), as opposed
+/// to <paramref name="Acted"/>, which also fires when a cast merely starts (the GCD restarts on cast start).
+/// </param>
+/// <param name="InRelease">The playing swing one-shot is still inside <see cref="AnimRule.ReleaseEndsMs"/>.</param>
 public readonly record struct AnimFacts(
-    bool Alive, bool NewTick, bool Moving, bool Casting, bool Acted, bool Hurt, bool Staggered, AnimClip Playing);
+    bool Alive, bool NewTick, bool Moving, bool Casting, bool Acted, bool Hurt, bool Staggered, AnimClip Playing,
+    bool Released = false, bool InRelease = false);
 
 /// <summary>What the animator does this frame.</summary>
 /// <param name="Clip">The clip to start or keep.</param>
@@ -55,7 +61,8 @@ public readonly record struct AnimDecision(AnimClip Clip, bool OneShot, bool Res
 /// clip's own length and returns. KF1 (2026-10-20, "combat animation reads badly"): a swing starts at
 /// <see cref="SwingStartMs"/> so its blow lands on the hit tick, every health drop flashes the victim
 /// (<see cref="FlashPermille"/>) even while a one-shot hides the hit clip, and a kicked caster flinches
-/// (<see cref="Kicked"/>).
+/// (<see cref="Kicked"/>). KF1-READABLE (f-fa28e36e): a resolve on the step the next cast starts plays the release over
+/// that cast's loop until <see cref="ReleaseEndsMs"/> (a chained caster used to loop its cast pose forever).
 /// </summary>
 public static class AnimRule
 {
@@ -72,6 +79,26 @@ public static class AnimRule
     /// blow with the number and keeps a short wind-up.
     /// </summary>
     public const int SwingLeadMs = 100;
+
+    /// <summary>KF1-READABLE: how long a release keeps playing past its contact frame over a chained cast, in ms.</summary>
+    public const int ReleaseTailMs = 250;
+
+    /// <summary>
+    /// KF1-READABLE: where the release window of <paramref name="clip"/> ends, in ms into the clip: its contact frame
+    /// plus <see cref="ReleaseTailMs"/> (a clip with no known contact counts contact as 0). Over a chained cast the
+    /// release plays from <see cref="SwingStartMs"/> to here, then the next cast's pose resumes.
+    /// </summary>
+    public static int ReleaseEndsMs(string clip) => (ContactMs(clip) ?? 0) + ReleaseTailMs;
+
+    /// <summary>True while <paramref name="playedMs"/> (ms into <paramref name="clip"/>) is before <see cref="ReleaseEndsMs"/>.</summary>
+    public static bool InRelease(string clip, int playedMs) => playedMs < ReleaseEndsMs(clip);
+
+    /// <summary>The engine proof line for a combat clip starting on an actor: <c>VIEW anim actor=N clip=X tick=T</c>.</summary>
+    public static string ViewLine(int actorId, string clip, int tick)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        return FormattableString.Invariant($"VIEW anim actor={actorId} clip={clip} tick={tick}");
+    }
 
     /// <summary>KF1 hit flash: a health drop lights the victim for this many sim ticks, fading linearly.</summary>
     public const int FlashTicks = 3;
@@ -152,6 +179,16 @@ public static class AnimRule
         }
         if (f.Casting)
         {
+            // KF1-READABLE: a caster that chains casts starts the next one on the step the last resolves, so the cast
+            // loop used to hide every release. The release plays over the new cast for its window, then the pose resumes.
+            if (f.NewTick && f.Released)
+            {
+                return new AnimDecision(AnimClip.Act, true, true);
+            }
+            if (f.Playing == AnimClip.Act && f.InRelease)
+            {
+                return new AnimDecision(AnimClip.Act, true, false);
+            }
             return new AnimDecision(AnimClip.Cast, false, false);
         }
         if (f.NewTick)
