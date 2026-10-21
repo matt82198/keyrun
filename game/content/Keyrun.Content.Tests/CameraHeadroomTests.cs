@@ -135,4 +135,56 @@ public sealed class CameraHeadroomTests
         Assert.Throws<ArgumentException>(() => CameraHeadroom.Adjust(5000, -300, Fov, Pivot, 4687, 2000, 0, MaxBoom, Ceiling));
         Assert.Throws<ArgumentException>(() => CameraHeadroom.Adjust(5000, -300, Fov, Pivot, 4687, 2000, 1001, MaxBoom, Ceiling));
     }
+
+    // CAMERA-HEADROOM body choice (the Hollow Warden is framed while it stands in the Warden's reach, even when the Warden
+    // targets a Sundered Twin). The pivot is the origin; the camera is at (0, camZ) looking down +Z.
+    private const int Reach = 3000;
+
+    [Fact]
+    public void Boss_beside_the_twin_in_cone_and_reach_drives_the_headroom_not_the_twin()
+    {
+        var bodies = new[]
+        {
+            new HeadroomBody(0, 1000, TopOf("hollowWarden.twinB"), Hostile: true, Engaged: true),
+            new HeadroomBody(800, 1000, TopOf("hollowWarden.boss"), Hostile: true, Engaged: true),
+        };
+
+        Assert.Equal(1, CameraHeadroomBody.Select(bodies, 0, -CameraFraming.DefaultBoomMm, 0, 1000, 0, 0, Reach));
+    }
+
+    [Fact]
+    public void Boss_behind_the_camera_is_not_framed_so_the_twin_is()
+    {
+        var bodies = new[]
+        {
+            new HeadroomBody(0, 1000, TopOf("hollowWarden.twinB"), Hostile: true, Engaged: true),
+            new HeadroomBody(0, -2500, TopOf("hollowWarden.boss"), Hostile: true, Engaged: true),
+        };
+
+        Assert.Equal(0, CameraHeadroomBody.Select(bodies, 0, -2000, 0, 1000, 0, 0, Reach));
+    }
+
+    [Fact]
+    public void An_idle_boss_is_not_engaged_so_the_twin_is_framed()
+    {
+        var bodies = new[]
+        {
+            new HeadroomBody(0, 1000, TopOf("hollowWarden.twinB"), Hostile: true, Engaged: true),
+            new HeadroomBody(800, 1000, TopOf("hollowWarden.boss"), Hostile: true, Engaged: false),
+        };
+
+        Assert.Equal(0, CameraHeadroomBody.Select(bodies, 0, -CameraFraming.DefaultBoomMm, 0, 1000, 0, 0, Reach));
+    }
+
+    [Fact]
+    public void No_engaged_hostile_in_cone_and_reach_selects_nothing()
+    {
+        var bodies = new[]
+        {
+            new HeadroomBody(0, 6000, TopOf("hollowWarden.boss"), Hostile: true, Engaged: true),
+            new HeadroomBody(0, 1000, TopOf("hollowWarden.boss"), Hostile: false, Engaged: true),
+        };
+
+        Assert.Null(CameraHeadroomBody.Select(bodies, 0, -CameraFraming.DefaultBoomMm, 0, 1000, 0, 0, Reach));
+    }
 }
