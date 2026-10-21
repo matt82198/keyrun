@@ -40,8 +40,6 @@ public sealed class MitigateThroughLedgerKickTests
     // new trajectory, the same event this scene was built on. The run now ends Timed at 11015.
     private const int Tick = 10587;
 
-    /// <summary>The second boss cleave's kick-open tick on the same trajectory (R-DOOR-1 + R-TAUNT-1): the healer scene's tick.</summary>
-    private const int SecondCleaveKickOpenTick = 10743;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 
@@ -98,36 +96,6 @@ public sealed class MitigateThroughLedgerKickTests
         a.CastId = null;
         a.CastStartTick = null;
         a.CastEndsTick = null;
-    }
-
-    /// <summary>
-    /// R-BOTS-10 (a scene re-derivation; the healer fact's assertions are unchanged): under #327's party ledger
-    /// (Ledger.ResolvePartyInterrupt: least recently kicked first, ties to the lowest seat id) the Warden, seat 1, wins
-    /// every tie with a ready Chanter, so with both interrupts ready the ledger names the Warden at the cleave and the
-    /// fact's premise (the ledger names the Chanter) is false. In this run the Warden has not kicked by <see cref="Tick"/>
-    /// (Shield Bash cooldown entry 0), so the scene spends it, inside the ledger, on an earlier cast: the boss's previous
-    /// cleave, one cleave cooldown (the content's hollowWarden.cleave cooldownTicks, 160) before this one. At that cast's
-    /// kick-open tick the ledger is asked who kicks; it names the Warden, which spends Shield Bash there through the sim's
-    /// own charge rule (Cooldowns.ConsumeCharge). Shield Bash's 480-tick cooldown then runs past this cleave, so here the
-    /// ledger passes the Warden over and names the ready Chanter, genuinely, by its own rotation.
-    /// </summary>
-    private static void SpendWardenKickOnThePreviousCleave(SimState state, SceneKit sceneKit, int at)
-    {
-        var earlier = state.Clone();
-        var boss = earlier.Actors[Boss];
-        var period = sceneKit.Abilities[boss.CastId!].CooldownTicks;
-        boss.CastStartTick -= period;
-        boss.CastEndsTick -= period;
-        earlier.Tick = Ledger.KickOpensTick(boss);
-        Assert.True(earlier.Tick < at, "the previous cleave opens its kick before this one");
-        var view = sceneKit.ViewOf(earlier);
-        var warden = earlier.Actors[PlaytestRunner.TankId];
-        var kit = view.Kits.ResolveKit(warden.ClassId, view.ClassKit);
-        var kick = RoleShared.LedgerKickCommand(view, warden, kit);
-        Assert.Equal(kit.InterruptAbilityId, kick?.AbilityId);
-        var shieldBash = sceneKit.Abilities[kick!.AbilityId];
-        Keyrun.Sim.Combat.Cooldowns.ConsumeCharge(state.Actors[PlaytestRunner.TankId], shieldBash, earlier.Tick);
-        Assert.True(Readiness.CooldownReadyTick(state.Actors[PlaytestRunner.TankId], shieldBash.Id) > at, "the Warden's Shield Bash is still on cooldown at this cleave");
     }
 
     private static System.Collections.Generic.List<string> PolicyCasts(Scene scene, int seatId)
