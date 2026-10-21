@@ -71,6 +71,9 @@ public sealed record EffectiveKit
     /// <summary>Loop cap, or null for a fallback kit.</summary>
     public required long? ResourceMax { get; init; }
 
+    /// <summary>Slotted abilities whose own gcdTicks is 0 (off the GCD); empty for a fallback kit.</summary>
+    public IReadOnlyList<string> OffGcdAbilityIds { get; init; } = NoIds;
+
     /// <summary>The content-backed branch of kit-resolve.ts resolveKit.</summary>
     /// <param name="kit">Content kit.</param>
     /// <returns>The effective kit.</returns>
@@ -98,6 +101,7 @@ public sealed record EffectiveKit
             ResourceMax = kit.ResourceMax,
             Heals = kit.Heals,
             TauntAbilityId = kit.TauntAbilityId,
+            OffGcdAbilityIds = kit.OffGcdAbilityIds,
         };
     }
 

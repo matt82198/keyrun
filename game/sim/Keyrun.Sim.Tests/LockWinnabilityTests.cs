@@ -283,7 +283,8 @@ public sealed class LockWinnabilityTests
     /// game/src/Host/HostRunSetup.cs BuildBossConfig over content/data/enemies/hollow-warden.json: the boss's one Break
     /// bar is the Twins' bar, the two enemies naming it are the Twins (ids 901, 902 in id order, Tempo-scaled health
     /// and scripts, at +/-4000 mm x), and the boss ability tagged <c>setup:lock</c> gives the Window length, the
-    /// shield effect and the suppressed cast. The 50%, 30 s and three-fail structure are the BossConfig defaults.
+    /// shield effect and the suppressed cast, which the boss casts before each Window opens (CastLock, as the host
+    /// arms it since LOCK-TELEGRAPH). The 50%, 30 s and three-fail structure are the BossConfig defaults.
     /// </summary>
     private static BossConfig BossConfigFromContent(RunContent content, int keyLevel)
     {
@@ -315,6 +316,7 @@ public sealed class LockWinnabilityTests
             LockWindowTicks = window.DurationTicks,
             ShieldEffectId = shield.EffectId,
             SuppressedBossCasts = new[] { lockAbility.Id },
+            CastLock = true,
         };
     }
 
@@ -345,13 +347,22 @@ public sealed class LockWinnabilityTests
         foreach (var kv in content.EnemyScripts)
         {
             var authored = raw[classOf[kv.Key]];
-            // The id-to-class mapping is right: the two-argument rebuild is exactly what the setup recorded.
-            Assert.Equal(Tempo.ScaleScript(authored, keyLevel), kv.Value);
-            scripts[kv.Key] = Tempo.ScaleScript(authored, keyLevel, floors);
+            // The id-to-class mapping is right: the two-argument rebuild schedules exactly what the setup recorded
+            // (trigger, cast, at, every). The recorded steps also carry the frozen-TS replay flags the oracle setup sets
+            // and JSON never does (ScriptStep.TsCastReplace, TelegraphSpec.TsUnchecked/SpansCast), so the recorded step
+            // is kept and only its every takes the floored period: this test runs under the same rules as before.
+            var twoArg = Tempo.ScaleScript(authored, keyLevel);
+            Assert.Equal(twoArg.Select(Schedule), kv.Value.Select(Schedule));
+            var floored = Tempo.ScaleScript(authored, keyLevel, floors);
+            scripts[kv.Key] = kv.Value.Select((s, i) => s with { Every = floored[i].Every }).ToList();
         }
         var abilities = Tempo.ScaleEnemyCooldowns(content.Abilities, scripts.Values.Concat(boss.Twins.Select(t => t.Script)), keyLevel);
         return content with { Abilities = abilities, EnemyScripts = scripts };
     }
+
+    /// <summary>A step's schedule: what Tempo scales and the floor raises, without the replay-only flags.</summary>
+    private static (StepTrigger Trigger, string Cast, int AtTick, int? Every) Schedule(ScriptStep s) =>
+        (s.Trigger, s.Cast, s.AtTick, s.Every);
 
     private static string RepoFile(params string[] parts)
     {

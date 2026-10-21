@@ -5,7 +5,7 @@ using Xunit;
 
 namespace Keyrun.Sim.Tests.Encounter;
 
-/// <summary>tests/sim/encounter/timer.test.ts ported 1:1 (Slack bank, depletion, finish result).</summary>
+/// <summary>tests/sim/encounter/timer.test.ts (death and wipe time on the run clock, finish result against par; D46).</summary>
 public sealed class TimerTests
 {
     private static EncounterState EncounterAtKey(int keyLevel) =>
@@ -19,54 +19,51 @@ public sealed class TimerTests
     }
 
     [Fact]
-    public void Two_deaths_at_key_10_leave_exactly_the_expected_bank_and_do_not_deplete_it()
+    public void Two_deaths_at_key_10_add_their_cost_to_the_clock_and_leave_the_bank_untouched()
     {
         var encounter = EncounterAtKey(10);
-        var emitted = new List<SimEvent>();
-        encounter = Timer.SpendSlackOnDeath(encounter, 1, emitted.Add);
-        encounter = Timer.SpendSlackOnDeath(encounter, 2, emitted.Add);
-        Assert.Equal(780 - (2 * Timer.DeathSlackCostTicks), encounter.SlackTicks);
-        Assert.Equal(180, encounter.SlackTicks);
+        encounter = Timer.ChargeDeath(encounter);
+        encounter = Timer.ChargeDeath(encounter);
+        Assert.Equal(2 * Timer.DeathSlackCostTicks, encounter.PenaltyTicks);
+        Assert.Equal(780, encounter.SlackTicks);
         Assert.False(encounter.Depleted);
-        Assert.Empty(emitted);
     }
 
     [Fact]
-    public void A_third_death_depletes_the_bank_clamps_at_0_and_emits_depleted_exactly_once()
+    public void A_third_death_past_the_bank_size_still_only_adds_time_and_never_depletes()
     {
+        // D46: the key-10 bank is 780 and three deaths cost 900, which used to deplete the key on its own.
         var encounter = EncounterAtKey(10);
-        var emitted = new List<SimEvent>();
-        encounter = Timer.SpendSlackOnDeath(encounter, 1, emitted.Add);
-        encounter = Timer.SpendSlackOnDeath(encounter, 2, emitted.Add);
-        encounter = Timer.SpendSlackOnDeath(encounter, 3, emitted.Add);
-        Assert.Equal(0, encounter.SlackTicks);
-        Assert.True(encounter.Depleted);
-        Assert.Equal(new[] { EncounterTestKit.Ev("{\"tick\":3,\"type\":\"depleted\"}") }, EncounterTestKit.Json(emitted));
-
-        encounter = Timer.SpendSlackOnDeath(encounter, 4, emitted.Add);
-        Assert.Equal(0, encounter.SlackTicks);
-        Assert.Single(emitted);
+        encounter = Timer.ChargeDeath(encounter);
+        encounter = Timer.ChargeDeath(encounter);
+        encounter = Timer.ChargeDeath(encounter);
+        Assert.Equal(900, encounter.PenaltyTicks);
+        Assert.Equal(3, encounter.Deaths);
+        Assert.Equal(780, encounter.SlackTicks);
+        Assert.False(encounter.Depleted);
     }
 
     [Fact]
-    public void A_wipe_costs_the_documented_bank()
+    public void A_wipe_adds_the_documented_cost_to_the_clock()
     {
-        var encounter = Timer.SpendSlackOnWipe(EncounterAtKey(10), 5, _ => { });
-        Assert.Equal(780 - Timer.WipeSlackCostTicks, encounter.SlackTicks);
-        Assert.Equal(280, encounter.SlackTicks);
+        var encounter = Timer.ChargeWipe(EncounterAtKey(10));
+        Assert.Equal(Timer.WipeSlackCostTicks, encounter.PenaltyTicks);
+        Assert.Equal(500, encounter.PenaltyTicks);
+        Assert.Equal(0, encounter.Deaths);
     }
 
     [Fact]
-    public void Finish_reports_depleted_while_still_allowing_the_run_to_complete()
+    public void Finish_reports_depleted_once_the_clock_with_death_time_passes_par()
     {
         var events = new List<SimEvent>();
         var encounter = EncounterAtKey(10);
-        encounter = Timer.SpendSlackOnDeath(encounter, 1, events.Add);
-        encounter = Timer.SpendSlackOnDeath(encounter, 2, events.Add);
-        encounter = Timer.SpendSlackOnDeath(encounter, 3, events.Add);
-        var result = Timer.FinishRun(encounter, 100, completed: true, events.Add);
+        encounter = Timer.ChargeDeath(encounter);
+        encounter = Timer.ChargeDeath(encounter);
+        encounter = Timer.ChargeDeath(encounter);
+        Assert.Equal(RunResult.Timed, Timer.FinishRun(encounter, 100, completed: true, events.Add));
+        var result = Timer.FinishRun(encounter, 10000 - 900 + 1, completed: true, events.Add);
         Assert.Equal(RunResult.Depleted, result);
-        Assert.Equal(EncounterTestKit.Ev("{\"tick\":100,\"type\":\"finish\",\"result\":\"depleted\"}"), events[^1].ToCanonicalJson());
+        Assert.Equal(EncounterTestKit.Ev("{\"tick\":9101,\"type\":\"finish\",\"result\":\"depleted\"}"), events[^1].ToCanonicalJson());
     }
 
     [Fact]

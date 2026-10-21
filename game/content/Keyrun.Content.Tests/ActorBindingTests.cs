@@ -128,7 +128,7 @@ public sealed class ActorBindingTests
         Assert.Equal(knight.Folder, boss.Folder);
         Assert.Equal(knight.ModelFile, boss.ModelFile);
         Assert.Equal(knight.NativeHeightMm * 19 / 10, boss.TargetHeightMm);
-        Assert.NotNull(boss.TintRgb); // the hollow, darkened Knight (ART-PLAN section 4)
+        Assert.NotNull(boss.TintRgb); // the hollow, pale cold-steel Knight (ART-PLAN section 4; BOSS-READABILITY)
     }
 
     [Fact]
@@ -138,6 +138,29 @@ public sealed class ActorBindingTests
         Assert.Equal(ActorBinding.HeadLineMm * 115 / 100, Table.For("hollowWarden.twinA").TargetHeightMm);
         Assert.Equal(ActorBinding.HeadLineMm * 115 / 100, Table.For("hollowWarden.twinB").TargetHeightMm);
         Assert.Equal(ActorBinding.HeadLineMm, ActorBinding.Capsule.TargetHeightMm);
+    }
+
+    [Fact]
+    public void No_tint_darkens_a_body_below_half_its_pack_brightness()
+    {
+        foreach (ActorBindingRow row in Table.Rows.Where(r => r.TintRgb is not null))
+        {
+            Assert.True(row.TintLumaPermille >= ActorBinding.MinTintLumaPermille,
+                $"{row.Key}: tint 0x{row.TintRgb:X6} keeps {row.TintLumaPermille} permille of the pack brightness, under {ActorBinding.MinTintLumaPermille}");
+        }
+    }
+
+    [Theory]
+    [InlineData(0x000000, 0)]
+    [InlineData(0xFFFFFF, 1000)]
+    [InlineData(0xFF0000, 299)]
+    [InlineData(0x00FF00, 587)]
+    [InlineData(0x0000FF, 114)]
+    public void Tint_luma_is_rec_601_permille(int rgb, int permille)
+    {
+        ActorBindingRow row = ActorBinding.Capsule with { TintRgb = rgb };
+        Assert.Equal(permille, row.TintLumaPermille);
+        Assert.Null(ActorBinding.Capsule.TintLumaPermille);
     }
 
     [Fact]
@@ -255,29 +278,35 @@ public sealed class ActorBindingTests
         throw new DirectoryNotFoundException("game/assets with kaykit-adventurers and kaykit-skeletons not found above " + AppContext.BaseDirectory);
     }
 
-    // Every enemy id in the repo-root content/data/enemies/*.json (each file is a JSON array of enemy objects).
+    // Every enemy id in both enemy folders, each file a JSON array of enemy objects: the repo-root content/data/enemies
+    // (the TS-shared enemies) and game/content/data/enemies (the C#-only trash only a layout pack fields, hall.json).
+    // The walk stops at the repo root, the first ancestor holding both, so the game folder alone never stands in for it.
     private static List<string> EnemyIds()
     {
         var d = new DirectoryInfo(AppContext.BaseDirectory);
         while (d is not null)
         {
-            string dir = Path.Combine(d.FullName, "content", "data", "enemies");
-            if (Directory.Exists(dir))
+            string shared = Path.Combine(d.FullName, "content", "data", "enemies");
+            string game = Path.Combine(d.FullName, "game", "content", "data", "enemies");
+            if (Directory.Exists(shared) && Directory.Exists(game))
             {
                 var ids = new List<string>();
-                foreach (string file in Directory.GetFiles(dir, "*.json").OrderBy(f => f, StringComparer.Ordinal))
+                foreach (string dir in new[] { shared, game })
                 {
-                    using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(file));
-                    foreach (JsonElement e in doc.RootElement.EnumerateArray())
+                    foreach (string file in Directory.GetFiles(dir, "*.json").OrderBy(f => f, StringComparer.Ordinal))
                     {
-                        ids.Add(e.GetProperty("id").GetString()!);
+                        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(file));
+                        foreach (JsonElement e in doc.RootElement.EnumerateArray())
+                        {
+                            ids.Add(e.GetProperty("id").GetString()!);
+                        }
                     }
                 }
                 return ids;
             }
             d = d.Parent;
         }
-        throw new DirectoryNotFoundException("content/data/enemies not found above " + AppContext.BaseDirectory);
+        throw new DirectoryNotFoundException("content/data/enemies and game/content/data/enemies not found above " + AppContext.BaseDirectory);
     }
 
     /// <summary>Reads a .glb's JSON chunk and computes the bind-pose top (max y) of every visible mesh node.</summary>

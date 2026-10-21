@@ -122,10 +122,28 @@
         {
           "id": "efficient",
           "name": "Efficient",
-          "text": "Much faster cast; adds a short cooldown.",
+          "text": "Much faster cast that hits harder and banks extra Heat; adds a short cooldown.",
           "patch": {
             "castTicks": 10,
-            "cooldownTicks": 40
+            "cooldownTicks": 40,
+            "effects": [
+              {
+                "op": "damage",
+                "amount": 125,
+                "school": "fire"
+              },
+              {
+                "op": "resource",
+                "delta": 30
+              },
+              {
+                "op": "window",
+                "windowId": "kindled",
+                "durationTicks": 60,
+                "onTarget": true,
+                "setupClass": "cinder"
+              }
+            ]
           }
         }
       ]
@@ -244,7 +262,7 @@
         {
           "id": "overkill",
           "name": "Overkill",
-          "text": "Adds a cooldown; hits far harder.",
+          "text": "Longer cooldown; hits harder.",
           "patch": {
             "cooldownTicks": 100,
             "effects": [
@@ -296,7 +314,7 @@
           "text": "Instant cast; longer cooldown.",
           "patch": {
             "castTicks": 0,
-            "cooldownTicks": 280
+            "cooldownTicks": 260
           }
         }
       ]

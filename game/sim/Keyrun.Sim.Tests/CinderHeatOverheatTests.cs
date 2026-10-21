@@ -194,6 +194,70 @@ public class CinderHeatOverheatTests
         Assert.DoesNotContain(state.Actors[CinderId].Effects, e => e.EffectId == "chill");
     }
 
+    // BIBLE section 5 "Cold Snap - dumps Heat, clears Chill, freezes the target briefly": the Chill is the Cinder's own
+    // (the Overheat's self-debuff), so Cold Snap clears it from the caster. A target chilled by something else (the
+    // Chilling Field facet) keeps its Chill. Finding f-9efbee75.
+    [Fact]
+    public void ColdSnapClearsTheCindersOwnChillAndNotTheTargets()
+    {
+        var (state, rules) = Arena(heat: 50);
+        var cinder = state.Actors[CinderId];
+        var enemy = state.Actors[EnemyId];
+        Chill(cinder, enemy);
+        var events = new List<SimEvent>();
+
+        Tick(state, rules, Cmds(Cast(CinderId, "cinder.coldSnap", EnemyId)), events.Add);
+
+        Assert.Contains(events, e => e.Type == "damage" && Int(e, "targetId") == EnemyId);
+        Assert.DoesNotContain(cinder.Effects, e => e.EffectId == "chill");
+        Assert.Contains(enemy.Effects, e => e.EffectId == "chill");
+        Assert.Contains(enemy.Effects, e => e.EffectId == "stunned");
+    }
+
+    // BIBLE section 4 combo table "Flashfire: Burst; refunds Cinder 30 Heat and clears Chill": the Payoff Cinder's own
+    // Chill, not the Attuned carrier's. Finding f-9efbee75.
+    [Fact]
+    public void FlashfireClearsThePayoffCindersChillAndNotTheCarriers()
+    {
+        var abilities = new Dictionary<string, AbilityDef>(LoadCinderAbilities(), StringComparer.Ordinal)
+        {
+            ["attune"] = Def("attune", new AbilityShape(ShapeKind.Target), new EffectOp[] { new WindowOp("attuned", 60, true, "chanter") }, range: 25000),
+            ["pay"] = Def("pay", new AbilityShape(ShapeKind.Target), new EffectOp[] { new PayoffOp() }, range: 25000),
+        };
+        var combos = Table(("chanter", "cinder", new ComboDef("flashfire", FlashfireOps())));
+        var rules = Rules.Make(Config(abilities, LoadEffects(), combos: combos) with { Overheat = OverheatRules() });
+        const int chanterId = 3;
+        var state = At(0, NewCinder(50), NewEnemy(), Make(chanterId, ActorKind.Player, "chanter", ActorRole.Healer, x: 500, maxHealth: 1000));
+        var cinder = state.Actors[CinderId];
+        var enemy = state.Actors[EnemyId];
+        Chill(cinder, enemy);
+        var events = new List<SimEvent>();
+
+        Tick(state, rules, Cmds(Cast(chanterId, "attune", EnemyId)), events.Add);
+        Tick(state, rules, Cmds(Cast(CinderId, "pay", EnemyId)), events.Add);
+
+        Assert.Single(events, e => e.Type == "combo" && Str(e, "comboId") == "flashfire");
+        Assert.DoesNotContain(cinder.Effects, e => e.EffectId == "chill");
+        Assert.Contains(enemy.Effects, e => e.EffectId == "chill");
+    }
+
+    // The Cinder chilled by its Overheat, the enemy chilled by the Chilling Field facet (content/data/facets/cinder.json).
+    private static void Chill(ActorState cinder, ActorState enemy)
+    {
+        var chill = LoadEffects()["chill"];
+        Effects.ApplyEffectInstance(cinder, chill, CinderId, 60, 1, 0);
+        Effects.ApplyEffectInstance(enemy, chill, CinderId, 200, 1, 0);
+        Assert.Contains(cinder.Effects, e => e.EffectId == "chill");
+        Assert.Contains(enemy.Effects, e => e.EffectId == "chill");
+    }
+
+    private static IReadOnlyList<EffectOp> FlashfireOps()
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllText(DataPath("content", "data", "combos.json")));
+        var flashfire = doc.RootElement.EnumerateArray().Single(c => c.GetProperty("id").GetString() == "flashfire");
+        return Ops(flashfire.GetProperty("effects"), "flashfire");
+    }
+
     [Fact]
     public void AnInterruptedOverheatIsNotSpentAndTheNextCastStillOverheats()
     {

@@ -17,6 +17,9 @@ public sealed record RunConfig
     /// <summary>The Cinder Heat/Overheat rule's Chill (BIBLE section 5); not in the frozen content/data.</summary>
     public required HeatOverheatConfig HeatOverheat { get; init; }
 
+    /// <summary>The Pair's spread and stack consequences (BIBLE section 9.6 item 2); not in the frozen content/data.</summary>
+    public required PairMarksConfig PairMarks { get; init; }
+
     /// <summary>The key's Fortified/Tyrannical affixes and the Clause's starting key (BIBLE s8, plan M5).</summary>
     public required AffixesConfig Affixes { get; init; }
 }
@@ -66,6 +69,36 @@ public sealed record HeatOverheatConfig
 
     /// <summary>Chill duration, ticks (positive; 60 = 3 s at 20 Hz).</summary>
     public required int ChillTicks { get; init; }
+}
+
+/// <summary>
+/// BIBLE section 9.6 item 2 (the Pair): "every 20 s one player is marked to spread (a ring: stand apart), ten seconds
+/// later the pack calls a stack (a circle: stand together, damage split)." The content effects spreadMarked and
+/// stackMarked carry no modifiers; these values give them consequences when they run out (Keyrun.Sim PairMarks). The
+/// BIBLE gives no numbers; the shipped ones are conservative against the party's 250/400 health (HostRunSetup Roster):
+/// a spread detonation deals 80 to each other player within the spread ring (3000 mm, the telegraph's radius); a stack
+/// hit is 150 split by the headcount within the stack circle (1500 mm, the telegraph's radius), so alone 150, two 75,
+/// three 50 each.
+/// </summary>
+public sealed record PairMarksConfig
+{
+    /// <summary>The spread mark's effect id (must exist in the effects; "spreadMarked").</summary>
+    public required string SpreadEffectId { get; init; }
+
+    /// <summary>Detonation radius around a spread-marked player, mm (positive).</summary>
+    public required int SpreadRadiusMm { get; init; }
+
+    /// <summary>Raw damage the detonation deals each other player in the radius (positive).</summary>
+    public required int SpreadDamage { get; init; }
+
+    /// <summary>The stack mark's effect id (must exist in the effects; "stackMarked").</summary>
+    public required string StackEffectId { get; init; }
+
+    /// <summary>Radius around a stack-marked player that counts as standing together, mm (positive).</summary>
+    public required int StackRadiusMm { get; init; }
+
+    /// <summary>Raw damage a stack-marked player takes alone, split by headcount when others stand with it (positive).</summary>
+    public required int StackDamage { get; init; }
 }
 
 /// <summary>Shared actor movement values.</summary>

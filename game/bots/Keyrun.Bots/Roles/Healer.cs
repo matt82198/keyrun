@@ -33,6 +33,29 @@ public sealed class HealerRole : IRole
     /// <inheritdoc />
     public IReadOnlyList<Command> Decide(BotView view, ActorState self) => HealerDecide(view, self);
 
+    /// <summary>
+    /// HEALER-TOPS-OFF (the WoW Mythic+ dungeon loop): between pulls, with no living enemy, the healer tops the party
+    /// off: the lowest living ally under full health, through the same shape-aware picker as a fight heal
+    /// (<see cref="HealPick"/>). Nobody hurt = nothing to do.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">The healer.</param>
+    /// <returns>Commands, possibly empty.</returns>
+    public static IReadOnlyList<Command> TopOffCommands(BotView view, ActorState self)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        var actors = view.State.Actors;
+        return Priority.PickHealTarget(actors, 1.0) is { } id && actors.TryGetValue(id, out var target)
+            ? HealPick.HealCommands(view, self, RoleShared.KitOf(view, self.ClassId), target)
+            : Array.Empty<Command>();
+    }
+
+    /// <summary>True when <see cref="TopOffCommands"/> has an ally to heal: a living ally under full health.</summary>
+    /// <param name="actors">The state's actors.</param>
+    /// <returns>Whether the party needs topping off.</returns>
+    public static bool NeedsTopOff(SortedDictionary<int, ActorState> actors) => Priority.PickHealTarget(actors, 1.0) is not null;
+
     private static double PartyMissingHealthRatio(SortedDictionary<int, ActorState> actors)
     {
         var allies = actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive).ToList();

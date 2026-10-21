@@ -67,7 +67,7 @@ public static class TankEngage
         ArgumentNullException.ThrowIfNull(actors);
         ArgumentNullException.ThrowIfNull(tank);
         return actors.Values
-            .Where(a => a.Kind == ActorKind.Enemy && a.Alive && !HoldsThreat(a, tank.Id) && AimedAtOtherPlayer(actors, a, tank.Id))
+            .Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle && !HoldsThreat(a, tank.Id) && AimedAtOtherPlayer(actors, a, tank.Id))
             .OrderBy(a => RoleShared.Dist(a, tank))
             .ThenBy(a => a.Id)
             .FirstOrDefault();
@@ -113,7 +113,7 @@ public static class TankEngage
         var d = RoleShared.Dist(self, target);
 
         var tauntRange = RangeOf(view, kit.TauntAbilityId) ?? DefaultReachMm;
-        if (loose is not null && !string.IsNullOrEmpty(kit.TauntAbilityId) && d <= tauntRange && RoleShared.AbilityReady(self, kit.TauntAbilityId, tick))
+        if (loose is not null && !string.IsNullOrEmpty(kit.TauntAbilityId) && d <= tauntRange && RoleShared.AbilityReady(self, kit.TauntAbilityId, tick, kit))
         {
             output.Add(new CastCommand(tick, self.Id, kit.TauntAbilityId, target.Id));
             return output;

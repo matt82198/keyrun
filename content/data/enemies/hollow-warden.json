@@ -7,10 +7,11 @@
     "abilities": ["hollowWarden.slam", "hollowWarden.cleave", "hollowWarden.lock"],
     "script": [
       { "at": "loop", "every": 300, "cast": "hollowWarden.slam",
-        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 10 } },
+        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 10, "spansCast": true } },
       { "at": "loop", "every": 160, "cast": "hollowWarden.cleave",
-        "telegraph": { "shape": "cone", "radius": 4000, "angle1024": 200, "leadTicks": 40 } },
-      { "at": "loop", "every": 600, "cast": "hollowWarden.lock" }
+        "telegraph": { "shape": "cone", "radius": 4000, "angle1024": 200, "leadTicks": 40, "spansCast": true } },
+      { "at": "loop", "every": 600, "cast": "hollowWarden.lock",
+        "telegraph": { "shape": "circle", "radius": 4000, "leadTicks": 20, "spansCast": true } }
     ],
     "breakBars": [
       { "id": "twinsBreak", "max": 100, "drainPerInterrupt": 34, "drainPerControl": 20,
@@ -26,7 +27,7 @@
     "breakBarId": "twinsBreak",
     "script": [
       { "at": "loop", "every": 400, "cast": "twins.slam",
-        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 10 } }
+        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 10, "spansCast": true } }
     ]
   },
   {
@@ -38,7 +39,7 @@
     "breakBarId": "twinsBreak",
     "script": [
       { "at": "loop", "every": 400, "cast": "twins.slam",
-        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 10 } }
+        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 10, "spansCast": true } }
     ]
   }
 ]

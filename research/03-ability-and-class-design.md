@@ -185,3 +185,5 @@ person party should use soft roles (any class can layer a field; one class is th
 missing "healer" degrades a run rather than blocking the queue. Never add a 6th ability or 11th keybind to fix
 a shallow class — depth comes from modifiers and cross-ability interaction on a frozen small kit, per every
 precedent cited (Diablo IV's 6-slot cap, Lost Ark's tripods, Hades' fixed 4-verb kit), never from more buttons.
+
+Addendum 2026-10-20: the Outlaw Rogue toolkit (STATE.md D31) moved to research/12-skill-toolkit.md.
