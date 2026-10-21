@@ -35,13 +35,15 @@ public sealed class MitigateThroughLedgerKickTests
     // Hall Sentries are now an optional pack off the walking line (layout.json), so the kick-plan run no longer fights them
     // and now ends Timed at 7889, with boss cleaves 7395-7435, 7551-7591 and 7795-7835. 11 ticks into the first cleave is
     // 7406; the run's own state at 7406 has the boss casting hollowWarden.cleave, start 7395, end 7435.
-    // MPLUS-PATROLS re-derivation (ruling R6, the corridor-2 patrol on feat/mplus-patrols-2; a measurement by a temporary
-    // probe on the merged tree, the assertions are unchanged): was 7406. With the patrol the kick-plan run ends Timed at
-    // 9231; its first boss cleave is telegraphed at 8724 and resolves at 8764, so 11 ticks in is 8735.
-    // R-PATROL-3b re-derivation (a measurement by a temporary probe on the patrol-swing trajectory, assertions unchanged):
-    // was 8735. The patrol's own swing and HP change the timeline; the kick-plan run now ends Timed at 8017 and its first
-    // boss cleave is telegraphed at 7564 and resolves at 7604, so 11 ticks in is 7575.
-    private const int Tick = 7575;
+    // KF3-SEED-SPAWN re-derivation (ruling R6, the Seed activates on room entry; measured on #505 before main's PR-502
+    // merged: was 8329, the run then ended Timed at 8684 with boss cleaves 8289-8329 and 8555-8595, so it pinned 8300).
+    // R-PATROL-3b merge re-derivation (#528 merged with origin/main; a measurement by a temporary probe on the merged
+    // tree, the assertions are unchanged): the kick-plan run now ends Timed at 7903 with its first boss cleave telegraphed
+    // at 7480 and resolving at 7520, so 11 ticks in is 7491. WHY: the 7352 pin passed only because the test puts the boss
+    // mid-cleave itself, not because it sits on this trajectory; the event-derived tick is 7491.
+    // Earlier history (superseded): main's KF3 pin 7352 (the run ended Timed at 7777); the corridor-2 patrol moved 7406 to
+    // 8735 (R6) and then 8735 to 7575 (R-PATROL-3b, the patrol's own swing, before the merge).
+    private const int Tick = 7491;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 

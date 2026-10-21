@@ -77,6 +77,8 @@ public static class RunRoot
             state = RunWiring.MergeActors(state, LayoutPacks.SpawnAllIdle(content.Packs, content.ActorRadiusMm));
             // MPLUS-PATROLS: every patrol's members stand idle on its loop from tick 0 too.
             state = RunWiring.MergeActors(state, Patrols.SpawnIdle(content.Patrols));
+            // KF3 Seed spawn gate (BIBLE section 9.6): the Seed waits dormant in its chamber until a party member enters it.
+            Aggro.MarkDormant(state, dungeon, layout);
         }
         else
         {
@@ -120,7 +122,7 @@ public static class RunRoot
             return run;
         }
         var state = run.State.Clone();
-        var groups = Aggro.GroupsOf(run.Dungeon, state.Tick, run.Content.Packs, run.Content.Patrols);
+        var groups = Aggro.GroupsOf(run.Dungeon, state.Tick, run.Content.Packs, run.Content.Layout, run.Content.Patrols);
         var encounter = Aggro.Engage(state, run.Encounter, groups, new[] { run.Dungeon.Pulls[index].Id }, state.Tick, static _ => { });
         RunWiring.FixupTargeting(state);
         return run with { State = state, Encounter = encounter };
@@ -246,7 +248,7 @@ public static class RunRoot
             if (newly.Count > 0)
             {
                 // A pull or a pack (PATH-PACKS) runs its scripts on its own clock from its engage tick.
-                var groups = Aggro.GroupsOf(run.Dungeon, nextState.Tick, content.Packs, content.Patrols).Where(g => newly.Contains(g.Id)).Select(g => g.ActorIds).ToList();
+                var groups = Aggro.GroupsOf(run.Dungeon, nextState.Tick, content.Packs, content.Layout, content.Patrols).Where(g => newly.Contains(g.Id)).Select(g => g.ActorIds).ToList();
                 activeScripts = OnEngageClock(activeScripts ?? content.EnemyScripts, groups, nextState.Tick, content.Abilities);
             }
         }
@@ -373,7 +375,7 @@ public static class RunRoot
 
         // MPLUS-PATROLS: idle patrol members walk their loop to this tick before the aggro check reads their rings.
         Patrols.Walk(next, run.Content.Patrols, encounter);
-        var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs, run.Content.Patrols);
+        var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs, layout, run.Content.Patrols);
         var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);
         return (next, encounter);

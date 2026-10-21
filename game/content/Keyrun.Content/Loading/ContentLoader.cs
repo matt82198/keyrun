@@ -37,6 +37,7 @@ public static class ContentLoader
         RunFile,
         LayoutFile,
         ThemeFile,
+        PaletteFile,
         ComboRidersFile,
         ForcesFile,
         HazardsFile,
@@ -88,6 +89,12 @@ public static class ContentLoader
     /// set check accepts it, but not parsed into the registry: <see cref="ThemeLoader"/> reads it for the view only.
     /// </summary>
     public const string ThemeFile = "theme.json";
+
+    /// <summary>
+    /// C#-only render palette (game/content/data/palette.json, same logical root; design/BIBLE.md section 3 telegraph contrast).
+    /// Listed so the file set check accepts it, but not parsed into the registry: <see cref="PaletteLoader"/> reads it for the view only.
+    /// </summary>
+    public const string PaletteFile = "palette.json";
 
     /// <summary>
     /// C#-only dungeon layout (game/content/data/layout.json, same logical root): rooms, corridors, pull triggers,

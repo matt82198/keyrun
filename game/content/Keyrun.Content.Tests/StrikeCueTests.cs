@@ -126,9 +126,93 @@ public sealed class StrikeCueTests
         Assert.Equal(768, Assert.Single(cues).Yaw);
     }
 
+    // f-e20614cc (KF1 "combat animation reads badly"): the core dungeon loop defers to WoW, whose melee swing animation
+    // runs about 0.5 to 1.0 s. The old 200 ms cue showed in 1 of about 30 combat frames and read as a floor line.
     [Fact]
-    public void Duration_is_inside_the_readable_band()
+    public void Duration_is_the_wow_swing_window_500_ms()
     {
-        Assert.InRange(StrikeCueRule.DurationMs, 150, 250);
+        Assert.Equal(500, StrikeCueRule.DurationMs);
+    }
+
+    [Fact]
+    public void Cue_carries_the_target_it_struck()
+    {
+        var cues = Run(
+            new StrikeEvent(StrikeCueRule.ResolveEvent, 16, Warden, "warden.strike"),
+            new StrikeEvent(StrikeCueRule.DamageEvent, 16, Warden, null, 9));
+
+        Assert.Equal(9, Assert.Single(cues).TargetId);
+    }
+
+    [Fact]
+    public void Cue_height_stays_in_the_hand_band_for_the_whole_swing()
+    {
+        for (var ms = 0; ms < StrikeCueRule.DurationMs; ms++)
+        {
+            var pose = StrikeCueRule.Pose(0, 0, 2000, 0, ms);
+            Assert.InRange(pose.HeightMm, 1000, 1200);
+        }
+    }
+
+    [Theory]
+    [InlineData(1000, 2000, 3000, 2000, 2000, 0)]
+    [InlineData(1000, 2000, -500, 2500, -1500, 500)]
+    [InlineData(0, 0, 0, -1800, 0, -1800)]
+    public void Cue_aims_from_the_caster_to_the_target(int cx, int cz, int tx, int tz, int ax, int az)
+    {
+        var pose = StrikeCueRule.Pose(cx, cz, tx, tz, 0);
+
+        Assert.True(pose.HasAim);
+        Assert.Equal(ax, pose.AimXMm);
+        Assert.Equal(az, pose.AimZMm);
+    }
+
+    [Fact]
+    public void Cue_with_no_separate_target_falls_back_to_facing()
+    {
+        Assert.False(StrikeCueRule.Pose(500, 500, 500, 500, 0).HasAim);
+    }
+
+    [Fact]
+    public void Cue_sweeps_across_the_target_and_drops_over_the_window()
+    {
+        var first = StrikeCueRule.Pose(0, 0, 2000, 0, 0);
+        var last = StrikeCueRule.Pose(0, 0, 2000, 0, StrikeCueRule.DurationMs - 1);
+        var mid = StrikeCueRule.Pose(0, 0, 2000, 0, StrikeCueRule.DurationMs / 2);
+
+        Assert.True(first.SweepYaw < 0, $"swing starts to one side, got {first.SweepYaw}");
+        Assert.True(last.SweepYaw > 0, $"swing ends to the other side, got {last.SweepYaw}");
+        Assert.InRange(mid.SweepYaw, -8, 8);
+        Assert.True(last.SweepYaw - first.SweepYaw >= 256, $"arc spans at least a quarter turn, got {last.SweepYaw - first.SweepYaw}");
+        Assert.True(first.HeightMm > last.HeightMm, $"swing comes down, {first.HeightMm} -> {last.HeightMm}");
+        var prev = first.SweepYaw;
+        for (var ms = 1; ms < StrikeCueRule.DurationMs; ms++)
+        {
+            var yaw = StrikeCueRule.Pose(0, 0, 2000, 0, ms).SweepYaw;
+            Assert.True(yaw >= prev, $"sweep goes one way at {ms} ms");
+            prev = yaw;
+        }
+    }
+
+    [Fact]
+    public void Cue_shows_on_30_of_60_frames_in_one_second()
+    {
+        var shown = 0;
+        for (var frame = 0; frame < 60; frame++)
+        {
+            if (StrikeCueRule.Pose(0, 0, 2000, 0, frame * 1000 / 60).Visible)
+            {
+                shown++;
+            }
+        }
+
+        Assert.Equal(30, shown);
+    }
+
+    [Fact]
+    public void Cue_is_hidden_outside_its_window()
+    {
+        Assert.False(StrikeCueRule.Pose(0, 0, 2000, 0, -1).Visible);
+        Assert.False(StrikeCueRule.Pose(0, 0, 2000, 0, StrikeCueRule.DurationMs).Visible);
     }
 }

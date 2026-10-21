@@ -312,10 +312,12 @@
         the leave tick moves, so the party still wipes with the Warden's target alive and out of range.)
         (<TintTicks> 8500 since keyrun #446, was 1400: under R-BACKFILL-2 the wipe releases the party instead of ending
         the run, so the non-clear end is the timer cap's, depleted and uncleared at tick 7643 under 2@300 (8186 under the pre-#449 2@200 wipe), pinned with 294 ticks past
-        it by HudSceneWipeReleaseRunsTests. Measured headless on #446 (AbilitySlotLook.ShowsOutOfRange with runOver off,
-        every tick from that end to 2000 after it): no slot would tint (the human's target at the last of those ticks,
-        105, alive 2166 mm off, inside reach), so the "over=1 reads tinted=0" case no longer has an out-of-range target
-        to hide; the live control and the over=1 lines still run. Open for a ruling, not retuned here.)
+        it by HudSceneWipeReleaseRunsTests. Measured headless on the current bots (#449; seed 1, key 2, 2@300): the cap
+        end at 7643 freezes the Warden's target at 102, alive, 2289 mm off, inside his 3000 mm reach, from that end to the
+        budget. Seeds 1-20 give identical runs, and no post-cap tint window exists in the scanned space (abandon ticks
+        50-2000, keys 1-5), so the "over=1 reads tinted=0" lines here hold by construction, not by the switch. The switch is
+        covered headless by HudRunOverTintTests (ruling f-c9a92309, option c): a living hostile target beyond reach tints
+        with runOver off and does not tint with it on. The older 105 at 2166 mm note is stale.)
      41. a "HUD runend result=depleted ... cleared=0" line (the run did not clear), at least one "HUD bar range
          tinted=N over=0" line with N > 0 (control: the live run tints), at least one "over=1" line, and every
          "over=1" line reads tinted=0. Before TINT-RUNOVER the bar passed no runOver and printed "tinted=4 over=1
