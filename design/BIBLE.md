@@ -203,7 +203,8 @@ pair combo, so there is always something to close even when the enemy Window was
   more, uncombo'd hits deal less). Every Clause is tested against every class before it ships.
 - **The timer and Slack.** The run has a par time, and the run timer counts against it from the first tick, as in
   Mythic+ (section 9 principle). **Slack** is a grace bank shown as a second bar: 30 s plus 1 s per key level above 1.
-  A death costs 15 s of Slack and a full wipe 25 s, the same 15 s a death costs a Mythic+ timer. The run is
+  A death costs 15 s of Slack and a full wipe 25 s, the same 15 s a death costs a Mythic+ timer (superseded
+  2026-10-21, see the next bullet and Decisions). The run is
   **timed** when it finishes no later than par plus the Slack still left. Otherwise the key is *depleted*: the party (superseded 2026-10-20, see Decisions and Chest tiers)
   may still finish for the run reward and Ash, but not the key upgrade. **Decision (Matt, 2026-10-20), as relayed:**
   an untimed key stays at the same level, with no drop. This is a deliberate divergence from WoW, for test 3. A timed
@@ -212,6 +213,10 @@ pair combo, so there is always something to close even when the enemy Window was
   against par, and they do not change the par value (a `[DECIDE]`, section 12). **Test 3 holds with a death penalty:**
   the bank always covers at least two deaths, so one death never depletes a run that was on pace, and only repeated
   mistakes or a slow route can. One mistake never flips a clearable run by itself (research/01).
+- **Deaths cost time, and a wipe is a release (D46, R-BACKFILL-2).** In the dungeon a death costs only time on the
+  run clock, as in Mythic+. Each player death adds 300 ticks (15 s), and a full wipe adds 500 ticks more (STATE.md
+  D46). That added time is the whole penalty and replaces nothing else. A wipe does not end the run: the dead seats
+  release and run back (section 9.1). The run ends only at the timer cap, the boss kill, or abandonment.
 
 ### Chest tiers (defer to WoW Mythic+)
 
@@ -288,6 +293,12 @@ older line above contradicts one of them, that line is kept and marked "(superse
   any adds despawn, as in WoW. Sim change pending. (f-77fcfca4)
 - **Affixes follow current WoW.** From +5, one of Fortified or Tyrannical rotates. From +10, both are on. A
   rotating Clause layers on top. (f-319aced5)
+- **A wipe is a release and a run-back, not a run end (2026-10-21).** Matt 2026-10-20: core dungeon loop defers to
+  WoW Mythic+. Ruling R-BACKFILL-2, recorded 2026-10-21 07:15Z: dead seats respawn at the dungeon entrance after a
+  release delay, the timer keeps running, and D46's time cost stands (+300 ticks per death, +500 per wipe). The run
+  ends only at the timer cap, the boss kill, or abandonment. This replaces the rule that a full wipe held for 100
+  ticks finishes the run depleted (`RunWiring.cs:20` WipeGraceTicks, `:350-357`). Backfill is unchanged
+  (R-BACKFILL-1, keyrun #425). Sim change pending. (f-47a7a6db)
 
 ### 9.1 The map
 
@@ -351,23 +362,31 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
   0 downtime, i mean the high stakes m+ introduces, not literally spawning enemies on the player". No moment of the
   run is free, because one continuous timer runs against par from the first tick (section 8), so every pull and
   every walk spends the same clock as the boss (research/06:64-71). The forces bar must be filled before the Hollow
-  Door (9.5), so every skip, chain pull and walk back is a choice made against that clock (research/01:29-34). A wipe
-  costs Slack, and a slow or greedy route costs par and can deplete the key (section 8). Walking between packs is
+  Door (9.5), so every skip, chain pull and walk back is a choice made against that clock (research/01:29-34). A death
+  or a wipe costs time on the run clock (D46), and a slow or greedy route costs par and can leave the key untimed
+  (section 8). Walking between packs is
   normal and is part of the route decision. No rule here limits walking distance or puts enemies on the party.
 - **What an optional pack pays.** Fellowship's trash pays nothing (research/09:60-61). Here, every optional pack
   killed adds Ash to the run's bank, shown on the run-end panel. A run that opens the Hollow Door at 110% forces or
   more raises one of the three end-of-run options by one tier, never past 10. That overflow upgrade is the reward
   for pulling more than the bar needs, against the timer.
+- **A wipe is a release and a run-back, not a run end.** **Ruling (Matt, 2026-10-21, R-BACKFILL-2):** the core
+  dungeon loop defers to WoW Mythic+. A dead seat releases and, after the release delay (value set by the code lane,
+  measured in run F), respawns at the dungeon entrance. On a full wipe every seat does this. The run timer keeps
+  running through the release and the run back, and D46's time cost is the only penalty (section 8). The run ends
+  only at the timer cap, the boss kill, or abandonment. **Forward-only still holds.** A respawned seat walks the
+  cleared path back to the party. Cleared groups stay dead, a sealed doorway stays shut, and no new pull spawns behind
+  the party.
 - **Backfill** (section 10): a joiner arrives at the next teaching pull or pack engage, inside the party's taken
-  branch.
+  branch. The release rule above does not change this (R-BACKFILL-1, keyrun #425).
 
 ### 9.2 Enemy forces
 
 - **The bar.** One **Forces** bar, shown under the timer and Slack bars, fills from 0% to 100%. Forces are integer
   points and **1000 points = 100%**. Each enemy carries a fixed point value from content. The value is credited on
-  the enemy's death tick, whatever killed it, hazards included. Forces never go down: a death or wipe costs Slack
-  (section 8), never forces. The boss, the Sundered Twins and Echo-spawned adds are worth 0, so nothing in the run can
-  be farmed for forces.
+  the enemy's death tick, whatever killed it, hazards included. Forces never go down: a death or wipe costs time
+  on the run clock (section 8), never forces. The boss, the Sundered Twins and Echo-spawned adds are worth 0, so
+  nothing in the run can be farmed for forces.
 - **Point values** (per enemy; a pack's value is the sum of its members):
 
 | Pack | Where | Members (points each) | Pack points |
@@ -500,7 +519,7 @@ example 104%) and do nothing else. The fight beyond the door is unchanged.
   (research/08:131-132), and no one else can see it.
 - **Backfill is in the first playable** (Fellowship's named defect, research/09:65, :112, :125): a slot that empties
   mid-run is offered to the queue at the same key. A joiner arrives at the next pull start (a teaching pull or a
-  pack engage, section 9.1) with the run's Slack.
+  pack engage, section 9.1) on the run's clock (D46).
 - **Vote to leave keeps the key for those who stay.** A player who leaves alone costs only their own attempt (the
   short lock above). If the party votes to abandon together, nobody's key is depleted and nobody gets
   the lock. One player leaving never costs the players who stay their key (test 3; research/08:37-42, :85-88).
@@ -536,7 +555,8 @@ Clause set by the key, never picked; every clear moves something visible; the va
 aggro distance and zero downtime as stakes (section 9.1); Mythic+ as the dungeon's reference, "almost exact to wow
 with less button clutter" (section 9); an untimed key keeps its level, the upgrade tiers and loot quality from the
 key level (sections 7 and 8); Fortified and Tyrannical with a rotating Clause on top (section 8); the Twins dying
-with the boss (section 9.6); the private rating (section 10).
+with the boss (section 9.6); the private rating (section 10). **Ruling 2026-10-21 (R-BACKFILL-2):** a wipe is a
+release and a run-back, not a run end (sections 8 and 9.1).
 
 **Keyrun's own judgment**: Windows and Combos as the synergy core; the six named pair-combos; the three classes'
 loops and kits; the Clause carried by the key; Slack instead of flat death penalties; Tempo as the key's scaling axis; the Lock
