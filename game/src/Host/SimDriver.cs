@@ -522,6 +522,18 @@ public partial class SimDriver : Node
     /// <summary>Events of the latest step.</summary>
     public IReadOnlyList<SimEvent> LastEvents { get; private set; } = Array.Empty<SimEvent>();
 
+    // KF1-READABLE: every step of the latest frame that stepped (a slow frame runs up to MaxStepsPerFrame).
+    private readonly StepBatch<SimState, SimEvent> _frameSteps = new(SimState.Create(1));
+
+    /// <summary>
+    /// The state before the first step of the latest frame that stepped. Views that react to events (the animator, the
+    /// hit flash) diff against this rather than <see cref="PreviousState"/>, so a slow frame's earlier steps still show.
+    /// </summary>
+    public SimState FrameStartState => _frameSteps.Start;
+
+    /// <summary>The events of every step of the latest frame that stepped, in order (KF1-READABLE).</summary>
+    public IReadOnlyList<SimEvent> FrameEvents => _frameSteps.Events;
+
     /// <summary>Render interpolation factor between <see cref="PreviousState"/> and <see cref="State"/>.</summary>
     public float Alpha => (float)_accumulator.Alpha;
 
@@ -994,6 +1006,7 @@ public partial class SimDriver : Node
         State = run.State;
         PreviousState = run.State;
         LastEvents = Array.Empty<SimEvent>();
+        _frameSteps.Reset(run.State);
         _movie = Options.MovieDir is null ? null : new MovieDirector(WardenId, run.Content.Abilities);
         _bots?.Reset();
         _log?.Line(FormattableString.Invariant(
@@ -1051,6 +1064,7 @@ public partial class SimDriver : Node
         PreviousState = run.State;
         State = result.Run.State;
         LastEvents = result.Events;
+        _frameSteps.Step(Frames, run.State, result.Events);
         TicksRun++;
         _log?.Tick(preTick, run.State, State, result.Events, result.Run.Dungeon);
         foreach (var fill in step.Fills)
