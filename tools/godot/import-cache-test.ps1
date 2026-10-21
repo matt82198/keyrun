@@ -31,6 +31,12 @@
     M3  only the older 'ACTOR model id=' and 'ACTOR fallback capsule' console lines: neither is counted, actors=0
     M4  no log file: Ok, actors=0 fallback=0
 
+  Launch-script project path (run from a foreign cwd, $env:TEMP; the scripts are copied into a fixture repo; a compiled
+  stand-in .exe records its argv and exits 0, so no Godot runs). Finding: a relative "game" reaches Godot unresolved.
+    S1  setup-worktree.ps1 -ImportScript stub: the stub receives an ABSOLUTE project folder equal to <fixture>\game; exit 0
+    S2  import.ps1: the Godot argv is '--headless --path <absolute>\game --import'; exit 0
+    S3  godot.ps1 --headless --path game --smoke: the Godot argv carries the ABSOLUTE project folder; exit 0
+
   Run:  powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/import-cache-test.ps1
   Exit 0 = PASS, 1 = FAIL.
 #>
@@ -199,6 +205,106 @@ try {
 
     $r = Measure-KeyrunActorModels -LogPath (Join-Path $logDir 'absent.txt')
     Check 'M4.no-log-zero' ($r.Ok -and $r.Code -eq 0 -and $r.Actors -eq 0 -and $r.Fallback -eq 0) "Ok=$($r.Ok) Code=$($r.Code) Actors=$($r.Actors)"
+
+    # S0..S3: the launch scripts hand Godot (and the import script) an ABSOLUTE project folder, so a foreign cwd cannot
+    # make "game" resolve against the caller's folder (finding: tools/godot/setup-worktree.ps1 and import.ps1 pass a
+    # relative project path). Each case copies the real scripts into a fixture repo, runs them from $env:TEMP in a child
+    # Windows PowerShell, and records what reached the stand-in executable or the stub. No Godot is launched.
+    $fakeExe = Join-Path $work 'fake-godot.exe'
+    $fakeSrc = 'public static class FakeExe { public static int Main(string[] args) { string log = System.Environment.GetEnvironmentVariable("FAKE_ARGV_LOG"); if (!string.IsNullOrEmpty(log)) { System.IO.File.WriteAllLines(log, args); } return 0; } }'
+    Add-Type -TypeDefinition $fakeSrc -OutputAssembly $fakeExe -OutputType ConsoleApplication
+    # DOTNET_ROOT stand-in: a folder whose dotnet.exe is the same fake (preflight requires it to be a file).
+    $fakeDotnet = Join-Path $work 'dotnet-root'
+    New-Item -ItemType Directory -Path $fakeDotnet -Force | Out-Null
+    Copy-Item -LiteralPath $fakeExe -Destination (Join-Path $fakeDotnet 'dotnet.exe')
+
+    function New-ToolFixture([string]$tag, [string[]]$scripts) {
+        $root = Join-Path $work $tag
+        $dir = Join-Path $root 'tools\godot'
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        foreach ($s in $scripts) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $s) -Destination (Join-Path $dir $s) }
+        return $root
+    }
+
+    function Invoke-FromForeignCwd([string]$scriptPath, [string[]]$scriptArgs) {
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        Push-Location $env:TEMP
+        try {
+            $o = & powershell -NoProfile -ExecutionPolicy Bypass -File $scriptPath @scriptArgs 2>&1
+            return [pscustomobject]@{ Code = $LASTEXITCODE; Out = @($o) }
+        } finally {
+            Pop-Location
+            $ErrorActionPreference = $prevEap
+        }
+    }
+
+    function Read-Argv([string]$path) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return @() }
+        return @([IO.File]::ReadAllLines($path))
+    }
+
+    # S1: setup-worktree.ps1 from a foreign cwd hands the import script an ABSOLUTE project folder under the fixture repo.
+    $s1 = New-ToolFixture 's1' @('setup-worktree.ps1', 'preflight.ps1')
+    Write-Text (Join-Path $s1 'game\Keyrun.csproj') @('<Project Sdk="Microsoft.NET.Sdk" />')
+    Write-Text (Join-Path $s1 'game\project.godot') @('config_version=5')
+    Add-Model $s1 'assets\x.glb' $past
+    # Stub import script: records the ProjectRel it was handed; fills the cache only when that value is absolute.
+    $s1Stub = Join-Path $work 's1-stub.ps1'
+    Write-Text $s1Stub @(
+        'param([string]$ProjectRel = ''game'')',
+        '[IO.File]::WriteAllText((Join-Path $PSScriptRoot ''s1-received.txt''), $ProjectRel)',
+        'if ([IO.Path]::IsPathRooted($ProjectRel)) {',
+        '    $dir = Join-Path $ProjectRel ''.godot\imported''',
+        '    New-Item -ItemType Directory -Path $dir -Force | Out-Null',
+        '    [IO.File]::WriteAllText((Join-Path $dir ''x.glb-0123456789abcdef0123456789abcdef.scn''), ''SCN'')',
+        '}',
+        'Write-Output ''IMPORT stub''',
+        'exit 0')
+    $prevDotnetRoot = $env:DOTNET_ROOT; $prevArgv = $env:FAKE_ARGV_LOG
+    $env:DOTNET_ROOT = $fakeDotnet; $env:FAKE_ARGV_LOG = Join-Path $work 's1-argv.txt'
+    try {
+        $r1 = Invoke-FromForeignCwd (Join-Path $s1 'tools\godot\setup-worktree.ps1') @('-ImportScript', $s1Stub)
+    } finally {
+        $env:DOTNET_ROOT = $prevDotnetRoot; $env:FAKE_ARGV_LOG = $prevArgv
+    }
+    $recv1 = ''
+    $recv1Path = Join-Path $work 's1-received.txt'
+    if (Test-Path -LiteralPath $recv1Path -PathType Leaf) { $recv1 = [IO.File]::ReadAllText($recv1Path) }
+    $want1 = Join-Path $s1 'game'
+    Check 'S1.setup-hands-import-absolute-project' ([IO.Path]::IsPathRooted($recv1) -and ($recv1 -ieq $want1)) "received=[$recv1] want=[$want1]"
+    Check 'S1.setup-exit-0' ($r1.Code -eq 0) "code=$($r1.Code) out=[$($r1.Out -join ' | ')]"
+
+    # S2: import.ps1 from a foreign cwd passes Godot --path as an ABSOLUTE folder (no models: the post-check passes).
+    $s2 = New-ToolFixture 's2' @('import.ps1', 'launch-lock.ps1', 'preflight.ps1')
+    Write-Text (Join-Path $s2 'game\project.godot') @('config_version=5')
+    $s2Argv = Join-Path $work 's2-argv.txt'
+    $prevGodot = $env:KEYRUN_GODOT; $prevLock = $env:KEYRUN_LAUNCH_LOCK_FILE; $prevArgv = $env:FAKE_ARGV_LOG
+    $env:KEYRUN_GODOT = $fakeExe; $env:KEYRUN_LAUNCH_LOCK_FILE = Join-Path $work 's2.lock'; $env:FAKE_ARGV_LOG = $s2Argv
+    try {
+        $r2 = Invoke-FromForeignCwd (Join-Path $s2 'tools\godot\import.ps1') @()
+    } finally {
+        $env:KEYRUN_GODOT = $prevGodot; $env:KEYRUN_LAUNCH_LOCK_FILE = $prevLock; $env:FAKE_ARGV_LOG = $prevArgv
+    }
+    $a2 = Read-Argv $s2Argv
+    Check 'S2.import-godot-gets-absolute-project' ($a2.Count -eq 4 -and [IO.Path]::IsPathRooted($a2[2]) -and ($a2[2] -ieq (Join-Path $s2 'game'))) "argv=[$($a2 -join ' ')]"
+    Check 'S2.import-exit-0' ($r2.Code -eq 0) "code=$($r2.Code) out=[$($r2.Out -join ' | ')]"
+
+    # S3: godot.ps1 from a foreign cwd passes Godot --path as an ABSOLUTE folder; its preflight still names the relative form.
+    $s3 = New-ToolFixture 's3' @('godot.ps1', 'launch-lock.ps1', 'preflight.ps1')
+    Write-Text (Join-Path $s3 'game\project.godot') @('config_version=5', 'project/assembly_name="Keyrun"')
+    Write-Text (Join-Path $s3 'game\.godot\mono\temp\bin\Debug\Keyrun.dll') @('stand-in')
+    $s3Argv = Join-Path $work 's3-argv.txt'
+    $prevDotnetRoot = $env:DOTNET_ROOT; $prevGodot = $env:KEYRUN_GODOT; $prevLock = $env:KEYRUN_LAUNCH_LOCK_FILE; $prevArgv = $env:FAKE_ARGV_LOG
+    $env:DOTNET_ROOT = $fakeDotnet; $env:KEYRUN_GODOT = $fakeExe; $env:KEYRUN_LAUNCH_LOCK_FILE = Join-Path $work 's3.lock'; $env:FAKE_ARGV_LOG = $s3Argv
+    try {
+        $r3 = Invoke-FromForeignCwd (Join-Path $s3 'tools\godot\godot.ps1') @('--headless', '--path', 'game', '--smoke')
+    } finally {
+        $env:DOTNET_ROOT = $prevDotnetRoot; $env:KEYRUN_GODOT = $prevGodot; $env:KEYRUN_LAUNCH_LOCK_FILE = $prevLock; $env:FAKE_ARGV_LOG = $prevArgv
+    }
+    $a3 = Read-Argv $s3Argv
+    Check 'S3.godot-gets-absolute-project' ($a3.Count -eq 4 -and [IO.Path]::IsPathRooted($a3[2]) -and ($a3[2] -ieq (Join-Path $s3 'game'))) "argv=[$($a3 -join ' ')]"
+    Check 'S3.godot-exit-0' ($r3.Code -eq 0) "code=$($r3.Code) out=[$($r3.Out -join ' | ')]"
 } catch {
     Check 'import-cache.exception' $false $_.Exception.Message
 } finally {

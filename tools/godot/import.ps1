@@ -34,6 +34,11 @@ $ErrorActionPreference = 'Stop'
 
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 
+# Godot resolves a relative --path against the caller's working folder, not the repo root (finding: a foreign cwd
+# failed with 'Invalid project path specified: "game"'). Hand Godot the absolute project folder.
+$projectDir = $ProjectRel
+if (-not [IO.Path]::IsPathRooted($ProjectRel)) { $projectDir = Join-Path $repo $ProjectRel }
+
 # Godot binary lookup, same order as tools/godot/godot.ps1.
 $wingetRel = 'Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_console.exe'
 $godot = $env:KEYRUN_GODOT
@@ -76,7 +81,7 @@ $code = $null
 try {
     # Godot writes warnings to stderr; they arrive as plain output lines. The exit code is the verdict.
     $ErrorActionPreference = 'Continue'
-    Invoke-KeyrunCapped -FilePath $godot -Arguments @('--headless', '--path', $ProjectRel, '--import') -TimeoutSec $timeoutSec -Label 'import.ps1'
+    Invoke-KeyrunCapped -FilePath $godot -Arguments @('--headless', '--path', $projectDir, '--import') -TimeoutSec $timeoutSec -Label 'import.ps1'
     $code = $script:KeyrunLastExitCode
 } finally {
     Exit-KeyrunLaunchLock $launchLock
@@ -91,15 +96,13 @@ if ($code -ne 0) {
     exit 8
 }
 
-$projectDir = $ProjectRel
-if (-not [IO.Path]::IsPathRooted($ProjectRel)) { $projectDir = Join-Path $repo $ProjectRel }
 $cacheDir = Join-Path (Join-Path $projectDir '.godot') 'imported'
 $files = 0
 if (Test-Path -LiteralPath $cacheDir -PathType Container) {
     $files = @(Get-ChildItem -LiteralPath $cacheDir -Recurse -File).Count
 }
 
-$check = Test-KeyrunImportCache -RepoRoot $repo -ProjectRel $ProjectRel
+$check = Test-KeyrunImportCache -RepoRoot $repo -ProjectRel $projectDir
 if (-not $check.Ok) {
     Write-Output ("IMPORT failed import-cache-still-missing: {0}" -f $check.Lines[0])
     exit $check.Code

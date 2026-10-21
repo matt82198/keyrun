@@ -111,12 +111,23 @@ try {
     exit 2
 }
 
+# Godot resolves a relative --path against the caller's working folder, not the repo root (finding: a foreign cwd made
+# Godot fail on "game"). Only the argv handed to Godot gets the absolute project folder; the preflight messages above keep
+# the relative form they always printed.
+$repoRootAbs = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+$launchArgs = @($godotArgs)
+for ($i = 0; $i -lt ($launchArgs.Count - 1); $i++) {
+    if ($launchArgs[$i] -eq '--path' -and -not [IO.Path]::IsPathRooted($launchArgs[$i + 1])) {
+        $launchArgs[$i + 1] = Join-Path $repoRootAbs $launchArgs[$i + 1]
+    }
+}
+
 $launchLock = Enter-KeyrunLaunchLock -Owner ('godot.ps1 ' + ($godotArgs -join ' ')) -ExitCodeOnBusy 4
 try {
     # Godot writes warnings to stderr; they arrive as plain output lines, so a caller's 2>&1 under 'Stop' cannot turn
     # them into terminating errors. The exit code is the verdict.
     $ErrorActionPreference = 'Continue'
-    Invoke-KeyrunCapped -FilePath $godot -Arguments $godotArgs -TimeoutSec $timeoutSec -Label 'godot.ps1'
+    Invoke-KeyrunCapped -FilePath $godot -Arguments $launchArgs -TimeoutSec $timeoutSec -Label 'godot.ps1'
     $code = $script:KeyrunLastExitCode
 } finally {
     Exit-KeyrunLaunchLock $launchLock

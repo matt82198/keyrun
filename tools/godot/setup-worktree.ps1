@@ -77,7 +77,7 @@ if ($buildCode -ne 0) {
     exit 3
 }
 
-$import = Invoke-KeyrunImportIfMissing -RepoRoot $repo -ProjectRel $ProjectRel -ImportScript $ImportScript
+$import = Invoke-KeyrunImportIfMissing -RepoRoot $repo -ProjectRel $projectDir -ImportScript $ImportScript
 foreach ($line in $import.Lines) { Write-Output $line }
 if (-not $import.Ok) {
     Write-Output 'SETUP failed import'
