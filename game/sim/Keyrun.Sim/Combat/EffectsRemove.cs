@@ -44,7 +44,7 @@ public static class EffectsRemove
             (m.MovementBp ?? 0) < 0 ||
             (m.HasteBp ?? 0) < 0 ||
             (m.DamageDoneBp ?? 0) < 0 ||
-            op is DamageOp;
+            op is DamageOp or DamagePctOp;
         return beneficial && !hostile ? EffectPolarity.Beneficial : EffectPolarity.Hostile;
     }
 

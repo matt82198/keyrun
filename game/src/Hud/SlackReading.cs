@@ -18,7 +18,8 @@ namespace Keyrun.Hud;
 /// <param name="KeyLevel">The key level.</param>
 /// <param name="PenaltyTicks">Time deaths and wipes have added to the run clock (<c>Encounter.PenaltyTicks</c>, D46).</param>
 /// <param name="Deaths">Player deaths this run (<c>Encounter.Deaths</c>).</param>
-public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, int RunTimerTicks, int ParTicks, int KeyLevel, int PenaltyTicks = 0, int Deaths = 0)
+/// <param name="End">How the run ended (<see cref="CauseOf"/>), or <see cref="RunEndCause.Live"/> while it runs.</param>
+public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, int RunTimerTicks, int ParTicks, int KeyLevel, int PenaltyTicks = 0, int Deaths = 0, RunEndCause End = RunEndCause.Live)
 {
     /// <summary>The run clock: the run timer plus the time deaths and wipes added (<see cref="SimTimer.ClockTicks"/>).</summary>
     public long ClockTicks => (long)RunTimerTicks + Math.Max(0, PenaltyTicks);
@@ -30,12 +31,19 @@ public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, 
     public bool OverPar => ClockTicks > ParTicks;
 
     /// <summary>
-    /// The bar label: "Deaths 3 (+45s)", or "Wiped -- key stays +7" once a lasting wipe ended the run. An untimed key
-    /// keeps its level (Matt 2026-10-20, f-7c7abdf4), and a WoW player reads "depleted" as the key dropping.
+    /// The bar label, named by the run's end cause (<see cref="End"/>, f-44796144), never by the Depleted flag alone (the
+    /// sim sets Depleted for an over-par clear as well as a lasting wipe): "Deaths 3 (+45s)" while live or after a timed
+    /// clear; "Over par -- key stays +7" for a clear past par (WoW Mythic+: the key was not timed); "Wiped -- key stays
+    /// +7" for a lasting wipe; "Abandoned -- key stays +7" for a run the party left. An untimed key keeps its level
+    /// (Matt 2026-10-20, f-7c7abdf4), and a WoW player reads "depleted" as the key dropping.
     /// </summary>
-    public string Label => Depleted
-        ? FormattableString.Invariant($"Wiped -- key stays +{KeyLevel}")
-        :FormattableString.Invariant($"Deaths {Deaths} (+{Math.Max(0, PenaltyTicks) / Tick.TickHz}s)");
+    public string Label => End switch
+    {
+        RunEndCause.OverPar => FormattableString.Invariant($"Over par -- key stays +{KeyLevel}"),
+        RunEndCause.Wiped => FormattableString.Invariant($"Wiped -- key stays +{KeyLevel}"),
+        RunEndCause.Abandoned => FormattableString.Invariant($"Abandoned -- key stays +{KeyLevel}"),
+        _ => FormattableString.Invariant($"Deaths {Deaths} (+{Math.Max(0, PenaltyTicks) / Tick.TickHz}s)"),
+    };
 
     /// <summary>The timer label, on the run clock: "+2  0:57 / par 12:00".</summary>
     public string TimerLabel => FormattableString.Invariant($"+{KeyLevel}  {Clock((int)Math.Min(int.MaxValue, ClockTicks))} / par {Clock(ParTicks)}");
@@ -82,6 +90,46 @@ public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, 
         ArgumentNullException.ThrowIfNull(run);
         var e = run.Encounter;
         // RUN-TIMER-STOP: RunClock, not State.RunTimerTicks, which StepRun keeps advancing after run_end.
-        return new SlackReading(e.SlackTicks, SimTimer.InitialSlackTicks(e.KeyLevel), e.Depleted, RunClock.ShownTicks(run), e.ParTicks, e.KeyLevel, e.PenaltyTicks, e.Deaths);
+        return new SlackReading(e.SlackTicks, SimTimer.InitialSlackTicks(e.KeyLevel), e.Depleted, RunClock.ShownTicks(run), e.ParTicks, e.KeyLevel, e.PenaltyTicks, e.Deaths, CauseOf(run));
     }
+
+    /// <summary>
+    /// The run's end cause from its recorded end (<c>run.RunEnd.Result</c>, set with <c>run_end</c>) and whether every
+    /// pull was cleared, the same split <see cref="Keyrun.Sim.Encounter.RunEndTitle.ForRun"/> makes: the sim finishes a
+    /// lasting wipe as depleted with completed forced, so a depleted run with every pull cleared is an over-par clear
+    /// and one with a pull left is a wipe. A new end reason (a timer cap) adds its case here.
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <returns>The end cause, or <see cref="RunEndCause.Live"/> while the run has no result.</returns>
+    public static RunEndCause CauseOf(Run run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
+        return run.RunEnd.Result switch
+        {
+            null => RunEndCause.Live,
+            Keyrun.Sim.Encounter.RunResult.Timed => RunEndCause.Timed,
+            Keyrun.Sim.Encounter.RunResult.Abandoned => RunEndCause.Abandoned,
+            _ => cleared ? RunEndCause.OverPar : RunEndCause.Wiped,
+        };
+    }
+}
+
+/// <summary>Why a run ended, as the run clock bar names it (<see cref="SlackReading.Label"/>, f-44796144).</summary>
+public enum RunEndCause
+{
+    /// <summary>The run has not ended.</summary>
+    Live,
+
+    /// <summary>Every pull cleared with the run clock within par: the key was timed.</summary>
+    Timed,
+
+    /// <summary>Every pull cleared, but the run clock was past par: the key was not timed and stays at its level.</summary>
+    OverPar,
+
+    /// <summary>A lasting wipe ended the run before every pull was cleared; the key stays at its level.</summary>
+    Wiped,
+
+    /// <summary>The party left the run; the key stays at its level.</summary>
+    Abandoned,
 }

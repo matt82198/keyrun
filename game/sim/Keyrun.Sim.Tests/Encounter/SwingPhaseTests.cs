@@ -37,7 +37,8 @@ public sealed class SwingPhaseTests
 
     // The Pair alone, placed in its room as the host places it; seat 1 stands on the Pair's ring centre so the whole
     // pull engages on it at once and every member locks it (the body pull), the other two seats stand far outside.
-    private static Played StandInThePair()
+    // With puller 2 the careless Cinder (seat 3, 250 health, not the tank) is the one on the ring instead.
+    private static Played StandInThePair(int puller = 0)
     {
         var (nav, rooms) = SeedEngageTests.Layout();
         var setup = RunSetup.Load(OracleFixtures.PathOf("hollow-vault-k2.setup.json"), Seed);
@@ -51,7 +52,7 @@ public sealed class SwingPhaseTests
         var far = new Vec3(0, 0, 0);
         var party = setup.Party.Take(3).Select((m, i) => m with
         {
-            Pos = i == 0 ? new Vec3(center.X - 1500, 0, center.Z) : new Vec3(far.X, 0, far.Z + (i * 1200)),
+            Pos = i == puller ? new Vec3(center.X - 1500, 0, center.Z) : new Vec3(far.X, 0, far.Z + (i * 1200)),
             Yaw = 0,
         }).ToList();
         var dungeon = setup.Dungeon with { Pulls = new[] { placed } };
@@ -160,5 +161,31 @@ public sealed class SwingPhaseTests
         _out.WriteLine($"worst one-tick Pair damage to one seat: {worst}");
         // 250 is the careless Cinder's seat health in run C (the seat that died at 2108 on #307).
         Assert.True(worst < 250, $"the Pair dealt {worst} to one seat on one tick");
+    }
+
+    [Fact(DisplayName = "Swing phase: a careless Cinder body-pulls the Pair; every member swings at it on its own tick and it is alive after the first two swing ticks (f-2e1fc45a)")]
+    public void A_careless_body_pull_on_a_non_tank_seat_is_not_deleted_between_two_ticks()
+    {
+        const int Cinder = 3;
+        var played = StandInThePair(puller: 2);
+        // Not the Warden: the seat the finding names is a 250-health damage seat.
+        Assert.Equal("cinder", played.Final.State.Actors[Cinder].ClassId);
+        var swingHits = played.Events
+            .Where(e => e.Type == "damage" && played.PairIds.Contains((int)Int(e, "sourceId")) && Int(e, "targetId") == Cinder)
+            .ToList();
+        _out.WriteLine("pair hits on seat 3: " + string.Join(" ", swingHits.Select(e => $"{Int(e, "sourceId")}@{e.Tick}:{Int(e, "healthDamage")}")));
+
+        // The body pull: at least four Pair members locked the Cinder and hit it (the finding's four swings; a fifth
+        // member's first swing may come after the seat is already dead).
+        var hitters = swingHits.Select(e => (int)Int(e, "sourceId")).Distinct().ToList();
+        Assert.True(hitters.Count >= 4, $"only {hitters.Count} Pair member(s) hit seat 3");
+        // Each enemy's swing timer runs on its own: no two of the members' first hits share a tick.
+        var firstHits = hitters.Select(id => swingHits.First(e => Int(e, "sourceId") == id).Tick).ToList();
+        Assert.True(firstHits.Count == firstHits.Distinct().Count(), "first Pair hits shared a tick: " + string.Join(" ", firstHits));
+        // The seat survives the first two hit ticks: it is not taken from full to dead between two ticks.
+        var hitTicks = swingHits.Select(e => e.Tick).Distinct().OrderBy(t => t).ToList();
+        Assert.True(hitTicks.Count >= 2, $"the Pair hit the Cinder on {hitTicks.Count} tick(s)");
+        var death = played.Events.FirstOrDefault(e => e.Type == "death" && Int(e, "actorId") == Cinder);
+        Assert.True(death is null || death.Tick > hitTicks[1], $"seat 3 died on tick {death?.Tick}, the Pair's second hit tick is {hitTicks[1]}");
     }
 }

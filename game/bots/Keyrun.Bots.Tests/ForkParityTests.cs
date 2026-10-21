@@ -32,7 +32,32 @@ namespace Keyrun.Bots.Tests;
 /// ends scores maxTicks + 1, worse than any end); deaths = party "death" events (lower is better); Combos landed =
 /// "combo" events (higher is better).</para>
 /// <para>Dominance: option A dominates sibling B when A is at least as good as B on every measure and strictly better
-/// on at least one. Every ordered pair of options of every fork is checked. Two siblings that measure identically on
+/// on at least one. Every ordered pair of options of every fork is checked.</para>
+/// <para>NOISE TOLERANCE (finding f-e3daed76, R-PILE-7): a dominance gates only when at least one of A's margins over B
+/// EXCEEDS <see cref="NoiseTolerance.Measured"/>: clear 715 bp of the slower clear tick in that run, deaths 0, combos 3.
+/// A dominance whose every margin is inside the tolerance is printed ("DOMINATED WITHIN NOISE") and recorded, never red:
+/// the runs are chaotic, so any behaviour change moves every option's measures, and a balance oracle pinned to main's
+/// exact dynamics went red on every behaviour PR (#307: hymn staccato dominated by 2 combos on equal clears; #362:
+/// surge and discord). Why those numbers: the tolerance is one standard deviation of seed noise. At dial 90 the seed
+/// decides every bot mistake, so each seed is a different trajectory through the same content, the same kind of
+/// perturbation a behaviour PR makes; the hv runs this check uses (base kit 1407/0/43, 1478/0/42, 1855/1/59) all sit
+/// inside that seed spread (key 2: clear 1402..1664, key 10: 1782..2238). Over seeds 1..12, for each of the 24 measured
+/// sibling pairs the per-seed margin's standard deviation was taken; its median is clear 90.4 ticks (615 bp) at key 2
+/// and 132.1 ticks (715 bp) at key 10, deaths 0.52 and 0.45, combos 3.59 and 3.85. The larger key, floored to each
+/// measure's grain, is the tolerance (one death is beyond 0.52; four combos is beyond 3.85, three is not). A real
+/// dominance still blocks: <see cref="ForkParityMarginsTests.A_deliberately_dominated_fork_is_red"/> drives a test-double
+/// fork through the same failure path this check asserts on.</para>
+/// <para>MARGINS FILE: every sibling pair's per-run measures, margins and verdict are recorded in
+/// game/bots/Keyrun.Bots.Tests/ForkParity.margins.txt (format in its header). The check prints margin drift beyond the
+/// tolerance since the recording but never fails on it; it fails only when the recorded pair set differs from the
+/// measured one (a fork or option added, removed or renamed). RE-BASELINE (after a content retune, a fork change, or when
+/// the drift lines say margins moved): run
+/// <c>KEYRUN_FORKPARITY_REBASELINE=1 dotnet test game/bots/Keyrun.Bots.Tests --filter "FullyQualifiedName~ForkParity"</c>.
+/// It rewrites the file and re-measures the noise sweep into its header (about a minute); commit the file in its own
+/// commit and say why in the PR. If the re-measured paired-margin sd has moved past <see cref="NoiseTolerance.Measured"/>,
+/// re-derive the tolerance by the rule above in the same PR, with the header as the evidence; never widen it to pass a
+/// change.</para>
+/// <para> Two siblings that measure identically on
 /// every measure of every run are red too (finding f-8476dbf4): neither dominates, but a player cannot tell them apart,
 /// so the fork is not a decision. A fork whose options all measure identically is the separate unmeasured case
 /// (<see cref="UnmeasuredForks"/>).</para>
@@ -297,26 +322,51 @@ public sealed class ForkParityTests
         return result;
     }
 
-    /// <summary>Every dominated option as "class.ability:option" to its finding line.</summary>
+    /// <summary>
+    /// Every option dominated beyond <paramref name="tolerance"/> (<see cref="ForkParityMargins.DominatesBeyondNoise"/>)
+    /// as "class.ability:option" to its finding line, naming the measures whose margin exceeds the noise.
+    /// </summary>
     internal static SortedDictionary<string, string> DominatedOptions(
-        IReadOnlyList<(string ClassId, string AbilityId, IReadOnlyList<(string Option, IReadOnlyList<RunMeasures> Runs)> Options)> all)
+        IReadOnlyList<(string ClassId, string AbilityId, IReadOnlyList<(string Option, IReadOnlyList<RunMeasures> Runs)> Options)> all,
+        NoiseTolerance tolerance)
     {
         var dominated = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var (_, abilityId, options) in all)
         {
+            var runNames = RunNames(options[0].Runs.Count);
             foreach (var (loser, loserRuns) in options)
             {
-                var by = options.Where(o => o.Option != loser && Dominates(o.Runs, loserRuns)).Select(o => o.Option).ToList();
+                var by = options.Where(o => o.Option != loser && ForkParityMargins.DominatesBeyondNoise(o.Runs, loserRuns, tolerance)).Select(o => o.Option).ToList();
                 if (by.Count == 0)
                 {
                     continue;
                 }
                 var winner = options.First(o => o.Option == by[0]);
-                dominated[abilityId + ":" + loser] = $"{abilityId}:{loser} is dominated by {string.Join("/", by)} | "
-                    + string.Join("; ", Scenarios.Select((s, i) => $"{s.Name} {loser} [{loserRuns[i]}] vs {by[0]} [{winner.Runs[i]}]"));
+                dominated[abilityId + ":" + loser] = $"{abilityId}:{loser} is dominated by {string.Join("/", by)} beyond noise ("
+                    + string.Join(", ", ForkParityMargins.Excess(winner.Runs, loserRuns, tolerance, runNames)) + ") | "
+                    + string.Join("; ", runNames.Select((s, i) => $"{s} {loser} [{loserRuns[i]}] vs {by[0]} [{winner.Runs[i]}]"));
             }
         }
         return dominated;
+    }
+
+    /// <summary>Scenario names for <paramref name="count"/> runs (the real scenarios, or "run i" for a test double).</summary>
+    private static IReadOnlyList<string> RunNames(int count) =>
+        count == Scenarios.Length ? Scenarios.Select(s => s.Name).ToList() : Enumerable.Range(0, count).Select(i => "run " + i).ToList();
+
+    /// <summary>
+    /// The dominance half of the parity check: options dominated beyond <paramref name="tolerance"/> and not listed in
+    /// <paramref name="known"/>, then listed options that are no longer dominated beyond it (stale). Empty = pass.
+    /// </summary>
+    internal static IReadOnlyList<string> DominanceFailures(
+        IReadOnlyList<(string ClassId, string AbilityId, IReadOnlyList<(string Option, IReadOnlyList<RunMeasures> Runs)> Options)> all,
+        IReadOnlyDictionary<string, string> known,
+        NoiseTolerance tolerance)
+    {
+        var dominated = DominatedOptions(all, tolerance);
+        var failures = dominated.Where(d => !known.ContainsKey(d.Key)).Select(d => d.Value).ToList();
+        failures.AddRange(known.Keys.Where(k => !dominated.ContainsKey(k)).Select(k => "stale KnownDominatedForks entry (no longer dominated beyond noise; remove it): " + k));
+        return failures;
     }
 
     /// <summary>
@@ -381,7 +431,6 @@ public sealed class ForkParityTests
             }
         }
 
-        var dominated = DominatedOptions(all);
         foreach (var known in KnownDominatedForks)
         {
             _output.WriteLine("KNOWN DOMINATED (content defect, BIBLE s6): " + known.Key + " -- " + known.Value);
@@ -390,10 +439,14 @@ public sealed class ForkParityTests
         {
             _output.WriteLine("UNMEASURED FORK (bots never cast it): " + unseen.Key + " -- " + unseen.Value);
         }
-        var unlisted = dominated.Where(d => !KnownDominatedForks.ContainsKey(d.Key)).Select(d => d.Value).ToList();
-        var stale = KnownDominatedForks.Keys.Where(k => !dominated.ContainsKey(k)).ToList();
-        Assert.True(unlisted.Count == 0, "dominated fork options (BIBLE s6: a defect that blocks the content change):\n" + string.Join("\n", unlisted));
-        Assert.True(stale.Count == 0, "KnownDominatedForks lists options that are no longer dominated; remove them:\n" + string.Join("\n", stale));
+        var marginsLines = ForkParityMargins.Lines(all, Scenarios.Select(s => s.Name).ToList(), NoiseTolerance.Measured);
+        foreach (var line in marginsLines.Where(l => l.EndsWith(" within noise", StringComparison.Ordinal)))
+        {
+            _output.WriteLine("DOMINATED WITHIN NOISE (recorded, does not gate): " + line);
+        }
+        CheckMarginsFile(marginsLines);
+        var failures = DominanceFailures(all, KnownDominatedForks, NoiseTolerance.Measured);
+        Assert.True(failures.Count == 0, "fork options dominated beyond the measured noise (BIBLE s6: a defect that blocks the content change):\n" + string.Join("\n", failures));
         var identical = IdenticalSiblings(all);
         Assert.True(identical.Count == 0, "sibling fork options that measure identically in every run (a player cannot tell them apart; retune the content):\n" + string.Join("\n", identical));
         var sameRuns = IdenticalRuns(all, Scenarios.Length);
@@ -486,5 +539,92 @@ public sealed class ForkParityTests
         Assert.False(Dominates(new[] { b[0] with { ClearTick = 999 }, b[1] with { Combos = 7 } }, b));
         Assert.False(Dominates(new[] { b[0] with { ClearTick = 999, Deaths = 2 }, b[1] }, b));
         Assert.False(Dominates(b, new[] { b[0] with { ClearTick = 999 }, b[1] }));
+    }
+
+    /// <summary>
+    /// Checks the run's margins against the checked-in ForkParity.margins.txt. With
+    /// KEYRUN_FORKPARITY_REBASELINE=1 the file is rewritten first, with the noise sweep re-measured into its header.
+    /// Red only when the recorded pair set differs from the measured one (a fork or option was added, removed or
+    /// renamed: re-baseline). Margin drift is printed, never red: margins move on every behaviour change.
+    /// </summary>
+    private void CheckMarginsFile(IReadOnlyList<string> lines)
+    {
+        var path = ForkParityMargins.FilePath(RolesOracleTraceTests.OracleDir());
+        if (Environment.GetEnvironmentVariable(ForkParityMargins.RebaselineVariable) == "1")
+        {
+            File.WriteAllText(path, ForkParityMargins.Render(lines, NoiseTolerance.Measured, MeasureNoise()));
+            _output.WriteLine("REBASELINED " + path);
+        }
+        Assert.True(File.Exists(path), $"{path} is missing: run the fork parity tests with {ForkParityMargins.RebaselineVariable}=1 once");
+        var recorded = ForkParityMargins.Parse(File.ReadAllText(path));
+        foreach (var drift in ForkParityMargins.Drift(recorded, lines, NoiseTolerance.Measured))
+        {
+            _output.WriteLine("MARGIN DRIFT beyond noise since the last re-baseline (informational): " + drift);
+        }
+        var changes = ForkParityMargins.PairSetChanges(recorded, lines);
+        Assert.True(changes.Count == 0, $"ForkParity.margins.txt records a different set of sibling pairs; re-baseline with {ForkParityMargins.RebaselineVariable}=1:\n" + string.Join("\n", changes));
+    }
+
+    /// <summary>
+    /// The noise sweep behind <see cref="NoiseTolerance.Measured"/>: every fork option and the base kit over
+    /// <see cref="NoiseSeeds"/> seeds at dial 90 (where the seed decides each bot's mistakes, so each seed is a different
+    /// trajectory through the same content) at keys 2 and 10. Per key: the base kit's spread, and the median over all
+    /// sibling pairs of the population standard deviation of the pair's per-seed margin. Run only when re-baselining.
+    /// </summary>
+    private static IReadOnlyList<string> MeasureNoise()
+    {
+        var registry = Registry.Value;
+        var lines = new List<string>();
+        foreach (var (key, file) in new[] { ("k2", "hollow-vault-k2.setup.json"), ("k10", "hollow-vault-k10.setup.json") })
+        {
+            var sweep = Enumerable.Range(1, NoiseSeeds).Select(seed => LoadScenario(("noise", file, seed, 90))).ToList();
+            var baseRuns = sweep.Select(s => Measure(s, null, null)).ToList();
+            var sds = new List<double>[] { new(), new(), new() };
+            foreach (var cls in registry.Classes.Values)
+            {
+                foreach (var fork in cls.Talents)
+                {
+                    var baseDef = registry.Abilities[fork.AbilityId];
+                    var options = fork.Options.Select(o => sweep.Select(s => Measure(s, cls.Id, ToSim(C.TalentPicks.ApplyPatch(baseDef, o.Patch)))).ToList()).ToList();
+                    for (var i = 0; i < options.Count; i++)
+                    {
+                        for (var j = i + 1; j < options.Count; j++)
+                        {
+                            var m = options[i].Zip(options[j], ForkParityMargins.Margin).ToList();
+                            if (m.All(x => x == (0, 0, 0)))
+                            {
+                                continue; // an unmeasured fork: both options run identically on every seed
+                            }
+                            sds[0].Add(PopulationSd(m.Select(x => (double)x.Clear)));
+                            sds[1].Add(PopulationSd(m.Select(x => (double)x.Deaths)));
+                            sds[2].Add(PopulationSd(m.Select(x => (double)x.Combos)));
+                        }
+                    }
+                }
+            }
+            var clears = baseRuns.Select(r => r.ClearTick).OrderBy(x => x).ToList();
+            var medianClear = Median(clears.Select(x => (double)x));
+            lines.Add(string.Create(CultureInfo.InvariantCulture,
+                $"{key} base kit, dial 90, seeds 1..{NoiseSeeds}: clear {clears[0]}..{clears[^1]} (median {medianClear:0}, sd {PopulationSd(clears.Select(x => (double)x)):0.0}), deaths {baseRuns.Min(r => r.Deaths)}..{baseRuns.Max(r => r.Deaths)}, combos {baseRuns.Min(r => r.Combos)}..{baseRuns.Max(r => r.Combos)}"));
+            lines.Add(string.Create(CultureInfo.InvariantCulture,
+                $"{key} paired margin sd, median over {sds[0].Count} sibling pairs: clear {Median(sds[0]):0.0} ticks ({Median(sds[0]) * 10000 / medianClear:0} bp of the median base clear), deaths {Median(sds[1]):0.00}, combos {Median(sds[2]):0.00}"));
+        }
+        return lines;
+    }
+
+    /// <summary>Seeds in the re-baseline noise sweep.</summary>
+    private const int NoiseSeeds = 12;
+
+    private static double PopulationSd(IEnumerable<double> values)
+    {
+        var v = values.ToList();
+        var mean = v.Average();
+        return Math.Sqrt(v.Sum(x => (x - mean) * (x - mean)) / v.Count);
+    }
+
+    private static double Median(IEnumerable<double> values)
+    {
+        var v = values.OrderBy(x => x).ToList();
+        return v.Count % 2 == 1 ? v[v.Count / 2] : (v[v.Count / 2 - 1] + v[v.Count / 2]) / 2;
     }
 }
