@@ -234,6 +234,17 @@ public static class RunRoot
         nextEncounter = echo.Encounter;
         nextState = RunWiring.MergeActors(nextState, echo.Spawned);
 
+        // BOSS-DEATH-ENDS-ENCOUNTER (f-77fcfca4, Matt 2026-10-20: "boss death ends the encounter, adds despawn, like
+        // WoW"): the step the armed boss dies, its adds have just despawned above, so its pull is cleared on this same
+        // step rather than on the next step's pre-combat check, and run-end detection below sees the encounter over.
+        // Unarmed runs (every oracle trace) never take this path. The dungeon is passed as the encounter step above gets
+        // it: every pull is spawned from tick 0 (PRESPAWN-AGGRO), so no unspawned-pull view is needed.
+        if (nextEncounter.Boss is { } dyingBoss
+            && events.Any(e => e.Type == "death" && e.Get("actorId") is JsInt id && id.Value == dyingBoss.Config.BossActorId))
+        {
+            nextEncounter = Pulls.CheckPullAdvance(nextState, run.Dungeon, nextEncounter, run.State.Tick, emit);
+        }
+
         RunWiring.FixupTargeting(nextState);
         // PATH-TO-BOSS (STATE.md D44): an open (abandoned or unfilled) seat is not in the run, so it never holds a wipe open.
         var openSeats = opts?.OpenSeats;
