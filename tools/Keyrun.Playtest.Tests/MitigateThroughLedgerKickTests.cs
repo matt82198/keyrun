@@ -38,7 +38,10 @@ public sealed class MitigateThroughLedgerKickTests
     // MPLUS-PATROLS re-derivation (ruling R6, the corridor-2 patrol on feat/mplus-patrols-2; a measurement by a temporary
     // probe on the merged tree, the assertions are unchanged): was 7406. With the patrol the kick-plan run ends Timed at
     // 9231; its first boss cleave is telegraphed at 8724 and resolves at 8764, so 11 ticks in is 8735.
-    private const int Tick = 8735;
+    // R-PATROL-3b re-derivation (a measurement by a temporary probe on the patrol-swing trajectory, assertions unchanged):
+    // was 8735. The patrol's own swing and HP change the timeline; the kick-plan run now ends Timed at 8017 and its first
+    // boss cleave is telegraphed at 7564 and resolves at 7604, so 11 ticks in is 7575.
+    private const int Tick = 7575;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 

@@ -18,6 +18,12 @@ public static class LayoutPackGroups
     /// <summary>The host's first pack actor id: above the teaching pulls (from 100) and below the boss (900).</summary>
     public const int FirstActorId = 500;
 
+    /// <summary>R-PATROL-3b: the Choir melee swing a patrol member's script names in the Choir pull's data.</summary>
+    public const string PatrolSwingFrom = "choir.meleeSwing";
+
+    /// <summary>R-PATROL-3b: the patrol's own swing (game/content/data/abilities/patrol.json).</summary>
+    public const string PatrolSwingAbilityId = "choir.patrolSwing";
+
     /// <summary>
     /// The packs of <paramref name="layout"/> as sim groups. A member is a copy of the first spawn of the same enemy in
     /// <paramref name="dungeon"/> (pull order), so it carries that spawn's Tempo- and affix-scaled health, speed and chase
@@ -184,7 +190,9 @@ public static class LayoutPackGroups
                     // R-PATROL-3: the patrol's healthBp scales each member's scaled template health (10000 = the template's own).
                     var health = template.Health * (patrol.HealthBp ?? 10000) / 10000;
                     spawns.Add(template with { ActorId = actorId, Pos = new Vec3(group.Spawn.X, 0, group.Spawn.Z), Yaw = 0, Health = health });
-                    merged[actorId] = script;
+                    // R-PATROL-3b: a patrol member swings with the patrol's own ability (choir.patrolSwing, the same cadence
+                    // and its own raw damage); the Choir pull's choir.meleeSwing is untouched.
+                    merged[actorId] = script.Select(s => string.Equals(s.Cast, PatrolSwingFrom, StringComparison.Ordinal) ? s with { Cast = PatrolSwingAbilityId } : s).ToList();
                 }
             }
             var waypoints = patrol.Waypoints.Select(w => new Vec3(w.X, 0, w.Z)).ToList();

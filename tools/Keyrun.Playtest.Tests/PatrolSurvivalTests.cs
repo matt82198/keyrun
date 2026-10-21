@@ -34,6 +34,39 @@ public sealed class PatrolSurvivalTests
         var wardenDeath = deaths.Where(d => d.Actor == WardenId).Select(d => (int?)d.Tick).FirstOrDefault();
         Assert.True(wardenDeath is null || wardenDeath > lastPatrolDeath,
             $"the Warden died at tick {wardenDeath} before the patrol was dead (last patrol death {lastPatrolDeath})");
+
+        // R-PATROL-3b: the Warden finishes the patrol with at least 10% of its max health (40 of 400) left.
+        var hp = WardenHealthAt(run, lastPatrolDeath);
+        Assert.True(hp >= MinHealthLeft, $"the Warden had {hp} of {WardenMaxHealth} health at the last patrol death (tick {lastPatrolDeath}); want at least {MinHealthLeft}");
+    }
+
+    private const long WardenMaxHealth = 400;
+    private const long MinHealthLeft = 40;
+
+    /// <summary>The Warden's health at <paramref name="tick"/>: full at the start, less each health damage it takes, plus each heal (capped at max), in event order.</summary>
+    private static long WardenHealthAt(HostBackfillRunTests.ArenaRun run, int tick)
+    {
+        long hp = WardenMaxHealth;
+        foreach (var x in run.Events)
+        {
+            if (x.Event.Tick > tick)
+            {
+                break;
+            }
+            if (ActorOf(x.Event, "targetId") != WardenId)
+            {
+                continue;
+            }
+            if (x.Event.Type == "damage")
+            {
+                hp -= ActorOf(x.Event, "healthDamage");
+            }
+            else if (x.Event.Type == "heal")
+            {
+                hp = Math.Min(WardenMaxHealth, hp + ActorOf(x.Event, "amount"));
+            }
+        }
+        return hp;
     }
 
     [Fact(DisplayName = "Patrol survival (R-PATROL-3 guard, default three-seat party): the patrol engages and the Warden loses at least a quarter of its max health to it")]

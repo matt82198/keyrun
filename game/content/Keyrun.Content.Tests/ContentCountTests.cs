@@ -14,7 +14,7 @@ public sealed class ContentCountTests
     {
         ContentRegistry reg = ContentLoader.Load();
 
-        Assert.Equal(40, reg.Abilities.Count); // 40 since SEED-LOCK-TEACHES added seed.lock (was 39)
+        Assert.Equal(41, reg.Abilities.Count); // 41 since R-PATROL-3b added choir.patrolSwing (was 40; SEED-LOCK-TEACHES added seed.lock, was 39)
         Assert.Equal(23, reg.Effects.Count); // 23 since R-PILE-7e added chorusEcho (Encore's echo; was 22)
         Assert.Equal(3, reg.Classes.Count);
         Assert.Equal(13, reg.Combos.Count);
@@ -36,12 +36,13 @@ public sealed class ContentCountTests
         // pack fields, PATH-PACKS: 27 -> 28, an inventory raise for a real 8th enemy, STATE.md D49). FOLD-U3 retired
         // packs.json (R7: one pack layer, the packs live in layout.json), so 28 -> 27. melee-abilities.json (KF1 strike-cue
         // melee set, ruling R9/R10) is C#-only too, so 27 -> 28.
+        // R-PATROL-3b: abilities/patrol.json (the patrol's own swing, choir.patrolSwing) is C#-only too, so 28 -> 29.
         string[] csharpOnly =
         {
             "run.json", "layout.json", "theme.json", "combo-riders.json", "forces.json", "hazards.json",
-            "gear.json", "enemies/hall.json", "melee-abilities.json",
+            "gear.json", "enemies/hall.json", "melee-abilities.json", "abilities/patrol.json",
         };
-        Assert.Equal(28, embedded.Length);
+        Assert.Equal(29, embedded.Length);
         Assert.Equal(19, embedded.Count(p => !csharpOnly.Contains(p)));
         Assert.Equal(embedded, loaded);
     }
