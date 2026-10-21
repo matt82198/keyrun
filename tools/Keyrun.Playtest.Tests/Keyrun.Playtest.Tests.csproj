@@ -32,6 +32,8 @@
     <Compile Include="../../game/src/Host/CastTargeting.cs" Link="Host/CastTargeting.cs" />
     <!-- Run F's abandon-seat plan, fixed or pull-relative (R-415-D; SeatAbandonPlanTests, RunFJoinerActsTests). Godot-free. -->
     <Compile Include="../../game/src/Host/SeatAbandonPlan.cs" Link="Host/SeatAbandonPlan.cs" />
+    <!-- f-04dba988: the HUD's Godot-free MISS/IMMUNE word path (CombatText.cs calls it per event), driven by real runs. -->
+    <Compile Include="../../game/src/Hud/CombatTextWords.cs" Link="Hud/CombatTextWords.cs" />
   </ItemGroup>
 
   <ItemGroup>
