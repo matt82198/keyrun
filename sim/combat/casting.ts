@@ -26,7 +26,7 @@ import { applyHeal } from "./damage";
 import { creditResource, dealDamage } from "./mitigation";
 import { addThreat } from "./threat";
 import { applyTaunt, isTaunt } from "./holder";
-import { resolveTargets } from "./targeting";
+import { releaseCastTarget, resolveTargets } from "./targeting";
 import { isqrt } from "./movement";
 import { shouldSilence } from "../encounter/clauses";
 import { getActiveEncounterRules } from "./clause-hooks";
@@ -84,6 +84,9 @@ export function startCast(
   actor.castId = def.id;
   actor.castStartTick = now;
   actor.castEndsTick = now + def.castTicks;
+  // CAST-KEEPS-START-TARGET: a new cast starts unpinned; it resolves on the target set here unless a mid-cast
+  // setTarget pins it (targeting.ts). Mirrors Casting.cs StartCast.
+  releaseCastTarget(actor);
   if (targetId !== undefined) actor.targetId = targetId;
   return null;
 }
@@ -98,6 +101,7 @@ export function stopcast(actor: ActorState, emit: (e: SimEvent) => void, tick: T
   if (actor.castId === null) return;
   emit({ tick, type: "cast_stopped", actorId: actor.id, abilityId: actor.castId });
   clearCast(actor);
+  releaseCastTarget(actor);
 }
 
 export function completeCast(state: SimState, actor: ActorState, ctx: CastContext, emit: (e: SimEvent) => void): void {
@@ -171,6 +175,7 @@ export function interruptCast(
   const school = abilitySchool(castDef);
   const abilityId = target.castId;
   clearCast(target);
+  releaseCastTarget(target);
   target.effects.push({
     effectId: lockoutEffectId(school),
     sourceId,

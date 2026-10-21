@@ -110,6 +110,9 @@ public static class Casting
         actor.CastStartTick = now;
         actor.CastEndsTick = now + ChilledCastTicks(actor, def.CastTicks, rule, ctx, now);
         actor.CastIsOverheat = overheat;
+        // CAST-KEEPS-START-TARGET: a new cast starts unpinned; it resolves on the target set here unless a mid-cast
+        // SetTarget pins it. Mirrors casting.ts startCast.
+        ReleaseCastTarget(actor);
         if (targetId is not null)
         {
             actor.TargetId = targetId;
@@ -272,6 +275,45 @@ public static class Casting
         }
         emit(new SimEvent(tick, "cast_stopped", ("actorId", JsValue.Int(actor.Id)), ("abilityId", JsValue.Str(actor.CastId))));
         ClearCast(actor);
+        ReleaseCastTarget(actor);
+    }
+
+    /// <summary>
+    /// CAST-KEEPS-START-TARGET (finding f-bd8fbbb1, the WoW rule: a cast resolves on the target it started on;
+    /// sim/combat/targeting.ts setTarget). The caster's own retarget (a TargetCommand, Rules) goes through here. A
+    /// retarget while a cast is in flight first pins the target that cast started on, so the cast still resolves there;
+    /// the new target is for the next press. The pin is taken only on a real change mid-cast. The sim's own dead-target
+    /// auto-retarget (Runs.RunWiring.FixupTargeting) deliberately does not pin.
+    /// </summary>
+    /// <param name="actor">The actor retargeting.</param>
+    /// <param name="targetId">Its new current target, or null.</param>
+    public static void SetTarget(ActorState actor, int? targetId)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.CastId is not null && !actor.CastTargetPinned && targetId != actor.TargetId)
+        {
+            actor.CastTargetPinned = true;
+            actor.CastTargetId = actor.TargetId;
+        }
+        actor.TargetId = targetId;
+    }
+
+    /// <summary>The target the cast in flight resolves on: its pinned start target, else the current target.</summary>
+    /// <param name="actor">The caster.</param>
+    /// <returns>The cast's target id, or null.</returns>
+    public static int? CastTargetOf(ActorState actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return actor.CastTargetPinned ? actor.CastTargetId : actor.TargetId;
+    }
+
+    /// <summary>Drops the pin once the cast is over (completed with its Windows, stopped, interrupted, or replaced).</summary>
+    /// <param name="actor">The caster.</param>
+    public static void ReleaseCastTarget(ActorState actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        actor.CastTargetPinned = false;
+        actor.CastTargetId = null;
     }
 
     /// <summary>
@@ -421,6 +463,7 @@ public static class Casting
         var school = Abilities.AbilitySchool(castDef);
         var abilityId = target.CastId;
         ClearCast(target);
+        ReleaseCastTarget(target);
         target.Effects.Add(new EffectInstance
         {
             EffectId = LockoutEffectId(school),
