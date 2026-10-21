@@ -289,6 +289,26 @@ Rulings (one line each, from the 09:55Z block):
 - R-WIPE-RESET: packs reset at spawn after a wipe, as in WoW (f-b8d3aacd).
 - R-REFUSE-1: not_ready refusal reporting (f-9bef5d59) waits for #444 and a trace re-record slot.
 
+## 2026-10-21T10:15Z PR and pile status
+WHY: the pile Matt asked for is landing: #302 (r2 caster ops, Matt's arm) and seven fleet PRs merged in one CI cycle, so the findings they fixed close on pr_merged_check receipts and their worktrees go. The P0 wrong-label fix is a PR now, ahead of feature work, as the P0 rule requires. Every PR state below is read from gh.
+MERGED (pr_merged_check on main@b2e81a5): #302 d2f1df7, #441 cbe505d, #442 8f1f0c1, #443 899a2ab, #444 14cfb0d, #447 f88d9ab, #448 b2e81a5 (09:50Z/09:55Z checkpoint blocks), #450 9a0d4c1. Closed: f-c94c7cd7 (#441), f-0fb803dc (#442), f-fa598b6b (#444), f-0fd3e6fb (#447), f-e3daed76 (#450), f-a1168fa1 (#302). Worktrees removed after clean status: tempo-pack-scale, chorus-echo, melee-desync, cast-ledger-range, runf-abandon, forkparity-margins, ckpt-1055z, mf-302.
+- #451 ckpt/1105z 5792a774 OPEN armed SQUASH 10:08:26Z (10:00Z and 10:05Z blocks; STATE.md gained the 10:05Z "PR and pile status" block and NOW 10:05Z list at the first NEXT STEPS heading ~line 278; the 02:35Z NEXT STEPS at ~line 1114 is stale and needs a consolidation pass). Worktree keyrun-wt/ckpt-1105z held.
+- #452 fix/slack-label-cause 9dd7c091 OPEN armed SQUASH 10:12:50Z BLOCKED (P0 f-44796144): SlackReading.Label picks its text from a RunEndCause derived from RunEnd.Result and whether every pull cleared, not from the Depleted flag; red-first (over-par clear printed "Wiped -- key stays +7"); local Sim 1275/1275, Playtest 157/157, Bots 298/298, vitest 1158/1158. Label table: over-par clear "Over par -- key stays +K"; lasting wipe "Wiped -- key stays +K"; abandoned "Abandoned -- key stays +K" (was "Deaths N (+Xs)"). RULING R-LABEL-1 (dungeon loop, WoW): an abandoned key is its own end cause and the label says so; leaving a key depletes it, so "Abandoned -- key stays +K" is the honest reading. Confirmed. #446's cap end adds one CauseOf case ("Out of time") when it lands. Finding closes on pr_merged_check MERGED. Worktree keyrun-wt/slack-label held.
+- #449 integrate/bots-20261021 da94654b OPEN armed, fix lane a4467a88239cbf4b5 (opus) still working the twelve reds under R-BOTS-1..8; main now carries #447 (R-RUNF-2) and #450 (noise tolerance), so reds 5 and 9 can be re-measured after it merges main. f-82e6a860 deferred 48h with that reason.
+- #445 fix/retarget-fizzle c829f23e OPEN armed; its fork-parity red predates #450's tolerance on main; bring-up lane dispatched (merge main, re-measure, R-FIZZLE-2: no retune, no KnownDominatedForks entry). #446 feat/wipe-is-release cfaa3167 OPEN armed. #375 feat/mplus-patrols DIRTY, waits for #449 (same files). #382, #306, #250 OPEN armed, state UNKNOWN. #418 draft, Matt's bible call (f-82d9390e).
+- claude-config #229 d67a047f OPEN UNSTABLE: the only red is trailer-gate, failing at "Check out claude-scripts" with "Input required and not supplied: token" (run 39581777976); a workflow secret, not the PR; gate is non-required. Finding f-cfa1dee5 (Matt supplies the token). Arm lane dispatched; ~/.claude ff-pull after pr_merged_check MERGED.
+- Stale notification: task ac59e73493f5321c5 ran 2026-10-20 17:49Z to 18:40Z and pushed fix/read-gates-failclosed, which became claude-config #165 MERGED cedb26ce. Nothing owed.
+- Model lever renewed 10:11Z (default haiku, max opus, ttl 3h, expires ~13:11Z). Cadence: heartbeat 1640 s at 10:13Z, no monitor running, relaunch dispatched (haiku, one cycle).
+- Open keyrun findings after this block: 34. Idle tick TOP items are Matt's calls (f-37ad66b3 Smart App Control, f-82d9390e six-body Choir) and the D15 KF1 row (f-fa28e36e), whose fix #432 is on main.
+
+NOW 10:15Z (supersedes the NOW 09:55Z list below):
+- D15 frame capture by the orchestrator on origin/main b2e81a5c (worktree at main, `powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/screens.ps1 -OutDir <dir>` under the launch lock) to close f-fa28e36e, f-6b1cd469, f-83c5e369, f-682aacb5, IMMUNE/#433 and ready-check rows, plus the K1 input-log golden re-record (f-6867e403).
+- Bind #449, #445, #452, #451, #229 on hand-back.
+- #375 after #449.
+- STATE.md NEXT STEPS consolidation (one NOW list).
+- Merge queue after #449, #418, #375.
+- Matt: close #362 #364 #326, rule on the six-body Choir and the #446 cap values, supply the trailer-gate token, Smart App Control.
+
 ## NEXT STEPS (engine plan, design/ENGINE-PLAN.md; Phase 5 "Matt playing" stays the acceptance test)
 NOW 09:55Z (ckpt/1055z; supersedes the 02:20Z and 01:35Z lists below where they differ):
 - Bind the remaining five fleet hand-backs from gh, one PR at a time.
