@@ -38,13 +38,6 @@ public sealed record ForcesTable
     /// <summary>Points that fill the bar (100%); the Hollow Door needs at least this many.</summary>
     public required int Required { get; init; }
 
-    /// <summary>
-    /// BOSS-DOOR (BIBLE s9.5, ruling R3): the share of the bar the Hollow Door needs, in basis points (10000 = 100%). An
-    /// absent field is 10000, the BIBLE's full bar, so the door fails closed to 100%. The shipped value is the teaching
-    /// pulls' share; optional packs raise it as they land.
-    /// </summary>
-    public int BossDoorRequiredBp { get; init; } = 10000;
-
     /// <summary>Per-enemy values.</summary>
     public required ValueList<ForcesValue> Values { get; init; }
 

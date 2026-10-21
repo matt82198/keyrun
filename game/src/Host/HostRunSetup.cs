@@ -190,7 +190,6 @@ public sealed record HostRunSetup(
             FieldCombos = fieldCombos,
             Clauses = clauses,
             Layout = nav,
-            BossDoor = BossDoorOf(registry),
             Packs = packs,
             StopEffectIds = StopEffectIds,
             StunEffectIds = StunEffectIds,
@@ -258,20 +257,6 @@ public sealed record HostRunSetup(
         return registry.Classes.Values
             .Where(c => c.Loop.Kind == C.LoopKind.HeatOverheat)
             .ToDictionary(c => c.Id, c => new OverheatRule(c.Loop.Max, chill.ChillEffectId, chill.ChillTicks), StringComparer.Ordinal);
-    }
-
-    /// <summary>
-    /// BOSS-DOOR (BIBLE s9.5, ruling R3): the Hollow Door's gate from forces.json. The Seed is the route's rejoin pull
-    /// (every branch rejoins there, and it is the last teaching pull before the boss); the boss pull is the layout's.
-    /// </summary>
-    /// <param name="registry">The loaded content (validated at load).</param>
-    /// <returns>The door's data.</returns>
-    public static BossDoorGate BossDoorOf(C.ContentRegistry registry)
-    {
-        ArgumentNullException.ThrowIfNull(registry);
-        var forces = registry.Forces;
-        var points = forces.Values.ToDictionary(v => v.EnemyId, v => v.Points, StringComparer.Ordinal);
-        return new BossDoorGate(forces.Route.RejoinPull, C.LayoutDef.BossPullId, points, forces.Required, forces.BossDoorRequiredBp);
     }
 
     /// <summary>

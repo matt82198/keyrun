@@ -276,11 +276,6 @@ public static class Follow
         ArgumentNullException.ThrowIfNull(self);
         ArgumentNullException.ThrowIfNull(run);
         var layout = run.Content.Layout ?? throw new ArgumentException("the run has no layout", nameof(run));
-        // DOOR-100: a short Enemy Forces bar sends the leader to pull the nearest pack in this room that lifts it.
-        if (LayoutPackGroups.ForcesDetourGoal(run, self) is { } detour)
-        {
-            return WalkTo(tick, self, layout, detour);
-        }
         var index = run.Encounter.PullIndex;
         var (_, high) = Span(layout, self.Pos);
         if (high > 0 && index < run.Dungeon.Pulls.Count && !Pulls.IsEngaged(run.Encounter, run.Dungeon, index) &&
