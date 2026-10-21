@@ -275,8 +275,34 @@ WHY: the orchestrator is compacting at the context ceiling. Every item below is 
 - aesop #1243: pushed ca8353a8 (gate test wired in ci.yml), armed, BLOCKED on checks. WHY: the verify_gates_wired red was an unwired test file, so the fix is wiring, not relaxing the gate.
 - WHY this checkpoint, restated: the orchestrator is compacting at the context ceiling, so the funnel state and each pending action are written to disk before compaction. Next session: read this block, then the 03:30Z correction block, then sync git log; do not re-derive gh state from memory.
 
+## 2026-10-21T10:05Z PR and pile status
+WHY: the bots pile is one integration PR with twelve local C# reds, each ruled below so the fix lane works from decisions; the ForkParity margins PR and the run F abandon PR are open. PR states are read from gh at 10:05Z.
+- #448 ckpt/1055z 17027b5d OPEN armed (SQUASH). WHY: it carries the 09:50Z and 09:55Z checkpoint blocks (STATE.md "PR and pile status" block, INTENT and Current Version untouched).
+- #449 integrate/bots-20261021 da94654b OPEN armed BLOCKED: bots pile #295 #327 #298 on main a7069768, twelve local C# reds diagnosed and ruled R-BOTS-1..8. WHY blocked: the reds are real, and game-test stays red until the fix lane lands.
+  - R-BOTS-1 (red 1, cast 664 drew 2 kick commands): a kick counts when it lands, not when it is pressed.
+  - R-BOTS-2 (red 2, cast 1840 never kicked): a cast ended by the caster's death owes no kick (R-DEADCAST-1).
+  - R-BOTS-3 (red 3, Dissonance at 109): D-HEALER-DOWNTIME wins; the press comes within one GCD once free.
+  - R-BOTS-4 (red 4, converter vs setup kit diverge): HealerIdle must not depend on view.Kits.Content.
+  - R-BOTS-5 (red 5, dissonance:discord dominated by amplify): same as R-FIZZLE-2; no KnownDominatedForks entry, re-evaluate against #450.
+  - R-BOTS-6 (reds 6-8, pinned scenes and R-PILE-8 guard and policy healer walk): main's scene intent is the contract; bots change, assertions do not.
+  - R-BOTS-7 (red 9, RunFJoinerActs refilled seat never casts): not fitted; waits for #447 (R-RUNF-2) and #446 (R-BACKFILL-2).
+  - R-BOTS-8 (red 10, HostBackfillRunTests F/G at fixed abandon 1500): port to SeatAbandonPlan pull-relative form; do not retire.
+- #450 test/forkparity-margins af96929f OPEN armed BLOCKED: dominance gates only beyond a measured seed-noise tolerance (clear 715 bp, deaths 0, combos 3). WHY: an exact-margin gate reds on noise, not on a real dominated fork.
+- claude-config #229 d67a047f OPEN UNSTABLE, not armed (f-048d096c: no-lane-game-launch narrowing, 704/704 after red 6/704 on the old hook). WHY not armed: stated in the source block as not armed; state is UNSTABLE on gh.
+- R-RUNF-2 (ruling on #447): the health anchor replaces the first-death anchor for run F (2@pull0.hp10+1). WHY: the first-death anchor wipes the party on seed 1 key 2 (leave 1031, Warden dies 1454), while 10% remaining Choir health survives to teach backfill (leave 1458, clear 1609, refill 1722). Run F exists to teach backfill, not to wipe.
+
 ## NEXT STEPS (engine plan, design/ENGINE-PLAN.md; Phase 5 "Matt playing" stays the acceptance test)
-NOW 02:20Z (supersedes the 01:35Z list below where they differ):
+NOW 10:05Z (supersedes the NOW 02:20Z list below; the NOW 09:55Z list is not on origin/main, so nothing of it is marked here):
+- Fix lane for the #449 reds under R-BOTS-1..8 (opus).
+- P0 f-44796144 label lane (opus) now, ahead of feature work.
+- Checkpoint lane for the 10:00Z and 10:05Z blocks.
+- D15 rows after #442/#446 land.
+- #375 after #449.
+- Matt: close #362 #364 #326; rule on the six-body Choir and the #446 cap values.
+- Merge queue after #302, #449, #418, #375.
+- Renew the model lever before ~11:26Z.
+
+NOW 02:20Z (superseded by the NOW 10:05Z list above; kept for history):
 a. #396 green, then MERGED (verified with gh, never from narration). Then the orchestrator fast-forwards the primary tree, runs tools/godot/screens.ps1, and views the frames (D15) before closing the demo-verdict rows KF1, KF2 and KF3. WHY: D15 acceptance is Matt watching frames; a unit test alone does not close a visible row.
 b. Merge-forward the conflicting set after #396 MERGED. WHY: each conflict is resolved against the real merged base, keeping both intents.
 c. Enable the GitHub merge queue (Matt approved) after the pile lands per plan. WHY: a queue on a red pile only serialises the failures.
