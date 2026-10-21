@@ -97,6 +97,27 @@ public sealed class EveryEnemyAbilityTelegraphedTests
 
     private static int CastTicks(JsObject ability) => (int)(IntOf(ability.Get("castTicks")) ?? 0);
 
+    /// <summary>The Pair's mark rules as content/data's run.json pairMarks ships them: read from the file, no second copy of the numbers.</summary>
+    private static Keyrun.Sim.Combat.MarkRules ShippedMarks()
+    {
+        var run = (JsObject)JsValue.Parse(File.ReadAllText(Path.Combine(Root, "game", "content", "data", "run.json")));
+        var m = (JsObject)run.Get("pairMarks")!;
+        return new Keyrun.Sim.Combat.MarkRules(
+            StrOf(m.Get("spreadEffectId"))!,
+            IntOf(m.Get("spreadRadiusMm"))!.Value,
+            IntOf(m.Get("spreadDamage"))!.Value,
+            StrOf(m.Get("stackEffectId"))!,
+            IntOf(m.Get("stackRadiusMm"))!.Value,
+            IntOf(m.Get("stackDamage"))!.Value);
+    }
+
+    /// <summary>A Pair mark ability: an applyEffect of the spread or stack mark. Its floor shape is the ring on the marked player.</summary>
+    private static bool IsMarkAbility(JsObject ability, Keyrun.Sim.Combat.MarkRules marks) =>
+        Effects(ability).Any(op => StrOf(op.Get("op")) == "applyEffect" && StrOf(op.Get("effectId")) is { } id && (id == marks.SpreadEffectId || id == marks.StackEffectId));
+
+    private static HashSet<string> MarkAbilityIds(Dictionary<string, JsObject> abilities, Keyrun.Sim.Combat.MarkRules marks) =>
+        abilities.Where(kv => IsMarkAbility(kv.Value, marks)).Select(kv => kv.Key).ToHashSet(StringComparer.Ordinal);
+
     /// <summary>A telegraph shape the player can read with the colour removed, with a nonzero size.</summary>
     private static string? ShapeProblem(string? shape, long? radius, long? angle, long? length, long? width) => shape switch
     {
@@ -178,6 +199,7 @@ public sealed class EveryEnemyAbilityTelegraphedTests
         var enemies = Enemies();
         var threats = Threats().ToList();
         Assert.True(threats.Count >= 6, $"only {threats.Count} threats enumerated: the classifier is not reading the content");
+        var markIds = MarkAbilityIds(abilities, ShippedMarks());
         var gaps = new List<string>();
         foreach (var (enemyId, abilityId) in threats)
         {
@@ -190,6 +212,12 @@ public sealed class EveryEnemyAbilityTelegraphedTests
             if (steps.Count == 0)
             {
                 gaps.Add($"{enemyId} {abilityId}: in the kit but no script step casts it, so it has no telegraph");
+            }
+            if (markIds.Contains(abilityId))
+            {
+                // A mark's floor shape is the ring on the marked player (Mark_abilities_have_no_caster_centred_telegraph and
+                // Every_mark_is_a_ring_on_the_marked_player_until_it_resolves), not a script telegraph around the caster.
+                continue;
             }
             foreach (var s in steps)
             {
@@ -319,7 +347,7 @@ public sealed class EveryEnemyAbilityTelegraphedTests
     /// telegraph resolving on the landing tick drawn no later than the bar's start and at least
     /// <see cref="MinLeadTicks"/> ahead, on the floor for the whole bar. Returns the landings judged.
     /// </summary>
-    private static int JudgeLandings(Played p, int actor, string enemyId, int key, IReadOnlyCollection<string> threats, Dictionary<string, JsObject> abilities, List<string> gaps)
+    private static int JudgeLandings(Played p, int actor, string enemyId, int key, IReadOnlyCollection<string> threats, Dictionary<string, JsObject> abilities, List<string> gaps, IReadOnlySet<string> ringTelegraphed)
     {
         var judged = 0;
         foreach (var done in p.Events.Where(e => e.Type == "cast_complete" && Int(e, "actorId") == actor))
@@ -348,6 +376,11 @@ public sealed class EveryEnemyAbilityTelegraphedTests
                 gaps.Add($"{where}: bar ran {lands - barStart} ticks, content castTicks {castTicks}");
             }
 
+            if (ringTelegraphed.Contains(cast))
+            {
+                // A Pair mark: its telegraph is the ring on the marked player, judged by the mark rule, not a bar-start telegraph.
+                continue;
+            }
             var tg = p.Events.FirstOrDefault(e => e.Type == "telegraph" && Int(e, "actorId") == actor && Str(e, "cast") == cast && Int(e, "resolvesTick") == lands);
             if (tg is null)
             {
@@ -389,11 +422,12 @@ public sealed class EveryEnemyAbilityTelegraphedTests
         var threats = Threats().ToList();
         var gaps = new List<string>();
         var landed = new Dictionary<(string, string), int>();
+        var markIds = MarkAbilityIds(abilities, ShippedMarks());
 
         void Judge(Played p, int actor, string enemyId)
         {
             var mine = threats.Where(t => t.Enemy == enemyId).Select(t => t.Ability).ToList();
-            JudgeLandings(p, actor, enemyId, key, mine, abilities, gaps);
+            JudgeLandings(p, actor, enemyId, key, mine, abilities, gaps, markIds);
             foreach (var a in mine)
             {
                 landed[(enemyId, a)] = p.Events.Count(e => e.Type == "cast_complete" && Int(e, "actorId") == actor && Str(e, "abilityId") == a);
@@ -417,5 +451,90 @@ public sealed class EveryEnemyAbilityTelegraphedTests
             Assert.True(n >= 2, $"key {key}: {enemyId} {ability} landed {n} times in {Ticks} ticks, too few to judge");
         }
         Assert.True(gaps.Count == 0, $"key {key}: {gaps.Count} untelegraphed landings (BIBLE s3):\n" + string.Join("\n", gaps.Take(20)));
+    }
+
+    [Fact(DisplayName = "A Pair mark ability draws no caster-centred telegraph: the ring on the marked player is its telegraph")]
+    public void Mark_abilities_have_no_caster_centred_telegraph()
+    {
+        var marks = ShippedMarks();
+        var abilities = EnemyAbilities();
+        var found = new List<string>();
+        var gaps = new List<string>();
+        foreach (var (enemyId, enemy) in Enemies().OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        {
+            foreach (var id in Kit(enemy))
+            {
+                if (!abilities.TryGetValue(id, out var a) || !IsMarkAbility(a, marks))
+                {
+                    continue;
+                }
+                found.Add(id);
+                foreach (var step in ScriptSteps(enemy).Where(st => StrOf(st.Get("cast")) == id))
+                {
+                    if (step.Get("telegraph") is JsObject tg)
+                    {
+                        gaps.Add($"{enemyId} {id} (at {step.Get("at")}): a {StrOf(tg.Get("shape"))} of radius {IntOf(tg.Get("radius"))} drawn around the caster, where no mark lands");
+                    }
+                }
+            }
+        }
+        Assert.True(found.Contains("pair.spreadMark") && found.Contains("pair.stackCall"), $"the mark classifier missed the Pair: {string.Join(", ", found)}");
+        Assert.True(gaps.Count == 0, $"{gaps.Count} mark casts still draw a caster-centred telegraph (BIBLE s3, s9 The Pair):\n" + string.Join("\n", gaps));
+    }
+
+    [Theory(DisplayName = "In play, every Pair mark is a ring on the marked player from the tick it lands until it resolves, at the detonation radius")]
+    [MemberData(nameof(Keyed))]
+    public void Every_mark_is_a_ring_on_the_marked_player_until_it_resolves(int key)
+    {
+        var marks = ShippedMarks();
+        var enemies = Enemies();
+        var setup = RunSetup.Load(OracleFixtures.PathOf("hollow-vault-k2.setup.json"), BossTestKit.Seed);
+        var dungeon = new DungeonDef("hollow-vault", new[]
+        {
+            new PullDef("solo", new[] { new PullSpawn(SoloActor, "pair.melee", new Vec3(0, 0, 0), 512, 100_000_000) }),
+        });
+        var content = BaseContent(setup, new Dictionary<int, IReadOnlyList<ScriptStep>> { [SoloActor] = Scaled(enemies["pair.melee"], key) }) with { Marks = marks };
+        var run = RunRoot.CreateRun(BossTestKit.Seed, Party(1000), dungeon, content);
+        var lands = new Dictionary<(int Actor, string Effect, int EndsTick), int>();
+        var gaps = new List<string>();
+        while (run.State.Tick < Ticks)
+        {
+            run = RunRoot.StepRun(run, Array.Empty<Command>()).Run;
+            var now = run.State.Tick;
+            var rings = Keyrun.Sim.Combat.PairMarks.Rings(run.State, marks);
+            foreach (var actor in run.State.Actors.Values.Where(a => a.Alive))
+            {
+                foreach (var (effectId, kind, radius) in new[]
+                {
+                    (marks.SpreadEffectId, Keyrun.Sim.Combat.MarkKind.Spread, marks.SpreadRadiusMm),
+                    (marks.StackEffectId, Keyrun.Sim.Combat.MarkKind.Stack, marks.StackRadiusMm),
+                })
+                {
+                    var live = actor.Effects.Where(e => e.EffectId == effectId && e.EndsTick >= now).ToList();
+                    if (live.Count == 0)
+                    {
+                        continue;
+                    }
+                    foreach (var e in live)
+                    {
+                        lands.TryAdd((actor.Id, effectId, e.EndsTick), now);
+                    }
+                    var earliest = live.Min(e => e.EndsTick);
+                    var ring = rings.FirstOrDefault(r => r.ActorId == actor.Id && r.Kind == kind);
+                    if (ring is null || ring.EndsTick != earliest)
+                    {
+                        gaps.Add($"tick {now}: {effectId} on actor {actor.Id} resolves on {earliest} with no ring until then");
+                    }
+                    else if (ring.RadiusMm != radius)
+                    {
+                        gaps.Add($"tick {now}: {effectId} ring on actor {actor.Id} has radius {ring.RadiusMm}, detonation radius {radius}");
+                    }
+                }
+            }
+        }
+        var spread = lands.Keys.Count(k => k.Effect == marks.SpreadEffectId);
+        var stack = lands.Keys.Count(k => k.Effect == marks.StackEffectId);
+        Assert.True(spread >= 2 && stack >= 2, $"key {key}: {spread} spread and {stack} stack marks landed in {Ticks} ticks, too few to judge");
+        Assert.True(gaps.Count == 0, $"key {key}: {gaps.Count} marks without their ring (BIBLE s3, s9 The Pair):\n" + string.Join("\n", gaps.Take(20)));
     }
 }

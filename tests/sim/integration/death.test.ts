@@ -154,41 +154,30 @@ describe("pair.melee's spreadMark/stackCall fire on offset schedules (integratio
       enemyScripts: { [PAIR_ID]: pairDef.script },
     };
 
-    return createRun(SEED, [], dungeon, runContent);
+    // A warden 1 m away: pair.spreadMark's shape is "target" and a scripted cast with no target is blocked before it is
+    // issued, so the schedule needs someone to aim at. Range 25000 covers it.
+    const party: PartyMemberSpec[] = [
+      { id: PLAYER_ID, classId: "warden", role: "tank", pos: { x: 1000, y: 0, z: 0 }, maxHealth: 2000, maxResource: 150 },
+    ];
+    return createRun(SEED, party, dungeon, runContent);
   }
 
   it("spreadMark starts its loop at 400 and stackCall starts ten seconds later, at 600", () => {
-    // Scheduling is asserted off "telegraph" SimEvents (resolvesTick = the tick the scripted cast
-    // actually fires), not "cast_complete": pair.spreadMark's ability shape is "target" and no
-    // targetId is ever assigned here on purpose -- assigning one is sim/encounter/script-target.ts's
-    // job (the concurrent enemy-targeting lane this PR must not touch, per its brief), and whether
-    // that cast then completes is orthogonal to whether it is SCHEDULED on the right tick, which is
-    // this backlog item's entire scope. pair.stackCall's shape is "circle" (no target needed), so
-    // its cast_complete is asserted too, as an extra, targeting-independent confirmation.
+    // The Pair draws no caster telegraph (the mark ring on the marked player is its telegraph, BIBLE s3 and s9), so the
+    // schedule is read from cast_complete: a cast scripted at tick T completes castTicks (40) later.
     const events: SimEvent[] = [];
     const run = buildPairRun();
     runTicks(run, 1050, events, () => []);
 
-    const spreadTelegraphs = eventsOf("telegraph", events)
-      .filter((e) => e.cast === "pair.spreadMark")
-      .map((e) => e.resolvesTick);
-    const stackTelegraphs = eventsOf("telegraph", events)
-      .filter((e) => e.cast === "pair.stackCall")
-      .map((e) => e.resolvesTick);
+    expect(eventsOf("telegraph", events).filter((e) => e.cast === "pair.spreadMark" || e.cast === "pair.stackCall")).toEqual([]);
 
-    expect(spreadTelegraphs).toEqual([400, 800]);
-    expect(stackTelegraphs).toEqual([600, 1000]);
-
-    // The two never land on the same tick -- the gap content/CLAUDE.md flagged (both on the same
-    // every:400 loop) is closed.
-    const overlap = spreadTelegraphs.filter((t) => stackTelegraphs.includes(t));
-    expect(overlap).toEqual([]);
-
-    // castTicks: 40, so a step fired at tick T completes at T+40. stackCall needs no target, so
-    // its cast always resolves once scheduled.
+    const spreadCompletes = eventsOf("cast_complete", events)
+      .filter((e) => e.abilityId === "pair.spreadMark")
+      .map((e) => e.tick);
     const stackCompletes = eventsOf("cast_complete", events)
       .filter((e) => e.abilityId === "pair.stackCall")
       .map((e) => e.tick);
+    expect(spreadCompletes).toEqual([440, 840]);
     expect(stackCompletes).toEqual([640, 1040]);
   });
 });

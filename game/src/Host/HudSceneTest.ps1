@@ -52,10 +52,18 @@
          P0): a mechanic aimed at a living player is legitimate and drops when he dies. From run B's log:
          (a) the Warden's death tick is the "tick" of the first 'EVENT {"actorId":1,...,"type":"death"}' line;
          (b) every "HUD ping label=SPREAD|STACK" line is printed in a step (the latest "TICK n" line above it) strictly
-             before that tick, and there is at least one (a run with no call and no telegraph fails, never passes);
-         (c) on the death tick every live telegraph cancels (TELEGRAPH-CANCEL-ON-DEATH): the 'EVENT {...
-             "type":"telegraph_cancel"}' lines with that tick number exactly the telegraphs live then (the "telegraph"
-             EVENTs up to it, less the "telegraph_hit" EVENTs up to it and the cancels before it), and at least one;
+             before that tick. Re-pointed 2026-10-21 (ruling: gates keep their purpose, scenarios move): the Pair's caster
+             telegraphs are gone, so a call exists only once a mark LANDS on a player (PingCalls.cs, mark source), and no
+             Pair mark lands in run B before the Warden dies (the mark completes after tick 354). The "a call before the
+             death" proof therefore moved to the runs where a mark lands: run C (check 11) and E2eAssert's bot run
+             (E2eAssert.ps1 line 165). Run B keeps the rest of the rule: no call at or after his death (d);
+         (c) no Pair caster telegraph is drawn at ANY tick of run B (a "telegraph" EVENT whose cast is pair.*: the ring on
+             the marked player is the telegraph, BIBLE s3, s9), no telegraph is drawn after the death, and on the death
+             tick every live telegraph cancels (TELEGRAPH-CANCEL-ON-DEATH): the 'EVENT {... "type":"telegraph_cancel"}'
+             lines with that tick number exactly the telegraphs live then (the "telegraph" EVENTs up to it, less the
+             "telegraph_hit" EVENTs up to it and the cancels before it). With none live at tick 354 (the case now) that
+             is zero cancels; the death tick's own 'TICK n' line must be in the log, so the check never passes on an
+             empty run;
          (d) after the death EVENT no "CAST start ... target=1" line (R-DEADCAST-1: no cast starts on a dead target;
              every CAST start line names its target) and no further "HUD ping" line while he is dead: R-BACKFILL-2, up to
              and including the step of his respawn EVENT (as HudSceneRunsBKTests walks it); once he has respawned he is a
@@ -716,22 +724,31 @@ if (-not $deathB) {
     foreach ($p in $pingsB) {
         if ($p[1] -lt $iDeadEndB) { $pingsLiveB += , $p; if ($p[0] -lt $deathTickB) { $pingsBeforeDeathB++ } }
     }
-    if ($pingsBeforeDeathB -eq 0) { $failures.Add("run B: no 'HUD ping label=SPREAD|STACK' line before the Warden's death at $deathTickB (vacuous: the run never reached the Pair's mark while he lived)") }
+    # Re-pointed (check 8 (b)): no 'HUD ping' before the death is REQUIRED here. No Pair mark lands in this solo pull before
+    # the Warden dies, and the pings now come only from landed marks; the live call is required in run C (check 11) and
+    # by E2eAssert.ps1 (bot run). Pings at or after the death still fail below. $pingsBeforeDeathB is reported in $check8B.
     foreach ($p in $pingsLiveB) {
         if ($p[0] -ge $deathTickB) { $failures.Add("run B: a SPREAD/STACK call in the step of tick $($p[0]), not before the Warden's death at ${deathTickB}: '$($p[2])'") }
     }
-    $drawnB = 0; $hitB = 0; $cancelPriorB = 0; $cancelAtB = 0
+    $drawnB = 0; $hitB = 0; $cancelPriorB = 0; $cancelAtB = 0; $pairTelB = 0; $drawnAfterB = 0
     foreach ($l in $b.Lines) {
         if ($l -notmatch '^EVENT \{.*"tick":(\d+),') { continue }
         $t = [int]$Matches[1]
-        if ($l -match '"type":"telegraph"' -and $t -le $deathTickB) { $drawnB++ }
+        if ($l -match '"type":"telegraph"') {
+            # Re-pointed (check 8 (c)): a Pair caster circle must never be drawn, at any tick; a telegraph after the death is a leak.
+            if ($l -match '"cast":"pair\.') { $pairTelB++ }
+            if ($t -le $deathTickB) { $drawnB++ } else { $drawnAfterB++ }
+        }
         elseif ($l -match '"type":"telegraph_hit"' -and $t -le $deathTickB) { $hitB++ }
         elseif ($l -match '"type":"telegraph_cancel"') { if ($t -lt $deathTickB) { $cancelPriorB++ } elseif ($t -eq $deathTickB) { $cancelAtB++ } }
     }
     $liveB = $drawnB - $hitB - $cancelPriorB
-    $check8B = "check 8 (R-PILE-10): death tick=$deathTickB respawn tick=$respawnTickB pings=$($pingsLiveB.Count) telegraphs drawn=$drawnB hit=$hitB cancelled before=$cancelPriorB live=$liveB cancelled at death=$cancelAtB"
-    if ($liveB -lt 1) { $failures.Add("run B: no telegraph live on the Warden's death tick $deathTickB (drawn=$drawnB hit=$hitB cancelled before=$cancelPriorB): nothing for check 8 to cancel") }
-    elseif ($cancelAtB -ne $liveB) { $failures.Add("run B: $cancelAtB telegraph_cancel EVENT(s) on the Warden's death tick $deathTickB, but $liveB telegraph(s) were live (TELEGRAPH-CANCEL-ON-DEATH)") }
+    $deathStepB = First $b.Lines "^TICK $deathTickB "
+    $check8B = "check 8 (R-PILE-10): death tick=$deathTickB respawn tick=$respawnTickB pings=$($pingsLiveB.Count) (pings before death=$pingsBeforeDeathB) pair telegraphs=$pairTelB telegraphs drawn=$drawnB hit=$hitB cancelled before=$cancelPriorB live=$liveB cancelled at death=$cancelAtB drawn after death=$drawnAfterB"
+    if ($pairTelB -gt 0) { $failures.Add("run B: $pairTelB Pair telegraph EVENT(s) drawn: a caster-centred Pair circle must not exist (BIBLE s3, s9: the marked player's ring is the telegraph)") }
+    if ($drawnAfterB -gt 0) { $failures.Add("run B: $drawnAfterB telegraph EVENT(s) drawn after the Warden's death at $deathTickB (R-PILE-10)") }
+    if (-not $deathStepB) { $failures.Add("run B: no 'TICK $deathTickB' line for the Warden's death tick (check 8 has no step to read the cancels from)") }
+    if ($cancelAtB -ne $liveB) { $failures.Add("run B: $cancelAtB telegraph_cancel EVENT(s) on the Warden's death tick $deathTickB, but $liveB telegraph(s) were live (TELEGRAPH-CANCEL-ON-DEATH)") }
     for ($i = 0; $i -lt $b.Lines.Count; $i++) {
         $l = $b.Lines[$i]
         if ($l -match '^CAST start ' -and $l -notmatch ' target=(\d+|none)$') { $failures.Add("run B: a CAST start line names no target: '$l'") }

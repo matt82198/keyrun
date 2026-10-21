@@ -210,14 +210,19 @@ public sealed class SlamTelegraphTests
 
     private const int PairActor = 103;
 
-    [Fact(DisplayName = "The Pair draws its spread and stack telegraphs only for casts that land, and keeps them down until they land")]
-    public void Pair_spread_and_stack_telegraphs_only_for_casts_that_land()
+    [Fact(DisplayName = "The Pair draws no caster telegraph for its spread and stack marks: the ring on the marked player is their telegraph")]
+    public void Pair_marks_draw_no_caster_telegraph()
     {
         // Key 2: spreadMark loops every 392 and stackCall every 392 from tick 600, both on a 400-tick cooldown, so the
         // casts at 784 and 992 are refused not_ready. 1500 ticks covers two landings of each (432, 1216; 640, 1424).
-        var (events, pending, run, script) = PlayEnemy("pair.json", "pair.melee", PairActor, 1500);
-        AssertSpansCast(events, pending, run, PairActor, "pair.spreadMark", script, 2, requireDamage: false);
-        AssertSpansCast(events, pending, run, PairActor, "pair.stackCall", script, 2, requireDamage: false);
+        // The casts still land; what they draw on the floor is the mark ring (Every_mark_is_a_ring_on_the_marked_player_until_it_resolves).
+        var (events, _, _, script) = PlayEnemy("pair.json", "pair.melee", PairActor, 1500);
+        foreach (var cast in new[] { "pair.spreadMark", "pair.stackCall" })
+        {
+            Assert.True(script.Single(s => s.Cast == cast).Telegraph is null, $"{cast}: the script still carries a caster telegraph");
+            Assert.DoesNotContain(events, e => e.Type == "telegraph" && Str(e, "cast") == cast);
+            Assert.True(events.Count(e => e.Type == "cast_complete" && Int(e, "actorId") == PairActor && Str(e, "abilityId") == cast) >= 2, $"{cast} landed fewer than twice");
+        }
     }
 
     [Fact(DisplayName = "The Seed's slam and lash keep their floor telegraph down until they land and resolve it on the damage tick")]
