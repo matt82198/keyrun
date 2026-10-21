@@ -181,7 +181,8 @@ public sealed class LobbyTabsTests
         Assert.Equal("chanter", setup.HumanClassId);
         var run = RunRoot.CreateRun(3, setup.PartyFor(setup.Dungeon), setup.Dungeon, setup.Content, setup.StartFor(request, progression, Registry, classId).Options);
 
-        // A lasting wipe: every seat dies and the run ends after the wipe grace.
+        // A depleted end: every seat dies, and since R-BACKFILL-2 (f-47a7a6db) a wipe releases instead of ending the run,
+        // so the run ends depleted at the timer cap. The clock is put one tick short of the cap (the time many deaths add).
         for (var i = 0; i < 20; i++)
         {
             run = RunRoot.StepRun(run, Array.Empty<Command>()).Run;
@@ -191,7 +192,8 @@ public sealed class LobbyTabsTests
             run.State.Actors[id].Alive = false;
             run.State.Actors[id].Health = 0;
         }
-        for (var i = 0; i < RunWiring.WipeGraceTicks + 5 && run.RunEnd.Result is null; i++)
+        run = run with { Encounter = run.Encounter with { PenaltyTicks = (int)(Timer.CapTicks(run.Encounter) - run.State.Tick - 1) } };
+        for (var i = 0; i < RunWiring.ReleaseDelayTicks + 5 && run.RunEnd.Result is null; i++)
         {
             run = RunRoot.StepRun(run, Array.Empty<Command>()).Run;
         }

@@ -323,7 +323,9 @@ older line above contradicts one of them, that line is kept and marked "(superse
   release delay, the timer keeps running, and D46's time cost stands (+300 ticks per death, +500 per wipe). The run
   ends only at the timer cap, the boss kill, or abandonment. This replaces the rule that a full wipe held for 100
   ticks finishes the run depleted (`RunWiring.cs:20` WipeGraceTicks, `:350-357`). Backfill is unchanged
-  (R-BACKFILL-1, keyrun #425). Sim change pending. (f-47a7a6db)
+  (R-BACKFILL-1, keyrun #425). Sim (code-lane values, not yet measured in run F): the release delay is 100 ticks
+  (`RunWiring.ReleaseDelayTicks`) and the timer cap is twice par on the run clock (`Timer.CapParBp`), so a party
+  over par can still finish. Layout-less runs keep the frozen TS wipe finish. (f-47a7a6db)
 
 ### 9.1 The map
 
@@ -397,7 +399,7 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
   for pulling more than the bar needs, against the timer.
 - **A wipe is a release and a run-back, not a run end.** **Ruling (Matt, 2026-10-21, R-BACKFILL-2):** the core
   dungeon loop defers to WoW Mythic+. A dead seat releases and, after the release delay (value set by the code lane,
-  measured in run F), respawns at the dungeon entrance. On a full wipe every seat does this. The run timer keeps
+  100 ticks, to be measured in run F), respawns at the dungeon entrance. On a full wipe every seat does this. The run timer keeps
   running through the release and the run back, and D46's time cost is the only penalty (section 8). The run ends
   only at the timer cap, the boss kill, or abandonment. **Forward-only still holds.** A respawned seat walks the
   cleared path back to the party. Cleared groups stay dead, a sealed doorway stays shut, and no new pull spawns behind

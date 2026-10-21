@@ -9,7 +9,7 @@
   as --progression-dir (the test never reads or writes the real user:// save; a headless run without the flag
   persists nothing, see ProgressionSavePlace), and reads Screen's own "SCREEN progression ..." lines:
 
-    Launch 1 (no save file yet):  -- --autorun --ticks 600 --solo --progression-dir <tmp>
+    Launch 1 (no save file yet):  -- --autorun --ticks 9800 --solo --progression-dir <tmp>
       1. exit 0, "SCREEN progression load store=1 ash=0 runs=0 items=none path=<tmp>/progression.json": with no save
          the screen starts from Progression.Start (no Ash, no runs, nothing equipped), and the store is in <tmp>;
       2. "SCREEN progression save reason=bank ok=1 ash=30 runs=1" after "SCREEN bank result=depleted ash=30 total=30";
@@ -25,6 +25,13 @@
   reason=talent ok=1" x4, then "SCREEN talents saved picks=1 choices=<C>"); launch 2 prints "SCREEN talents restore
   class=warden saved=1 picks=1 choices=<C>" and its talent panel opens with "picks=1 applied=1". Before TALENT-SAVE
   there is no talent save and launch 2's panel opens at picks=0 (RED).
+  R-446-CI (keyrun #446, f-ea16265e): under R-BACKFILL-2 (BIBLE s9.1) a wipe on a layout run is a release, not a run
+  end, so the solo Warden run (seed 1, key 2, pull 1; the same run as ScreenSceneTest) no longer ends at its wipe (old
+  run_end 491 of 600) but at the timer cap, tick 9600, depleted and uncleared. $Ticks is 9800: the cap end plus the
+  109 ticks the scene kept past the end before, for the screen's autorun script (take, three rerolls, four talent
+  steps). Launch 2's run is the same run (the autorun run starts in SimDriver._Ready before HookScreen sets the
+  screen, so it wears no saved gear), so it also banks 30 and "SCREEN open ash=60 runs=2" holds. Pinned headless by
+  tools/Keyrun.Playtest.Tests/HudSceneSweepWipeReleaseTests.cs. Each launch is about one minute of wall time on CI.
   Before PROGRESSION-SAVE Screen calls Progression.Start every launch and never saves: no "SCREEN progression" line
   exists and launch 2 opens at ash=30 runs=1 (RED).
 
@@ -32,7 +39,7 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$Ticks = 600
+    [int]$Ticks = 9800
 )
 $ErrorActionPreference = 'Stop'
 

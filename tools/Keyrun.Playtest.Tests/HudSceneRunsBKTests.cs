@@ -59,7 +59,10 @@ public sealed class HudSceneRunsBKTests
     /// <c>HUD ping label=SPREAD|STACK</c> call (Pings.OnStepped: a new <see cref="PingCall.Key"/> after a step, logged at
     /// that step's tick) comes strictly before it, and at least one does (a run with no call is vacuous and fails);
     /// (c) on the death tick every live telegraph cancels (<c>telegraph_cancel</c>, TELEGRAPH-CANCEL-ON-DEATH); (d) after
-    /// it no cast starts on actor 1 (R-DEADCAST-1) and no further call appears.
+    /// it no cast starts on actor 1 (R-DEADCAST-1) and no further call appears while he is dead. R-BACKFILL-2 (f-47a7a6db):
+    /// the solo wipe no longer ends run B after the wipe grace; the dead Warden releases and respawns at the entrance
+    /// <see cref="RunWiring.ReleaseDelayTicks"/> after his death, so "after the death" is his time dead, up to and
+    /// including the respawn step, and the walk stops there.
     /// </summary>
     [Fact(DisplayName = "Run B (pull 2, solo Warden): a mark telegraph is drawn only while the Warden lives, is cancelled the tick he dies, and no mark cast starts on a dead target")]
     public void Run_b_marks_never_outlive_the_solo_warden()
@@ -78,7 +81,7 @@ public sealed class HudSceneRunsBKTests
         List<int>? registryBeforeDeath = null;
         List<int>? registryAfterDeath = null;
         int? death = null;
-        while (run.State.Tick < 900)
+        while (run.State.Tick < 900 && !(death is not null && run.State.Actors[WardenId].Alive))
         {
             var tick = run.State.Tick;
             var before = run.State;
@@ -119,6 +122,11 @@ public sealed class HudSceneRunsBKTests
         // (a) the death tick.
         Assert.True(death is not null, "the solo Warden never died in run B");
         var d = death!.Value;
+        // R-BACKFILL-2: the run did not end on the wipe; the Warden respawned on the release tick and the walk stopped there.
+        Assert.DoesNotContain(events, e => e.Type == "run_end");
+        // The death event carries its step's tick; the release counts from the post-step tick, as the wipe grace did.
+        Assert.Equal(d + 1 + RunWiring.ReleaseDelayTicks, run.State.Tick);
+        Assert.Contains(events, e => e.Type == "respawn" && Int(e, "actorId") == WardenId && e.Tick == d + 1 + RunWiring.ReleaseDelayTicks);
         // (b) every call is made while he lives, and there is at least one (vacuity guard).
         Assert.True(pings.Count > 0,
             $"no HUD ping SPREAD/STACK call in run B (Warden dead at {d}): the scenario no longer reaches the Pair's mark, the test is vacuous");

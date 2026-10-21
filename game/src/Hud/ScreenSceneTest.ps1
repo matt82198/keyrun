@@ -8,10 +8,13 @@
   "SCREEN ..." lines (printed under --autorun). After the run ends, Screen.cs pushes keys through the real input
   path one per frame: 1 (the run-end panel takes reward 1 and opens the screen), R, R, R, Right, 2, Enter.
 
-    -- --autorun --ticks 600 --solo (pull 1, the Choir, solo Warden; the lone Warden wipes, so the run ends
-       depleted inside the tick budget; the 3H bot party may still be fighting at tick 600;
-       480 -> 600 by ROOM-LOCK-IN D27: the Warden dies at 390, depleted run_end at 491):
-      1. exit 0 and "AUTORUN done ticks=600";
+    -- --autorun --ticks 9800 --solo (pull 1, the Choir, solo Warden; 480 -> 600 by ROOM-LOCK-IN D27, when the
+       Warden's wipe ended the run depleted at 491; 600 -> 9800 by R-446-CI, f-ea16265e: under R-BACKFILL-2, BIBLE
+       s9.1, a wipe is a release, not a run end, so the lone Warden dies, respawns and the run goes on until the timer
+       cap, Timer.CapTicks, ends it depleted and uncleared at 9600, titled "Out of time -- key stays at +2"; 9800 keeps
+       the 109 ticks the scene kept past the end before, pinned headless by
+       tools/Keyrun.Playtest.Tests/ScreenSceneWipeReleaseRunTests.cs; the same run as HudSceneTest run A):
+      1. exit 0 and "AUTORUN done ticks=9800";
       2. "SCREEN bank result=depleted ash=30 total=30" (Ash banked win or lose, before any reward is taken);
       3. "HUD runend take n=1 id=reward-<slot>-..." and "SCREEN open ash=30 runs=1 since="+30 Ash, <slot> tier <t> (new)"";
       4. "SCREEN character class=Warden" and five "SCREEN ability key=<1..5> name=..." lines;
@@ -39,7 +42,7 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$Ticks = 600
+    [int]$Ticks = 9800
 )
 $ErrorActionPreference = 'Stop'
 

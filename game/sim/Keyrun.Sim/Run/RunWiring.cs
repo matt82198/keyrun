@@ -16,8 +16,17 @@ namespace Keyrun.Sim.Runs;
 /// </summary>
 public static class RunWiring
 {
-    /// <summary>run-wiring.ts:46 WIPE_GRACE_TICKS: a full wipe auto-ends the run after 5 s at 20 Hz.</summary>
+    /// <summary>
+    /// run-wiring.ts:46 WIPE_GRACE_TICKS: a full wipe auto-ends the run after 5 s at 20 Hz. Layout-less runs only (the
+    /// frozen TS oracle's rule); a layout run releases instead (<see cref="ReleaseDelayTicks"/>, R-BACKFILL-2).
+    /// </summary>
     public const int WipeGraceTicks = 100;
+
+    /// <summary>
+    /// WIPE-IS-RELEASE (ruling R-BACKFILL-2, BIBLE s9.1; WoW Mythic+): on a layout run a dead seat releases and respawns
+    /// where the run placed it (the dungeon entrance) this many ticks after its death, 5 s at 20 Hz.
+    /// </summary>
+    public const int ReleaseDelayTicks = 100;
 
     /// <summary>
     /// run-wiring.ts:48 rulesConfigOf, plus the Clause the TS installs per tick (clause-hooks.ts withEncounterRules):
@@ -302,8 +311,9 @@ public static class RunWiring
     /// True when the party has wiped: the state holds at least one player and no living player who is actually in the
     /// run remains (PATH-TO-BOSS, STATE.md D44; run-wiring.ts allPlayersDead when no seat is open). A seat in
     /// <paramref name="openSeats"/> (abandoned, or unfilled while it waits for a joiner) is not in the run, so its idle
-    /// body never holds a dead party's run open, in or out of combat. It resolves like any full wipe (BIBLE s8: the
-    /// wipe Slack cost, then <see cref="WipeGraceTicks"/> and a depleted finish).
+    /// body never holds a dead party's run open, in or out of combat. It resolves like any full wipe: the wipe cost on
+    /// the run clock (D46), then on a layout run a release and run-back (<see cref="Release"/>, R-BACKFILL-2), and on a
+    /// layout-less run <see cref="WipeGraceTicks"/> and a depleted finish (the frozen TS rule).
     /// </summary>
     /// <param name="state">The post-tick state.</param>
     /// <param name="openSeats">Abandoned or unfilled seats' actor ids, or null (none open).</param>
@@ -329,8 +339,11 @@ public static class RunWiring
 
     /// <summary>
     /// run-wiring.ts:153 checkRunEnd: idempotent once ended. The run is complete when the pull index is past the last
-    /// pull (finish timed or depleted); an abandon request finishes it abandoned; a wipe (<see cref="IsWipe"/>) lasting
-    /// <see cref="WipeGraceTicks"/> finishes it with depleted forced. Each finish emits <c>finish</c>.
+    /// pull (finish timed or depleted); an abandon request finishes it abandoned. Without <paramref name="release"/> (a
+    /// layout-less run, the frozen TS rule) a wipe (<see cref="IsWipe"/>) lasting <see cref="WipeGraceTicks"/> finishes
+    /// it with depleted forced. With <paramref name="release"/> (WIPE-IS-RELEASE, R-BACKFILL-2: a layout run) a wipe
+    /// never ends the run; the dead seats release and run back (<see cref="Release"/>), and the run clock reaching the
+    /// timer cap (<see cref="Timer.CapTicks"/>) finishes it with depleted forced. Each finish emits <c>finish</c>.
     /// </summary>
     /// <param name="prev">The previous terminal state.</param>
     /// <param name="state">The post-tick state.</param>
@@ -340,8 +353,9 @@ public static class RunWiring
     /// <param name="abandonRequested">The host's abandon signal.</param>
     /// <param name="emit">Event sink.</param>
     /// <param name="openSeats">Abandoned or unfilled seats' actor ids (<see cref="StepRunOpts.OpenSeats"/>), or null.</param>
+    /// <param name="release">True on a layout run: a wipe releases instead of ending the run, and the timer cap ends it.</param>
     /// <returns>The next terminal state.</returns>
-    public static RunEndState CheckRunEnd(RunEndState prev, SimState state, EncounterState encounter, DungeonDef dungeon, int tick, bool abandonRequested, Action<SimEvent> emit, IReadOnlyList<int>? openSeats = null)
+    public static RunEndState CheckRunEnd(RunEndState prev, SimState state, EncounterState encounter, DungeonDef dungeon, int tick, bool abandonRequested, Action<SimEvent> emit, IReadOnlyList<int>? openSeats = null, bool release = false)
     {
         ArgumentNullException.ThrowIfNull(prev);
         ArgumentNullException.ThrowIfNull(state);
@@ -358,6 +372,15 @@ public static class RunWiring
         if (abandonRequested)
         {
             return new RunEndState(Timer.FinishRun(encounter, tick, false, emit), tick, prev.WipeStartTick);
+        }
+        if (release)
+        {
+            if (Timer.ClockTicks(encounter, tick) >= Timer.CapTicks(encounter))
+            {
+                return new RunEndState(Timer.FinishRun(encounter with { Depleted = true }, tick, true, emit), tick, prev.WipeStartTick);
+            }
+            // The wipe's start is kept while every seat is down (for the host's read); it never ends the run.
+            return IsWipe(state, openSeats) ? new RunEndState(null, null, prev.WipeStartTick ?? tick) : RunEndState.Initial;
         }
         if (IsWipe(state, openSeats))
         {

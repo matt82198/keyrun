@@ -189,6 +189,18 @@ public sealed record Run(SimState State, EncounterState Encounter, DungeonDef Du
     /// layout run before its first room-entry spawn).
     /// </summary>
     public IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>>? ActiveScripts { get; init; }
+
+    /// <summary>
+    /// WIPE-IS-RELEASE (C#-only, layout runs; R-BACKFILL-2): each seat's placement at <see cref="RunRoot.CreateRun"/>,
+    /// the dungeon entrance a released seat respawns at (<see cref="Release"/>). Null = no respawn point recorded.
+    /// </summary>
+    public IReadOnlyDictionary<int, SeatSpawn>? Spawns { get; init; }
+
+    /// <summary>
+    /// WIPE-IS-RELEASE: dead seats waiting to respawn, actor id to respawn tick (<see cref="Release.Step"/>). Empty on
+    /// every run without a layout.
+    /// </summary>
+    public IReadOnlyDictionary<int, int> Releases { get; init; } = new SortedDictionary<int, int>();
 }
 
 /// <summary>Options a host may pass to one <see cref="RunRoot.StepRun"/> (sim/run-types.ts:84 StepRunOpts).</summary>

@@ -13,9 +13,11 @@ namespace Keyrun.Sim.Tests;
 /// OPEN-SEAT WIPE (PATH-TO-BOSS, STATE.md D44; adapted from PR #359's GATED-WIPE, finding f-3cc5aeee, with the room gate
 /// gone; design/BIBLE.md sections 0 and 8; new behaviour, no TS oracle). A run wipes when no living player who is actually
 /// in the run remains: an abandoned or unfilled seat (<see cref="StepRunOpts.OpenSeats"/>) is not in the run, so its idle
-/// body never holds a dead party's run open, in or out of combat. The wipe resolves like any full wipe: the wipe Slack
-/// cost on the last death, <see cref="RunWiring.WipeGraceTicks"/>, then <c>run_end</c> depleted. A living seated player
-/// anywhere keeps the run going, and with no gate it can walk back into the fight.
+/// body never holds a dead party's wipe open, in or out of combat. The wipe resolves like any full wipe on a layout run:
+/// the wipe cost on the last death, then (R-BACKFILL-2, f-47a7a6db; was <see cref="RunWiring.WipeGraceTicks"/> and a
+/// depleted <c>run_end</c>) the dead seated seats release and respawn at the entrance after
+/// <see cref="RunWiring.ReleaseDelayTicks"/>, and the run goes on. A living seated player anywhere keeps the run going,
+/// and with no gate it can walk back into the fight.
 /// </summary>
 public sealed class OpenSeatWipeTests
 {
@@ -120,24 +122,27 @@ public sealed class OpenSeatWipeTests
         return (run, null);
     }
 
-    [Fact(DisplayName = "Open-seat wipe: the seated party dies in the fight and an abandoned seat in the Entrance does not hold the run open")]
-    public void An_abandoned_seat_outside_the_fight_does_not_hold_the_run_open()
+    [Fact(DisplayName = "Open-seat wipe: the seated party dies in the fight and an abandoned seat in the Entrance does not hold the wipe open")]
+    public void An_abandoned_seat_outside_the_fight_does_not_hold_the_wipe_open()
     {
         var opts = new StepRunOpts(OpenSeats: new[] { Chanter });
         var run = WalkInUntilPullStart(CreateThree(), opts, Warden, Cinder);
         Assert.True(Movement.Contains(Entrance, run.State.Actors[Chanter].Pos));
 
         var (killed, lastDeath) = Kill(run, opts, Warden, Cinder);
-        var (ended, runEnd) = StepUntilRunEnd(killed, opts, RunWiring.WipeGraceTicks + 50);
+        Assert.Equal(lastDeath, killed.RunEnd.WipeStartTick);
+        var (released, runEnd) = StepUntilRunEnd(killed, opts, RunWiring.ReleaseDelayTicks);
 
-        Assert.True(runEnd is not null, $"no run_end within {RunWiring.WipeGraceTicks + 50} ticks of the last death at {lastDeath}");
-        Assert.Equal("depleted", ((JsString)runEnd!.Get("result")!).Value);
-        Assert.Equal(lastDeath + RunWiring.WipeGraceTicks, runEnd.Tick);
-        Assert.True(ended.State.Actors[Chanter].Alive);
-        Assert.Equal(0, ended.Encounter.PullIndex);
+        // R-BACKFILL-2: the wipe counts and releases the seated dead; it never ends the run.
+        Assert.Null(runEnd);
+        Assert.Null(released.RunEnd.Result);
+        Assert.True(released.State.Actors[Warden].Alive, $"the Warden did not respawn {RunWiring.ReleaseDelayTicks} ticks after the wipe");
+        Assert.True(Movement.Contains(Entrance, released.State.Actors[Warden].Pos));
+        Assert.True(released.State.Actors[Chanter].Alive);
+        Assert.Equal(0, released.Encounter.PullIndex);
     }
 
-    [Fact(DisplayName = "Open-seat wipe: the seated party dies out of combat and an abandoned seat does not hold the run open")]
+    [Fact(DisplayName = "Open-seat wipe: the seated party dies out of combat and an abandoned seat does not hold the wipe open")]
     public void An_abandoned_seat_does_not_hold_an_out_of_combat_wipe_open()
     {
         var opts = new StepRunOpts(OpenSeats: new[] { Chanter });
@@ -148,12 +153,15 @@ public sealed class OpenSeatWipeTests
             run.State.Actors[id].Alive = false;
         }
         var wipeStart = run.State.Tick + 1;
-        var (ended, runEnd) = StepUntilRunEnd(run, opts, RunWiring.WipeGraceTicks + 50);
+        var first = Step(run, opts).Run;
+        Assert.Equal(wipeStart, first.RunEnd.WipeStartTick);
+        var (released, runEnd) = StepUntilRunEnd(first, opts, RunWiring.ReleaseDelayTicks);
 
-        Assert.True(runEnd is not null, "an abandoned seat held a dead party's run open out of combat");
-        Assert.Equal("depleted", ((JsString)runEnd!.Get("result")!).Value);
-        Assert.Equal(wipeStart + RunWiring.WipeGraceTicks, runEnd.Tick);
-        Assert.Empty(ended.Encounter.Engaged);
+        Assert.True(runEnd is null, "a wipe ended the run (R-BACKFILL-2: it releases)");
+        Assert.True(released.State.Actors[Warden].Alive);
+        Assert.True(released.State.Actors[Cinder].Alive);
+        Assert.Equal(wipeStart + RunWiring.ReleaseDelayTicks, released.State.Tick);
+        Assert.Empty(released.Encounter.Engaged);
     }
 
     [Fact(DisplayName = "Open-seat wipe control: a living seated player outside the fought room keeps the run going and can walk back in")]

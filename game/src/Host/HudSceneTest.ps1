@@ -7,32 +7,47 @@
   Boots the real game (Main.tscn -> Arena.tscn) headless at --fixed-fps 60 twice and reads the HUD's own
   "HUD ..." lines from the engine output (the HUD prints what it draws when --autorun is on):
 
-    Run A (pull 1, the Choir, solo Warden):  -- --autorun --ticks 900 --solo
+    Run A (pull 1, the Choir, solo Warden):  -- --autorun --ticks 10000 --solo
+      (10000 since keyrun #446, was 900: R-BACKFILL-2 (BIBLE s9.1, f-47a7a6db; the #446 lane brief's R-WIPE-RESET) makes
+      a wipe on a layout run a release and a run-back, not a run end. The solo Warden dies at 362 and respawns at the
+      entrance at 463 (RunWiring.ReleaseDelayTicks after the death step), the 900-tick run printed no "HUD runend" line
+      ("AUTORUN done ticks=900 ... run=running" on #446's game-e2e), and the run ends only at the timer cap
+      (Timer.CapTicks, twice par on the run clock) at 9600, depleted and uncleared. 10000 keeps the 294 ticks past the
+      end the budget kept before; tools/Keyrun.Playtest.Tests/HudSceneWipeReleaseRunsTests.cs pins the end inside it)
       (900 since PR #362, was 600: a Warden with 3500 bp armor dies at tick 505 with run_end at 606 by measurement)
       (600 since lane NAV-CORE, was 400: the Warden first walks from the Entrance into the Choir room, so the wipe's
       run_end moved from tick 374 to 413)
       1. exit 0 and "AUTORUN done ticks=900";
       2. "HUD party seat=1 name=Warden hp=H/400 res=R/M" (the party frame reads the human's health and resource);
-      3. "HUD party seat=1 ... DOWNED" after the sim's death event for actor 1 (the DOWNED chip);
+      3. "HUD party seat=1 ... DOWNED" after the sim's death event for actor 1 (the DOWNED chip), and every party frame
+         from it to his release is DOWNED; R-BACKFILL-2: his 'EVENT {"actorId":1,"tick":T,"type":"respawn"}' comes at
+         T = death tick + 1 + 100 (RunWiring.ReleaseDelayTicks), and the first party frame after it is not DOWNED and
+         reads hp=400/400 (a released seat respawns at full health, Release.cs);
       4. "HUD objective pull=1/4 id=choir name="The Choir"" (the current pull's content name);
       5. "HUD slack ticks=620 of=620" first (Timer.InitialSlackTicks(2) = 600 + 20), then a "penalty=N" above 0
          after the death (STATE.md D46, Mythic+: a death adds 300 to the run clock and the wipe 500 more), with the
          bank never drained below 620 (deaths no longer spend it);
-      6. "HUD runend result=depleted choices=3 cleared=0 ... title="Party wiped on pull 1 of 4 -- key stays at +2"" (the
-         sim reports a lasting wipe as "depleted"; the panel must not call it cleared, and names the pull it was lost
-         on, numbered as the objective line numbers it: lane 3C-d), three "HUD runend choice n=<1..3> slot=<slot>
+      6. "HUD runend result=depleted choices=3 cleared=0 ... title="Out of time -- key stays at +2"" (R-BACKFILL-2: the
+         run ends at the timer cap, depleted and uncleared; the panel must not call it cleared, and RunEndTitle.ForRun
+         titles an uncleared depleted layout run "Out of time"; was "Party wiped on pull 1 of 4 -- key stays at +2"
+         while a lasting wipe ended the run, lane 3C-d), three "HUD runend choice n=<1..3> slot=<slot>
          tier=<t> facet=... ability=warden.<id> charges=<c> id=reward-<slot>-warden.<slot>.<facet>-t<t>-<i>" lines
          (Rewards.RollRewardChoices over the Warden's content facet pool, lane 3C-d: no placeholder "ability-<n>"
          id), "HUD runend key from=2 to=2 tier=0" (an untimed key holds its level, KeyMove), and "HUD runend cause
          seat=1" lines naming only seat 1's own causes; every "HUD runend result=" line of
-         every autorun (A-G) titles a cleared=1 run "Run cleared -- ..." and a cleared=0 depleted run "Party wiped
-         on pull <n> of <total> -- key stays at +<key>" (an untimed key keeps its level: Matt 2026-10-20, f-7c7abdf4;
-         "key depleted" is banned from every title) (run C clears the dungeon since lane TUNE-BOSS, so the clear title
-         is checked on it; the count of cleared runs is printed).
+         every autorun (A-G) titles a cleared=1 run "Run cleared -- ..." and a cleared=0 depleted run "Out of time --
+         key stays at +<key>" (R-BACKFILL-2: every host run is a layout run, so a wipe never ends one and no title says
+         "Party wiped"; was "Party wiped on pull <n> of <total> -- key stays at +<key>") (an untimed key keeps its
+         level: Matt 2026-10-20, f-7c7abdf4; "key depleted" is banned from every title) (run C clears the dungeon since
+         lane TUNE-BOSS, so the clear title is checked on it; the count of cleared runs is printed).
     Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 900 --pull 2 --solo
       (600 since lane NAV-CORE, was 400: the Pair now spawns at the far side of its hall, 7 m off, run_end at tick 455)
-      7. "HUD objective pull=2/4 id=pair name="The Pair"", and the wipe title "Party wiped on pull 2 of 4 -- key
-         stays at +2" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
+      7. "HUD objective pull=2/4 id=pair name="The Pair"" (a later --pull start still numbers the pull in the full
+         dungeon), and R-BACKFILL-2 (BIBLE s9.1, f-47a7a6db; the #446 lane brief's R-WIPE-RESET: a wipe is a release and
+         a run-back, not a run end): the solo wipe does not end run B, so no "HUD runend result=" line in its 900 ticks
+         (it ends only at the boss kill or the timer cap, past 8000 ticks), and the dead Warden's 'EVENT {"actorId":1,
+         "tick":T,"type":"respawn"}' comes at T = death tick + 1 + 100 (RunWiring.ReleaseDelayTicks; HudSceneRunsBKTests).
+         Was the wipe title "Party wiped on pull 2 of 4 -- key stays at +2", which no layout run can print now;
       8. R-PILE-10 (dungeon loop decided as WoW Mythic+ does; BIBLE s3 cast bars and telegraphs; wrong data shown is
          P0): a mechanic aimed at a living player is legitimate and drops when he dies. From run B's log:
          (a) the Warden's death tick is the "tick" of the first 'EVENT {"actorId":1,...,"type":"death"}' line;
@@ -42,7 +57,9 @@
              "type":"telegraph_cancel"}' lines with that tick number exactly the telegraphs live then (the "telegraph"
              EVENTs up to it, less the "telegraph_hit" EVENTs up to it and the cancels before it), and at least one;
          (d) after the death EVENT no "CAST start ... target=1" line (R-DEADCAST-1: no cast starts on a dead target;
-             every CAST start line names its target) and no further "HUD ping" line.
+             every CAST start line names its target) and no further "HUD ping" line while he is dead: R-BACKFILL-2, up to
+             and including the step of his respawn EVENT (as HudSceneRunsBKTests walks it); once he has respawned he is a
+             living target again and the Pair's calls on him are legitimate. (b) reads the same window.
          Was (SLAM-TELEGRAPH): NO ping at all, on the premise that the solo Warden is down before the Pair's first
          mark (about tick 295). PR #362's Warden armor (3500 bp) keeps him alive to tick 354, so the call at 295 is an
          honest live-run call; the scenario is not changed to make him die sooner (R-PILE-10). Run C (check 11) also
@@ -94,7 +111,10 @@
          probe used. Since lane TUNE-BOSS (STATE.md D14) every swept key (2, 5, 8, 10 at seeds 1 and 7) clears from
          pull 1 (the D14 sweep, end ticks 6787 to 8603; re-swept on the lane NAV-CORE route, see its PR); run D keeps
          --pull 4 because it proves the armed boss at key 10 in 600 ticks, not the route.
-    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 900 --solo --requeue
+    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 10000 --solo --requeue
+        (10000 since keyrun #446, was 900: its first run is run A's, which under R-BACKFILL-2 no longer ends on the solo
+        wipe but at the timer cap at 9600, so the screen can queue only after that; 10000 keeps the 294 ticks past the
+        end that the queued run's Choir spawn needs, pinned by HudSceneWipeReleaseRunsTests)
         (--requeue: an autorun starts the queued run only when asked, so runs A-D and the other scene tests stay one
         run each; an interactive game always starts it; 480 -> 600 by ROOM-LOCK-IN D27: the solo Warden then died at 390
         and the depleted run_end landed at 491, past the old 480; 600 -> 700 by SWING-PHASE (R-307-E): the Choir's
@@ -184,6 +204,10 @@
         idle human (pull_clear 1429), and no idle-human start wipes any more; held bots spawn but take no action, so
         the wipe is real because nobody fights: seats die at 207, 354, 501, depleted run_end at tick 602. This run exercises the depleted run_end -> screen path, not whether
         bots can win alone)
+        (<WipeFrames> 41200 since keyrun #446, was 6600: under R-BACKFILL-2 the dead seats release and respawn, so the
+        idle party's run ends only at the timer cap, depleted, at tick 12115 (HudSceneWipeReleaseRunsTests, Clause echo as
+        game-e2e's "RUN start" reads); 3 frames per tick of that plus the 4794 frames the budget kept around the old
+        run_end at 602 for the screen, the presses and the queued restart)
         (--press-enter N: SimDriver's scripted player pushes Enter through the viewport each time the game waits on
         it, the screen up or the run ended, up to N presses; the real keyboard path, not a direct call)
      28. "SCREEN first open=1 key=2", press 1 queues the first run ("RUN start ... clause=<id>", not none), the party
@@ -271,6 +295,12 @@
         reach) until the wipe at 1308, so the live tint never showed and the control could not happen (CI run
         39486265558, "HUD bar range tinted=0 over=1 tick=1308" its only range line). The assertion is unchanged; only
         the leave tick moves, so the party still wipes with the Warden's target alive and out of range.)
+        (<TintTicks> 8500 since keyrun #446, was 1400: under R-BACKFILL-2 the wipe releases the party instead of ending
+        the run, so the non-clear end is the timer cap's, depleted and uncleared at tick 8186, pinned with 294 ticks past
+        it by HudSceneWipeReleaseRunsTests. Measured headless on #446 (AbilitySlotLook.ShowsOutOfRange with runOver off,
+        every tick from that end to 2000 after it): no slot would tint (the human's target at the last of those ticks,
+        105, alive 2166 mm off, inside reach), so the "over=1 reads tinted=0" case no longer has an out-of-range target
+        to hide; the live control and the over=1 lines still run. Open for a ruling, not retuned here.)
      41. a "HUD runend result=depleted ... cleared=0" line (the run did not clear), at least one "HUD bar range
          tinted=N over=0" line with N > 0 (control: the live run tints), at least one "over=1" line, and every
          "over=1" line reads tinted=0. Before TINT-RUNOVER the bar passed no runOver and printed "tinted=4 over=1
@@ -280,16 +310,16 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$Ticks = 900,
+    [int]$Ticks = 10000,
     [int]$PingTicks = 900,
     [int]$PartyTicks = 7000,
     [string]$CarelessSeat = '3@300:pair',
     [int]$BossTicks = 600,
-    [int]$QueueTicks = 900,
+    [int]$QueueTicks = 10000,
     [int]$BackfillTicks = 3500,
     [string]$AbandonSeat = '2@pull0.hp10+1',
     [int]$ScreenFirstFrames = 240,
-    [int]$WipeFrames = 6600,
+    [int]$WipeFrames = 41200,
     [int]$PingAt = 100,
     [int]$PingFrames = 900,
     [int]$RecordFrames = 6600,
@@ -297,7 +327,7 @@ param(
     [string]$YawTo = '1.5',
     [int]$YawFrames = 900,
     [int]$HeadingFrames = 420,
-    [int]$TintTicks = 1400,
+    [int]$TintTicks = 8500,
     [string]$TintAbandon = '2@200',
     [string]$KeepK1Record = '',
     [switch]$HeadingOnly
@@ -542,10 +572,31 @@ if (-not $death) {
 $aliveAfter = $null
 # Up to the queued run's start only: a fresh run's Warden is alive again (lane 3I consumes the screen's queue).
 $aRun1 = @(FirstRun $a.Lines)
+# R-BACKFILL-2 (BIBLE s9.1, f-47a7a6db; the #446 lane brief's R-WIPE-RESET: a wipe is a release and a run-back, not a
+# run end): the dead Warden respawns at the entrance RunWiring.ReleaseDelayTicks (100) after his death step, so the
+# DOWNED chip holds from his death to his respawn EVENT, and the frame after it reads him alive at full health.
+$respawnA = $null
 if ($downed) {
     $iDowned = [array]::IndexOf($aRun1, $downed)
-    $aliveAfter = $aRun1[($iDowned + 1)..($aRun1.Count - 1)] | Where-Object { $_ -match '^HUD party seat=1 ' -and $_ -notmatch '\bDOWNED\b' } | Select-Object -First 1
-    if ($aliveAfter) { $failures.Add("run A: a party frame after DOWNED is not DOWNED: '$aliveAfter'") }
+    $iRespawnA = $aRun1.Count
+    for ($i = $iDowned + 1; $i -lt $aRun1.Count; $i++) {
+        if ($aRun1[$i] -match '^EVENT \{"actorId":1,"tick":(\d+),"type":"respawn"\}$') { $respawnA = $aRun1[$i]; $iRespawnA = $i; break }
+    }
+    if ($iRespawnA -gt $iDowned + 1) {
+        $aliveAfter = $aRun1[($iDowned + 1)..($iRespawnA - 1)] | Where-Object { $_ -match '^HUD party seat=1 ' -and $_ -notmatch '\bDOWNED\b' } | Select-Object -First 1
+    }
+    if ($aliveAfter) { $failures.Add("run A: a party frame after DOWNED and before the respawn is not DOWNED: '$aliveAfter'") }
+    if (-not $respawnA) {
+        $failures.Add('run A: no respawn EVENT for actor 1 after DOWNED (R-BACKFILL-2: the dead Warden releases and respawns)')
+    } else {
+        $null = $respawnA -match '"tick":(\d+)'
+        $respawnTickA = [int]$Matches[1]
+        $null = $death -match '"tick":(\d+)'
+        $deathTickA = [int]$Matches[1]
+        if ($respawnTickA -ne $deathTickA + 1 + 100) { $failures.Add("run A: the Warden respawned at $respawnTickA, not death $deathTickA + 1 + RunWiring.ReleaseDelayTicks 100: '$respawnA'") }
+        $frameBack = $aRun1[($iRespawnA + 1)..($aRun1.Count - 1)] | Where-Object { $_ -match '^HUD party seat=1 ' } | Select-Object -First 1
+        if (-not $frameBack -or $frameBack -match '\bDOWNED\b' -or $frameBack -notmatch ' hp=400/400 ') { $failures.Add("run A: the first party frame after the respawn does not read the Warden alive at full health: '$frameBack'") }
+    }
 }
 $armedA = Assert-BossArmed 'A' $aRun1
 
@@ -569,9 +620,12 @@ if ($slackLines.Count -eq 0) {
     if ($drained) { $failures.Add("run A: a death drained the Slack bank (D46: deaths only add time to the clock): '$drained'") }
 }
 
-$runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 1 of 4 -- key stays at \+2"$'
-if (-not $runEnd) { $failures.Add("run A: no 'HUD runend result=depleted choices=3 cleared=0 ... title=""Party wiped on pull 1 of 4 -- key stays at +2""' line (got '$(First $a.Lines '^HUD runend result=')')") }
-# Key progression (BIBLE s8, Matt 2026-10-20): the wiped key-2 run holds its key, no depletion drop, and the panel says so.
+# R-BACKFILL-2 (the #446 lane brief's R-WIPE-RESET): the wipe released the Warden, so run A ends at the timer cap
+# (Timer.CapTicks, tick 9600 headless), depleted and uncleared, and RunEndTitle.ForRun titles it "Out of time"; the
+# wipe title "Party wiped on pull 1 of 4" belonged to the superseded rule that a lasting wipe ends the run.
+$runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Out of time -- key stays at \+2"$'
+if (-not $runEnd) { $failures.Add("run A: no 'HUD runend result=depleted choices=3 cleared=0 ... title=""Out of time -- key stays at +2""' line (the timer cap's end, R-BACKFILL-2; got '$(First $a.Lines '^HUD runend result=')')") }
+# Key progression (BIBLE s8, Matt 2026-10-20): the untimed key-2 run holds its key, no depletion drop, and the panel says so.
 $keyLine = First $a.Lines '^HUD runend key from=2 to=2 tier=0$'
 if (-not $keyLine) { $failures.Add("run A: no 'HUD runend key from=2 to=2 tier=0' line (an untimed key holds its level; got '$(First $a.Lines '^HUD runend key ')')") }
 $choices = @($a.Lines | Where-Object { $_ -match '^HUD runend choice n=[123] slot=(weapon|armor|charm|ring|keystone) tier=\d+ facet="[^"]+"' })
@@ -607,7 +661,7 @@ $tintEnd = First $tintRun '^HUD runend result=depleted .*\bcleared=0 '
 $tintLive = First $tintRun '^HUD bar range tinted=[1-9]\d* over=0 '
 $tintOver = @($tintRun | Where-Object { $_ -match '^HUD bar range tinted=\d+ over=1 ' })
 $tintStuck = $tintOver | Where-Object { $_ -notmatch '^HUD bar range tinted=0 over=1 ' } | Select-Object -First 1
-if (-not $tintEnd) { $failures.Add("run N: no 'HUD runend result=depleted ... cleared=0' line (the party must wipe for the case; got '$(First $tintRun '^HUD runend result=')')") }
+if (-not $tintEnd) { $failures.Add("run N: no 'HUD runend result=depleted ... cleared=0' line (the run must end uncleared for the case: the timer cap's end since R-BACKFILL-2; got '$(First $tintRun '^HUD runend result=')')") }
 if (-not $tintLive) { $failures.Add('run N: no "HUD bar range tinted=N over=0" line with N > 0 (control: a live run with an out-of-range target tints)') }
 if ($tintOver.Count -eq 0) { $failures.Add('run N: no "HUD bar range ... over=1" line (the bar never saw the run end)') }
 if ($tintStuck) { $failures.Add("run N: the range tint still shows after the run ended: '$tintStuck'") }
@@ -633,11 +687,30 @@ for ($i = 0; $i -lt $b.Lines.Count; $i++) {
     }
 }
 $check8B = $null
+$respawnB = $null
+$respawnTickB = -1
 if (-not $deathB) {
     $failures.Add('run B: no EVENT death line for actor 1 (the solo Warden never died; check 8 reads his death tick from it)')
 } else {
-    if ($pingsB.Count -eq 0) { $failures.Add("run B: no 'HUD ping label=SPREAD|STACK' line before the Warden's death at $deathTickB (vacuous: the run never reached the Pair's mark while he lived)") }
+    # R-BACKFILL-2 (BIBLE s9.1, f-47a7a6db; the #446 lane brief's R-WIPE-RESET: a wipe is a release and a run-back, not a
+    # run end): the dead Warden respawns RunWiring.ReleaseDelayTicks (100) after his death step. "After the death" is his
+    # time dead, up to and including the step of his respawn EVENT (the next TICK line ends it), as HudSceneRunsBKTests
+    # walks it; once he has respawned he is a living target and the Pair's calls on him are legitimate again.
+    $iDeadEndB = $b.Lines.Count
+    for ($i = $iDeathB + 1; $i -lt $b.Lines.Count; $i++) {
+        if (-not $respawnB) {
+            if ($b.Lines[$i] -match '^EVENT \{"actorId":1,"tick":(\d+),"type":"respawn"\}$') { $respawnB = $b.Lines[$i]; $respawnTickB = [int]$Matches[1] }
+        } elseif ($b.Lines[$i] -match '^TICK ') { $iDeadEndB = $i; break }
+    }
+    if (-not $respawnB) { $failures.Add("run B: no respawn EVENT for actor 1 after his death at $deathTickB (R-BACKFILL-2: the dead Warden releases and respawns)") }
+    elseif ($respawnTickB -ne $deathTickB + 1 + 100) { $failures.Add("run B: the Warden respawned at $respawnTickB, not death $deathTickB + 1 + RunWiring.ReleaseDelayTicks 100: '$respawnB'") }
+    $pingsLiveB = @()
+    $pingsBeforeDeathB = 0
     foreach ($p in $pingsB) {
+        if ($p[1] -lt $iDeadEndB) { $pingsLiveB += , $p; if ($p[0] -lt $deathTickB) { $pingsBeforeDeathB++ } }
+    }
+    if ($pingsBeforeDeathB -eq 0) { $failures.Add("run B: no 'HUD ping label=SPREAD|STACK' line before the Warden's death at $deathTickB (vacuous: the run never reached the Pair's mark while he lived)") }
+    foreach ($p in $pingsLiveB) {
         if ($p[0] -ge $deathTickB) { $failures.Add("run B: a SPREAD/STACK call in the step of tick $($p[0]), not before the Warden's death at ${deathTickB}: '$($p[2])'") }
     }
     $drawnB = 0; $hitB = 0; $cancelPriorB = 0; $cancelAtB = 0
@@ -649,20 +722,23 @@ if (-not $deathB) {
         elseif ($l -match '"type":"telegraph_cancel"') { if ($t -lt $deathTickB) { $cancelPriorB++ } elseif ($t -eq $deathTickB) { $cancelAtB++ } }
     }
     $liveB = $drawnB - $hitB - $cancelPriorB
-    $check8B = "check 8 (R-PILE-10): death tick=$deathTickB pings=$($pingsB.Count) telegraphs drawn=$drawnB hit=$hitB cancelled before=$cancelPriorB live=$liveB cancelled at death=$cancelAtB"
+    $check8B = "check 8 (R-PILE-10): death tick=$deathTickB respawn tick=$respawnTickB pings=$($pingsLiveB.Count) telegraphs drawn=$drawnB hit=$hitB cancelled before=$cancelPriorB live=$liveB cancelled at death=$cancelAtB"
     if ($liveB -lt 1) { $failures.Add("run B: no telegraph live on the Warden's death tick $deathTickB (drawn=$drawnB hit=$hitB cancelled before=$cancelPriorB): nothing for check 8 to cancel") }
     elseif ($cancelAtB -ne $liveB) { $failures.Add("run B: $cancelAtB telegraph_cancel EVENT(s) on the Warden's death tick $deathTickB, but $liveB telegraph(s) were live (TELEGRAPH-CANCEL-ON-DEATH)") }
     for ($i = 0; $i -lt $b.Lines.Count; $i++) {
         $l = $b.Lines[$i]
         if ($l -match '^CAST start ' -and $l -notmatch ' target=(\d+|none)$') { $failures.Add("run B: a CAST start line names no target: '$l'") }
-        elseif ($i -gt $iDeathB -and $l -match '^CAST start .* target=1$') { $failures.Add("run B: a cast starts on the dead Warden (died at $deathTickB): '$l'") }
-        elseif ($i -gt $iDeathB -and $l -match '^HUD ping ') { $failures.Add("run B: a HUD ping after the Warden's death at ${deathTickB}: '$l'") }
+        elseif ($i -gt $iDeathB -and $i -lt $iDeadEndB -and $l -match '^CAST start .* target=1$') { $failures.Add("run B: a cast starts on the dead Warden (died at $deathTickB, respawned at $respawnTickB): '$l'") }
+        elseif ($i -gt $iDeathB -and $i -lt $iDeadEndB -and $l -match '^HUD ping ') { $failures.Add("run B: a HUD ping while the Warden is dead (died at $deathTickB, respawned at $respawnTickB): '$l'") }
     }
 }
-# Lane 3C-d: the solo Warden wipes in the Pair; --pull 2 drops pull 1 from the run's dungeon, and the title still
-# numbers the Pair 2 of 4 (ObjectiveModel numbering), never 1 of 3.
-$runEndB = First $b.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 2 of 4 -- key stays at \+2"$'
-if (-not $runEndB) { $failures.Add("run B: no 'HUD runend ... title=""Party wiped on pull 2 of 4 -- key stays at +2""' line (got '$(First $b.Lines '^HUD runend result=')')") }
+# R-BACKFILL-2 (BIBLE s9.1, f-47a7a6db; the #446 lane brief's R-WIPE-RESET: a wipe is a release and a run-back, not a run
+# end): the solo wipe in the Pair does not end run B, so its 900 ticks print no run-end panel (headless, the run ends
+# only at a depleted clear at 8402). Was lane 3C-d's wipe title "Party wiped on pull 2 of 4 -- key stays at +2", which a
+# layout run can no longer print; the Pair's 2 of 4 numbering is still checked on the objective line above.
+$runEndB = $respawnB
+$wipeEndB = First $b.Lines '^HUD runend '
+if ($wipeEndB) { $failures.Add("run B: a run-end panel line after the solo wipe, which releases and does not end the run (R-BACKFILL-2): '$wipeEndB'") }
 
 # ---- Run C: the three-seat bot party (lane 3H) -------------------------------------------------------------------
 # The human Warden (seat 1) plus a Chanter (healer) and a Cinder (damage) driven by Keyrun.Bots through
@@ -809,8 +885,9 @@ foreach ($t in @(@{ Id = 901; Class = 'hollowWarden.twinA' }, @{ Id = 902; Class
 $bossRule = First $d.Lines '^EVENT \{.*"type":"(lock_open|lock_broken|lock_failed|boss_enrage)"'
 
 # ---- Run E: the queued run (lane 3I) -----------------------------------------------------------------------------
-# The solo Warden wipes in pull 1; the screen's autorun script takes reward 1, steps the key to 3, picks Clause 2 and
-# queues. SimDriver must start the next run at that key with that Clause.
+# The solo Warden wipes in pull 1 and releases, over and over (R-BACKFILL-2), until the timer cap ends the run (run A's
+# run, 9600 headless); the screen's autorun script then takes reward 1, steps the key to 3, picks Clause 2 and queues.
+# SimDriver must start the next run at that key with that Clause.
 $e = Invoke-Arena $QueueTicks @('--solo', '--requeue')
 if ($e.Code -ne 0) { $failures.Add("run E: godot exited $($e.Code) (expected 0)") }
 $startsE = @($e.Lines | Where-Object { $_ -match '^RUN start ' })
@@ -921,8 +998,11 @@ if ($g.Refill) { $failures.Add("run G: a key-3 joiner refilled a key-2 run: '$($
 if ($g.Consume) { $failures.Add("run G: the key-3 joiner was consumed: '$($g.Consume)'") }
 
 # ---- Run-end titles across every autorun (lane 3C-d) ----------------------------------------------------------
-# A cleared run keeps the clear title; a wipe names the pull it was lost on. Run C (and its repeat) clears the dungeon
-# since lane TUNE-BOSS; the other autoruns wipe or time out of ticks: $clearedTitles says how many cleared.
+# A cleared run keeps the clear title; an uncleared depleted run is the timer cap's, "Out of time" (R-BACKFILL-2, BIBLE
+# s9.1, f-47a7a6db; the #446 lane brief's R-WIPE-RESET: every host run is a layout run, where a wipe is a release and a
+# run-back, never a run end, so no title may say "Party wiped"; RunEndTitle.ForRun). Run C (and its repeat) clears the
+# dungeon since lane TUNE-BOSS; runs A and E end at the timer cap; the others time out of ticks: $clearedTitles says
+# how many cleared.
 $titleLines = @(@($a.Lines) + @($b.Lines) + @($c.Lines) + @($c2.Lines) + @($d.Lines) + @($e.Lines) + @($f.Lines) + @($g.Lines) | Where-Object { $_ -match '^HUD runend result=' })
 $clearedTitles = 0
 foreach ($t in $titleLines) {
@@ -933,9 +1013,10 @@ foreach ($t in $titleLines) {
         # only for a depleted (untimed) one.
         if ($t -match ' title="Run cleared -- (within par|over par)"$' -and $t -notmatch '^HUD runend result=timed ') { $failures.Add("a non-timed clear has a timed title: '$t'") }
         if ($t -match ' title="Run cleared -- key stays at \+\d+"$' -and $t -notmatch '^HUD runend result=depleted ') { $failures.Add("a timed clear is titled as an untimed key: '$t'") }
-    } elseif ($t -match '^HUD runend result=depleted ' -and $t -notmatch ' title="Party wiped on pull \d+ of \d+ -- key stays at \+\d+"$') {
-        $failures.Add("a wiped run's title does not name the pull it was lost on and the key level it keeps: '$t'")
+    } elseif ($t -match '^HUD runend result=depleted ' -and $t -notmatch ' title="Out of time -- key stays at \+\d+"$') {
+        $failures.Add("an uncleared depleted run's title is not the timer cap's 'Out of time -- key stays at +<key>' (R-BACKFILL-2): '$t'")
     }
+    if ($t -match ' title="Party wiped ') { $failures.Add("a run-end title says the party wiped, but a wipe no longer ends a run (R-BACKFILL-2): '$t'") }
     # An untimed key keeps its level (Matt 2026-10-20, f-7c7abdf4): no title may say "depleted", which a WoW player
     # reads as the key losing a level.
     if ($t -match ' title="[^"]*depleted') { $failures.Add("a run-end title says the key is depleted: '$t'") }
@@ -971,7 +1052,7 @@ if ($startsI.Count -lt 1 -or $startsI[0] -notmatch ' clause=(echo|tide|hush|pact
     $failures.Add("run I: the first run did not come from the screen's Queue with a Clause: '$($startsI | Select-Object -First 1)'")
 }
 if (-not $runEndI) {
-    $failures.Add("run I: the party did not wipe (no depleted run_end EVENT) in $WipeFrames frames")
+    $failures.Add("run I: the run did not end depleted (no depleted run_end EVENT; the timer cap ends it since R-BACKFILL-2) in $WipeFrames frames")
 } else {
     $iEnd = [array]::IndexOf($iLines, $runEndI)
     $afterEnd = @($iLines[($iEnd + 1)..($iLines.Count - 1)])
@@ -1249,7 +1330,7 @@ if ($yawTick -ge 0) {
 foreach ($p in @($walkPath, $lRecPath, $l1LogPath, $l2LogPath)) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p } }
 
 Write-Output '--- asserted HUD lines ---'
-foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping, $deathB, $check8B, $runEndB)) {
+foreach ($l in @($summary, $party, $death, $downed, $respawnA, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping, $deathB, $check8B, $runEndB)) {
     if ($l) { Write-Output $l }
 }
 Write-Output "--- run-end titles, lane 3C-d (lines=$($titleLines.Count) cleared=$clearedTitles) ---"
