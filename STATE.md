@@ -275,7 +275,28 @@ WHY: the orchestrator is compacting at the context ceiling. Every item below is 
 - aesop #1243: pushed ca8353a8 (gate test wired in ci.yml), armed, BLOCKED on checks. WHY: the verify_gates_wired red was an unwired test file, so the fix is wiring, not relaxing the gate.
 - WHY this checkpoint, restated: the orchestrator is compacting at the context ceiling, so the funnel state and each pending action are written to disk before compaction. Next session: read this block, then the 03:30Z correction block, then sync git log; do not re-derive gh state from memory.
 
+## 2026-10-21T09:55Z PR and pile status (keyrun fleet hand-back, branch ckpt/1055z)
+WHY: records the PR state the 09:55Z block reports, so the next session does not re-derive it from lane text. These are the lanes' hand-back states as written in the 09:55Z block, not re-read from gh by this checkpoint; each PR closes only on its own pr_merged_check.
+- #440 MERGED afb96bf3 on main (worktree keyrun-wt/ckpt-1035z removed after pr_merged_check).
+- #441 #442 #443 #444 #445 #446 OPEN, armed, pinned to the heads in the 09:55Z block: #441 fix/tempo-pack-cooldowns 4cbc625a; #442 fix/chorus-echo-double-charge 5867fb70; #443 fix/melee-desync 87300dac; #444 test/cast-ledger-range-refusals f650cf6c; #445 fix/retarget-fizzle c829f23e; #446 feat/wipe-is-release cfaa3167.
+- #302 head 9afcf630 after the main merge (feat/r2-caster-ops, 14 conflicts taken main's side).
+- #418 draft, not armed, deferred to Matt's bible call on the six-body Choir (f-82d9390e).
+Rulings (one line each, from the 09:55Z block):
+- R-MARK-1: a Pair spread/stack mark applied before its caster dies still detonates (80 damage, dead caster as source); in WoW an applied debuff outlives the mob that applied it; intended, no fix.
+- R-TEMPO-2: keep CastFloors in PackOnlyTemplates in #441; it is the other half of the not_ready gap and a no-op on shipped content.
+- R-302-A: main's later ruling f-c63b43bf wins the three-way choice (a stun ends an uninterruptible cast, silence stays a no-op; interrupt carries stop:"<effectId>").
+- R-FIZZLE-2: no KnownDominatedForks entry and no retune in #445; re-evaluate after the ForkParity margins PR (f-30443c01).
+- R-WIPE-RESET: packs reset at spawn after a wipe, as in WoW (f-b8d3aacd).
+- R-REFUSE-1: not_ready refusal reporting (f-9bef5d59) waits for #444 and a trace re-record slot.
+
 ## NEXT STEPS (engine plan, design/ENGINE-PLAN.md; Phase 5 "Matt playing" stays the acceptance test)
+NOW 09:55Z (ckpt/1055z; supersedes the 02:20Z and 01:35Z lists below where they differ):
+- Bind the remaining five fleet hand-backs from gh, one PR at a time.
+- D15 rows on the integrated build.
+- #375 after the bots integration.
+- Ask Matt to close #362 #364 #326 and to rule on the six-body Choir.
+- Merge queue after #302, the bots integration, #418 and #375.
+- Renew the model lever before ~11:26Z.
 NOW 02:20Z (supersedes the 01:35Z list below where they differ):
 a. #396 green, then MERGED (verified with gh, never from narration). Then the orchestrator fast-forwards the primary tree, runs tools/godot/screens.ps1, and views the frames (D15) before closing the demo-verdict rows KF1, KF2 and KF3. WHY: D15 acceptance is Matt watching frames; a unit test alone does not close a visible row.
 b. Merge-forward the conflicting set after #396 MERGED. WHY: each conflict is resolved against the real merged base, keeping both intents.
@@ -1581,4 +1602,13 @@ WHY: the pile's last red (f-f44791bc, chorus fork parity) now has its fix inside
 - #437 docs/checkpoint-2026-10-21-0925z: MERGED 01377f072d4300cdf8a9d28b27335717f19eb625 on main (pr_merged_check MERGED). Worktree keyrun-wt/ckpt-0925z removed after status clean.
 - Monitor heartbeat 1451 s at 09:55Z (under the 1500 s relaunch line); no relaunch.
 - f-f44791bc stays open until #432 is MERGED (pr_merged_check), then closes with fix ref #438 0bc042e4 / #432 merge commit.
-- Next: bind #432 MERGED from gh when its arm fires; then the post-pile list (close f-f44791bc; ask Matt to close #307/#362/#364/#326; merge-forward #302, #295, #327, #298, #375 last; dispatch the deferred fleet incl. f-0fb803dc; remove merged worktrees after pr_merged_check); then the merge queue Matt approved).
+- Next: bind #432 MERGED from gh when its arm fires; then the post-pile list (close f-f44791bc; ask Matt to close #307/#362/#364/#326; merge-forward #302, #295, #327, #298, #375 last; dispatch the deferred fleet incl. f-0fb803dc; remove merged worktrees after pr_merged_check); then the merge queue Matt approved.
+
+## 2026-10-21T09:40Z checkpoint (the pile is on main: #432 MERGED a7069768; #439 MERGED 4ad60c69; post-pile fleet dispatched)
+WHY: Matt's plan was land the pile, then the deferred keyrun work, then the merge queue. #432 (integrate/pile-20261021, supersedes #307 #362 #364 #326) is MERGED by Matt's SQUASH arm with all required checks passing; pr_merged_check prints "MERGED a706976 on main@a706976". Every finding deferred "after the integration PR is MERGED" is now due, so the fleet goes out before anything else (KEYRUN FIRST gate). Clock: GitHub times; session `date -u` read 09:32Z at this block.
+- #432 MERGED mergeCommit a70697682c46bf9bc44a5539446d8af34f8eaefe. #439 (checkpoint blocks 09:30Z-09:55Z) MERGED mergeCommit 4ad60c69603adef0c1cc7a7c6932642fd5e5e75f; pr_merged_check "MERGED 4ad60c6 on main@a706976". #433 IMMUNE combat text MERGED (D15 frame row still owed by the orchestrator). #307 is CLOSED on GitHub.
+- Closed: f-f44791bc (chorus fork parity; fix ref #432 carrying #438 0bc042e4, R-PILE-7e), f-0a2c9b5c (#326 run C regression, superseded by #432 with game-e2e passing). f-94749699 (stun-immune boss refuses the effect) already has merged PR #429 "fix(sim): a stun-immune enemy refuses the stunned effect" -> close with #429's merge commit (checked merged-PR search before dispatch; no lane sent).
+- Still open from the pile's supersede set: #362, #364, #326 (Matt's arms, now DIRTY against main; their content is in #432). Ask Matt to close them. #302 (DIRTY), #295 (BLOCKED), #327 (-> #295), #298 (DIRTY), #375 (-> feat/prespawn-aggro, DIRTY) are real remaining work: bots pile lane (#295+#327+#298 -> integrate/bots-20261021) and a #302 bring-up lane dispatched; #375 last. #382, #306, #250 are Matt-armed and UNKNOWN (GitHub recomputing); if they turn DIRTY they get bring-up lanes.
+- Worktrees: integrate-pile, integrate-pile-bisect, ckpt-0955z removed after pr_merged_check (#432, #439). pile-chorus (#438 -> integrate) and pile-e2e (#435 -> integrate) removed after their pr_merged_check. dead-caster (fix/death-cancels-casts 2301de03, no PR) held until the f-42df9d4f lane says whether it landed inside #432. pr307/pr362/mf-364/mf-326/mf-326-pre/setup-lesson/mf-295 held: their PRs are superseded, not MERGED.
+- Refinement monitor heartbeat 2250 s at 09:32Z; relaunch right after the keyrun fleet is live (KEYRUN FIRST).
+- Next: fleet hand-backs (bind every PR from gh); D15 frame rows on the integrated build (ready-check #421, f-682aacb5, f-83c5e369, f-6b1cd469, f-fa28e36e, IMMUNE #433); #375 bring-up after the bots pile; `git -C ~/.claude pull --ff-only origin master` after pr_merged_check claude-config #165; then enable the merge queue Matt approved and report; renew the model lever before ~11:26Z if Opus lanes remain.

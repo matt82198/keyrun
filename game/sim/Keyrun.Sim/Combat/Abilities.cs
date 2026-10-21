@@ -189,7 +189,7 @@ public static class Abilities
         ArgumentNullException.ThrowIfNull(op);
         switch (op)
         {
-            case DamageOp or HealOp or ApplyEffectOp or RemoveEffectOp or InterruptOp or ResourceOp or ThreatOp or WindowOp or PayoffOp:
+            case DamageOp or HealOp or ApplyEffectOp or RemoveEffectOp or InterruptOp or ResourceOp or ThreatOp or WindowOp or PayoffOp or DamagePctOp or PullOp:
                 return Array.Empty<string>();
             case ComboOp c when c.ComboTable is CombosTable or FieldCombosTable:
                 return Array.Empty<string>();

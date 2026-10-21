@@ -149,9 +149,6 @@ public sealed record HostRunSetup(
             registry, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false), Affixes.HealthBp(affixTable, affixes, bossSide: true));
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
         var boss = BuildBossConfig(registry, bossEnemy, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: true));
-        // TEMPO-CAST-FLOOR (BIBLE s8): every cast an enemy script makes (pulls, boss, Twins) gets the key-scaled
-        // cooldown its scaled loop was floored against, so the loop speeds up and its cast is ready on the fire tick.
-        abilities = Tempo.ScaleEnemyCooldowns(abilities, scripts.Values.Concat(boss.Twins.Select(t => t.Script)), keyLevel);
 
         // Lane NAV-CORE (STATE.md D18): the dungeon's rooms and corridors. Pulls stand in their rooms, the party in the
         // Entrance; every pull stands idle from tick 0 and engages on its aggro ring, along one open path (STATE.md D44).
@@ -168,6 +165,12 @@ public sealed record HostRunSetup(
         var (packs, packScripts) = LayoutPackGroups.Build(
             layout, dungeon, scripts,
             packOnly: PackOnlyTemplates(registry, layout, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false)));
+        // TEMPO-CAST-FLOOR (BIBLE s8): every cast an enemy script of the run makes (pulls, boss, pack members including
+        // pack-only enemies such as the Hall Sentry, and the Twins) gets the key-scaled cooldown its scaled loop was
+        // floored against, so the loop speeds up and its cast is ready on the fire tick. packScripts is the pull and boss
+        // scripts plus every pack member's, so this runs after LayoutPackGroups.Build; ScaleEnemyCooldowns scales each
+        // ability id once however many scripts cast it (finding f-c94c7cd7).
+        abilities = Tempo.ScaleEnemyCooldowns(abilities, packScripts.Values.Concat(boss.Twins.Select(t => t.Script)), keyLevel);
 
         var run = registry.Run;
         var movement = new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm, nav.Extent);
@@ -740,7 +743,8 @@ public sealed record HostRunSetup(
     }
 
     /// <summary>
-    /// PATH-PACKS: a scaled template (<see cref="ScaledTrashSpawn"/>, Tempo-scaled script) for every layout pack enemy no
+    /// PATH-PACKS: a scaled template (<see cref="ScaledTrashSpawn"/>, Tempo-scaled script floored against each cast's
+    /// key-scaled cooldown, <see cref="CastFloors"/>, as a pull's script is) for every layout pack enemy no
     /// pull of <paramref name="dungeonDef"/> fields, such as the Hall Sentry; an enemy a pull fields is copied from that
     /// pull's spawn by <see cref="LayoutPackGroups.Build"/> instead. Fails closed on an enemy id content does not define.
     /// </summary>
@@ -756,7 +760,7 @@ public sealed record HostRunSetup(
                 var def = Enemy(registry, group.EnemyId, $"pack \"{pack.Id}\"");
                 templates[def.Id] = new PackTemplate(
                     ScaledTrashSpawn(def, 0, Vec3.Zero, keyLevel, trashHealthBp),
-                    Tempo.ScaleScript(ToSim(def.Script), keyLevel));
+                    Tempo.ScaleScript(ToSim(def.Script), keyLevel, CastFloors(registry, keyLevel)));
             }
         }
         return templates;
