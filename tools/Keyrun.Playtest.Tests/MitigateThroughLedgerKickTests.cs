@@ -20,12 +20,13 @@ namespace Keyrun.Playtest.Tests;
 public sealed class MitigateThroughLedgerKickTests
 {
     private const string KickPlan = "{\"mitigate\": [\"warden\"], \"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"cinder\", \"chanter\", \"warden\"]}]}";
-    // 11 ticks into the kick-plan run's first boss cleave (9014-9054), as 4133 was into 4122-4162 and 5486 into
-    // 5475-5515. R-BOTS-6 re-derivation (BOTS-INTEGRATE, #295 + #327 + #298 on main a7069768; a measurement, the
-    // assertions are unchanged): was 4133, where the run now stands in the Choir pull (76-6651) with no boss cast; this
-    // run now ends Timed at 9588 (boss pull 8858-9587). Was 5486 before that (D-PINNED-FIXTURES-362: with the healer
-    // press and Mending 6000 the run ended Timed at 4519, boss pull 3966-4518).
-    private const int Tick = 9025;
+    // 11 ticks into the kick-plan run's first boss cleave (8846-8886), as 4133 was into 4122-4162 and 5486 into
+    // 5475-5515. R-BOTS-6 re-derivation (BOTS-INTEGRATE, #295 + #327 + #298 merged with main acac1b42; a measurement,
+    // the assertions are unchanged): was 4133, where the run now stands in the Choir pull (76-6651) with no boss cast;
+    // this run now ends Timed at 9313 (boss pull 8690-9312). Before main acac1b42 was merged it measured 9025 (first
+    // cleave 9014-9054, Timed at 9588). Was 5486 before 4133 (D-PINNED-FIXTURES-362: with the healer press and Mending
+    // 6000 the run ended Timed at 4519, boss pull 3966-4518).
+    private const int Tick = 8857;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 

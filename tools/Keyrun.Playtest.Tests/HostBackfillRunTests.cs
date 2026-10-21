@@ -22,15 +22,18 @@ namespace Keyrun.Playtest.Tests;
 /// Godot run reports "the abandon came after pull 2 spawned".
 /// <para><see cref="AbandonSeat"/> and <see cref="BackfillTicks"/> are HudSceneTest's <c>-AbandonSeat</c> and
 /// <c>-BackfillTicks</c> defaults; change them together.</para>
-/// <para>R-BOTS-8: the leave is main's pull-relative form (<see cref="SeatAbandonPlan"/>, RULING R-415-D: "a seat
-/// abandons during the first pull" is a scenario, not a run tick), parsed and resolved exactly as SimDriver does
-/// (<see cref="SeatAbandonPlan.ResolveTick"/> against the anchor pull's pull_start). Was the fixed form 2@1500 (#298),
-/// which the bots integration's pacing moved: the party never started the Pair in 3500 ticks.</para>
+/// <para>R-BOTS-8: the leave is main's anchored form (<see cref="SeatAbandonPlan"/>; RULING R-415-D: "a seat abandons
+/// during the first pull" is a scenario, not a run tick), parsed and resolved exactly as SimDriver does
+/// (<see cref="SeatAbandonPlan.ResolveTick"/> against <see cref="SeatAbandonPlan.AnchorAt"/> after each step), with
+/// main's HudSceneTest default since #447 (f-0fd3e6fb): one tick after the Choir's standing enemies are down to a tenth
+/// of their health. Was the fixed form 2@1500 (#298), which the bots integration's pacing moved: the party never
+/// started the Pair in 3500 ticks.</para>
 /// </summary>
 public sealed class HostBackfillRunTests
 {
-    /// <summary>HudSceneTest <c>-AbandonSeat</c> (R-415-D): the Chanter (actor 2) leaves 1350 ticks after pull 0 starts.</summary>
-    public const string AbandonSeat = "2@pull0+1350";
+    /// <summary>HudSceneTest <c>-AbandonSeat</c> (#447, f-0fd3e6fb): the Chanter (actor 2) leaves one tick after pull 0's
+    /// standing enemies are down to 10% of their health.</summary>
+    public const string AbandonSeat = "2@pull0.hp10+1";
 
     /// <summary>The seat <see cref="AbandonSeat"/> empties.</summary>
     public const int AbandonActor = 2;
@@ -92,8 +95,8 @@ public sealed class HostBackfillRunTests
             bots.TakeReactions();
             var step = Backfill.Step(backfill, run, commands, queue);
             backfill = step.Backfill;
-            // SimDriver.StepOnce: the anchor is the step's pull_start for the plan's pull, kept once seen.
-            anchor ??= abandon?.AnchorFrom(step.Step.Events);
+            // SimDriver.StepOnce: the plan's anchor for this step (pull_start or health-relative), kept once seen.
+            anchor ??= abandon?.AnchorAt(preTick, step.Step.Events, step.Step.Run.Dungeon, step.Step.Run.State.Actors);
             run = step.Step.Run;
             events.AddRange(step.Step.Events.Select(e => (preTick, e)));
             if (pull2 is null && step.Step.Events.Any(e => e.Type == "pull_start" && e.Get("pullIndex") is JsInt { Value: 1 }))
