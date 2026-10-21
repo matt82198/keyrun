@@ -1,0 +1,2 @@
+chore/clause-pick-dead-code (R1, bible s8): deletes dead ClauseChoice/ClausePick and the 6-arg Lobby.Open compat overload; test callers moved to the 5-arg ScreenState.Open and 8-arg Lobby.Open forms with behavior preserved (rotation 0, NoClauseStartKey).
+Base: origin/feat/clause-pick-remove fccdd5d0 (PR 514 still OPEN). Kept ScreenState 3-arg Open: its production caller game/src/Hud/Screen.cs:879 is outside this unit's file list.
