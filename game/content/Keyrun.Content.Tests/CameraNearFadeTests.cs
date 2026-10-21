@@ -112,4 +112,54 @@ public sealed class CameraNearFadeTests
         // The distance rule gives 240 at 1 m (50 + 950 * 1000 / 5000); the occlusion rule's 250 is higher, so 240 wins.
         Assert.Equal(240, CameraNearFade.AlphaPermille(1000, occludes: true));
     }
+
+    // CAMERA-FG screen height (ruling, receipt demo-7c57b090): a party body drawn taller than a third of the viewport
+    // (Chanter and Cinder at 4 m fill the lower third of the 1280x720 frame) is capped at the party fade. The boss,
+    // the twins and the player's own model are excluded by role, so the cap never reaches them.
+    [Fact]
+    public void A_party_body_taller_than_a_third_of_the_viewport_is_capped_at_the_party_fade()
+    {
+        Assert.Equal(PartyFade.FadedPermille, CameraNearFade.ScreenHeightCapPermille(FadeRole.Ally, 340));
+    }
+
+    [Fact]
+    public void A_party_body_at_320_permille_of_the_viewport_is_not_capped()
+    {
+        Assert.Equal(Opaque, CameraNearFade.ScreenHeightCapPermille(FadeRole.Ally, 320));
+    }
+
+    [Fact]
+    public void The_screen_height_boundary_is_pinned_at_333_opaque_and_334_capped()
+    {
+        // One third of the viewport is 333.33 permille: 333 is within it (opaque), 334 exceeds it (capped).
+        Assert.Equal(Opaque, CameraNearFade.ScreenHeightCapPermille(FadeRole.Ally, 333));
+        Assert.Equal(PartyFade.FadedPermille, CameraNearFade.ScreenHeightCapPermille(FadeRole.Ally, 334));
+    }
+
+    [Fact]
+    public void An_enemy_is_never_capped_by_its_screen_height()
+    {
+        Assert.Equal(Opaque, CameraNearFade.ScreenHeightCapPermille(FadeRole.Enemy, 900));
+    }
+
+    [Fact]
+    public void The_players_own_model_is_never_capped_by_its_screen_height()
+    {
+        Assert.Equal(Opaque, CameraNearFade.ScreenHeightCapPermille(FadeRole.Self, 900));
+    }
+
+    [Fact]
+    public void The_screen_height_is_the_projected_span_over_the_viewport_height()
+    {
+        // 340 px of a 1000 px viewport is 340 permille; 245 px of a 720 px viewport is 340.27, floored to 340.
+        Assert.Equal(340, CameraNearFade.ScreenHeightPermille(100, 440, 1000));
+        Assert.Equal(340, CameraNearFade.ScreenHeightPermille(0, 245, 720));
+    }
+
+    [Fact]
+    public void A_body_with_no_viewport_or_an_inverted_span_has_no_screen_height()
+    {
+        Assert.Equal(0, CameraNearFade.ScreenHeightPermille(0, 100, 0));
+        Assert.Equal(0, CameraNearFade.ScreenHeightPermille(100, 50, 720));
+    }
 }

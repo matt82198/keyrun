@@ -93,6 +93,48 @@ public static class CameraNearFade
     public static int AlphaPermille(int distanceMm, bool occludes) =>
         occludes ? Math.Min(AlphaPermille(distanceMm), PartyFade.FadedPermille) : AlphaPermille(distanceMm);
 
+    /// <summary>
+    /// The height a body is measured at for the screen-height rule, mm: the capsule the actor view draws (1.8 m). The view
+    /// projects the feet and this height above them.
+    /// </summary>
+    public const int BodyHeightMm = 1800;
+
+    /// <summary>
+    /// A party body drawn taller than this many permille of the viewport height is capped at <see cref="PartyFade.FadedPermille"/>.
+    /// One third of the viewport is 333.33 permille, so 333 is within it and 334 exceeds it.
+    /// </summary>
+    public const int ScreenHeightLimitPermille = 333;
+
+    /// <summary>
+    /// The projected height of a body on screen, permille of the viewport height: the span from its top to its bottom
+    /// pixel over the viewport height, floored. Zero when there is no viewport or the span is not positive (a body behind
+    /// the lens projects to no height, so the cap does not apply).
+    /// </summary>
+    /// <param name="topPx">The screen y of the body's top, pixels (smaller y is higher on the screen).</param>
+    /// <param name="bottomPx">The screen y of the body's feet, pixels.</param>
+    /// <param name="viewportHeightPx">The viewport height, pixels.</param>
+    /// <returns>The projected height, permille of the viewport height.</returns>
+    public static int ScreenHeightPermille(int topPx, int bottomPx, int viewportHeightPx)
+    {
+        var span = (long)bottomPx - topPx;
+        if (viewportHeightPx <= 0 || span <= 0)
+        {
+            return 0;
+        }
+        return (int)(span * OpaquePermille / viewportHeightPx);
+    }
+
+    /// <summary>
+    /// The alpha cap the screen-height rule puts on one body: <see cref="PartyFade.FadedPermille"/> for a party body
+    /// (<see cref="FadeRole.Ally"/>) drawn taller than <see cref="ScreenHeightLimitPermille"/>, otherwise opaque. Only a
+    /// party body can be capped; the player's own model and every enemy (the boss and the twins) always return opaque.
+    /// </summary>
+    /// <param name="role">Who the body is.</param>
+    /// <param name="screenHeightPermille">The body's projected height, permille of the viewport height (see <see cref="ScreenHeightPermille"/>).</param>
+    /// <returns><see cref="PartyFade.FadedPermille"/> or <see cref="OpaquePermille"/>.</returns>
+    public static int ScreenHeightCapPermille(FadeRole role, int screenHeightPermille) =>
+        role == FadeRole.Ally && screenHeightPermille > ScreenHeightLimitPermille ? PartyFade.FadedPermille : OpaquePermille;
+
     private static (long X, long Y, long Z) Sub((int X, int Y, int Z) a, (int X, int Y, int Z) b) =>
         ((long)a.X - b.X, (long)a.Y - b.Y, (long)a.Z - b.Z);
 
