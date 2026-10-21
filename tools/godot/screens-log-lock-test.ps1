@@ -13,6 +13,10 @@
         read, prints 'SCREENS models actors=1 fallback=0', never throws, and exits with a documented code (0 or 1; the stub captures no frame)
     K2  the holder keeps the log locked for 8 s (a persistent lock): screens.ps1 prints exactly one
         'SCREENS log-locked ...' line, skips the model gate, never throws, and exits 1 (no frame)
+    K3  the stub stays alive 4 s, so screens.ps1 saves frames (fullscreen fallback after three window misses), and the
+        holder keeps the log locked for 20 s, through every snapshot retry: screens.ps1 prints exactly one
+        'SCREENS log-locked ...' line, keeps the frames, never throws, and exits 10 (model gate not evaluated). A
+        capture whose model gate never ran is never a success.
 
   Run:  powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/screens-log-lock-test.ps1
   Exit 0 = PASS, 1 = FAIL.
@@ -52,7 +56,7 @@ try {
 '@
 
 # One case: builds the fixture, starts the holder, runs screens.ps1 to completion. Returns output lines and exit code.
-function Invoke-LockCase([string]$tag, [int]$HoldMs) {
+function Invoke-LockCase([string]$tag, [int]$HoldMs, [int]$StubSeconds = 0) {
     $root = Join-Path $work $tag
     $tools = Join-Path $root 'tools\godot'
     New-Item -ItemType Directory -Path $tools -Force | Out-Null
@@ -69,9 +73,14 @@ function Invoke-LockCase([string]$tag, [int]$HoldMs) {
     Write-Text $dll @('MZ')
     (Get-Item -LiteralPath $dll).LastWriteTimeUtc = (Get-Date).ToUniversalTime()
 
-    # Stub Godot: exits at once and writes nothing.
+    # Stub Godot: writes nothing. Exits at once, or stays alive about $StubSeconds s (ping waits 1 s per extra echo) so
+    # screens.ps1 saves frames through its fullscreen fallback.
     $stubDir = Join-Path $root 'stub'
-    Write-Text (Join-Path $stubDir 'godot.cmd') @('@echo off', 'exit /b 0')
+    if ($StubSeconds -gt 0) {
+        Write-Text (Join-Path $stubDir 'godot.cmd') @('@echo off', ('ping -n {0} 127.0.0.1 >nul' -f ($StubSeconds + 1)), 'exit /b 0')
+    } else {
+        Write-Text (Join-Path $stubDir 'godot.cmd') @('@echo off', 'exit /b 0')
+    }
     # Fake .NET root: screens.ps1 only checks that dotnet.exe exists there.
     $dotnetRoot = Join-Path $root 'dotnet'
     Write-Text (Join-Path $dotnetRoot 'dotnet.exe') @('MZ')
@@ -115,6 +124,16 @@ $lockLines = @($k2.Out | Where-Object { $_ -match '^SCREENS log-locked ' })
 Check 'K2.one-log-locked-line' ($lockLines.Count -eq 1) ("count={0} output:`n{1}" -f $lockLines.Count, $k2Text)
 Check 'K2.no-lock-exception' (-not ($k2Text -match 'being used by another process|Exception calling')) ("output:`n{0}" -f $k2Text)
 Check 'K2.documented-exit' ($k2.Code -eq 1) ("exit={0} output:`n{1}" -f $k2.Code, $k2Text)
+
+# K3: frames saved, lock held through every retry: the model gate never ran, so the run fails closed with exit 10.
+$k3 = Invoke-LockCase 'k3-locked-with-frames' 15000 4
+$k3Text = $k3.Out -join "`n"
+$k3Lock = @($k3.Out | Where-Object { $_ -match '^SCREENS log-locked ' })
+$k3Shots = @($k3.Out | Where-Object { $_ -match '^SHOT ' })
+Check 'K3.frames-saved' ($k3Shots.Count -ge 1) ("shots={0} output:`n{1}" -f $k3Shots.Count, $k3Text)
+Check 'K3.one-log-locked-line' ($k3Lock.Count -eq 1) ("count={0} output:`n{1}" -f $k3Lock.Count, $k3Text)
+Check 'K3.no-lock-exception' (-not ($k3Text -match 'being used by another process|Exception calling')) ("output:`n{0}" -f $k3Text)
+Check 'K3.exit-10' ($k3.Code -eq 10) ("exit={0} output:`n{1}" -f $k3.Code, $k3Text)
 
 Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 
