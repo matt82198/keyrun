@@ -354,8 +354,7 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
     of a teaching pull lies inside its room, so the party is in the room when the gate shuts. Optional packs never
     shut a gate.
   - **The teaching beats are unchanged.** The Choir still teaches the kick, and the Pair still teaches spread and
-    stack. The Seed elite stands idle in its chamber until it is engaged, so it cannot be opened on by a party that
-    has not engaged it, and it drops its Window on death as before. The boss stands idle in the Warden arena behind
+    stack. The Seed elite activates when the party enters its chamber, as WoW mini-bosses do (amended 2026-10-21, orchestrator ruling R6; Matt may overrule; the Seed is the one group that activates on room entry, sim constant Aggro.RoomActivatedPullIds = {"seed"}, PR #505; every other group engages on its aggro radius), and it drops its Window on death as before. The boss stands idle in the Warden arena behind
     the Hollow Door (9.5). It can only be engaged once the door is open, and the Lock's 50% and 30-second rhythm
     counts from its own fight.
   - **Linked groups chain-pull.** Content may link groups. A link is drawn on the floor as a dashed line between
@@ -517,7 +516,7 @@ example 104%) and do nothing else. The fight beyond the door is unchanged.
 2. **The Pair** — five melee; every 20 s one player is marked to *spread* (a ring: stand apart), ten seconds
    later the pack calls a *stack* (a circle: stand together, damage split). Teaches reading shape.
 3. **The Seed** — an elite that on death drops a Window on the floor; a Combo landed in it grants bonus loot at
-   run end. Teaches the boss's core rule with no stakes.
+   run end. Teaches the boss's core rule with no stakes. It activates when the party enters its chamber, as WoW mini-bosses do (amended 2026-10-21, orchestrator ruling R6; Matt may overrule); every other group engages on its aggro radius.
 
 **Boss: the Hollow Warden.** Three mechanics, sequenced, never layered (research/06):
 1. **Cleave** — a slow frontal cone, readable from the boss's facing. Stand behind or beside.
