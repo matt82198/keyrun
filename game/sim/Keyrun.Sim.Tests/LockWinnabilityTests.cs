@@ -158,7 +158,8 @@ public sealed class LockWinnabilityTests
 
     /// <summary>
     /// The scripted player, a pure function of the visible state (deterministic). Warden: walk to melee, Strike on
-    /// cooldown (Reckoning at 100 Momentum) until the Lock opens, then one Strike inside the Window (the Setup).
+    /// cooldown (Vigil whenever it is ready at 50 Momentum, Reckoning at 100) until the Lock opens, then one Strike
+    /// inside the Window (the Setup).
     /// Cinder: Ember Bolt from range until the Lock opens; once the Warden's Setup has tagged the Lock, Cold Snap on the
     /// boss (the Payoff; <paramref name="payoffInLock"/> false withholds it, the mutation). Chanter: Cadence on the
     /// most injured ally. No floor Windows are used, so Payoff.cs:153's field self-hit never applies.
@@ -212,8 +213,12 @@ public sealed class LockWinnabilityTests
             {
                 // The Lock is one Ember Bolt away: hold the GCD so the Setup goes out the tick the Window opens.
             }
-            else if (w.Resource >= 50 && w.Health * 10 < w.MaxHealth * 6 && Ready(w, content, "warden.vigil", tick))
+            else if (w.Resource >= 50 && Ready(w, content, "warden.vigil", tick))
             {
+                // Vigil on cooldown, ahead of Strike, as the autorun Warden casts it (game/src/Host/ScriptedWarden.cs
+                // Rotation). Gated below 60% health it was reactive: under TEMPO-CAST-FLOOR the boss's Cleave lands at its
+                // written rate (every 156 at key 2, not every other fire), and the 352 Cleave hit an unbraced Warden for
+                // 220 of his 400, so the Twins' slams killed him at tick 402 before the Lock opened.
                 cmds.Add(new CastCommand(tick, Warden, "warden.vigil", null));
             }
             else if (w.Resource >= 100 && Ready(w, content, "warden.reckoning", tick))
