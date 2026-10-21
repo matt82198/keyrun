@@ -75,6 +75,8 @@ public static class RunRoot
             state = RunWiring.MergeActors(state, Pulls.SpawnAllIdle(dungeon, content.ActorRadiusMm));
             // PATH-PACKS: every layout pack, required and optional, stands idle on the path from tick 0 too.
             state = RunWiring.MergeActors(state, LayoutPacks.SpawnAllIdle(content.Packs, content.ActorRadiusMm));
+            // KF3 Seed spawn gate (BIBLE section 9.6): the Seed waits dormant in its chamber until a party member enters it.
+            Aggro.MarkDormant(state, dungeon, layout);
         }
         else
         {
@@ -369,7 +371,7 @@ public static class RunRoot
             }
         }
 
-        var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs);
+        var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs, layout);
         var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);
         return (next, encounter);
