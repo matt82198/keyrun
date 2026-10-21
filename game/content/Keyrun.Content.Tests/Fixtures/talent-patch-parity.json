@@ -1,0 +1,4760 @@
+{
+  "facets": [
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 80,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "warden",
+            "windowId": "sundered"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.strike",
+        "interruptible": false,
+        "name": "Strike",
+        "range": 3000,
+        "shape": {
+          "angle1024": 90,
+          "kind": "cone",
+          "radius": 3000
+        },
+        "tags": [
+          "setup:sundered"
+        ]
+      },
+      "abilityId": "warden.strike",
+      "classId": "warden",
+      "facetId": "warden.weapon.keenEdge",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 20,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 100,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          },
+          {
+            "multiplierBp": 15000,
+            "op": "threat"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.guardBreak",
+        "interruptible": false,
+        "name": "Guard Break",
+        "range": 3000,
+        "shape": {
+          "angle1024": 200,
+          "kind": "cone",
+          "radius": 3000
+        },
+        "tags": [
+          "payoff"
+        ]
+      },
+      "abilityId": "warden.guardBreak",
+      "classId": "warden",
+      "facetId": "warden.weapon.wideningBreak",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 100,
+          "resource": "momentum"
+        },
+        "effects": [
+          {
+            "amount": 400,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "multiplierBp": 20000,
+            "op": "threat"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.reckoning",
+        "interruptible": false,
+        "name": "Reckoning",
+        "range": 3000,
+        "shape": {
+          "kind": "line",
+          "length": 6000,
+          "width": 1200
+        },
+        "tags": [
+          "payoff"
+        ]
+      },
+      "abilityId": "warden.reckoning",
+      "classId": "warden",
+      "facetId": "warden.weapon.twinStrike",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 160,
+            "onTarget": false,
+            "op": "window",
+            "radiusMm": 2500,
+            "setupClass": "warden",
+            "windowId": "bulwark"
+          },
+          {
+            "durationTicks": 160,
+            "effectId": "braced",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.bulwark",
+        "interruptible": true,
+        "name": "Bulwark",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "setup:bulwark",
+          "mobile-aura"
+        ]
+      },
+      "abilityId": "warden.bulwark",
+      "classId": "warden",
+      "facetId": "warden.weapon.mobileWard",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 480,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "op": "interrupt"
+          },
+          {
+            "amount": 50,
+            "op": "threat"
+          },
+          {
+            "durationTicks": 60,
+            "effectId": "slowed",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "warden.shieldBash",
+        "interruptible": false,
+        "name": "Shield Bash",
+        "range": 3000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "interrupt",
+          "control"
+        ]
+      },
+      "abilityId": "warden.shieldBash",
+      "classId": "warden",
+      "facetId": "warden.armor.chillingBash",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 160,
+            "onTarget": false,
+            "op": "window",
+            "radiusMm": 2500,
+            "setupClass": "warden",
+            "windowId": "bulwark"
+          },
+          {
+            "durationTicks": 160,
+            "effectId": "braced",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "durationTicks": 160,
+            "effectId": "slowed",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.bulwark",
+        "interruptible": true,
+        "name": "Bulwark",
+        "range": 3000,
+        "shape": {
+          "kind": "circle",
+          "radius": 2500
+        },
+        "tags": [
+          "setup:bulwark"
+        ]
+      },
+      "abilityId": "warden.bulwark",
+      "classId": "warden",
+      "facetId": "warden.armor.miredGround",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 120,
+        "cost": {
+          "amount": 50,
+          "resource": "momentum"
+        },
+        "effects": [
+          {
+            "durationTicks": 100,
+            "effectId": "bracedSelf",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "durationTicks": 100,
+            "effectId": "braced",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.vigil",
+        "interruptible": false,
+        "name": "Vigil",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": []
+      },
+      "abilityId": "warden.vigil",
+      "classId": "warden",
+      "facetId": "warden.armor.layeredPlate",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 160,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 1,
+            "multiplierBp": 100000,
+            "op": "threat"
+          },
+          {
+            "amount": 60,
+            "op": "damage",
+            "school": "physical"
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "warden.taunt",
+        "interruptible": false,
+        "name": "Taunt",
+        "range": 3000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "utility"
+        ]
+      },
+      "abilityId": "warden.taunt",
+      "classId": "warden",
+      "facetId": "warden.armor.retribution",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 120,
+        "cost": {
+          "amount": 50,
+          "resource": "momentum"
+        },
+        "effects": [
+          {
+            "durationTicks": 100,
+            "effectId": "bracedSelf",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "comboTable": "combos",
+            "op": "combo"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.vigil",
+        "interruptible": false,
+        "name": "Vigil",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "payoff"
+        ]
+      },
+      "abilityId": "warden.vigil",
+      "classId": "warden",
+      "facetId": "warden.charm.vigilantsMark",
+      "loadout": "applyLoadout: class \"warden\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: warden.strike=[setup:sundered], warden.guardBreak=[payoff], warden.bulwark=[setup:bulwark], warden.reckoning=[payoff], warden.vigil=[payoff]"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 160,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 1,
+            "multiplierBp": 100000,
+            "op": "threat"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "windowId": "sundered"
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "warden.taunt",
+        "interruptible": false,
+        "name": "Taunt",
+        "range": 3000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "utility",
+          "setup:sundered"
+        ]
+      },
+      "abilityId": "warden.taunt",
+      "classId": "warden",
+      "facetId": "warden.charm.opportunist",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 2,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 80,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "durationTicks": 20,
+            "effectId": "stunned",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "windowId": "sundered"
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "warden.charge",
+        "interruptible": false,
+        "name": "Charge",
+        "range": 8000,
+        "shape": {
+          "kind": "line",
+          "length": 8000,
+          "radius": 1000
+        },
+        "tags": [
+          "movement",
+          "setup:sundered"
+        ]
+      },
+      "abilityId": "warden.charge",
+      "classId": "warden",
+      "facetId": "warden.charm.chargingBlow",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 300,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "effectId": "braceSelf",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "comboTable": "combos",
+            "op": "combo"
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "warden.brace",
+        "interruptible": false,
+        "name": "Brace",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "defensive",
+          "payoff"
+        ]
+      },
+      "abilityId": "warden.brace",
+      "classId": "warden",
+      "facetId": "warden.charm.releaseTheGuard",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 80,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "warden",
+            "windowId": "sundered"
+          },
+          {
+            "delta": 10,
+            "op": "resource",
+            "resource": "momentum"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.strike",
+        "interruptible": false,
+        "name": "Strike",
+        "range": 3000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "setup:sundered"
+        ]
+      },
+      "abilityId": "warden.strike",
+      "classId": "warden",
+      "facetId": "warden.ring.momentumEngine",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 160,
+            "onTarget": false,
+            "op": "window",
+            "radiusMm": 2500,
+            "setupClass": "warden",
+            "windowId": "bulwark"
+          },
+          {
+            "durationTicks": 160,
+            "effectId": "braced",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "delta": 20,
+            "op": "resource",
+            "resource": "momentum"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.bulwark",
+        "interruptible": true,
+        "name": "Bulwark",
+        "range": 3000,
+        "shape": {
+          "kind": "circle",
+          "radius": 2500
+        },
+        "tags": [
+          "setup:bulwark"
+        ]
+      },
+      "abilityId": "warden.bulwark",
+      "classId": "warden",
+      "facetId": "warden.ring.bracedReserves",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 100,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          },
+          {
+            "multiplierBp": 15000,
+            "op": "threat"
+          },
+          {
+            "op": "payoff"
+          },
+          {
+            "delta": 10,
+            "op": "resource",
+            "resource": "momentum"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.guardBreak",
+        "interruptible": false,
+        "name": "Guard Break",
+        "range": 3000,
+        "shape": {
+          "angle1024": 140,
+          "kind": "cone",
+          "radius": 3000
+        },
+        "tags": [
+          "payoff",
+          "momentum-surge"
+        ]
+      },
+      "abilityId": "warden.guardBreak",
+      "classId": "warden",
+      "facetId": "warden.ring.momentumSurge",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 120,
+        "cost": {
+          "amount": 25,
+          "resource": "momentum"
+        },
+        "effects": [
+          {
+            "durationTicks": 100,
+            "effectId": "bracedSelf",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.vigil",
+        "interruptible": false,
+        "name": "Vigil",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "cheap-cast"
+        ]
+      },
+      "abilityId": "warden.vigil",
+      "classId": "warden",
+      "facetId": "warden.ring.cheapVigil",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 40,
+        "cost": {
+          "amount": 50,
+          "resource": "momentum"
+        },
+        "effects": [
+          {
+            "durationTicks": 100,
+            "effectId": "bracedSelf",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "comboTable": "combos",
+            "op": "combo"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.vigil",
+        "interruptible": false,
+        "name": "Vigil",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "payoff"
+        ]
+      },
+      "abilityId": "warden.vigil",
+      "classId": "warden",
+      "facetId": "warden.keystone.eternalVigil",
+      "loadout": "applyLoadout: class \"warden\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: warden.strike=[setup:sundered], warden.guardBreak=[payoff], warden.bulwark=[setup:bulwark], warden.reckoning=[payoff], warden.vigil=[payoff]"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 80,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "warden",
+            "windowId": "sundered"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.strike",
+        "interruptible": false,
+        "name": "Strike",
+        "range": 3000,
+        "shape": {
+          "angle1024": 200,
+          "kind": "cone",
+          "radius": 3500
+        },
+        "tags": [
+          "setup:sundered",
+          "warcry:multi-target"
+        ]
+      },
+      "abilityId": "warden.strike",
+      "classId": "warden",
+      "facetId": "warden.keystone.sunderedStorm",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "effectId": "braceSelf",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "durationTicks": 80,
+            "effectId": "aegisShield",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "warden.brace",
+        "interruptible": false,
+        "name": "Brace",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "defensive"
+        ]
+      },
+      "abilityId": "warden.brace",
+      "classId": "warden",
+      "facetId": "warden.keystone.lastStand",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 100,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          },
+          {
+            "multiplierBp": 15000,
+            "op": "threat"
+          },
+          {
+            "op": "payoff"
+          },
+          {
+            "multiplierBp": 5000,
+            "op": "threat"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.guardBreak",
+        "interruptible": false,
+        "name": "Guard Break",
+        "range": 3000,
+        "shape": {
+          "angle1024": 140,
+          "kind": "cone",
+          "radius": 3000
+        },
+        "tags": [
+          "payoff",
+          "execute"
+        ]
+      },
+      "abilityId": "warden.guardBreak",
+      "classId": "warden",
+      "facetId": "warden.keystone.warlordsMark",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 90,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 20,
+            "op": "resource"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.emberBolt",
+        "interruptible": true,
+        "name": "Ember Bolt",
+        "range": 25000,
+        "shape": {
+          "angle1024": 60,
+          "kind": "cone",
+          "radius": 2500
+        },
+        "tags": []
+      },
+      "abilityId": "cinder.emberBolt",
+      "classId": "cinder",
+      "facetId": "cinder.weapon.sprayOfEmbers",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 30,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 110,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 25,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "cinder",
+            "windowId": "kindled"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.flare",
+        "interruptible": true,
+        "name": "Flare",
+        "range": 25000,
+        "shape": {
+          "kind": "circle",
+          "radius": 2200
+        },
+        "tags": [
+          "setup:kindled",
+          "aoe"
+        ]
+      },
+      "abilityId": "cinder.flare",
+      "classId": "cinder",
+      "facetId": "cinder.weapon.wideningFlare",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 120,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 100,
+            "op": "damage",
+            "school": "frost"
+          },
+          {
+            "delta": -100,
+            "op": "resource"
+          },
+          {
+            "effectId": "chill",
+            "op": "removeEffect"
+          },
+          {
+            "durationTicks": 20,
+            "effectId": "stunned",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.coldSnap",
+        "interruptible": false,
+        "name": "Cold Snap",
+        "range": 25000,
+        "shape": {
+          "angle1024": 100,
+          "kind": "cone",
+          "radius": 2800
+        },
+        "tags": [
+          "payoff",
+          "control"
+        ]
+      },
+      "abilityId": "cinder.coldSnap",
+      "classId": "cinder",
+      "facetId": "cinder.weapon.crackingIce",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 30,
+          "resource": "heat"
+        },
+        "effects": [
+          {
+            "amount": 250,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.detonate",
+        "interruptible": false,
+        "name": "Detonate",
+        "range": 25000,
+        "shape": {
+          "kind": "circle",
+          "radius": 1800
+        },
+        "tags": [
+          "payoff"
+        ]
+      },
+      "abilityId": "cinder.detonate",
+      "classId": "cinder",
+      "facetId": "cinder.weapon.detonationBurst",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 160,
+            "onTarget": false,
+            "op": "window",
+            "radiusMm": 1800,
+            "setupClass": "cinder",
+            "windowId": "cinderfield"
+          },
+          {
+            "durationTicks": 160,
+            "effectId": "burning",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "durationTicks": 200,
+            "effectId": "chill",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.cinderfield",
+        "interruptible": true,
+        "name": "Cinderfield",
+        "range": 25000,
+        "shape": {
+          "kind": "circle",
+          "radius": 2500
+        },
+        "tags": [
+          "setup:cinderfield"
+        ]
+      },
+      "abilityId": "cinder.cinderfield",
+      "classId": "cinder",
+      "facetId": "cinder.armor.chillingField",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 300,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "effectId": "ashenSkin",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "durationTicks": 60,
+            "effectId": "aegisShield",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "cinder.ashenSkin",
+        "interruptible": false,
+        "name": "Ashen Skin",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "defensive"
+        ]
+      },
+      "abilityId": "cinder.ashenSkin",
+      "classId": "cinder",
+      "facetId": "cinder.armor.emberWard",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 480,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "op": "interrupt"
+          },
+          {
+            "delta": 20,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 60,
+            "effectId": "slowed",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "cinder.quench",
+        "interruptible": false,
+        "name": "Quench",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "interrupt"
+        ]
+      },
+      "abilityId": "cinder.quench",
+      "classId": "cinder",
+      "facetId": "cinder.armor.frostbitten",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 160,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "effectId": "*",
+            "op": "removeEffect"
+          },
+          {
+            "durationTicks": 40,
+            "effectId": "hasted",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "cinder.purge",
+        "interruptible": false,
+        "name": "Purge",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "utility",
+          "dispel"
+        ]
+      },
+      "abilityId": "cinder.purge",
+      "classId": "cinder",
+      "facetId": "cinder.armor.cleansingFlame",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 90,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 20,
+            "op": "resource"
+          },
+          {
+            "comboTable": "combos",
+            "op": "combo"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.emberBolt",
+        "interruptible": true,
+        "name": "Ember Bolt",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff"
+        ]
+      },
+      "abilityId": "cinder.emberBolt",
+      "classId": "cinder",
+      "facetId": "cinder.charm.overloadedBolt",
+      "loadout": "applyLoadout: class \"cinder\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: cinder.emberBolt=[payoff], cinder.flare=[setup:kindled], cinder.coldSnap=[payoff,control], cinder.detonate=[payoff], cinder.cinderfield=[setup:cinderfield]"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 2,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "delta": 0,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 100,
+            "onTarget": false,
+            "op": "window",
+            "windowId": "kindled"
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "cinder.blink",
+        "interruptible": false,
+        "name": "Blink",
+        "range": 8000,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "movement",
+          "setup:kindled"
+        ]
+      },
+      "abilityId": "cinder.blink",
+      "classId": "cinder",
+      "facetId": "cinder.charm.blinkingEmber",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 480,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "op": "interrupt"
+          },
+          {
+            "delta": 20,
+            "op": "resource"
+          },
+          {
+            "comboTable": "combos",
+            "op": "combo"
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "cinder.quench",
+        "interruptible": false,
+        "name": "Quench",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "interrupt",
+          "payoff"
+        ]
+      },
+      "abilityId": "cinder.quench",
+      "classId": "cinder",
+      "facetId": "cinder.charm.quenchingBlow",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 160,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "effectId": "*",
+            "op": "removeEffect"
+          },
+          {
+            "durationTicks": 100,
+            "onTarget": true,
+            "op": "window",
+            "windowId": "kindled"
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "cinder.purge",
+        "interruptible": false,
+        "name": "Purge",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "utility",
+          "dispel",
+          "setup:kindled"
+        ]
+      },
+      "abilityId": "cinder.purge",
+      "classId": "cinder",
+      "facetId": "cinder.charm.purgingFlame",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 90,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 20,
+            "op": "resource"
+          },
+          {
+            "delta": 8,
+            "op": "resource",
+            "resource": "heat"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.emberBolt",
+        "interruptible": true,
+        "name": "Ember Bolt",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": []
+      },
+      "abilityId": "cinder.emberBolt",
+      "classId": "cinder",
+      "facetId": "cinder.ring.heatSink",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 120,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 100,
+            "op": "damage",
+            "school": "frost"
+          },
+          {
+            "delta": -100,
+            "op": "resource"
+          },
+          {
+            "effectId": "chill",
+            "op": "removeEffect"
+          },
+          {
+            "durationTicks": 20,
+            "effectId": "stunned",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "op": "payoff"
+          },
+          {
+            "delta": 40,
+            "op": "resource",
+            "resource": "heat"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.coldSnap",
+        "interruptible": false,
+        "name": "Cold Snap",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff",
+          "control",
+          "partial-dump"
+        ]
+      },
+      "abilityId": "cinder.coldSnap",
+      "classId": "cinder",
+      "facetId": "cinder.ring.overflowValve",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 30,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 110,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 25,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "cinder",
+            "windowId": "kindled"
+          },
+          {
+            "delta": 12,
+            "op": "resource",
+            "resource": "heat"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.flare",
+        "interruptible": true,
+        "name": "Flare",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "setup:kindled",
+          "heat-surge"
+        ]
+      },
+      "abilityId": "cinder.flare",
+      "classId": "cinder",
+      "facetId": "cinder.ring.stokedCoals",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 10,
+          "resource": "heat"
+        },
+        "effects": [
+          {
+            "amount": 250,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.detonate",
+        "interruptible": false,
+        "name": "Detonate",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff",
+          "cheap-cast"
+        ]
+      },
+      "abilityId": "cinder.detonate",
+      "classId": "cinder",
+      "facetId": "cinder.ring.cheapDetonation",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 30,
+        "charges": 1,
+        "cooldownTicks": 20,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 110,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 25,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "cinder",
+            "windowId": "kindled"
+          },
+          {
+            "comboTable": "combos",
+            "op": "combo"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.flare",
+        "interruptible": true,
+        "name": "Flare",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "setup:kindled",
+          "payoff"
+        ]
+      },
+      "abilityId": "cinder.flare",
+      "classId": "cinder",
+      "facetId": "cinder.keystone.eternalFlare",
+      "loadout": "applyLoadout: class \"cinder\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: cinder.emberBolt=[], cinder.flare=[setup:kindled,payoff], cinder.coldSnap=[payoff,control], cinder.detonate=[payoff], cinder.cinderfield=[setup:cinderfield]"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 90,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 20,
+            "op": "resource"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.emberBolt",
+        "interruptible": true,
+        "name": "Ember Bolt",
+        "range": 25000,
+        "shape": {
+          "kind": "line",
+          "length": 25000,
+          "width": 1200
+        },
+        "tags": [
+          "piercing"
+        ]
+      },
+      "abilityId": "cinder.emberBolt",
+      "classId": "cinder",
+      "facetId": "cinder.keystone.infernoBolt",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 100,
+            "op": "damage",
+            "school": "frost"
+          },
+          {
+            "delta": -100,
+            "op": "resource"
+          },
+          {
+            "effectId": "chill",
+            "op": "removeEffect"
+          },
+          {
+            "durationTicks": 20,
+            "effectId": "stunned",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "op": "payoff"
+          },
+          {
+            "durationTicks": 60,
+            "effectId": "aegisShield",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.coldSnap",
+        "interruptible": false,
+        "name": "Cold Snap",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff",
+          "control"
+        ]
+      },
+      "abilityId": "cinder.coldSnap",
+      "classId": "cinder",
+      "facetId": "cinder.keystone.absoluteZero",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 30,
+          "resource": "heat"
+        },
+        "effects": [
+          {
+            "amount": 250,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "op": "payoff"
+          },
+          {
+            "delta": 20,
+            "op": "resource",
+            "resource": "heat"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.detonate",
+        "interruptible": false,
+        "name": "Detonate",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff",
+          "execute"
+        ]
+      },
+      "abilityId": "cinder.detonate",
+      "classId": "cinder",
+      "facetId": "cinder.keystone.detonationChain",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "chanter",
+            "windowId": "attuned"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.cadence",
+        "interruptible": true,
+        "name": "Cadence",
+        "range": 25000,
+        "shape": {
+          "kind": "circle",
+          "radius": 5000
+        },
+        "tags": [
+          "setup:attuned"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "durationTicks": 60,
+              "effectId": "mendingHot",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 60,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.cadence",
+      "classId": "chanter",
+      "facetId": "chanter.weapon.wideningCadence",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 40,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "delta": 1,
+            "op": "resource"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.refrain",
+        "interruptible": false,
+        "name": "Refrain",
+        "range": 6000,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "ranged-cast"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 150,
+              "op": "heal"
+            },
+            {
+              "delta": 1,
+              "op": "resource"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 80,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "delta": -1,
+              "op": "resource"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.refrain",
+      "classId": "chanter",
+      "facetId": "chanter.weapon.reachingRefrain",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 120,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.chorus",
+        "interruptible": false,
+        "name": "Chorus",
+        "range": 15000,
+        "shape": {
+          "kind": "circle",
+          "radius": 6500
+        },
+        "tags": [
+          "payoff"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 120,
+              "op": "heal"
+            },
+            {
+              "op": "payoff"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 60,
+              "effectId": "wardPulse",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.chorus",
+      "classId": "chanter",
+      "facetId": "chanter.weapon.wideningChorus",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 130,
+            "op": "damage",
+            "school": "radiant"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.dissonance",
+        "interruptible": false,
+        "name": "Dissonance",
+        "range": 25000,
+        "shape": {
+          "angle1024": 110,
+          "kind": "cone",
+          "radius": 3500
+        },
+        "tags": [
+          "payoff"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 130,
+              "op": "damage",
+              "school": "radiant"
+            },
+            {
+              "durationTicks": 60,
+              "effectId": "slowed",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ],
+          "ward": [
+            {
+              "amount": 130,
+              "op": "damage",
+              "school": "radiant"
+            },
+            {
+              "durationTicks": 40,
+              "effectId": "silenced",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.dissonance",
+      "classId": "chanter",
+      "facetId": "chanter.weapon.piercingDissonance",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 300,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "effectId": "aegisShield",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "durationTicks": 60,
+            "effectId": "wardShield",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "chanter.aegis",
+        "interruptible": false,
+        "name": "Aegis",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "defensive"
+        ]
+      },
+      "abilityId": "chanter.aegis",
+      "classId": "chanter",
+      "facetId": "chanter.armor.warmingAegis",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 160,
+            "onTarget": false,
+            "op": "window",
+            "radiusMm": 2200,
+            "setupClass": "chanter",
+            "windowId": "hymn"
+          },
+          {
+            "durationTicks": 200,
+            "effectId": "mendingHot",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.hymn",
+        "interruptible": true,
+        "name": "Hymn",
+        "range": 15000,
+        "shape": {
+          "kind": "circle",
+          "radius": 2500
+        },
+        "tags": [
+          "setup:hymn"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "durationTicks": 160,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "hymn"
+            },
+            {
+              "durationTicks": 160,
+              "effectId": "hymnHeal",
+              "op": "applyEffect",
+              "stacks": 1
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 160,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "hymn"
+            },
+            {
+              "durationTicks": 160,
+              "effectId": "hymnSpeed",
+              "op": "applyEffect",
+              "stacks": 1
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.hymn",
+      "classId": "chanter",
+      "facetId": "chanter.armor.hymnalMending",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 480,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "op": "interrupt"
+          },
+          {
+            "durationTicks": 60,
+            "effectId": "slowed",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "chanter.rebuke",
+        "interruptible": false,
+        "name": "Rebuke",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "interrupt"
+        ]
+      },
+      "abilityId": "chanter.rebuke",
+      "classId": "chanter",
+      "facetId": "chanter.armor.rebukingChord",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 160,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "effectId": "*",
+            "op": "removeEffect"
+          },
+          {
+            "durationTicks": 40,
+            "effectId": "hasted",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "chanter.cleanse",
+        "interruptible": false,
+        "name": "Cleanse",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "utility",
+          "dispel"
+        ]
+      },
+      "abilityId": "chanter.cleanse",
+      "classId": "chanter",
+      "facetId": "chanter.armor.cleansingChord",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 40,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "delta": 1,
+            "op": "resource"
+          },
+          {
+            "comboTable": "combos",
+            "op": "combo"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.refrain",
+        "interruptible": false,
+        "name": "Refrain",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "payoff"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 150,
+              "op": "heal"
+            },
+            {
+              "delta": 1,
+              "op": "resource"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 80,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "delta": -1,
+              "op": "resource"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.refrain",
+      "classId": "chanter",
+      "facetId": "chanter.charm.refrainsEdge",
+      "loadout": "applyLoadout: class \"chanter\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: chanter.cadence=[setup:attuned], chanter.refrain=[payoff], chanter.chorus=[payoff], chanter.dissonance=[payoff], chanter.hymn=[setup:hymn]"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 2,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "effectId": "gliding",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "durationTicks": 80,
+            "onTarget": false,
+            "op": "window",
+            "windowId": "attuned"
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "chanter.glide",
+        "interruptible": false,
+        "name": "Glide",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "movement",
+          "setup:attuned"
+        ]
+      },
+      "abilityId": "chanter.glide",
+      "classId": "chanter",
+      "facetId": "chanter.charm.glidingVerse",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 480,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "op": "interrupt"
+          },
+          {
+            "comboTable": "combos",
+            "op": "combo"
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "chanter.rebuke",
+        "interruptible": false,
+        "name": "Rebuke",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "interrupt",
+          "payoff"
+        ]
+      },
+      "abilityId": "chanter.rebuke",
+      "classId": "chanter",
+      "facetId": "chanter.charm.rebukesChord",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 160,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "effectId": "*",
+            "op": "removeEffect"
+          },
+          {
+            "durationTicks": 80,
+            "onTarget": true,
+            "op": "window",
+            "windowId": "attuned"
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "chanter.cleanse",
+        "interruptible": false,
+        "name": "Cleanse",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "utility",
+          "dispel",
+          "setup:attuned"
+        ]
+      },
+      "abilityId": "chanter.cleanse",
+      "classId": "chanter",
+      "facetId": "chanter.charm.cleansingWindow",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 2,
+        "cooldownTicks": 120,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.chorus",
+        "interruptible": false,
+        "name": "Chorus",
+        "range": 15000,
+        "shape": {
+          "kind": "circle",
+          "radius": 5000
+        },
+        "tags": [
+          "payoff",
+          "verse-surge"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 120,
+              "op": "heal"
+            },
+            {
+              "op": "payoff"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 60,
+              "effectId": "wardPulse",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.chorus",
+      "classId": "chanter",
+      "facetId": "chanter.ring.versedReserves",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "chanter",
+            "windowId": "attuned"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.cadence",
+        "interruptible": true,
+        "name": "Cadence",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "setup:attuned",
+          "swift-cast"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "durationTicks": 60,
+              "effectId": "mendingHot",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 60,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.cadence",
+      "classId": "chanter",
+      "facetId": "chanter.ring.swiftVerse",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 40,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 130,
+            "op": "damage",
+            "school": "radiant"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.dissonance",
+        "interruptible": false,
+        "name": "Dissonance",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff",
+          "cheap-cast"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 130,
+              "op": "damage",
+              "school": "radiant"
+            },
+            {
+              "durationTicks": 60,
+              "effectId": "slowed",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ],
+          "ward": [
+            {
+              "amount": 130,
+              "op": "damage",
+              "school": "radiant"
+            },
+            {
+              "durationTicks": 40,
+              "effectId": "silenced",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.dissonance",
+      "classId": "chanter",
+      "facetId": "chanter.ring.cheapDissonance",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 40,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "delta": 1,
+            "op": "resource"
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "chanter.refrain",
+        "interruptible": false,
+        "name": "Refrain",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "verse-surge"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 150,
+              "op": "heal"
+            },
+            {
+              "delta": 1,
+              "op": "resource"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 80,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "delta": -1,
+              "op": "resource"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.refrain",
+      "classId": "chanter",
+      "facetId": "chanter.ring.overtureOfPower",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 160,
+            "onTarget": false,
+            "op": "window",
+            "radiusMm": 2200,
+            "setupClass": "chanter",
+            "windowId": "hymn"
+          },
+          {
+            "comboTable": "combos",
+            "op": "combo"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.hymn",
+        "interruptible": true,
+        "name": "Hymn",
+        "range": 15000,
+        "shape": {
+          "kind": "circle",
+          "radius": 2500
+        },
+        "tags": [
+          "setup:hymn",
+          "payoff"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "durationTicks": 160,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "hymn"
+            },
+            {
+              "durationTicks": 160,
+              "effectId": "hymnHeal",
+              "op": "applyEffect",
+              "stacks": 1
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 160,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "hymn"
+            },
+            {
+              "durationTicks": 160,
+              "effectId": "hymnSpeed",
+              "op": "applyEffect",
+              "stacks": 1
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.hymn",
+      "classId": "chanter",
+      "facetId": "chanter.keystone.eternalHymn",
+      "loadout": "applyLoadout: class \"chanter\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: chanter.cadence=[setup:attuned], chanter.refrain=[], chanter.chorus=[payoff], chanter.dissonance=[payoff], chanter.hymn=[setup:hymn,payoff]"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "chanter",
+            "windowId": "attuned"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.cadence",
+        "interruptible": true,
+        "name": "Cadence",
+        "range": 25000,
+        "shape": {
+          "kind": "circle",
+          "radius": 7000
+        },
+        "tags": [
+          "setup:attuned",
+          "aoe"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "durationTicks": 60,
+              "effectId": "mendingHot",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 60,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.cadence",
+      "classId": "chanter",
+      "facetId": "chanter.keystone.grandCadence",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "effectId": "aegisShield",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "durationTicks": 40,
+            "effectId": "wardPulse",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 0,
+        "id": "chanter.aegis",
+        "interruptible": false,
+        "name": "Aegis",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "defensive"
+        ]
+      },
+      "abilityId": "chanter.aegis",
+      "classId": "chanter",
+      "facetId": "chanter.keystone.lastWard",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 130,
+            "op": "damage",
+            "school": "radiant"
+          },
+          {
+            "op": "payoff"
+          },
+          {
+            "delta": 1,
+            "op": "resource",
+            "resource": "verse"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.dissonance",
+        "interruptible": false,
+        "name": "Dissonance",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff",
+          "amplified"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 130,
+              "op": "damage",
+              "school": "radiant"
+            },
+            {
+              "durationTicks": 60,
+              "effectId": "slowed",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ],
+          "ward": [
+            {
+              "amount": 130,
+              "op": "damage",
+              "school": "radiant"
+            },
+            {
+              "durationTicks": 40,
+              "effectId": "silenced",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.dissonance",
+      "classId": "chanter",
+      "facetId": "chanter.keystone.dissonantChoir",
+      "loadout": "ok"
+    }
+  ],
+  "kind": "keyrun-talent-patch-parity",
+  "talents": [
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 80,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 100,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "warden",
+            "windowId": "sundered"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.strike",
+        "interruptible": false,
+        "name": "Strike",
+        "range": 3000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "setup:sundered"
+        ]
+      },
+      "abilityId": "warden.strike",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "rend"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 80,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "warden",
+            "windowId": "sundered"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.strike",
+        "interruptible": false,
+        "name": "Strike",
+        "range": 3000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "setup:sundered",
+          "riposte:free-after-brace"
+        ]
+      },
+      "abilityId": "warden.strike",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "riposte"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 80,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "warden",
+            "windowId": "sundered"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.strike",
+        "interruptible": false,
+        "name": "Strike",
+        "range": 3000,
+        "shape": {
+          "angle1024": 170,
+          "kind": "cone",
+          "radius": 3000
+        },
+        "tags": [
+          "setup:sundered",
+          "warcry:multi-target"
+        ]
+      },
+      "abilityId": "warden.strike",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "warcry"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 160,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.guardBreak",
+        "interruptible": false,
+        "name": "Guard Break",
+        "range": 3000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff",
+          "focused:single-target"
+        ]
+      },
+      "abilityId": "warden.guardBreak",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "focused"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 100,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          },
+          {
+            "multiplierBp": 15000,
+            "op": "threat"
+          },
+          {
+            "durationTicks": 20,
+            "effectId": "stunned",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.guardBreak",
+        "interruptible": false,
+        "name": "Guard Break",
+        "range": 3000,
+        "shape": {
+          "angle1024": 140,
+          "kind": "cone",
+          "radius": 3000
+        },
+        "tags": [
+          "payoff",
+          "control"
+        ]
+      },
+      "abilityId": "warden.guardBreak",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "pin"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 40,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 120,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "delta": 40,
+            "op": "resource"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.guardBreak",
+        "interruptible": false,
+        "name": "Guard Break",
+        "range": 3000,
+        "shape": {
+          "angle1024": 140,
+          "kind": "cone",
+          "radius": 3000
+        },
+        "tags": [
+          "payoff"
+        ]
+      },
+      "abilityId": "warden.guardBreak",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "surge"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 240,
+            "onTarget": false,
+            "op": "window",
+            "setupClass": "warden",
+            "windowId": "bulwark"
+          },
+          {
+            "durationTicks": 240,
+            "effectId": "braced",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.bulwark",
+        "interruptible": true,
+        "name": "Bulwark",
+        "range": 3000,
+        "shape": {
+          "kind": "circle",
+          "radius": 3500
+        },
+        "tags": [
+          "setup:bulwark"
+        ]
+      },
+      "abilityId": "warden.bulwark",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "fortress"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 160,
+            "onTarget": false,
+            "op": "window",
+            "radiusMm": 2500,
+            "setupClass": "warden",
+            "windowId": "bulwark"
+          },
+          {
+            "durationTicks": 160,
+            "effectId": "braced",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.bulwark",
+        "interruptible": true,
+        "name": "Bulwark",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "setup:bulwark",
+          "mobile-aura"
+        ]
+      },
+      "abilityId": "warden.bulwark",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "mobile"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 60,
+          "resource": "momentum"
+        },
+        "effects": [
+          {
+            "amount": 260,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "multiplierBp": 20000,
+            "op": "threat"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.reckoning",
+        "interruptible": false,
+        "name": "Reckoning",
+        "range": 3000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff",
+          "execute"
+        ]
+      },
+      "abilityId": "warden.reckoning",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "execute"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 100,
+          "resource": "momentum"
+        },
+        "effects": [
+          {
+            "amount": 400,
+            "op": "damage",
+            "school": "physical"
+          },
+          {
+            "multiplierBp": 20000,
+            "op": "threat"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.reckoning",
+        "interruptible": false,
+        "name": "Reckoning",
+        "range": 3000,
+        "shape": {
+          "angle1024": 120,
+          "kind": "cone",
+          "radius": 3000
+        },
+        "tags": [
+          "payoff",
+          "cleave-finisher"
+        ]
+      },
+      "abilityId": "warden.reckoning",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "overwhelm"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 120,
+        "cost": {
+          "amount": 50,
+          "resource": "momentum"
+        },
+        "effects": [
+          {
+            "durationTicks": 100,
+            "effectId": "bracedSelf",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.vigil",
+        "interruptible": false,
+        "name": "Vigil",
+        "range": 5000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "ally-shield"
+        ]
+      },
+      "abilityId": "warden.vigil",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "ally"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 25,
+          "resource": "momentum"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "effectId": "bracedSelf",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "warden.vigil",
+        "interruptible": false,
+        "name": "Vigil",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": []
+      },
+      "abilityId": "warden.vigil",
+      "classId": "warden",
+      "loadout": "ok",
+      "optionId": "reserve"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 70,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 15,
+            "op": "resource"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.emberBolt",
+        "interruptible": true,
+        "name": "Ember Bolt",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": []
+      },
+      "abilityId": "cinder.emberBolt",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "instant"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 90,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 20,
+            "op": "resource"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.emberBolt",
+        "interruptible": true,
+        "name": "Ember Bolt",
+        "range": 25000,
+        "shape": {
+          "kind": "line",
+          "length": 25000,
+          "radius": 1000
+        },
+        "tags": [
+          "piercing"
+        ]
+      },
+      "abilityId": "cinder.emberBolt",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "piercing"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 20,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 130,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 30,
+            "op": "resource"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.emberBolt",
+        "interruptible": true,
+        "name": "Ember Bolt",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": []
+      },
+      "abilityId": "cinder.emberBolt",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "overcharge"
+    },
+    {
+      "ability": {
+        "castTicks": 30,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 110,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 25,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "cinder",
+            "windowId": "kindled"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.flare",
+        "interruptible": true,
+        "name": "Flare",
+        "range": 25000,
+        "shape": {
+          "kind": "circle",
+          "radius": 1500
+        },
+        "tags": [
+          "setup:kindled",
+          "aoe"
+        ]
+      },
+      "abilityId": "cinder.flare",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "wildfire"
+    },
+    {
+      "ability": {
+        "castTicks": 30,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 110,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 25,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 100,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "cinder",
+            "windowId": "kindled"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.flare",
+        "interruptible": true,
+        "name": "Flare",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "setup:kindled"
+        ]
+      },
+      "abilityId": "cinder.flare",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "lingering"
+    },
+    {
+      "ability": {
+        "castTicks": 10,
+        "charges": 1,
+        "cooldownTicks": 40,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 125,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "delta": 30,
+            "op": "resource"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "cinder",
+            "windowId": "kindled"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.flare",
+        "interruptible": true,
+        "name": "Flare",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "setup:kindled"
+        ]
+      },
+      "abilityId": "cinder.flare",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "efficient"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 120,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 100,
+            "op": "damage",
+            "school": "frost"
+          },
+          {
+            "delta": -100,
+            "op": "resource"
+          },
+          {
+            "effectId": "chill",
+            "op": "removeEffect"
+          },
+          {
+            "durationTicks": 40,
+            "effectId": "stunned",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.coldSnap",
+        "interruptible": false,
+        "name": "Cold Snap",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff",
+          "control"
+        ]
+      },
+      "abilityId": "cinder.coldSnap",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "deepFreeze"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 120,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 100,
+            "op": "damage",
+            "school": "frost"
+          },
+          {
+            "delta": -60,
+            "op": "resource"
+          },
+          {
+            "effectId": "chill",
+            "op": "removeEffect"
+          },
+          {
+            "durationTicks": 20,
+            "effectId": "stunned",
+            "op": "applyEffect",
+            "stacks": 1
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.coldSnap",
+        "interruptible": false,
+        "name": "Cold Snap",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff",
+          "control",
+          "partial-dump"
+        ]
+      },
+      "abilityId": "cinder.coldSnap",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "overflow"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 40,
+          "resource": "heat"
+        },
+        "effects": [
+          {
+            "amount": 250,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.detonate",
+        "interruptible": false,
+        "name": "Detonate",
+        "range": 25000,
+        "shape": {
+          "kind": "circle",
+          "radius": 2000
+        },
+        "tags": [
+          "payoff"
+        ]
+      },
+      "abilityId": "cinder.detonate",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "chainReaction"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 15,
+          "resource": "heat"
+        },
+        "effects": [
+          {
+            "amount": 180,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.detonate",
+        "interruptible": false,
+        "name": "Detonate",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff"
+        ]
+      },
+      "abilityId": "cinder.detonate",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "cheapShot"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 100,
+        "cost": {
+          "amount": 30,
+          "resource": "heat"
+        },
+        "effects": [
+          {
+            "amount": 320,
+            "op": "damage",
+            "school": "fire"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.detonate",
+        "interruptible": false,
+        "name": "Detonate",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff"
+        ]
+      },
+      "abilityId": "cinder.detonate",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "overkill"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 200,
+            "onTarget": false,
+            "op": "window",
+            "setupClass": "cinder",
+            "windowId": "cinderfield"
+          },
+          {
+            "durationTicks": 200,
+            "effectId": "burning",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.cinderfield",
+        "interruptible": true,
+        "name": "Cinderfield",
+        "range": 25000,
+        "shape": {
+          "kind": "circle",
+          "radius": 3500
+        },
+        "tags": [
+          "setup:cinderfield"
+        ]
+      },
+      "abilityId": "cinder.cinderfield",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "spreading"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 260,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 160,
+            "onTarget": false,
+            "op": "window",
+            "radiusMm": 1800,
+            "setupClass": "cinder",
+            "windowId": "cinderfield"
+          },
+          {
+            "durationTicks": 160,
+            "effectId": "burning",
+            "op": "applyEffect",
+            "stacks": 1
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "cinder.cinderfield",
+        "interruptible": true,
+        "name": "Cinderfield",
+        "range": 25000,
+        "shape": {
+          "kind": "circle",
+          "radius": 2500
+        },
+        "tags": [
+          "setup:cinderfield"
+        ]
+      },
+      "abilityId": "cinder.cinderfield",
+      "classId": "cinder",
+      "loadout": "ok",
+      "optionId": "flashpoint"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 100,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "chanter",
+            "windowId": "attuned"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.cadence",
+        "interruptible": true,
+        "name": "Cadence",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "setup:attuned"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "durationTicks": 100,
+              "effectId": "mendingHot",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 100,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 100,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 100,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.cadence",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "resonance"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "chanter",
+            "windowId": "attuned"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.cadence",
+        "interruptible": true,
+        "name": "Cadence",
+        "range": 25000,
+        "shape": {
+          "kind": "circle",
+          "radius": 5000
+        },
+        "tags": [
+          "setup:attuned",
+          "aoe"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "durationTicks": 60,
+              "effectId": "mendingHot",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 60,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.cadence",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "groupSong"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 0,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "chanter",
+            "windowId": "attuned"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.cadence",
+        "interruptible": true,
+        "name": "Cadence",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "setup:attuned"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "durationTicks": 40,
+              "effectId": "mendingHot",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 40,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": true,
+              "op": "window",
+              "setupClass": "chanter",
+              "windowId": "attuned"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.cadence",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "swift"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 20,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "delta": 1,
+            "op": "resource"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.refrain",
+        "interruptible": false,
+        "name": "Refrain",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [],
+        "variants": {
+          "mend": [
+            {
+              "amount": 150,
+              "op": "heal"
+            },
+            {
+              "delta": 1,
+              "op": "resource"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 80,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "delta": -1,
+              "op": "resource"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.refrain",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "overture"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 40,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "delta": 1,
+            "op": "resource"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.refrain",
+        "interruptible": false,
+        "name": "Refrain",
+        "range": 0,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "payoff-on-swap"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 150,
+              "op": "heal"
+            },
+            {
+              "delta": 1,
+              "op": "resource"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 80,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "delta": -1,
+              "op": "resource"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.refrain",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "crescendo"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 120,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.chorus",
+        "interruptible": false,
+        "name": "Chorus",
+        "range": 15000,
+        "shape": {
+          "kind": "circle",
+          "radius": 7000
+        },
+        "tags": [
+          "payoff"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 120,
+              "op": "heal"
+            },
+            {
+              "op": "payoff"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 60,
+              "effectId": "wardPulse",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.chorus",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "roundCall"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 160,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.chorus",
+        "interruptible": false,
+        "name": "Chorus",
+        "range": 15000,
+        "shape": {
+          "kind": "circle",
+          "radius": 5000
+        },
+        "tags": [
+          "payoff"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 200,
+              "op": "heal"
+            },
+            {
+              "op": "payoff"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 60,
+              "effectId": "wardPulse",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.chorus",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "discipline"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 2,
+        "cooldownTicks": 160,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.chorus",
+        "interruptible": false,
+        "name": "Chorus",
+        "range": 15000,
+        "shape": {
+          "kind": "circle",
+          "radius": 5000
+        },
+        "tags": [
+          "payoff"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 120,
+              "op": "heal"
+            },
+            {
+              "op": "payoff"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 60,
+              "effectId": "wardPulse",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.chorus",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "encore"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 170,
+            "op": "damage",
+            "school": "radiant"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.dissonance",
+        "interruptible": false,
+        "name": "Dissonance",
+        "range": 25000,
+        "shape": {
+          "kind": "target"
+        },
+        "tags": [
+          "payoff",
+          "amplified"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 130,
+              "op": "damage",
+              "school": "radiant"
+            },
+            {
+              "durationTicks": 60,
+              "effectId": "slowed",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ],
+          "ward": [
+            {
+              "amount": 130,
+              "op": "damage",
+              "school": "radiant"
+            },
+            {
+              "durationTicks": 40,
+              "effectId": "silenced",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.dissonance",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "amplify"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 60,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "amount": 130,
+            "op": "damage",
+            "school": "radiant"
+          },
+          {
+            "op": "payoff"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.dissonance",
+        "interruptible": false,
+        "name": "Dissonance",
+        "range": 25000,
+        "shape": {
+          "angle1024": 120,
+          "kind": "cone",
+          "radius": 4000
+        },
+        "tags": [
+          "payoff"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 130,
+              "op": "damage",
+              "school": "radiant"
+            },
+            {
+              "durationTicks": 60,
+              "effectId": "slowed",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ],
+          "ward": [
+            {
+              "amount": 130,
+              "op": "damage",
+              "school": "radiant"
+            },
+            {
+              "durationTicks": 40,
+              "effectId": "silenced",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "op": "payoff"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.dissonance",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "discord"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 220,
+            "onTarget": false,
+            "op": "window",
+            "setupClass": "chanter",
+            "windowId": "hymn"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.hymn",
+        "interruptible": true,
+        "name": "Hymn",
+        "range": 15000,
+        "shape": {
+          "kind": "circle",
+          "radius": 3500
+        },
+        "tags": [
+          "setup:hymn"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "durationTicks": 160,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "hymn"
+            },
+            {
+              "durationTicks": 160,
+              "effectId": "hymnHeal",
+              "op": "applyEffect",
+              "stacks": 1
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 160,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "hymn"
+            },
+            {
+              "durationTicks": 160,
+              "effectId": "hymnSpeed",
+              "op": "applyEffect",
+              "stacks": 1
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.hymn",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "grandHymn"
+    },
+    {
+      "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 260,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 160,
+            "onTarget": false,
+            "op": "window",
+            "radiusMm": 2200,
+            "setupClass": "chanter",
+            "windowId": "hymn"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.hymn",
+        "interruptible": true,
+        "name": "Hymn",
+        "range": 15000,
+        "shape": {
+          "kind": "circle",
+          "radius": 2500
+        },
+        "tags": [
+          "setup:hymn"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "durationTicks": 160,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "hymn"
+            },
+            {
+              "durationTicks": 160,
+              "effectId": "hymnHeal",
+              "op": "applyEffect",
+              "stacks": 1
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 160,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "hymn"
+            },
+            {
+              "durationTicks": 160,
+              "effectId": "hymnSpeed",
+              "op": "applyEffect",
+              "stacks": 1
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.hymn",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "staccato"
+    },
+    {
+      "ability": {
+        "castTicks": 20,
+        "charges": 1,
+        "cooldownTicks": 200,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "durationTicks": 160,
+            "onTarget": false,
+            "op": "window",
+            "radiusMm": 2200,
+            "setupClass": "chanter",
+            "windowId": "hymn"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.hymn",
+        "interruptible": true,
+        "name": "Hymn",
+        "range": 20000,
+        "shape": {
+          "kind": "circle",
+          "radius": 2500
+        },
+        "tags": [
+          "setup:hymn"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "durationTicks": 160,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "hymn"
+            },
+            {
+              "durationTicks": 160,
+              "effectId": "hymnHeal",
+              "op": "applyEffect",
+              "stacks": 1
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 160,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "hymn"
+            },
+            {
+              "durationTicks": 160,
+              "effectId": "hymnSpeed",
+              "op": "applyEffect",
+              "stacks": 1
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.hymn",
+      "classId": "chanter",
+      "loadout": "ok",
+      "optionId": "roundRobin"
+    }
+  ],
+  "version": 1
+}

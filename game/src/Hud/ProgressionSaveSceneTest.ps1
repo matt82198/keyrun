@@ -21,6 +21,10 @@
       6. "SCREEN progression load store=1 ash=30 runs=1 items=<I>" where <I> is exactly the items of launch 1's last
          save line (the equipped item, its tier, Facet and charges left come back), then "SCREEN open ash=60 runs=2"
          (the second run's Ash is added to the banked 30, not to a fresh 0).
+  TALENT-SAVE (BIBLE s6, f-83c5e369): launch 1 saves after each of its four talent steps ("SCREEN progression save
+  reason=talent ok=1" x4, then "SCREEN talents saved picks=1 choices=<C>"); launch 2 prints "SCREEN talents restore
+  class=warden saved=1 picks=1 choices=<C>" and its talent panel opens with "picks=1 applied=1". Before TALENT-SAVE
+  there is no talent save and launch 2's panel opens at picks=0 (RED).
   Before PROGRESSION-SAVE Screen calls Progression.Start every launch and never saves: no "SCREEN progression" line
   exists and launch 2 opens at ash=30 runs=1 (RED).
 
@@ -35,6 +39,12 @@ $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
 $wrapper = Join-Path $repo 'tools/godot/godot.ps1'
 $failures = New-Object System.Collections.Generic.List[string]
+
+# One launch lock for both launches (tools/godot/launch-lock.ps1); they run one after another. Exit 2 when another
+# Godot instance holds the lock.
+. (Join-Path $repo 'tools/godot/launch-lock.ps1')
+$launchLock = Enter-KeyrunLaunchLock -Owner 'ProgressionSaveSceneTest.ps1' -ExitCodeOnBusy 2
+try {
 $dir = Join-Path ([System.IO.Path]::GetTempPath()) ('keyrun-progression-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $dir | Out-Null
 $saveFile = Join-Path $dir 'progression.json'
@@ -89,6 +99,14 @@ if (-not $saveTake) {
 }
 $saveRerolls = @($a | Where-Object { $_ -match '^SCREEN progression save reason=reroll ok=1 ash=30 runs=1 items=\S+$' })
 if ($saveRerolls.Count -ne 2) { $failures.Add("launch 1: expected 2 'SCREEN progression save reason=reroll ok=1' lines, got $($saveRerolls.Count)") }
+# TALENT-SAVE (BIBLE s6, f-83c5e369): the autorun's talent panel steps (pick, pick, free respec, pick) each save the
+# build with the progression; the last "SCREEN talents saved" line names the build launch 2 must restore.
+$saveTalents = @($a | Where-Object { $_ -match '^SCREEN progression save reason=talent ok=1 ash=30 runs=1 items=\S+$' })
+if ($saveTalents.Count -ne 4) { $failures.Add("launch 1: expected 4 'SCREEN progression save reason=talent ok=1' lines (pick, pick, respec, pick), got $($saveTalents.Count)") }
+$talentsSaved = $a | Where-Object { $_ -match '^SCREEN talents saved ' } | Select-Object -Last 1
+$savedChoices = $null
+if ($talentsSaved -match '^SCREEN talents saved picks=1 choices=(warden\.\w+:[\w-]+)$') { $savedChoices = $Matches[1] }
+else { $failures.Add("launch 1: the last talent save is not one warden pick: '$talentsSaved'") }
 $lastSave = $a | Where-Object { $_ -match '^SCREEN progression save ' } | Select-Object -Last 1
 $savedItems = $null
 if ($lastSave -and $lastSave -match ' items=(\S+)$') { $savedItems = $Matches[1] }
@@ -102,6 +120,16 @@ if (-not $loadB) {
 } elseif (-not $savedItems -or $loadB -notmatch "^SCREEN progression load store=1 ash=30 runs=1 items=$([regex]::Escape($savedItems)) path=") {
     $failures.Add("launch 2 did not start from launch 1's save (saved items '$savedItems'): '$loadB'")
 }
+# TALENT-SAVE: launch 2 opens the screen with launch 1's build, the talent panel shows it picked (picks=1) and
+# applied= counts it, so the next Queue hands it to the run.
+$restoreB = First $b '^SCREEN talents restore '
+if (-not $savedChoices -or $restoreB -notmatch "^SCREEN talents restore class=warden saved=1 picks=1 choices=$([regex]::Escape([string]$savedChoices))$") {
+    $failures.Add("launch 2 did not restore launch 1's talent build '$savedChoices': '$restoreB'")
+}
+$panelB = First $b '^SCREEN talents open=1 '
+if ($panelB -notmatch '^SCREEN talents open=1 class=warden forks=5 picks=1 applied=1$') {
+    $failures.Add("launch 2: the talent panel does not show the restored pick (expected picks=1 applied=1): '$panelB'")
+}
 $openB = First $b '^SCREEN open ash=60 runs=2 '
 if (-not $openB) {
     $failures.Add("launch 2: no 'SCREEN open ash=60 runs=2' line (got: '$(First $b '^SCREEN open ')')")
@@ -110,7 +138,7 @@ if (-not $openB) {
 Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
 
 Write-Output '--- asserted SCREEN lines ---'
-foreach ($l in @($loadA, $bankA, $saveBank, $take, $saveTake) + $saveRerolls + @($lastSave, $loadB, $openB)) {
+foreach ($l in @($loadA, $bankA, $saveBank, $take, $saveTake) + $saveRerolls + $saveTalents + @($talentsSaved, $lastSave, $loadB, $restoreB, $panelB, $openB)) {
     if ($l) { Write-Output $l }
 }
 
@@ -121,3 +149,6 @@ if ($failures.Count -gt 0) {
 }
 Write-Output "ProgressionSaveSceneTest: PASS ticks=$Ticks slot=$slot items=$savedItems"
 exit 0
+} finally {
+    Exit-KeyrunLaunchLock $launchLock
+}

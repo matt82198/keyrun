@@ -65,7 +65,13 @@ public sealed class EncounterTraceTests
         var setup = EncounterTestKit.Setup(OracleRun.SetupNameOf(trace));
         var content = (JsObject)setup.Get("content")!;
         var dungeon = EncounterJson.ParseDungeon(setup.Get("dungeon")!);
-        var scripts = EncounterJson.ParseScripts(content.Get("enemyScripts")!);
+        // A frozen-TS replay, as RunSetup loads one: the TS drew every scheduled telegraph (TelegraphSpec.TsUnchecked)
+        // and fired every step on schedule, mid-cast or not (ScriptStep.TsCastReplace).
+        var scripts = EncounterJson.ParseScripts(content.Get("enemyScripts")!).ToDictionary(
+            kv => kv.Key,
+            kv => (IReadOnlyList<ScriptStep>)kv.Value
+                .Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { TsUnchecked = true } } : s)
+                .Select(s => s with { TsCastReplace = true }).ToList());
         var abilities = EncounterJson.ParseAbilities(content.Get("abilities")!);
         var keyLevel = OracleRun.KeyLevel(setup);
         var records = OracleRun.Records(trace);
@@ -130,24 +136,30 @@ public sealed class EncounterTraceTests
                 tally.OnDeathCasts++;
             }
 
-            // Apply the oracle's own outcome of this step: deaths, then the pull spawn, then Slack.
-            var playerDeath = false;
+            // Apply the oracle's own outcome of this step: deaths, then the pull spawn, then death and wipe time (D46).
+            var playerDeaths = new HashSet<int>();
             foreach (var e in r.Events.Where(e => e.Type == "death"))
             {
                 var victim = state.Actors[(int)((JsInt)e.Get("actorId")!).Value];
                 victim.Alive = false;
-                playerDeath |= victim.Kind == ActorKind.Player;
+                if (victim.Kind == ActorKind.Player)
+                {
+                    playerDeaths.Add(victim.Id);
+                }
             }
             foreach (var a in spawned)
             {
                 state.Actors[a.Id] = a;
             }
-            if (playerDeath)
+            if (playerDeaths.Count > 0)
             {
-                encounter = Timer.SpendSlackOnDeath(encounter, r.T, ours.Add);
+                foreach (var _ in playerDeaths)
+                {
+                    encounter = Timer.ChargeDeath(encounter);
+                }
                 if (state.Actors.Values.Where(a => a.Kind == ActorKind.Player).All(a => !a.Alive))
                 {
-                    encounter = Timer.SpendSlackOnWipe(encounter, r.T, ours.Add);
+                    encounter = Timer.ChargeWipe(encounter);
                 }
             }
 
@@ -206,9 +218,17 @@ public sealed class EncounterTraceTests
     // and casts seed.lash; the re-recorded traces carry 11 / 14 telegraphs (was 9 / 13), k2 10 hits (was 9), k10 14 hits
     // (was 13) with 3 exact (was 2), measured by this replay against the regenerated oracle.
     [Theory]
-    [InlineData("bots-hv-k2-s7", 13, 12, 7, 0, 0, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k2-s11", 13, 12, 7, 0, 0, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 14, 14, 7, 0, 0, 3)]
+    // SLAM-TELEGRAPH Pair leadTicks 140 re-record: k2 was 13, 12, 7, 0, 0, 1 and k10 was 14, 14, 7, 0, 0, 3; the new
+    // values are tallied from the re-recorded TS traces with this replay's rules (the same tally reproduces the old ones).
+    // Merged with QUENCH-REFUND (main: k2 13, 12, 7, 0, 0, 1; k10 14, 13, 7, 0, 0, 2) and re-recorded on the merged
+    // tree: the same tally of the merged traces gives the SLAM-TELEGRAPH rows below unchanged (it reproduces both
+    // parents' rows from their own traces).
+    // ENEMY-ENGAGE (in-reach chasers turn to face their target) merged with SLAM-TELEGRAPH and re-recorded on the merged
+    // tree: the same tally gives the SLAM-TELEGRAPH rows unchanged (ENEMY-ENGAGE alone: k2 12, 12, 7, 0, 0, 1; k10
+    // 14, 14, 7, 0, 0, 3; the tally reproduces both parents' committed rows from their own traces).
+    [InlineData("bots-hv-k2-s7", 12, 12, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k2-s11", 12, 12, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k10-s7", 16, 16, 7, 0, 0, 3)]
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

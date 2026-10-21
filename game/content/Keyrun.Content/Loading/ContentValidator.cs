@@ -16,7 +16,8 @@ namespace Keyrun.Content;
 /// </para>
 /// <para>
 /// Added beyond validate.ts: effect refs inside talent and facet patches, <c>breakBarId</c>
-/// must name a declared break bar, and a Window op on an ability or talent must carry its
+/// must name a declared break bar, a script telegraph with <c>spansCast</c> must cast an ability with castTicks &gt; 0,
+/// and a Window op on an ability or talent must carry its
 /// <c>setupClass</c> (the sim union requires it; only facet <c>effectsAppend</c> may omit it).
 /// </para>
 /// <para>
@@ -49,6 +50,7 @@ public static class ContentValidator
         CheckHeatOverheat(reg);
         CheckForces(reg);
         LayoutValidator.Check(reg);
+        GearValidator.Check(reg);
     }
 
     /// <summary>
@@ -114,6 +116,10 @@ public static class ContentValidator
                 earners.Add(member.EnemyId);
             }
         }
+        // SKIPPABLE-PACKS: a layout pack's members earn too (LayoutValidator checks each has a value).
+        foreach (LayoutPack pack in reg.Layout.Packs)
+            foreach (PullEnemy member in pack.Enemies)
+                earners.Add(member.EnemyId);
 
         foreach (ForcesValue value in forces.Values)
             if (value.Points > 0 && !earners.Contains(value.EnemyId))
@@ -142,6 +148,15 @@ public static class ContentValidator
     {
         if (run.Movement.SpeedMmPerTick <= 0) Fail("run movement.speedMmPerTick must be positive, got " + run.Movement.SpeedMmPerTick);
         if (run.Movement.RadiusMm <= 0) Fail("run movement.radiusMm must be positive, got " + run.Movement.RadiusMm);
+        AffixesConfig a = run.Affixes;
+        if (a.OneAffixKey <= 0 || a.BothAffixKey <= a.OneAffixKey)
+            Fail("run affixes must have 0 < oneAffixKey < bothAffixKey, got " + a.OneAffixKey + " and " + a.BothAffixKey);
+        if (a.ClauseStartKey <= 0) Fail("run affixes.clauseStartKey must be positive, got " + a.ClauseStartKey);
+        foreach ((string name, AffixScaleConfig s) in new[] { ("fortified", a.Fortified), ("tyrannical", a.Tyrannical) })
+        {
+            if (s.HealthBp < 0 || s.DamageBp < 0)
+                Fail("run affixes." + name + " healthBp and damageBp must be non-negative, got " + s.HealthBp + " and " + s.DamageBp);
+        }
         ArenaBounds b = run.ArenaBounds;
         if (b.MinX >= b.MaxX || b.MinZ >= b.MaxZ)
             Fail("run arenaBounds must have minX < maxX and minZ < maxZ, got x " + b.MinX + ".." + b.MaxX + " z " + b.MinZ + ".." + b.MaxZ);
@@ -154,8 +169,12 @@ public static class ContentValidator
         if (ops is null) return;
         foreach (EffectOp op in ops)
         {
-            if (!riderOps && op is PartyEffectOp or CloudOp)
-                Fail(where + " uses the C#-only combo op \"" + (op is CloudOp ? "cloud" : "partyEffect") + "\", allowed only in " + ContentLoader.ComboRidersFile);
+            if (!riderOps && op is PartyEffectOp or CloudOp or CloserBurnOp)
+                Fail(where + " uses the C#-only combo op \"" + (op switch { CloudOp => "cloud", CloserBurnOp => "closerBurn", _ => "partyEffect" })
+                    + "\", allowed only in " + ContentLoader.ComboRidersFile);
+            if (op is CloserBurnOp burn && !(burn.MaxHealthBp > 0 && burn.MaxHealthBp <= burn.CapBp && burn.CapBp < 10000))
+                Fail(where + " closerBurn needs 0 < maxHealthBp <= capBp < 10000 (the burn alone must never kill a closer at full health), got maxHealthBp "
+                    + burn.MaxHealthBp + " and capBp " + burn.CapBp);
             if (op is PartyEffectOp party && party.DurationTicks <= 0)
                 Fail(where + " partyEffect durationTicks must be positive, got " + party.DurationTicks);
             if (op is CloudOp cloud && cloud.DurationTicks <= 0)
@@ -254,7 +273,11 @@ public static class ContentValidator
             foreach (string id in enemy.Abilities)
                 if (!reg.Abilities.ContainsKey(id)) Fail(where + " references unknown ability \"" + id + "\"");
             foreach (ScriptStep step in enemy.Script)
-                if (!reg.Abilities.ContainsKey(step.Cast)) Fail(where + " script references unknown ability \"" + step.Cast + "\"");
+            {
+                if (!reg.Abilities.TryGetValue(step.Cast, out AbilityDef? cast)) Fail(where + " script references unknown ability \"" + step.Cast + "\"");
+                else if (step.Telegraph?.SpansCast == true && cast.CastTicks <= 0)
+                    Fail(where + " script step \"" + step.Cast + "\" telegraph spansCast needs a cast with castTicks > 0 (has " + cast.CastTicks + ")");
+            }
             foreach (BreakBarDef bar in enemy.BreakBars ?? new ValueList<BreakBarDef>())
                 CheckOps(bar.OnEmpty, reg, where + " breakBar \"" + bar.Id + "\"", requireSetupClass: true);
             if (enemy.BreakBarId is not null && !bars.Contains(enemy.BreakBarId))

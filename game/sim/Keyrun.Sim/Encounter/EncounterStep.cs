@@ -62,7 +62,7 @@ public static class EncounterStep
         }
 
         // index.ts:119-123: scripts, emit their telegraph events, register them.
-        var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities);
+        var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities, encounter.PendingSteps);
         foreach (var e in scripted.TelegraphEvents)
         {
             emit(e);
@@ -70,7 +70,7 @@ public static class EncounterStep
 
         // index.ts:129-135: Tide drift, resolve, emit hits, drop the resolved.
         var advance = Telegraphs.Advance(state, encounter.Telegraphs, scripted.TelegraphEvents, encounter.NextTelegraphId, emit,
-            all => Clauses.DriftTelegraphs(all, encounter.Rules));
+            all => Clauses.DriftTelegraphs(all, encounter.Rules), scripted.TelegraphCastStarts);
 
         // index.ts:137-141: reset cooldowns of existing bars.
         var breakBars = new JsRecord<BreakBarState>();
@@ -112,6 +112,7 @@ public static class EncounterStep
             Telegraphs = advance.Telegraphs,
             BreakBars = breakBars,
             FiredOnDeath = scripted.FiredOnDeath,
+            PendingSteps = scripted.PendingSteps,
             NextTelegraphId = advance.NextTelegraphId,
         };
         if (boss is not null)

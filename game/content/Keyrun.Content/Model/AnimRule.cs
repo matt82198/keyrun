@@ -52,12 +52,96 @@ public readonly record struct AnimDecision(AnimClip Clip, bool OneShot, bool Res
 /// feeds it each frame. Priority: death, then the cast loop, then on a new tick a fresh swing (restart), a stagger
 /// (restart the hit), a health drop (restart the hit unless a one-shot is still playing), then a playing one-shot is
 /// held to its end whether the actor moves or not, then run or idle. A one-shot interrupts the run cycle for the
-/// clip's own length and returns.
+/// clip's own length and returns. KF1 (2026-10-20, "combat animation reads badly"): a swing starts at
+/// <see cref="SwingStartMs"/> so its blow lands on the hit tick, every health drop flashes the victim
+/// (<see cref="FlashPermille"/>) even while a one-shot hides the hit clip, and a kicked caster flinches
+/// (<see cref="Kicked"/>).
 /// </summary>
 public static class AnimRule
 {
     /// <summary>The sim event that marks an ability resolving (instants included): <c>actorId</c> is the caster.</summary>
     public const string ResolveEvent = "cast_complete";
+
+    /// <summary>The sim event for a kick landing on a cast: <c>targetId</c> is the caster whose cast was cut.</summary>
+    public const string InterruptEvent = "interrupt";
+
+    /// <summary>
+    /// KF1 swing timing: how far before the clip's contact frame the swing starts when its ability resolves, in ms
+    /// (two 50 ms ticks). The sim resolves a melee swing and its damage on one tick, so a clip started from frame 0 on
+    /// that tick lands its blow 300 to 800 ms after the damage number; starting it this close to contact lands the
+    /// blow with the number and keeps a short wind-up.
+    /// </summary>
+    public const int SwingLeadMs = 100;
+
+    /// <summary>KF1 hit flash: a health drop lights the victim for this many sim ticks, fading linearly.</summary>
+    public const int FlashTicks = 3;
+
+    // Contact frame (ms into the clip) of each attack clip the binding rows play: the time the striking hand (foot for
+    // the kick) reaches furthest forward, measured from the KayKit Rig_Medium glTF tracks by forward kinematics.
+    private static readonly Dictionary<string, int> ContactMsByClip = new(StringComparer.Ordinal)
+    {
+        ["1H_Melee_Attack_Chop"] = 700,
+        ["2H_Melee_Attack_Chop"] = 800,
+        ["Unarmed_Melee_Attack_Punch_A"] = 500,
+        ["Unarmed_Melee_Attack_Kick"] = 400,
+        ["Spellcast_Shoot"] = 300,
+        ["Spellcast_Raise"] = 600,
+        // KF1-WINDUP (AbilityAnim.ActClip), measured the same way (hand.r; the shield hand.l for Block_Attack) on the
+        // Knight and Skeleton_Rogue tracks at 30 fps, rounded to 100 ms from 200, 733, 467, 333 and 767 ms.
+        ["1H_Melee_Attack_Slice_Horizontal"] = 200,
+        ["1H_Melee_Attack_Stab"] = 700,
+        ["Block_Attack"] = 500,
+        ["2H_Melee_Attack_Slice"] = 300,
+        ["1H_Melee_Attack_Jump_Chop"] = 800,
+    };
+
+    /// <summary>The contact frame of <paramref name="clip"/> in ms, or null for a clip not in the table.</summary>
+    public static int? ContactMs(string clip)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        return ContactMsByClip.TryGetValue(clip, out var ms) ? ms : null;
+    }
+
+    /// <summary>
+    /// Where the swing one-shot starts, in ms into <paramref name="clip"/>, on the tick its ability resolves:
+    /// <see cref="SwingLeadMs"/> before contact, so the blow lands with the sim's hit; 0 for a clip with no known contact.
+    /// </summary>
+    public static int SwingStartMs(string clip) =>
+        ContactMs(clip) is int contact ? Math.Max(0, contact - SwingLeadMs) : 0;
+
+    /// <summary>
+    /// The hit flash strength in permille: 1000 on the frame a health drop lands, fading to 0 over
+    /// <see cref="FlashTicks"/> ticks. <paramref name="ticksSinceHurt"/> is the current sim tick minus the hurt tick and
+    /// <paramref name="alphaPermille"/> the render interpolation into the current tick (0 to 999).
+    /// </summary>
+    public static int FlashPermille(int ticksSinceHurt, int alphaPermille)
+    {
+        if (ticksSinceHurt < 0 || ticksSinceHurt >= FlashTicks)
+        {
+            return 0; // also keeps a far-past (or never) hurt tick from overflowing the permille sum below
+        }
+        var elapsed = (ticksSinceHurt * 1000) + Math.Clamp(alphaPermille, 0, 999);
+        var span = FlashTicks * 1000;
+        return elapsed >= span ? 0 : 1000 - (elapsed * 1000 / span);
+    }
+
+    /// <summary>
+    /// True when <paramref name="events"/> (one sim step's events as type and <c>targetId</c>) hold an
+    /// <see cref="InterruptEvent"/> on <paramref name="actorId"/>: its cast was kicked this step. The kicked caster plays
+    /// the hit one-shot (a flinch) instead of dropping its cast loop straight to idle.
+    /// </summary>
+    public static bool Kicked(int actorId, IEnumerable<(string Type, int? TargetId)> events)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        foreach (var (type, id) in events)
+        {
+            if (id == actorId && string.Equals(type, InterruptEvent, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /// <summary>The clip decision for one frame.</summary>
     public static AnimDecision Decide(AnimFacts f)

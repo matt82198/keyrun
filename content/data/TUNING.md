@@ -44,6 +44,7 @@ BIBLE.md D4. Player health 2000, Choir trash health 6000, Pair 1200, Seed 3000, 
 | pair.spreadMark / stackCall | 40 | 0 | 400 | 1 | - | mark only |
 | seed.slam | 20 | 0 | 100 | 1 | - | dmg:150 |
 | seed.lash | 20 | 0 | 200 (script `at: 50, every: 200`) | 1 | - | dmg:70 |
+| seed.lock | 0 | 0 | 0 (script `at: 20`, once per pull) | 1 | - | window on self only (seedlock, 60 ticks, alternate, no shield) |
 | seed.deathBloom | 0 | 0 | 0 | 1 | - | window only |
 | hollowWarden.slam | 0 | 0 | 60 | 1 | - | dmg:150 |
 | hollowWarden.cleave | 40 | 0 | 160 | 1 | - | dmg:220 |
@@ -93,12 +94,26 @@ loop every 160. The ability cooldown columns above are unchanged.
 Boss and elite slams (values as the data files hold them; `abilities/enemies.json` plus the script telegraphs in
 `enemies/*.json`; ticks at 20 Hz):
 - `seed.slam` (The Seed, elite, 3000 hp): circle shape radius 2000, `range` 0, damage 150 physical, castTicks 20,
-  cooldownTicks 100; script `loop every 100` with telegraph circle radius 2000, leadTicks 20.
+  cooldownTicks 100; script `loop every 100` with telegraph circle radius 2000, leadTicks 20, `spansCast: true`.
+  `seed.lash` (script `at: 50, every: 200`, telegraph circle radius 1500, leadTicks 20) and `hollowWarden.cleave`
+  (telegraph cone radius 4000, angle1024 200, leadTicks 40) also carry `spansCast: true`.
 - `hollowWarden.slam` (The Hollow Warden, boss, 5000 hp): target shape, `range` 3000, damage 150 physical, castTicks 10,
-  cooldownTicks 60; script `loop every 300` (see cadences above) with telegraph circle radius 3000, leadTicks 10.
+  cooldownTicks 60; script `loop every 300` (see cadences above) with telegraph circle radius 3000, leadTicks 10,
+  `spansCast: true`.
 - `twins.slam` (Sundered Twin A, elite, 1000 hp; Twin B shares the ability): target shape, `range` 3000, damage 90
   physical, castTicks 10, cooldownTicks 60; script `loop every 400` (see cadences above) with telegraph circle
-  radius 3000, leadTicks 10 (Twin A's script).
+  radius 3000, leadTicks 10, `spansCast: true` (both Twins' scripts).
+
+`spansCast` (SLAM-TELEGRAPH, C# sim only; the frozen TS ignores it and oracle replays clear it): the telegraph resolves
+on the tick the cast lands (fire tick + castTicks) instead of the tick it starts, so with leadTicks 10 = castTicks 10
+the circle appears with the cast bar and resolves with the hit. Without it the circle resolved 10 ticks before the damage.
+Tempo shrinks the lead but not the cast time (key 2: Cleave 39 < 40, Seed 19 < 20), so a spansCast telegraph leads by
+at least castTicks: the shape and the bar start on the same tick. It is drawn only when its cast will start (the
+StartCast checks: cooldown/charges, GCD, cost, lockout, target and range), so a script step refused `not_ready` (key 2:
+Cleave every 156 vs cooldown 160, Seed slam 98 vs 100, lash 196 vs 200) shows nothing instead of a telegraph with no hit.
+The Pair's `pair.spreadMark` and `pair.stackCall` telegraphs (castTicks 40; key 2 every 392 vs cooldown 400) also carry
+`spansCast: true`, with leadTicks 140 (was 100): the lead now counts to the mark landing, so 140 keeps the old 100-tick
+warning before the cast starts (97 at key 2, was 98), and the circle stays down until the mark lands, never for a refused cast.
 
 ## Enemy movement (`// TUNE`)
 

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using Keyrun.Content;
 using Keyrun.Host;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
@@ -10,8 +11,9 @@ namespace Keyrun.View;
 /// Draws the sim's pending telegraphs on the floor. For each telegraph id SimDriver reports it spawns
 /// one Telegraph.tscn instance: a faint full-size outline plus a red fill that grows from the origin
 /// as the lead time runs out. When the sim's <c>telegraph_hit</c> event for that id arrives it flashes
-/// bright and fades, then frees the instance. Cones only in phase 1 (the shape Cleave uses); circles
-/// and lines draw as their cone stand-ins until 2E brings the full encounter.
+/// bright and fades, then frees the instance; a <c>telegraph_cancel</c> (the cast was kicked, stopped or replaced, so
+/// nothing lands) frees it at once with no flash (<see cref="TelegraphEnd"/>). A cone draws its own angle and a circle the full turn
+/// (<see cref="TelegraphFan"/>); a line still draws as its cone stand-in until it gets its own mesh.
 /// </summary>
 public partial class TelegraphView : Node3D
 {
@@ -113,9 +115,19 @@ public partial class TelegraphView : Node3D
             {
                 _leadStart[((int)src.Value, (int)due.Value)] = e.Tick;
             }
-            else if (e.Type == "telegraph_hit" && e.Get("telegraphId") is JsInt id && _shown.TryGetValue((int)id.Value, out var s))
+            else if (TelegraphEnd.Of(e.Type) is var end && end != TelegraphEndKind.None &&
+                     e.Get("telegraphId") is JsInt id && _shown.TryGetValue((int)id.Value, out var s))
             {
-                s.ResolvedAge ??= 0f;
+                if (end == TelegraphEndKind.Flash)
+                {
+                    s.ResolvedAge ??= 0f;
+                }
+                else
+                {
+                    // TELEGRAPH-CANCEL: the cast was kicked, stopped or replaced; nothing lands, so no flash.
+                    s.Root.QueueFree();
+                    _shown.Remove((int)id.Value);
+                }
             }
         }
     }
@@ -127,7 +139,7 @@ public partial class TelegraphView : Node3D
         root.Position = new Vector3(tg.Origin.X * MmToM, FloorLift, tg.Origin.Z * MmToM);
         root.Rotation = new Vector3(0, -tg.Yaw * Mathf.Tau / 1024f, 0); // local +x = sim facing
         var radius = (tg.Radius ?? 0) * MmToM;
-        var halfAngle = (tg.Angle1024 ?? 0) / 2f * Mathf.Tau / 1024f;
+        var halfAngle = TelegraphFan.Span1024(tg.Shape, tg.Angle1024) / 2f * Mathf.Tau / TelegraphFan.FullTurn;
         var mesh = BuildCone(radius, halfAngle);
 
         var outline = root.GetNode<MeshInstance3D>("Outline");

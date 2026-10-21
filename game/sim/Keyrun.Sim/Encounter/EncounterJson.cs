@@ -45,6 +45,12 @@ public static class EncounterJson
             Angle1024 = OptInt(o, "angle1024", what),
             Length = OptLong(o, "length", what),
             Width = OptLong(o, "width", what),
+            SpansCast = o.Get("spansCast") switch
+            {
+                null => false,
+                JsBool b => b.Value,
+                _ => throw new FormatException($"{what}.spansCast must be a boolean"),
+            },
         };
     }
 

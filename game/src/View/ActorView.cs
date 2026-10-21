@@ -13,7 +13,8 @@ namespace Keyrun.View;
 /// lane 4: the KayKit Skeletons and the 1.9x Knight boss), loaded from its row's pack folder, scaled and tinted per its
 /// row with its feet at the root and facing local +x, animated by <see cref="ActorAnimator"/>; a class
 /// with no row, or a row whose file is missing, keeps the capsule (with a small nose showing facing) and logs
-/// <c>ACTOR fallback capsule id=N class=C</c> once.
+/// <c>ACTOR fallback capsule id=N class=C</c> once. KF1: a health drop flashes the bound model for
+/// <see cref="AnimRule.FlashTicks"/> sim ticks (<see cref="AnimRule.FlashPermille"/>), logged as <c>ANIM flash</c>.
 /// </summary>
 public partial class ActorView : Node3D
 {
@@ -46,11 +47,21 @@ public partial class ActorView : Node3D
     private Node3D? _model;
     private ActorAnimator? _animator;
     private SimState? _seenState;
+    private SimState? _facingState;
+    private FacingHold? _hold;
+    private FacingHold? _holdBefore;
     private Vector3 _lastPosition;
     private bool _hasLastPosition;
     private int _measureIn = -1;
     private string _classId = string.Empty;
     private bool _shadows = true;
+    private StandardMaterial3D? _flash;
+    private SimState? _flashSeen;
+    private int _hurtTick = int.MinValue / 2;
+    private bool _flashOn;
+
+    /// <summary>KF1 hit flash colour (warm white, added over the body) at full strength.</summary>
+    private static readonly Color FlashColor = new(1f, 0.92f, 0.85f, 0.45f);
 
     /// <inheritdoc />
     public override void _Ready()
@@ -84,6 +95,7 @@ public partial class ActorView : Node3D
         TryBind();
         Place();
         Animate((float)delta);
+        Flash();
         if (_measureIn > 0 && --_measureIn == 0)
         {
             LogModelHeight();
@@ -126,7 +138,7 @@ public partial class ActorView : Node3D
         GetNode<MeshInstance3D>("Body").Visible = false;
         GetNode<MeshInstance3D>("Nose").Visible = false;
         _model = model;
-        _animator = ActorAnimator.TryCreate(model, row.Clips);
+        _animator = ActorAnimator.TryCreate(model, row.Clips, row.ScalePermille);
         // A body bound while its actor is alive rises with its spawn clip (enemies; party rows have none and idle).
         if (actor.Alive)
         {
@@ -204,7 +216,65 @@ public partial class ActorView : Node3D
         }
         _lastPosition = Position;
         _hasLastPosition = true;
-        _animator.Update(before, now, newTick, speed, Driver.LastEvents);
+        _animator.Update(before, now, newTick, speed, Driver.LastEvents, Driver.State.Tick, (int)(Driver.Alpha * 1000f));
+    }
+
+    // KF1: every health drop lights the body for AnimRule.FlashTicks sim ticks (an additive overlay on each mesh), so a
+    // hit reads on the victim even while a swing one-shot hides its hit clip. The hurt tick is the sim's; the fade
+    // reads the render alpha into the current tick. The overlay is only attached while it shows (no extra draw pass
+    // otherwise, under the 600 draw-call budget).
+    private void Flash()
+    {
+        if (_model is null || Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var now))
+        {
+            return;
+        }
+        if (!ReferenceEquals(Driver.State, _flashSeen))
+        {
+            // The first state this view sees is a baseline, not a step (no flash on the run's opening frame).
+            var stepped = _flashSeen is not null;
+            _flashSeen = Driver.State;
+            var before = Driver.PreviousState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
+            if (stepped && now.Health < before.Health)
+            {
+                _hurtTick = Driver.State.Tick;
+            }
+        }
+        var strength = AnimRule.FlashPermille(Driver.State.Tick - _hurtTick, (int)(Driver.Alpha * 1000f));
+        if (strength <= 0)
+        {
+            SetFlashOverlay(false);
+            return;
+        }
+        _flash ??= new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            BlendMode = BaseMaterial3D.BlendModeEnum.Add,
+            NoDepthTest = false,
+        };
+        _flash.AlbedoColor = new Color(FlashColor, FlashColor.A * strength / 1000f);
+        SetFlashOverlay(true);
+    }
+
+    private void SetFlashOverlay(bool on)
+    {
+        if (_model is null || on == _flashOn)
+        {
+            return;
+        }
+        _flashOn = on;
+        foreach (var node in _model.FindChildren("*", "MeshInstance3D", true, false))
+        {
+            if (node is MeshInstance3D mi)
+            {
+                mi.MaterialOverlay = on ? _flash : null;
+            }
+        }
+        if (on)
+        {
+            GD.Print(System.FormattableString.Invariant($"ANIM flash actor={ActorId} tick={Driver?.State.Tick ?? -1}"));
+        }
     }
 
     private void Place()
@@ -223,9 +293,17 @@ public partial class ActorView : Node3D
         Visible = now.Alive || (_animator?.HoldsDeath ?? false); // a model plays its death clip instead of vanishing
         SetShadows(now.Alive);
         // CAST-FACING: a caster is drawn facing its cast target (CastFacing.RenderYaw), never its sim Yaw alone.
+        // KF1-FACING: an instant swing resolves inside one step, so the swinger is held facing whom it struck
+        // (SwingFacing) until it moves, the target dies, or it resolves a cone, line or self ability.
         var abilities = Driver.Run?.Content.Abilities;
-        var fromYaw = CastFacing.RenderYaw(Driver.PreviousState, before, abilities);
-        var toYaw = CastFacing.RenderYaw(Driver.State, now, abilities);
+        if (!ReferenceEquals(Driver.State, _facingState))
+        {
+            _facingState = Driver.State;
+            _holdBefore = _hold;
+            _hold = SwingFacing.After(Driver.State, now, Driver.LastEvents, abilities, _hold);
+        }
+        var fromYaw = SwingFacing.RenderYaw(Driver.PreviousState, before, abilities, _holdBefore);
+        var toYaw = SwingFacing.RenderYaw(Driver.State, now, abilities, _hold);
         Rotation = new Vector3(0, -YawRadians(fromYaw, toYaw, t), 0);
     }
 

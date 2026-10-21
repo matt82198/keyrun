@@ -89,4 +89,119 @@ public sealed class PlateRuleTests
         Assert.Equal(2049, PlateRule.PlateHeightMm(0, 2166, 831, boss: false));
         Assert.Equal(PlateRule.ScaledTopMm(2166, 831), Table.For("pair.melee").StandingHeightMm);
     }
+
+    // f-07f1b477: on the boss pull the Hollow Warden's plate ("The Hollow Warden", capped 5 m up) and the two Sundered
+    // Twin plates beside it collided, and HudLayout.Separate stacked all three in a column over the boss model. The boss
+    // is named on its unit frame, so its plate does not draw over its head as well (the OverheadCast rule, for plates).
+    private const int Boss = 900;
+    private const int TwinA = 901;
+    private const int TwinB = 902;
+
+    [Fact]
+    public void The_enemy_on_the_boss_frame_draws_no_overhead_plate()
+    {
+        Assert.False(PlateRule.DrawsOverhead(Boss, alive: true, human: false, bossFrameActorId: Boss));
+    }
+
+    [Fact]
+    public void The_Twins_beside_the_framed_boss_keep_their_overhead_plates()
+    {
+        Assert.True(PlateRule.DrawsOverhead(TwinA, alive: true, human: false, bossFrameActorId: Boss));
+        Assert.True(PlateRule.DrawsOverhead(TwinB, alive: true, human: false, bossFrameActorId: Boss));
+    }
+
+    [Fact]
+    public void With_no_boss_frame_every_living_non_human_actor_draws_its_plate()
+    {
+        Assert.True(PlateRule.DrawsOverhead(Boss, alive: true, human: false, bossFrameActorId: null));
+        Assert.True(PlateRule.DrawsOverhead(101, alive: true, human: false, bossFrameActorId: null));
+    }
+
+    [Fact]
+    public void The_human_and_the_dead_never_draw_a_plate()
+    {
+        Assert.False(PlateRule.DrawsOverhead(1, alive: true, human: true, bossFrameActorId: Boss));
+        Assert.False(PlateRule.DrawsOverhead(TwinA, alive: false, human: false, bossFrameActorId: Boss));
+    }
+
+    // f-77a68e6b: from Pull 1 the plates of pulls far down the dungeon ("The Seed", the Paired Warrior crowd) drew over
+    // the current fight. WoW hides enemy plates past the nameplate max distance; an enemy plate now draws only within
+    // PlateRule.PlateDistanceMm of the viewing player. Arena numbers (game/content/data/layout.json and
+    // content/data/dungeons/hollow-vault.json, mm on x): each room's party start to its own pull is 7000; the start to
+    // the next room's doorway is 17500 (choir), 25500 (pair), 15500 (seed); the start to the pull after that is 29000
+    // (pair from choir), 37000 (seed from pair), 27000 (boss from seed).
+    private const int Cantor = 201;
+
+    [Fact]
+    public void The_plate_distance_is_twenty_six_metres()
+    {
+        Assert.Equal(26000, PlateRule.PlateDistanceMm);
+    }
+
+    [Fact]
+    public void An_alive_enemy_in_plate_range_draws_its_plate()
+    {
+        Assert.True(PlateRule.DrawsOverhead(Cantor, alive: true, human: false, bossFrameActorId: null, enemy: true, distanceMm: 7000));
+        Assert.True(PlateRule.DrawsOverhead(TwinA, alive: true, human: false, bossFrameActorId: Boss, enemy: true, distanceMm: 0));
+    }
+
+    [Fact]
+    public void An_alive_enemy_out_of_plate_range_draws_no_plate()
+    {
+        // From the Choir party start (14500, 0): the Paired Warriors at (43500, 0) are 29000 away, The Seed 59000.
+        Assert.False(PlateRule.DrawsOverhead(Cantor, alive: true, human: false, bossFrameActorId: null, enemy: true, distanceMm: 29000));
+        Assert.False(PlateRule.DrawsOverhead(Cantor, alive: true, human: false, bossFrameActorId: null, enemy: true, distanceMm: 59000));
+        Assert.False(PlateRule.DrawsOverhead(TwinA, alive: true, human: false, bossFrameActorId: Boss, enemy: true, distanceMm: 27000));
+    }
+
+    [Fact]
+    public void The_plate_range_boundary_is_inclusive()
+    {
+        Assert.True(PlateRule.DrawsOverhead(Cantor, alive: true, human: false, bossFrameActorId: null, enemy: true, distanceMm: PlateRule.PlateDistanceMm));
+        Assert.False(PlateRule.DrawsOverhead(Cantor, alive: true, human: false, bossFrameActorId: null, enemy: true, distanceMm: PlateRule.PlateDistanceMm + 1));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(7000)]
+    [InlineData(26000)]
+    [InlineData(59000)]
+    public void The_boss_frame_enemy_never_draws_a_plate_at_any_distance(long distanceMm)
+    {
+        Assert.False(PlateRule.DrawsOverhead(Boss, alive: true, human: false, bossFrameActorId: Boss, enemy: true, distanceMm: distanceMm));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(7000)]
+    [InlineData(59000)]
+    public void The_dead_never_draw_a_plate_at_any_distance(long distanceMm)
+    {
+        Assert.False(PlateRule.DrawsOverhead(Cantor, alive: false, human: false, bossFrameActorId: null, enemy: true, distanceMm: distanceMm));
+    }
+
+    [Fact]
+    public void Party_plates_do_not_cull_by_distance()
+    {
+        // The human party stays as it was: an ally bot's plate draws at any distance, the played character's never.
+        Assert.True(PlateRule.DrawsOverhead(2, alive: true, human: false, bossFrameActorId: null, enemy: false, distanceMm: 59000));
+        Assert.False(PlateRule.DrawsOverhead(1, alive: true, human: true, bossFrameActorId: null, enemy: false, distanceMm: 0));
+    }
+
+    [Fact]
+    public void The_arena_puts_the_next_doorway_inside_and_the_pull_after_outside()
+    {
+        // (party start, next room's doorway, the pull after that), mm on x, from layout.json and hollow-vault.json.
+        (int start, int door, int nextPull)[] rooms =
+        {
+            (14500, 32000, 43500), // choir: pair-hall door, the Paired Warriors (origin 38500 + spawn 5000)
+            (36500, 62000, 73500), // pair: seed-chamber door, The Seed (origin 63500 + spawn 10000)
+            (66500, 82000, 93500), // seed: warden-arena door, the Hollow Warden (origin 93500)
+        };
+        foreach (var (start, door, nextPull) in rooms)
+        {
+            Assert.True(PlateRule.InPlateRange(door - start), $"door {door} from start {start} is out of plate range");
+            Assert.False(PlateRule.InPlateRange(nextPull - start), $"pull {nextPull} from start {start} is in plate range");
+        }
+    }
 }

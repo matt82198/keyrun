@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
@@ -47,6 +48,23 @@ public sealed record TelegraphSpec(string Shape, int LeadTicks)
 
     /// <summary>Line full width, mm.</summary>
     public long? Width { get; init; }
+
+    /// <summary>
+    /// SLAM-TELEGRAPH (BIBLE s3, "a floor telegraph drawn ahead of resolution"): when true the telegraph resolves on
+    /// the tick the cast LANDS (the script's fire tick plus the ability's <see cref="ScriptAbility.CastTicks"/>) and is
+    /// announced <see cref="LeadTicks"/> before that, so with a lead of at least the cast time it stays on the floor for
+    /// the whole cast bar. False (the default, and the frozen TS rule): it resolves on the fire tick, when the cast
+    /// starts. C#-only; oracle replays never apply it (tools/Keyrun.Replay RunSetup clears it).
+    /// </summary>
+    public bool SpansCast { get; init; }
+
+    /// <summary>
+    /// TELEGRAPH-READY: true only on a frozen-TS replay (tools/Keyrun.Replay RunSetup sets it beside clearing
+    /// <see cref="SpansCast"/>). The TS drew a telegraph whenever its step was scheduled, even for a cast combat then
+    /// refused, and the oracle traces record that, so such a replay keeps the TS rule. Every other run (the host, and
+    /// content-driven tests) draws a telegraph only for a cast that will start. C#-only, never read from JSON.
+    /// </summary>
+    public bool TsUnchecked { get; init; }
 }
 
 /// <summary>
@@ -69,6 +87,15 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
     /// <summary>Target override; absent means the default rules of <see cref="ScriptTarget"/>.</summary>
     public ScriptTargetOverride? Target { get; init; }
 
+    /// <summary>
+    /// CAST-FINISH: true only on a frozen-TS replay (tools/Keyrun.Replay RunSetup sets it, as it sets
+    /// <see cref="TelegraphSpec.TsUnchecked"/>). The TS fired every step on its scheduled tick, and combat's StartCast
+    /// then replaced any cast the enemy was still holding, so such a replay keeps that rule and the oracle traces stay
+    /// byte-equal. Every other run (the host, and content-driven tests) holds a step that comes due mid-cast until the
+    /// cast lands (<see cref="Scripts.StepEnemyScripts"/>). C#-only, never read from JSON.
+    /// </summary>
+    public bool TsCastReplace { get; init; }
+
     /// <summary>A <c>{at:"loop", every, cast}</c> step.</summary>
     public static ScriptStep Loop(int? every, string cast) => new(StepTrigger.Loop, cast) { Every = every };
 
@@ -88,7 +115,17 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
 /// <param name="Range">Range in mm (<c>def.range</c>).</param>
 /// <param name="ShapeKind"><c>def.shape.kind</c>: "target", "self", "circle", "cone" or "line".</param>
 /// <param name="Heals">True when any effect op is <c>"heal"</c> (script-target.ts:61 isHealAbility).</param>
-public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals);
+public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals)
+{
+    /// <summary>The ability's cast time, ticks (<c>def.castTicks</c>); read only for a <see cref="TelegraphSpec.SpansCast"/> telegraph.</summary>
+    public int CastTicks { get; init; }
+
+    /// <summary>
+    /// The full definition, for <see cref="Casting.StartError"/>: a <see cref="TelegraphSpec.SpansCast"/> telegraph is
+    /// drawn only when its cast would start. Null = unknown (the check is skipped).
+    /// </summary>
+    public AbilityDef? Def { get; init; }
+}
 
 /// <summary>One enemy a pull spawns (sim/encounter/pulls.ts:17 PullSpawn).</summary>
 /// <param name="ActorId">Actor id.</param>

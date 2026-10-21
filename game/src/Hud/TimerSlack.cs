@@ -9,53 +9,10 @@ using SimTimer = Keyrun.Sim.Encounter.Timer;
 
 namespace Keyrun.Hud;
 
-/// <summary>The run timer and the Slack bank as the HUD shows them (Godot-free).</summary>
-/// <param name="SlackTicks">Slack left (<c>Encounter.SlackTicks</c>).</param>
-/// <param name="BankTicks">The full bank for this key (<see cref="SimTimer.InitialSlackTicks"/>).</param>
-/// <param name="Depleted">The sim's depleted flag (the bank hit 0 at least once).</param>
-/// <param name="RunTimerTicks">Run time so far (<c>State.RunTimerTicks</c>).</param>
-/// <param name="ParTicks">Par (<c>Encounter.ParTicks</c>).</param>
-/// <param name="KeyLevel">The key level.</param>
-public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, int RunTimerTicks, int ParTicks, int KeyLevel)
-{
-    /// <summary>Fill fraction of the Slack bar, [0, 1].</summary>
-    public float Fraction => BankTicks <= 0 ? 0f : Math.Clamp((float)SlackTicks / BankTicks, 0f, 1f);
-
-    /// <summary>True when the run timer is strictly past par (<see cref="SimTimer.IsOverPar"/>).</summary>
-    public bool OverPar => RunTimerTicks > ParTicks;
-
-    /// <summary>The bar label: "Slack 31.0s" or "Slack DEPLETED".</summary>
-    public string Label => Depleted
-        ? "Slack DEPLETED"
-        : FormattableString.Invariant($"Slack {SlackTicks / (double)Tick.TickHz:0.0}s");
-
-    /// <summary>The timer label: "+2  0:12 / par 12:00".</summary>
-    public string TimerLabel => FormattableString.Invariant($"+{KeyLevel}  {Clock(RunTimerTicks)} / par {Clock(ParTicks)}");
-
-    /// <summary>"HUD slack ticks=620 of=620 depleted=0 timer=0 par=14400".</summary>
-    public string LogLine() => FormattableString.Invariant(
-        $"HUD slack ticks={SlackTicks} of={BankTicks} depleted={(Depleted ? 1 : 0)} timer={RunTimerTicks} par={ParTicks}");
-
-    private static string Clock(int ticks)
-    {
-        var seconds = Math.Max(0, ticks) / Tick.TickHz;
-        return FormattableString.Invariant($"{seconds / 60}:{seconds % 60:00}");
-    }
-
-    /// <summary>Reads the run.</summary>
-    /// <param name="run">The run.</param>
-    /// <returns>The reading.</returns>
-    public static SlackReading Of(Run run)
-    {
-        ArgumentNullException.ThrowIfNull(run);
-        var e = run.Encounter;
-        return new SlackReading(e.SlackTicks, SimTimer.InitialSlackTicks(e.KeyLevel), e.Depleted, run.State.RunTimerTicks, e.ParTicks, e.KeyLevel);
-    }
-}
-
 /// <summary>
-/// The Slack bar (BIBLE s8): the soft time bank in seconds, which a death spends 15 s of and a wipe 25 s, read from the
-/// sim's <c>Encounter.SlackTicks</c>, with the key level and the run timer against par beside it. Top right, beside the objective panel (HudLayout.TopBar).
+/// The run clock bar (STATE.md D46, Mythic+): the share of par left on the run clock and the deaths readout (a death adds
+/// 15 s to the clock, a wipe 25 s more), read from the sim's <c>Encounter.PenaltyTicks</c>/<c>Deaths</c>, with the key
+/// level and the run clock against par beside it. Top right, beside the objective panel (HudLayout.TopBar).
 /// Reads the sim state only.
 /// </summary>
 public partial class TimerSlack : Control
@@ -117,6 +74,16 @@ public partial class TimerSlack : Control
         var timer = s.TimerLabel;
         var color = s.OverPar ? new Color(1f, 0.5f, 0.4f) : new Color(0.85f, 0.88f, 0.95f);
         HudNodes.Text(this, new Vector2(bar.End.X - HudNodes.Width(timer, Font) - 6, bar.End.Y - 3), timer, Font, color);
+
+        // M1 TIMER-TIERS: a 3 px timer strip along the bar's bottom edge (inside the slot, so HudClearance is unchanged)
+        // with the +3 (60% of par), +2 (80% of par) and par marks, on the run clock (D46: past par the key is not timed).
+        var strip = new Rect2(bar.Position.X, bar.End.Y - 3, bar.Size.X, 3);
+        DrawRect(new Rect2(strip.Position, new Vector2(strip.Size.X * s.TimerFraction, strip.Size.Y)), color);
+        foreach (var mark in new[] { s.PlusThreeMark, s.PlusTwoMark, s.ParMark })
+        {
+            var x = strip.Position.X + (strip.Size.X * mark);
+            DrawLine(new Vector2(x, strip.Position.Y - 3), new Vector2(x, strip.End.Y), Colors.White, 1f);
+        }
     }
 
     private void OnRunStarted()
@@ -134,8 +101,8 @@ public partial class TimerSlack : Control
             return;
         }
         var s = SlackReading.Of(run);
-        // Log on a Slack change only (the timer moves every tick).
-        var key = FormattableString.Invariant($"{s.SlackTicks}:{s.Depleted}");
+        // Log on a Slack, death-time or depleted change only (the timer moves every tick).
+        var key = FormattableString.Invariant($"{s.SlackTicks}:{s.PenaltyTicks}:{s.Depleted}");
         if (key != _logged)
         {
             _logged = key;
