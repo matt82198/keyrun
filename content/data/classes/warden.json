@@ -144,18 +144,18 @@
         {
           "id": "surge",
           "name": "Surge",
-          "text": "Adds a 2-second cooldown; grants far more Momentum.",
+          "text": "Adds a 2-second cooldown; hits harder and grants far more Momentum.",
           "patch": {
             "cooldownTicks": 40,
             "effects": [
               {
                 "op": "damage",
-                "amount": 100,
+                "amount": 120,
                 "school": "physical"
               },
               {
                 "op": "resource",
-                "delta": 30
+                "delta": 40
               },
               {
                 "op": "payoff"
@@ -197,8 +197,9 @@
         {
           "id": "mobile",
           "name": "Mobile Ward",
-          "text": "Bulwark braces only you instead of every ally in the circle; the floor patch still plants.",
+          "text": "Instant cast; Bulwark braces only you instead of every ally in the circle; the floor patch still plants.",
           "patch": {
+            "castTicks": 0,
             "shape": {
               "kind": "self"
             },

@@ -3116,12 +3116,12 @@
         },
         "effects": [
           {
-            "amount": 100,
+            "amount": 120,
             "op": "damage",
             "school": "physical"
           },
           {
-            "delta": 30,
+            "delta": 40,
             "op": "resource"
           },
           {
@@ -3191,7 +3191,7 @@
     },
     {
       "ability": {
-        "castTicks": 20,
+        "castTicks": 0,
         "charges": 1,
         "cooldownTicks": 200,
         "cost": {
@@ -3592,12 +3592,12 @@
         },
         "effects": [
           {
-            "amount": 110,
+            "amount": 125,
             "op": "damage",
             "school": "fire"
           },
           {
-            "delta": 25,
+            "delta": 30,
             "op": "resource"
           },
           {
@@ -3883,7 +3883,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 280,
+        "cooldownTicks": 260,
         "cost": {
           "amount": 0,
           "resource": "none"
@@ -3954,13 +3954,13 @@
         "variants": {
           "mend": [
             {
-              "durationTicks": 60,
+              "durationTicks": 100,
               "effectId": "mendingHot",
               "op": "applyEffect",
               "stacks": 1
             },
             {
-              "durationTicks": 60,
+              "durationTicks": 100,
               "onTarget": true,
               "op": "window",
               "setupClass": "chanter",
@@ -3969,13 +3969,13 @@
           ],
           "ward": [
             {
-              "durationTicks": 60,
+              "durationTicks": 100,
               "effectId": "wardShield",
               "op": "applyEffect",
               "stacks": 1
             },
             {
-              "durationTicks": 60,
+              "durationTicks": 100,
               "onTarget": true,
               "op": "window",
               "setupClass": "chanter",
@@ -4062,7 +4062,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 40,
+        "cooldownTicks": 0,
         "cost": {
           "amount": 0,
           "resource": "none"
@@ -4090,7 +4090,7 @@
         "variants": {
           "mend": [
             {
-              "durationTicks": 60,
+              "durationTicks": 40,
               "effectId": "mendingHot",
               "op": "applyEffect",
               "stacks": 1
@@ -4105,7 +4105,7 @@
           ],
           "ward": [
             {
-              "durationTicks": 60,
+              "durationTicks": 40,
               "effectId": "wardShield",
               "op": "applyEffect",
               "stacks": 1
@@ -4321,7 +4321,7 @@
         "variants": {
           "mend": [
             {
-              "amount": 120,
+              "amount": 200,
               "op": "heal"
             },
             {

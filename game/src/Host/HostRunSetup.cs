@@ -33,6 +33,12 @@ public sealed record HostRunSetup(
     /// <summary>run-setup.ts:52 INTERRUPT_LOCKOUT_TICKS (4 s at 20 Hz).</summary>
     public const int InterruptLockoutTicks = 80;
 
+    /// <summary>
+    /// BIBLE s9.3 "Stops as well as kicks": the effects that stop an interruptible cast when they land (Shatter's and Cold
+    /// Snap's freeze and the Twins' Break-bar stagger apply <c>stunned</c>; Ward Dissonance applies <c>silenced</c>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> StopEffectIds = new[] { "stunned", "silenced" };
+
     /// <summary>content-dungeon.ts:38 PULL_ACTOR_ID_START.</summary>
     public const int PullActorIdStart = 100;
 
@@ -85,6 +91,9 @@ public sealed record HostRunSetup(
         new RosterSlot("cinder", ActorRole.Damage, -700, SupportMaxHealth),
     };
 
+    /// <summary>The class of the human's seat (the screen's Character tab pick; "warden" by default).</summary>
+    public string HumanClassId => Party.First(p => p.Id == HumanActorId).ClassId;
+
     /// <summary>The bot seats: every party member but the human, ascending by actor id.</summary>
     public IReadOnlyList<int> BotActorIds => Party.Where(p => p.Id != HumanActorId).Select(p => p.Id).OrderBy(id => id).ToList();
 
@@ -128,7 +137,7 @@ public sealed record HostRunSetup(
             Affixes.DamageBp(affixTable, affixes, bossSide: false),
             Affixes.DamageBp(affixTable, affixes, bossSide: true));
         var effects = registry.Effects.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
-        var (combos, fieldCombos) = ToComboTables(registry.Combos.Values, registry.Classes.Keys.ToList(), registry.ComboRiders);
+        var (combos, fieldCombos) = ContentCombos.ToComboTables(registry.Combos.Values, registry.Classes.Keys.ToList(), registry.ComboRiders);
         var (dungeon, scripts) = ToSimDungeon(
             registry, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false), Affixes.HealthBp(affixTable, affixes, bossSide: true));
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
@@ -153,6 +162,7 @@ public sealed record HostRunSetup(
             BaseSpeedMmPerTick = 0,
             ActorRadiusMm = 0,
             Bounds = movement.Bounds,
+            Overheat = OverheatRulesOf(registry),
             EnemyScripts = scripts,
             KeyLevel = keyLevel,
             ParTicks = dungeonDef.ParTicks,
@@ -160,6 +170,7 @@ public sealed record HostRunSetup(
             FieldCombos = fieldCombos,
             Clauses = clauses,
             Layout = nav,
+            StopEffectIds = StopEffectIds,
         }.WithMovement(movement);
 
         var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
@@ -193,6 +204,22 @@ public sealed record HostRunSetup(
             new AffixScale(a.Tyrannical.HealthBp, a.Tyrannical.DamageBp),
             a.OneAffixKey,
             a.BothAffixKey);
+    }
+
+    /// <summary>
+    /// The sim's Heat/Overheat rules (BIBLE section 5 Cinder): one <see cref="OverheatRule"/> per class whose loop is
+    /// heat-overheat, its threshold that loop's max, its Chill the content run.json <c>heatOverheat</c> block. A class
+    /// with a rule opens the run at 0 Heat and its cast at the threshold is the free Overheat (Combat/Casting.cs).
+    /// </summary>
+    /// <param name="registry">The loaded content (validated at load).</param>
+    /// <returns>Class id to its rule.</returns>
+    public static IReadOnlyDictionary<string, OverheatRule> OverheatRulesOf(C.ContentRegistry registry)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        var chill = registry.Run.HeatOverheat;
+        return registry.Classes.Values
+            .Where(c => c.Loop.Kind == C.LoopKind.HeatOverheat)
+            .ToDictionary(c => c.Id, c => new OverheatRule(c.Loop.Max, chill.ChillEffectId, chill.ChillTicks), StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -506,30 +533,8 @@ public sealed record HostRunSetup(
         _ => throw new InvalidOperationException($"run setup: unknown shape kind {k}"),
     };
 
-    private static EffectOp ToSim(C.EffectOp op, string where) => op switch
-    {
-        C.DamageOp d => new DamageOp(d.Amount, d.School),
-        C.HealOp h => new HealOp(h.Amount),
-        C.ApplyEffectOp e => new ApplyEffectOp(e.EffectId, e.DurationTicks, e.Stacks),
-        C.RemoveEffectOp r => new RemoveEffectOp(r.EffectId),
-        C.InterruptOp => new InterruptOp(),
-        C.ResourceOp r => new ResourceOp(r.Delta),
-        C.ThreatOp t => new ThreatOp(t.Amount, t.MultiplierBp),
-        C.WindowOp w => new WindowOp(
-            w.WindowId,
-            w.DurationTicks,
-            w.OnTarget,
-            w.SetupClass ?? throw new InvalidOperationException($"run setup: {where} has a window op without setupClass"),
-            w.Self,
-            w.Alternate,
-            w.RadiusMm),
-        C.PayoffOp => new PayoffOp(),
-        C.ComboOp c => new ComboOp(c.ComboTable),
-        C.PartyEffectOp p => new PartyEffectOp(p.EffectId, p.DurationTicks, p.Stacks),
-        C.CloudOp c => new CloudOp(c.EffectId, c.DurationTicks, c.RadiusMm),
-        C.CloserBurnOp b => new CloserBurnOp(b.MaxHealthBp, b.CapBp, b.School),
-        _ => throw new InvalidOperationException($"run setup: {where} has an op the sim does not run ({op.GetType().Name})"),
-    };
+    // The content-to-sim op mapping lives in Keyrun.Bots.Shared.ContentCombos so the headless tests run it (f-89b0825e).
+    private static EffectOp ToSim(C.EffectOp op, string where) => ContentCombos.ToSimOp(op, where);
 
     private static EffectDef ToSim(C.EffectDef e)
     {
@@ -555,35 +560,6 @@ public sealed record HostRunSetup(
         },
         c.Params.ToDictionary(kv => kv.Key, kv => (long)kv.Value, StringComparer.Ordinal),
         c.Description);
-
-    /// <summary>
-    /// content/sim-adapt.ts toComboTables: exact (setupClass, payoffClass) rows go to the burst table; a
-    /// <c>payoffClass "*"</c> row goes to the field table once per other class. A combo with a C#-only rider
-    /// (combo-riders.json: Anthem's party haste, Steam's cloud; BIBLE section 4) fires the rider's effects instead.
-    /// </summary>
-    private static (ComboTable Combos, ComboTable FieldCombos) ToComboTables(
-        IEnumerable<C.ComboEntry> entries, IReadOnlyList<string> classIds, IReadOnlyDictionary<string, C.ComboRider> riders)
-    {
-        var combos = new ComboTable();
-        var field = new ComboTable();
-        foreach (var entry in entries)
-        {
-            var ops = riders.TryGetValue(entry.Id, out var rider) ? rider.Effects : entry.Effects;
-            var def = new ComboDef(entry.Id, ops.Select(o => ToSim(o, "combo " + entry.Id)).ToList());
-            if (entry.PayoffClass == "*")
-            {
-                foreach (var payoff in classIds.Where(c => c != entry.SetupClass))
-                {
-                    field.Set(entry.SetupClass, payoff, def);
-                }
-            }
-            else
-            {
-                combos.Set(entry.SetupClass, entry.PayoffClass, def);
-            }
-        }
-        return (combos, field);
-    }
 
     /// <summary>
     /// content/sim-adapt.ts toSimDungeon (ids from <see cref="PullActorIdStart"/> in pull, group, count order; yaw 0;

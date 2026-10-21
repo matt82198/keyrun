@@ -47,6 +47,39 @@ public sealed record TalentPicks
     }
 
     /// <summary>
+    /// The build saved as <paramref name="choices"/> (forked ability id to option id, the sim save's Progression.Talents),
+    /// checked against <paramref name="cls"/>'s forks: a choice whose ability is not one of the class's forks, or whose
+    /// option that fork no longer has (content retuned since the save), is dropped and that fork starts unpicked, so a
+    /// stale save never blocks the screen (respec is free). The result is in fork order, equal to the build the same
+    /// picks made on the screen.
+    /// </summary>
+    /// <param name="cls">The class.</param>
+    /// <param name="choices">The saved choices, in any order.</param>
+    /// <returns>The build.</returns>
+    public static TalentPicks Restore(ClassDef cls, IEnumerable<KeyValuePair<string, string>> choices)
+    {
+        ArgumentNullException.ThrowIfNull(cls);
+        ArgumentNullException.ThrowIfNull(choices);
+        var picks = Start(cls);
+        var saved = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (ability, option) in choices) saved[ability] = option;
+        for (var f = 0; f < picks.ForkCount; f++)
+        {
+            if (!saved.TryGetValue(picks.Forks[f].AbilityId, out var optionId)) continue;
+            var options = picks.Forks[f].Options;
+            for (var o = 0; o < options.Count; o++)
+            {
+                if (options[o].Id == optionId)
+                {
+                    picks = picks.Pick(f, o);
+                    break;
+                }
+            }
+        }
+        return picks;
+    }
+
+    /// <summary>
     /// Picks option <paramref name="option"/> of fork <paramref name="fork"/> (both 0-based), replacing any earlier
     /// pick on that fork. Picks are never locked: this is also how a player changes one fork without a full respec.
     /// </summary>

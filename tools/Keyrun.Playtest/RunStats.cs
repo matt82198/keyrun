@@ -56,8 +56,14 @@ public sealed class RunStats
     /// <summary>Interruptible enemy casts that completed, per ability id.</summary>
     public SortedDictionary<string, int> InterruptibleResolved { get; } = new(StringComparer.Ordinal);
 
-    /// <summary>Enemy casts interrupted, per ability id.</summary>
+    /// <summary>Enemy casts interrupted by a kick, per ability id.</summary>
     public SortedDictionary<string, int> Interrupted { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Enemy casts stopped by a stun, freeze or silence (STUN-STOPS-CAST, #329: an "interrupt" event carrying "stop"),
+    /// per ability id. Not a kick, so it is kept out of <see cref="Interrupted"/> and <see cref="KicksLanded"/>.
+    /// </summary>
+    public SortedDictionary<string, int> ControlStopped { get; } = new(StringComparer.Ordinal);
 
     /// <summary>Successful interrupts per seat.</summary>
     public SortedDictionary<int, int> KicksLanded { get; } = new();
@@ -173,6 +179,16 @@ public sealed class RunStats
                     {
                         var (cause, src) = lastHit.TryGetValue(who, out var h) ? h : ("unknown", NameOf(actors.TryGetValue(I(e, "sourceId"), out var s2) ? s2 : null));
                         Deaths.Add(new DeathRow(e.Tick, who, a.ClassId, cause, src, pullId));
+                    }
+                    break;
+                }
+                case "interrupt" when e.Get("stop") is not null:
+                {
+                    // A control stop (ControlStops: "stop names the effect so nothing reads it as a kick").
+                    if (actors.TryGetValue(I(e, "targetId"), out var stopped) && stopped.Kind == ActorKind.Enemy)
+                    {
+                        var cast = stopped.CastId ?? "unknown";
+                        ControlStopped[cast] = (ControlStopped.TryGetValue(cast, out var n) ? n : 0) + 1;
                     }
                     break;
                 }
