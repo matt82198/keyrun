@@ -133,7 +133,7 @@
           "name": "Discipline",
           "text": "Longer cooldown; Mend's Chorus heals far more.",
           "patch": {
-            "cooldownTicks": 160,
+            "cooldownTicks": 180,
             "variants": {
               "mend": [
                 { "op": "heal", "amount": 200 },

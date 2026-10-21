@@ -85,7 +85,8 @@ public sealed record RunContent
 
     /// <summary>
     /// The frozen TS push-out (<see cref="RulesConfig.TsSymmetricPushOut"/>): true only on an oracle replay; false (the
-    /// default, every host run) keeps STATE.md D54, an enemy never displaces a player.
+    /// default, every host run) keeps STATE.md D54, an enemy never displaces a player. Ignored when <see cref="Layout"/> is
+    /// set (<see cref="RunWiring.RulesConfigOf"/>): a layout run is never an oracle replay.
     /// </summary>
     public bool TsSymmetricPushOut { get; init; }
 

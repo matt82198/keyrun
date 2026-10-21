@@ -43,7 +43,11 @@ public static class RunWiring
             Clause = encounterRules is null ? null : new EncounterClause(encounterRules),
             Overheat = content.Overheat,
             Marks = content.Marks,
-            TsSymmetricPushOut = content.TsSymmetricPushOut,
+            // The TS push-out is a frozen-TS replay rule, and a replay has no layout (RunContent.Layout is null on every
+            // oracle run). A layout run is a game run, so D54 ENEMIES-NEVER-DISPLACE holds there whatever setup it
+            // was loaded from: under the TS rule a pack locked on a standing tank (HOLDER-LOCK D30) shoves him
+            // back through a doorway the party already crossed.
+            TsSymmetricPushOut = content.TsSymmetricPushOut && content.Layout is null,
         };
     }
 
