@@ -11,9 +11,10 @@ namespace Keyrun.Bots.Roles;
 /// Port of bots/src/roles/healer-idle.ts (BOTS-FIVE-BUTTONS; design/BIBLE.md section 0 test 1, "Classes with real
 /// decisions on five buttons"): what the healer does in combat with nobody to heal or dispel. Before this the healer
 /// stood idle, so Chanter's Dissonance (its damaging Payoff) and Refrain (the verse swap, needed only from Ward) were
-/// never cast. In order: close another class's open Window with a damaging Payoff (the Combo); in Mend, Refrain into
-/// Ward (its Ward burst shields on the swap, and the healer pre-mitigates until someone drops, when
-/// <see cref="HealerRole"/> Refrains back to Mend); else the damaging Payoff on an engaged enemy. Out of combat (no
+/// never cast. In order: close another class's open Window with a damaging Payoff (the Combo); else the damaging
+/// Payoff on an engaged enemy (R-BOTS-3: the press comes within one GCD); else, in Mend, Refrain into Ward (its Ward
+/// burst shields on the swap, and the healer pre-mitigates until someone drops, when <see cref="HealerRole"/>
+/// Refrains back to Mend). Out of combat (no
 /// living enemy aimed at a player) the healer does nothing, so it never pulls.
 /// </summary>
 public static class HealerIdle
@@ -82,11 +83,18 @@ public static class HealerIdle
         {
             return payoff;
         }
+        // R-BOTS-3 (D-HEALER-DOWNTIME wins over Refrain-first, the WoW Mythic+ dungeon loop: a healer with nobody to
+        // heal keeps pressing): once engaged and free, the damaging Payoff goes first, so the press comes within one GCD;
+        // Refrain into Ward fills the GCD after it while the Payoff cools down.
+        var target = engaged.FirstOrDefault(e => e.Id == self.TargetId) ?? engaged[0];
+        if (CastOn(target) is { } press)
+        {
+            return press;
+        }
         if (StanceSwapReady(self, kit, tick) && self.Resource == mendVerseValue)
         {
             return new Command[] { new CastCommand(tick, self.Id, kit.StanceSwapAbilityId!) };
         }
-        var target = engaged.FirstOrDefault(e => e.Id == self.TargetId) ?? engaged[0];
-        return CastOn(target) ?? (IReadOnlyList<Command>)Array.Empty<Command>();
+        return Array.Empty<Command>();
     }
 }
