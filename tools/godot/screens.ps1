@@ -19,6 +19,16 @@
   KEYRUN_GODOT environment variable, else the winget install under %LOCALAPPDATA%.
   Exit 2 when it cannot be found.
 
+  Preflight (tools/godot/preflight.ps1, finding f-3ccab3b2): before the launch lock is taken, the project's .NET assembly
+  must exist under <project>/.godot/mono/temp/bin/Debug and be newer than the .cs files under src, sim, bots and content.
+  Otherwise the engine would boot the boot scene only and the C# autorun would never run. This prints
+  "PREFLIGHT missing-assembly <path>" or "PREFLIGHT stale-assembly <path> newer=<file>" with the build command and exits 6
+  without launching. It never builds; the orchestrator runs the build. A missing .NET runtime (no dotnet.exe under the
+  resolved DOTNET_ROOT) is the same exit 6 with "PREFLIGHT missing-dotnet <path>".
+
+  End check: when the capture stops, the --log file named in GodotArgs must exist. When it was never created the
+  frames and the mp4 are kept, and this prints "SCREENS no-run-log <path>" and exits 7. A boot-scene-only run is never a success.
+
   Single instance (tools/godot/launch-lock.ps1): the capture takes the same machine-wide launch lock as
   tools/godot/godot.ps1 before it starts Godot, and holds it until the game is stopped. While another live process
   holds it, this exits 5 at once and launches nothing. The game runs in a kill-on-close job object, so killing this
@@ -49,7 +59,9 @@
 
 .NOTES
   Exit codes: 0 success, 1 no frames captured, 2 Godot binary missing,
-  3 ffmpeg missing, 4 ffmpeg failed, 5 another Godot instance holds the launch lock.
+  3 ffmpeg missing, 4 ffmpeg failed, 5 another Godot instance holds the launch lock,
+  6 the .NET assembly is missing or stale (preflight; nothing was launched),
+  7 the --log run file was never created (boot-scene-only run; frames and mp4 kept).
   Frames are kept on every exit path.
 #>
 param(
@@ -97,6 +109,7 @@ if (-not $env:DOTNET_CLI_USE_MSBUILD_SERVER) { $env:DOTNET_CLI_USE_MSBUILD_SERVE
 
 # One launch path: the same lock, cap and tree kill as tools/godot/godot.ps1.
 . (Join-Path $PSScriptRoot 'launch-lock.ps1')
+. (Join-Path $PSScriptRoot 'preflight.ps1')
 $capSeconds = Get-KeyrunGodotTimeoutSec
 if ($MaxSeconds -gt $capSeconds) {
     Write-Output ("SCREENS MaxSeconds {0} clamped to the launch cap {1}s (KEYRUN_GODOT_TIMEOUT_SEC)" -f $MaxSeconds, $capSeconds)
@@ -253,6 +266,13 @@ function Save-ScreenShot {
     return [pscustomobject]@{ Path = $Path; Size = ("{0}x{1}" -f $b.Width, $b.Height) }
 }
 
+# Preflight before the lock (finding f-3ccab3b2): a capture of a project without a fresh .NET assembly is a boot-scene-only run.
+$preflight = Test-KeyrunDotnetRuntime -DotnetRoot $dotnetRoot
+if ($preflight.Ok) { $preflight = Test-KeyrunDotnetAssembly -RepoRoot $repo -ProjectRel $projRel }
+if (-not $preflight.Ok) {
+    foreach ($line in $preflight.Lines) { Write-Output $line }
+    exit $preflight.Code
+}
 $launchLock = Enter-KeyrunLaunchLock -Owner ("screens.ps1 -Name {0}" -f $Name)
 if (-not $launchLock.Acquired) {
     Write-Output ("FAILED: {0}" -f $launchLock.Message)
@@ -376,4 +396,9 @@ if (-not $NoVideo) {
 }
 
 Write-Output ("SCREENS frames={0} mp4={1} dir={2}" -f $saved.Count, $mp4Out, $outDirFull)
+# End check (finding f-3ccab3b2): the run log is written by the game's C# autorun. Without it the run was boot-scene only.
+if (-not (Test-KeyrunRunLogWritten -LogPath $logPath)) {
+    Write-Output ("SCREENS no-run-log {0}" -f $logPath)
+    exit 7
+}
 exit 0
