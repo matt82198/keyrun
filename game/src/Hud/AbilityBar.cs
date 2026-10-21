@@ -14,7 +14,9 @@ namespace Keyrun.Hud;
 /// a dark sweep with seconds left while on cooldown, a light sweep during the global cooldown, dimmed when the
 /// class resource is short, its icon tinted red (WoW style, no red border) when the cast's target is out of range
 /// (<see cref="Keyrun.Content.AbilitySlotLook"/>, lane ABILITYBAR-RANGE-TINT), with a "RANGE" caption in the top-right
-/// corner so the red has a stated reason (f-682aacb5, BIBLE s2 never colour alone). Above it: the Warden's health and
+/// corner so the red has a stated reason (f-682aacb5, BIBLE s2 never colour alone), and, since lane RANGE-READOUT, never
+/// by colour alone: the icon dims and a distance-arrow glyph draws in the corner, and a press that fails for range shows
+/// a short "Out of range" error line (<see cref="Keyrun.Content.RangeReadout"/>). Above it: the Warden's health and
 /// Momentum. The run-over state (result, rewards, the Enter hint) is the run-end panel's (<see cref="RunEndPanel"/>).
 /// Each ability slot draws its CC0 icon (<see cref="Keyrun.Content.AbilityIcons"/>, lane ABILITY-ICONS) in place of the
 /// name text; a slot whose ability has no icon row keeps the name. Under --autorun it prints one "HUD bar slot=K
@@ -65,6 +67,50 @@ public partial class AbilityBar : Control
         SetAnchorsPreset(LayoutPreset.FullRect);
         Driver = GetNodeOrNull<SimDriver>(DriverPath);
         KeyInput = GetNodeOrNull<PlayerInput>(InputPath);
+        // PlayerInput ignores keys on a scripted run (--autorun, --write-movie); the range error line does the same.
+        var args = OS.GetCmdlineUserArgs();
+        _scripted = Array.IndexOf(args, "--autorun") >= 0 || Array.IndexOf(args, "--write-movie") >= 0;
+    }
+
+    private bool _scripted;
+
+    // Lane RANGE-READOUT: the sim tick of the last key press that failed for range, or null; the "Out of range" error
+    // line shows for RangeReadout.ErrorTicks after it.
+    private int? _rangeErrorTick;
+
+    /// <summary>
+    /// Lane RANGE-READOUT: a key press of an ability slot the sim will reject as out_of_range (the same cast target
+    /// PlayerInput sends, <see cref="CastTargeting.For"/>) starts the short "Out of range" error line. The event is not
+    /// consumed: PlayerInput still sends the cast, so the sim stays the authority.
+    /// </summary>
+    /// <param name="event">The input event.</param>
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (_scripted || @event is not InputEventKey { Pressed: true, Echo: false } key || KeyInput?.Binds.ActionFor(key.PhysicalKeycode) is not { } action)
+        {
+            return;
+        }
+        if (Driver?.Setup is not { } setup || Driver.Run is not { } run || !run.State.Actors.TryGetValue(setup.HumanActorId, out var me))
+        {
+            return;
+        }
+        foreach (var slot in setup.Slots)
+        {
+            if (slot.Action != action || !run.Content.Abilities.TryGetValue(slot.AbilityId, out var def))
+            {
+                continue;
+            }
+            var now = run.State.Tick;
+            var targetId = CastTargeting.For(run, me.Id, def.Id);
+            Keyrun.Content.RangeTarget? target = targetId != me.Id && run.State.Actors.TryGetValue(targetId, out var t)
+                ? new Keyrun.Content.RangeTarget(t.Alive, t.Kind != me.Kind, Casting.RangeMm(me, t))
+                : null;
+            var blocked = ChargeReadout.For(me, def, now).OnCooldown || me.Resource < def.Cost.Amount || run.RunEnd.Result is not null;
+            if (Keyrun.Content.RangeReadout.PressFailsForRange(target, def.Shape.Kind == ShapeKind.Target, def.Range, blocked))
+            {
+                _rangeErrorTick = now;
+            }
+        }
     }
 
     /// <inheritdoc />
@@ -121,8 +167,9 @@ public partial class AbilityBar : Control
     // changes (lane TINT-RUNOVER, HudSceneTest check 41).
     private string? _lastRangeLine;
 
-    // Under --autorun: "HUD bar range tinted=N over=0|1 tick=T", N the slots the bar draws with the out-of-range tint,
-    // over 1 once the run has ended for any result. Printed on change only.
+    // Under --autorun: "HUD bar range tinted=N over=0|1 glyph=G tick=T", N the slots the bar draws with the out-of-range
+    // tint, over 1 once the run has ended for any result, G the slots that draw the non-colour range glyph (lane
+    // RANGE-READOUT: G equals N on every line). Printed on change only.
     private void PrintRangeTint()
     {
         if (Driver?.Setup is not { } setup || Driver.Run is not { } run || !run.State.Actors.TryGetValue(setup.HumanActorId, out var me))
@@ -130,14 +177,20 @@ public partial class AbilityBar : Control
             return;
         }
         var tinted = 0;
+        var glyphs = 0;
         foreach (var slot in setup.Slots)
         {
-            if (run.Content.Abilities.TryGetValue(slot.AbilityId, out var def) && OutOfRange(run, me, def))
+            var outOfRange = run.Content.Abilities.TryGetValue(slot.AbilityId, out var def) && OutOfRange(run, me, def);
+            if (outOfRange)
             {
                 tinted++;
             }
+            if (Keyrun.Content.RangeReadout.Cue(outOfRange).Glyph)
+            {
+                glyphs++;
+            }
         }
-        var line = FormattableString.Invariant($"HUD bar range tinted={tinted} over={(run.RunEnd.Result is not null ? 1 : 0)}");
+        var line = FormattableString.Invariant($"HUD bar range tinted={tinted} over={(run.RunEnd.Result is not null ? 1 : 0)} glyph={glyphs}");
         if (line == _lastRangeLine)
         {
             return;
@@ -247,6 +300,33 @@ public partial class AbilityBar : Control
         var pingRect = new Rect2(origin.X + (setup.Slots.Count * (Slot + Gap)), origin.Y, Slot, Slot);
         var pingKey = KeyInput is not null ? KeyBinds.Label(KeyInput.Binds.KeyFor(KeyAction.Ping)) : "G";
         DrawSlot(font, pingRect, pingKey, "Ping", 0.8f, false, true);
+
+        // Lane RANGE-READOUT: a press that failed for range says so, briefly, centred over the bar's meters (WoW's red
+        // error line); it is gone after RangeReadout.ErrorTicks, so it adds no permanent text.
+        if (Keyrun.Content.RangeReadout.ErrorVisible(_rangeErrorTick, now))
+        {
+            var errorRect = new Rect2(origin.X, origin.Y - 44 - 34, width, 30);
+            DrawCentered(font, errorRect, Keyrun.Content.RangeReadout.ErrorText, 20, ToColor(Keyrun.Content.AbilitySlotLook.OutOfRangeTint).Lightened(0.25f));
+        }
+    }
+
+    // Lane RANGE-READOUT: the range glyph, a double-headed distance arrow in the slot's bottom-left corner (the
+    // bottom-right holds the charge count), white over a dark outline so it reads on any icon without its colour.
+    private void DrawRangeGlyph(Rect2 rect, float alpha)
+    {
+        var y = rect.End.Y - 11;
+        var a = new Vector2(rect.Position.X + 7, y);
+        var b = new Vector2(rect.Position.X + 31, y);
+        var ink = new Color(1f, 1f, 1f, alpha);
+        var outline = new Color(0f, 0f, 0f, 0.9f * alpha);
+        foreach (var (color, w) in new[] { (outline, 5f), (ink, 2f) })
+        {
+            DrawLine(a, b, color, w);
+            DrawLine(a, a + new Vector2(6, -5), color, w);
+            DrawLine(a, a + new Vector2(6, 5), color, w);
+            DrawLine(b, b + new Vector2(-6, -5), color, w);
+            DrawLine(b, b + new Vector2(-6, 5), color, w);
+        }
     }
 
     // Lane RANGE-TINT-NOTARGET: the tint reads off the player's own selected target, never the cast's nearest-enemy
@@ -265,12 +345,17 @@ public partial class AbilityBar : Control
     private void DrawSlot(Font font, Rect2 rect, string key, string name, float alpha, bool outOfRange, bool dashed, Texture2D? icon = null, float iconAlpha = 1f)
     {
         DrawRect(rect, new Color(SlotBack, SlotBack.A * alpha));
+        var cue = Keyrun.Content.RangeReadout.Cue(outOfRange); // lane RANGE-READOUT: the non-colour range cue
         if (icon is not null)
         {
             // The icon sits centred, nudged down so the key label keeps the top-left corner clear.
             var iconRect = new Rect2(rect.Position + new Vector2((rect.Size.X - IconSize) / 2, ((rect.Size.Y - IconSize) / 2) + 4), new Vector2(IconSize, IconSize));
             var tint = ToColor(Keyrun.Content.AbilitySlotLook.IconModulate(outOfRange)); // red when out of range, WoW style
-            DrawTextureRect(icon, iconRect, false, new Color(tint, tint.A * alpha * iconAlpha));
+            DrawTextureRect(icon, iconRect, false, new Color(tint, tint.A * alpha * iconAlpha * (cue.IconAlphaPct / 100f)));
+        }
+        if (cue.Glyph)
+        {
+            DrawRangeGlyph(rect, alpha);
         }
         var edge = ToColor(Keyrun.Content.AbilitySlotLook.Edge(outOfRange));
         DrawRect(rect, new Color(edge, dashed ? 0.5f : 1f), filled: false, width: Keyrun.Content.AbilitySlotLook.EdgeWidth(outOfRange));
