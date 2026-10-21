@@ -77,6 +77,15 @@
         { "enemyId": "pair.melee", "count": 5, "spawn": { "x": 0, "z": 500 } },
         { "enemyId": "choir.lieutenant", "count": 2, "spawn": { "x": 0, "z": -500 } }
       ]
+    },
+    {
+      "id": "cantor-guard", "name": "Cantor's Guard", "room": "choir-room", "optional": false,
+      "center": { "x": 21500, "z": 333 }, "aggroMm": 4000,
+      "enemies": [
+        { "enemyId": "hall.sentry", "count": 1, "spawn": { "x": -1500, "z": -1333 } },
+        { "enemyId": "hall.sentry", "count": 1, "spawn": { "x": 1500, "z": -1333 } },
+        { "enemyId": "hall.sentry", "count": 1, "spawn": { "x": 0, "z": -2833 } }
+      ]
     }
   ]
 }
