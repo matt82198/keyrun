@@ -23,12 +23,12 @@
       "fnv": "7affe6d8"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 212606,
-      "fnv": "44354cb1"
+      "bytes": 212742,
+      "fnv": "406337a9"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 212603,
-      "fnv": "4f3dda2a"
+      "bytes": 212739,
+      "fnv": "0eca818e"
     },
     "content-pull.setup.json": {
       "bytes": 22329,
@@ -131,7 +131,7 @@
         "fnv": "d5e391e9"
       },
       "bots/src/roles/tank-engage.ts": {
-        "fnv": "73320f37"
+        "fnv": "b172c049"
       },
       "bots/src/roles/tank-pressure.ts": {
         "fnv": "11a09dd6"
@@ -549,7 +549,7 @@
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "071c3e1a"
+      "traceHash": "3aec53b7"
     },
     {
       "finalTick": 1503,
@@ -558,7 +558,7 @@
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "071c3e1a"
+      "traceHash": "3aec53b7"
     },
     {
       "finalTick": 1868,

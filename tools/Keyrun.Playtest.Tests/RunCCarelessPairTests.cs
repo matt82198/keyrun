@@ -28,7 +28,9 @@ public sealed class RunCCarelessPairTests
 {
     private const int Key = 2;
     private const long Seed = 1;
-    private const int MaxTicks = 7000; // run C's --ticks (HudSceneTest $PartyTicks)
+    // run C's --ticks (HudSceneTest $PartyTicks). R-DOOR-1 (ruling 3): the Hollow Door at 100% Enemy Forces makes the dungeon
+    // longer by design, so the budget moves 7000 -> 9000 with the scene harness args; a Timed clear at 7847 is expected.
+    private const int MaxTicks = 9000;
     private const int CarelessSeat = 3;
     private const int CarelessFromTick = 300; // HudSceneTest $CarelessSeat '3@300:pair'
 

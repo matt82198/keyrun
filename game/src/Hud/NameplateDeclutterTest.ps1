@@ -27,7 +27,7 @@
     Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$Ticks = 7000
+    [int]$Ticks = 9000  # R-DOOR-1: party autorun budget moves with the door at 100% (was 7000)
 )
 $ErrorActionPreference = 'Stop'
 

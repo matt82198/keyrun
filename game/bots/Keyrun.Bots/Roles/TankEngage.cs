@@ -108,9 +108,11 @@ public static class TankEngage
 
     /// <summary>
     /// The out-of-reach approach move <see cref="TankEngageCommands"/> issues: a <see cref="MoveCommand"/> toward
-    /// <see cref="EngageTarget"/>, issued only when no taunt fires, the tank is not casting, and the target is beyond
-    /// reach less the margin. Null otherwise. This is the single origin of the approach move; the playtest runner
-    /// exempts exactly this command from its leader-travel strip (R-SEED-1a, f-244d102b).
+    /// <see cref="EngageTarget"/>, issued whenever the tank is not casting and the target is beyond reach less the margin.
+    /// A firing taunt does not suppress it (DOOR-100, R-DOOR-1): the taunt reaches from 3000 mm, past melee reach, so a
+    /// taunt the plan drops must not leave the tank standing 2800 mm off an engaged pack. Null otherwise. This is the
+    /// single origin of the approach move; the playtest runner exempts exactly this command from its leader-travel strip
+    /// (R-SEED-1a, f-244d102b).
     /// </summary>
     /// <param name="view">Bot view.</param>
     /// <param name="self">The tank.</param>
@@ -127,7 +129,7 @@ public static class TankEngage
             return null;
         }
         var d = RoleShared.Dist(self, target);
-        if (TauntFires(view, self, kit, d) || d <= ReachMm(view, kit) - ReachMarginMm)
+        if (d <= ReachMm(view, kit) - ReachMarginMm)
         {
             return null;
         }
@@ -167,9 +169,10 @@ public static class TankEngage
 
         if (TauntFires(view, self, kit, d))
         {
-            // TauntFires is true only with a non-empty TauntAbilityId.
+            // TauntFires is true only with a non-empty TauntAbilityId. DOOR-100 (R-DOOR-1): the taunt is off the GCD and
+            // does not end the decision. A taunt the plan drops never goes on cooldown, so returning here on every tick
+            // left an out-of-reach or in-reach tank with nothing but the taunt, standing on an engaged pack.
             output.Add(new CastCommand(tick, self.Id, kit.TauntAbilityId!, target.Id));
-            return output;
         }
 
         if (d > ReachMm(view, kit) - ReachMarginMm)

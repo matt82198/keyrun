@@ -59,10 +59,13 @@ public sealed class ScriptedWarden
         var abilities = run.Content.Abilities;
         var lieutenant = state.Actors.Values.FirstOrDefault(a => a.ClassId == LieutenantClass && EngagedTargets.IsEngagedHostile(me, a));
 
-        if (lieutenant is { CastId: { } castId, CastStartTick: { } start } && abilities.TryGetValue(castId, out var cast) && cast.Interruptible &&
-            tick >= start + (cast.CastTicks / 2) && Ready(me, abilities[Kick], tick) && Casting.RangeMm(me, lieutenant) <= abilities[Kick].Range)
+        // R-WARDEN-KICK-1 (core loop defers to WoW: the tank interrupts the caster that is casting): the kick goes to the
+        // engaged lieutenant that is mid-way through an interruptible cast inside Shield Bash range, the one whose cast
+        // resolves sooner, not the first lieutenant in list order (a healer casting beside an idle Cantor was never kicked).
+        var kickable = KickableLieutenant(state, me, tick, abilities);
+        if (kickable is not null && Ready(me, abilities[Kick], tick))
         {
-            into.Add(new CastCommand(tick, me.Id, Kick, lieutenant.Id));
+            into.Add(new CastCommand(tick, me.Id, Kick, kickable.Id));
         }
 
         // LOOSE-PICKUP (BIBLE section 3, the bot tank's TankEngage rule): an engaged enemy aimed at another seat that the
@@ -170,4 +173,30 @@ public sealed class ScriptedWarden
     /// prespawned enemy is never picked (PRESPAWN-AGGRO; <see cref="EngagedTargets.Nearest"/>).
     /// </summary>
     private static ActorState? NearestEnemy(SimState state, ActorState me) => EngagedTargets.Nearest(state, me);
+
+    /// <summary>
+    /// R-WARDEN-KICK-1: the engaged lieutenant mid-way through an interruptible cast, inside Shield Bash range at
+    /// <paramref name="tick"/>, whose cast ends soonest (lowest id on a tie); null when none is kickable.
+    /// </summary>
+    private static ActorState? KickableLieutenant(SimState state, ActorState me, int tick, IReadOnlyDictionary<string, AbilityDef> abilities)
+    {
+        ActorState? best = null;
+        long bestEnd = long.MaxValue;
+        foreach (var a in state.Actors.Values)
+        {
+            if (a.ClassId != LieutenantClass || !EngagedTargets.IsEngagedHostile(me, a) || a.CastId is not { } castId
+                || a.CastStartTick is not { } start || !abilities.TryGetValue(castId, out var cast) || !cast.Interruptible
+                || tick < start + (cast.CastTicks / 2) || Casting.RangeMm(me, a) > abilities[Kick].Range)
+            {
+                continue;
+            }
+            var end = a.CastEndsTick ?? long.MaxValue;
+            if (best is null || end < bestEnd || (end == bestEnd && a.Id < best.Id))
+            {
+                best = a;
+                bestEnd = end;
+            }
+        }
+        return best;
+    }
 }

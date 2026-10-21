@@ -41,6 +41,8 @@ public sealed class MitigateThroughLedgerKickTests
     // assertions are unchanged, neither side's literal reused): the kick-plan run now ends Timed at 7777 with boss cleaves
     // 7341-7381, 7497-7537 and 7653-7693, so 11 ticks into the first cleave is 7352; the run's own state at 7352 has the
     // boss casting hollowWarden.cleave, start 7341, end 7381.
+    // R-DOOR-1 + R-TAUNT-1 + KF3 merge re-derivation (WHY: the merged tree's first boss cleave kick-open is the same event
+    // this scene was built on; see the probe note in the commit message).
     private const int Tick = 7352;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
@@ -56,13 +58,16 @@ public sealed class MitigateThroughLedgerKickTests
     private static Scene MidCleave(System.Action<SimState> tweak) => MidCleave((state, _) => tweak(state));
 
     /// <inheritdoc cref="MidCleave(System.Action{SimState})"/>
-    private static Scene MidCleave(System.Action<SimState, SceneKit> tweak)
+    private static Scene MidCleave(System.Action<SimState, SceneKit> tweak) => MidCleave(Tick, tweak);
+
+    /// <summary>The scene at kick-open tick <paramref name="at"/> (a boss cleave's Ledger.KickOpensTick on the trajectory).</summary>
+    private static Scene MidCleave(int at, System.Action<SimState, SceneKit> tweak)
     {
         var content = ContentLoader.Load();
         var policy = PolicyReader.Parse(KickPlan, content);
         var registry = PlaytestRunner.WithTalents(content, policy);
-        var run = PlaytestRunner.Play(new PlaytestOptions(2, 1, policy) { MaxTicks = Tick }, content).Run;
-        Assert.Equal(Tick, run.State.Tick);
+        var run = PlaytestRunner.Play(new PlaytestOptions(2, 1, policy) { MaxTicks = at }, content).Run;
+        Assert.Equal(at, run.State.Tick);
         var state = run.State.Clone();
         foreach (var enemy in state.Actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive))
         {
@@ -73,12 +78,12 @@ public sealed class MitigateThroughLedgerKickTests
         // offset into the cast. A 40-tick cleave opens 12 ticks in, so it starts at 5474 and resolves at 5514.
         var boss = state.Actors[Boss];
         boss.CastId = "hollowWarden.cleave";
-        boss.CastStartTick = Tick;
-        boss.CastEndsTick = Tick + CleaveTicks;
-        var hold = Ledger.KickOpensTick(boss) - Tick;
-        boss.CastStartTick = Tick - hold;
-        boss.CastEndsTick = Tick - hold + CleaveTicks;
-        Assert.Equal(Tick, Ledger.KickOpensTick(boss));
+        boss.CastStartTick = at;
+        boss.CastEndsTick = at + CleaveTicks;
+        var hold = Ledger.KickOpensTick(boss) - at;
+        boss.CastStartTick = at - hold;
+        boss.CastEndsTick = at - hold + CleaveTicks;
+        Assert.Equal(at, Ledger.KickOpensTick(boss));
         var kits = KitRegistry.From(registry);
         BotView ViewOf(SimState s) => BotViews.BuildBotView(s, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
         tweak(state, new SceneKit(run.Content.Abilities, ViewOf));
@@ -95,36 +100,6 @@ public sealed class MitigateThroughLedgerKickTests
         a.CastId = null;
         a.CastStartTick = null;
         a.CastEndsTick = null;
-    }
-
-    /// <summary>
-    /// R-BOTS-10 (a scene re-derivation; the healer fact's assertions are unchanged): under #327's party ledger
-    /// (Ledger.ResolvePartyInterrupt: least recently kicked first, ties to the lowest seat id) the Warden, seat 1, wins
-    /// every tie with a ready Chanter, so with both interrupts ready the ledger names the Warden at the cleave and the
-    /// fact's premise (the ledger names the Chanter) is false. In this run the Warden has not kicked by <see cref="Tick"/>
-    /// (Shield Bash cooldown entry 0), so the scene spends it, inside the ledger, on an earlier cast: the boss's previous
-    /// cleave, one cleave cooldown (the content's hollowWarden.cleave cooldownTicks, 160) before this one. At that cast's
-    /// kick-open tick the ledger is asked who kicks; it names the Warden, which spends Shield Bash there through the sim's
-    /// own charge rule (Cooldowns.ConsumeCharge). Shield Bash's 480-tick cooldown then runs past this cleave, so here the
-    /// ledger passes the Warden over and names the ready Chanter, genuinely, by its own rotation.
-    /// </summary>
-    private static void SpendWardenKickOnThePreviousCleave(SimState state, SceneKit sceneKit)
-    {
-        var earlier = state.Clone();
-        var boss = earlier.Actors[Boss];
-        var period = sceneKit.Abilities[boss.CastId!].CooldownTicks;
-        boss.CastStartTick -= period;
-        boss.CastEndsTick -= period;
-        earlier.Tick = Ledger.KickOpensTick(boss);
-        Assert.True(earlier.Tick < Tick, "the previous cleave opens its kick before this one");
-        var view = sceneKit.ViewOf(earlier);
-        var warden = earlier.Actors[PlaytestRunner.TankId];
-        var kit = view.Kits.ResolveKit(warden.ClassId, view.ClassKit);
-        var kick = RoleShared.LedgerKickCommand(view, warden, kit);
-        Assert.Equal(kit.InterruptAbilityId, kick?.AbilityId);
-        var shieldBash = sceneKit.Abilities[kick!.AbilityId];
-        Keyrun.Sim.Combat.Cooldowns.ConsumeCharge(state.Actors[PlaytestRunner.TankId], shieldBash, earlier.Tick);
-        Assert.True(Readiness.CooldownReadyTick(state.Actors[PlaytestRunner.TankId], shieldBash.Id) > Tick, "the Warden's Shield Bash is still on cooldown at this cleave");
     }
 
     private static System.Collections.Generic.List<string> PolicyCasts(Scene scene, int seatId)
@@ -155,28 +130,47 @@ public sealed class MitigateThroughLedgerKickTests
         Assert.DoesNotContain(kit.InterruptAbilityId, casts);
     }
 
-    [Fact(DisplayName = "A healer heals the hurt tank while the scripted kick ledger names it to kick, instead of standing idle")]
-    public void Healer_heals_while_the_ledger_wants_a_kick()
+    // R-DOOR-3 re-anchor (content fact: hollowWarden.cleave is interruptible=false, so the Warden never kicks a boss cleave
+    // and the earlier synthetic "Warden kicked the previous cleave" premise is stale). The real kick in the trajectory is the
+    // Chanter's chanter.rebuke on the second Choral Mending (cast 4780-4860, ledger kick-open 4820, Warden at 245/400).
+    private const int MendKickOpenTick = 4820;
+    private const int MendCastStart = 4780;
+    private const int MendCastEnd = 4860;
+
+    [Fact(DisplayName = "A healer kicks the Choral Mending and heals the hurt tank in the same pull (R-DOOR-3: the real ledger kick, not a boss cleave)")]
+    public void Healer_kicks_the_mending_and_heals_the_hurt_tank()
     {
         const int Chanter = 2;
-        var scene = MidCleave((state, sceneKit) =>
-        {
-            var tank = state.Actors[PlaytestRunner.TankId];
-            tank.Health = tank.MaxHealth / 2;
-            var healer = state.Actors[Chanter];
-            healer.Health = healer.MaxHealth;
-            healer.Resource = healer.MaxResource;
-            Ready(healer, healer.Cooldowns.Select(kv => kv.Key).ToArray());
-            Ready(healer, "chanter.rebuke");
-            SpendWardenKickOnThePreviousCleave(state, sceneKit);
-        });
-        var healer = scene.View.State.Actors[Chanter];
-        var kit = scene.View.Kits.ResolveKit(healer.ClassId, scene.View.ClassKit);
-        Assert.Equal(ActorRole.Healer, healer.Role);
-        Assert.Equal(kit.InterruptAbilityId, RoleShared.LedgerKickCommand(scene.View, healer, kit)?.AbilityId);
+        var content = ContentLoader.Load();
+        var policy = PolicyReader.Parse(KickPlan, content);
+        var registry = PlaytestRunner.WithTalents(content, policy);
+        var run = PlaytestRunner.Play(new PlaytestOptions(2, 1, policy) { MaxTicks = MendKickOpenTick }, content).Run;
+        Assert.Equal(MendKickOpenTick, run.State.Tick);
 
-        var casts = PolicyCasts(scene, Chanter);
-        Assert.True(casts.Count > 0, "the healer pressed nothing with the tank at half health");
-        Assert.DoesNotContain(kit.InterruptAbilityId, casts);
+        var kits = KitRegistry.From(registry);
+        var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
+        var healer = view.State.Actors[Chanter];
+        var kit = view.Kits.ResolveKit(healer.ClassId, view.ClassKit);
+        Assert.Equal(ActorRole.Healer, healer.Role);
+        Assert.Equal("chanter.rebuke", kit.InterruptAbilityId);
+        Assert.Equal(kit.InterruptAbilityId, RoleShared.LedgerKickCommand(view, healer, kit)?.AbilityId);
+
+        // The plan kicks choir.healCast with the Chanter, so the seat takes the kick the ledger names. A kick waits the
+        // human reaction (PolicyBot), so the real run's command stream is the check: the Chanter's rebuke lands in the window.
+        var log = PlaytestRunner.Play(new PlaytestOptions(2, 1, policy), content).Log;
+        var kicks = log.Split('\n')
+            .Where(l => l.StartsWith("C ", System.StringComparison.Ordinal) &&l.Contains($"ActorId = {Chanter}, Kind = cast, AbilityId = {kit.InterruptAbilityId},"))
+            .Select(l => int.Parse(System.Text.RegularExpressions.Regex.Match(l, "Tick = (\\d+)").Groups[1].Value))
+            .Where(t => t >= MendCastStart && t <= MendCastEnd)
+            .ToList();
+        Assert.NotEmpty(kicks);
+
+        // The Chanter heals the hurt Warden inside the same Mending window of the real run.
+        var heals = log.Split('\n')
+            .Where(l => l.Contains("\"type\":\"heal\"") && l.Contains($"\"sourceId\":{Chanter},") && l.Contains($"\"targetId\":{PlaytestRunner.TankId},"))
+            .Select(l => int.Parse(System.Text.RegularExpressions.Regex.Match(l, "\"tick\":(\\d+)").Groups[1].Value))
+            .Where(t => t >= MendCastStart && t <= MendCastEnd)
+            .ToList();
+        Assert.NotEmpty(heals);
     }
 }

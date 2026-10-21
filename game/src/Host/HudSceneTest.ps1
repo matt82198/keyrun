@@ -74,7 +74,7 @@
          proves the live-run call.
     Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:
         -- --autorun --ticks <PartyTicks> --careless-seat <CarelessSeat>
-        (default 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
+        (default 9000 since R-DOOR-1, was 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
         (--careless-seat S@T:GROUP, CARELESS-SEAT, default 3@300:pair; Matt 2026-10-20, verbatim: "no a bad player will
         accidentally aggro more groups, just test it naturally", STATE.md D43: under PRESPAWN-AGGRO the Warden walks
         into every ring first, so no enemy ever picked a bot seat. Bot seat S (the Cinder) plays carelessly from run tick
@@ -331,7 +331,7 @@
 param(
     [int]$Ticks = 10000,
     [int]$PingTicks = 900,
-    [int]$PartyTicks = 7000,
+    [int]$PartyTicks = 9000,  # R-DOOR-1: the door at 100% makes the dungeon longer by design (was 7000)
     [string]$CarelessSeat = '3@300:pair',
     [int]$BossTicks = 600,
     [int]$QueueTicks = 10000,
