@@ -51,6 +51,7 @@ public static class ContentValidator
         CheckClassArmor(reg);
         CheckPairMarks(reg);
         CheckStunImmuneEnemies(reg);
+        CheckMeleeAbilities(reg);
         CheckForces(reg);
         LayoutValidator.Check(reg);
         CheckBranchTotals(reg);
@@ -158,6 +159,19 @@ public static class ContentValidator
         if (m.SpreadDamage <= 0) Fail("run pairMarks.spreadDamage must be positive, got " + m.SpreadDamage);
         if (m.StackRadiusMm <= 0) Fail("run pairMarks.stackRadiusMm must be positive, got " + m.StackRadiusMm);
         if (m.StackDamage <= 0) Fail("run pairMarks.stackDamage must be positive, got " + m.StackDamage);
+    }
+
+    /// <summary>melee-abilities.json (KF1 strike cue): every id names a loaded ability, listed once.</summary>
+    private static void CheckMeleeAbilities(ContentRegistry reg)
+    {
+        var seen = new System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal);
+        foreach (string id in reg.MeleeAbilities)
+        {
+            if (!reg.Abilities.ContainsKey(id))
+                Fail("melee-abilities \"" + id + "\" is not an ability");
+            if (!seen.Add(id))
+                Fail("melee-abilities lists \"" + id + "\" twice");
+        }
     }
 
     /// <summary>run.json stunImmuneEnemies (finding f-c63b43bf): every id names a known enemy.</summary>
