@@ -4,7 +4,7 @@ name: Game
 # No paths filter: every PR gets exactly one run of each required name. Each job decides docs-only in its
 # own scope step: a code PR runs the real steps; a docs-only PR runs one pass-through step under the same
 # check name. No job-level `if:` on a required job (a skipped required check counts as success for branch
-# protection: the #473 fail-open this file closes). Docs-only definition as in tests.yml.
+# protection: the #473 fail-open this file closes). Docs-only definition as in tests.yml (--no-renames, and tools/game/bots/client/.github are code).
 on:
   push:
     branches: [main]
@@ -38,7 +38,8 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           # Fails closed to code=true (real steps run) when the diff cannot be computed.
-          if ! files=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
+          # --no-renames: a rename lists BOTH paths, so a code file renamed to *.md still reads as code.
+          if ! files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
             echo "diff failed; treating as code"
             echo "code=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -47,7 +48,9 @@ jobs:
           code=false
           while IFS= read -r f; do
             case "$f" in
-              ""|STATE.md|BUILDLOG.md|docs/*|design/*|.github/CODEOWNERS|*.md) ;;
+              ""|STATE.md|BUILDLOG.md|docs/*|design/*) ;;
+              tools/*|game/*|bots/*|client/*|.github/*) code=true ;;
+              *.md) ;;
               *) code=true ;;
             esac
           done <<< "$files"
@@ -104,7 +107,8 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           # Fails closed to code=true (real steps run) when the diff cannot be computed.
-          if ! files=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
+          # --no-renames: a rename lists BOTH paths, so a code file renamed to *.md still reads as code.
+          if ! files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
             echo "diff failed; treating as code"
             echo "code=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -113,7 +117,9 @@ jobs:
           code=false
           while IFS= read -r f; do
             case "$f" in
-              ""|STATE.md|BUILDLOG.md|docs/*|design/*|.github/CODEOWNERS|*.md) ;;
+              ""|STATE.md|BUILDLOG.md|docs/*|design/*) ;;
+              tools/*|game/*|bots/*|client/*|.github/*) code=true ;;
+              *.md) ;;
               *) code=true ;;
             esac
           done <<< "$files"
@@ -154,7 +160,8 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           # Fails closed to code=true (real steps run) when the diff cannot be computed.
-          if ! files=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
+          # --no-renames: a rename lists BOTH paths, so a code file renamed to *.md still reads as code.
+          if ! files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
             echo "diff failed; treating as code"
             echo "code=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -163,7 +170,9 @@ jobs:
           code=false
           while IFS= read -r f; do
             case "$f" in
-              ""|STATE.md|BUILDLOG.md|docs/*|design/*|.github/CODEOWNERS|*.md) ;;
+              ""|STATE.md|BUILDLOG.md|docs/*|design/*) ;;
+              tools/*|game/*|bots/*|client/*|.github/*) code=true ;;
+              *.md) ;;
               *) code=true ;;
             esac
           done <<< "$files"
