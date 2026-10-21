@@ -25,6 +25,7 @@ public static class BotViews
         ["pair.spreadMark"] = "spread",
         ["pair.stackCall"] = "stack",
         ["hollowWarden.cleave"] = "boss",
+        ["hollowWarden.lock"] = "boss", // LOCK-TELEGRAPH: the Lock's cast circle, as telegraph-map.ts classes it
         ["seed.slam"] = "avoid",
     };
 

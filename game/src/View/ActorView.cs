@@ -47,6 +47,9 @@ public partial class ActorView : Node3D
     private Node3D? _model;
     private ActorAnimator? _animator;
     private SimState? _seenState;
+    private SimState? _facingState;
+    private FacingHold? _hold;
+    private FacingHold? _holdBefore;
     private Vector3 _lastPosition;
     private bool _hasLastPosition;
     private int _measureIn = -1;
@@ -135,7 +138,7 @@ public partial class ActorView : Node3D
         GetNode<MeshInstance3D>("Body").Visible = false;
         GetNode<MeshInstance3D>("Nose").Visible = false;
         _model = model;
-        _animator = ActorAnimator.TryCreate(model, row.Clips);
+        _animator = ActorAnimator.TryCreate(model, row.Clips, row.ScalePermille);
         // A body bound while its actor is alive rises with its spawn clip (enemies; party rows have none and idle).
         if (actor.Alive)
         {
@@ -203,7 +206,9 @@ public partial class ActorView : Node3D
         {
             return;
         }
-        var before = Driver.PreviousState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
+        // KF1-READABLE: diff and read events over every step this frame ran, not only the latest (a slow frame runs
+        // several, and a swing resolved on an earlier one used to vanish).
+        var before = Driver.FrameStartState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
         var newTick = !ReferenceEquals(Driver.State, _seenState);
         _seenState = Driver.State;
         var speed = 0f;
@@ -213,7 +218,7 @@ public partial class ActorView : Node3D
         }
         _lastPosition = Position;
         _hasLastPosition = true;
-        _animator.Update(before, now, newTick, speed, Driver.LastEvents, Driver.State.Tick);
+        _animator.Update(before, now, newTick, speed, Driver.FrameEvents, Driver.State.Tick, (int)(Driver.Alpha * 1000f));
     }
 
     // KF1: every health drop lights the body for AnimRule.FlashTicks sim ticks (an additive overlay on each mesh), so a
@@ -231,7 +236,7 @@ public partial class ActorView : Node3D
             // The first state this view sees is a baseline, not a step (no flash on the run's opening frame).
             var stepped = _flashSeen is not null;
             _flashSeen = Driver.State;
-            var before = Driver.PreviousState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
+            var before = Driver.FrameStartState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
             if (stepped && now.Health < before.Health)
             {
                 _hurtTick = Driver.State.Tick;
@@ -290,9 +295,17 @@ public partial class ActorView : Node3D
         Visible = now.Alive || (_animator?.HoldsDeath ?? false); // a model plays its death clip instead of vanishing
         SetShadows(now.Alive);
         // CAST-FACING: a caster is drawn facing its cast target (CastFacing.RenderYaw), never its sim Yaw alone.
+        // KF1-FACING: an instant swing resolves inside one step, so the swinger is held facing whom it struck
+        // (SwingFacing) until it moves, the target dies, or it resolves a cone, line or self ability.
         var abilities = Driver.Run?.Content.Abilities;
-        var fromYaw = CastFacing.RenderYaw(Driver.PreviousState, before, abilities);
-        var toYaw = CastFacing.RenderYaw(Driver.State, now, abilities);
+        if (!ReferenceEquals(Driver.State, _facingState))
+        {
+            _facingState = Driver.State;
+            _holdBefore = _hold;
+            _hold = SwingFacing.After(Driver.State, now, Driver.LastEvents, abilities, _hold);
+        }
+        var fromYaw = SwingFacing.RenderYaw(Driver.PreviousState, before, abilities, _holdBefore);
+        var toYaw = SwingFacing.RenderYaw(Driver.State, now, abilities, _hold);
         Rotation = new Vector3(0, -YawRadians(fromYaw, toYaw, t), 0);
     }
 

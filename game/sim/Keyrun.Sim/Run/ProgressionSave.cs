@@ -15,7 +15,8 @@ public sealed record ProgressionLoad(Progression Progression, string? Error);
 
 /// <summary>
 /// Persists the character's banked progression across runs (BIBLE s7 "Every run banks Ash, win or lose"; the gear the
-/// end-of-run choice equips): Ash total, runs, the five gear slots, the crafting PRNG and the "since last run" delta.
+/// end-of-run choice equips): Ash total, runs, the five gear slots, the crafting PRNG, the "since last run" delta, and
+/// the talent build picked on the screen (BIBLE s6, an optional "talents" member: a save without it has no picks).
 /// The codec is pure and deterministic (canonical JSON, slots in <see cref="Rewards.GearSlots"/> order), so the same
 /// progression always writes the same text. Loading never throws: a missing save is a fresh character, and a corrupt
 /// one is a fresh character plus the reason, so a bad file can never block or crash a run.
@@ -53,7 +54,8 @@ public static class ProgressionSave
             ("runs", JsValue.Int(progression.Runs)),
             ("prng", JsValue.Arr(JsValue.Int(p.S0), JsValue.Int(p.S1), JsValue.Int(p.S2), JsValue.Int(p.S3))),
             ("equipped", JsValue.Arr(equipped)),
-            ("last", last)).ToCanonicalJson();
+            ("last", last),
+            ("talents", TalentsJs(progression.Talents))).ToCanonicalJson();
     }
 
     /// <summary>
@@ -100,7 +102,9 @@ public static class ProgressionSave
     /// <summary>
     /// Writes <paramref name="progression"/> to <paramref name="path"/>, creating its directory. The text goes to a
     /// sibling temp file first and then replaces the save, so a crash mid-write leaves the previous save intact.
-    /// Never throws.
+    /// A save that is there but this build cannot read (a newer version, corrupt text, a read error) is never written
+    /// over: it is first moved aside to <see cref="UnreadableBackupPath"/>, so the fresh character a failed load fell
+    /// back to cannot destroy the player's real one. A readable save is replaced in place, as always. Never throws.
     /// </summary>
     /// <param name="path">The save file.</param>
     /// <param name="progression">The progression.</param>
@@ -116,6 +120,7 @@ public static class ProgressionSave
                 Directory.CreateDirectory(dir);
             }
             File.WriteAllText(temp, Serialize(progression), Utf8NoBom);
+            PreserveIfUnreadable(path);
             File.Move(temp, path, overwrite: true);
             return null;
         }
@@ -130,6 +135,49 @@ public static class ProgressionSave
                 // The temp file is best-effort cleanup; the save error below is the one that matters.
             }
             return $"progression not saved: {e.Message}";
+        }
+    }
+
+    /// <summary>
+    /// The first free sibling backup name for an unreadable save at <paramref name="path"/>:
+    /// <c>progression.json.unreadable-1</c>, then <c>-2</c> and so on, so an earlier backup is never overwritten.
+    /// </summary>
+    /// <param name="path">The save file.</param>
+    /// <returns>A path that does not exist yet.</returns>
+    public static string UnreadableBackupPath(string path)
+    {
+        for (var n = 1; ; n++)
+        {
+            var candidate = FormattableString.Invariant($"{path}.unreadable-{n}");
+            if (!File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    // Moves an existing save this build cannot load out of the way before it is replaced. A missing or readable save
+    // is left alone. A failed read counts as unreadable; if the move itself fails the exception aborts the save, which
+    // leaves the original file where it was.
+    private static void PreserveIfUnreadable(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+        string text;
+        try
+        {
+            text = File.ReadAllText(path, Utf8NoBom);
+        }
+        catch (Exception)
+        {
+            File.Move(path, UnreadableBackupPath(path), overwrite: false);
+            return;
+        }
+        if (Load(text, seed: 1).Error is not null)
+        {
+            File.Move(path, UnreadableBackupPath(path), overwrite: false);
         }
     }
 
@@ -188,7 +236,27 @@ public static class ProgressionSave
             Prng = new PrngState(w[0], w[1], w[2], w[3]),
             Equipped = equipped,
             LastRun = ParseDelta(root.Get("last") ?? throw new FormatException("missing \"last\"")),
-        };
+        }.WithTalents(ParseTalents(root.Get("talents")));
+    }
+
+    // The screen's talent build (BIBLE s6), ability id to option id in ordinal key order.
+    private static JsObject TalentsJs(IReadOnlyDictionary<string, string> talents) => JsValue.Obj(
+        talents.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+            .Select(kv => new KeyValuePair<string, JsValue>(kv.Key, JsValue.Str(kv.Value))));
+
+    // A save written before talents were saved has no member: that character simply has no picks yet.
+    private static IEnumerable<KeyValuePair<string, string>> ParseTalents(JsValue? v)
+    {
+        if (v is null)
+        {
+            return Array.Empty<KeyValuePair<string, string>>();
+        }
+        if (v is not JsObject o)
+        {
+            throw new FormatException("\"talents\" must be an object");
+        }
+        return o.Members.Select(m => new KeyValuePair<string, string>(
+            m.Key, m.Value is JsString { Value.Length: > 0 } s ? s.Value : throw new FormatException($"talent \"{m.Key}\" must be a non-empty option id"))).ToList();
     }
 
     private static RunDelta? ParseDelta(JsValue v)
@@ -209,7 +277,8 @@ public static class ProgressionSave
             var other => throw new FormatException($"unknown run result \"{other}\""),
         };
         var ash = Int(o, "ash");
-        if (ash != Ash.ForResult(result))
+        // A save written before D45 recorded 10 Ash for an abandoned run; it still loads as written.
+        if (ash != Ash.ForResult(result) && !(result == RunResult.Abandoned && ash == Ash.LegacyAbandoned))
         {
             throw new FormatException("last run Ash does not match its result");
         }

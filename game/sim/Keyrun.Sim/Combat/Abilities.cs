@@ -48,11 +48,27 @@ public static class Abilities
             return def;
         }
         var verse = Actors.Verse(caster);
-        if (variants.Values.All(ops => ops.Any(op => op is ResourceOp)))
+        if (IsVerseSwap(variants))
         {
             verse = verse == MendVerse ? WardVerse : MendVerse;
         }
         return variants.TryGetValue(verse, out var resolved) ? def with { Effects = resolved } : def;
+    }
+
+    /// <summary>
+    /// The verse swap: every variant moves the verse resource and the variants do not all move it the same way
+    /// (Refrain: +1 to Mend, -1 to Ward). A resource op every variant carries alike (a Facet's appended "burst of
+    /// Verse", content/data/facets chanter.keystone.dissonantChoir) is a refund on that ability, not a swap, so the
+    /// ability still plays the caster's current verse.
+    /// </summary>
+    private static bool IsVerseSwap(IReadOnlyDictionary<string, IReadOnlyList<EffectOp>> variants)
+    {
+        if (!variants.Values.All(ops => ops.Any(op => op is ResourceOp)))
+        {
+            return false;
+        }
+        var moves = variants.Values.Select(ops => ops.OfType<ResourceOp>().Select(r => r.Delta).ToList()).ToList();
+        return moves.Any(m => !m.SequenceEqual(moves[0]));
     }
 
     /// <summary>

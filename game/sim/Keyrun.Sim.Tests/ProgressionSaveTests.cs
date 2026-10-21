@@ -60,6 +60,7 @@ public sealed class ProgressionSaveTests : IDisposable
         Assert.Equal(expected.Runs, actual.Runs);
         Assert.Equal(expected.Prng, actual.Prng);
         Assert.Equal(expected.LastRun, actual.LastRun);
+        Assert.Equal(expected.Talents, actual.Talents);
         Assert.Equal(expected.Equipped.Keys.OrderBy(k => k, StringComparer.Ordinal), actual.Equipped.Keys.OrderBy(k => k, StringComparer.Ordinal));
         foreach (var (slot, item) in expected.Equipped)
         {
@@ -200,5 +201,136 @@ public sealed class ProgressionSaveTests : IDisposable
         var error = ProgressionSave.SaveFile(Path.Combine(blocker, ProgressionSave.FileName), Played());
 
         Assert.False(string.IsNullOrEmpty(error));
+    }
+
+    // BIBLE s6 talents (f-83c5e369): the screen's build is ability id to picked option id, kept in the same save.
+    private static readonly KeyValuePair<string, string>[] Build =
+    {
+        new("warden.strike", "rend"),
+        new("warden.guardBreak", "pin"),
+    };
+
+    [Fact]
+    public void Talent_picks_round_trip_and_write_the_same_text_whatever_order_they_were_picked()
+    {
+        var a = Played().WithTalents(Build);
+        var b = Played().WithTalents(Build.Reverse());
+
+        var loaded = ProgressionSave.Load(ProgressionSave.Serialize(a), seed: 999);
+
+        Assert.Null(loaded.Error);
+        Assert.Equal("rend", loaded.Progression.Talents["warden.strike"]);
+        Assert.Equal("pin", loaded.Progression.Talents["warden.guardBreak"]);
+        AssertSame(a, loaded.Progression);
+        Assert.Equal(ProgressionSave.Serialize(a), ProgressionSave.Serialize(b));
+        Assert.Equal(ProgressionSave.Serialize(a), ProgressionSave.Serialize(loaded.Progression));
+    }
+
+    [Fact]
+    public void Banking_taking_and_crafting_keep_the_talent_picks()
+    {
+        var p = Progression.Start(7).WithTalents(Build).BankRun(RunResult.Timed).Take(Weapon());
+        p = p.Reroll("weapon", WeaponPool).Progression;
+
+        Assert.Equal(2, p.Talents.Count);
+        Assert.Equal("rend", p.Talents["warden.strike"]);
+    }
+
+    [Fact]
+    public void A_save_written_before_talents_existed_loads_with_no_picks()
+    {
+        var loaded = ProgressionSave.Load("{\"v\":1,\"ash\":30,\"runs\":1,\"prng\":[1,2,3,4],\"equipped\":[],\"last\":null}", seed: 5);
+
+        Assert.Null(loaded.Error);
+        Assert.Equal(30, loaded.Progression.AshTotal);
+        Assert.Empty(loaded.Progression.Talents);
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("{\"warden.strike\":3}")]
+    [InlineData("{\"warden.strike\":\"\"}")]
+    public void A_malformed_talents_member_is_a_fresh_character_and_the_reason(string talents)
+    {
+        var loaded = ProgressionSave.Load(
+            "{\"v\":1,\"ash\":30,\"runs\":1,\"prng\":[1,2,3,4],\"equipped\":[],\"last\":null,\"talents\":" + talents + "}", seed: 5);
+
+        Assert.False(string.IsNullOrEmpty(loaded.Error));
+        Assert.Equal(0, loaded.Progression.AshTotal);
+        Assert.Empty(loaded.Progression.Talents);
+    }
+
+    // A save from a newer build: a valid v1 body with the version bumped. This build cannot read it, but the player's
+    // character is still in it, so it must survive the fresh character being banked over it.
+    private static string NewerVersionText() =>
+        ProgressionSave.Serialize(Played()).Replace("\"v\":1", "\"v\":2", StringComparison.Ordinal);
+
+    // Loads the unreadable save at path, banks a run on the fresh character it falls back to, saves that over it, and
+    // asserts the original bytes are still on disk beside the new save, which itself loads cleanly.
+    private void AssertUnreadableSaveSurvivesTheNextBank(string originalText)
+    {
+        Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, ProgressionSave.FileName);
+        File.WriteAllText(path, originalText);
+        var original = File.ReadAllBytes(path);
+
+        var loaded = ProgressionSave.LoadFile(path, seed: 9);
+        Assert.False(string.IsNullOrEmpty(loaded.Error));
+        var banked = loaded.Progression.BankRun(RunResult.Timed);
+
+        Assert.Null(ProgressionSave.SaveFile(path, banked));
+
+        var kept = Directory.GetFiles(_dir).Where(f => f != path).ToArray();
+        Assert.Single(kept);
+        Assert.Equal(original, File.ReadAllBytes(kept[0]));
+        var reloaded = ProgressionSave.LoadFile(path, seed: 1);
+        Assert.Null(reloaded.Error);
+        AssertSame(banked, reloaded.Progression);
+    }
+
+    [Fact]
+    public void A_newer_version_save_is_kept_when_the_fresh_character_is_banked_over_it()
+    {
+        AssertUnreadableSaveSurvivesTheNextBank(NewerVersionText());
+    }
+
+    [Fact]
+    public void A_garbage_save_is_kept_when_the_fresh_character_is_banked_over_it()
+    {
+        AssertUnreadableSaveSurvivesTheNextBank("{\"v\":1,\"ash\":12 not json at all");
+    }
+
+    [Fact]
+    public void Every_unreadable_save_is_kept_and_no_earlier_backup_is_overwritten()
+    {
+        Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, ProgressionSave.FileName);
+        var first = NewerVersionText();
+        const string second = "garbage written by something else";
+
+        File.WriteAllText(path, first);
+        Assert.Null(ProgressionSave.SaveFile(path, Progression.Start(1)));
+        File.WriteAllText(path, second);
+        Assert.Null(ProgressionSave.SaveFile(path, Progression.Start(2)));
+
+        var kept = Directory.GetFiles(_dir).Where(f => f != path).Select(File.ReadAllText).OrderBy(t => t, StringComparer.Ordinal);
+        Assert.Equal(new[] { first, second }.OrderBy(t => t, StringComparer.Ordinal), kept);
+        AssertSame(Progression.Start(2), ProgressionSave.LoadFile(path, seed: 9).Progression);
+    }
+
+    [Fact]
+    public void A_readable_save_is_replaced_in_place_with_no_backup_left_beside_it()
+    {
+        var path = Path.Combine(_dir, ProgressionSave.FileName);
+        var played = Played();
+        Assert.Null(ProgressionSave.SaveFile(path, played));
+        var before = File.ReadAllBytes(path);
+
+        var loaded = ProgressionSave.LoadFile(path, seed: 1);
+        Assert.Null(loaded.Error);
+        Assert.Null(ProgressionSave.SaveFile(path, loaded.Progression));
+
+        Assert.Equal(before, File.ReadAllBytes(path));
+        Assert.Equal(new[] { path }, Directory.GetFiles(_dir));
     }
 }

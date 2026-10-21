@@ -17,6 +17,7 @@ Vitest. No game engine beyond Three.js for rendering, no bundler beyond esbuild.
 ## Domain map — workers read exactly ONE domain CLAUDE.md; this file is navigation only
 - **research/** — cited briefs from the research day; each answers one question and ends with a verdict.
 - **design/** — the design bible: BIBLE.md (what the game is), classes, talents, gear, dungeon, boss, controls.
+- **design/PLAYTESTERS.md** — agent playtesters that start without the answers, fail first, learn through per-playtester memory with receipts, and drive bot policies via tools/Keyrun.Playtest.
 - **game/** - the Godot 4.7.2 .NET desktop game (D12, ENGINE-PLAN section 4). Read game/CLAUDE.md first.
   - **game/sim/** - Keyrun.Sim: pure net8.0 integer rules engine (no Godot reference), Keyrun.Sim.Tests (xUnit),
     oracle fixtures under Fixtures/oracle/. Parity contract: game/sim/ORACLE.md.
