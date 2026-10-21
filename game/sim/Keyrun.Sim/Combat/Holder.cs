@@ -41,9 +41,10 @@ public static class Holder
     }
 
     /// <summary>
-    /// Run each tick by the run root after spawns (and at run creation): every living enemy whose holder is missing or
-    /// no longer a living player locks the nearest living player (engage, or the holder's death); with no living
-    /// player it holds no one. A living holder is never replaced here.
+    /// Run each tick by the run root after spawns (and at run creation): every living, non-idle enemy whose holder is
+    /// missing or no longer a living player locks the nearest living player (engage, or the holder's death); with no
+    /// living player it holds no one. A living holder is never replaced here. An idle (prespawned, not yet engaged)
+    /// enemy is skipped, matching FixupTargeting's PRESPAWN-AGGRO rule that an idle enemy is never auto-targeted.
     /// </summary>
     /// <param name="state">The post-step state (mutated).</param>
     public static void LockHolders(SimState state)
@@ -51,7 +52,10 @@ public static class Holder
         var players = state.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive).ToList();
         foreach (var enemy in state.Actors.Values)
         {
-            if (enemy.Kind != ActorKind.Enemy || !enemy.Alive)
+            // PRESPAWN-AGGRO (ActorState.Idle): an idle enemy has not engaged, so it locks no holder until its group
+            // engages (Encounter/Aggro.cs clears Idle); the lock then goes to the nearest living player at that tick.
+            // No actor of an oracle run is idle, so the TS mirror (sim/combat/holder.ts) is unchanged.
+            if (enemy.Kind != ActorKind.Enemy || !enemy.Alive || enemy.Idle)
             {
                 continue;
             }

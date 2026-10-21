@@ -1,0 +1,13 @@
+[
+  {
+    "id": "hall.sentry",
+    "name": "Hall Sentry",
+    "maxHealth": 2000,
+    "role": "melee",
+    "speedMmPerTick": 207,
+    "abilities": ["choir.meleeSwing"],
+    "script": [
+      { "at": 60, "every": 150, "cast": "choir.meleeSwing" }
+    ]
+  }
+]

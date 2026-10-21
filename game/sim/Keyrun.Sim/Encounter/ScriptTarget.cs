@@ -38,7 +38,7 @@ public static class ScriptTarget
         state.Actors.Values.Where(a => a.Alive && a.Kind == ActorKind.Player).ToList();
 
     private static List<ActorState> LivingAllies(SimState state, int casterId) =>
-        state.Actors.Values.Where(a => a.Alive && a.Kind == ActorKind.Enemy && a.Id != casterId).ToList();
+        state.Actors.Values.Where(a => a.Alive && a.Kind == ActorKind.Enemy && !a.Idle && a.Id != casterId).ToList();
 
     // script-target.ts:77 nearestId: by range, then id (stable).
     private static int NearestId(ActorState caster, List<ActorState> candidates) =>

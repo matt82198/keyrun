@@ -274,7 +274,7 @@ public sealed class TelegraphTests
                 }
             }
         }
-        Assert.Equal(44, count); // HOLDER-LOCK D30 re-record on the merged tree (oracle regenerated with ORACLE_WRITE=1, counted by script): main's 46 (scripted-pull 6, k2-s7 12, k2-s11 12, k10-s7 16) -> 44 (k10-s7 16 -> 14; the others unchanged). DEAD-CASTER-TELEGRAPH re-record: was 42 (k2-s7 11 -> 13, k2-s11 11 -> 13); scripted-pull 6 + bots-hv k2-s7 11, k2-s11 11, k10-s7 14 (KF3-SEED-ENGAGE seed.lash; 37 after SLAM-TELEGRAPH B1, 34 after D14)
+        Assert.Equal(47, count); // HOLDER-LOCK D30 merged with INTEGRATE-PLAYABLE CAST-DEFERRAL, re-recorded on the merged tree (oracle regenerated with ORACLE_WRITE=1, telegraph events counted by script, the same count gives main's 49 and the HOLDER-LOCK branch's 44 from their own traces): scripted-pull 6, k2-s7 12, k2-s11 12, k10-s7 17 (main 19, HOLDER-LOCK branch 14). HOLDER-LOCK D30 re-record (branch only): main's 46 -> 44 (k10-s7 16 -> 14). INTEGRATE-PLAYABLE CAST-DEFERRAL re-record: was 46 (k10-s7 16 -> 19, held boss casts re-draw their telegraph when issued). INTEGRATE-PLAYABLE #325 re-fold re-record: was 47 (k10-s7 17 -> 16, the run ends at 2071 before the 2126 cleave). LOCK-TELEGRAPH re-record: was 46 (k10-s7 16 -> 17, the Lock circle). DEAD-CASTER-TELEGRAPH re-record: was 42 (k2-s7 11 -> 13, k2-s11 11 -> 13); scripted-pull 6 + bots-hv k2-s7 11, k2-s11 11, k10-s7 14 (KF3-SEED-ENGAGE seed.lash; 37 after SLAM-TELEGRAPH B1, 34 after D14)
         Assert.Subset(new SortedSet<string>(new[] { "circle", "cone", "line" }), shapes);
     }
 

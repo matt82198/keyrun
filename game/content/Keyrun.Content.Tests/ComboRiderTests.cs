@@ -46,6 +46,18 @@ public sealed class ComboRiderTests
     }
 
     [Fact]
+    public void Seedbloom_field_rider_has_no_effects_so_the_Seed_teaches_with_no_stakes()
+    {
+        // BIBLE section 9.6 item 3 (finding f-ff4ce040): the frozen row is 120 physical, which field Combos fire onto
+        // the closer; the rider keeps the Combo (and so the Seed bonus) but takes the stakes away.
+        ContentRegistry reg = ContentLoader.Load();
+
+        Assert.Empty(reg.ComboRiders["seedbloom-field"].Effects);
+        DamageOp frozen = Assert.IsType<DamageOp>(Assert.Single(reg.Combos["seedbloom-field"].Effects));
+        Assert.Equal(120, frozen.Amount);
+    }
+
+    [Fact]
     public void Cinderfield_field_rider_burns_the_closer_15_percent_capped_at_20()
     {
         // keyrun STATE.md D34 (finding f-17c18460): the closer is still burned, as a share of its max health, capped.
@@ -60,11 +72,11 @@ public sealed class ComboRiderTests
     }
 
     [Fact]
-    public void Only_anthem_steam_and_cinderfield_field_have_riders_and_the_frozen_combo_rows_are_unchanged()
+    public void Only_anthem_steam_seedbloom_field_and_cinderfield_field_have_riders_and_the_frozen_combo_rows_are_unchanged()
     {
         ContentRegistry reg = ContentLoader.Load();
 
-        Assert.Equal(new[] { "anthem", "cinderfield-field", "steam" }, reg.ComboRiders.Keys.OrderBy(k => k, System.StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "anthem", "cinderfield-field", "seedbloom-field", "steam" }, reg.ComboRiders.Keys.OrderBy(k => k, System.StringComparer.Ordinal).ToArray());
         Assert.IsType<ApplyEffectOp>(Assert.Single(reg.Combos["anthem"].Effects));
         Assert.Equal("blinded", Assert.IsType<ApplyEffectOp>(reg.Combos["steam"].Effects[1]).EffectId);
     }
@@ -72,11 +84,11 @@ public sealed class ComboRiderTests
     [Fact]
     public void A_closer_burn_that_could_kill_a_full_health_closer_is_rejected()
     {
-        var ex = LoadFails(new MutableSource().Edit(RiderFile, n => n[2]!["effects"]![0]!["capBp"] = 10000));
+        var ex = LoadFails(new MutableSource().Edit(RiderFile, n => n[3]!["effects"]![0]!["capBp"] = 10000));
         Assert.Contains("closerBurn", ex.Message);
-        ex = LoadFails(new MutableSource().Edit(RiderFile, n => n[2]!["effects"]![0]!["maxHealthBp"] = 2500));
+        ex = LoadFails(new MutableSource().Edit(RiderFile, n => n[3]!["effects"]![0]!["maxHealthBp"] = 2500));
         Assert.Contains("maxHealthBp", ex.Message);
-        ex = LoadFails(new MutableSource().Edit(RiderFile, n => n[2]!["effects"]![0]!["maxHealthBp"] = 0));
+        ex = LoadFails(new MutableSource().Edit(RiderFile, n => n[3]!["effects"]![0]!["maxHealthBp"] = 0));
         Assert.Contains("maxHealthBp", ex.Message);
         ex = LoadFails(new MutableSource().Edit("combos.json", n =>
             n[0]!["effects"]!.AsArray().Add(JsonNode.Parse("{\"op\":\"closerBurn\",\"maxHealthBp\":1500,\"capBp\":2000,\"school\":\"fire\"}"))));

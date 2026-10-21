@@ -224,18 +224,12 @@
     "id": "chanter.ring.overtureOfPower",
     "slot": "ring",
     "abilityId": "chanter.refrain",
-    "text": "Refrain also grants a burst of Verse.",
+    "text": "Refrain swaps verse off the GCD: the next ability follows it at once.",
     "patch": {
       "tagAdd": [
         "verse-surge"
       ],
-      "effectsAppend": [
-        {
-          "op": "resource",
-          "resource": "verse",
-          "delta": 1
-        }
-      ]
+      "gcdTicks": 0
     }
   },
   {

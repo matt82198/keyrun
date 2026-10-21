@@ -236,6 +236,13 @@ public sealed class ActorState
     public long? ChaseMarginMm { get; set; }
 
     /// <summary>
+    /// PRESPAWN-AGGRO (C#-only; BIBLE section 9.1): true while the actor's group stands idle in formation, before it
+    /// engages. An idle enemy runs no script, casts nothing, never chases and is never auto-targeted; it can still be
+    /// hit, and taking damage engages its whole group. False for every actor of an oracle run.
+    /// </summary>
+    public bool Idle { get; set; }
+
+    /// <summary>
     /// The wearer's summed gear damageDoneBp (BIBLE s7 "Tier is power"; Runs.GearPower). C#-only: 0 on every oracle run.
     /// </summary>
     public long GearDamageDoneBp { get; set; }

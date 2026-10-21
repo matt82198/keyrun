@@ -37,6 +37,17 @@ public static class AbilitySlotLook
     /// <returns>The edge width.</returns>
     public static int EdgeWidth(bool outOfRange) => 2;
 
+    /// <summary>The out-of-range caption, drawn in the slot's top-right corner.</summary>
+    public const string OutOfRangeCaption = "RANGE";
+
+    /// <summary>
+    /// The slot's state caption (f-682aacb5). BIBLE s2: shape plus colour, never colour alone, so the red range tint
+    /// comes with words that give it a reason; an in-range slot draws none.
+    /// </summary>
+    /// <param name="outOfRange">The cast's target is out of range.</param>
+    /// <returns>The caption, or null for none.</returns>
+    public static string? Caption(bool outOfRange) => outOfRange ? OutOfRangeCaption : null;
+
     /// <summary>
     /// Whether a slot shows the out-of-range tint (lane RANGE-TINT-NOTARGET). Like WoW, the tint only reads while the
     /// player has a living hostile target that is farther than the ability's range: never with no target, a dead or

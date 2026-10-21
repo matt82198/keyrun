@@ -75,7 +75,7 @@ public static class TankEngage
         ArgumentNullException.ThrowIfNull(actors);
         ArgumentNullException.ThrowIfNull(tank);
         return actors.Values
-            .Where(a => a.Kind == ActorKind.Enemy && a.Alive && !HoldsThreat(a, tank.Id) && AimedAtOtherPlayer(actors, a, tank.Id))
+            .Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle && !HoldsThreat(a, tank.Id) && AimedAtOtherPlayer(actors, a, tank.Id))
             .OrderBy(a => RoleShared.Dist(a, tank))
             .ThenBy(a => a.Id)
             .FirstOrDefault();

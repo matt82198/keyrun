@@ -60,6 +60,9 @@ export function startCast(
   _point: Vec3 | undefined,
   now: Tick,
 ): string | null {
+  // BIBLE s3: a cast in flight is never silently replaced; a busy caster rejects the new cast (stopcast cancels).
+  // A dead caster is exempt: its only casts are onDeath steps, and BIBLE s9 needs the Seed's on-death Window.
+  if (actor.alive && actor.castId !== null) return "casting";
   const rules = getActiveEncounterRules();
   if (rules && shouldSilence(now, rules)) return "silenced";
   if (!isAbilityReady(actor, def, now)) return "not_ready";
