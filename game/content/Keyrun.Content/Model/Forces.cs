@@ -12,23 +12,10 @@ public sealed record ForcesValue
     public required int Points { get; init; }
 }
 
-/// <summary>One branch of the route (BIBLE section 9.1): the rooms it owns between the fork and the rejoin.</summary>
-public sealed record BranchDef
-{
-    /// <summary>Branch id, e.g. <c>west</c>.</summary>
-    public required string Id { get; init; }
-
-    /// <summary>Display name.</summary>
-    public required string Name { get; init; }
-
-    /// <summary>Room ids in walking order. A room belongs to exactly one branch.</summary>
-    public required ValueList<string> Rooms { get; init; }
-}
-
 /// <summary>
-/// The route shape (BIBLE section 9.1): the teaching pulls stay the critical path; after
-/// <see cref="ForkAfterPull"/> the party takes one <see cref="Branches"/> entry, and every branch rejoins at
-/// <see cref="RejoinPull"/>, so every route plays every teaching pull.
+/// The route shape (BIBLE section 9.1): the teaching pulls stay the critical path, the route forks after
+/// <see cref="ForkAfterPull"/> and rejoins at <see cref="RejoinPull"/>, so every route plays every teaching pull. The
+/// optional packs that make a route reach the bar live in layout.json (<see cref="LayoutPack"/>, ruling R7: one pack layer).
 /// </summary>
 public sealed record RouteDef
 {
@@ -40,9 +27,6 @@ public sealed record RouteDef
 
     /// <summary>The teaching pull where every branch rejoins (the rejoin point).</summary>
     public required string RejoinPull { get; init; }
-
-    /// <summary>The branches; empty until PACK-CONTENT ships the packs that make each one reach the bar.</summary>
-    public required ValueList<BranchDef> Branches { get; init; }
 }
 
 /// <summary>
@@ -57,7 +41,7 @@ public sealed record ForcesTable
     /// <summary>Per-enemy values.</summary>
     public required ValueList<ForcesValue> Values { get; init; }
 
-    /// <summary>Fork, rejoin and branches.</summary>
+    /// <summary>Fork and rejoin pulls.</summary>
     public required RouteDef Route { get; init; }
 
     /// <summary>True when <paramref name="enemyId"/> has a value entry.</summary>
@@ -82,16 +66,6 @@ public static class RouteForces
         return pull.Enemies.Sum(e => e.Count * forces.PointsOf(e.EnemyId));
     }
 
-    /// <summary>An optional pack's points.</summary>
-    /// <param name="forces">The forces table.</param>
-    /// <param name="pack">The pack.</param>
-    public static int PackPoints(ForcesTable forces, PackDef pack)
-    {
-        System.ArgumentNullException.ThrowIfNull(forces);
-        System.ArgumentNullException.ThrowIfNull(pack);
-        return pack.Enemies.Sum(e => e.Count * forces.PointsOf(e.EnemyId));
-    }
-
     /// <summary>A layout pack's points (SKIPPABLE-PACKS): sum of count x value over its groups.</summary>
     /// <param name="forces">The forces table.</param>
     /// <param name="pack">The pack.</param>
@@ -102,6 +76,24 @@ public static class RouteForces
         return pack.Enemies.Sum(e => e.Count * forces.PointsOf(e.EnemyId));
     }
 
+    /// <summary>
+    /// One branch's forces total (ruling R7): the critical path plus every branch-neutral pack (<see cref="LayoutPack.Branch"/>
+    /// null) plus every pack whose branch is <paramref name="branchId"/>. STUB (red step): returns 0.
+    /// </summary>
+    /// <param name="forces">The forces table.</param>
+    /// <param name="dungeon">The dungeon.</param>
+    /// <param name="packs">The layout packs.</param>
+    /// <param name="branchId">The branch (a layout box id).</param>
+    public static int BranchTotalPoints(ForcesTable forces, DungeonDef dungeon, System.Collections.Generic.IEnumerable<LayoutPack> packs, string branchId)
+    {
+        System.ArgumentNullException.ThrowIfNull(forces);
+        System.ArgumentNullException.ThrowIfNull(dungeon);
+        System.ArgumentNullException.ThrowIfNull(packs);
+        System.ArgumentException.ThrowIfNullOrEmpty(branchId);
+        int own = packs.Where(p => p.Branch is null || p.Branch == branchId).Sum(p => LayoutPackPoints(forces, p));
+        return CriticalPathPoints(forces, dungeon) + own;
+    }
+
     /// <summary>Every teaching pull's points (the critical path every route plays).</summary>
     /// <param name="forces">The forces table.</param>
     /// <param name="dungeon">The dungeon.</param>
@@ -109,16 +101,5 @@ public static class RouteForces
     {
         System.ArgumentNullException.ThrowIfNull(dungeon);
         return dungeon.Pulls.Sum(p => PullPoints(forces, p));
-    }
-
-    /// <summary>The most a route through <paramref name="branch"/> can bank: the critical path plus every pack in its rooms.</summary>
-    /// <param name="reg">Loaded content.</param>
-    /// <param name="branch">A branch of <c>reg.Forces.Route</c>.</param>
-    public static int BranchPoints(ContentRegistry reg, BranchDef branch)
-    {
-        System.ArgumentNullException.ThrowIfNull(reg);
-        System.ArgumentNullException.ThrowIfNull(branch);
-        int packs = reg.Packs.Values.Where(p => branch.Rooms.Contains(p.Room)).Sum(p => PackPoints(reg.Forces, p));
-        return CriticalPathPoints(reg.Forces, reg.Dungeons[reg.Forces.Route.DungeonId]) + packs;
     }
 }

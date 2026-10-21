@@ -204,7 +204,7 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
             return Array.Empty<string>();
         }
         return choices
-            .Select(c => GearItems.CardLines(registry.Gear, Enum.Parse<GearSlot>(c.Slot, ignoreCase: true), c.Tier, c.Facet.Text)[0])
+            .Select(c => RunEndCardLines.For(c, card => GearItems.CardLines(registry.Gear, Enum.Parse<GearSlot>(card.Slot, ignoreCase: true), card.Tier, card.Facet.Text))[0])
             .ToList();
     }
 

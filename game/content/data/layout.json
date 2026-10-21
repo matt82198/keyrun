@@ -62,8 +62,8 @@
       ]
     },
     {
-      "id": "hall-sentries", "name": "Hall Sentries", "room": "pair-hall", "optional": false,
-      "center": { "x": 51500, "z": 0 }, "aggroMm": 3000,
+      "id": "hall-sentries", "name": "Hall Sentries", "room": "pair-hall", "optional": true,
+      "center": { "x": 51500, "z": 4500 }, "aggroMm": 3000,
       "enemies": [
         { "enemyId": "hall.sentry", "count": 2, "spawn": { "x": -500, "z": 1000 } },
         { "enemyId": "hall.sentry", "count": 2, "spawn": { "x": -500, "z": -1000 } },
