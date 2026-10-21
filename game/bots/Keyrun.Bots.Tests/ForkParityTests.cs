@@ -21,8 +21,8 @@ namespace Keyrun.Bots.Tests;
 /// measure, and strictly better on one, is a defect that blocks the content change, the same way a red test does."
 /// </summary>
 /// <remarks>
-/// <para>Runs: the three bot oracle scenarios (bots-hv-k2-s7, bots-hv-k2-s11, bots-hv-k10-s7; their setup file and seed
-/// are read from each trace header), every party actor a real-role bot exactly as <see cref="RolesOracleTraceTests.Drive"/>
+/// <para>Runs: three seeded Hollow Vault runs, each a bot oracle setup file and a seed (<see cref="Scenarios"/>), every
+/// party actor a real-role bot exactly as <see cref="RolesOracleTraceTests.Drive"/>
 /// builds them. For one option, every party member of the fork's class carries the option's talented ability (the
 /// content patch applied by <see cref="C.TalentPicks.ApplyPatch"/>, the screen's own talent layer) as a
 /// <see cref="RunOptions.Loadouts"/> entry; every other ability stays at base. The run steps until it ends or reaches
@@ -32,7 +32,12 @@ namespace Keyrun.Bots.Tests;
 /// ends scores maxTicks + 1, worse than any end); deaths = party "death" events (lower is better); Combos landed =
 /// "combo" events (higher is better).</para>
 /// <para>Dominance: option A dominates sibling B when A is at least as good as B on every measure and strictly better
-/// on at least one. Every ordered pair of options of every fork is checked. A dominated option must be listed in
+/// on at least one. Every ordered pair of options of every fork is checked. Two siblings that measure identically on
+/// every measure of every run are red too (finding f-8476dbf4): neither dominates, but a player cannot tell them apart,
+/// so the fork is not a decision. A fork whose options all measure identically is the separate unmeasured case
+/// (<see cref="UnmeasuredForks"/>).</para>
+/// <para>Distinct runs (finding f-313fba9c): two scenarios that measure identically for every option of every fork are
+/// one run counted twice, so the check is red until each scenario adds a run that differs. A dominated option must be listed in
 /// <see cref="KnownDominatedForks"/> with a finding line, or the check is red; a listed option that is no longer
 /// dominated is also red (the stale entry must be removed). Listed failures are printed on every run.</para>
 /// </remarks>
@@ -42,22 +47,36 @@ public sealed class ForkParityTests
 
     public ForkParityTests(ITestOutputHelper output) => _output = output;
 
-    /// <summary>The seeded Hollow Vault runs the bible names (keys 2 and 10), by bot oracle trace name.</summary>
-    private static readonly string[] Scenarios = { "bots-hv-k2-s7", "bots-hv-k2-s11", "bots-hv-k10-s7" };
+    /// <summary>
+    /// The seeded Hollow Vault runs the bible names (keys 2 and 10): name, bot oracle setup file, seed (the run seed and
+    /// the bot PRNG seed, one seed for both as the bot oracle traces use it), and the bots' skill dial.
+    /// </summary>
+    /// <remarks>
+    /// The seed is live only below dial 100 (finding f-313fba9c). At dial 100 <see cref="Skill.MistakeChance"/> is 0, so
+    /// the bots never draw from their PRNG, and the sim's own PRNG only breaks random script targets: the old
+    /// bots-hv-k2-s7 and bots-hv-k2-s11 oracle traces are line-identical (both traceHash 13473efa), and seeds 1 to 40 at
+    /// key 2 and 1 to 30 at key 10 all measured the same base run at dial 100. So the second key-2 run is a dial-90 party,
+    /// where the seed decides each bot's mistakes; <see cref="The_dial_90_seed_is_live"/> proves seed 11 and seed 7 differ
+    /// there, and the parity check's distinct-runs assertion proves this run differs from the other two for some option.
+    /// </remarks>
+    private static readonly (string Name, string SetupFile, long Seed, int Dial)[] Scenarios =
+    {
+        ("hv-k2-s7", "hollow-vault-k2.setup.json", 7, 100),
+        ("hv-k2-s11-d90", "hollow-vault-k2.setup.json", 11, 90),
+        ("hv-k10-s7", "hollow-vault-k10.setup.json", 7, 100),
+    };
 
     /// <summary>
-    /// KNOWN DOMINATED FORKS on origin/main 082bbfc, measured by this check: "class.ability:dominatedOption" to the
-    /// finding (which sibling dominates it, and the measures). Each entry is a real content defect (BIBLE section 6:
-    /// "a defect that blocks the content change"), kept here only so the check can land green while the retune lands
-    /// separately. Never add an entry to make a content change pass: retune the content.
+    /// KNOWN DOMINATED FORKS: "class.ability:dominatedOption" to the finding (which sibling dominates it, and the
+    /// measures). Empty (finding f-4cda6f59): the options this check found dominated on origin/main 173a6a4
+    /// (guardBreak:surge, flare:efficient, cadence:swift, cadence:resonance, cinderfield:flashpoint, bulwark:mobile)
+    /// were retuned into sidegrades in the same change that landed it; detonate:cheapShot and hymn:staccato, dominated
+    /// on the older main PR #291 measured, already measured undominated on 173a6a4. An entry would be a real content
+    /// defect (BIBLE section 6: "a defect that blocks the content change"). Never add an entry to make a content change
+    /// pass: retune the content.
     /// </summary>
     internal static readonly IReadOnlyDictionary<string, string> KnownDominatedForks = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        ["warden.guardBreak:surge"] = "Surge is dominated by Focused and Pin: slower at both keys (k2 2048 vs 1705/1838, k10 2289 vs 2257/2170) with no more Combos and no fewer deaths.",
-        ["cinder.flare:efficient"] = "Efficient is dominated by Wildfire (re-measured on origin/main 704c6af, after #296): slower with fewer Combos at both keys (k2 1664/26 vs 1533/30, k10 1906/35 vs 1865/37), no deaths either side (finding f-e7e6461c).",
-        ["cinder.detonate:cheapShot"] = "Cheap Shot is dominated by Overkill: slower at both keys (k2 1868 vs 1648, k10 2380 vs 2014) with equal or fewer Combos (32/32, 43/44).",
-        ["chanter.cadence:swift"] = "Swift is dominated by Resonance and Group Song: identical at k2, 91 ticks slower at k10 (2261 vs 2170), same Combos.",
-        ["chanter.hymn:staccato"] = "Staccato is dominated by Round Robin: one Combo fewer at k2 (32 vs 33) and slower with fewer Combos at k10 (2289/38 vs 2170/40).",
     };
 
     /// <summary>
@@ -86,7 +105,7 @@ public sealed class ForkParityTests
             string.Create(CultureInfo.InvariantCulture, $"clear {ClearTick} ({Result}) deaths {Deaths} combos {Combos}");
     }
 
-    private sealed record Scenario(string Name, RunSetup Setup, long Seed, int MaxTicks);
+    private sealed record Scenario(string Name, RunSetup Setup, long Seed, int Dial, int MaxTicks);
 
     private static readonly Lazy<C.ContentRegistry> Registry = new(() => C.ContentLoader.Load());
 
@@ -94,13 +113,8 @@ public sealed class ForkParityTests
 
     private static readonly Lazy<IReadOnlyList<Scenario>> Loaded = new(() => Scenarios.Select(LoadScenario).ToList());
 
-    private static Scenario LoadScenario(string name)
-    {
-        var dir = RolesOracleTraceTests.OracleDir();
-        var trace = OracleTrace.Load(Path.Combine(dir, name + ".trace.jsonl"));
-        var setup = RunSetup.Load(Path.Combine(dir, trace.SetupFile), trace.Seed);
-        return new Scenario(name, setup, trace.Seed, 24000);
-    }
+    private static Scenario LoadScenario((string Name, string SetupFile, long Seed, int Dial) s) =>
+        new(s.Name, RunSetup.Load(Path.Combine(RolesOracleTraceTests.OracleDir(), s.SetupFile), s.Seed), s.Seed, s.Dial, 24000);
 
     /// <summary>
     /// Runs <paramref name="scenario"/> with the bots, every member of <paramref name="classId"/> carrying
@@ -127,7 +141,7 @@ public sealed class ForkParityTests
         foreach (var p in setup.Party)
         {
             bots[p.Id] = Bot.MakeBot(RoleSet.Default);
-            initial[p.Id] = BotMemory.Default(100);
+            initial[p.Id] = BotMemory.Default(scenario.Dial);
         }
         IReadOnlyDictionary<int, BotMemory> memories = initial;
         var prng = Skill.SeedPrng(scenario.Seed);
@@ -298,10 +312,58 @@ public sealed class ForkParityTests
                 }
                 var winner = options.First(o => o.Option == by[0]);
                 dominated[abilityId + ":" + loser] = $"{abilityId}:{loser} is dominated by {string.Join("/", by)} | "
-                    + string.Join("; ", Scenarios.Select((s, i) => $"{s} {loser} [{loserRuns[i]}] vs {by[0]} [{winner.Runs[i]}]"));
+                    + string.Join("; ", Scenarios.Select((s, i) => $"{s.Name} {loser} [{loserRuns[i]}] vs {by[0]} [{winner.Runs[i]}]"));
             }
         }
         return dominated;
+    }
+
+    /// <summary>
+    /// Sibling options that measure identically on every measure of every run, as "class.ability:a = b" lines, for every
+    /// fork that is measured at all (a fork whose options all run identically is the <see cref="UnmeasuredForks"/> case).
+    /// </summary>
+    internal static IReadOnlyList<string> IdenticalSiblings(
+        IReadOnlyList<(string ClassId, string AbilityId, IReadOnlyList<(string Option, IReadOnlyList<RunMeasures> Runs)> Options)> all)
+    {
+        var lines = new List<string>();
+        foreach (var (_, abilityId, options) in all)
+        {
+            if (options.All(o => o.Runs.SequenceEqual(options[0].Runs)))
+            {
+                continue;
+            }
+            for (var i = 0; i < options.Count; i++)
+            {
+                for (var j = i + 1; j < options.Count; j++)
+                {
+                    if (options[i].Runs.SequenceEqual(options[j].Runs))
+                    {
+                        lines.Add(abilityId + ":" + options[i].Option + " = " + options[j].Option + " | "
+                            + string.Join(" | ", options[i].Runs.Select((r, k) => "run " + k + " " + r)));
+                    }
+                }
+            }
+        }
+        return lines;
+    }
+
+    /// <summary>Pairs of runs (by index) in which every option of every fork measures identically: one run counted twice.</summary>
+    internal static IReadOnlyList<(int A, int B)> IdenticalRuns(
+        IReadOnlyList<(string ClassId, string AbilityId, IReadOnlyList<(string Option, IReadOnlyList<RunMeasures> Runs)> Options)> all,
+        int runCount)
+    {
+        var pairs = new List<(int, int)>();
+        for (var a = 0; a < runCount; a++)
+        {
+            for (var b = a + 1; b < runCount; b++)
+            {
+                if (all.All(f => f.Options.All(o => o.Runs[a] == o.Runs[b])))
+                {
+                    pairs.Add((a, b));
+                }
+            }
+        }
+        return pairs;
     }
 
     [Fact(DisplayName = "fork parity > no fork option is dominated by a sibling over the seeded Hollow Vault runs at keys 2 and 10")]
@@ -314,7 +376,7 @@ public sealed class ForkParityTests
             Assert.True(options.Count >= 2, $"{abilityId}: a fork with fewer than two options is not a decision");
             foreach (var (option, runs) in options)
             {
-                _output.WriteLine($"{abilityId}:{option} | " + string.Join(" | ", runs.Select((r, i) => $"{Scenarios[i]} {r}")));
+                _output.WriteLine($"{abilityId}:{option} | " + string.Join(" | ", runs.Select((r, i) => $"{Scenarios[i].Name} {r}")));
             }
         }
 
@@ -331,6 +393,11 @@ public sealed class ForkParityTests
         var stale = KnownDominatedForks.Keys.Where(k => !dominated.ContainsKey(k)).ToList();
         Assert.True(unlisted.Count == 0, "dominated fork options (BIBLE s6: a defect that blocks the content change):\n" + string.Join("\n", unlisted));
         Assert.True(stale.Count == 0, "KnownDominatedForks lists options that are no longer dominated; remove them:\n" + string.Join("\n", stale));
+        var identical = IdenticalSiblings(all);
+        Assert.True(identical.Count == 0, "sibling fork options that measure identically in every run (a player cannot tell them apart; retune the content):\n" + string.Join("\n", identical));
+        var sameRuns = IdenticalRuns(all, Scenarios.Length);
+        Assert.True(sameRuns.Count == 0, "scenarios that measure identically for every fork option (one run counted twice; pick a seed that differs):\n"
+            + string.Join("\n", sameRuns.Select(p => Scenarios[p.A].Name + " = " + Scenarios[p.B].Name)));
 
         var flat = all.Where(f => f.Options.All(o => o.Runs.SequenceEqual(f.Options[0].Runs))).Select(f => f.AbilityId).ToList();
         var unlistedFlat = flat.Where(a => !UnmeasuredForks.ContainsKey(a)).ToList();
@@ -367,6 +434,44 @@ public sealed class ForkParityTests
         var guardBreak = registry.Abilities["warden.guardBreak"];
         var crippled = ToSim(guardBreak) with { Effects = Array.Empty<S.EffectOp>(), Tags = Array.Empty<string>() };
         Assert.NotEqual(baseline, Measure(scenario, "warden", crippled));
+    }
+
+    [Fact(DisplayName = "fork parity > the dial-90 key-2 seed is live: seed 11 and seed 7 measure differently there, and identically at dial 100")]
+    public void The_dial_90_seed_is_live()
+    {
+        var k2 = Scenarios[1];
+        Assert.Equal(90, k2.Dial);
+        Assert.Equal(11, k2.Seed);
+        var at90s11 = Measure(LoadScenario(k2), null, null);
+        var at90s7 = Measure(LoadScenario((k2.Name + "-seed7", k2.SetupFile, 7, k2.Dial)), null, null);
+        var at100s11 = Measure(LoadScenario((k2.Name + "-dial100", k2.SetupFile, 11, 100)), null, null);
+        var at100s7 = Measure(Loaded.Value[0], null, null);
+        _output.WriteLine($"dial 90: seed 11 {at90s11} | seed 7 {at90s7}; dial 100: seed 11 {at100s11} | seed 7 {at100s7}");
+        Assert.NotEqual(at90s7, at90s11);
+        // Why the dial is below 100 (f-313fba9c): at dial 100 the seed changes nothing this check measures.
+        Assert.Equal(at100s7, at100s11);
+    }
+
+    [Fact(DisplayName = "fork parity > identical siblings and identical runs are caught; a fork that never runs differently is left to UnmeasuredForks")]
+    public void Identical_siblings_and_runs()
+    {
+        var r1 = new RunMeasures(1000, 0, 5, "timed");
+        var r2 = new RunMeasures(1100, 0, 4, "timed");
+        var r3 = new RunMeasures(900, 1, 6, "timed");
+        static IReadOnlyList<RunMeasures> Runs(params RunMeasures[] r) => r;
+        static (string, string, IReadOnlyList<(string, IReadOnlyList<RunMeasures>)>) Fork(string id, params (string, IReadOnlyList<RunMeasures>)[] o) => ("c", id, o);
+        var twins = Fork("c.a", ("x", Runs(r1, r2)), ("y", Runs(r1, r2)), ("z", Runs(r3, r2)));
+        var flat = Fork("c.b", ("p", Runs(r1, r1)), ("q", Runs(r1, r1)));
+        var apart = Fork("c.c", ("m", Runs(r1, r3)), ("n", Runs(r2, r3)));
+
+        var found = IdenticalSiblings(new[] { twins, flat, apart });
+        Assert.Single(found);
+        Assert.StartsWith("c.a:x = y |", found[0]);
+        Assert.Empty(IdenticalSiblings(new[] { flat, apart }));
+
+        Assert.Equal(new[] { (0, 1) }, IdenticalRuns(new[] { flat }, 2));
+        Assert.Empty(IdenticalRuns(new[] { flat, apart }, 2));
+        Assert.Empty(IdenticalRuns(new[] { twins }, 2));
     }
 
     [Fact(DisplayName = "fork parity > dominance: at least as good everywhere and strictly better once; ties and trade-offs are not")]

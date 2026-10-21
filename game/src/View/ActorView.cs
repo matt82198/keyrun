@@ -218,7 +218,7 @@ public partial class ActorView : Node3D
         }
         _lastPosition = Position;
         _hasLastPosition = true;
-        _animator.Update(before, now, newTick, speed, Driver.FrameEvents, Driver.State.Tick);
+        _animator.Update(before, now, newTick, speed, Driver.FrameEvents, Driver.State.Tick, (int)(Driver.Alpha * 1000f));
     }
 
     // KF1: every health drop lights the body for AnimRule.FlashTicks sim ticks (an additive overlay on each mesh), so a

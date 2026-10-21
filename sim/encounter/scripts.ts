@@ -33,35 +33,26 @@
  *
  * FIRE-ONCE CONTRACT: since ActorState carries no death tick and this function is otherwise a pure
  * function of its arguments, "fires once" for `"onDeath"` is a contract the CALLER upholds by
- * threading `firedOnDeath` (this call's third argument) forward from the previous call's result.
- * Omitting it (as sim/encounter/index.ts's `stepEncounter` does today) means `"onDeath"` re-fires
- * every tick after death.
+ * threading `firedOnDeath` (this call's third argument) forward from the previous call's result;
+ * sim/encounter/index.ts's `stepEncounter` does (and rules.ts's DEATH-CAST EXCEPTION resolves it).
  *
- * WIRING NOTE for the integration lane (sim/encounter/index.ts + sim/index.ts, out of scope here,
- * same pattern as clauses.ts's WIRING NOTE): thread `StepEnemyScriptsResult.firedOnDeath` into
- * `EncounterState` (a new `firedOnDeath: Record<ActorId, string[]>` field, defaulted to `{}` in
- * `createRun`) and pass `encounter.firedOnDeath` as `stepEnemyScripts`'s third argument in
- * `stepEncounter`, folding the returned map back into the next `EncounterState`. Separately,
- * sim/combat/rules.ts's command loop currently skips every command whose actor is `!alive`
- * (`if (!actor || !actor.alive) continue;`), which will also silently drop an `"onDeath"` step's
- * cast command as-is — a sim/combat change, also out of scope here, is needed before an `"onDeath"`
- * ability's effects (e.g. `seed.deathBloom` spawning a Window) actually resolve.
- *
- * TARGETING (the P0 fix; full rules + WIRING NOTE in sim/encounter/script-target.ts): every cast
- * now carries a `targetId` from `resolveScriptTarget` (default: threat/nearest living player, or
- * lowest-health living ally for a heal; overridable per-step via `ScriptStep.target`). The optional
- * 4th parameter (`abilities`) unlocks its full range/shape-aware ruleset; real call sites don't
- * pass it yet, which is deliberately safe. A `blocked` resolution skips the command that tick.
+ * TARGETING (the P0 fix; full rules in sim/encounter/script-target.ts): every cast carries a
+ * `targetId` from `resolveScriptTarget`; the 4th parameter (`abilities`) unlocks its range/shape-aware
+ * ruleset. A `blocked` resolution skips the command that tick.
  *
  * CHASE: with `abilities`, commands also carry chase.ts's `move`s closing a melee enemy on its target.
  *
- * Usage: `const { commands, telegraphEvents, firedOnDeath } =
- *   stepEnemyScripts(state, scripts, encounter.firedOnDeath, content.abilities);`
+ * BUSY CASTER (STARTCAST-BUSY, sim/encounter/deferred-casts.ts): a step that fires while its caster is
+ * busy is held (5th argument / `deferredCasts` result) and issued the first tick the caster is free.
+ *
+ * Usage: `const { commands, telegraphEvents, firedOnDeath, deferredCasts } =
+ *   stepEnemyScripts(state, scripts, encounter.firedOnDeath, content.abilities, encounter.deferredCasts);`
  */
 import type { ActorId, ActorState, Command, SimEvent, SimState, Tick } from "./types";
 import type { AbilityDef } from "../combat/abilities";
 import { resolveScriptTarget, type ScriptTargetOverride } from "./script-target";
 import { chaseCommands } from "./chase";
+import { casterGate, type DeferredCast } from "./deferred-casts";
 
 export interface TelegraphSpec {
   shape: "circle" | "cone" | "line";
@@ -121,6 +112,8 @@ export interface StepEnemyScriptsResult {
   /** `firedOnDeath` carried forward + any `"onDeath"` casts fired this call. See file docstring's
    * FIRE-ONCE CONTRACT: pass this back in as the next call's third argument to keep the guarantee. */
   firedOnDeath: Record<ActorId, string[]>;
+  /** STARTCAST-BUSY: scripted casts still held for a busy caster; pass back in as the 5th argument. */
+  deferredCasts: DeferredCast[];
 }
 
 function castCommand(
@@ -141,6 +134,7 @@ export function stepEnemyScripts(
   scripts: Record<ActorId, EnemyScript>,
   firedOnDeath: Record<ActorId, readonly string[]> = {},
   abilities: Record<string, AbilityDef> = {},
+  deferredCasts: readonly DeferredCast[] = [],
 ): StepEnemyScriptsResult {
   const tick = state.tick;
   const commands: Command[] = [];
@@ -149,12 +143,22 @@ export function stepEnemyScripts(
   for (const key of Object.keys(firedOnDeath)) {
     nextFired[Number(key)] = [...(firedOnDeath[Number(key)] ?? [])];
   }
+  const nextDeferred: DeferredCast[] = [];
 
   for (const key of Object.keys(scripts)) {
     const actorId = Number(key);
     const script = scripts[actorId];
     const actor = state.actors[actorId];
     if (!script || !actor) continue;
+
+    // STARTCAST-BUSY (deferred-casts.ts): held casts are issued or re-held here; fire() gates this tick's steps.
+    const fire = casterGate(actorId, actor, tick, abilities, deferredCasts, nextDeferred, (step, redraw) => {
+      const cmd = castCommand(state, actorId, actor, step, abilities);
+      if (!cmd) return false;
+      commands.push(cmd);
+      if (redraw && step.telegraph) telegraphEvents.push(telegraphEventAt(tick, actorId, actor, step.cast, step.telegraph));
+      return true;
+    });
 
     for (const step of script) {
       if (step.at === "onDeath") {
@@ -171,10 +175,7 @@ export function stepEnemyScripts(
       }
 
       if (!actor.alive) continue;
-      if (firesAt(step, tick)) {
-        const cmd = castCommand(state, actorId, actor, step, abilities);
-        if (cmd) commands.push(cmd);
-      }
+      if (firesAt(step, tick)) fire(step);
       const tg = step.telegraph;
       if (tg && firesAt(step, tick + tg.leadTicks)) {
         telegraphEvents.push(telegraphEventAt(tick, actorId, actor, step.cast, tg));
@@ -184,5 +185,5 @@ export function stepEnemyScripts(
 
   commands.push(...chaseCommands(state, scripts, abilities));
 
-  return { commands, telegraphEvents, firedOnDeath: nextFired };
+  return { commands, telegraphEvents, firedOnDeath: nextFired, deferredCasts: nextDeferred };
 }

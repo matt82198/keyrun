@@ -33,6 +33,12 @@ public sealed record HostRunSetup(
     /// <summary>run-setup.ts:52 INTERRUPT_LOCKOUT_TICKS (4 s at 20 Hz).</summary>
     public const int InterruptLockoutTicks = 80;
 
+    /// <summary>
+    /// BIBLE s9.3 "Stops as well as kicks": the effects that stop an interruptible cast when they land (Shatter's and Cold
+    /// Snap's freeze and the Twins' Break-bar stagger apply <c>stunned</c>; Ward Dissonance applies <c>silenced</c>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> StopEffectIds = new[] { "stunned", "silenced" };
+
     /// <summary>content-dungeon.ts:38 PULL_ACTOR_ID_START.</summary>
     public const int PullActorIdStart = 100;
 
@@ -85,6 +91,9 @@ public sealed record HostRunSetup(
         new RosterSlot("cinder", ActorRole.Damage, -700, SupportMaxHealth),
     };
 
+    /// <summary>The class of the human's seat (the screen's Character tab pick; "warden" by default).</summary>
+    public string HumanClassId => Party.First(p => p.Id == HumanActorId).ClassId;
+
     /// <summary>The bot seats: every party member but the human, ascending by actor id.</summary>
     public IReadOnlyList<int> BotActorIds => Party.Where(p => p.Id != HumanActorId).Select(p => p.Id).OrderBy(id => id).ToList();
 
@@ -128,13 +137,13 @@ public sealed record HostRunSetup(
             Affixes.DamageBp(affixTable, affixes, bossSide: false),
             Affixes.DamageBp(affixTable, affixes, bossSide: true));
         var effects = registry.Effects.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
-        var (combos, fieldCombos) = ToComboTables(registry.Combos.Values, registry.Classes.Keys.ToList(), registry.ComboRiders);
+        var (combos, fieldCombos) = ContentCombos.ToComboTables(registry.Combos.Values, registry.Classes.Keys.ToList(), registry.ComboRiders);
         var (dungeon, scripts) = ToSimDungeon(
             registry, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false), Affixes.HealthBp(affixTable, affixes, bossSide: true));
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
 
         // Lane NAV-CORE (STATE.md D18): the dungeon's rooms and corridors. Pulls stand in their rooms, the party in the
-        // Entrance, and the sim spawns each pull on room entry and gates each corridor on the pull before it.
+        // Entrance; every pull stands idle from tick 0 and engages on its aggro ring, along one open path (STATE.md D44).
         var layout = registry.Layout;
         if (!string.Equals(layout.Dungeon, dungeonDef.Id, StringComparison.Ordinal))
         {
@@ -142,6 +151,12 @@ public sealed record HostRunSetup(
         }
         var nav = NavLayouts.ToSim(layout);
         dungeon = NavLayouts.PlaceDungeon(layout, dungeon);
+        // PATH-PACKS (BIBLE s9.1): the layout's trash packs, required and optional, idle on the path from tick 0 and each
+        // pulled whole by proximity, like a pull.
+        // Mythic+ trash only a pack fields (hall.sentry) is scaled here exactly as a pull spawn is (ScaledTrashSpawn).
+        var (packs, packScripts) = LayoutPackGroups.Build(
+            layout, dungeon, scripts,
+            packOnly: PackOnlyTemplates(registry, layout, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false)));
 
         var run = registry.Run;
         var movement = new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm, nav.Extent);
@@ -153,13 +168,17 @@ public sealed record HostRunSetup(
             BaseSpeedMmPerTick = 0,
             ActorRadiusMm = 0,
             Bounds = movement.Bounds,
-            EnemyScripts = scripts,
+            Overheat = OverheatRulesOf(registry),
+            EnemyScripts = packScripts,
             KeyLevel = keyLevel,
             ParTicks = dungeonDef.ParTicks,
             Combos = combos,
             FieldCombos = fieldCombos,
             Clauses = clauses,
             Layout = nav,
+            Packs = packs,
+            StopEffectIds = StopEffectIds,
+            Marks = MarkRulesOf(run.PairMarks),
         }.WithMovement(movement);
 
         var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
@@ -182,6 +201,15 @@ public sealed record HostRunSetup(
     /// <summary>The affix rotation index the setup was built with.</summary>
     public int RotationIndex { get; init; }
 
+    /// <summary>The sim's Pair mark rules from content run.json <c>pairMarks</c> (BIBLE section 9.6 item 2).</summary>
+    /// <param name="m">The content block (validated at load).</param>
+    /// <returns>The rules.</returns>
+    public static MarkRules MarkRulesOf(C.PairMarksConfig m)
+    {
+        ArgumentNullException.ThrowIfNull(m);
+        return new MarkRules(m.SpreadEffectId, m.SpreadRadiusMm, m.SpreadDamage, m.StackEffectId, m.StackRadiusMm, m.StackDamage);
+    }
+
     /// <summary>The sim affix table from content run.json <c>affixes</c> (the values are data, pending Matt).</summary>
     /// <param name="a">The content block.</param>
     /// <returns>The table.</returns>
@@ -193,6 +221,22 @@ public sealed record HostRunSetup(
             new AffixScale(a.Tyrannical.HealthBp, a.Tyrannical.DamageBp),
             a.OneAffixKey,
             a.BothAffixKey);
+    }
+
+    /// <summary>
+    /// The sim's Heat/Overheat rules (BIBLE section 5 Cinder): one <see cref="OverheatRule"/> per class whose loop is
+    /// heat-overheat, its threshold that loop's max, its Chill the content run.json <c>heatOverheat</c> block. A class
+    /// with a rule opens the run at 0 Heat and its cast at the threshold is the free Overheat (Combat/Casting.cs).
+    /// </summary>
+    /// <param name="registry">The loaded content (validated at load).</param>
+    /// <returns>Class id to its rule.</returns>
+    public static IReadOnlyDictionary<string, OverheatRule> OverheatRulesOf(C.ContentRegistry registry)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        var chill = registry.Run.HeatOverheat;
+        return registry.Classes.Values
+            .Where(c => c.Loop.Kind == C.LoopKind.HeatOverheat)
+            .ToDictionary(c => c.Id, c => new OverheatRule(c.Loop.Max, chill.ChillEffectId, chill.ChillTicks), StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -254,8 +298,8 @@ public sealed record HostRunSetup(
     /// The sim patch of every content Facet on <paramref name="classId"/>'s kit (content/schema/facet.ts FacetPatch to
     /// <see cref="GearPatch"/>, ops through the same <c>ToSim</c> the base abilities use). An appended Window op without
     /// a setupClass is the wearer's class Window (every base Window op of a class carries that class id), so it gets
-    /// <paramref name="classId"/>. A Facet whose shape has a line width is left out (the sim
-    /// <see cref="AbilityShape"/> has no width), so it is carried but unapplied.
+    /// <paramref name="classId"/>. A line shape's full width becomes the sim line's half-width radius
+    /// (<see cref="Abilities.LineShape"/>), so a width Facet (twinStrike, infernoBolt) is applied, not just carried.
     /// </summary>
     /// <param name="registry">The content.</param>
     /// <param name="classId">The wearer's class.</param>
@@ -273,10 +317,6 @@ public sealed record HostRunSetup(
         foreach (var facet in registry.Facets.Values.Where(f => kit.Contains(f.AbilityId)).OrderBy(f => f.Id, StringComparer.Ordinal))
         {
             var p = facet.Patch;
-            if (p.Shape?.Width is not null)
-            {
-                continue;
-            }
             var where = $"facet \"{facet.Id}\"";
             IReadOnlyList<EffectOp>? Ops(IEnumerable<C.EffectOp>? ops) => ops?.Select(o => ToSim(
                 o is C.WindowOp { SetupClass: null } w ? w with { SetupClass = classId } : o, where)).ToList();
@@ -288,7 +328,7 @@ public sealed record HostRunSetup(
                 Charges = p.Charges,
                 Cost = p.Cost is { } c ? new AbilityCost(c.Resource, c.Amount) : null,
                 Range = p.Range,
-                Shape = p.Shape is { } s ? new AbilityShape(ToSim(s.Kind), s.Radius, s.Angle1024, s.Length) : null,
+                Shape = p.Shape is { } s ? ToSim(s, where) : null,
                 Interruptible = p.Interruptible,
                 Tags = p.Tags?.ToList(),
                 Effects = Ops(p.Effects),
@@ -324,7 +364,8 @@ public sealed record HostRunSetup(
     /// Twins (ids from <see cref="TwinActorIdStart"/> in content id order, Tempo-scaled health and scripts, flanking the
     /// boss at +/-<see cref="TwinOffsetMm"/> x), and the boss ability tagged <see cref="LockTag"/> gives the Lock its
     /// Window length (its window op), shield effect (its applyEffect op) and the script cast the armed rules suppress.
-    /// The 50% gate, 30 s repeat, three-fail enrage and its Tempo spike are BIBLE s9 structure (the
+    /// The Lock is cast (<see cref="BossConfig.CastLock"/>, LOCK-TELEGRAPH): its castTicks and its script step's
+    /// telegraph give it a cast bar and a floor circle before the Window opens. The 50% gate, 30 s repeat, three-fail enrage and its Tempo spike are BIBLE s9 structure (the
     /// <see cref="BossConfig"/> defaults; content has no field for them). Fails closed on any missing or extra piece.
     /// </summary>
     /// <param name="registry">The content.</param>
@@ -384,6 +425,7 @@ public sealed record HostRunSetup(
             LockWindowTicks = window[0].DurationTicks,
             ShieldEffectId = shield[0].EffectId,
             SuppressedBossCasts = new[] { lockAbility.Id },
+            CastLock = true,
         };
     }
 
@@ -458,10 +500,6 @@ public sealed record HostRunSetup(
     // BIBLE section 5: the variants also ride along, and the sim (Abilities.ResolveVerse) plays the caster's verse.
     private static AbilityDef ToSim(C.AbilityDef a)
     {
-        if (a.Shape.Width is not null)
-        {
-            throw new InvalidOperationException($"run setup: ability \"{a.Id}\" has a shape width (facet patches only)");
-        }
         var ops = a.Variants is { } v && v.TryGetValue("mend", out var mend) ? mend : a.Effects;
         Dictionary<string, IReadOnlyList<EffectOp>>? variants = null;
         if (a.Variants is { } all)
@@ -481,12 +519,27 @@ public sealed record HostRunSetup(
             Charges = a.Charges,
             Cost = new AbilityCost(a.Cost.Resource, a.Cost.Amount),
             Range = a.Range,
-            Shape = new AbilityShape(ToSim(a.Shape.Kind), a.Shape.Radius, a.Shape.Angle1024, a.Shape.Length),
+            Shape = ToSim(a.Shape, a.Id),
             Interruptible = a.Interruptible,
             Effects = ops.Select(o => ToSim(o, a.Id)).ToList(),
             Tags = a.Tags.ToList(),
             Variants = variants,
         };
+    }
+
+    // A content shape in sim terms. A width (a Facet's line: twinStrike, infernoBolt) is the line's full width, and the
+    // sim line's radius is its half-width (Abilities.LineShape); a width on any other kind fails closed.
+    private static AbilityShape ToSim(C.AbilityShape s, string where)
+    {
+        if (s.Width is not { } width)
+        {
+            return new AbilityShape(ToSim(s.Kind), s.Radius, s.Angle1024, s.Length);
+        }
+        if (s.Kind != C.ShapeKind.Line)
+        {
+            throw new InvalidOperationException($"run setup: {where} has a width on a {s.Kind} shape (only a line has one)");
+        }
+        return Abilities.LineShape(s.Length ?? 0, width);
     }
 
     private static ShapeKind ToSim(C.ShapeKind k) => k switch
@@ -499,30 +552,8 @@ public sealed record HostRunSetup(
         _ => throw new InvalidOperationException($"run setup: unknown shape kind {k}"),
     };
 
-    private static EffectOp ToSim(C.EffectOp op, string where) => op switch
-    {
-        C.DamageOp d => new DamageOp(d.Amount, d.School),
-        C.HealOp h => new HealOp(h.Amount),
-        C.ApplyEffectOp e => new ApplyEffectOp(e.EffectId, e.DurationTicks, e.Stacks),
-        C.RemoveEffectOp r => new RemoveEffectOp(r.EffectId),
-        C.InterruptOp => new InterruptOp(),
-        C.ResourceOp r => new ResourceOp(r.Delta),
-        C.ThreatOp t => new ThreatOp(t.Amount, t.MultiplierBp),
-        C.WindowOp w => new WindowOp(
-            w.WindowId,
-            w.DurationTicks,
-            w.OnTarget,
-            w.SetupClass ?? throw new InvalidOperationException($"run setup: {where} has a window op without setupClass"),
-            w.Self,
-            w.Alternate,
-            w.RadiusMm),
-        C.PayoffOp => new PayoffOp(),
-        C.ComboOp c => new ComboOp(c.ComboTable),
-        C.PartyEffectOp p => new PartyEffectOp(p.EffectId, p.DurationTicks, p.Stacks),
-        C.CloudOp c => new CloudOp(c.EffectId, c.DurationTicks, c.RadiusMm),
-        C.CloserBurnOp b => new CloserBurnOp(b.MaxHealthBp, b.CapBp, b.School),
-        _ => throw new InvalidOperationException($"run setup: {where} has an op the sim does not run ({op.GetType().Name})"),
-    };
+    // The content-to-sim op mapping lives in Keyrun.Bots.Shared.ContentCombos so the headless tests run it (f-89b0825e).
+    private static EffectOp ToSim(C.EffectOp op, string where) => ContentCombos.ToSimOp(op, where);
 
     private static EffectDef ToSim(C.EffectDef e)
     {
@@ -550,35 +581,6 @@ public sealed record HostRunSetup(
         c.Description);
 
     /// <summary>
-    /// content/sim-adapt.ts toComboTables: exact (setupClass, payoffClass) rows go to the burst table; a
-    /// <c>payoffClass "*"</c> row goes to the field table once per other class. A combo with a C#-only rider
-    /// (combo-riders.json: Anthem's party haste, Steam's cloud; BIBLE section 4) fires the rider's effects instead.
-    /// </summary>
-    private static (ComboTable Combos, ComboTable FieldCombos) ToComboTables(
-        IEnumerable<C.ComboEntry> entries, IReadOnlyList<string> classIds, IReadOnlyDictionary<string, C.ComboRider> riders)
-    {
-        var combos = new ComboTable();
-        var field = new ComboTable();
-        foreach (var entry in entries)
-        {
-            var ops = riders.TryGetValue(entry.Id, out var rider) ? rider.Effects : entry.Effects;
-            var def = new ComboDef(entry.Id, ops.Select(o => ToSim(o, "combo " + entry.Id)).ToList());
-            if (entry.PayoffClass == "*")
-            {
-                foreach (var payoff in classIds.Where(c => c != entry.SetupClass))
-                {
-                    field.Set(entry.SetupClass, payoff, def);
-                }
-            }
-            else
-            {
-                combos.Set(entry.SetupClass, entry.PayoffClass, def);
-            }
-        }
-        return (combos, field);
-    }
-
-    /// <summary>
     /// content/sim-adapt.ts toSimDungeon (ids from <see cref="PullActorIdStart"/> in pull, group, count order; yaw 0;
     /// speed and chase margin only when the enemy sets them) plus content-dungeon.ts buildDungeon: Tempo-scaled health
     /// and scripts, and the boss appended as one more pull at <see cref="BossActorId"/>.
@@ -599,13 +601,7 @@ public sealed record HostRunSetup(
                 for (var i = 0; i < group.Count; i++)
                 {
                     var actorId = nextId++;
-                    var spawn = new PullSpawn(actorId, def.Id, new Vec3(group.Spawn.X, 0, group.Spawn.Z), 0, def.MaxHealth)
-                    {
-                        SpeedMmPerTick = def.SpeedMmPerTick,
-                        ChaseMarginMm = def.ChaseMarginMm,
-                    };
-                    var scaled = Tempo.ScaleSpawn(spawn, keyLevel);
-                    spawns.Add(scaled with { Health = Affixes.ScaleHealth(scaled.Health, trashHealthBp) });
+                    spawns.Add(ScaledTrashSpawn(def, actorId, new Vec3(group.Spawn.X, 0, group.Spawn.Z), keyLevel, trashHealthBp));
                     scripts[actorId] = Tempo.ScaleScript(ToSim(def.Script), keyLevel);
                 }
             }
@@ -613,13 +609,52 @@ public sealed record HostRunSetup(
         }
 
         var boss = Enemy(registry, dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss");
-        // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon stands it at the arena origin.
+        // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon (Build, after this) stands it at the
+        // arena origin and gives it the arena's aggroMm (layout.json), the same helper the bots use.
         pulls.Add(new PullDef(C.LayoutDef.BossPullId, new[]
         {
             new PullSpawn(BossActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp)),
         }));
         scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel);
         return (new DungeonDef(dungeonDef.Id, pulls), scripts);
+    }
+
+    /// <summary>
+    /// One trash spawn as content/sim-adapt.ts toSimDungeon builds it (yaw 0; speed and chase margin only when the enemy
+    /// sets them), Tempo-scaled, then Fortified (trash health affix) on top.
+    /// </summary>
+    private static PullSpawn ScaledTrashSpawn(C.EnemyDef def, int actorId, Vec3 pos, int keyLevel, int trashHealthBp)
+    {
+        var spawn = new PullSpawn(actorId, def.Id, pos, 0, def.MaxHealth)
+        {
+            SpeedMmPerTick = def.SpeedMmPerTick,
+            ChaseMarginMm = def.ChaseMarginMm,
+        };
+        var scaled = Tempo.ScaleSpawn(spawn, keyLevel);
+        return scaled with { Health = Affixes.ScaleHealth(scaled.Health, trashHealthBp) };
+    }
+
+    /// <summary>
+    /// PATH-PACKS: a scaled template (<see cref="ScaledTrashSpawn"/>, Tempo-scaled script) for every layout pack enemy no
+    /// pull of <paramref name="dungeonDef"/> fields, such as the Hall Sentry; an enemy a pull fields is copied from that
+    /// pull's spawn by <see cref="LayoutPackGroups.Build"/> instead. Fails closed on an enemy id content does not define.
+    /// </summary>
+    private static IReadOnlyDictionary<string, PackTemplate> PackOnlyTemplates(
+        C.ContentRegistry registry, C.LayoutDef layout, C.DungeonDef dungeonDef, int keyLevel, int trashHealthBp)
+    {
+        var fielded = dungeonDef.Pulls.SelectMany(p => p.Enemies).Select(e => e.EnemyId).ToHashSet(StringComparer.Ordinal);
+        var templates = new SortedDictionary<string, PackTemplate>(StringComparer.Ordinal);
+        foreach (var pack in layout.Packs)
+        {
+            foreach (var group in pack.Enemies.Where(g => !fielded.Contains(g.EnemyId) && !templates.ContainsKey(g.EnemyId)))
+            {
+                var def = Enemy(registry, group.EnemyId, $"pack \"{pack.Id}\"");
+                templates[def.Id] = new PackTemplate(
+                    ScaledTrashSpawn(def, 0, Vec3.Zero, keyLevel, trashHealthBp),
+                    Tempo.ScaleScript(ToSim(def.Script), keyLevel));
+            }
+        }
+        return templates;
     }
 
     private static C.EnemyDef Enemy(C.ContentRegistry registry, string id, string where) =>

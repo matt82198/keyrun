@@ -39,15 +39,16 @@ BIBLE.md D4. Player health 2000, Choir trash health 6000, Pair 1200, Seed 3000, 
 | chanter.cleanse | 0 | 0 | 160 | 1 | - | - |
 | chanter.glide | 0 | 0 | 200 | 2 | - | - |
 | choir.meleeSwing | 0 | 0 | 40 | 1 | - | dmg:70 |
-| choir.healCast | 80 | 0 | 200 | 1 | - | heal:300 |
+| choir.healCast | 80 | 0 | 200 | 1 | - | heal:3000 to the pack, circle 25000 (was heal:300, one target; CHOIR-PACK-HEAL, BIBLE 9.3 "Heals its pack") |
 | pair.meleeSwing | 0 | 0 | 40 | 1 | - | dmg:70 |
 | pair.spreadMark / stackCall | 40 | 0 | 400 | 1 | - | mark only |
 | seed.slam | 20 | 0 | 100 | 1 | - | dmg:150 |
 | seed.lash | 20 | 0 | 200 (script `at: 50, every: 200`) | 1 | - | dmg:70 |
+| seed.lock | 0 | 0 | 0 (script `at: 20`, once per pull) | 1 | - | window on self only (seedlock, 60 ticks, alternate, no shield) |
 | seed.deathBloom | 0 | 0 | 0 | 1 | - | window only |
 | hollowWarden.slam | 0 | 0 | 60 | 1 | - | dmg:150 |
 | hollowWarden.cleave | 40 | 0 | 160 | 1 | - | dmg:220 |
-| hollowWarden.lock | 0 | 0 | 0 (script `every: 600`) | 1 | - | shield + window |
+| hollowWarden.lock | 20 | 0 | 0 (script `every: 600`) | 1 | - | shield + window |
 | twins.slam | 0 | 0 | 60 | 1 | - | dmg:90 |
 
 Resources (`// TUNE`): momentum max 100, builder gains 15, finisher cost 100; heat max 100,
@@ -113,6 +114,14 @@ Cleave every 156 vs cooldown 160, Seed slam 98 vs 100, lash 196 vs 200) shows no
 The Pair's `pair.spreadMark` and `pair.stackCall` telegraphs (castTicks 40; key 2 every 392 vs cooldown 400) also carry
 `spansCast: true`, with leadTicks 140 (was 100): the lead now counts to the mark landing, so 140 keeps the old 100-tick
 warning before the cast starts (97 at key 2, was 98), and the circle stays down until the mark lands, never for a refused cast.
+
+`hollowWarden.lock` (LOCK-TELEGRAPH, f-dfafcec6; BIBLE s3 "Cast bars are the enemy's language"): castTicks 20 (was 0,
+the one boss mechanic with no bar), and its script step carries a circle telegraph radius 4000 (the Lock ring's opening
+radius in the view), leadTicks 20, `spansCast: true`. On the armed boss (C# only, `BossConfig.CastLock`) a due Lock begins
+as that cast once the boss is free (not mid-cast, no circle of its own still down): a 20-tick bar and the circle, its other
+script steps held, and the Window opens on the tick the cast lands, so each Lock opens 20 ticks after it falls due. The
+cast's own content effects never land on the armed boss (the boss rules own the shield and the Window). The frozen TS
+(the unarmed oracle runs) casts it every 600 with the 20-tick bar and a 20-tick lead telegraph that resolves as it starts.
 
 ## Enemy movement (`// TUNE`)
 

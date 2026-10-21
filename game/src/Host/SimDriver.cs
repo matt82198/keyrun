@@ -86,7 +86,7 @@ public sealed class TickAccumulator
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
 /// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T</c>, <c>--joiner-key K</c>,
 /// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
-/// <c>--replay-input PATH</c>, <c>--bots-hold</c>.
+/// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>, <c>--rotation N</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -136,6 +136,13 @@ public sealed class TickAccumulator
 /// <param name="BotsHold">Scene-test seam (<c>--bots-hold</c>, lane PARTY-TOGETHER): the bot seats spawn as usual but the
 /// host applies none of their commands, so they stand and take no action (HudSceneTest run I's wipe source: nobody
 /// fights). The bots library is untouched; only the host's per-step sample is skipped. Default false.</param>
+/// <param name="CarelessSeat">CARELESS-SEAT (<c>--careless-seat S@T:GROUP</c>; Matt 2026-10-20 "a bad player will
+/// accidentally aggro more groups, just test it naturally"): bot seat S plays carelessly from run tick T, straying toward
+/// the idle group GROUP (a pull id) until it engages (<see cref="Careless"/>). Null = every bot seat plays normally.</param>
+/// <param name="Rotation">Weekly affix rotation override (<c>--rotation N</c>, N &gt;= 0): pins a live run's rotation
+/// index (<see cref="AffixWeek.ForRun"/>) instead of the week since the last Tuesday 15:00 UTC reset, so an
+/// <c>--autorun</c> or <c>--record-input</c> scene test at keys 5-9 never depends on the date. On a replay the log's
+/// recorded index wins. Null = the clock.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -153,7 +160,9 @@ public sealed record ArenaOptions(
     string? RecordInput = null,
     string? ReplayInput = null,
     YawPlan? PressYaw = null,
-    bool BotsHold = false)
+    bool BotsHold = false,
+    CarelessSeatPlan? CarelessSeat = null,
+    int? Rotation = null)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -167,8 +176,10 @@ public sealed record ArenaOptions(
     /// <summary>Default seed.</summary>
     public const long DefaultSeed = 1;
 
-    /// <summary>Parses user arguments; unknown arguments are ignored (Godot passes them through verbatim).</summary>
-    /// <exception cref="ArgumentException">A flag is missing its value, or a number flag is not a positive integer.</exception>
+    /// <summary>Parses user arguments (Godot passes them through verbatim). An argument this switch does not read goes to
+    /// <see cref="Keyrun.Content.ForeignUserArgs.Skip"/>: Main's and Screen's flags are stepped over, anything else throws.</summary>
+    /// <exception cref="ArgumentException">A flag is missing its value, a number flag is not a positive integer, or an
+    /// argument is unknown.</exception>
     public static ArenaOptions Parse(IReadOnlyList<string> args)
     {
         var autorun = false;
@@ -180,6 +191,7 @@ public sealed record ArenaOptions(
         var pull = 1;
         var solo = false;
         var botsHold = false;
+        int? rotation = null;
         var requeue = false;
         SeatAbandonPlan? abandon = null;
         int? joinerKey = null;
@@ -188,6 +200,7 @@ public sealed record ArenaOptions(
         string? recordInput = null;
         string? replayInput = null;
         YawPlan? pressYaw = null;
+        CarelessSeatPlan? careless = null;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -197,6 +210,9 @@ public sealed record ArenaOptions(
                     break;
                 case "--solo":
                     solo = true;
+                    break;
+                case "--rotation":
+                    rotation = AffixWeek.ParseOverride(Value(args, ref i));
                     break;
                 case "--bots-hold":
                     botsHold = true;
@@ -231,6 +247,9 @@ public sealed record ArenaOptions(
                 case "--press-yaw":
                     pressYaw = YawPlan.Parse(Value(args, ref i));
                     break;
+                case "--careless-seat":
+                    careless = CarelessSeatPlan.Parse(Value(args, ref i));
+                    break;
                 case "--record-input":
                     recordInput = Value(args, ref i);
                     break;
@@ -244,9 +263,14 @@ public sealed record ArenaOptions(
                     movie = Value(args, ref i);
                     autorun = true; // proof frames come from the scripted run
                     break;
+                default:
+                    // CARELESS-SEAT-ARGS (PR #308 run C): an argument nobody reads stops the launch. A build without a
+                    // flag used to drop it silently and run as if it were never passed.
+                    Keyrun.Content.ForeignUserArgs.Skip(args, ref i);
+                    break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -292,6 +316,44 @@ public sealed record SeatAbandonPlan(int ActorId, int Tick)
             throw new ArgumentException($"--abandon-seat needs actorId@tick, got '{raw}'");
         }
         return new SeatAbandonPlan(actor, tick);
+    }
+}
+
+/// <summary>A careless bot seat (<c>--careless-seat S@T:GROUP</c>, CARELESS-SEAT): bot actor <paramref name="ActorId"/>
+/// strays toward the idle group <paramref name="GroupId"/> from run tick <paramref name="Tick"/> (<see cref="Careless"/>).</summary>
+/// <param name="ActorId">The bot seat's player actor (2 and 3 in the three-seat party).</param>
+/// <param name="Tick">The run tick (pre-step) from which the seat strays, 0 or more.</param>
+/// <param name="GroupId">The group's id: a pull id of the run's dungeon (choir, pair, seed, boss).</param>
+public sealed record CarelessSeatPlan(int ActorId, int Tick, string GroupId)
+{
+    /// <summary>Parses <c>S@T:GROUP</c> (S a positive actor id, T a tick of 0 or more, GROUP a non-empty id).</summary>
+    /// <param name="raw">The flag value.</param>
+    /// <returns>The plan.</returns>
+    /// <exception cref="ArgumentException">Not of the form S@T:GROUP.</exception>
+    public static CarelessSeatPlan Parse(string raw)
+    {
+        ArgumentNullException.ThrowIfNull(raw);
+        var at = raw.Split('@');
+        var rest = at.Length == 2 ? at[1].Split(':') : Array.Empty<string>();
+        if (at.Length != 2 || rest.Length != 2 || rest[1].Length == 0 ||
+            !int.TryParse(at[0], NumberStyles.None, CultureInfo.InvariantCulture, out var actor) || actor <= 0 ||
+            !int.TryParse(rest[0], NumberStyles.None, CultureInfo.InvariantCulture, out var tick))
+        {
+            throw new ArgumentException($"--careless-seat needs actorId@tick:groupId, got '{raw}'");
+        }
+        return new CarelessSeatPlan(actor, tick, rest[1]);
+    }
+
+    /// <summary>The bots' plan: this seat strays toward the actors of <see cref="GroupId"/>'s pull in <paramref name="dungeon"/>.</summary>
+    /// <param name="dungeon">The run's dungeon.</param>
+    /// <returns>The plan by seat.</returns>
+    /// <exception cref="ArgumentException">The dungeon has no pull with that id (fail closed: a typo never runs a normal party).</exception>
+    public IReadOnlyDictionary<int, CarelessPlan> For(Keyrun.Sim.Encounter.DungeonDef dungeon)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        var pull = dungeon.Pulls.FirstOrDefault(p => string.Equals(p.Id, GroupId, StringComparison.Ordinal))
+            ?? throw new ArgumentException($"--careless-seat: dungeon {dungeon.Id} has no group '{GroupId}'");
+        return new Dictionary<int, CarelessPlan> { [ActorId] = new CarelessPlan(Tick, pull.Spawns.Select(s => s.ActorId).ToList()) };
     }
 }
 
@@ -372,8 +434,11 @@ public partial class SimDriver : Node
     /// <summary>The dungeon played.</summary>
     public const string DungeonId = "hollow-vault";
 
-    /// <summary>The human's class.</summary>
-    public const string HumanClassId = "warden";
+    /// <summary>
+    /// The human's class for a run with no queued class (the CLI, <c>--autorun</c> and <c>--solo</c> runs); a queued run
+    /// plays the class picked on the screen's Character tab (<see cref="Lobby.ClassFor"/>).
+    /// </summary>
+    public const string HumanClassId = Lobby.DefaultClassId;
 
     private const int MaxStepsPerFrame = 5;
 
@@ -397,6 +462,7 @@ public partial class SimDriver : Node
     private bool _pingPressed;
     private InputRecorder? _recorder;
     private InputReplayer? _replayer;
+    private InputLog? _replayLog;
     private int _replayTotal;
     private int _replayCameraTotal;
     private float? _replayStartHeading;
@@ -426,6 +492,15 @@ public partial class SimDriver : Node
 
     /// <summary>The run's setup (party, dungeon, content, the human's ability slots).</summary>
     public HostRunSetup? Setup { get; private set; }
+
+    /// <summary>
+    /// The weekly affix rotation index every run of this launch is built with (<see cref="AffixWeek"/>): the week
+    /// since the last US reset (Tuesday 15:00 UTC), taken once at launch from the UTC clock, or <c>--rotation N</c>, or the
+    /// replayed input log's recorded index. It goes into the
+    /// setup (the screen's affix line reads it there), the run's <see cref="RunOptions.RotationIndex"/> and the
+    /// <c>--record-input</c> log header.
+    /// </summary>
+    public int RotationIndex { get; private set; }
 
     /// <summary>
     /// True when the launch opens the between-runs screen instead of starting a run (lane 3D-b): the interactive game,
@@ -498,12 +573,21 @@ public partial class SimDriver : Node
         {
             Options = ArenaOptions.Parse(OS.GetCmdlineUserArgs());
             Registry = ContentLoader.Load();
-            Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo);
+            // The weekly affix rotation (AffixWeek, Matt 2026-10-20 "lean into m+ design"): a live run takes the index
+            // of the week since the last US reset (Tuesday 15:00 UTC), read from the UTC clock here in the host, never in
+            // the sim, unless --rotation N pins it; a --replay-input run takes the index its log recorded, never the
+            // clock. Read the log first so the setup is built at the recorded index.
+            _replayLog = !Options.Autorun && Options.ReplayInput is { } replayPath ? InputLog.Load(replayPath) : null;
+            RotationIndex = AffixWeek.ForRun(
+                _replayLog is not null, _replayLog?.RotationIndex, Options.Rotation, DateTime.UtcNow, AffixWeek.RotationLength(Registry.Clauses.Count));
+            Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: RotationIndex);
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _player = GetNode<PlayerInput>(InputPath);
             _rig = GetNodeOrNull<CameraRig>(CameraRigPath);
             _input = _player;
-            _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed);
+            // CARELESS-SEAT: --careless-seat S@T:GROUP makes bot seat S stray toward GROUP's idle pull from tick T.
+            var careless = Options.CarelessSeat?.For(Setup.Dungeon);
+            _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed, BotCommandSource.DefaultSkillDial, careless);
             // Lane 3H-c: the human's G reaches the bot seats (hud-wiring.ts derivePingEvent -> simHost.applyCommand).
             _player.Pinged += RoutePing;
             // Lane 3E-b: --record-input / --replay-input, interactive only (an autorun's input is ScriptedWarden).
@@ -654,7 +738,7 @@ public partial class SimDriver : Node
         }
         if (Options.ReplayInput is { } path)
         {
-            var log = InputLog.Load(path);
+            var log = _replayLog ?? InputLog.Load(path);
             if (log.Seed != Options.Seed || log.KeyLevel != Options.KeyLevel)
             {
                 throw new ArgumentException(FormattableString.Invariant(
@@ -711,7 +795,7 @@ public partial class SimDriver : Node
         }
         try
         {
-            _recorder.ToLog(Options.Seed, Options.KeyLevel).Save(path);
+            _recorder.ToLog(Options.Seed, Options.KeyLevel, RotationIndex).Save(path);
             if (final)
             {
                 var cam = _recorder.Camera.Count > 0 ? FormattableString.Invariant($" cam={_recorder.Camera.Count}") : string.Empty;
@@ -759,6 +843,9 @@ public partial class SimDriver : Node
     /// <param name="actorId">A player actor of the run.</param>
     /// <exception cref="ArgumentException">Not a player seat of the run, or already open (<see cref="Backfill.Abandon"/>).</exception>
     public void AbandonSeat(int actorId) => _backfill = Backfill.Abandon(_backfill, Run!, actorId);
+
+    /// <summary>The abandoned seats not yet refilled (actor ids): the scripted leader never waits for them.</summary>
+    public IReadOnlyList<int> OpenSeats => _backfill.Open.Select(s => s.ActorId).ToList();
 
     private void HookScreen()
     {
@@ -880,9 +967,13 @@ public partial class SimDriver : Node
         var registry = Registry ?? throw new InvalidOperationException("SimDriver started a run before content loaded");
         var dungeonId = request?.DungeonId ?? DungeonId;
         var keyLevel = request?.KeyLevel ?? Options.KeyLevel;
-        if (Setup is null || Setup.Dungeon.Id != dungeonId || Setup.Content.KeyLevel != keyLevel)
+        // LOBBY-TABS: the class picked on the screen's Character tab builds the party (the human takes that class's
+        // roster seat, bots fill the other two); a CLI run (no request) plays the default Warden. The class is read from
+        // the screen, never from the queue payload (Lobby.ClassFor).
+        var classId = Lobby.ClassFor(request, _screen?.CurrentLobby);
+        if (Setup is null || Setup.Dungeon.Id != dungeonId || Setup.Content.KeyLevel != keyLevel || Setup.HumanClassId != classId)
         {
-            Setup = HostRunSetup.Build(registry, dungeonId, keyLevel, HumanClassId, withBots: !Options.Solo);
+            Setup = HostRunSetup.Build(registry, dungeonId, keyLevel, classId, withBots: !Options.Solo, rotationIndex: RotationIndex);
         }
         var setup = Setup;
         var dungeon = setup.Dungeon;
@@ -897,8 +988,17 @@ public partial class SimDriver : Node
         // Lane NAV-CORE: a --pull N run starts its party in pull N's room (HostRunSetup.PartyFor), else in the Entrance.
         // Finding f-f9b80112 (BIBLE s7): the screen's equipped gear, keystone included, reaches the run on top of the
         // request's Clause and talents (RunStart.Of; no screen yet means the request's options alone).
-        var start = setup.StartFor(request, _screen?.Progression, registry, HumanClassId);
-        var created = RunRoot.CreateRun(Options.Seed, setup.PartyFor(dungeon), dungeon, setup.Content, start.Options);
+        var start = setup.StartFor(request, _screen?.Progression, registry, classId);
+        // The run's options record the weekly rotation index the setup was built with (the sim reads it as an input).
+        var options = (start.Options ?? new RunOptions()) with { RotationIndex = setup.RotationIndex };
+        var created = RunRoot.CreateRun(Options.Seed, setup.PartyFor(dungeon), dungeon, setup.Content, options);
+        if (Options.StartPull > 1)
+        {
+            // A --pull N start begins in pull N's fight (NavLayouts.PlaceParty; STATE.md D27 spawned it at creation).
+            // PRESPAWN-AGGRO leaves that pull idle with the party at its room start, outside the aggro ring, so an idle
+            // human never fights (HudSceneTest runs I and K1 never wiped): engage it here, the host's explicit fight start.
+            created = RunRoot.EngageStartPull(created);
+        }
         // 3F's hand-off (its decision 6): arm the boss on the created run's encounter.
         var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
         Run = run;
@@ -919,13 +1019,21 @@ public partial class SimDriver : Node
         var boss = run.Encounter.Boss?.Config ?? throw new InvalidOperationException("SimDriver: the run's boss is not armed");
         _log?.Line(FormattableString.Invariant(
             $"BOSS armed twins={boss.Twins.Count} lockAt={boss.LockThresholdBp / 100} window={boss.LockWindowTicks} bar={boss.TwinsBar.Id} boss={boss.BossActorId}"));
+        if (Options.CarelessSeat is { } careless)
+        {
+            // CARELESS-SEAT: name the careless seat and the group it strays toward, so a scene test can tie a pull to it.
+            var group = string.Join(",", careless.For(setup.Dungeon)[careless.ActorId].GroupActorIds.Select(id => id.ToString(CultureInfo.InvariantCulture)));
+            _log?.Line(FormattableString.Invariant($"BOTS careless seat={careless.ActorId} from={careless.Tick} group={careless.GroupId} actors={group}"));
+        }
         // createRun spawns pull 0 and drops its pull_start (it has no event sink); the log names it here. On a layout
-        // run pull 0 spawns at creation only when the party starts in its trigger (a --pull N start); otherwise its
-        // pull_start comes on room entry and RunLog names it then.
-        if (Pulls.IsSpawned(run.State, dungeon, run.Encounter.PullIndex))
+        // run every group stands idle from tick 0 (PRESPAWN-AGGRO) and none is engaged at creation except a --pull N start's
+        // (EngageStartPull above): each other pull_start comes on its aggro-radius engage and RunLog names it then.
+        if (Pulls.IsEngaged(run.Encounter, dungeon, run.Encounter.PullIndex))
         {
             _log?.PullSpawn(run.Encounter.PullIndex, dungeon);
         }
+        // Every other group stands idle from tick 0: name its enemies once, so the log accounts for a skipped pack.
+        _log?.IdleGroups(run);
         _log?.Begin(run.State);
         RunStarted?.Invoke();
     }
