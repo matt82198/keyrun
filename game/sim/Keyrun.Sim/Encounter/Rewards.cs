@@ -36,6 +36,12 @@ public static class Rewards
     /// <summary>Crafting charges a new item starts with (rewards.ts:39).</summary>
     public const int StartingCharges = 2;
 
+    /// <summary>The Facet id an Ascension card carries (BIBLE s7 "After the cap: Ascension"); no gear Facet uses it.</summary>
+    public const string AscensionFacetId = "ascension";
+
+    // The Ascension card's text. It grants no power: taking it adds a mark and changes no gear (Ascension.cs).
+    private const string AscensionFacetText = "Ascension: an Ascension mark on the character; power never moves";
+
     /// <summary>Minimum key that can drop tiers 9-10, for any run result (rewards.ts:41; f-baeb031a).</summary>
     public const int HardBisMinKey = 15;
 
@@ -161,7 +167,9 @@ public static class Rewards
     /// lowest higher tier inside the key's band, else a Facet the slot does not hold at the tier it holds. A roll that
     /// already holds an upgrade is returned exactly as drawn, so a fresh character sees the same cards as before. The
     /// tier never leaves the key's band (loot quality comes from the key level): gear above the band gets the plain
-    /// roll, and so does a character with nothing left to upgrade at this key (Ascension progress is not modelled).
+    /// roll, and so does a character below the cap with nothing left to upgrade at this key. Only the cap earns an
+    /// Ascension card: when every slot the roll draws over holds a tier-10 item, the third card is an Ascension card
+    /// (<see cref="WithAscensionCard"/>) and the upgrade search is skipped.
     /// </summary>
     /// <param name="seed">Run-end seed.</param>
     /// <param name="keyLevel">Key level.</param>
@@ -175,6 +183,10 @@ public static class Rewards
     {
         ArgumentNullException.ThrowIfNull(equipped);
         var items = RollRewardChoices(seed, keyLevel, result, slotsOwned, facetPools);
+        if (CappedAt(slotsOwned, equipped))
+        {
+            return WithAscensionCard(items, slotsOwned, equipped);
+        }
         if (items.Any(i => IsUpgrade(i, equipped)))
         {
             return items;
@@ -218,6 +230,45 @@ public static class Rewards
     }
 
     /// <summary>
+    /// The Ascension offer (BIBLE s7 "After the cap: Ascension"; Matt 2026-10-21 "choose one of three"). When every slot
+    /// <paramref name="slotsOwned"/> draws over (all five when empty) holds an item at tier 10 (<see cref="MaxTier"/>),
+    /// the third card is replaced by one Ascension card: tier 10, in the first draw slot, with the facet
+    /// <see cref="AscensionFacetId"/> and the held item's ability. The first two cards stay as drawn. Below the cap,
+    /// <paramref name="items"/> is returned unchanged.
+    /// </summary>
+    /// <param name="items">The three cards the roll drew.</param>
+    /// <param name="slotsOwned">Slots the roll draws over; empty means all five.</param>
+    /// <param name="equipped">The character's equipped gear by slot.</param>
+    /// <returns>The three cards, the third an Ascension card once capped.</returns>
+    /// <exception cref="ArgumentException"><paramref name="items"/> is not three cards.</exception>
+    public static IReadOnlyList<Item> WithAscensionCard(IReadOnlyList<Item> items, IReadOnlyList<string> slotsOwned, IReadOnlyDictionary<string, Item> equipped)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(slotsOwned);
+        ArgumentNullException.ThrowIfNull(equipped);
+        if (items.Count != 3)
+        {
+            throw new ArgumentException("an offer is three cards", nameof(items));
+        }
+        if (!CappedAt(slotsOwned, equipped))
+        {
+            return items;
+        }
+        var slot = (slotsOwned.Count > 0 ? slotsOwned : GearSlots)[0];
+        var held = equipped[slot];
+        var facet = new Facet(AscensionFacetId, AscensionFacetText, held.Facet.AbilityId);
+        var card = new Item(string.Create(CultureInfo.InvariantCulture, $"reward-{slot}-{AscensionFacetId}-t{MaxTier}-2"), slot, MaxTier, facet, held.Charges);
+        return new[] { items[0], items[1], card };
+    }
+
+    // True when every slot the roll draws over holds an item at the cap (an empty slot is below it).
+    private static bool CappedAt(IReadOnlyList<string> slotsOwned, IReadOnlyDictionary<string, Item> equipped)
+    {
+        var pool = slotsOwned.Count > 0 ? slotsOwned : GearSlots;
+        return pool.All(slot => equipped.TryGetValue(slot, out var item) && item.Tier >= MaxTier);
+    }
+
+    /// <summary>
     /// True when taking <paramref name="card"/> is a strict upgrade for the character (BIBLE s7 "a higher tier in some
     /// slot, or a Facet the character does not own yet"): its slot is empty, or it is a higher tier than the slot
     /// holds, or it is a Facet the slot does not hold at the same tier. Taking a reward replaces the slot's item (no
@@ -230,6 +281,11 @@ public static class Rewards
     {
         ArgumentNullException.ThrowIfNull(card);
         ArgumentNullException.ThrowIfNull(equipped);
+        // An Ascension card changes no gear (its Facet is a mark, not a function), so it is never an upgrade.
+        if (card.Facet.Id == AscensionFacetId)
+        {
+            return false;
+        }
         if (!equipped.TryGetValue(card.Slot, out var owned))
         {
             return true;

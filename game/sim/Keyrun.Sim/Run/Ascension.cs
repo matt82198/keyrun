@@ -44,6 +44,19 @@ public static class Ascension
     /// <exception cref="ArgumentNullException"><paramref name="progression"/> is null.</exception>
     public static bool IsAscended(Progression progression) => SlotsAtCap(progression) == Rewards.GearSlots.Count;
 
+    /// <summary>
+    /// True for an Ascension card (<see cref="Rewards.WithAscensionCard"/>): the one card an end-of-run choice offers
+    /// once every slot is at the cap. Taking it adds a mark and changes no gear.
+    /// </summary>
+    /// <param name="card">The card.</param>
+    /// <returns>Whether it is an Ascension card.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="card"/> is null.</exception>
+    public static bool IsCard(Item card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        return card.Facet.Id == Rewards.AscensionFacetId;
+    }
+
     /// <summary>Gear slots holding an item at <see cref="Progression.MaxTier"/>.</summary>
     /// <param name="progression">The character.</param>
     /// <returns>0 to the number of gear slots.</returns>
