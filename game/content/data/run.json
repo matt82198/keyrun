@@ -27,5 +27,8 @@
     "clauseStartKey": 5,
     "fortified": { "healthBp": 2000, "damageBp": 3000 },
     "tyrannical": { "healthBp": 2500, "damageBp": 1500 }
+  },
+  "classArmorBp": {
+    "warden": 3500
   }
 }

@@ -266,6 +266,13 @@ public sealed class ActorState
     /// <summary>The wearer's summed gear damageTakenBp (negative reduces damage taken). C#-only: 0 on every oracle run.</summary>
     public long GearDamageTakenBp { get; set; }
 
+    /// <summary>
+    /// The class's passive armor, bp of every incoming hit removed after all bp modifiers (design/BIBLE.md
+    /// section 3.1; Combat.Damage.ApplyArmor). Multiplicative, so it never stacks to immunity with Brace, Vigil or
+    /// Bulwark. C#-only: 0 on every oracle run.
+    /// </summary>
+    public long ArmorBp { get; set; }
+
     /// <summary>A deep copy (effects, cooldowns and threat are copied, not shared).</summary>
     public ActorState Clone()
     {

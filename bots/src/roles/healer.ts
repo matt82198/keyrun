@@ -18,7 +18,7 @@
  */
 import type { ActorId, ActorState, BotView, Command } from "../types.js";
 import { pickHealTarget, pickDispelTarget } from "../shared/priority.js";
-import { resolveKit } from "../kits.js";
+import { resolveKit, type EffectiveKit } from "../kits.js";
 import { floorEscapeCommand } from "../shared/floor.js";
 import { moveToward } from "../shared/command.js";
 import { readyAndAffordable, ledgerKickCommand } from "./shared.js";
@@ -49,6 +49,43 @@ function partyMissingHealthRatio(actors: Record<ActorId, ActorState>): number {
   if (totalMax <= 0) return 0;
   const totalMissing = allies.reduce((s, a) => s + Math.max(0, a.maxHealth - a.health), 0);
   return totalMissing / totalMax;
+}
+
+/** A heal the shape-aware picker owns, the first on-cast heal, or the stance verse swap: never pressed. */
+function isHealButton(kit: EffectiveKit, abilityId: string): boolean {
+  const h = kit.heals;
+  return (
+    abilityId === h.selfHealAbilityId ||
+    abilityId === h.groupHealAbilityId ||
+    abilityId === h.targetHealAbilityId ||
+    abilityId === h.secondGroupHeal?.abilityId ||
+    abilityId === kit.healAbilityId ||
+    abilityId === kit.stanceSwapAbilityId
+  );
+}
+
+/** The party's current target: the living tank's live-enemy target, else the healer's own, else the lowest-id live enemy. */
+function partyTargetId(actors: Record<ActorId, ActorState>, self: ActorState): ActorId | null {
+  const live = (id: ActorId | null): id is ActorId => id !== null && actors[id]?.kind === "enemy" && actors[id]?.alive === true;
+  const tank = Object.values(actors).find((a) => a.kind === "player" && a.alive && a.role === "tank" && live(a.targetId));
+  if (tank) return tank.targetId;
+  if (live(self.targetId)) return self.targetId;
+  return Object.values(actors).find((a) => a.kind === "enemy" && a.alive)?.id ?? null;
+}
+
+/**
+ * HEALER-KEEPS-PRESSING (PR #362 ruling, the WoW Mythic+ loop: a healer with nobody to heal keeps
+ * contributing): in a fight with no ally under the heal threshold, the first ready, affordable
+ * rotation ability that is not a heal button (Chanter: Dissonance) goes at the party's current target.
+ */
+function pressCommands(view: BotView, self: ActorState, kit: EffectiveKit): Command[] {
+  const tick = view.state.tick;
+  const targetId = partyTargetId(view.state.actors, self);
+  if (targetId === null) return [];
+  const abilityId = kit.rotation.find((id) => !isHealButton(kit, id) && readyAndAffordable(self, id, tick, kit));
+  if (abilityId === undefined) return [];
+  const cast: Command = { tick, actorId: self.id, kind: "cast", abilityId, targetId };
+  return self.targetId === targetId ? [cast] : [{ tick, actorId: self.id, kind: "target", targetId }, cast];
 }
 
 export function healerDecide(view: BotView, self: ActorState): Command[] {
@@ -96,9 +133,12 @@ export function healerDecide(view: BotView, self: ActorState): Command[] {
     // only the caster (roles/heal-pick.ts).
     const healId = pickHealTarget(view.state.actors, HEAL_THRESHOLD_PCT);
     const healTarget = healId !== null ? view.state.actors[healId] : undefined;
+    if (healTarget) return healCommands(view, self, kit, healTarget);
     // CADENCE-SETUP (f-b31e8f34): nobody under the threshold, so open a Setup for a ready Payoff
-    // partner (roles/healer-setup.ts).
-    return healTarget ? healCommands(view, self, kit, healTarget) : setupCommands(view, self, kit);
+    // partner (roles/healer-setup.ts); D-HEALER-DOWNTIME: no Setup to open, so press a non-heal
+    // rotation button.
+    const setup = setupCommands(view, self, kit);
+    return setup.length > 0 ? setup : pressCommands(view, self, kit);
   }
   const targetId = dispelId;
   const abilityId = kit.dispelAbilityId ?? "dispel";

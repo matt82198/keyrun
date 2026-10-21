@@ -1083,7 +1083,7 @@
       "fnv": "8a842402"
     },
     "abilities/choir.healCast": {
-      "fnv": "429391f8"
+      "fnv": "9a1c5d45"
     },
     "abilities/choir.meleeSwing": {
       "fnv": "d129f5cb"
@@ -1179,7 +1179,7 @@
       "fnv": "5f54ef5d"
     },
     "classes/cinder": {
-      "fnv": "edb11805"
+      "fnv": "9065e9c1"
     },
     "classes/warden": {
       "fnv": "dff1599c"

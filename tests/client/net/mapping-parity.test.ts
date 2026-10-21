@@ -58,8 +58,19 @@ describe("net codec: telegraphClass survives server -> wire -> client", () => {
 describe("net codec: events", () => {
   const base = (): ServerWireSnapshot => new Room("codec-ev", loadServerContent()).tick().snapshot;
 
+  /** Snapshot tick 10 of the "codec-ev" Room, measured quiet (D-PINNED-FIXTURES-362): since the healer press the
+   * first tick carries the Chanter's chanter.dissonance cast and tick 4 the Warden's Brace; ticks 5-20 carry nothing. */
+  const QUIET_TICK = 10;
+  const quiet = (): ServerWireSnapshot => {
+    const room = new Room("codec-ev", loadServerContent());
+    let s = room.tick().snapshot;
+    while (s.tick < QUIET_TICK) s = room.tick().snapshot;
+    return s;
+  };
+
   it("a quiet tick carries an empty events channel on the wire", () => {
-    const s = base();
+    const s = quiet();
+    expect(s.tick).toBe(QUIET_TICK);
     expect(s.events).toEqual([]);
     expect(toClientSnapshot(overTheWire(s)).events).toEqual([]);
   });

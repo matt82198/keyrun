@@ -13,9 +13,10 @@ public static class Mitigation
     /// <summary>
     /// sim/combat/mitigation.ts:24-36 dealDamage: the attacker's damageDoneBp when it still exists (a removed DoT
     /// source contributes 0, :33), the target's damageTakenBp always (:34), then <see cref="Damage.ApplyDamage"/>.
-    /// C#-only rule (bible section 4, Steam): a living target hit by a source that <see cref="IsBlinded"/> takes
+    /// Blind rule (bible section 4, Steam): a living target hit by a source that <see cref="IsBlinded"/> takes
     /// nothing (no health, no absorb consumed) and a "miss" event (sourceId, targetId, rawAmount) replaces "damage".
-    /// No oracle trace applies "blinded", so parity is unaffected.
+    /// Ported to sim/combat/mitigation.ts with identical semantics (D-ORACLE-BLIND-PARITY): the healer press closes
+    /// the Cinder's kindled window, so bot-oracle traces apply "blinded" and both sims must miss on the same hit.
     /// </summary>
     /// <param name="tick">Current tick.</param>
     /// <param name="source">The attacker, or null when it is gone.</param>
