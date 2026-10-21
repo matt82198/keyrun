@@ -102,9 +102,6 @@ public sealed record ContentRegistry
     /// <summary>The Forces bar size, per-enemy points and the route (forces.json; C#-only, BIBLE section 9.2).</summary>
     public required ForcesTable Forces { get; init; }
 
-    /// <summary>Optional packs by id (packs.json; C#-only, BIBLE section 9.1).</summary>
-    public required ValueMap<PackDef> Packs { get; init; }
-
     /// <summary>Room hazards by id (hazards.json; C#-only, BIBLE section 9.4).</summary>
     public required ValueMap<HazardDef> Hazards { get; init; }
 
@@ -112,4 +109,10 @@ public sealed record ContentRegistry
     /// Base gear items by id (gear.json; C#-only, BIBLE section 7 "Five slots"). Empty when a registry is built by hand.
     /// </summary>
     public ValueMap<GearItemDef> Gear { get; init; } = new();
+
+    /// <summary>
+    /// Ability ids that are melee-range contact (game/content/data/melee-abilities.json; C#-only, KF1 strike cue, ruling R9).
+    /// Every id names a loaded ability. Empty when a registry is built by hand.
+    /// </summary>
+    public ValueList<string> MeleeAbilities { get; init; } = new();
 }

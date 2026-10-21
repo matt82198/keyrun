@@ -1,2 +1,0 @@
-- LABEL-CULL overhead labels come from one living-only rule (LabelGroups.Labelled/Build in game/content/Keyrun.Content/Model/LabelGroups.cs, read by src/View/LabelView.cs): a dead actor has no label and no "xN" count (finding ae5f42db frame 1:58; LabelGroupsTests).
-BUILDLOG: LABEL-CULL: dead enemies have no overhead label and never count toward xN; LabelGroupsTests (5 facts) red on a dead-kept mutant, green restored.

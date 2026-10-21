@@ -35,7 +35,9 @@
 
   Model gate (finding f-30dcbb08): src/View/ActorView.cs writes "ACTOR model=<res path|capsule> fallback=<0|1> id=<n>"
   per bound actor to the run log. This prints "SCREENS models actors=<n> fallback=<k>"; when k > 0 it prints
-  "SCREENS FAIL model-fallback <k> actors rendered as capsules" and exits 9 (frames and mp4 kept).
+  "SCREENS FAIL model-fallback <k> actors rendered as capsules" and exits 9 (frames and mp4 kept). When the run log
+  stays locked through every snapshot retry, the gate cannot run: this prints "SCREENS log-locked <path>", still builds
+  the mp4, and exits 10. A capture whose model gate never ran is never a success.
 
   Single instance (tools/godot/launch-lock.ps1): the capture takes the same machine-wide launch lock as
   tools/godot/godot.ps1 before it starts Godot, and holds it until the game is stopped. While another live process
@@ -70,7 +72,8 @@
   3 ffmpeg missing, 4 ffmpeg failed, 5 another Godot instance holds the launch lock,
   6 the .NET assembly is missing or stale (preflight; nothing was launched),
   7 the --log run file was never created (boot-scene-only run; frames and mp4 kept),
-  9 at least one actor rendered the capsule fallback instead of its model (frames and mp4 kept).
+  9 at least one actor rendered the capsule fallback instead of its model (frames and mp4 kept),
+  10 model gate not evaluated: the run log stayed locked after the snapshot retries (frames and mp4 kept).
   Frames are kept on every exit path.
 #>
 param(
@@ -285,6 +288,30 @@ if (-not $preflight.Ok) {
     foreach ($line in $preflight.Lines) { Write-Output $line }
     exit $preflight.Code
 }
+# Copies the run log to $Dest through a shared read, so a writer that still holds the file does not fail the copy. Returns
+# $true when the copy is made (or the log is absent, which Measure-KeyrunActorModels counts as zero actors), $false when the
+# log stays locked after 5 attempts 500 ms apart. The model gate reads the copy, never the live log.
+function Copy-KeyrunRunLogSnapshot {
+    param([string]$Source, [string]$Dest)
+    if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) { return $true }
+    $share = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            $in = New-Object System.IO.FileStream -ArgumentList @($Source, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
+            try {
+                $out = [System.IO.File]::Create($Dest)
+                try { $in.CopyTo($out) } finally { $out.Dispose() }
+            } finally {
+                $in.Dispose()
+            }
+            return $true
+        } catch {
+            if ($attempt -lt 5) { Start-Sleep -Milliseconds 500 }
+        }
+    }
+    return $false
+}
+
 $launchLock = Enter-KeyrunLaunchLock -Owner ("screens.ps1 -Name {0}" -f $Name)
 if (-not $launchLock.Acquired) {
     Write-Output ("FAILED: {0}" -f $launchLock.Message)
@@ -349,6 +376,8 @@ if (-not $proc.HasExited) {
     Stop-KeyrunProcessTree $proc.Id
     Write-Output ("STOP pid={0} (still alive, stopped with its process tree)" -f $proc.Id)
 }
+# The game may still hold the run log for a moment after it exits: wait for the process (bounded by a 5 s grace) before the read.
+if (-not $proc.WaitForExit(5000)) { Write-Output ("SCREENS pid={0} still running 5 s after the stop; the log read may be locked" -f $proc.Id) }
 } finally {
     if ($proc -and -not $proc.HasExited) { Stop-KeyrunProcessTree $proc.Id }
     $job.Terminate()
@@ -359,8 +388,19 @@ Write-Output ("DONE reason='{0}' frames={1} elapsed={2}s folder={3}" -f $reason,
 Write-Output ("SCREENS stop={0}" -f $reason)
 # Model fallback gate (finding f-30dcbb08): ActorView writes 'ACTOR model=<path|capsule> fallback=<0|1>' per actor to the run
 # log. Printed here, enforced (exit 9) after the run-log check below, so a capture with placeholders is never a success.
-$models = Measure-KeyrunActorModels -LogPath $logPath
-Write-Output $models.Lines[0]
+# A transient lock is retried inside Copy-KeyrunRunLogSnapshot; a persistent one prints one line, keeps the frames, still
+# builds the mp4, and fails closed with exit 10 at the end (the gate never ran, so the capture is never a success).
+$models = $null
+$logLocked = $false
+$logSnap = Join-Path ([IO.Path]::GetTempPath()) ('screens-runlog-' + [guid]::NewGuid().ToString('N') + '.txt')
+if (Copy-KeyrunRunLogSnapshot -Source $logPath -Dest $logSnap) {
+    $models = Measure-KeyrunActorModels -LogPath $logSnap
+    Remove-Item -LiteralPath $logSnap -Force -ErrorAction SilentlyContinue
+    Write-Output $models.Lines[0]
+} else {
+    $logLocked = $true
+    Write-Output ("SCREENS log-locked {0}; the model gate was not evaluated (frames kept)" -f $logPath)
+}
 
 if ($saved.Count -eq 0) {
     Write-Output ("SCREENS frames=0 mp4=none dir={0}" -f $outDirFull)
@@ -417,8 +457,12 @@ if (-not (Test-KeyrunRunLogWritten -LogPath $logPath)) {
     Write-Output ("SCREENS no-run-log {0}" -f $logPath)
     exit 7
 }
-if (-not $models.Ok) {
+if ($models -and -not $models.Ok) {
     foreach ($line in @($models.Lines | Select-Object -Skip 1)) { Write-Output $line }
     exit $models.Code
+}
+if ($logLocked) {
+    Write-Output ("SCREENS FAIL model-gate-not-evaluated: run log stayed locked after the snapshot retries; frames kept in {0}" -f $outDirFull)
+    exit 10
 }
 exit 0

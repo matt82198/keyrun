@@ -60,6 +60,26 @@ public sealed record Lobby
     public bool Locked => Key.Locked;
 
     /// <summary>
+    /// Opens the lobby with no Clause schedule (<see cref="ScreenState.NoClauseStartKey"/>): the key carries no Clause, so
+    /// a queue hands the run none. The screen itself opens with the schedule (the eight-argument overload).
+    /// </summary>
+    /// <param name="registry">The content.</param>
+    /// <param name="progression">The character's save (its saved talents).</param>
+    /// <param name="dungeonId">The dungeon.</param>
+    /// <param name="clauseIds">Every Clause id content defines.</param>
+    /// <param name="keyLevel">The key (clamped to 2-20).</param>
+    /// <param name="classId">The human's class.</param>
+    /// <returns>The lobby.</returns>
+    public static Lobby Open(
+        C.ContentRegistry registry,
+        Progression progression,
+        string dungeonId,
+        IReadOnlyList<string> clauseIds,
+        int keyLevel,
+        string classId = DefaultClassId) =>
+        Open(registry, progression, dungeonId, clauseIds, keyLevel, 0, ScreenState.NoClauseStartKey, classId);
+
+    /// <summary>
     /// Opens the screen on the Play tab, unlocked, at <paramref name="keyLevel"/>, as <paramref name="classId"/> with that
     /// class's saved build restored from <paramref name="progression"/> (a pick the content no longer has is dropped).
     /// </summary>

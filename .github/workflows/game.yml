@@ -90,6 +90,19 @@ jobs:
           if ($code -ne 0) { throw "import-cache test exited $code" }
           if ($out -notmatch '(?m)^import-cache-test: PASS') { throw 'import-cache test did not print PASS' }
 
+      # #527: screens.ps1 reads the run log through a retried FileShare snapshot after the game exits. A holder
+      # process locks the log; a stub .cmd stands in for Godot, so this never launches the engine.
+      - name: screens log-lock test (run-log snapshot read under a held lock; stub only, never launches Godot)
+        if: steps.scope.outputs.code == 'true' && success()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./tools/godot/screens-log-lock-test.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "screens log-lock test exited $code" }
+          if ($out -notmatch '(?m)^screens-log-lock-test: PASS') { throw 'screens log-lock test did not print PASS' }
+
   # Reported, NOT required. The fork-parity dominance oracle has chaotic margins; a red here opens a finding
   # and never blocks a merge. Not a required name, so it may be skipped; it still gates its steps on scope.
   balance:
@@ -342,6 +355,45 @@ jobs:
           Write-Output $out
           if ($code -ne 0) { throw "CombatTextOverlapTest exited $code" }
           if ($out -notmatch '(?m)^CombatTextOverlapTest: PASS') { throw 'CombatTextOverlapTest did not print PASS' }
+
+      - name: KickReady scene test (HUD pip, ready-check cooldown lines, must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
+        continue-on-error: false
+        shell: pwsh
+        timeout-minutes: 12
+        run: |
+          $ErrorActionPreference = 'Continue'
+          New-Item -ItemType Directory -Force -Path scene-logs | Out-Null
+          $out = & ./game/src/Hud/KickReadySceneTest.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          $out | Out-File -FilePath scene-logs/KickReadySceneTest.log -Encoding utf8
+          Write-Output $out
+          if ($code -ne 0) { throw "KickReadySceneTest exited $code" }
+          if ($out -notmatch '(?m)^KickReadySceneTest: PASS') { throw 'KickReadySceneTest did not print PASS' }
+
+      - name: GearVisual scene test (gear on the model, take slot, must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
+        continue-on-error: false
+        shell: pwsh
+        timeout-minutes: 12
+        run: |
+          $ErrorActionPreference = 'Continue'
+          New-Item -ItemType Directory -Force -Path scene-logs | Out-Null
+          $out = & ./game/src/View/GearVisualSceneTest.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          $out | Out-File -FilePath scene-logs/GearVisualSceneTest.log -Encoding utf8
+          Write-Output $out
+          if ($code -ne 0) { throw "GearVisualSceneTest exited $code" }
+          if ($out -notmatch '(?m)^GearVisualSceneTest: PASS') { throw 'GearVisualSceneTest did not print PASS' }
+
+      - name: Upload KickReady and GearVisual scene logs on failure
+        if: failure() && steps.scope.outputs.code == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: scene-test-logs
+          path: scene-logs/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Boot smoke (headless, must print SMOKE ok)
         if: steps.scope.outputs.code == 'true' && success()

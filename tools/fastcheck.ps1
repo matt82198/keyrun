@@ -53,7 +53,7 @@ $Map = @(
 )
 
 $sw = [Diagnostics.Stopwatch]::StartNew()
-$repo = (& git rev-parse --show-toplevel 2>$null)
+$repo = (& git -C $PSScriptRoot rev-parse --show-toplevel 2>$null)
 if ($LASTEXITCODE -ne 0 -or -not $repo) {
     [Console]::Error.WriteLine('fastcheck: not inside a git work tree')
     exit 2

@@ -10,7 +10,7 @@ namespace Keyrun.Content;
 /// Loads every content kind from the verbatim content/data JSON into a typed, validated
 /// <see cref="ContentRegistry"/>: the C# mirror of content/index.ts <c>loadContent()</c>, reading
 /// the same 19 files in the same order, plus the C#-only run.json, layout.json, theme.json (theme.json is read by ThemeLoader), combo-riders.json
-/// and the forces + route files (forces.json, packs.json, hazards.json), and the trash enemies (enemies/hall.json). Fails closed with <see cref="ContentLoadException"/> on
+/// and the forces + route files (forces.json, hazards.json; packs live in layout.json, ruling R7), and the trash enemies (enemies/hall.json). Fails closed with <see cref="ContentLoadException"/> on
 /// any unknown property, missing required field, null in a non-optional field, non-integer
 /// number, unknown enum or op, duplicate id, unresolved cross-reference, or unlisted/missing file.
 /// </summary>
@@ -36,13 +36,20 @@ public static class ContentLoader
         RunFile,
         LayoutFile,
         ThemeFile,
+        PaletteFile,
         ComboRidersFile,
         ForcesFile,
-        PacksFile,
         HazardsFile,
         GearFile,
         TrashEnemiesFile,
+        MeleeAbilitiesFile,
     };
+
+    /// <summary>
+    /// C#-only melee ability ids (game/content/data/melee-abilities.json, same logical root; KF1 strike cue, ruling R9).
+    /// The root abilities JSON is a frozen oracle and is not edited to tag melee, so the list lives here.
+    /// </summary>
+    public const string MeleeAbilitiesFile = "melee-abilities.json";
 
     /// <summary>
     /// C#-only trash enemies (game/content/data/enemies/hall.json, same logical root; PATH-PACKS): enemies only a layout
@@ -56,12 +63,9 @@ public static class ContentLoader
 
     /// <summary>
     /// C#-only forces table and route (game/content/data/forces.json; BIBLE section 9.2): the bar's size, every
-    /// enemy's points and the fork, rejoin and branches.
+    /// enemy's points and the fork and rejoin pulls.
     /// </summary>
     public const string ForcesFile = "forces.json";
-
-    /// <summary>C#-only optional packs (game/content/data/packs.json; BIBLE section 9.1).</summary>
-    public const string PacksFile = "packs.json";
 
     /// <summary>C#-only room hazards (game/content/data/hazards.json; BIBLE section 9.4).</summary>
     public const string HazardsFile = "hazards.json";
@@ -77,6 +81,12 @@ public static class ContentLoader
     /// set check accepts it, but not parsed into the registry: <see cref="ThemeLoader"/> reads it for the view only.
     /// </summary>
     public const string ThemeFile = "theme.json";
+
+    /// <summary>
+    /// C#-only render palette (game/content/data/palette.json, same logical root; design/BIBLE.md section 3 telegraph contrast).
+    /// Listed so the file set check accepts it, but not parsed into the registry: <see cref="PaletteLoader"/> reads it for the view only.
+    /// </summary>
+    public const string PaletteFile = "palette.json";
 
     /// <summary>
     /// C#-only dungeon layout (game/content/data/layout.json, same logical root): rooms, corridors, pull triggers,
@@ -151,9 +161,9 @@ public static class ContentLoader
             Layout = ReadOne<LayoutDef>(source, LayoutFile)[0],
             ComboRiders = ById("combo rider", ReadArray<ComboRider>(source, ComboRidersFile)),
             Forces = ReadOne<ForcesTable>(source, ForcesFile)[0],
-            Packs = ById("pack", ReadArray<PackDef>(source, PacksFile)),
             Hazards = ById("hazard", ReadArray<HazardDef>(source, HazardsFile)),
             Gear = ById("gear item", ReadArray<GearItemDef>(source, GearFile)),
+            MeleeAbilities = new ValueList<string>(ReadArray<string>(source, MeleeAbilitiesFile)),
         };
 
         ContentValidator.Validate(registry);

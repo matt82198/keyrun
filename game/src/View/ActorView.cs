@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Keyrun.Content;
@@ -62,6 +63,11 @@ public partial class ActorView : Node3D
     private SimDriver? Driver { get; set; }
 
     private bool _bound;
+    // KF1 strike cue: the melee ability set, loaded once from the C#-only melee-abilities.json (the sim RunContent carries no
+    // melee data and the view holds no ContentRegistry). Lazy so the JSON parse happens on the first strike, not per frame.
+    private static readonly System.Lazy<System.Collections.Generic.IReadOnlySet<string>> MeleeSet =
+        new(() => StrikeCueRule.MeleeIds(ContentLoader.Load().MeleeAbilities));
+
     private Node3D? _model;
     private ActorAnimator? _animator;
     private SimState? _seenState;
@@ -284,6 +290,79 @@ public partial class ActorView : Node3D
         _lastPosition = Position;
         _hasLastPosition = true;
         _animator.Update(before, now, newTick, speed, Driver.FrameEvents, Driver.State.Tick, (int)(Driver.Alpha * 1000f));
+        if (newTick)
+        {
+            PlayStrikeCues(now);
+        }
+    }
+
+    // COMBAT-STRIKE-CUE (KF1, view-only; Godot code, not compiled or run by the tests): on each new sim tick a melee
+    // strike that lands damage (StrikeCueRule over the frame's events) draws a blade at hand height that sweeps across
+    // the struck target for StrikeCueRule.DurationMs (500 ms, the WoW swing window, f-e20614cc), then frees it. Every
+    // frame of the sweep is StrikeCueRule.Pose (height, aim caster -> target, sweep offset); the pivot is top-level so the
+    // aim is world-space, not the body's Rotation. The hit already landed on the cue's tick: this never moves hit timing.
+    private void PlayStrikeCues(ActorState now)
+    {
+        var abilities = Driver?.Run?.Content.Abilities;
+        if (abilities is null || Driver is null)
+        {
+            return;
+        }
+        var facts = new List<StrikeEvent>();
+        foreach (var e in Driver.FrameEvents)
+        {
+            if (e.Type == StrikeCueRule.DamageEvent && e.Get("sourceId") is JsInt src)
+            {
+                int? target = e.Get("targetId") is JsInt tgt ? (int)tgt.Value : null;
+                facts.Add(new StrikeEvent(e.Type, e.Tick, (int)src.Value, null, target));
+            }
+            else if (e.Type == StrikeCueRule.ResolveEvent && e.Get("actorId") is JsInt actor && e.Get("abilityId") is JsString ability)
+            {
+                facts.Add(new StrikeEvent(e.Type, e.Tick, (int)actor.Value, ability.Value));
+            }
+        }
+        var melee = MeleeSet.Value;
+        var yaw = SwingFacing.RenderYaw(Driver.State, now, abilities, _hold);
+        foreach (var cue in StrikeCueRule.Cues(facts, melee, _ => yaw))
+        {
+            if (cue.ActorId != ActorId)
+            {
+                continue;
+            }
+            var casterX = (int)now.Pos.X;
+            var casterZ = (int)now.Pos.Z;
+            var (targetX, targetZ) = (casterX, casterZ);
+            if (cue.TargetId is int tid && tid != ActorId && Driver.State.Actors.TryGetValue(tid, out var struck))
+            {
+                (targetX, targetZ) = ((int)struck.Pos.X, (int)struck.Pos.Z);
+            }
+            var reach = StrikeCueRule.ReachMm * MmToM;
+            // A long thin blade, flat in the swing plane, running from the hand out along the pivot's local +x (forward).
+            var blade = new MeshInstance3D
+            {
+                Mesh = new BoxMesh { Size = new Vector3(reach, 0.04f, 0.14f) },
+                Position = new Vector3(reach / 2f, 0f, 0f),
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+                MaterialOverride = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = new Color(1f, 0.85f, 0.4f) },
+            };
+            var pivot = new Node3D { TopLevel = true };
+            pivot.AddChild(blade);
+            AddChild(pivot);
+            var fallbackYaw = cue.Yaw;
+            void Apply(int ms)
+            {
+                var pose = StrikeCueRule.Pose(casterX, casterZ, targetX, targetZ, ms);
+                var baseRad = pose.HasAim ? Mathf.Atan2(pose.AimZMm, pose.AimXMm) : fallbackYaw * RadPerYaw;
+                // Sim yaw theta faces (cos, sin) in (x, z); a Y rotation of -theta turns local +x onto it (see YawRadians).
+                pivot.GlobalPosition = GlobalPosition + new Vector3(0f, pose.HeightMm * MmToM, 0f);
+                pivot.GlobalRotation = new Vector3(0f, -(baseRad + (pose.SweepYaw * RadPerYaw)), 0f);
+                pivot.Visible = pose.Visible;
+            }
+            Apply(0);
+            var tween = pivot.CreateTween();
+            tween.TweenMethod(Callable.From<int>(Apply), 0, cue.DurationMs - 1, cue.DurationMs / 1000.0);
+            tween.TweenCallback(Callable.From(pivot.QueueFree));
+        }
     }
 
     // KF1: every health drop lights the body for AnimRule.FlashTicks sim ticks (an additive overlay on each mesh), so a
@@ -580,6 +659,12 @@ public partial class ActorView : Node3D
                 _gearRoot.AddChild(mesh);
                 _gearMeshes.Add(mesh);
             }
+        }
+        // The GEAR log names only the Warden (Self): the scene test requires that no enemy or bot ally is named by any GEAR
+        // line. An enemy still gets its (empty) plan above; it just does not log it.
+        if (RoleOf(now) != FadeRole.Self)
+        {
+            return;
         }
         if (plan.Count == 0)
         {

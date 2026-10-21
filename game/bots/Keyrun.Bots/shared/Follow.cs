@@ -140,6 +140,55 @@ public static class Follow
     }
 
     /// <summary>
+    /// Ticks a party's leader may stand still in the Entrance (box 0) with no engaged enemy before the bots take the lead
+    /// (KF2, BOTS-ENGAGE-CHOIR). 200 ticks is 10 s at 20 Hz: a walking leader is out of the Entrance well before it.
+    /// </summary>
+    public const int IdleLeaderTicks = 200;
+
+    /// <summary>
+    /// True when the party's leader (<see cref="Leader"/>) has stood in the Entrance box (box 0) past
+    /// <see cref="IdleLeaderTicks"/> with no engaged enemy alive, and another living player seat exists to take the lead.
+    /// A human who never walks would otherwise hold every bot at the Entrance forever: the lead is the lowest living seat,
+    /// and the bots only walk the route when that seat is a bot (<see cref="LeadCommand"/>). Stateless: it reads the view
+    /// only (tick, positions, the layout), never the human's input.
+    /// </summary>
+    /// <param name="view">This tick's view.</param>
+    /// <returns>True when the lead is handed over to the next living seat.</returns>
+    public static bool LeadHandedOver(BotView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        if (view.Layout is not { } layout || AnyLivingEnemy(view.State) || view.State.Tick < IdleLeaderTicks)
+        {
+            return false;
+        }
+        if (Leader(view.State) is not { } leader || layout.BoxIndexAt(leader.Pos) != 0)
+        {
+            return false;
+        }
+        return view.State.Actors.Values.Any(a => a.Kind == ActorKind.Player && a.Alive && a.Id != leader.Id);
+    }
+
+    /// <summary>
+    /// The lead the bots follow: <see cref="Leader"/>, or while <see cref="LeadHandedOver"/> holds, the lowest other living
+    /// player seat (the bots lead, and the party follows them, while the lead seat stands still at the Entrance).
+    /// </summary>
+    /// <param name="view">This tick's view.</param>
+    /// <returns>The leader, or null when no player lives.</returns>
+    public static ActorState? LeaderOf(BotView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        var leader = Leader(view.State);
+        if (leader is null || !LeadHandedOver(view))
+        {
+            return leader;
+        }
+        return view.State.Actors.Values
+            .Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != leader.Id)
+            .OrderBy(a => a.Id)
+            .First();
+    }
+
+    /// <summary>
     /// The next point to walk at from <paramref name="from"/> toward <paramref name="goal"/> through the layout's boxes:
     /// the goal itself when both share a box, else the doorway out of the walker's box toward the goal's box (forward
     /// route point k, or backward route point k-1). Outside every box, the goal.
@@ -263,13 +312,15 @@ public static class Follow
         {
             return null;
         }
-        if (Leader(view.State)?.Id != self.Id)
+        if (LeaderOf(view)?.Id != self.Id)
         {
             return null;
         }
         var tick = view.State.Tick;
         var (_, high) = Span(layout, self.Pos);
-        if (high > 0 && layout.Boxes[high] is { IsRoom: true } room && HasPull(layout, room) &&
+        // A handed-over lead (LeadHandedOver) does not wait for the party: the seat that stood still never comes in, so the
+        // bots walk the route and engage the pull with the party behind them.
+        if (!LeadHandedOver(view) && high > 0 && layout.Boxes[high] is { IsRoom: true } room && HasPull(layout, room) &&
             !view.State.Actors.Values.Any(a => a.Kind == ActorKind.Enemy && (!a.Alive || !a.Idle) && Movement.Contains(room.Box, a.Pos)) &&
             !NavLayout.PartyInside(view.State, room.Box))
         {
@@ -353,7 +404,7 @@ public static class Follow
         {
             return null;
         }
-        if (Leader(view.State) is not { } leader || leader.Id == self.Id)
+        if (LeaderOf(view) is not { } leader || leader.Id == self.Id)
         {
             return null;
         }

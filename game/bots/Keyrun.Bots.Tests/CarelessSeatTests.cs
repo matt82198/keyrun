@@ -55,7 +55,7 @@ public sealed class CarelessSeatTests
 
     private static long Int(SimEvent e, string key) => ((JsInt)e.Get(key)!).Value;
 
-    private static Drive DriveRun(bool careless)
+    private static Drive DriveRun(bool careless, int until = EngageWithinTicks)
     {
         var registry = ContentLoader.Load();
         var layoutDef = registry.Layout;
@@ -82,7 +82,7 @@ public sealed class CarelessSeatTests
         IReadOnlyDictionary<int, Vec3> atEngage = new Dictionary<int, Vec3>();
         var carelessAtFrom = run.State.Actors[CarelessId].Pos;
         var events = new List<SimEvent>();
-        while (run.State.Tick < EngageWithinTicks && (engage is null || run.State.Tick < engage.Value + HitWithinTicks))
+        while (run.State.Tick < until && (engage is null || run.State.Tick < engage.Value + HitWithinTicks))
         {
             if (run.State.Tick == FromTick)
             {
@@ -180,10 +180,16 @@ public sealed class CarelessSeatTests
         Assert.NotNull(Careless.StrayTarget(View(), self, plan));
     }
 
-    [Fact(DisplayName = "Careless seat control: the same seat without the plan follows its formation slot, and nothing engages or hits it")]
-    public void Without_the_plan_the_seat_follows_and_nothing_engages()
+    /// <summary>
+    /// Re-premised by ruling R5 (2026-10-21): bots take the lead after Follow.IdleLeaderTicks idle ticks, so the Choir may
+    /// engage from that tick on. The control's intent stands: a careless seat without a plan does not lead early. The drive
+    /// is bounded to ticks 0..Follow.IdleLeaderTicks - 1, the handover window, and nothing may engage or hit the seat there.
+    /// </summary>
+    [Fact(DisplayName = "Careless seat control: without the plan the seat follows its formation slot and nothing engages before the R5 handover (ruling R5 2026-10-21: bots take the lead after Follow.IdleLeaderTicks idle ticks)")]
+    public void Without_the_plan_the_seat_follows_and_nothing_engages_before_the_R5_handover()
     {
-        var d = DriveRun(careless: false);
+        // ruling R5 2026-10-21: bots take the lead after Follow.IdleLeaderTicks idle ticks
+        var d = DriveRun(careless: false, until: Follow.IdleLeaderTicks);
         Assert.Null(d.EngageTick);
         Assert.DoesNotContain(d.Events, e => e.Type == "pull_start");
         Assert.Empty(ChoirHitsOn(d, CarelessId));

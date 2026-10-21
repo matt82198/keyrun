@@ -11,8 +11,10 @@
       k2. the Warden's kick is spent in pull 1 (the Choir lieutenant, ScriptedWarden's Kick): at least one
           "HUD party kick seat=1 ability=warden.shieldBash state=cooldown left=N" line, with 0 < N <= 480 (the arc
           starts full);
-      k3. the arc drains: the seat 1 cooldown lines carry at least three distinct left=N values, strictly falling in
-          the order printed (the arc shrinks as the cooldown runs);
+      k3. the arc drains: the seat 1 cooldown lines carry at least three distinct left=N values in the first cooldown
+          cycle, and within EACH cooldown cycle the left=N values strictly fall in the order printed (a cycle is the run
+          of cooldown lines that a state=ready line ends; a new cooldown after the kick returns is a new cycle, so its
+          first value may be higher than the last value of the previous cycle);
       k4. the kick comes back: after the seat 1 cooldown line, a "HUD party kick seat=1 ... state=ready" line appears
           (the pip returns when the cooldown ends, 480 ticks after the kick).
 
@@ -49,6 +51,37 @@ $all = @($text -split "`r?`n")
 
 $kickLines = @($all | Where-Object { $_ -match '^HUD party kick seat=\d+ ability=\S+ state=(ready|cooldown left=\d+)$' })
 
+# Pure helpers for k3, kept as functions so tools can load them without running the scene (see the unit check).
+# Get-SeatOneCooldownCycles: splits the seat 1 Warden kick cooldown lines into cycles. A state=ready line ends the
+# current cycle; cooldown lines after it start the next one. Appends one int array per cycle to -Cycles (caller-owned
+# list, so nothing is unrolled by the pipeline).
+function Get-SeatOneCooldownCycles {
+    param([string[]]$Lines, [System.Collections.Generic.List[object]]$Cycles)
+    $current = New-Object System.Collections.Generic.List[int]
+    foreach ($l in $Lines) {
+        if ($l -match '^HUD party kick seat=1 ability=warden\.shieldBash state=ready$') {
+            if ($current.Count -gt 0) { $Cycles.Add($current.ToArray()); $current = New-Object System.Collections.Generic.List[int] }
+        } elseif ($l -match '^HUD party kick seat=1 ability=warden\.shieldBash state=cooldown left=(\d+)$') {
+            $current.Add([int]$Matches[1])
+        }
+    }
+    if ($current.Count -gt 0) { $Cycles.Add($current.ToArray()) }
+}
+# Test-CooldownCycleDrop: appends one message per cycle whose left=N values do not strictly fall to -Problems; each
+# names the cycle and the offending pair. Values are compared only within a cycle, never across the ready boundary.
+function Test-CooldownCycleDrop {
+    param([System.Collections.Generic.List[object]]$Cycles, [System.Collections.Generic.List[string]]$Problems)
+    for ($c = 0; $c -lt $Cycles.Count; $c++) {
+        $v = [int[]]$Cycles[$c]
+        for ($i = 1; $i -lt $v.Count; $i++) {
+            if ($v[$i] -ge $v[$i - 1]) {
+                $Problems.Add("k3: seat 1 cooldown left did not fall within cycle $($c + 1): $($v[$i - 1]) then $($v[$i]) (samples $i and $($i + 1) of that cycle)")
+                break
+            }
+        }
+    }
+}
+
 # k1. every party seat starts ready on its own class Interrupt slot.
 $expect = @{ 1 = 'warden.shieldBash'; 2 = 'chanter.rebuke'; 3 = 'cinder.quench' }
 foreach ($seat in 1..3) {
@@ -69,15 +102,15 @@ foreach ($l in $cool1) {
     if ($left -le 0 -or $left -gt 480) { $failures.Add("k2: seat 1 cooldown left=$left outside (0, 480]: '$l'") }
 }
 
-# k3. the arc drains: at least three distinct left values, falling in print order.
-$lefts = @($cool1 | ForEach-Object { [int]([regex]::Match($_, 'left=(\d+)$').Groups[1].Value) })
-if (@($lefts | Select-Object -Unique).Count -lt 3) {
-    $failures.Add("k3: fewer than three distinct seat 1 cooldown values (the arc did not drain): [$($lefts -join ',')]")
-} else {
-    for ($i = 1; $i -lt $lefts.Count; $i++) {
-        if ($lefts[$i] -ge $lefts[$i - 1]) { $failures.Add("k3: seat 1 cooldown left did not fall: $($lefts[$i - 1]) then $($lefts[$i])"); break }
-    }
+# k3. the arc drains: at least three distinct left values in the first cooldown cycle, and strictly falling in print
+# order within every cycle. The comparison never spans a state=ready line (the kick came back and was cast again).
+$cycles = New-Object System.Collections.Generic.List[object]
+Get-SeatOneCooldownCycles -Lines $kickLines -Cycles $cycles
+$firstCycle = if ($cycles.Count -gt 0) { [int[]]$cycles[0] } else { [int[]]@() }
+if (@($firstCycle | Select-Object -Unique).Count -lt 3) {
+    $failures.Add("k3: fewer than three distinct seat 1 cooldown values in the first cooldown cycle (the arc did not drain): [$($firstCycle -join ',')]")
 }
+Test-CooldownCycleDrop -Cycles $cycles -Problems $failures
 
 # k4. the pip returns once the cooldown ends.
 $ready = $null

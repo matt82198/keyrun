@@ -88,16 +88,12 @@ public partial class Queue : Node
         if (_screen is not null)
         {
             _screen.Queued += Add;
+            // Placed every frame on ActionBarLayout.QueueReadout (finding f-3c1f4542: never over the ability bar).
             _readout = new Label
             {
                 Name = ReadoutNodeName,
-                AnchorLeft = 0f,
-                AnchorRight = 1f,
-                AnchorTop = 1f,
-                AnchorBottom = 1f,
-                OffsetTop = -64f,
-                OffsetBottom = -36f,
                 HorizontalAlignment = HorizontalAlignment.Center,
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
                 MouseFilter = Control.MouseFilterEnum.Ignore,
                 Visible = false,
             };
@@ -127,6 +123,7 @@ public partial class Queue : Node
         {
             return;
         }
+        PlaceReadout();
         var wait = QueueWait.Describe(GateState());
         if (wait.Length > 0)
         {
@@ -143,24 +140,45 @@ public partial class Queue : Node
     }
 
     /// <summary>
+    /// Puts the readout on <see cref="Keyrun.Content.ActionBarLayout.QueueReadout"/>: the party panel's text row in a
+    /// live run (left aligned under the frames), else bottom centre on the queue screen.
+    /// </summary>
+    private void PlaceReadout()
+    {
+        var view = _screen!.Size;
+        var seats = PartySeats();
+        var rect = Keyrun.Content.ActionBarLayout.QueueReadout((int)view.X, (int)view.Y, seats);
+        _readout!.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
+        _readout.Position = new Vector2(rect.X, rect.Y);
+        _readout.Size = new Vector2(rect.Width, rect.Height);
+        _readout.HorizontalAlignment = seats > 0 ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+    }
+
+    // Player seats in the live run (0 with no run: no ability bar, no party frames).
+    private int PartySeats() =>
+        _driver?.Run is { } run ? run.State.Actors.Values.Count(a => a.Kind == ActorKind.Player) : 0;
+
+    /// <summary>
     /// The gate state the wait readout is a pure function of. An open check reads while it waits; a finished check's
     /// outcome reads only for <see cref="OutcomeHoldSeconds"/> after it ends, so a stale check never sticks on screen.
     /// </summary>
     private QueueGateState GateState()
     {
         var check = Check;
-        var phase = check?.Phase;
-        if (phase == ReadyPhase.Pending && !Gate.Checking)
-        {
-            phase = null;
-        }
-        if (phase is ReadyPhase.Enter or ReadyPhase.Requeue && _outcomeLeft <= 0)
-        {
-            phase = null;
-        }
-        var seats = phase is null || check is null ? 0 : check.Seats.Count;
+        var partySeats = PartySeats();
+        var openSeats = _driver?.OpenSeats.Count ?? 0;
         var humanReady = check is not null && check.ReadySeats.Contains(Gate.HumanSeat);
-        return new QueueGateState(phase, seats, humanReady, Gate.RemainingTicks(ClockTick), 0, 0);
+        // The fill time is not modelled (the backfill joins at the next pull start), so the open-seat line reads "at the next pull".
+        return QueueWait.StateFor(
+            check?.Phase,
+            Gate.Checking,
+            check?.Seats.Count ?? 0,
+            humanReady,
+            Gate.RemainingTicks(ClockTick),
+            _outcomeLeft > 0,
+            partySeats,
+            openSeats,
+            0);
     }
 
     /// <inheritdoc />
