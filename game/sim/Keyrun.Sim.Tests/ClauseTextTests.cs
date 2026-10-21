@@ -93,19 +93,16 @@ public sealed class ClauseTextTests
     }
 
     /// <summary>
-    /// Known mismatch, handed back for a text or sim fix (wrong data shown to the player is P0): the Tide sentence says
-    /// "Floor patches (Windows and hazards) drift", but the sim drifts only enemy telegraphs (EncounterStep.cs
-    /// Clauses.DriftTelegraphs); a floor Window stays where it opened (Windows.cs OpenWindow, nothing writes
-    /// FloorWindow.Pos again). When the two agree this test fails until the flag below is cleared.
+    /// The Tide sentence says "Floor patches (Windows and hazards) drift"; the sim drifts a floor Window each tick under
+    /// Tide (Clauses.DriftFloorWindows, called from Run.cs before Tick.Step). The text names Windows exactly when the
+    /// sim moves one.
     /// </summary>
-    private const bool TideWindowsKnownMismatch = true;
-
     [Fact]
     public void Tide_text_says_windows_drift_exactly_when_the_sim_drifts_them()
     {
         var claimed = Regex.IsMatch(Tide().Description, @"\bWindows\b", RegexOptions.CultureInvariant);
         var drifted = WindowDrift() != 0;
-        Assert.True((claimed == drifted) != TideWindowsKnownMismatch,
-            "Tide text says Windows drift: " + claimed + "; sim drifts a floor Window: " + drifted + "; known mismatch flag: " + TideWindowsKnownMismatch);
+        Assert.True(claimed == drifted,
+            "Tide text says Windows drift: " + claimed + "; sim drifts a floor Window: " + drifted);
     }
 }
