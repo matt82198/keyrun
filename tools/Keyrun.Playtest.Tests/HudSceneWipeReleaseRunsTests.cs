@@ -45,8 +45,14 @@ public sealed class HudSceneWipeReleaseRunsTests
     /// <summary>HudSceneTest.ps1 $TintTicks: run N's <c>--autorun --ticks</c>.</summary>
     internal const int RunNTicks = 8500;
 
-    /// <summary>HudSceneTest.ps1 $TintAbandon: run N's <c>--abandon-seat</c> (unchanged).</summary>
-    internal const string RunNAbandon = "2@200";
+    /// <summary>
+    /// HudSceneTest.ps1 $TintAbandon: run N's <c>--abandon-seat</c>. Re-derived for the #449 bots (pull_clear 1552): at
+    /// e87cade0 the old <c>2@200</c> lets the party clear all four pulls (last clear at 8231, the cap end at 8232, so
+    /// PullIndex reaches Count and the cap end is not uncleared), while <c>2@300</c> wipes from tick 596 on and ends at the
+    /// timer cap uncleared at 7643. Measured: 2@200 end 8232 PullIndex 4/4; 2@300 end 7643 PullIndex 0/4 (also 2@100 end
+    /// 7600 and 2@400 end 7812 wipe; 3@* never wipes and runs to the 28800 cap).
+    /// </summary>
+    internal const string RunNAbandon = "2@300";
 
     /// <summary>HudSceneTest.ps1 $WipeFrames: run I's <c>--quit-after</c> frames (interactive, three frames per tick).</summary>
     internal const int RunIFrames = 41200;
@@ -218,7 +224,7 @@ public sealed class HudSceneWipeReleaseRunsTests
     }
 
     /// <summary>
-    /// Run N (<c>--autorun --abandon-seat 2@200</c>, lane TINT-RUNOVER): the party wipes and releases, and the run ends at
+    /// Run N (<c>--autorun --abandon-seat 2@300</c>, lane TINT-RUNOVER): the party wipes and releases, and the run ends at
     /// the timer cap uncleared (check 41's "HUD runend result=depleted ... cleared=0" and its "over=1" lines need that
     /// end inside $TintTicks).
     /// </summary>
