@@ -78,14 +78,17 @@ public static class Ascension
         return run.Ascended && run.Timed && run.KeyLevel > MarkKeyAbove;
     }
 
-    /// <summary>The character's Ascension marks, counted from <see cref="Progression.History"/>.</summary>
+    /// <summary>
+    /// The character's Ascension marks: the run marks counted from <see cref="Progression.History"/> plus one per
+    /// Ascension card taken (<see cref="Progression.AscensionCardMarks"/>).
+    /// </summary>
     /// <param name="progression">The character.</param>
     /// <returns>The count.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="progression"/> is null.</exception>
     public static int Marks(Progression progression)
     {
         ArgumentNullException.ThrowIfNull(progression);
-        return progression.History.Count(IsMark);
+        return progression.History.Count(IsMark) + progression.AscensionCardMarks;
     }
 
     /// <summary>The whole readout for <paramref name="progression"/>, from the reads above.</summary>
