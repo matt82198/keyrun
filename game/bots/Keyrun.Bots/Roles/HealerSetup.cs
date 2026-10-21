@@ -20,8 +20,11 @@ namespace Keyrun.Bots.Roles;
 /// <list type="number">
 /// <item>Either verse: Cadence plays the caster's verse variant on its target, but its HoT (Mend) or shield (Ward) never
 /// lands on an enemy (Casting.ApplyEffects HEAL-NEVER-HOSTILE, #390), so only the Attuned Window does.</item>
-/// <item>The Setup is the first of the kit's Setup abilities that is target-shaped in content (a circle Setup such as
-/// Hymn or Group Song resolves onto friendlies), ready and affordable.</item>
+/// <item>The Setup is the first of the kit's Setup abilities that is target-shaped as the run casts it (a circle Setup
+/// such as Hymn or Group Song resolves onto friendlies; <see cref="KitRegistry.IsTargetShapedForRun"/> reads the run's
+/// gear-patched def on the host, where the bot seats' default chanter.weapon.wideningCadence makes Cadence a circle;
+/// the TS twin has no run map and keeps content's shape, which is the same def in every gear-free oracle run), ready and
+/// affordable.</item>
 /// <item>The partner is the first living damage-role ally (actor id order) of another class, within
 /// <see cref="DamageRole.PayoffAllyRangeMm"/> of the healer, with no Window it could already close, with no Setup of
 /// its own ready (the healer fills the gaps in the partner's own Window chain, never takes the slot from it), and with
@@ -75,7 +78,10 @@ public static class HealerSetup
         AbilityDef? setup = null;
         foreach (var id in kit.SetupAbilityIds)
         {
-            if (reg.Abilities.TryGetValue(id, out var def) && def.Shape.Kind == ShapeKind.Target && RoleShared.ReadyAndAffordable(self, id, tick, kit))
+            // Target-shaped as the run casts it (KitRegistry.IsTargetShapedForRun), not as content defines it: a Facet
+            // can make the Setup a circle (chanter.weapon.wideningCadence), which resolves onto friendlies, never on the
+            // partner's enemy.
+            if (reg.Abilities.TryGetValue(id, out var def) && view.Kits.IsTargetShapedForRun(id) && RoleShared.ReadyAndAffordable(self, id, tick, kit))
             {
                 setup = def;
                 break;
