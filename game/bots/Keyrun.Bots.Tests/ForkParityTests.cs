@@ -144,7 +144,11 @@ public sealed class ForkParityTests
     /// Runs <paramref name="scenario"/> with the bots, every member of <paramref name="classId"/> carrying
     /// <paramref name="talented"/> (null = no loadout, the base kit).
     /// </summary>
-    private static RunMeasures Measure(Scenario scenario, string? classId, S.AbilityDef? talented)
+    /// <param name="scenario">The seeded run.</param>
+    /// <param name="classId">The fork's class, or null for the base kit.</param>
+    /// <param name="talented">The talented ability, or null for the base kit.</param>
+    /// <param name="onStep">Optional observer of each step's events (diagnostic tests only; never changes the run).</param>
+    private static RunMeasures Measure(Scenario scenario, string? classId, S.AbilityDef? talented, Action<IReadOnlyList<SimEvent>>? onStep = null)
     {
         var setup = scenario.Setup;
         var options = setup.Options ?? new RunOptions();
@@ -181,6 +185,7 @@ public sealed class ForkParityTests
             prng = batch.Prng;
             var stepped = RunRoot.StepRun(run, batch.Commands);
             run = stepped.Run;
+            onStep?.Invoke(stepped.Events.ToList());
             foreach (var e in stepped.Events)
             {
                 if (e.Type == "combo")
@@ -459,6 +464,38 @@ public sealed class ForkParityTests
         Assert.True(unlistedFlat.Count == 0, "forks the check cannot measure (every option runs identically), list them in UnmeasuredForks:\n" + string.Join("\n", unlistedFlat));
         Assert.True(staleFlat.Count == 0, "UnmeasuredForks lists forks that are now measured; remove them:\n" + string.Join("\n", staleFlat));
         Assert.True(flat.Count < all.Count, "no fork is measured at all: the check is vacuous");
+    }
+
+    /// <summary>
+    /// R-FORK-RETUNE-1 (findings f-a49de510, f-82e6a860): Flashpoint changes Cinderfield's function, not its numbers.
+    /// Spreading Flame is the wide floor patch (a field Combo for whoever stands in it); Flashpoint ignites the Cinder's
+    /// target instead, so its Window rides the enemy and an ally's Payoff on that enemy lands the pair burst Combo (Forge
+    /// or Steam), the single-target play (BIBLE s6 "which Window/Payoff tag the ability carries", s7 "retags an
+    /// ability's Window"). It only earns its place if the bots actually use it that way: counted as burst "combo" events
+    /// closing a cinderfield Window on a target (any comboId but the floor's "cinderfield-field"), in every run.
+    /// </summary>
+    [Fact(DisplayName = "fork parity > the bots close Flashpoint's on-target Window for a pair burst Combo in every seeded run")]
+    public void Flashpoint_window_is_closed_on_its_target_by_the_bots()
+    {
+        var registry = Registry.Value;
+        var fork = registry.Classes["cinder"].Talents.Single(f => f.AbilityId == "cinder.cinderfield");
+        var option = fork.Options.Single(o => o.Id == "flashpoint");
+        var talented = ToSim(C.TalentPicks.ApplyPatch(registry.Abilities[fork.AbilityId], option.Patch));
+        var perRun = new List<int>();
+        foreach (var scenario in Loaded.Value)
+        {
+            var landed = 0;
+            Measure(scenario, "cinder", talented, events =>
+                landed += events.Count(e =>
+                    e.Type == "combo"
+                    && e.Get("windowId") is JsString w && w.Value == "cinderfield"
+                    && e.Get("comboId") is JsString c && c.Value != "cinderfield-field"
+                    && e.Get("targetId") is JsInt));
+            perRun.Add(landed);
+            _output.WriteLine($"{scenario.Name}: Flashpoint's on-target Window closed for a burst Combo {landed} times");
+        }
+        Assert.True(perRun.All(n => n > 0), "Flashpoint's on-target Window must be closed for a pair burst Combo in every fork-parity run (R-FORK-RETUNE-1), measured: "
+            + string.Join(", ", perRun));
     }
 
     [Fact(DisplayName = "fork parity > the base kit through the converter runs identically to the setup's kit")]

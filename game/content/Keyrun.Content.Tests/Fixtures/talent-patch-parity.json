@@ -3900,17 +3900,16 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 260,
+        "cooldownTicks": 200,
         "cost": {
           "amount": 0,
           "resource": "none"
         },
         "effects": [
           {
-            "durationTicks": 160,
-            "onTarget": false,
+            "durationTicks": 100,
+            "onTarget": true,
             "op": "window",
-            "radiusMm": 1800,
             "setupClass": "cinder",
             "windowId": "cinderfield"
           },
@@ -3927,8 +3926,7 @@
         "name": "Cinderfield",
         "range": 25000,
         "shape": {
-          "kind": "circle",
-          "radius": 2500
+          "kind": "target"
         },
         "tags": [
           "setup:cinderfield"
