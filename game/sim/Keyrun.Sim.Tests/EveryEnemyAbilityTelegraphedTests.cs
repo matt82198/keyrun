@@ -7,6 +7,7 @@ using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Runs;
 using Keyrun.Tools.Replay;
 using Xunit;
+using SC = Keyrun.Sim.Combat;
 
 namespace Keyrun.Sim.Tests;
 
@@ -63,6 +64,20 @@ public sealed class EveryEnemyAbilityTelegraphedTests
         "seed.deathBloom",
     };
 
+    /// <summary>
+    /// On-death bursts: casts an enemy fires only from an <c>onDeath</c> step, the tick after it dies, so no living
+    /// caster can hold a cast bar for them. Ruling 2026-10-21 (orchestrator, VAULT-KITS S1 brief, BIBLE 9.3 "When an Ash
+    /// Hexer dies it leaves Cinders ... telegraphed 40 ticks ahead"): Cinders stays an onDeath burst for now and a lingering
+    /// floor patch is slice S6 HAZARDS. Named here so the exemption is explicit and narrow: it waives only the cast bar,
+    /// and each entry must be cast by onDeath steps alone, each with a shaped floor telegraph led by at least
+    /// <see cref="MinLeadTicks"/> (<see cref="On_death_bursts_are_real_on_death_casts_with_a_floor_telegraph"/>). An
+    /// unkillable solo enemy never fires it, so the in-play landing count does not judge it.
+    /// </summary>
+    public static readonly IReadOnlySet<string> OnDeathBursts = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "ash.cinders",
+    };
+
     private const int AutoAttackMaxRangeMm = 3000;
     private const int Ticks = 3000;
     private const int SoloActor = 500;
@@ -84,9 +99,14 @@ public sealed class EveryEnemyAbilityTelegraphedTests
             .SelectMany(f => ParseArray(f).Items.Cast<JsObject>())
             .ToDictionary(Id, e => e, StringComparer.Ordinal);
 
-    /// <summary>Every ability in content/data/abilities/enemies.json, by id.</summary>
+    /// <summary>
+    /// Every ability in content/data/abilities/*.json (both content roots, as <see cref="Enemies"/> reads them), by id: the
+    /// root enemies.json and the C#-only game/content/data/abilities/vault.json (BIBLE 9.3 vault casts, VAULT-KITS S1).
+    /// Class abilities ride along but only enemy kits are enumerated.
+    /// </summary>
     private static Dictionary<string, JsObject> EnemyAbilities() =>
-        ParseArray(Path.Combine(Root, "content", "data", "abilities", "enemies.json")).Items.Cast<JsObject>()
+        ContentRoots.KindFiles(Root, "abilities")
+            .SelectMany(f => ParseArray(f).Items.Cast<JsObject>())
             .ToDictionary(Id, a => a, StringComparer.Ordinal);
 
     private static IEnumerable<string> Kit(JsObject enemy)
@@ -227,7 +247,7 @@ public sealed class EveryEnemyAbilityTelegraphedTests
         foreach (var (enemyId, abilityId) in threats)
         {
             var a = abilities[abilityId];
-            if (CastTicks(a) <= 0)
+            if (CastTicks(a) <= 0 && !OnDeathBursts.Contains(abilityId))
             {
                 gaps.Add($"{enemyId} {abilityId}: castTicks {CastTicks(a)}, no cast bar");
             }
@@ -342,6 +362,47 @@ public sealed class EveryEnemyAbilityTelegraphedTests
         Assert.True(problems.Count == 0, "bad WindowCastsWithoutFloorTelegraph entries (BIBLE s3):\n" + string.Join("\n", problems));
     }
 
+    [Fact(DisplayName = "Every named on-death burst is cast only by onDeath steps, each with a shaped floor telegraph led 10+ ticks")]
+    public void On_death_bursts_are_real_on_death_casts_with_a_floor_telegraph()
+    {
+        var abilities = EnemyAbilities();
+        var problems = new List<string>();
+        foreach (var id in OnDeathBursts.OrderBy(x => x, StringComparer.Ordinal))
+        {
+            if (!abilities.ContainsKey(id))
+            {
+                problems.Add($"{id}: not an enemy ability in content/data/abilities");
+                continue;
+            }
+            var steps = Enemies().Values.SelectMany(ScriptSteps).Where(s => StrOf(s.Get("cast")) == id).ToList();
+            if (steps.Count == 0)
+            {
+                problems.Add($"{id}: no enemy script casts it");
+            }
+            foreach (var s in steps)
+            {
+                if (StrOf(s.Get("at")) != "onDeath")
+                {
+                    problems.Add($"{id}: cast at {s.Get("at")}, not onDeath, so a living caster could hold a bar and the exemption does not describe it");
+                }
+                if (s.Get("telegraph") is not JsObject tg)
+                {
+                    problems.Add($"{id}: onDeath step has no floor telegraph");
+                    continue;
+                }
+                if (ShapeProblem(StrOf(tg.Get("shape")), IntOf(tg.Get("radius")), IntOf(tg.Get("angle1024")), IntOf(tg.Get("length")), IntOf(tg.Get("width"))) is { } bad)
+                {
+                    problems.Add($"{id}: telegraph {bad}");
+                }
+                if (IntOf(tg.Get("leadTicks")) is not { } lead || lead < MinLeadTicks)
+                {
+                    problems.Add($"{id}: leadTicks {IntOf(tg.Get("leadTicks"))} below {MinLeadTicks}");
+                }
+            }
+        }
+        Assert.True(problems.Count == 0, "bad OnDeathBursts entries (BIBLE s3):\n" + string.Join("\n", problems));
+    }
+
     /// <summary>One played run: its events, each tick's pending telegraphs, and each tick's enemy cast bars.</summary>
     private sealed record Played(
         List<SimEvent> Events,
@@ -375,9 +436,83 @@ public sealed class EveryEnemyAbilityTelegraphedTests
     private static IReadOnlyList<ScriptStep> Scaled(JsObject enemy, int key) =>
         Tempo.ScaleScript(EncounterJson.ParseScript(enemy.Get("script")!), key);
 
+    /// <summary>
+    /// The C#-only enemy kits (game/content/data/abilities/*.json and effects/*.json, e.g. the BIBLE 9.3 vault casts of
+    /// VAULT-KITS S1) as sim defs. The oracle setup predates them, so a solo run of a vault enemy would otherwise never
+    /// cast and the landing judge would see nothing. Reads only the ops those files use; any other op fails closed.
+    /// </summary>
+    private static (Dictionary<string, SC.AbilityDef> Abilities, Dictionary<string, SC.EffectDef> Effects) CsOnlyKits()
+    {
+        string dir(string kind) => Path.Combine(Root, "game", "content", "data", kind);
+        IEnumerable<JsObject> items(string kind) => Directory.Exists(dir(kind))
+            ? Directory.GetFiles(dir(kind), "*.json").OrderBy(f => f, StringComparer.Ordinal).SelectMany(f => ParseArray(f).Items.Cast<JsObject>())
+            : Enumerable.Empty<JsObject>();
+        long req(JsObject o, string k) => IntOf(o.Get(k)) ?? throw new InvalidOperationException($"{k} missing");
+        SC.EffectOp op(JsObject o) => StrOf(o.Get("op")) switch
+        {
+            "damage" => new SC.DamageOp(req(o, "amount"), StrOf(o.Get("school"))!),
+            "applyEffect" => new SC.ApplyEffectOp(StrOf(o.Get("effectId"))!, (int)req(o, "durationTicks"), req(o, "stacks")),
+            "damagePct" => new SC.DamagePctOp(req(o, "maxHealthBp"), StrOf(o.Get("school"))!),
+            "pull" => new SC.PullOp(req(o, "distanceMm")),
+            var k => throw new InvalidOperationException($"C#-only kit op '{k}' is not read by this test"),
+        };
+        var abilities = items("abilities").ToDictionary(Id, a =>
+        {
+            var shape = (JsObject)a.Get("shape")!;
+            var cost = (JsObject)a.Get("cost")!;
+            return new SC.AbilityDef
+            {
+                Id = Id(a),
+                CastTicks = (int)req(a, "castTicks"),
+                GcdTicks = (int)req(a, "gcdTicks"),
+                CooldownTicks = (int)req(a, "cooldownTicks"),
+                Charges = req(a, "charges"),
+                Cost = new SC.AbilityCost(StrOf(cost.Get("resource"))!, req(cost, "amount")),
+                Range = req(a, "range"),
+                Shape = new SC.AbilityShape(
+                    StrOf(shape.Get("kind")) switch
+                    {
+                        "target" => SC.ShapeKind.Target,
+                        "self" => SC.ShapeKind.Self,
+                        "cone" => SC.ShapeKind.Cone,
+                        "circle" => SC.ShapeKind.Circle,
+                        "line" => SC.ShapeKind.Line,
+                        var k => throw new InvalidOperationException($"shape '{k}'"),
+                    },
+                    IntOf(shape.Get("radius")), IntOf(shape.Get("angle1024")), IntOf(shape.Get("length"))),
+                Interruptible = a.Get("interruptible") is JsBool { Value: true },
+                Effects = Effects(a).Select(op).ToList(),
+                Tags = a.Get("tags") is JsArray t ? t.Items.Select(v => StrOf(v)!).ToList() : null,
+            };
+        }, StringComparer.Ordinal);
+        var effects = items("effects").ToDictionary(Id, e =>
+        {
+            var m = (JsObject)e.Get("modifiers")!;
+            return new SC.EffectDef(
+                Id(e),
+                req(e, "maxStacks"),
+                StrOf(e.Get("dispellableTag")),
+                new SC.EffectModifiers(IntOf(m.Get("damageDoneBp")), IntOf(m.Get("damageTakenBp")), IntOf(m.Get("hasteBp")), IntOf(m.Get("movementBp")), IntOf(m.Get("absorb"))),
+                e.Get("periodic") is JsObject p ? new SC.EffectPeriodic((int)req(p, "everyTicks"), op((JsObject)p.Get("op")!)) : null);
+        }, StringComparer.Ordinal);
+        return (abilities, effects);
+    }
+
+    private static IReadOnlyDictionary<string, T> Merged<T>(IReadOnlyDictionary<string, T> oracle, Dictionary<string, T> csOnly)
+    {
+        var all = new Dictionary<string, T>(oracle, StringComparer.Ordinal);
+        foreach (var kv in csOnly)
+        {
+            all.Add(kv.Key, kv.Value);
+        }
+        return all;
+    }
+
     private static RunContent BaseContent(RunSetup setup, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts) =>
         setup.Content with
         {
+            Abilities = Merged(setup.Content.Abilities, CsOnlyKits().Abilities),
+            Effects = Merged(setup.Content.Effects, CsOnlyKits().Effects),
             Bounds = new Keyrun.Sim.Combat.Bounds(-20000, 20000, -20000, 20000),
             EnemyScripts = scripts,
             BreakBarSources = null,
@@ -541,7 +676,7 @@ public sealed class EveryEnemyAbilityTelegraphedTests
         Judge(boss, BossTestKit.TwinB, "hollowWarden.twinB");
 
         // Not vacuous: every enumerated threat was seen landing at least twice in its run.
-        foreach (var (enemyId, ability) in threats)
+        foreach (var (enemyId, ability) in threats.Where(t => !OnDeathBursts.Contains(t.Ability)))
         {
             var n = landed.TryGetValue((enemyId, ability), out var c) ? c : 0;
             Assert.True(n >= 2, $"key {key}: {enemyId} {ability} landed {n} times in {Ticks} ticks, too few to judge");

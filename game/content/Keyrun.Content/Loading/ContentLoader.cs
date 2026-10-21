@@ -10,7 +10,8 @@ namespace Keyrun.Content;
 /// Loads every content kind from the verbatim content/data JSON into a typed, validated
 /// <see cref="ContentRegistry"/>: the C# mirror of content/index.ts <c>loadContent()</c>, reading
 /// the same 19 files in the same order, plus the C#-only run.json, layout.json, theme.json (theme.json is read by ThemeLoader), combo-riders.json
-/// and the forces + route files (forces.json, hazards.json; packs live in layout.json, ruling R7), and the trash enemies (enemies/hall.json). Fails closed with <see cref="ContentLoadException"/> on
+/// and the forces + route files (forces.json, hazards.json; packs live in layout.json, ruling R7), the trash enemies (enemies/hall.json) and the BIBLE 9.3 vault kits
+/// (abilities/vault.json, effects/vault.json, enemies/vault.json). Fails closed with <see cref="ContentLoadException"/> on
 /// any unknown property, missing required field, null in a non-optional field, non-integer
 /// number, unknown enum or op, duplicate id, unresolved cross-reference, or unlisted/missing file.
 /// </summary>
@@ -43,7 +44,29 @@ public static class ContentLoader
         GearFile,
         TrashEnemiesFile,
         MeleeAbilitiesFile,
+        VaultAbilitiesFile,
+        VaultEffectsFile,
+        VaultEnemiesFile,
     };
+
+    /// <summary>
+    /// C#-only vault casts (game/content/data/abilities/vault.json, same logical root; FORCES-ROUTE-PLAN slice S1
+    /// VAULT-KITS, BIBLE section 9.3): Searing Hex, Cinders, Stoke, Undertow and Crushing Slam. The root abilities JSON is
+    /// a frozen oracle, so the bible 9.2 pack casters' kits live here.
+    /// </summary>
+    public const string VaultAbilitiesFile = Abilities + "vault.json";
+
+    /// <summary>
+    /// C#-only vault auras (game/content/data/effects/vault.json; BIBLE sections 9.3 and 9.4): the Searing Hex burn,
+    /// Cinders, Stoked, the Undertow root and Drenched, in the shapes the CASTER-OPS-SIM tests drive (#302).
+    /// </summary>
+    public const string VaultEffectsFile = Effects + "vault.json";
+
+    /// <summary>
+    /// C#-only vault enemies (game/content/data/enemies/vault.json; BIBLE section 9.3): Hollow Hound, Ash Hexer, Vault
+    /// Brute, Bellows Keeper and Drowned Chorister, the members of the bible 9.2 packs W1, W2 and E1-E3.
+    /// </summary>
+    public const string VaultEnemiesFile = Enemies + "vault.json";
 
     /// <summary>
     /// C#-only melee ability ids (game/content/data/melee-abilities.json, same logical root; KF1 strike cue, ruling R9).
@@ -136,10 +159,12 @@ public static class ContentLoader
                 ReadArray<AbilityDef>(source, Abilities + "warden.json"),
                 ReadArray<AbilityDef>(source, Abilities + "cinder.json"),
                 ReadArray<AbilityDef>(source, Abilities + "chanter.json"),
-                ReadArray<AbilityDef>(source, Abilities + "enemies.json")),
+                ReadArray<AbilityDef>(source, Abilities + "enemies.json"),
+                ReadArray<AbilityDef>(source, VaultAbilitiesFile)),
             Effects = ById("effect",
                 ReadArray<EffectDef>(source, Effects + "player.json"),
-                ReadArray<EffectDef>(source, Effects + "enemy.json")),
+                ReadArray<EffectDef>(source, Effects + "enemy.json"),
+                ReadArray<EffectDef>(source, VaultEffectsFile)),
             Classes = ById("class",
                 ReadOne<ClassDef>(source, Classes + "warden.json"),
                 ReadOne<ClassDef>(source, Classes + "cinder.json"),
@@ -150,7 +175,8 @@ public static class ContentLoader
                 ReadArray<EnemyDef>(source, Enemies + "pair.json"),
                 ReadArray<EnemyDef>(source, Enemies + "seed.json"),
                 ReadArray<EnemyDef>(source, Enemies + "hollow-warden.json"),
-                ReadArray<EnemyDef>(source, TrashEnemiesFile)),
+                ReadArray<EnemyDef>(source, TrashEnemiesFile),
+                ReadArray<EnemyDef>(source, VaultEnemiesFile)),
             Dungeons = ById("dungeon", ReadOne<DungeonDef>(source, "dungeons/hollow-vault.json")),
             Clauses = ById("clause", ReadArray<ClauseDef>(source, "clauses.json")),
             Facets = ById("facet",
