@@ -204,7 +204,7 @@ pair combo, so there is always something to close even when the enemy Window was
 - **The timer and Slack.** The run has a par time, and the run timer counts against it from the first tick, as in
   Mythic+ (section 9 principle). **Slack** is a grace bank shown as a second bar: 30 s plus 1 s per key level above 1.
   A death costs 15 s of Slack and a full wipe 25 s, the same 15 s a death costs a Mythic+ timer. The run is
-  **timed** when it finishes no later than par plus the Slack still left. Otherwise the key is *depleted*: the party (superseded 2026-10-20, see Chest tiers)
+  **timed** when it finishes no later than par plus the Slack still left. Otherwise the key is *depleted*: the party (superseded 2026-10-20, see Decisions and Chest tiers)
   may still finish for the run reward and Ash, but not the key upgrade. **Decision (Matt, 2026-10-20), as relayed:**
   an untimed key stays at the same level, with no drop. This is a deliberate divergence from WoW, for test 3. A timed
   run upgrades the key by **+1**, **+2** if it finishes within 80% of par, and **+3** within 60% of par. A +2 or +3
