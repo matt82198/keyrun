@@ -204,7 +204,7 @@ public static class RunRoot
 
         // TELEGRAPH-CANCEL (BIBLE s3): a floor telegraph whose cast this tick's combat kicked, stopped or replaced is
         // cancelled on this tick and never resolves (no telegraph_hit for a hit that cannot come).
-        var cancel = Telegraphs.CancelUnlanded(nextState, enc.Encounter.Telegraphs, run.State.Tick, emit);
+        var cancel = Telegraphs.CancelUnlanded(nextState, enc.Encounter.Telegraphs, run.State.Tick, emit, content.Abilities);
         var nextEncounter = cancel.Cancelled.Count == 0 ? enc.Encounter : enc.Encounter with { Telegraphs = cancel.Telegraphs };
         var activeScripts = run.ActiveScripts;
         if (layout is null)
