@@ -13,8 +13,8 @@ namespace Keyrun.Content.Tests;
 /// line, then the next teaching pull, and the boss last. The line alone (teaching pulls plus required packs) leaves the
 /// forces bar short, so the bar reaches 100% only once the party pulls enough packs, and any one optional pack is
 /// enough. The validator fails closed on a required pack off the line and on a line that fills the bar by itself.
-/// MVP-U8 (MVP-MAP G5): the shipped layout has no required pack any more (the Hall Sentries are an optional branch in
-/// packs.json), so these rules are pinned on a fixture that puts one required pack back on the line.
+/// MVP-U8 (MVP-MAP G5): the shipped layout has no required pack any more (the Hall Sentries are an optional layout pack
+/// off the line), so these rules are pinned on a fixture that puts one required pack back on the line.
 /// </summary>
 public sealed class PathPackTests
 {

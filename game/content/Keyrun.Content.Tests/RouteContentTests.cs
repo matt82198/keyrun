@@ -37,6 +37,7 @@ public sealed class RouteContentTests
             { "enemyId": "choir.lieutenant", "points": 80 },
             { "enemyId": "pair.melee", "points": 52 },
             { "enemyId": "seed.elite", "points": 180 },
+            { "enemyId": "hall.sentry", "points": 48 },
             { "enemyId": "vault.hound", "points": 35 },
             { "enemyId": "vault.brute", "points": 90 },
             { "enemyId": "vault.hexer", "points": 80 },
@@ -119,16 +120,15 @@ public sealed class RouteContentTests
     }
 
     [Fact]
-    public void Shipped_route_forks_after_the_pair_and_rejoins_at_the_seed_with_one_sentry_branch_and_no_hazards_yet()
+    public void Shipped_route_forks_after_the_pair_and_rejoins_at_the_seed_with_no_packs_or_hazards_yet()
     {
-        // MVP-U8 (MVP-MAP G5): the Hall Sentries left the walking line for an optional branch in packs.json.
         ContentRegistry reg = ContentLoader.Load();
 
         Assert.Equal("hollow-vault", reg.Forces.Route.DungeonId);
         Assert.Equal("pair", reg.Forces.Route.ForkAfterPull);
         Assert.Equal("seed", reg.Forces.Route.RejoinPull);
-        Assert.Equal(new[] { "sentry-hall" }, reg.Forces.Route.Branches.Select(b => b.Id).ToArray());
-        Assert.Equal(new[] { "hall-sentries", "hall-sentries-annex" }, reg.Packs.Values.Select(p => p.Id).ToArray());
+        Assert.Empty(reg.Forces.Route.Branches);
+        Assert.Empty(reg.Packs);
         Assert.Empty(reg.Hazards);
         foreach (string file in new[] { ForcesFile, PacksFile, HazardsFile })
         {

@@ -1,37 +1,64 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace Keyrun.Content.Tests;
 
 /// <summary>
 /// MVP-U8 (MVP-MAP G5, BIBLE sections 9.1, 9.2, 9.5; WoW Mythic+ way): the three teaching pulls and the boss are the only
-/// mandatory encounters. The Hall Sentries are no longer a required layout pack; they are an optional branch pack in
-/// packs.json. The critical path alone stays under the 1000-point bar, and the critical path plus one optional branch
-/// reaches it. The content loader fails closed on a malformed pack entry.
+/// mandatory encounters. The Hall Sentries are an OPTIONAL layout pack (layout.json, the same shape as Cantor Vigil and
+/// Warrior Remnant), standing in pair-hall off the walking line so a party in formation skips it. The critical path alone
+/// stays under the 1000-point bar. The content loader fails closed on a malformed layout pack entry.
 /// </summary>
 public sealed class OptionalBranchForcesTests
 {
-    private const string PacksFile = "packs.json";
+    private const string LayoutFile = "layout.json";
+    private const string HallSentries = "hall-sentries";
+
+    private static JsonObject Pack(JsonNode root, string id) =>
+        root["packs"]!.AsArray().Select(p => p!.AsObject()).First(p => (string)p["id"]! == id);
+
+    /// <summary>The least distance, mm, from a point to the walking line (the start, then every route point, in order).</summary>
+    private static double DistanceToWalkingLine(LayoutDef layout, LayoutPoint p)
+    {
+        var line = new List<LayoutPoint> { layout.Start };
+        line.AddRange(layout.Route);
+        double best = double.MaxValue;
+        for (int k = 0; k + 1 < line.Count; k++)
+        {
+            double ax = line[k].X, az = line[k].Z;
+            double dx = line[k + 1].X - ax, dz = line[k + 1].Z - az;
+            double len2 = (dx * dx) + (dz * dz);
+            double t = len2 == 0 ? 0 : Math.Clamp((((p.X - ax) * dx) + ((p.Z - az) * dz)) / len2, 0, 1);
+            double cx = ax + (t * dx) - p.X, cz = az + (t * dz) - p.Z;
+            best = Math.Min(best, Math.Sqrt((cx * cx) + (cz * cz)));
+        }
+        return best;
+    }
 
     [Fact]
     public void No_layout_pack_is_mandatory_so_the_walking_line_carries_no_trash()
     {
         LayoutDef layout = ContentLoader.Load().Layout;
 
+        Assert.NotEmpty(layout.Packs);
         Assert.DoesNotContain(layout.Packs, p => !p.Optional);
-        Assert.DoesNotContain(layout.Packs, p => p.Id == "hall-sentries");
+        Assert.Contains(layout.Packs, p => p.Id == HallSentries && p.Optional);
     }
 
     [Fact]
-    public void The_hall_sentries_are_an_optional_pack_in_packs_json_with_forces_values()
+    public void The_hall_sentries_are_an_optional_layout_pack_with_forces_values()
     {
         ContentRegistry reg = ContentLoader.Load();
         ForcesTable forces = reg.Forces;
-        PackDef sentries = reg.Packs["hall-sentries"];
+        LayoutPack sentries = reg.Layout.Packs.Single(p => p.Id == HallSentries);
 
         Assert.Equal("Hall Sentries", sentries.Name);
+        Assert.Equal("pair-hall", sentries.Room);
         Assert.All(sentries.Enemies, e => Assert.True(forces.Has(e.EnemyId), $"{e.EnemyId} has no forces value"));
-        Assert.Equal(240, RouteForces.PackPoints(forces, sentries));
+        Assert.Equal(240, RouteForces.LayoutPackPoints(forces, sentries));
     }
 
     [Fact]
@@ -46,60 +73,50 @@ public sealed class OptionalBranchForcesTests
     }
 
     [Fact]
-    public void The_critical_path_plus_one_optional_branch_reaches_the_bar()
+    public void The_critical_path_plus_at_least_one_optional_pack_reaches_the_bar()
     {
         ContentRegistry reg = ContentLoader.Load();
         ForcesTable forces = reg.Forces;
         DungeonDef vault = reg.Dungeons[reg.Layout.Dungeon];
-
-        Assert.Single(forces.Route.Branches);
-        BranchDef branch = forces.Route.Branches[0];
         int critical = RouteForces.CriticalPathPoints(forces, vault);
-        int withBranch = RouteForces.BranchPoints(reg, branch);
 
-        Assert.True(critical < forces.Required, $"critical path alone banks {critical} of {forces.Required}");
-        Assert.True(withBranch >= forces.Required, $"critical path plus branch {branch.Id} banks {withBranch} of {forces.Required}");
+        // Cantor Vigil (1000) and Warrior Remnant (1020) each take the critical path to the bar on their own. The Hall
+        // Sentries (240) do not: critical plus Hall Sentries is 840 (see the hand-back on the "any one optional pack" ruling).
+        var fillers = reg.Layout.Packs.Where(p => p.Optional && critical + RouteForces.LayoutPackPoints(forces, p) >= forces.Required).ToList();
+        Assert.NotEmpty(fillers);
+        Assert.DoesNotContain(fillers, p => p.Id == HallSentries);
     }
 
     [Fact]
-    public void Every_pack_stands_in_the_optional_branch_so_the_critical_path_never_carries_one()
+    public void Every_optional_pack_stands_off_the_walking_line_by_more_than_its_ring_and_a_formation_slot()
     {
-        ContentRegistry reg = ContentLoader.Load();
-        BranchDef branch = reg.Forces.Route.Branches.Single();
+        LayoutDef layout = ContentLoader.Load().Layout;
+        int widestSlot = layout.Formation.Select(s => Math.Abs(s.SideMm)).DefaultIfEmpty(0).Max();
+        var optional = layout.Packs.Where(p => p.Optional).ToList();
 
-        Assert.NotEmpty(reg.Packs);
-        Assert.All(reg.Packs.Values, p => Assert.Contains(p.Room, branch.Rooms));
+        Assert.NotEmpty(optional);
+        Assert.All(optional, p => Assert.True(
+            DistanceToWalkingLine(layout, p.Center) > p.AggroMm + widestSlot,
+            $"optional pack {p.Id} is {DistanceToWalkingLine(layout, p.Center):F0} mm from the walking line; ring {p.AggroMm} + slot {widestSlot}"));
     }
 
     [Fact]
-    public void A_pack_entry_with_an_unknown_property_fails_closed()
+    public void A_layout_pack_with_an_unknown_property_fails_closed()
     {
-        const string Malformed = """
-            [
-              { "id": "hall-sentries", "name": "Hall Sentries", "room": "sentry-hall", "ringMm": 3000, "optional": true,
-                "center": { "x": 0, "z": 0 },
-                "enemies": [ { "enemyId": "hall.sentry", "count": 5, "spawn": { "x": 0, "z": 0 } } ] }
-            ]
-            """;
-        var source = new MutableSource().Add(PacksFile, Malformed);
+        var ex = Assert.Throws<ContentLoadException>(() => ContentLoader.Load(new MutableSource()
+            .Edit(LayoutFile, n => Pack(n, HallSentries)["ringMm"] = 3000)
+            .Build()));
 
-        var ex = Assert.Throws<ContentLoadException>(() => ContentLoader.Load(source.Build()));
-        Assert.Contains(PacksFile, ex.Message);
+        Assert.Contains(LayoutFile, ex.Message);
     }
 
     [Fact]
-    public void A_pack_entry_missing_its_ring_radius_fails_closed()
+    public void A_layout_pack_missing_its_aggro_radius_fails_closed()
     {
-        const string Malformed = """
-            [
-              { "id": "hall-sentries", "name": "Hall Sentries", "room": "sentry-hall",
-                "center": { "x": 0, "z": 0 },
-                "enemies": [ { "enemyId": "hall.sentry", "count": 5, "spawn": { "x": 0, "z": 0 } } ] }
-            ]
-            """;
-        var source = new MutableSource().Add(PacksFile, Malformed);
+        var ex = Assert.Throws<ContentLoadException>(() => ContentLoader.Load(new MutableSource()
+            .Edit(LayoutFile, n => Pack(n, HallSentries).Remove("aggroMm"))
+            .Build()));
 
-        var ex = Assert.Throws<ContentLoadException>(() => ContentLoader.Load(source.Build()));
-        Assert.Contains(PacksFile, ex.Message);
+        Assert.Contains(LayoutFile, ex.Message);
     }
 }

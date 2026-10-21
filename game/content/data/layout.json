@@ -62,6 +62,15 @@
       ]
     },
     {
+      "id": "hall-sentries", "name": "Hall Sentries", "room": "pair-hall", "optional": true,
+      "center": { "x": 51500, "z": 4500 }, "aggroMm": 3000,
+      "enemies": [
+        { "enemyId": "hall.sentry", "count": 2, "spawn": { "x": -500, "z": 1000 } },
+        { "enemyId": "hall.sentry", "count": 2, "spawn": { "x": -500, "z": -1000 } },
+        { "enemyId": "hall.sentry", "count": 1, "spawn": { "x": 1000, "z": 0 } }
+      ]
+    },
+    {
       "id": "warrior-remnant", "name": "Warrior Remnant", "room": "seed-chamber", "optional": true,
       "center": { "x": 69000, "z": 5500 }, "aggroMm": 4000,
       "enemies": [
