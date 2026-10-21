@@ -1,17 +1,5 @@
 [
   {
-    "id": "chanter.weapon.wideningCadence",
-    "slot": "weapon",
-    "abilityId": "chanter.cadence",
-    "text": "Cadence becomes a party-wide area instead of a single target.",
-    "patch": {
-      "shape": {
-        "kind": "circle",
-        "radius": 5000
-      }
-    }
-  },
-  {
     "id": "chanter.weapon.reachingRefrain",
     "slot": "weapon",
     "abilityId": "chanter.refrain",
@@ -21,6 +9,18 @@
       "tagAdd": [
         "ranged-cast"
       ]
+    }
+  },
+  {
+    "id": "chanter.weapon.wideningCadence",
+    "slot": "weapon",
+    "abilityId": "chanter.cadence",
+    "text": "Cadence becomes a party-wide area instead of a single target.",
+    "patch": {
+      "shape": {
+        "kind": "circle",
+        "radius": 5000
+      }
     }
   },
   {

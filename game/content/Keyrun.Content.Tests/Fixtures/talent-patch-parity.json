@@ -1743,6 +1743,62 @@
     },
     {
       "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 40,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "delta": 1,
+            "op": "resource"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.refrain",
+        "interruptible": false,
+        "name": "Refrain",
+        "range": 6000,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "ranged-cast"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 150,
+              "op": "heal"
+            },
+            {
+              "delta": 1,
+              "op": "resource"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 80,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "delta": -1,
+              "op": "resource"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.refrain",
+      "classId": "chanter",
+      "facetId": "chanter.weapon.reachingRefrain",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
         "castTicks": 20,
         "charges": 1,
         "cooldownTicks": 0,
@@ -1807,62 +1863,6 @@
       "abilityId": "chanter.cadence",
       "classId": "chanter",
       "facetId": "chanter.weapon.wideningCadence",
-      "loadout": "ok"
-    },
-    {
-      "ability": {
-        "castTicks": 0,
-        "charges": 1,
-        "cooldownTicks": 40,
-        "cost": {
-          "amount": 0,
-          "resource": "none"
-        },
-        "effects": [
-          {
-            "delta": 1,
-            "op": "resource"
-          }
-        ],
-        "gcdTicks": 30,
-        "id": "chanter.refrain",
-        "interruptible": false,
-        "name": "Refrain",
-        "range": 6000,
-        "shape": {
-          "kind": "self"
-        },
-        "tags": [
-          "ranged-cast"
-        ],
-        "variants": {
-          "mend": [
-            {
-              "amount": 150,
-              "op": "heal"
-            },
-            {
-              "delta": 1,
-              "op": "resource"
-            }
-          ],
-          "ward": [
-            {
-              "durationTicks": 80,
-              "effectId": "wardShield",
-              "op": "applyEffect",
-              "stacks": 1
-            },
-            {
-              "delta": -1,
-              "op": "resource"
-            }
-          ]
-        }
-      },
-      "abilityId": "chanter.refrain",
-      "classId": "chanter",
-      "facetId": "chanter.weapon.reachingRefrain",
       "loadout": "ok"
     },
     {
