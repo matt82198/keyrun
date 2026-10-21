@@ -89,6 +89,29 @@ public sealed class HealerKeepsPressingTests
         Assert.NotEmpty(cmds);
     }
 
+    [Fact(DisplayName = "Healer keeps pressing > in Mend with an enemy on the tank and Dissonance ready, the Chanter presses Dissonance before the Refrain into Ward")]
+    public void EngagedFightInMendPressesDissonanceBeforeRefrain()
+    {
+        var healer = HealthyChanter();
+        var foe = Foe();
+        foe.TargetId = Tank;
+        var cmds = HealerRole.HealerDecide(ViewOf(10, RealKits, null, HealthyTank(Enemy), healer, foe), healer);
+        Assert.Equal(
+            new Command[] { new TargetCommand(10, Chanter, Enemy), new CastCommand(10, Chanter, "chanter.dissonance", Enemy) },
+            cmds);
+    }
+
+    [Fact(DisplayName = "Healer keeps pressing > in Mend with Dissonance on cooldown, the Chanter still Refrains into Ward")]
+    public void EngagedFightInMendRefrainsWhenDissonanceIsDown()
+    {
+        var healer = Actor(id: Chanter, classId: "chanter", role: ActorRole.Healer, health: 250, maxHealth: 250, resource: 1, maxResource: 1,
+            cooldowns: new[] { ("chanter.dissonance", 999) });
+        var foe = Foe();
+        foe.TargetId = Tank;
+        var cmds = HealerRole.HealerDecide(ViewOf(10, RealKits, null, HealthyTank(Enemy), healer, foe), healer);
+        Assert.Equal(new Command[] { new CastCommand(10, Chanter, "chanter.refrain") }, cmds);
+    }
+
     private sealed record PullTally(int PullStart, int PullClear, int FirstEligible, int FirstPress, int Presses, int HealButtonPresses);
 
     [Fact(DisplayName = "Healer keeps pressing > Choir pull, real bots: with every ally above 70% the Chanter presses a non-heal button within one GCD")]

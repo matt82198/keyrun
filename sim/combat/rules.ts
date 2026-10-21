@@ -125,7 +125,7 @@ export function makeRules(cfg: RulesConfig): StepRules {
       } else if (cmd.kind === "cast") {
         const def = cfg.abilities[cmd.abilityId];
         if (!def) continue;
-        const err = startCast(state, actor, def, cmd.targetId, cmd.point, state.tick);
+        const err = startCast(state, actor, def, cmd.targetId, cmd.point, state.tick, cfg.effects);
         afterPress(actor, def, cmd, err, queued.fired.has(cmd), state.tick);
         // CAST-REFUSED (f-fa598b6b): an enemy cast refused out of range never starts. Its command is encounter-generated,
         // so it is in no trace record; this event is how a replay without combat (EncounterCastLedger) learns the caster

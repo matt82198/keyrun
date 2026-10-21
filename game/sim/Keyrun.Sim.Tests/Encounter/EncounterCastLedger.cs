@@ -42,11 +42,17 @@ internal sealed class EncounterCastLedger
     /// <summary>Creates an empty ledger.</summary>
     /// <param name="castTicks">Each ability's cast time in ticks (0 for instant casts, which are never in flight).</param>
     /// <param name="cooldownTicks">Each ability's cooldown in ticks; null = none known.</param>
-    public EncounterCastLedger(IReadOnlyDictionary<string, int> castTicks, IReadOnlyDictionary<string, int>? cooldownTicks = null)
+    /// <param name="castTicksAt">The cast time of a cast an actor begins on a tick, under its live haste (R-HASTE-1,
+    /// Casting.HastedTicks); null = the content cast time.</param>
+    public EncounterCastLedger(IReadOnlyDictionary<string, int> castTicks, IReadOnlyDictionary<string, int>? cooldownTicks = null,
+        Func<int, string, int, int>? castTicksAt = null)
     {
         _castTicks = castTicks;
         _cooldownTicks = cooldownTicks ?? new Dictionary<string, int>();
+        _castTicksAt = castTicksAt;
     }
+
+    private readonly Func<int, string, int, int>? _castTicksAt;
 
     private int CastTicksOf(string ability) => _castTicks.TryGetValue(ability, out var c) ? c : 0;
 
@@ -67,8 +73,27 @@ internal sealed class EncounterCastLedger
         var c = CastTicksOf(ability);
         if (c > 0)
         {
-            Add(actor, ability, tick - c, tick);
+            Add(actor, ability, StartOfCompletion(actor, ability, tick, c), tick);
         }
+    }
+
+    // The cast time of a cast begun on start: the content cast time, or under haste (R-HASTE-1) the hasted one.
+    private int TicksAt(int actor, string ability, int start) =>
+        _castTicksAt is null ? CastTicksOf(ability) : _castTicksAt(actor, ability, start);
+
+    // R-HASTE-1: a cast completing on tick X began on the latest tick S whose (hasted) cast time ends it at X; with no
+    // haste that is X - C. In the oracle runs only the Anthem's hasted (+1500 bp) reaches an enemy (Chill comes only from the
+    // C#-only Overheat), so S is searched in [X - C, X), falling back to X - C.
+    private int StartOfCompletion(int actor, string ability, int tick, int c)
+    {
+        for (var s = tick - 1; s >= tick - c; s--)
+        {
+            if (s + TicksAt(actor, ability, s) == tick)
+            {
+                return s;
+            }
+        }
+        return tick - c;
     }
 
     /// <summary>Records the cast the replay's encounter step issued for an enemy on <paramref name="tick"/> (its cast start).</summary>
@@ -80,7 +105,7 @@ internal sealed class EncounterCastLedger
         var c = CastTicksOf(ability);
         if (c > 0 && !_refused.Contains((actor, ability, tick)) && OffCooldown(actor, ability, tick))
         {
-            Add(actor, ability, tick, tick + c);
+            Add(actor, ability, tick, tick + TicksAt(actor, ability, tick));
         }
     }
 

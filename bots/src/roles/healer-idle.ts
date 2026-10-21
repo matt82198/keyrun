@@ -5,9 +5,10 @@
  * what the healer does in combat with nobody to heal or dispel. Before this the healer stood idle,
  * so Chanter's Dissonance (its damaging Payoff) and Refrain (the verse swap, needed only from Ward)
  * were never cast. In order: close another class's open Window with a damaging Payoff (the Combo);
- * in Mend, Refrain into Ward (its Ward burst shields on the swap, and the healer pre-mitigates until
- * someone drops, when healer.ts Refrains back to Mend); else the damaging Payoff on an engaged
- * enemy. Out of combat (no living enemy aimed at a player) the healer does nothing, so it never
+ * the damaging Payoff on an engaged enemy (HEALER-KEEPS-PRESSING: with nobody to heal the first GCD
+ * goes to a non-heal button, R-BOTS-14); else, in Mend, Refrain into Ward (its Ward burst shields on
+ * the swap, and the healer pre-mitigates until someone drops, when healer.ts Refrains back to Mend).
+ * Out of combat (no living enemy aimed at a player) the healer does nothing, so it never
  * pulls. Mirrors game/bots/Keyrun.Bots/Roles/HealerIdle.cs.
  *
  * Usage: `if (healTarget === undefined) return idleCommands(view, self, kit, MEND_VERSE_VALUE);`
@@ -62,9 +63,11 @@ export function idleCommands(view: BotView, self: ActorState, kit: EffectiveKit,
     const payoff = castOn(windowTarget);
     if (payoff) return payoff;
   }
+  const target = engaged.find((e) => e.id === self.targetId) ?? engaged[0]!;
+  const press = castOn(target);
+  if (press) return press;
   if (stanceSwapReady(self, kit, tick) && self.resource === mendVerseValue) {
     return [{ tick, actorId: self.id, kind: "cast", abilityId: kit.stanceSwapAbilityId! }];
   }
-  const target = engaged.find((e) => e.id === self.targetId) ?? engaged[0]!;
-  return castOn(target) ?? [];
+  return [];
 }

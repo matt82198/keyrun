@@ -237,11 +237,24 @@ public static class Casting
                 haste += (def.Modifiers.HasteBp ?? 0) * inst.Stacks;
             }
         }
-        if (haste == 0 || Effects.BpDenom + haste <= 0)
+        return HastedTicks(castTicks, haste);
+    }
+
+    /// <summary>
+    /// The cast-time formula of <see cref="HastedCastTicks"/> for a known haste total (R-HASTE-1; mirrored by
+    /// sim/combat/haste.ts): castTicks * 10000 / (10000 + hasteBp), floored. An instant cast, zero haste, or a total at or
+    /// below -10000 leaves the cast time unchanged.
+    /// </summary>
+    /// <param name="castTicks">The content cast time, ticks.</param>
+    /// <param name="hasteBp">The caster's summed live haste, basis points.</param>
+    /// <returns>The hasted cast time, ticks.</returns>
+    public static int HastedTicks(int castTicks, long hasteBp)
+    {
+        if (castTicks <= 0 || hasteBp == 0 || Effects.BpDenom + hasteBp <= 0)
         {
             return castTicks;
         }
-        return (int)IntMath.FloorDiv(castTicks * Effects.BpDenom, Effects.BpDenom + haste);
+        return (int)IntMath.FloorDiv(castTicks * Effects.BpDenom, Effects.BpDenom + hasteBp);
     }
 
     /// <summary>
