@@ -75,10 +75,11 @@ public sealed class PrivateRunLog
     /// <summary>
     /// <paramref name="seat"/>'s own causes, one row per enemy kind (lane WHAT-GOT-YOU: actors sharing a display name
     /// merge, damage and hits summed, <see cref="CauseRows.MergeByName"/>): the killing blow first, then by damage
-    /// descending, then by the kind's lowest source id.
+    /// descending, then by the kind's lowest source id. The seat's own damage to itself (a Cinderfield closer burn,
+    /// STATE.md D34) is recorded but never listed: the fold drops a row whose source is the seat (finding f-1326b59a).
     /// </summary>
     /// <param name="seat">The local player's seat.</param>
-    /// <returns>Only entries whose seat is <paramref name="seat"/>.</returns>
+    /// <returns>Only entries whose seat is <paramref name="seat"/>, none whose source is <paramref name="seat"/>.</returns>
     public IReadOnlyList<DeathCause> CausesFor(int seat) => CauseRows.MergeByName(_entries
             .Where(kv => kv.Key.Seat == seat)
             .OrderBy(kv => kv.Key.Source)
