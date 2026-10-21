@@ -9,11 +9,13 @@ namespace Keyrun.Content;
 /// <param name="Tick">The sim tick the event was emitted on.</param>
 /// <param name="ActorId">The attacker: <c>sourceId</c> on a damage event, <c>actorId</c> on a cast_complete.</param>
 /// <param name="AbilityId">The resolved ability (cast_complete only); null on a damage event.</param>
-public readonly record struct StrikeEvent(string Type, int Tick, int ActorId, string? AbilityId = null);
+/// <param name="TargetId">The damaged actor (<c>targetId</c>, damage event only); null otherwise.</param>
+public readonly record struct StrikeEvent(string Type, int Tick, int ActorId, string? AbilityId = null, int? TargetId = null);
 
 /// <summary>
 /// One melee swing's visible strike cue: drawn on the tick the strike's damage lands (KF1 "combat animation reads badly";
-/// the swing clip alone does not show where the blow goes). The view draws a short arc flash of <see cref="DurationMs"/>
+/// the swing clip alone does not show where the blow goes). The view draws a blade at hand height that sweeps across the
+/// target for <see cref="DurationMs"/> (<see cref="StrikeCueRule.Pose"/>), aimed at <see cref="TargetId"/> or, with none,
 /// facing <see cref="Yaw"/> from the actor.
 /// </summary>
 /// <param name="ActorId">The attacker's sim actor id.</param>
@@ -21,7 +23,18 @@ public readonly record struct StrikeEvent(string Type, int Tick, int ActorId, st
 /// <param name="Yaw">The attacker's facing, 1/1024 turn (the sim's <c>ActorState.Yaw</c>, as the view reads it on that tick).</param>
 /// <param name="DurationMs">How long the cue is shown, in ms.</param>
 /// <param name="AbilityId">The melee ability that landed.</param>
-public readonly record struct StrikeCue(int ActorId, int Tick, int Yaw, int DurationMs, string AbilityId);
+/// <param name="TargetId">The first actor the strike damaged on that tick (the swing is aimed at it), or null.</param>
+public readonly record struct StrikeCue(int ActorId, int Tick, int Yaw, int DurationMs, string AbilityId, int? TargetId = null);
+
+/// <summary>Where the strike cue is drawn at a moment of its window (integers; the view converts to metres and radians).</summary>
+/// <param name="Visible">True while the cue shows (0 &lt;= elapsed &lt; <see cref="StrikeCueRule.DurationMs"/>).</param>
+/// <param name="HeightMm">The blade's height above the attacker's feet, mm.</param>
+/// <param name="HasAim">True when the cue aims at a separate target; false means use the attacker's facing.</param>
+/// <param name="AimXMm">Aim direction x (target minus caster), mm.</param>
+/// <param name="AimZMm">Aim direction z (target minus caster), mm.</param>
+/// <param name="SweepYaw">The blade's offset from the aim, 1/1024 turn (negative to positive across the swing).</param>
+/// <param name="ReachMm">How far in front of the attacker the blade reaches, mm.</param>
+public readonly record struct StrikeCuePose(bool Visible, int HeightMm, bool HasAim, int AimXMm, int AimZMm, int SweepYaw, int ReachMm);
 
 /// <summary>
 /// The Godot-free rule that turns a step's sim events into <see cref="StrikeCue"/>s (KF1, COMBAT-ANIM follow-up). Pure, no
@@ -40,8 +53,23 @@ public static class StrikeCueRule
     /// <summary>The ability tag in abilities data that marks a melee ability.</summary>
     public const string MeleeTag = "melee";
 
-    /// <summary>How long the strike arc is shown, in ms (150 to 250 so it reads from the demo camera without lingering).</summary>
-    public const int DurationMs = 200;
+    /// <summary>
+    /// How long the strike arc is shown, in ms. f-e20614cc: the core dungeon loop defers to WoW, whose melee swing runs
+    /// about 0.5 to 1.0 s; the old 200 ms cue showed in 1 of about 30 combat frames and read as a floor line.
+    /// </summary>
+    public const int DurationMs = 500;
+
+    /// <summary>Blade height above the attacker's feet at the start of the swing, mm (top of the hand band).</summary>
+    public const int HandHighMm = 1200;
+
+    /// <summary>Blade height at the end of the swing, mm (bottom of the hand band; floor telegraphs stay on the floor).</summary>
+    public const int HandLowMm = 1000;
+
+    /// <summary>Half the swing arc, 1/1024 turn (160 = about 56 degrees each side of the target).</summary>
+    public const int SweepHalfYaw = 160;
+
+    /// <summary>How far the blade reaches in front of the attacker, mm.</summary>
+    public const int ReachMm = 1100;
 
     /// <summary>
     /// The melee set from the C#-only list (game/content/data/melee-abilities.json, loaded as
@@ -93,25 +121,53 @@ public static class StrikeCueRule
             {
                 continue;
             }
-            if (!LandsDamage(list, resolve.ActorId, resolve.Tick))
+            if (!LandsDamage(list, resolve.ActorId, resolve.Tick, out var targetId))
             {
                 continue;
             }
-            cues.Add(new StrikeCue(resolve.ActorId, resolve.Tick, yawOf(resolve.ActorId), DurationMs, resolve.AbilityId));
+            cues.Add(new StrikeCue(resolve.ActorId, resolve.Tick, yawOf(resolve.ActorId), DurationMs, resolve.AbilityId, targetId));
         }
         return cues;
     }
 
-    // True when the step holds a damage event from this actor on this tick (a cleave counts once, at the cue level).
-    private static bool LandsDamage(IReadOnlyList<StrikeEvent> events, int actorId, int tick)
+    /// <summary>
+    /// The cue pose <paramref name="elapsedMs"/> into its window (view-only; the hit already landed on the cue's tick, so
+    /// nothing here touches hit timing). The blade is held at hand height (<see cref="HandHighMm"/> coming down to
+    /// <see cref="HandLowMm"/>), aimed from the caster at the target, and sweeps from -<see cref="SweepHalfYaw"/> to
+    /// +<see cref="SweepHalfYaw"/> across the window, crossing the target at mid-swing. A target on the caster's own spot
+    /// has no aim (the view falls back to the attacker's facing).
+    /// </summary>
+    /// <param name="casterXMm">Caster x, mm.</param>
+    /// <param name="casterZMm">Caster z, mm.</param>
+    /// <param name="targetXMm">Target x, mm.</param>
+    /// <param name="targetZMm">Target z, mm.</param>
+    /// <param name="elapsedMs">Time since the cue started, ms.</param>
+    public static StrikeCuePose Pose(int casterXMm, int casterZMm, int targetXMm, int targetZMm, int elapsedMs)
+    {
+        var visible = elapsedMs >= 0 && elapsedMs < DurationMs;
+        var e = Math.Clamp(elapsedMs, 0, DurationMs - 1);
+        var last = DurationMs - 1;
+        var height = HandHighMm - ((HandHighMm - HandLowMm) * e / last);
+        var sweep = -SweepHalfYaw + (2 * SweepHalfYaw * e / last);
+        var ax = targetXMm - casterXMm;
+        var az = targetZMm - casterZMm;
+        var hasAim = ax != 0 || az != 0;
+        return new StrikeCuePose(visible, height, hasAim, ax, az, sweep, ReachMm);
+    }
+
+    // True when the step holds a damage event from this actor on this tick (a cleave counts once, at the cue level);
+    // targetId is the first such event's target.
+    private static bool LandsDamage(IReadOnlyList<StrikeEvent> events, int actorId, int tick, out int? targetId)
     {
         foreach (var e in events)
         {
             if (e.Tick == tick && e.ActorId == actorId && string.Equals(e.Type, DamageEvent, StringComparison.Ordinal))
             {
+                targetId = e.TargetId;
                 return true;
             }
         }
+        targetId = null;
         return false;
     }
 }

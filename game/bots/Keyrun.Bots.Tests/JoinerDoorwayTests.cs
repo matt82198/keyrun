@@ -171,7 +171,11 @@ public sealed class JoinerDoorwayTests
         IReadOnlyDictionary<int, BotMemory> mem = memories;
         var prng = Skill.SeedPrng(Seed);
         var events = new List<SimEvent>();
-        while (run.State.Tick < DoorwayTicks && run.RunEnd.ResultTick is null && Follow.AnyLivingEnemy(run.State) is false)
+        // KF3 Seed spawn gate (BIBLE section 9.6): the Seed activates when the tank enters its room, which is before the
+        // two followers arrive, so the drive runs until all three seats have entered seed-chamber (or the tick cap),
+        // not until the first enemy engages.
+        bool AllSeatsInSeedChamber() => new[] { LeaderId, CinderId, JoinerId }.All(id => events.Any(e => e.Type == "room_enter" && KeyOf(e) == (id, "seed-chamber")));
+        while (run.State.Tick < DoorwayTicks && run.RunEnd.ResultTick is null && !AllSeatsInSeedChamber())
         {
             var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
             var batch = Bot.RunBots(view, bots, mem, prng);
@@ -189,7 +193,7 @@ public sealed class JoinerDoorwayTests
         return events;
     }
 
-    /// <summary>The doorway drive stops by this tick (or at the seed pull's spawn): 30 s at 20 Hz.</summary>
+    /// <summary>The doorway drive stops by this tick (or once all three seats stand in seed-chamber): 30 s at 20 Hz.</summary>
     private const int DoorwayTicks = 600;
 
     private const int CinderId = 3;

@@ -19,15 +19,19 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// engages, whole, on the first tick a living party member stands within its aggro radius (inclusive, integer mm in XZ;
 /// <see cref="Pulls.DefaultAggroMm"/> unless the pull sets <see cref="PullDef.AggroMm"/>), and its scripts start on that
 /// tick. Walking into a room engages nothing. This also closes KF3 (the Seed elite spawned on entry): the Seed stands
-/// idle in its chamber until the party reaches its ring.
+/// idle in its chamber until a party member enters the chamber (KF3 Seed spawn gate, BIBLE section 9.6; the ring rule
+/// does not apply to the Seed).
 /// </summary>
 public sealed class PrespawnAggroTests
 {
     private const long Seed = 1;
     private const int SeedActorId = 108;
 
-    /// <summary>Just inside the seed-chamber gate line (layout.json seed-chamber minX 62000).</summary>
-    private const long DoorwayX = 62600;
+    /// <summary>
+    /// Just outside the seed-chamber room box (layout.json seed-chamber minX 62000), in corridor-3. KF3 Seed spawn gate
+    /// (BIBLE section 9.6): the Seed activates when a party member enters the room, so the party waits outside it.
+    /// </summary>
+    private const long DoorwayX = 61999;
 
     /// <summary>How long the party stands at the doorway, and how long the Seed is watched after its engage.</summary>
     private const int WatchTicks = 400;
@@ -259,17 +263,17 @@ public sealed class PrespawnAggroTests
         Assert.True(Aggro.InRing(new Vec3(3, 99999, 4), Vec3.Zero, 5));
     }
 
-    [Fact(DisplayName = "KF3 Seed idle: the Seed elite stands idle in its chamber while the party waits at the doorway, and opens only after its engage")]
-    public void The_Seed_stays_idle_until_the_party_reaches_its_ring()
+    [Fact(DisplayName = "KF3 Seed idle: the Seed elite stands idle in its chamber while the party waits outside it, and opens only after a party member enters the room")]
+    public void The_Seed_stays_idle_until_the_party_enters_its_room()
     {
         var (run, dungeon) = RealRun(d => d with { Pulls = d.Pulls.Where(p => p.Id == "seed").ToList() }, i => new Vec3(DoorwayX, 0, (i - 1) * 1200));
         var seedSpawn = Assert.Single(dungeon.Pulls.Single().Spawns);
         Assert.Equal(SeedActorId, seedSpawn.ActorId);
         var (nav, _) = SeedEngageTests.Layout();
         var chamber = nav.RoomFor("seed")!;
-        Assert.All(new[] { 1, 2, 3 }, id => Assert.True(Movement.Contains(chamber.Box, run.State.Actors[id].Pos), $"seat {id} is not inside {chamber.Id}"));
+        Assert.All(new[] { 1, 2, 3 }, id => Assert.False(Movement.Contains(chamber.Box, run.State.Actors[id].Pos), $"seat {id} already stands inside {chamber.Id}"));
 
-        // Phase 1: the whole party stands inside the seed-chamber, at the doorway, for WatchTicks. Nothing happens.
+        // Phase 1: the whole party waits in corridor-3, just outside the seed-chamber, for WatchTicks. Nothing happens.
         var waiting = new List<SimEvent>();
         for (var i = 0; i < WatchTicks; i++)
         {
@@ -301,8 +305,7 @@ public sealed class PrespawnAggroTests
                 {
                     engage = e.Tick;
                     stop = e.Tick + WatchTicks;
-                    var center = Pulls.RingCenter(dungeon.Pulls.Single());
-                    Assert.Contains(new[] { 1, 2, 3 }, id => Aggro.InRing(run.State.Actors[id].Pos, center, Pulls.DefaultAggroMm));
+                    Assert.Contains(new[] { 1, 2, 3 }, id => Movement.Contains(chamber.Box, run.State.Actors[id].Pos));
                     Assert.False(run.State.Actors[SeedActorId].Idle);
                 }
                 if (e.Type == "telegraph" && e.Get("actorId") is JsInt a && a.Value == SeedActorId)

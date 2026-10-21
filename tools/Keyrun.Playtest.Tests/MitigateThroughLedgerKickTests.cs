@@ -35,11 +35,15 @@ public sealed class MitigateThroughLedgerKickTests
     // Hall Sentries are now an optional pack off the walking line (layout.json), so the kick-plan run no longer fights them
     // and now ends Timed at 7889, with boss cleaves 7395-7435, 7551-7591 and 7795-7835. 11 ticks into the first cleave is
     // 7406; the run's own state at 7406 has the boss casting hollowWarden.cleave, start 7395, end 7435.
-    // R-DOOR-1 + R-TAUNT-1 re-derivation (WHY: the taunt fallthrough and the 100% door make the kick-plan run longer, so the
-    // first boss cleave moved from 7395 to 10575): 10587 is the first cleave's kick-open tick (Ledger.KickOpensTick) on the
-    // new trajectory, the same event this scene was built on. The run now ends Timed at 11015.
-    private const int Tick = 10587;
-
+    // KF3-SEED-SPAWN re-derivation (ruling R6, the Seed activates on room entry; measured on #505 before main's PR-502
+    // merged: was 8329, the run then ended Timed at 8684 with boss cleaves 8289-8329 and 8555-8595, so it pinned 8300).
+    // Merge re-derivation (#505 merged with origin/main 8e147f02 carrying PR-502; a measurement on the merged tree, the
+    // assertions are unchanged, neither side's literal reused): the kick-plan run now ends Timed at 7777 with boss cleaves
+    // 7341-7381, 7497-7537 and 7653-7693, so 11 ticks into the first cleave is 7352; the run's own state at 7352 has the
+    // boss casting hollowWarden.cleave, start 7341, end 7381.
+    // R-DOOR-1 + R-TAUNT-1 + KF3 merge re-derivation (WHY: the merged tree's first boss cleave kick-open is the same event
+    // this scene was built on; see the probe note in the commit message).
+    private const int Tick = 7352;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 
