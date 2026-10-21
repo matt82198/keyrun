@@ -22,6 +22,15 @@ public sealed record RunConfig
 
     /// <summary>The key's Fortified/Tyrannical affixes and the Clause's starting key (BIBLE s8, plan M5).</summary>
     public required AffixesConfig Affixes { get; init; }
+
+    /// <summary>
+    /// STUN-STOPS-EVERY-CAST (finding f-c63b43bf, ruling "defer to WoW"): the enemy ids immune to stuns (the boss). A
+    /// stun stops every cast of every other actor, the uninterruptible ones included, since "uninterruptible" (an
+    /// ability's <c>interruptible: false</c>) means kick-immune only; stun immunity is this separate flag. Kept here,
+    /// not on the enemy's entry in the frozen content/data (STATE.md D12), like the other C#-only rules in this file.
+    /// Every id names a known enemy.
+    /// </summary>
+    public required ValueList<string> StunImmuneEnemies { get; init; }
 }
 
 /// <summary>

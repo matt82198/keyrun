@@ -49,6 +49,7 @@ public static class ContentValidator
         CheckRun(reg.Run);
         CheckHeatOverheat(reg);
         CheckPairMarks(reg);
+        CheckStunImmuneEnemies(reg);
         CheckForces(reg);
         LayoutValidator.Check(reg);
         GearValidator.Check(reg);
@@ -157,6 +158,16 @@ public static class ContentValidator
         if (m.SpreadDamage <= 0) Fail("run pairMarks.spreadDamage must be positive, got " + m.SpreadDamage);
         if (m.StackRadiusMm <= 0) Fail("run pairMarks.stackRadiusMm must be positive, got " + m.StackRadiusMm);
         if (m.StackDamage <= 0) Fail("run pairMarks.stackDamage must be positive, got " + m.StackDamage);
+    }
+
+    /// <summary>run.json stunImmuneEnemies (finding f-c63b43bf): every id names a known enemy.</summary>
+    private static void CheckStunImmuneEnemies(ContentRegistry reg)
+    {
+        foreach (string id in reg.Run.StunImmuneEnemies)
+        {
+            if (!reg.Enemies.ContainsKey(id))
+                Fail("run stunImmuneEnemies \"" + id + "\" is not an enemy");
+        }
     }
 
     private static void CheckRun(RunConfig run)
