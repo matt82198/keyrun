@@ -104,6 +104,56 @@ public static class ControlStops
     }
 
     /// <summary>
+    /// STUN-IMMUNE-REFUSES (finding f-94749699, WoW: an immune target takes no stun, the game shows "Immune"): a stun
+    /// (<see cref="StunRules.StunEffectIds"/>) on an actor whose class is in <see cref="StunRules.StunImmuneClassIds"/>
+    /// never stays on it. The run root runs this right after combat and the Break-bar patches, the one point every way
+    /// an effect is applied this tick (ability and combo ops, clouds, a bar's onEmpty) has landed, and before anything
+    /// reads the state (the stops, the telegraph check, the host and HUD). Every such stun instance is removed and emits
+    /// <c>{tick, type:"immune", sourceId, targetId, effectId}</c>, so no stunned debuff ever shows on a boss that keeps
+    /// casting. A stunned effect carries no modifiers, so nothing in combat reads it before this point. Other effects
+    /// on the actor (a silence, a slow) are untouched. Null or empty stun ids or immune classes = nothing to refuse
+    /// (every oracle run).
+    /// </summary>
+    /// <param name="after">The state after combat and the Break-bar patches (not modified).</param>
+    /// <param name="stunRules">Which stops are stuns and who is stun-immune; null = nothing to refuse.</param>
+    /// <param name="tick">The tick just stepped (the events' tick).</param>
+    /// <param name="emit">Event sink.</param>
+    /// <returns><paramref name="after"/> itself when nothing was refused, else a clone without the refused stuns.</returns>
+    public static SimState RefuseImmuneStuns(SimState after, StunRules? stunRules, int tick, Action<SimEvent> emit)
+    {
+        ArgumentNullException.ThrowIfNull(after);
+        ArgumentNullException.ThrowIfNull(emit);
+        if (stunRules?.StunEffectIds is not { Count: > 0 } stunIds || stunRules.StunImmuneClassIds is not { Count: > 0 } immuneIds)
+        {
+            return after;
+        }
+        var stuns = new HashSet<string>(stunIds, StringComparer.Ordinal);
+        var immune = new HashSet<string>(immuneIds, StringComparer.Ordinal);
+        SimState? next = null;
+        foreach (var id in after.Actors.Keys.ToList())
+        {
+            var actor = after.Actors[id];
+            if (!immune.Contains(actor.ClassId) || !actor.Effects.Any(e => stuns.Contains(e.EffectId)))
+            {
+                continue;
+            }
+            next ??= after.Clone();
+            var target = next.Actors[id];
+            foreach (var refused in target.Effects.Where(e => stuns.Contains(e.EffectId)).ToList())
+            {
+                emit(new SimEvent(
+                    tick,
+                    "immune",
+                    ("sourceId", JsValue.Int(refused.SourceId)),
+                    ("targetId", JsValue.Int(id)),
+                    ("effectId", JsValue.Str(refused.EffectId))));
+            }
+            Effects.RemoveEffectInstanceWhere(target, e => stuns.Contains(e.EffectId));
+        }
+        return next ?? after;
+    }
+
+    /// <summary>
     /// STUN-STOPS-EVERY-CAST (f-c63b43bf) inputs to <see cref="Apply"/>.
     /// </summary>
     /// <param name="StunEffectIds">The stops that are stuns (<see cref="RunContent.StunEffectIds"/>), or null for none.</param>
