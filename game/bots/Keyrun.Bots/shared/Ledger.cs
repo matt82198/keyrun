@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Bots.Shared;
@@ -157,5 +158,48 @@ public static class Ledger
         var firstLanding = ready.Min(id => Readiness.LandingTick(actors[id], tick));
         var kickerId = SelectKicker(ready.Where(id => Readiness.LandingTick(actors[id], tick) == firstLanding).ToList());
         return kickerId is null ? null : new InterruptAssignment(targetId.Value, kickerId.Value);
+    }
+
+    /// <summary>
+    /// CROSS-CLASS-KICK-ORDER (finding f-9a4e663c; design/BIBLE.md sections 3, 4 and 9; no TS counterpart): the party's
+    /// kick ledger across every class. The target is the same priority-cast target as <see cref="ResolveInterrupt"/>; the
+    /// kicker is the alive seat whose own interrupt is off cooldown, off the GCD and within its range of the target
+    /// (<see cref="Casting.RangeMm"/>, the sim's own integer check), taken in a fixed order: least recently kicked first
+    /// (the earliest interrupt-ready tick), ties to the lowest seat id. One cast gets one kicker, and consecutive casts
+    /// rotate across seats. Integer ticks and mm only.
+    /// </summary>
+    /// <param name="actors">Actor table.</param>
+    /// <param name="seats">
+    /// Every seat with an interrupt: its id, its interrupt id, that interrupt's range, mm, and whether that interrupt is
+    /// off the GCD (its own gcdTicks is 0, main #370 f-80b5cf16: such a kicker need not be off the GCD).
+    /// </param>
+    /// <param name="tick">Current tick.</param>
+    /// <param name="priorityAbilityIds">Priority-cast list.</param>
+    /// <returns>The assignment, or null.</returns>
+    public static InterruptAssignment? ResolvePartyInterrupt(
+        SortedDictionary<int, ActorState> actors,
+        IEnumerable<(int ActorId, string InterruptAbilityId, long RangeMm, bool InterruptOffGcd)> seats,
+        int tick,
+        IReadOnlyList<string>? priorityAbilityIds = null)
+    {
+        ArgumentNullException.ThrowIfNull(actors);
+        ArgumentNullException.ThrowIfNull(seats);
+        var targetId = SelectPriorityCastTarget(CastingEnemies(actors), priorityAbilityIds);
+        if (targetId is null)
+        {
+            return null;
+        }
+        var target = actors[targetId.Value];
+        var kicker = seats
+            .Where(s => actors.TryGetValue(s.ActorId, out var a)
+                && a.Alive
+                && Readiness.CooldownReadyTick(a, s.InterruptAbilityId) <= tick
+                && (s.InterruptOffGcd || a.GcdReadyTick <= tick)
+                && Casting.RangeMm(a, target) <= s.RangeMm)
+            .OrderBy(s => Readiness.CooldownReadyTick(actors[s.ActorId], s.InterruptAbilityId))
+            .ThenBy(s => s.ActorId)
+            .Select(s => (int?)s.ActorId)
+            .FirstOrDefault();
+        return kicker is null ? null : new InterruptAssignment(targetId.Value, kicker.Value);
     }
 }
