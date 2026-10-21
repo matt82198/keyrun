@@ -213,6 +213,25 @@ public sealed class PathPackRouteTests
         }
     }
 
+    /// <summary>Every actor id a pull or pack engaged on <paramref name="tick"/> (pull_start and pack_engage events).</summary>
+    private static List<int> EngagedOn(PackRun r, int tick) => r.Events
+        .Where(e => e.Tick == tick && e.Type is "pull_start" or "pack_engage")
+        .SelectMany(e => ((JsArray)e.Get("actorIds")!).Items.Select(v => (int)((JsInt)v).Value))
+        .ToList();
+
+    [Theory(DisplayName = "Path packs: the Choir with its escort, and the Pair, engage on one tick as one Mythic+ pack, and every body dies")]
+    [InlineData("choir", 6)]
+    [InlineData("pair", 5)]
+    public void A_teaching_pull_engages_with_its_escort_as_one_pack(string pullId, int minBodies)
+    {
+        var r = Route.Value;
+        var start = Assert.Single(r.Events, e => e.Type == "pull_start" && Stop(e) == pullId);
+        var bodies = EngagedOn(r, start.Tick);
+        Assert.True(bodies.Count >= minBodies,
+            $"{pullId} engaged {bodies.Count} bodies on tick {start.Tick} ({string.Join(", ", bodies.Select(id => r.Initial.State.Actors[id].ClassId))}): under the {minBodies}-body pack");
+        Assert.All(bodies, id => Assert.False(r.Final.State.Actors[id].Alive, $"{pullId} body {id} ({r.Final.State.Actors[id].ClassId}) is still alive at the run end"));
+    }
+
     [Fact(DisplayName = "Path packs: walking past every optional pack leaves the forces bar short")]
     public void Skipping_every_optional_pack_leaves_the_bar_short()
     {
