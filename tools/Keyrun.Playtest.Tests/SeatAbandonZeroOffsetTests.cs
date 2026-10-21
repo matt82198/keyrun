@@ -40,8 +40,12 @@ public sealed class SeatAbandonZeroOffsetTests
     /// <summary>Runs the real sim (seed 1, key 2, the host's party, ScriptedWarden seat 1, bots elsewhere) with
     /// <paramref name="abandon"/> in SimDriver.StepOnce's order until the seat empties or the run ends.</summary>
     /// <param name="abandon">The <c>--abandon-seat</c> plan text.</param>
+    /// <param name="observe">Optional per-step observer, called after each step with its pre-step tick, its events,
+    /// the run's dungeon and the run's actors after it (f-18509803 holds the pacing double's health timeline to it).</param>
     /// <returns>What the run did.</returns>
-    internal static RealRun RunReal(string abandon)
+    internal static RealRun RunReal(
+        string abandon,
+        System.Action<int, IReadOnlyList<SimEvent>, Keyrun.Sim.Encounter.DungeonDef, IReadOnlyDictionary<int, ActorState>>? observe = null)
     {
         var registry = ContentLoader.Load();
         var setup = HostRunSetup.Build(registry, "hollow-vault", Key, "warden", withBots: true);
@@ -79,6 +83,7 @@ public sealed class SeatAbandonZeroOffsetTests
                 emittedAt = tick;
             }
             anchor ??= plan.AnchorAt(tick, stepped.Step.Events, stepped.Step.Run.Dungeon, stepped.Step.Run.State.Actors);
+            observe?.Invoke(tick, stepped.Step.Events, stepped.Step.Run.Dungeon, stepped.Step.Run.State.Actors);
             run = stepped.Step.Run;
         }
         return new RealRun(pullStart, emittedAt, abandonTick, run.State.Tick);
