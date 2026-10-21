@@ -159,11 +159,22 @@ Remaining rungs (post-#98), cheapest and most visible first:
   colour is time-only; setupClass never rendered; capsules have no names on the non-#98 path; SPREAD/STACK
   telegraph text labels (no text yet); 3 of 4 bots die in pull 2 (balance).
 
+## CHECKPOINT 2026-10-21 00:35Z (orchestrator, after compaction)
+WHY: #396 (integrate: playable dungeon, one PR) is the only path to Matt's end-to-end run (D10/D15), so everything else is sequenced behind it. Written from gh state (read 2026-10-21), not from lane narration.
+- #396 OPEN DRAFT, head cf4090ac at 00:45Z, still unarmed. Lane fixes landed: ForkParity (re-fold of #325 via revert 6d620f62; oracle re-record 67a52462, bots-hv-k10-s7 traceHash e90cdc28 to 6f856fd1); LOCK-KEEPS-TARGET (8e602b87: a self-shaped cast goes out with no target, so the boss no longer retargets itself on the Lock); MITIGATE-THROUGH-LEDGER (cf4090ac: a role re-decides with its kick marked not ready instead of dropping the turn). Choir lesson now Timed. Counts at cf4090ac: vitest 1108/1108, Content 628/628, Sim 1136/1139 (3 reds: two TelegraphCancel overwrite cases and BossRules Unarmed, all caused by the dropped #325 deferral, fix in progress under D51), Bots 219/219, Playtest 92/92. Still draft. Findings f-210c3939 and f-70c82aca deferred to the #396 merge plus viewed frames. WHY: #396 remains the only path to Matt's end-to-end run (D10/D15). Written from gh state and lane reports at 00:45Z.
+- MERGED this span: #371 1b9877d3; #397 7709e4a7; #398 6f5c282e (BIBLE s9 decisions); #399 0da27a43 (PLAYTESTERS map row); #400 95dc759d (chest tiers); #401 d3894362 (00:35Z checkpoint).
+- Recon 2026-10-21 (read-only, bound by gh): close after #396 merges, because their heads are ancestors of integrate/playable-dungeon: #308 2ae5c7a5, #333 5ff061cd, #369 918d8489, #335 2764c19e, #244 6469469b. Verify-then-close: #344 b979989c (OPEN), #325 139b0da5 (OPEN).
+- NEEDS MATT: #326 (TEMPO-CAST-FLOOR, 1724b737) was folded into the integrate branch, then reverted by 67910219, so the cast-floor logic for path packs is currently OUT of #396. Re-fold or drop is Matt's call. feat/no-push-rule 7334a6c8 (ENEMY-NO-PUSH; commit says WIP) is in neither #396 nor main. #375 42b92dfa and #370 d5fc921b are outside #396. pr250 (#250 OPEN, 817969b6, 3 test-guard files) is live and outside #396. lane/rebase-242 (#242 CLOSED) has zero net diff vs main: stale; delete needs Matt.
+
 ## NEXT STEPS (engine plan, design/ENGINE-PLAN.md; Phase 5 "Matt playing" stays the acceptance test)
 PURPOSE: Keyrun is a Windows desktop 3D dungeon game per design/BIBLE.md; the TypeScript browser client was first paint only (status: throwaway); the Godot build is the real thing (status: real).
 TS feature work is FROZEN at main 6e1548d (sim/ bots/ client/ server/ screen/). Former items 1-7 (Slack delta, cast-bar
 names, bot balance pull 2, Twins/Break bar, floor Windows, rewards/clause UI, Blink/F vs Space) move to the C# build
 after parity (ENGINE-PLAN phase 5) and stay listed in Decisions for Matt.
+- Land keyrun #396 "integrate: playable dungeon (one PR)", branch integrate/playable-dungeon, opened as a draft 2026-10-20T23:44Z at d9cb7c2b. It folds #308 #388 #333 #369 #335 #244 and reverts #325 #326 #344 (oracle/parity went red when folded; each stays open on its own branch). Still to fold: feat/no-push-rule 7334a6c8 (renumber its D50, #395 took D50) and the #326 path-pack scripts. WHY: one integrated PR is the only shape Matt can play and judge (D10, D15); folding one PR at a time with a push after each is the receipt-first rule.
+  - After #396 is MERGED (verify with gh, never from narration): fast-forward the primary tree, run tools/godot/screens.ps1 capture, orchestrator views frames (D15), then close or retarget #308 #375 #333 #369 #335 #344 #325 #326 #244.
+- #370 (healer cadence parity) is DEFERRED until #396 is MERGED. WHY: option 3 made parity green but slowed base clear about 30 percent and needed an assertion narrowing (fitted green, refused); the TS and C# sims disagree on whether a Cadence HoT can land on an enemy (frozen TS allows, C# HEAL-NEVER-HOSTILE refuses). The TS/C# divergence is its own later finding.
+- Receipt-first rule now governs every keyrun build lane (aesop LANE-CONTRACT 8d): draft PR within 20 minutes of first commit, push at least every 45 minutes, state self-reverts in the PR body.
 Phase 1 lanes (Opus per D11 unless noted; owned files in ENGINE-PLAN s5). Status as of 2026-10-18:
 1. 1A scaffold - DONE, PR #109 (59d45d1). game/ Godot 4.7.2 .NET project, Keyrun.Sim lib + purity test, tools/godot
    wrapper + export templates, .gitignore/.gitattributes, .github/workflows/game.yml.
@@ -916,6 +927,7 @@ Additional parked decisions (from the burn ledger):
   quests, shop, stash or shareable score (BIBLE s1, s10, s11), so "quests" and "score" from the quote are out. Not yet:
   the class pick is not saved across launches (the progression save format is unchanged); the private rating already
   shows on the screen.
+- D51 (2026-10-21 00:50Z, orchestrator under the core-dungeon rule: defer to WoW): scripted enemy casts DEFER, never overwrite. A step due while its caster is busy waits and fires on the first free tick; #325's CastDeferral (C# CastDeferral.cs, TS sim/encounter/deferred-casts.ts) is restored for TsCastReplace steps alongside the #325 busy guard for all casters. WHY: in WoW a casting enemy never overwrites its own bar, and BIBLE s3 says the bar is drawn ahead of resolution, so a telegraph vanishing mid-bar is a broken sentence. The two TelegraphCancelTests overwrite cases are rewritten to assert deferral; a second oracle re-record was authorized with every changed number listed in the #396 body, no floors or constants changed.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as
