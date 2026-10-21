@@ -1,3 +1,4 @@
+using System.Linq;
 using Godot;
 using Keyrun.Content;
 using Keyrun.Host;
@@ -28,6 +29,10 @@ namespace Keyrun.View;
 /// (the boss and the twins) is faded by any camera rule or flashed on a hit, so its colour and alpha stay stable.
 /// Each 60 sim ticks in a pull, every living body (party and enemies) logs a
 /// <c>CAMERA tick=T actor=N dist=D near=A applied=A occl=0|1 sh=S cap=C</c> line.
+/// U6 GEAR: the Warden's equipped items draw as one primitive mark per slot (<see cref="GearVisual"/>, pure), tinted by
+/// tier, read live from the between-runs screen. A change to the equipment rebuilds the marks and logs
+/// <c>GEAR attach actor=N slot=S tier=T shape=X</c> (or <c>GEAR none actor=N</c>). Only the player's own body wears gear;
+/// an enemy, and a bot ally, never gets a mark.
 /// </summary>
 public partial class ActorView : Node3D
 {
@@ -81,6 +86,13 @@ public partial class ActorView : Node3D
     private bool _fadeOn;
     private int _cameraTick = int.MinValue;
 
+    // U6 GEAR: the marks last drawn (null until the first look, so the first frame logs its state), their root under this
+    // node (in the root frame, so they turn with the body and are not scaled by the model), and their meshes.
+    private System.Collections.Generic.IReadOnlyList<GearMark>? _gearPlan;
+    private Node3D? _gearRoot;
+    private readonly System.Collections.Generic.List<MeshInstance3D> _gearMeshes = new();
+    private bool _gearFaded;
+
     /// <summary>KF1 hit flash colour (warm white, added over the body) at full strength.</summary>
     private static readonly Color FlashColor = new(1f, 0.92f, 0.85f, 0.45f);
 
@@ -126,6 +138,7 @@ public partial class ActorView : Node3D
         Animate((float)delta);
         Flash();
         Fade((float)delta);
+        Gear();
         if (_measureIn > 0 && --_measureIn == 0)
         {
             LogModelHeight();
@@ -468,6 +481,7 @@ public partial class ActorView : Node3D
     private void ApplyFade(float alpha)
     {
         var faded = alpha < 0.999f;
+        FadeGear(alpha, faded);
         if (!faded && !_fadeOn)
         {
             return;
@@ -497,6 +511,113 @@ public partial class ActorView : Node3D
             }
         }
         _fadeOn = faded;
+    }
+
+    // U6 GEAR: the marks sit under this node, not under the model, so the model's fade does not reach them. The Warden's
+    // gear fades with its body (CAMERA-FG applies to the Warden too) and is opaque again when the body is.
+    private void FadeGear(float alpha, bool faded)
+    {
+        if (_gearMeshes.Count == 0 || (!faded && !_gearFaded))
+        {
+            return;
+        }
+        _gearFaded = faded;
+        foreach (var mi in _gearMeshes)
+        {
+            if (mi.MaterialOverride is not StandardMaterial3D m)
+            {
+                continue;
+            }
+            m.Transparency = faded ? BaseMaterial3D.TransparencyEnum.AlphaDepthPrePass : BaseMaterial3D.TransparencyEnum.Disabled;
+            var c = m.AlbedoColor;
+            m.AlbedoColor = new Color(c.R, c.G, c.B, faded ? alpha : 1f);
+        }
+    }
+
+    // U6 GEAR: the Warden's equipped items, as the pure GearVisual plan. Equipment is read live from the between-runs screen
+    // (the player's progression; the Screen group is the one SimDriver reads too), so a change to it rebuilds the marks on
+    // the next frame. Only the player's own body (Self) reads the screen; an enemy or a bot ally gets an empty plan.
+    private void Gear()
+    {
+        if (Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var now))
+        {
+            return;
+        }
+        var tiers = new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.Ordinal);
+        if (RoleOf(now) == FadeRole.Self &&
+            GetTree()?.GetFirstNodeInGroup(Keyrun.Hud.Screen.GroupName) is Keyrun.Hud.Screen screen)
+        {
+            foreach (var (slot, item) in screen.Progression.Equipped)
+            {
+                tiers[slot] = item.Tier;
+            }
+        }
+        var plan = GearVisual.Plan(tiers);
+        if (_gearRoot is not null)
+        {
+            _gearRoot.Visible = now.Alive; // a dead body loses its gear with it
+        }
+        if (_gearPlan is not null && plan.SequenceEqual(_gearPlan))
+        {
+            return;
+        }
+        _gearPlan = plan;
+        if (_gearRoot is not null)
+        {
+            RemoveChild(_gearRoot);
+            _gearRoot.QueueFree();
+            _gearRoot = null;
+        }
+        _gearMeshes.Clear();
+        _gearFaded = false;
+        if (plan.Count > 0)
+        {
+            _gearRoot = new Node3D { Name = "Gear", Visible = now.Alive };
+            AddChild(_gearRoot);
+            foreach (var mark in plan)
+            {
+                var mesh = BuildGearMesh(mark);
+                _gearRoot.AddChild(mesh);
+                _gearMeshes.Add(mesh);
+            }
+        }
+        if (plan.Count == 0)
+        {
+            GearLine(System.FormattableString.Invariant($"GEAR none actor={ActorId}"));
+            return;
+        }
+        foreach (var mark in plan)
+        {
+            GearLine(System.FormattableString.Invariant(
+                $"GEAR attach actor={ActorId} slot={mark.Slot} tier={mark.Tier} shape={mark.Shape.ToString().ToLowerInvariant()}"));
+        }
+    }
+
+    private void GearLine(string line)
+    {
+        GD.Print(line);
+        Driver?.HostLine(line);
+    }
+
+    // One primitive mark: a box or a sphere, unshadowed (the marks add draw calls to the Warden only), tinted by tier.
+    private static MeshInstance3D BuildGearMesh(GearMark mark)
+    {
+        Mesh mesh = mark.Shape == GearShape.Sphere
+            ? new SphereMesh { Radius = mark.SizeX / 2f, Height = mark.SizeX }
+            : new BoxMesh { Size = new Vector3(mark.SizeX, mark.SizeY, mark.SizeZ) };
+        return new MeshInstance3D
+        {
+            Name = "Gear_" + mark.Slot,
+            Mesh = mesh,
+            Position = new Vector3(mark.PosX, mark.PosY, mark.PosZ),
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(((mark.Rgb >> 16) & 0xFF) / 255f, ((mark.Rgb >> 8) & 0xFF) / 255f, (mark.Rgb & 0xFF) / 255f),
+                Roughness = 0.5f,
+                Metallic = 0.3f,
+            },
+        };
     }
 
     private static System.Collections.Generic.List<FadeSurface> BuildFadeSurfaces(Node model)

@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Bots.Shared;
 using Keyrun.Host;
+using Keyrun.Sim.Core;
 using Keyrun.Sim.Runs;
 using Xunit;
 
@@ -161,5 +163,93 @@ public sealed class QueuedRunGateTests
         bool autorun, int pressEnter, bool replaying, bool replayHasReadyKeys, int readyHold, bool expected)
     {
         Assert.Equal(expected, QueuedRunGate.HumanReadyAtPop(autorun, pressEnter, replaying, replayHasReadyKeys, readyHold));
+    }
+}
+
+/// <summary>
+/// PURPOSE: this artifact exists to make the Queue state honest about what it is waiting on (expected wait from the gate
+/// state), per BIBLE.md lines 538-540; status: real. Every branch of <see cref="QueueWait.Describe"/> is pinned here, driven
+/// from the same gate states the host's <see cref="QueuedRunGate"/> produces (a pending check, an entered check, a
+/// requeued check, open seats awaiting bots, a full party, nothing queued).
+/// </summary>
+public sealed class QueueWaitReadoutTests
+{
+    private const int Hz = Tick.TickHz;
+
+    [Fact]
+    public void An_entered_check_reads_that_the_run_is_starting()
+    {
+        var state = new QueueGateState(ReadyPhase.Enter, 3, true, 0, 0, 0);
+
+        Assert.Equal("Run starting.", QueueWait.Describe(state));
+    }
+
+    [Fact]
+    public void A_requeued_check_reads_that_the_group_is_back_in_the_queue()
+    {
+        var state = new QueueGateState(ReadyPhase.Requeue, 3, false, 0, 0, 0);
+
+        Assert.Equal("Back in the queue: declined or timed out.", QueueWait.Describe(state));
+    }
+
+    [Fact]
+    public void A_pending_check_the_human_has_not_answered_asks_for_enter_or_esc()
+    {
+        var state = new QueueGateState(ReadyPhase.Pending, 3, false, 3 * Hz + 1, 0, 0);
+
+        Assert.Equal("Group found. Enter: ready   Esc: decline (4s)", QueueWait.Describe(state));
+    }
+
+    [Fact]
+    public void A_pending_check_the_human_has_answered_waits_on_the_others()
+    {
+        var state = new QueueGateState(ReadyPhase.Pending, 3, true, 2 * Hz, 0, 0);
+
+        Assert.Equal("Group found. Waiting on the others (2s)", QueueWait.Describe(state));
+    }
+
+    [Theory]
+    [InlineData(0, "0s")]
+    [InlineData(1, "1s")]
+    [InlineData(Hz, "1s")]
+    [InlineData(Hz + 1, "2s")]
+    [InlineData(10 * Hz, "10s")]
+    public void Seconds_are_rounded_up_so_the_readout_never_shows_zero_while_time_is_left(int ticks, string seconds)
+    {
+        var state = new QueueGateState(ReadyPhase.Pending, 3, false, ticks, 0, 0);
+
+        Assert.Equal($"Group found. Enter: ready   Esc: decline ({seconds})", QueueWait.Describe(state));
+    }
+
+    [Fact]
+    public void A_pending_check_outranks_open_seats()
+    {
+        var state = new QueueGateState(ReadyPhase.Pending, 3, false, Hz, 1, 5 * Hz);
+
+        Assert.Equal("Group found. Enter: ready   Esc: decline (1s)", QueueWait.Describe(state));
+    }
+
+    [Fact]
+    public void With_no_check_open_seats_read_as_bots_filling_in_seconds()
+    {
+        var state = new QueueGateState(null, 3, false, 0, 2, 5 * Hz);
+
+        Assert.Equal("Bots filling 2 open seat(s) in 5s", QueueWait.Describe(state));
+    }
+
+    [Fact]
+    public void With_no_check_and_a_full_party_the_seats_read_as_filled()
+    {
+        var state = new QueueGateState(null, 3, false, 0, 0, 0);
+
+        Assert.Equal("Seats filled 3 of 3.", QueueWait.Describe(state));
+    }
+
+    [Fact]
+    public void With_nothing_queued_there_is_no_wait_to_show()
+    {
+        var state = new QueueGateState(null, 0, false, 0, 0, 0);
+
+        Assert.Equal(string.Empty, QueueWait.Describe(state));
     }
 }
