@@ -132,8 +132,9 @@
         margin shape; 600 -> 900 by PR #362 on its own parent (a 3500 bp Warden dies at 505, run_end 606); the
         integration merge keeps 900, the larger of the two raised budgets, not re-measured on the integrated tree)
      17. the first "RUN start" says "key=2 clause=none" (no queue yet: today's run);
-     18. "SCREEN queue dungeon=hollow-vault key=3 clause=<id>" (the screen's autorun script queues key 3 + Clause 2);
-     19. after it, a second "RUN start ... key=3 clause=<that id>" (the key is the run content's KeyLevel and the
+     18. "SCREEN queue dungeon=hollow-vault key=3 clause=" (the screen's autorun script queues key 3; R1: below run.json
+         clauseStartKey 5 the key carries no Clause);
+     19. after it, a second "RUN start ... key=3 clause=none" (the key is the run content's KeyLevel and the
          Clause is the sim's EncounterRules.ActiveClauseId, so a request that is dropped on the way reads key=2 or
          clause=none), followed by a second "BOSS armed" and "PULL spawn index=0 id=choir";
      20. then "QUEUE consume n=1 size=0" (lane 3J: the request that started the run leaves the Queue node, so it can
@@ -220,10 +221,11 @@
         run_end at 602 for the screen, the presses and the queued restart)
         (--press-enter N: SimDriver's scripted player pushes Enter through the viewport each time the game waits on
         it, the screen up or the run ended, up to N presses; the real keyboard path, not a direct call)
-     28. "SCREEN first open=1 key=2", press 1 queues the first run ("RUN start ... clause=<id>", not none), the party
+     28. "SCREEN first open=1 key=2", press 1 queues the first run ("RUN start ... key=2 clause=none": R1, key 2 is
+         below run.json clauseStartKey 5), the party
          wipes ("run_end" EVENT, result depleted), press 2 on the run-end panel prints "SCREEN reopen
          result=depleted open=1 key=2" and NO "RUN start" comes between the run_end and that line, nor between it and
-         press 3; press 3 is the screen's Queue, and the next "RUN start" carries a Clause (clause=<id>, never none:
+         press 3; press 3 is the screen's Queue, and the next "RUN start" is its key-2 request (key=2 clause=none, R1;
          it came through Screen.Queued -> StartQueuedRun, ENGINE-PLAN "choose one, then Screen"). Before 3D-c Enter
          after a wipe called StartRun(null): a "RUN start ... clause=none" follows press 2 and 28 fails (RED).
     Run J (lane 3H-c, a human G-ping reaches the bot party; interactive, three-seat party, pull 1):
@@ -912,12 +914,13 @@ $bossRule = First $d.Lines '^EVENT \{.*"type":"(lock_open|lock_broken|lock_faile
 
 # ---- Run E: the queued run (lane 3I) -----------------------------------------------------------------------------
 # The solo Warden wipes in pull 1 and releases, over and over (R-BACKFILL-2), until the timer cap ends the run (run A's
-# run, 9600 headless); the screen's autorun script then takes reward 1, steps the key to 3, picks Clause 2 and queues.
+# run, 9600 headless); the screen's autorun script then takes reward 1, steps the key to 3 and queues.
 # SimDriver must start the next run at that key with that Clause.
+# R1 (BIBLE s8, the key sets the Clause): key 3 is below run.json clauseStartKey 5, so Queue carries clause= and the run clause=none.
 $e = Invoke-Arena $QueueTicks @('--solo', '--requeue')
 if ($e.Code -ne 0) { $failures.Add("run E: godot exited $($e.Code) (expected 0)") }
 $startsE = @($e.Lines | Where-Object { $_ -match '^RUN start ' })
-$queueE = First $e.Lines '^SCREEN queue dungeon=hollow-vault key=3 clause=(echo|tide|hush|pact)$'
+$queueE = First $e.Lines '^SCREEN queue dungeon=hollow-vault key=3 clause=$'
 $requeued = $null
 $armedE2 = $null
 $pullE2 = $null
@@ -925,10 +928,10 @@ if ($startsE.Count -lt 1 -or $startsE[0] -notmatch ' dungeon=hollow-vault key=2 
     $failures.Add("run E: the first run does not start at key 2 with no Clause: '$($startsE | Select-Object -First 1)'")
 }
 if (-not $queueE) {
-    $failures.Add('run E: no "SCREEN queue dungeon=hollow-vault key=3 clause=<id>" line (the screen did not queue)')
+    $failures.Add('run E: no "SCREEN queue dungeon=hollow-vault key=3 clause=" line (the screen did not queue)')
 } else {
-    $null = $queueE -match 'clause=(\w+)$'
-    $clauseE = $Matches[1]
+    # R1: no Clause below run.json clauseStartKey 5; the queued run prints it as clause=none.
+    $clauseE = 'none'
     $iQueueE = [array]::IndexOf($e.Lines, $queueE)
     $after = @($e.Lines[($iQueueE + 1)..($e.Lines.Count - 1)])
     $requeued = First $after '^RUN start '
@@ -1074,8 +1077,9 @@ $startsI = @($iLines | Where-Object { $_ -match '^RUN start ' })
 $runEndI = First $iLines '^EVENT \{"result":"depleted",.*"type":"run_end"'
 $reopenI = $null
 $requeuedI = $null
-if ($startsI.Count -lt 1 -or $startsI[0] -notmatch ' clause=(echo|tide|hush|pact) ') {
-    $failures.Add("run I: the first run did not come from the screen's Queue with a Clause: '$($startsI | Select-Object -First 1)'")
+# R1 (BIBLE s8): key 2 is below run.json clauseStartKey 5, so the screen's Queue hands the run no Clause (clause=none).
+if ($startsI.Count -lt 1 -or $startsI[0] -notmatch ' key=2 clause=none ') {
+    $failures.Add("run I: the first run did not come from the screen's Queue at key 2 with no Clause: '$($startsI | Select-Object -First 1)'")
 }
 if (-not $runEndI) {
     $failures.Add("run I: the run did not end depleted (no depleted run_end EVENT; the timer cap ends it since R-BACKFILL-2) in $WipeFrames frames")
@@ -1101,8 +1105,9 @@ if (-not $runEndI) {
             $failures.Add("run I: a run started while the reopened screen waited, before its Queue: '$requeuedI'")
         } elseif (-not $requeuedI) {
             $failures.Add("run I: the reopened screen's Queue started no run")
-        } elseif ($requeuedI -notmatch ' clause=(echo|tide|hush|pact) ') {
-            $failures.Add("run I: the run after the wipe has no Clause (it did not come through the screen): '$requeuedI'")
+        } elseif ($requeuedI -notmatch ' key=2 clause=none ') {
+            # R1: the reopened screen queues key 2, below run.json clauseStartKey 5, so the run carries clause=none.
+            $failures.Add("run I: the run after the wipe is not the screen's key-2 Queue with no Clause: '$requeuedI'")
         }
     }
 }
