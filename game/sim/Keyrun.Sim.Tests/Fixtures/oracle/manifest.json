@@ -82,6 +82,9 @@
       "bots/src/bot.ts": {
         "fnv": "c090030e"
       },
+      "bots/src/kit-charges.ts": {
+        "fnv": "f0edb1e3"
+      },
       "bots/src/kit-heals.ts": {
         "fnv": "8e15b738"
       },
@@ -92,13 +95,13 @@
         "fnv": "ef39a42f"
       },
       "bots/src/kit-resolve.ts": {
-        "fnv": "21595c36"
+        "fnv": "0f76b71a"
       },
       "bots/src/kit-resources.ts": {
         "fnv": "7ef3cac7"
       },
       "bots/src/kits.ts": {
-        "fnv": "696f1f2e"
+        "fnv": "dd29bd7c"
       },
       "bots/src/pings-policy.ts": {
         "fnv": "4b4e0b85"
@@ -119,7 +122,7 @@
         "fnv": "146c28d0"
       },
       "bots/src/roles/shared.ts": {
-        "fnv": "55e41671"
+        "fnv": "50c46342"
       },
       "bots/src/roles/tank-engage.ts": {
         "fnv": "309b9b89"

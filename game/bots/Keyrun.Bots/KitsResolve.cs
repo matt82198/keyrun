@@ -75,6 +75,12 @@ public sealed record EffectiveKit
     public IReadOnlyList<string> OffGcdAbilityIds { get; init; } = NoIds;
 
     /// <summary>
+    /// Slotted abilities with more than one charge, to their charges and cooldown (BANKED-CHARGE, R-PILE-7c); empty for a
+    /// fallback kit.
+    /// </summary>
+    public IReadOnlyDictionary<string, AbilityCharges> ChargedAbilities { get; init; } = Kits.NoCharges;
+
+    /// <summary>
     /// ALLY-VIGIL (ruling R-FORKPARITY-UNPLAYED): the self-sustain spender when the run's own def of it is
     /// target-shaped and tagged <see cref="KitRegistry.AllyShieldTag"/> (Warden's Vigil with the "ally" talent), else
     /// null. When set, <see cref="SelfSustainAbilityId"/> is null: the sim refuses a target-shaped cast with no target,
@@ -110,6 +116,7 @@ public sealed record EffectiveKit
             Heals = kit.Heals,
             TauntAbilityId = kit.TauntAbilityId,
             OffGcdAbilityIds = kit.OffGcdAbilityIds,
+            ChargedAbilities = kit.ChargedAbilities,
         };
     }
 

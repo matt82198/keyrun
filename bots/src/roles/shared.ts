@@ -38,8 +38,27 @@ export function isOffGcd(kit: Pick<EffectiveKit, "offGcdAbilityIds"> | undefined
  * it holds the press until the cast ends: isCastLocked), off cooldown and off the GCD; an ability in the kit's
  * offGcdAbilityIds only waits for its own cooldown.
  */
-export function abilityReady(self: ActorState, abilityId: string, tick: Tick, kit?: Pick<EffectiveKit, "offGcdAbilityIds">): boolean {
-  return !isCastLocked(self, tick) && (self.cooldowns[abilityId] ?? 0) <= tick && (isOffGcd(kit, abilityId) || self.gcdReadyTick <= tick);
+export function abilityReady(
+  self: ActorState,
+  abilityId: string,
+  tick: Tick,
+  kit?: Pick<EffectiveKit, "offGcdAbilityIds" | "chargedAbilities">,
+): boolean {
+  return !isCastLocked(self, tick) && hasCharge(self, abilityId, tick, kit) && (isOffGcd(kit, abilityId) || self.gcdReadyTick <= tick);
+}
+
+/**
+ * BANKED-CHARGE (R-PILE-7c, f-f44791bc): at least one charge ready, exactly the sim's chargesAvailable: cooldowns[id] is
+ * the tick the recharging charge finishes, so a multi-charge ability in the kit's chargedAbilities has
+ * `charges - ceil((cooldowns[id] - tick) / cooldownTicks)` charges banked before it. Any other ability waits for it.
+ */
+export function hasCharge(self: ActorState, abilityId: string, tick: Tick, kit?: Pick<EffectiveKit, "chargedAbilities">): boolean {
+  const nextReady = self.cooldowns[abilityId] ?? 0;
+  if (nextReady <= tick) return true;
+  const c = kit?.chargedAbilities?.[abilityId];
+  if (!c) return false;
+  if (c.cooldownTicks <= 0) return true;
+  return c.charges - Math.ceil((nextReady - tick) / c.cooldownTicks) >= 1;
 }
 
 export function affordable(self: ActorState, abilityId: string, kit: EffectiveKit): boolean {

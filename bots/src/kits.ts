@@ -42,6 +42,7 @@ import { abilityTags, buildRotationPriority, SETUP_TAG_PREFIX, PAYOFF_TAG } from
 import { resourceEffectDelta, costAmount, healsOnCast } from "./kit-resources.js";
 import type { EffectDef } from "@content/schema/effect";
 import { classifyHeals, tauntAbilityId, type HealKit } from "./kit-heals.js";
+import { chargedIds, type AbilityCharges } from "./kit-charges.js";
 
 export { resolveKit, type EffectiveKit } from "./kit-resolve.js";
 export { setContentRegistry, getContentRegistry, getClassKit, priorityInterruptAbilityIds } from "./kit-registry.js";
@@ -86,6 +87,8 @@ export interface ClassKit {
   tauntAbilityId: string | null;
   /** Slotted abilities (rot1-5, interrupt, defensive, utility, movement) whose own gcdTicks is 0: off the GCD. */
   offGcdAbilityIds?: readonly string[];
+  /** BANKED-CHARGE (R-PILE-7c): slotted multi-charge abilities to their charges and cooldown (kit-charges.ts). */
+  chargedAbilities?: Readonly<Record<string, AbilityCharges>>;
 }
 
 export function buildClassKit(
@@ -171,6 +174,7 @@ export function buildClassKit(
     heals: classifyHeals(rotationalDefs, effects),
     tauntAbilityId: tauntAbilityId(utilityDef),
     offGcdAbilityIds: offGcdIds(cls, abilities),
+    chargedAbilities: chargedIds(cls, abilities),
   };
 }
 
