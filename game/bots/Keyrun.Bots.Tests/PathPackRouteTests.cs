@@ -21,6 +21,9 @@ namespace Keyrun.Bots.Tests;
 /// run measures the route, not tuning. Walking forward, the party fights a teaching pull, then the required pack on the
 /// line as one group, then the next teaching pull, and the boss last; it walks past every optional pack, so the forces
 /// bar ends short of 100%: on this route only more packs fill it.
+/// MVP-U8 (MVP-MAP G5): the shipped layout has no required pack (the Hall Sentries are optional and off the line), so the
+/// route under test is the shipped layout plus one required line pack (<see cref="FixtureLayout"/>), which is the one
+/// per-pack shape these behaviour tests need. The shipped optional packs stay in it.
 /// </summary>
 public sealed class PathPackRouteTests
 {
@@ -51,7 +54,7 @@ public sealed class PathPackRouteTests
     private static PackRun Drive()
     {
         var registry = ContentLoader.Load();
-        var layoutDef = registry.Layout;
+        var layoutDef = FixtureLayout(registry.Layout);
         var nav = NavLayouts.ToSim(layoutDef);
         var setup = RunSetup.Load(Path.Combine(RolesOracleTraceTests.OracleDir(), "hollow-vault-k2.setup.json"), Seed);
         var weak = setup.Dungeon with
@@ -59,7 +62,7 @@ public sealed class PathPackRouteTests
             Pulls = setup.Dungeon.Pulls.Select(p => p with { Spawns = p.Spawns.Select(s => s with { Health = 1 }).ToList() }).ToList(),
         };
         SimDungeon dungeon = NavLayouts.PlaceDungeon(layoutDef, weak);
-        var (packs, scripts) = LayoutPackGroups.Build(layoutDef, dungeon, setup.Content.EnemyScripts, packOnly: PackOnlyTemplates(registry, setup.Dungeon));
+        var (packs, scripts) = LayoutPackGroups.Build(layoutDef, dungeon, setup.Content.EnemyScripts, packOnly: PackOnlyTemplates(registry, layoutDef, setup.Dungeon));
         var party = NavLayouts.PlaceParty(layoutDef, setup.Party.Take(3).ToList(), dungeon.Pulls[0].Id);
         var content = setup.Content with { Layout = nav, Bounds = nav.Extent, Packs = packs, EnemyScripts = scripts };
         var run = RunRoot.CreateRun(Seed, party, dungeon, content, setup.Options);
@@ -114,14 +117,40 @@ public sealed class PathPackRouteTests
         return new PackRun(events, members, packs, layoutDef, initial, appearances, run);
     }
 
+    // MVP-U8 (MVP-MAP G5): the shipped layout plus one required pack standing on the walking line, in pair-hall, with the
+    // pre-U8 Hall Sentries shape (240 forces on the line). The line pack is a fixture; the shipped packs are unchanged.
+    private static LayoutDef FixtureLayout(LayoutDef shipped)
+    {
+        static Keyrun.Content.PullEnemy Group(string id, int count, int x, int z) => new()
+        {
+            EnemyId = id, Count = count, Spawn = new Keyrun.Content.SpawnPoint { X = x, Z = z },
+        };
+        var line = new Keyrun.Content.LayoutPack
+        {
+            Id = "line-sentries",
+            Name = "Line Sentries",
+            Room = "pair-hall",
+            Optional = false,
+            Center = new Keyrun.Content.LayoutPoint { X = 51500, Z = 0 },
+            AggroMm = 3000,
+            Enemies = new Keyrun.Content.ValueList<Keyrun.Content.PullEnemy>(new[]
+            {
+                Group("hall.sentry", 2, -500, 1000),
+                Group("hall.sentry", 2, -500, -1000),
+                Group("hall.sentry", 1, 1000, 0),
+            }),
+        };
+        return shipped with { Packs = new Keyrun.Content.ValueList<Keyrun.Content.LayoutPack>(shipped.Packs.Append(line)) };
+    }
+
     // The oracle setup's templates for every layout pack enemy no oracle pull fields (the Hall Sentry, STATE.md D49):
     // the same 1-health weakening as the pulls, the content script Tempo-scaled to the oracle key, as the host's
     // HostRunSetup.PackOnlyTemplates scales it. Fixture only; the pack's own behaviour is the sim's.
-    private static IReadOnlyDictionary<string, PackTemplate> PackOnlyTemplates(ContentRegistry registry, SimDungeon oracle)
+    private static IReadOnlyDictionary<string, PackTemplate> PackOnlyTemplates(ContentRegistry registry, LayoutDef layout, SimDungeon oracle)
     {
         var fielded = oracle.Pulls.SelectMany(p => p.Spawns).Select(s => s.ClassId).ToHashSet(StringComparer.Ordinal);
         var templates = new SortedDictionary<string, PackTemplate>(StringComparer.Ordinal);
-        foreach (var id in registry.Layout.Packs.SelectMany(p => p.Enemies).Select(e => e.EnemyId).Where(id => !fielded.Contains(id)).Distinct())
+        foreach (var id in layout.Packs.SelectMany(p => p.Enemies).Select(e => e.EnemyId).Where(id => !fielded.Contains(id)).Distinct())
         {
             var def = registry.Enemies[id];
             var spawn = new PullSpawn(0, def.Id, Vec3.Zero, 0, 1) { SpeedMmPerTick = def.SpeedMmPerTick, ChaseMarginMm = def.ChaseMarginMm };

@@ -51,8 +51,10 @@ public static class ContentValidator
         CheckClassArmor(reg);
         CheckPairMarks(reg);
         CheckStunImmuneEnemies(reg);
+        CheckMeleeAbilities(reg);
         CheckForces(reg);
         LayoutValidator.Check(reg);
+        CheckBranchTotals(reg);
         GearValidator.Check(reg);
     }
 
@@ -110,6 +112,23 @@ public static class ContentValidator
             if (!rooms.Contains(hazard.Room)) Fail("hazard \"" + hazard.Id + "\" is in unknown room \"" + hazard.Room + "\"");
     }
 
+    /// <summary>
+    /// R7 branch totals: every route through a branch (a layout room named by some pack's <c>branch</c>) must reach the
+    /// forces bar with the critical path, the branch-neutral packs and that branch's own packs alone. A short branch fails
+    /// naming the branch and the shortfall.
+    /// </summary>
+    private static void CheckBranchTotals(ContentRegistry reg)
+    {
+        ForcesTable forces = reg.Forces;
+        DungeonDef dungeon = reg.Dungeons[forces.Route.DungeonId];
+        foreach (string branch in reg.Layout.Packs.Where(p => p.Branch is not null).Select(p => p.Branch!).Distinct(System.StringComparer.Ordinal))
+        {
+            int total = RouteForces.BranchTotalPoints(forces, dungeon, reg.Layout.Packs, branch);
+            if (total < forces.Required)
+                Fail("branch \"" + branch + "\" reaches " + total + " of the " + forces.Required + " forces required (short by " + (forces.Required - total) + ")");
+        }
+    }
+
     private static void CheckHeatOverheat(ContentRegistry reg)
     {
         HeatOverheatConfig h = reg.Run.HeatOverheat;
@@ -140,6 +159,19 @@ public static class ContentValidator
         if (m.SpreadDamage <= 0) Fail("run pairMarks.spreadDamage must be positive, got " + m.SpreadDamage);
         if (m.StackRadiusMm <= 0) Fail("run pairMarks.stackRadiusMm must be positive, got " + m.StackRadiusMm);
         if (m.StackDamage <= 0) Fail("run pairMarks.stackDamage must be positive, got " + m.StackDamage);
+    }
+
+    /// <summary>melee-abilities.json (KF1 strike cue): every id names a loaded ability, listed once.</summary>
+    private static void CheckMeleeAbilities(ContentRegistry reg)
+    {
+        var seen = new System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal);
+        foreach (string id in reg.MeleeAbilities)
+        {
+            if (!reg.Abilities.ContainsKey(id))
+                Fail("melee-abilities \"" + id + "\" is not an ability");
+            if (!seen.Add(id))
+                Fail("melee-abilities lists \"" + id + "\" twice");
+        }
     }
 
     /// <summary>run.json stunImmuneEnemies (finding f-c63b43bf): every id names a known enemy.</summary>

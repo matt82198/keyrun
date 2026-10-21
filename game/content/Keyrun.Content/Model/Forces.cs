@@ -76,6 +76,24 @@ public static class RouteForces
         return pack.Enemies.Sum(e => e.Count * forces.PointsOf(e.EnemyId));
     }
 
+    /// <summary>
+    /// One branch's forces total (ruling R7): the critical path plus every branch-neutral pack (<see cref="LayoutPack.Branch"/>
+    /// null) plus every pack whose branch is <paramref name="branchId"/>. STUB (red step): returns 0.
+    /// </summary>
+    /// <param name="forces">The forces table.</param>
+    /// <param name="dungeon">The dungeon.</param>
+    /// <param name="packs">The layout packs.</param>
+    /// <param name="branchId">The branch (a layout box id).</param>
+    public static int BranchTotalPoints(ForcesTable forces, DungeonDef dungeon, System.Collections.Generic.IEnumerable<LayoutPack> packs, string branchId)
+    {
+        System.ArgumentNullException.ThrowIfNull(forces);
+        System.ArgumentNullException.ThrowIfNull(dungeon);
+        System.ArgumentNullException.ThrowIfNull(packs);
+        System.ArgumentException.ThrowIfNullOrEmpty(branchId);
+        int own = packs.Where(p => p.Branch is null || p.Branch == branchId).Sum(p => LayoutPackPoints(forces, p));
+        return CriticalPathPoints(forces, dungeon) + own;
+    }
+
     /// <summary>Every teaching pull's points (the critical path every route plays).</summary>
     /// <param name="forces">The forces table.</param>
     /// <param name="dungeon">The dungeon.</param>

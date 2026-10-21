@@ -48,9 +48,54 @@ public static class QueueWait
         }
         if (state.OpenSeats > 0)
         {
-            return $"Bots filling {state.OpenSeats} open seat(s) in {Seconds(state.TicksUntilFill)}s";
+            return state.TicksUntilFill > 0
+                ? $"Bots filling {state.OpenSeats} open seat(s) in {Seconds(state.TicksUntilFill)}s"
+                : $"Bots filling {state.OpenSeats} open seat(s) at the next pull";
         }
         return state.SeatsTotal > 0 ? $"Seats filled {state.SeatsTotal} of {state.SeatsTotal}." : string.Empty;
+    }
+
+    /// <summary>
+    /// Builds the gate state the Queue node reads, from the node's own clocks and the live run. The open seats and the
+    /// party size come from the run, so the backfill and seats-filled branches of <see cref="Describe"/> are reachable
+    /// whenever no ready check is showing (B57, B58).
+    /// </summary>
+    /// <param name="checkPhase">The open or last ready check's phase, or null when no check exists.</param>
+    /// <param name="checking">True while a check waits on answers.</param>
+    /// <param name="checkSeats">Seats the check covers.</param>
+    /// <param name="humanReady">True when the human seat has answered ready.</param>
+    /// <param name="ticksLeft">Ticks left to answer the open check.</param>
+    /// <param name="outcomeShowing">True while a finished check's outcome is still on the readout.</param>
+    /// <param name="partySeats">Player seats of the live run (0 when no run is live).</param>
+    /// <param name="openSeats">Abandoned seats not yet refilled.</param>
+    /// <param name="ticksUntilFill">Ticks until the next pull start fills the open seats, or 0 when not modelled.</param>
+    /// <returns>The gate state.</returns>
+    public static QueueGateState StateFor(
+        ReadyPhase? checkPhase,
+        bool checking,
+        int checkSeats,
+        bool humanReady,
+        int ticksLeft,
+        bool outcomeShowing,
+        int partySeats,
+        int openSeats,
+        int ticksUntilFill)
+    {
+        var phase = checkPhase;
+        if (phase == ReadyPhase.Pending && !checking)
+        {
+            phase = null;
+        }
+        if (phase is ReadyPhase.Enter or ReadyPhase.Requeue && !outcomeShowing)
+        {
+            phase = null;
+        }
+        // With a check showing, the readout is that check's wait. Otherwise the run's open seats and party size drive it.
+        if (phase is not null)
+        {
+            return new QueueGateState(phase, checkSeats, humanReady, ticksLeft, 0, 0);
+        }
+        return new QueueGateState(null, partySeats, false, 0, openSeats, ticksUntilFill);
     }
 
     /// <summary>Whole seconds left for <paramref name="ticks"/>, rounded up (the node never shows 0s while time is left).</summary>

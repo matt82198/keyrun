@@ -41,7 +41,14 @@ public static class ContentLoader
         HazardsFile,
         GearFile,
         TrashEnemiesFile,
+        MeleeAbilitiesFile,
     };
+
+    /// <summary>
+    /// C#-only melee ability ids (game/content/data/melee-abilities.json, same logical root; KF1 strike cue, ruling R9).
+    /// The root abilities JSON is a frozen oracle and is not edited to tag melee, so the list lives here.
+    /// </summary>
+    public const string MeleeAbilitiesFile = "melee-abilities.json";
 
     /// <summary>
     /// C#-only trash enemies (game/content/data/enemies/hall.json, same logical root; PATH-PACKS): enemies only a layout
@@ -149,6 +156,7 @@ public static class ContentLoader
             Forces = ReadOne<ForcesTable>(source, ForcesFile)[0],
             Hazards = ById("hazard", ReadArray<HazardDef>(source, HazardsFile)),
             Gear = ById("gear item", ReadArray<GearItemDef>(source, GearFile)),
+            MeleeAbilities = new ValueList<string>(ReadArray<string>(source, MeleeAbilitiesFile)),
         };
 
         ContentValidator.Validate(registry);
