@@ -191,3 +191,13 @@ WHY: the orchestrator is compacting at the context ceiling. Every item below is 
 - Findings ledger OPEN 60 (matt 7, other 53/60), 1 overflow still over cap. Refinement monitor heartbeat 1147s old at 03:19Z (relaunch at >1500s).
 - Merge queue: enable only after this pile lands (Matt's yes, 2026-10-21 ~02:15Z). Not yet.
 
+## Checkpoint 2026-10-21 03:35Z
+- Why: the orchestrator is at its context ceiling and compacts after this; intent lives here, lanes hold files.
+- Landed on main (gh-bound): #396 playable dungeon 63cbb9e8, #330 b0ab1361, #280 dc2ddcfb, #409 checkpoint 3d77559f. Closed as folded into #396: #308 #388 #333 #369 #335 #244 #325. #326 and #344 stay open (reverted in #396).
+- Merge-forward pile, all armed SQUASH and waiting on CI: #293 head 0fdc2efb, #356 4af4aa1d, #362 ad429611, #324 812e597c, #384 e8bc971b (K1 record regenerated, 1274->1273 and 1277->1276 because the boss-death block in Run.cs advances the pull on the same step). #410 is this checkpoint PR.
+- #370 merge is staged in keyrun-wt/pr370 but ForkParity is red on the merged tree (surge dominated by pin, reserve dominated by ally). Why it is not merged yet: a red test is never retuned to pass. An Opus lane is proving whether main is red too and retuning under BIBLE s6 in content data, never in the test.
+- Queue order after those land: #319 after #324, #364 after #362, #307 after #370, #302 after #307, #375 last (retarget base to main; #308 closed). Parked: #326 #327 #295 #344. #336 do not merge.
+- Matt's standing orders (2026-10-21): merge queue approved but enabled only after the pile lands per plan; orchestrator reads CI errors itself instead of sending agents on wild goose chases. Why: the queue must not queue behind conflicts, and the orchestrator reads the CI error itself to avoid wasted lane cycles.
+- Brain: claude-config #219 MERGED fe5bd2fd (PowerShell pipeline variable inside a safe ForEach-Object/Where-Object block now allowed and logged); live ~/.claude fast-forwarded to it. A second hook lane is fixing no-lane-game-launch false denies on read-only commands (f-12b7bce3); until it lands, lane briefs forbid dollar signs. Why: the false denies block read-only lane work; the fix is tuning the hook, not a bypass.
+- Design call recorded: a Warden's own combo cost skips armor (Combos.cs); kept, WoW does not mitigate self-inflicted costs.
+- Demo verdict on 63cbb9e8 frames (D15): party engages the Choir on entry, clears all four pulls with zero deaths, end-of-run choice of three shown; KF2 answered, KF1 animation readability still unjudged from stills. Why it stays open: acceptance is Matt watching frames, and stills cannot settle KF1.
