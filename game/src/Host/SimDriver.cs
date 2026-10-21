@@ -1019,6 +1019,8 @@ public partial class SimDriver : Node
         {
             _log?.PullSpawn(run.Encounter.PullIndex, dungeon);
         }
+        // Every other group stands idle from tick 0: name its enemies once, so the log accounts for a skipped pack.
+        _log?.IdleGroups(run);
         _log?.Begin(run.State);
         RunStarted?.Invoke();
     }
