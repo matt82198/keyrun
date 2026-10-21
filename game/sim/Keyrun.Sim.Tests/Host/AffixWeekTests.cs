@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 using Keyrun.Host;
 using Keyrun.Tools.Replay;
@@ -120,6 +121,19 @@ public sealed class AffixWeekTests
         // --rotation N pins the index, so a scene test at keys 5-9 never depends on the date.
         Assert.Equal(1, AffixWeek.ForRun(replaying: false, recorded: null, overrideIndex: 1, now, 4));
         Assert.Equal(1, AffixWeek.ForRun(replaying: false, recorded: null, overrideIndex: 1, now.AddDays(7), 4));
+    }
+
+    [Fact]
+    public void A_write_movie_launch_never_reads_the_clock()
+    {
+        // f-e1ff13e3: the proof frames are evidence, so every week of a rotation gives the same pinned index...
+        var now = U("2026-10-20T16:00:00Z");
+        var seen = Enumerable.Range(0, 4)
+            .Select(w => AffixWeek.ForRun(replaying: false, recorded: null, overrideIndex: null, now.AddDays(7 * w), 4, writeMovie: true))
+            .ToList();
+        Assert.Equal(new[] { AffixWeek.MovieRotationIndex, AffixWeek.MovieRotationIndex, AffixWeek.MovieRotationIndex, AffixWeek.MovieRotationIndex }, seen);
+        // ...and an explicit --rotation N still picks the week the frames show.
+        Assert.Equal(3, AffixWeek.ForRun(replaying: false, recorded: null, overrideIndex: 3, now, 4, writeMovie: true));
     }
 
     [Theory]

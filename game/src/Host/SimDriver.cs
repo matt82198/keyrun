@@ -144,7 +144,8 @@ public sealed class TickAccumulator
 /// <param name="Rotation">Weekly affix rotation override (<c>--rotation N</c>, N &gt;= 0): pins a live run's rotation
 /// index (<see cref="AffixWeek.ForRun"/>) instead of the week since the last Tuesday 15:00 UTC reset, so an
 /// <c>--autorun</c> or <c>--record-input</c> scene test at keys 5-9 never depends on the date. On a replay the log's
-/// recorded index wins. Null = the clock.</param>
+/// recorded index wins. Null = the clock, except under <c>--write-movie</c>, which is pinned to
+/// <see cref="AffixWeek.MovieRotationIndex"/> (f-e1ff13e3).</param>
 /// <param name="ReadyHold">Scene-test seam (<c>--ready-hold F</c>, finding f-e24b4fa4): a scripted launch (<c>--autorun</c>,
 /// <c>--press-enter</c>) normally answers the queue pop's ready check for the human at the pop
 /// (<see cref="QueuedRunGate.HumanReadyAtPop"/>); with F the "Group found" dialog stays up F frames first and the scripted
@@ -172,8 +173,12 @@ public sealed record ArenaOptions(
     int ReadyHold = 0)
 {
     /// <summary>
-    /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
-    /// the Warden's opening rotation.
+    /// Default autorun length: 20 s, set when the lieutenant's first heal began at tick 196 at key 2, leaving room for
+    /// it, the kick, and the Warden's opening rotation. Measured on main 026bca17 (f-e1ff13e3,
+    /// MovieFramesDefaultRunTests, every rotation index alike): the first heal now begins at tick 272 and seat 2 kicks it
+    /// at tick 274, so heal and kick still fall inside 400 ticks, but the kick lands before
+    /// <see cref="MovieDirector.CastBarLeadTicks"/>, so a default-length <c>--write-movie</c> run takes no cast-bar or
+    /// after-kick frame (the next heal, 664 to the kick at 685, is past tick 400).
     /// </summary>
     public const int DefaultTicks = 400;
 
@@ -577,10 +582,12 @@ public partial class SimDriver : Node
             // The weekly affix rotation (AffixWeek, Matt 2026-10-20 "lean into m+ design"): a live run takes the index
             // of the week since the last US reset (Tuesday 15:00 UTC), read from the UTC clock here in the host, never in
             // the sim, unless --rotation N pins it; a --replay-input run takes the index its log recorded, never the
-            // clock. Read the log first so the setup is built at the recorded index.
+            // clock. Read the log first so the setup is built at the recorded index. A --write-movie launch without
+            // --rotation N is pinned to AffixWeek.MovieRotationIndex (f-e1ff13e3): its frames are evidence, never the week's.
             _replayLog = !Options.Autorun && Options.ReplayInput is { } replayPath ? InputLog.Load(replayPath) : null;
             RotationIndex = AffixWeek.ForRun(
-                _replayLog is not null, _replayLog?.RotationIndex, Options.Rotation, DateTime.UtcNow, AffixWeek.RotationLength(Registry.Clauses.Count));
+                _replayLog is not null, _replayLog?.RotationIndex, Options.Rotation, DateTime.UtcNow, AffixWeek.RotationLength(Registry.Clauses.Count),
+                writeMovie: Options.MovieDir is not null);
             Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: RotationIndex);
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _player = GetNode<PlayerInput>(InputPath);
