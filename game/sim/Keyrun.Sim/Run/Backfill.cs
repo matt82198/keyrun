@@ -53,7 +53,7 @@ public sealed record BackfillStep(
 /// <list type="bullet">
 /// <item><see cref="Abandon"/> records the seat; the run is not touched (no death, so no Slack spend).</item>
 /// <item><see cref="Step"/> wraps <see cref="RunRoot.StepRun"/>: an open seat's commands are dropped, and at the
-/// first <c>pull_start</c> after the abandon the seat goes to the first admitted queue request, whose commands run
+/// first <c>pull_start</c> or <c>pack_engage</c> after the abandon the seat goes to the first admitted queue request, whose commands run
 /// from the pull start tick on.</item>
 /// <item><see cref="Admits"/> is the key band (BIBLE s2 "The queue matches on key level only"): exact key equality
 /// inside <see cref="ScreenState.MinKey"/>..<see cref="ScreenState.MaxKey"/>.</item>
@@ -146,8 +146,9 @@ public static class Backfill
         var stepped = RunRoot.StepRun(run, applied, stepOpts);
         var next = stepped.Run;
         // A pull starts on its pull_start event. On the flat arena that is the step the index advances; on a layout run
-        // (STATE.md D18) the index advances on the clear and the next pull starts later, on room entry.
-        var started = stepped.Events.FirstOrDefault(e => e.Type == "pull_start");
+        // (STATE.md D18) the index advances on the clear and the next pull starts later, on room entry. BIBLE s10 (BIBLE.md
+        // :361, :501-503): the next pull start is "a teaching pull or a pack engage", so a path pack's pack_engage is one.
+        var started = stepped.Events.FirstOrDefault(e => e.Type is "pull_start" or "pack_engage");
         if (state.Open.Count == 0 || started is null || next.RunEnd.Result is not null)
         {
             return new BackfillStep(stepped, state, applied, Array.Empty<SeatFill>(), Array.Empty<int>());

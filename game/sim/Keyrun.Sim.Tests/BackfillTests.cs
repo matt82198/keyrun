@@ -279,6 +279,149 @@ public sealed class BackfillTests
         Assert.Same(commands, Backfill.SeatCommands(BackfillState.Empty, commands));
     }
 
+    // f-20d936ba part 1 (BIBLE.md:361 and :501-503, "the next pull start (a teaching pull or a pack engage)"): a layout
+    // run with one path pack on the route and its only pull far past it. The tank walks east into the pack's ring; the
+    // healer and the seat stand in the hall. The pack's engage is a pack_engage event with no pull_start.
+    private const int PackMember = 301;
+
+    private static Run BuildPackRun()
+    {
+        var nuke = RunTestKit.Ability("nuke", new EffectOp[] { new DamageOp(1, "physical") });
+        var layout = new NavLayout(
+            new[]
+            {
+                new NavBox("hall", new Bounds(-5000, 30000, -5000, 5000), true, null),
+                new NavBox("corridor", new Bounds(29000, 36000, -1000, 1000), false, null),
+                new NavBox("end", new Bounds(35000, 50000, -5000, 5000), true, null),
+            },
+            new[] { new NavTrigger("p1", new Bounds(37000, 50000, -5000, 5000)) },
+            new[] { new Vec3(29500, 0, 0), new Vec3(35500, 0, 0), new Vec3(45000, 0, 0) });
+        var pack = new PackGroup("watch", new[] { RunTestKit.Spawn(PackMember, "dummy", 15000, 0, 10) }, new Vec3(15000, 0, 0), 3000);
+        var content = RunTestKit.Content(new Dictionary<string, AbilityDef>(StringComparer.Ordinal) { ["nuke"] = nuke }, bounds: layout.Extent) with
+        {
+            KeyLevel = RunKey,
+            Layout = layout,
+            Packs = new[] { pack },
+        };
+        return RunRoot.CreateRun(
+            Seed,
+            new[]
+            {
+                RunTestKit.Member(Tank, "warden", ActorRole.Tank, 0, 0, 400, 100),
+                RunTestKit.Member(Healer, "chanter", ActorRole.Healer, -2000, 0, 250, 100),
+                RunTestKit.Member(Seat, "cinder", ActorRole.Damage, -700, 1000, 250, 100),
+            },
+            new DungeonDef("backfill-packs", new[] { new PullDef("p1", new[] { RunTestKit.Spawn(101, "dummy", 48000, 0, 10) }) }),
+            content);
+    }
+
+    private sealed record PackDrive(Run Run, BackfillState Backfill, List<SeatFill> Fills, int? EngageStepTick, int? EngageEventTick, Vec3 SeatAtAbandon, Dictionary<int, Vec3> HealerPosAt, Dictionary<int, Vec3> SeatPosAt);
+
+    /// <summary>Walks the tank east every tick until the pack engages, then on for <paramref name="ticksAfter"/> idle ticks.</summary>
+    /// <param name="abandon">Abandons the seat before the step whose pre-step tick satisfies it (relative to the engage
+    /// step: null = never; the delegate sees the pre-step tick and whether the engage has already happened).</param>
+    /// <param name="inject">When set, replaces the book before each step (sees the pre-step run).</param>
+    private static PackDrive DrivePackRun(Func<int, bool, bool> abandon, int ticksAfter = 60, Func<Run, BackfillState, BackfillState>? inject = null)
+    {
+        var run = BuildPackRun();
+        var backfill = BackfillState.Empty;
+        var waiting = new List<QueueRequest> { Key10 };
+        var fills = new List<SeatFill>();
+        var healerPos = new Dictionary<int, Vec3>();
+        var seatPos = new Dictionary<int, Vec3>();
+        int? engageStep = null;
+        int? engageEvent = null;
+        var seatAtAbandon = run.State.Actors[Seat].Pos;
+        var abandoned = false;
+        for (var i = 0; i < 300 + ticksAfter; i++)
+        {
+            var tick = run.State.Tick;
+            if (engageStep is not null && tick >= engageStep + ticksAfter)
+            {
+                break;
+            }
+            if (!abandoned && abandon(tick, engageStep is not null))
+            {
+                backfill = Backfill.Abandon(backfill, run, Seat);
+                seatAtAbandon = run.State.Actors[Seat].Pos;
+                abandoned = true;
+            }
+            if (inject is not null)
+            {
+                backfill = inject(run, backfill);
+            }
+            var commands = new List<Command>();
+            if (engageStep is null)
+            {
+                commands.Add(new MoveCommand(tick, Tank, new Dir2(1000, 0), 0));
+            }
+            var step = Backfill.Step(backfill, run, commands, waiting);
+            foreach (var index in step.ConsumedQueueIndices.OrderByDescending(x => x))
+            {
+                waiting.RemoveAt(index);
+            }
+            fills.AddRange(step.Fills);
+            run = step.Step.Run;
+            backfill = step.Backfill;
+            healerPos[run.State.Tick] = run.State.Actors[Healer].Pos;
+            seatPos[run.State.Tick] = run.State.Actors[Seat].Pos;
+            if (step.Step.Events.FirstOrDefault(e => e.Type == "pack_engage") is { } engage)
+            {
+                Assert.DoesNotContain(step.Step.Events, e => e.Type == "pull_start");
+                engageStep = run.State.Tick;
+                engageEvent = engage.Tick;
+            }
+        }
+        return new PackDrive(run, backfill, fills, engageStep, engageEvent, seatAtAbandon, healerPos, seatPos);
+    }
+
+    [Fact]
+    public void A_seat_open_before_a_pack_engage_is_refilled_at_the_engage()
+    {
+        var d = DrivePackRun((tick, engaged) => tick == 5 && !engaged);
+
+        Assert.NotNull(d.EngageStepTick);
+        Assert.Equal(0, d.Run.Encounter.PullIndex);
+        var fill = Assert.Single(d.Fills);
+        Assert.Equal(Seat, fill.ActorId);
+        Assert.Same(Key10, fill.Joiner);
+        Assert.Equal(5, fill.AbandonTick);
+        Assert.Equal(d.EngageStepTick, fill.FillTick);
+        Assert.Empty(d.Backfill.Open);
+
+        // Arrive: the joiner stands on the staying member nearest the leaver (the healer in the hall), not where it idled.
+        Assert.Equal(d.HealerPosAt[fill.FillTick], d.SeatPosAt[fill.FillTick]);
+        Assert.NotEqual(d.SeatAtAbandon, d.SeatPosAt[fill.FillTick]);
+    }
+
+    [Fact]
+    public void A_seat_opened_after_the_pack_engage_is_not_filled_on_it()
+    {
+        var probe = DrivePackRun((_, _) => false);
+        Assert.NotNull(probe.EngageEventTick);
+        var eventTick = probe.EngageEventTick!.Value;
+        var preStep = probe.EngageStepTick!.Value - 1;
+
+        // The engage event carries the post-step tick, so a seat Abandon records before a step is always earlier. The
+        // book is handed a seat whose abandon tick is the engage event's own tick, open going into the engage step: the
+        // tick rule keeps it open through that engage, and with no later start on the route it stays open.
+        PackDrive OpenAt(int abandonTick) => DrivePackRun(
+            (_, _) => false,
+            inject: (run, book) => run.State.Tick == preStep
+                ? new BackfillState(new[] { new SeatAbandon(Seat, abandonTick, run.Encounter.PullIndex, run.Encounter.SlackTicks) }, Array.Empty<SeatFill>())
+                : book);
+
+        var atEngage = OpenAt(eventTick);
+        Assert.Equal(probe.EngageStepTick, atEngage.EngageStepTick);
+        Assert.Empty(atEngage.Fills);
+        Assert.Equal(Seat, Assert.Single(atEngage.Backfill.Open).ActorId);
+
+        // One tick earlier is before the engage: that seat fills on it.
+        var before = OpenAt(eventTick - 1);
+        Assert.Equal(eventTick - 1, Assert.Single(before.Fills).AbandonTick);
+        Assert.Empty(before.Backfill.Open);
+    }
+
     [Fact]
     public void No_seat_is_filled_once_the_run_has_ended()
     {
