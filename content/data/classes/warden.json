@@ -254,7 +254,7 @@
         {
           "id": "overwhelm",
           "name": "Overwhelm",
-          "text": "Reckoning becomes a frontal cone.",
+          "text": "Reckoning becomes a frontal cone at its full 100 Momentum: it hits every enemy in front of you, still closes a Window, then leaves Sundered on its target for an ally to close. Execute finishes more often.",
           "patch": {
             "shape": {
               "kind": "cone",
@@ -264,6 +264,27 @@
             "tags": [
               "payoff",
               "cleave-finisher"
+            ],
+            "effects": [
+              {
+                "op": "damage",
+                "amount": 400,
+                "school": "physical"
+              },
+              {
+                "op": "threat",
+                "multiplierBp": 20000
+              },
+              {
+                "op": "payoff"
+              },
+              {
+                "op": "window",
+                "windowId": "sundered",
+                "durationTicks": 60,
+                "onTarget": true,
+                "setupClass": "warden"
+              }
             ]
           }
         }
