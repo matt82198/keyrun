@@ -166,7 +166,47 @@ WHY: #396 (integrate: playable dungeon, one PR) is the only path to Matt's end-t
 - Recon 2026-10-21 (read-only, bound by gh): close after #396 merges, because their heads are ancestors of integrate/playable-dungeon: #308 2ae5c7a5, #333 5ff061cd, #369 918d8489, #335 2764c19e, #244 6469469b. Verify-then-close: #344 b979989c (OPEN), #325 139b0da5 (OPEN).
 - NEEDS MATT: #326 (TEMPO-CAST-FLOOR, 1724b737) was folded into the integrate branch, then reverted by 67910219, so the cast-floor logic for path packs is currently OUT of #396. Re-fold or drop is Matt's call. feat/no-push-rule 7334a6c8 (ENEMY-NO-PUSH; commit says WIP) is in neither #396 nor main. #375 42b92dfa and #370 d5fc921b are outside #396. pr250 (#250 OPEN, 817969b6, 3 test-guard files) is live and outside #396. lane/rebase-242 (#242 CLOSED) has zero net diff vs main: stale; delete needs Matt.
 
+## Checkpoint 2026-10-21 02:20Z (orchestrator; 21:20 CDT 2026-10-20)
+WHY: Matt's messages at about 02:10Z and 02:15Z changed the plan. The PR pile (about 40 open PRs) is the bottleneck, CI errors are read by the orchestrator itself, and a merge queue waits until the pile lands. The 01:35Z NOW list below still treats the pile as a single #396 wait, so this block supersedes it where they differ. Facts are gh-bound or reproduced locally at the head sha stated.
+
+Matt's decisions (verbatim, 2026-10-21 ~02:10Z):
+- "the ci gates on gh literally have the error, the paths have changed on half the prsd"
+- "why are you not focused on resolving keyrun prs rn to continue working"
+- "that is the bottleneck, if anything becomes a bottleneck it should be optimized, idk why we're sitting on 40 prs our throughput is not that fast and you can read the errors instead of sending agents on wild goose chases"
+- (~02:15Z) "you can use a merge queue lmfao, but it won't solve failing ci for 6 hours, after you get these all in according to plan"
+
+The call: the orchestrator reads each PR's failing CI line itself before dispatching a fix lane. A GitHub merge queue is APPROVED, but it is enabled only after the current PR pile lands per plan (#396 first, then the merge-forward batch). WHY: throughput is the bottleneck; a merge queue cannot make a red PR green; and recon lanes misjudged conflicts (a name-only recon said #370 and #366 were independent of #396, and a real test-merge found 8 conflicts).
+
+#396 "integrate: playable dungeon (one PR)", integrate/playable-dungeon, head 1cce3d8c, squash auto-merge armed. game-test, test and e2e PASS. game-e2e FAILS on HudSceneTest (2 failures): "run F: the refilled seat never acted after the refill (the joiner's commands are dropped)" and "run K1: the recorded log differs from the committed example game/fixtures/input/example-enter-ping.input-log.json". The orchestrator reproduced both locally on the worktree at 1cce3d8c (log kept in the session scratchpad). WHY it is still red: the required check holds the merge, and the hold is correct. An Opus fix lane is on it: a replica test first, then the fix; K1 is regenerated only from a real recording, with the reason stated. A fitted green (an edited assertion, or a fixture regenerated without a real recording) is refused.
+
+Lane choices on #396, recorded as decisions (from integration lane af21aa85):
+- Oracle traces are kept through a `TsSymmetricPushOut` switch, true only in the oracle replay RunSetup.ParseContent. Not marked superseded. WHY: the TS oracle still defines the parity traces, and a global switch would change the live sim.
+- Fan rule `ResolveCollisionAround` for enemies that share a target (D54). WHY: D54 says enemies never displace a player and enemy-vs-enemy separation moves the enemy only, so a fan around one target needs a deterministic rule.
+- D55 cancels a cast when the caster is dead or no living player remains, not when a single target dies. WHY: one target's death is an ordinary retarget; cancelling on it would drop telegraphs the rest of the party still has to answer.
+- HUD scene runs B and C were never executed on the branch by lanes (headless replicas only). The orchestrator ran the full HudSceneTest locally. WHY recorded: a headless replica is not a run of the scene.
+
+Red PR map, read from CI by the orchestrator. The game-gate line "game paths changed ... game-e2e must be success" means the PR touches game files, so game-e2e is required. It is not a path rename.
+- K1 fixture drift: #384, #364, #327, #319, #295.
+- Stale queue-payload test (main added Gear) plus stale talent-parity fixture: #324, #311, #307, #302, #325. #325 also fails 3 EncounterTrace oracle traces from its busy-caster guard.
+- Run C never reaches the boss (branch predates NAV-CORE and TUNE-BOSS): #375, #326.
+- #362 runs B, E and N; #364 run B.
+- #356 TS frozen-roots oracle hash drift. #344 boss golden changed. #280 ClauseTextTests Tide text. #293 e2e timeout (node test).
+- #336 is a DO-NOT-MERGE red proof, kept red on purpose.
+
+Real test-merge of each red PR against integrate/playable-dungeon (git merge-tree, 2026-10-21 ~02:19Z):
+- 0 conflicts: #384, #327, #326, #311, #295, #280, #344, #325, #366. These are merged forward NOW in parallel (8 Opus lanes, dispatched 02:19Z). WHY now: none of them touch the files #396 is still changing.
+- Conflicting: #375 (14), #364 (14), #362 (11), #356 (6), #324 (9), #319 (7), #307 (39), #302 (49), #370 (33), #293 (4). These wait for #396 MERGED, then merge-forward. WHY: a name-only recon cannot see these; only the test-merge can.
+- Folded into #396, close after MERGED: #308, #333, #369, #335, #244, #388. Verify-then-close #344 and #325 if #396 covers them. WHY: their content reaches main through #396, and a second merge of the same code is a future conflict.
+
+Facets: #366 OPEN, armed at 47c5c970 (stale talent-parity fixture re-recorded; main merged). #370 zero-GCD has 8 conflicts with #396 and is redone after #396 MERGED. #406 D54/D55 checkpoint MERGED at f6eec54e, and main is GREEN at f6eec54e. WHY: lanes build against D54/D55 as they now sit on main.
+
 ## NEXT STEPS (engine plan, design/ENGINE-PLAN.md; Phase 5 "Matt playing" stays the acceptance test)
+NOW 02:20Z (supersedes the 01:35Z list below where they differ):
+a. #396 green, then MERGED (verified with gh, never from narration). Then the orchestrator fast-forwards the primary tree, runs tools/godot/screens.ps1, and views the frames (D15) before closing the demo-verdict rows KF1, KF2 and KF3. WHY: D15 acceptance is Matt watching frames; a unit test alone does not close a visible row.
+b. Merge-forward the conflicting set after #396 MERGED. WHY: each conflict is resolved against the real merged base, keeping both intents.
+c. Enable the GitHub merge queue (Matt approved) after the pile lands per plan. WHY: a queue on a red pile only serialises the failures.
+d. Design smell, to fix after the pile: the run K1 example input log compares byte-for-byte against a recording whose Enter ticks depend on run-end timing, so every bot or combat change forces a regen. Make the comparison independent of run timing, or compare structure only. This is not a fitted green: the example documents the format, not the tick. WHY: a byte compare on timing turns every balance change into a false regression.
+
 NOW (checkpoint 2026-10-21 01:35Z; gh-bound facts read by the orchestrator at ~01:35Z; this supersedes the 00:35Z block above where they differ, because #396 has moved from draft to armed):
 1. #396 "integrate: playable dungeon (one PR)" is OPEN and READY, auto-merge SQUASH armed at 01:15:54Z pinned to head 2e720e2f (a merge of origin/main de0d1c8d into f61ed34f). It waits on required checks. WHY ready: the capture at f61ed34f showed a black void and far labels, and both were classified as pre-existing or environmental, not regressions. The void is the missing game/.godot/imported cache in a fresh worktree (gitignored; GD.Load of .glb returns null). The far labels are PlateRule having no distance term (fixed by D53). Captures must come from the primary tree, never a fresh worktree.
 2. #404 "nameplate distance cull" is OPEN, auto-merge SQUASH armed at 01:27:03Z, head 60119575. WHY: the D53 core-loop call; it closes f-77a68e6b after merge and frames.
