@@ -148,6 +148,59 @@ public sealed class CameraNearFadeTests
         Assert.Equal(Opaque, CameraNearFade.ScreenHeightCapPermille(FadeRole.Self, 900));
     }
 
+    // ENEMY-BODY-STABLE: one entry point for the view. An enemy is opaque under every rule; party bodies keep the min of rules.
+    [Fact]
+    public void An_enemy_at_1000_mm_is_drawn_opaque()
+    {
+        Assert.Equal(Opaque, CameraNearFade.AppliedPermille(FadeRole.Enemy, 1000, false, 0));
+    }
+
+    [Fact]
+    public void An_enemy_at_the_lens_is_drawn_opaque()
+    {
+        Assert.Equal(Opaque, CameraNearFade.AppliedPermille(FadeRole.Enemy, 0, false, 0));
+    }
+
+    [Fact]
+    public void An_occluding_enemy_is_drawn_opaque()
+    {
+        Assert.Equal(Opaque, CameraNearFade.AppliedPermille(FadeRole.Enemy, 1000, true, 0));
+        Assert.Equal(Opaque, CameraNearFade.AppliedPermille(FadeRole.Enemy, 8000, true, 0));
+    }
+
+    [Fact]
+    public void An_enemy_taller_than_a_third_of_the_viewport_is_drawn_opaque()
+    {
+        Assert.Equal(Opaque, CameraNearFade.AppliedPermille(FadeRole.Enemy, 1000, false, 900));
+    }
+
+    [Fact]
+    public void A_party_body_near_the_lens_keeps_the_distance_rule()
+    {
+        // The distance rule at 1 m is 240; no occlusion and no screen-height cap apply.
+        Assert.Equal(240, CameraNearFade.AppliedPermille(FadeRole.Ally, 1000, false, 0));
+    }
+
+    [Fact]
+    public void A_party_body_on_the_sight_line_takes_the_party_fade_at_the_boom_distance()
+    {
+        Assert.Equal(PartyFade.FadedPermille, CameraNearFade.AppliedPermille(FadeRole.Ally, 8000, true, 0));
+    }
+
+    [Fact]
+    public void A_party_body_taller_than_a_third_of_the_viewport_is_capped_in_applied()
+    {
+        Assert.Equal(PartyFade.FadedPermille, CameraNearFade.AppliedPermille(FadeRole.Ally, 8000, false, 340));
+        Assert.Equal(Opaque, CameraNearFade.AppliedPermille(FadeRole.Ally, 8000, false, 320));
+    }
+
+    [Fact]
+    public void The_players_own_model_keeps_the_distance_rule_and_is_never_capped()
+    {
+        Assert.Equal(240, CameraNearFade.AppliedPermille(FadeRole.Self, 1000, false, 0));
+        Assert.Equal(Opaque, CameraNearFade.AppliedPermille(FadeRole.Self, 8000, false, 900));
+    }
+
     [Fact]
     public void The_screen_height_is_the_projected_span_over_the_viewport_height()
     {

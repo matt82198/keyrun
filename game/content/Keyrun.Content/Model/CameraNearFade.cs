@@ -135,6 +135,22 @@ public static class CameraNearFade
     public static int ScreenHeightCapPermille(FadeRole role, int screenHeightPermille) =>
         role == FadeRole.Ally && screenHeightPermille > ScreenHeightLimitPermille ? PartyFade.FadedPermille : OpaquePermille;
 
+    /// <summary>
+    /// ENEMY-BODY-STABLE: the single alpha entry point the actor view draws a body with, from every near-camera rule.
+    /// An enemy (<see cref="FadeRole.Enemy"/>) is always opaque, whatever its distance, occlusion or screen height. A party
+    /// body (<see cref="FadeRole.Self"/>, <see cref="FadeRole.Ally"/>) is the lowest of the distance rule
+    /// (<see cref="AlphaPermille(int, bool)"/>) and the screen-height cap (<see cref="ScreenHeightCapPermille"/>).
+    /// </summary>
+    /// <param name="role">Who the body is.</param>
+    /// <param name="distanceMm">The distance from the lens to the body's centre, mm.</param>
+    /// <param name="occludes">Whether the body occludes the pivot (<see cref="Occludes"/>).</param>
+    /// <param name="screenHeightPermille">The body's projected height, permille of the viewport height.</param>
+    /// <returns>An alpha in permille: <see cref="OpaquePermille"/> for every enemy.</returns>
+    public static int AppliedPermille(FadeRole role, int distanceMm, bool occludes, int screenHeightPermille) =>
+        role == FadeRole.Enemy
+            ? OpaquePermille
+            : Math.Min(AlphaPermille(distanceMm, occludes), ScreenHeightCapPermille(role, screenHeightPermille));
+
     private static (long X, long Y, long Z) Sub((int X, int Y, int Z) a, (int X, int Y, int Z) b) =>
         ((long)a.X - b.X, (long)a.Y - b.Y, (long)a.Z - b.Z);
 

@@ -80,6 +80,66 @@ public sealed class AnimTimingTests
         }
     }
 
+    // ENEMY-BODY-STABLE: an enemy body never flashes white on a hit (its colour stays stable); a party body keeps the flash.
+    [Theory]
+    [InlineData(-5)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(40)]
+    [InlineData(int.MaxValue)]
+    public void An_enemy_never_flashes_at_any_tick_or_alpha(int ticksSince)
+    {
+        for (var a = 0; a < 1000; a += 125)
+        {
+            Assert.Equal(0, AnimRule.FlashPermilleFor(FadeRole.Enemy, ticksSince, a));
+        }
+    }
+
+    [Fact]
+    public void A_party_body_flashes_at_full_strength_on_the_hurt_tick()
+    {
+        Assert.Equal(1000, AnimRule.FlashPermilleFor(FadeRole.Ally, 0, 0));
+        Assert.Equal(1000, AnimRule.FlashPermilleFor(FadeRole.Self, 0, 0));
+    }
+
+    [Fact]
+    public void A_party_body_flash_at_two_ticks_is_the_existing_fade()
+    {
+        // Existing rule: 1000 - (2000 + 0) * 1000 / 3000 = 334 (the contract's "about 333" is this value, floored from 333.3).
+        Assert.Equal(334, AnimRule.FlashPermilleFor(FadeRole.Ally, 2, 0));
+        Assert.Equal(1, AnimRule.FlashPermilleFor(FadeRole.Self, 2, 999));
+    }
+
+    [Fact]
+    public void A_party_body_flash_is_zero_at_and_after_the_flash_ticks()
+    {
+        Assert.Equal(0, AnimRule.FlashPermilleFor(FadeRole.Ally, AnimRule.FlashTicks, 0));
+        Assert.Equal(0, AnimRule.FlashPermilleFor(FadeRole.Self, AnimRule.FlashTicks + 5, 0));
+        Assert.Equal(0, AnimRule.FlashPermilleFor(FadeRole.Ally, -1, 0));
+    }
+
+    [Fact]
+    public void The_party_flash_is_unchanged_by_the_role_wrapper()
+    {
+        for (var t = -2; t < AnimRule.FlashTicks + 2; t++)
+        {
+            for (var a = 0; a < 1000; a += 125)
+            {
+                Assert.Equal(AnimRule.FlashPermille(t, a), AnimRule.FlashPermilleFor(FadeRole.Ally, t, a));
+                Assert.Equal(AnimRule.FlashPermille(t, a), AnimRule.FlashPermilleFor(FadeRole.Self, t, a));
+            }
+        }
+    }
+
+    [Fact]
+    public void The_flash_receipt_line_names_actor_tick_and_strength()
+    {
+        Assert.Equal("FLASH actor=102 tick=3952 strength=1000", AnimRule.FlashLine(102, 3952, 1000));
+        Assert.Equal("FLASH actor=1 tick=7 strength=334", AnimRule.FlashLine(1, 7, 334));
+    }
+
     [Fact]
     public void Kicked_reads_the_interrupt_target_not_the_kicker()
     {
