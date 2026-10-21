@@ -70,6 +70,40 @@ public static class Ledger
         return best?.ActorId;
     }
 
+    /// <summary>
+    /// BOT-KICK-TIMING: a human M+ player needs 0.3-0.8 s to see a cast and react; 12 ticks is 600 ms at 20 Hz, the
+    /// middle of that range. No kick lands earlier than this after the cast starts (bounded by the cast itself).
+    /// </summary>
+    public const int KickReactionTicks = 12;
+
+    /// <summary>
+    /// BOT-KICK-TIMING: the kick window opens at least this long before the cast resolves, so the assigned kicker still
+    /// lands it: 40 ticks (2 s) covers the longest player GCD (30 ticks) started the tick before the window opened plus
+    /// the slowest skill-dial reaction delay (10 ticks).
+    /// </summary>
+    public const int KickLandMarginTicks = 40;
+
+    /// <summary>
+    /// BOT-KICK-TIMING (design/BIBLE.md sections 3, 4 and 9; no TS counterpart): the first tick a bot may kick
+    /// <paramref name="caster"/>'s cast. Good players kick in the back half of a long cast, after a reaction: the delay is
+    /// half the cast but at least <see cref="KickReactionTicks"/>, capped at <see cref="KickLandMarginTicks"/> before the
+    /// cast resolves, and never below the reaction (or the cast's last tick, whichever is sooner). The Choir's 80-tick
+    /// heal opens at 40. Integer ticks only; a caster with no cast fields opens at once.
+    /// </summary>
+    /// <param name="caster">The casting enemy.</param>
+    /// <returns>The opening tick.</returns>
+    public static int KickOpensTick(ActorState caster)
+    {
+        ArgumentNullException.ThrowIfNull(caster);
+        if (caster.CastStartTick is not { } start || caster.CastEndsTick is not { } ends || ends <= start)
+        {
+            return int.MinValue;
+        }
+        var duration = ends - start;
+        var backHalf = Math.Min(Math.Max(KickReactionTicks, duration / 2), duration - KickLandMarginTicks);
+        return start + Math.Max(Math.Min(KickReactionTicks, duration - 1), backHalf);
+    }
+
     /// <summary>ledger.ts selectKicker: the lowest eligible actorId, or null.</summary>
     /// <param name="eligibleActorIds">Eligible kickers.</param>
     /// <returns>Kicker id, or null.</returns>
