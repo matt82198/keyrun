@@ -40,7 +40,9 @@ public sealed class RewardDropFacetsTests
     {
         var kit = Kit(Reg.Classes[classId]);
         var pools = Rewards.GearSlots.ToDictionary(s => s, s => SlotPool(kit, s), StringComparer.Ordinal);
-        foreach (var result in new[] { RunResult.Timed, RunResult.Depleted, RunResult.Abandoned })
+        // An abandoned run offers no card to take (STATE.md D45; Sim AbandonedRunGetsNothingTests), so only the
+        // finished results are equipped here.
+        foreach (var result in new[] { RunResult.Timed, RunResult.Depleted })
         {
             for (var seed = 0; seed < 150; seed++)
             {

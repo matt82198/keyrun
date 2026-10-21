@@ -4,7 +4,8 @@
     { "enemyId": "choir.melee", "points": 40 },
     { "enemyId": "choir.lieutenant", "points": 80 },
     { "enemyId": "pair.melee", "points": 52 },
-    { "enemyId": "seed.elite", "points": 180 }
+    { "enemyId": "seed.elite", "points": 180 },
+    { "enemyId": "hall.sentry", "points": 48 }
   ],
   "route": {
     "dungeonId": "hollow-vault",

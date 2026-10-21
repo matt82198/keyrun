@@ -277,7 +277,8 @@ public static class ProgressionSave
             var other => throw new FormatException($"unknown run result \"{other}\""),
         };
         var ash = Int(o, "ash");
-        if (ash != Ash.ForResult(result))
+        // A save written before D45 recorded 10 Ash for an abandoned run; it still loads as written.
+        if (ash != Ash.ForResult(result) && !(result == RunResult.Abandoned && ash == Ash.LegacyAbandoned))
         {
             throw new FormatException("last run Ash does not match its result");
         }

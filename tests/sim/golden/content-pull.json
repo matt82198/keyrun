@@ -1045,13 +1045,13 @@
       "targetId": 1000
     }
   ],
-  "expectedHash": "aacd0470",
+  "expectedHash": "113b8042",
   "eventCounts": {
     "damage": 25,
     "cast_complete": 25,
     "window_opened": 3,
     "combo": 3,
-    "heal": 1
+    "heal": 3
   },
   "why": "Any change to expectedHash is either a deliberate content/sim behaviour change (explain it in the PR body) or a regression (fix the code -- never retune this fixture to match, see sim/CLAUDE.md's 'Replays are golden tests'). eventCounts exists for the same reason: a silent behaviour change should fail with a readable diff, not just a hash mismatch. NOTE: enemy swings DO execute (targeting + chase landed): choir.meleeSwing hits the party from tick 40, guarded by tests/sim/encounter/golden-melee.test.ts. contentHashes pins the content version per registry entry, so two content PRs touch different lines.",
   "contentHashes": {
@@ -1083,7 +1083,7 @@
       "fnv": "8a842402"
     },
     "abilities/choir.healCast": {
-      "fnv": "53a3ceca"
+      "fnv": "429391f8"
     },
     "abilities/choir.meleeSwing": {
       "fnv": "d129f5cb"
@@ -1119,10 +1119,10 @@
       "fnv": "9e81d4c8"
     },
     "abilities/hollowWarden.lock": {
-      "fnv": "a4a3d29d"
+      "fnv": "2e3bbea5"
     },
     "abilities/hollowWarden.slam": {
-      "fnv": "e62b779c"
+      "fnv": "d78150f7"
     },
     "abilities/pair.meleeSwing": {
       "fnv": "15f6e0cd"
@@ -1139,11 +1139,14 @@
     "abilities/seed.lash": {
       "fnv": "cc8f1ac8"
     },
+    "abilities/seed.lock": {
+      "fnv": "2db4d17e"
+    },
     "abilities/seed.slam": {
       "fnv": "be78290d"
     },
     "abilities/twins.slam": {
-      "fnv": "4096c66b"
+      "fnv": "ea2e4ee6"
     },
     "abilities/warden.brace": {
       "fnv": "9ccdba27"
@@ -1173,13 +1176,13 @@
       "fnv": "1e026657"
     },
     "classes/chanter": {
-      "fnv": "32160eef"
+      "fnv": "bc1ae778"
     },
     "classes/cinder": {
-      "fnv": "7800a6a2"
+      "fnv": "bde6f176"
     },
     "classes/warden": {
-      "fnv": "27e0efe0"
+      "fnv": "a598a2d7"
     },
     "clauses/echo": {
       "fnv": "13f70301"
@@ -1308,7 +1311,7 @@
       "fnv": "164ad8a8"
     },
     "enemies/hollowWarden.boss": {
-      "fnv": "0a1ee800"
+      "fnv": "12d42701"
     },
     "enemies/hollowWarden.twinA": {
       "fnv": "87977504"
@@ -1320,7 +1323,7 @@
       "fnv": "7e7ecb56"
     },
     "enemies/seed.elite": {
-      "fnv": "cbb48473"
+      "fnv": "ee27b0b9"
     },
     "facets/chanter.armor.cleansingChord": {
       "fnv": "1164b4b5"
@@ -1362,7 +1365,7 @@
       "fnv": "6ef1017c"
     },
     "facets/chanter.ring.overtureOfPower": {
-      "fnv": "1bd8dcb3"
+      "fnv": "38bee143"
     },
     "facets/chanter.ring.swiftVerse": {
       "fnv": "f6edec2a"

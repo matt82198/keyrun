@@ -203,7 +203,7 @@ public partial class PlayerInput : Node, ICommandSource
         ArgumentNullException.ThrowIfNull(run);
         if (_scripted)
         {
-            _script.Sample(tick, run, into);
+            _script.Sample(tick, run, into, Driver?.OpenSeats);
             return;
         }
         SampleMove(tick, run, into);

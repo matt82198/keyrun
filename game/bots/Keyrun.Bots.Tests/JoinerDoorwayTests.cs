@@ -16,10 +16,11 @@ using SimDungeon = Keyrun.Sim.Encounter.DungeonDef;
 namespace Keyrun.Bots.Tests;
 
 /// <summary>
-/// JOINER-DOORWAY (STATE.md D27; design/BIBLE.md sections 4 and 10). <see cref="BackfillGateTests"/>' run, driven to its
-/// end instead of stopping just after pair-hall's <c>gate_open</c>: seat 2 is abandoned in the Choir, refilled on the
-/// tick pair-hall's gate shuts, waits outside it, then follows the party through every later doorway. A room entry is
-/// one event: the joiner (and every seat) emits <c>room_enter</c> once per room, never flickering across a doorway.
+/// JOINER-DOORWAY (design/BIBLE.md sections 4 and 10; the room gate of STATE.md D27 is gone since D44). A backfill run
+/// driven to its end: seat 2 is abandoned in the Choir, refilled when pair-hall engages and arrives with the party there
+/// (BIBLE s9.1/s10 "a joiner arrives at the next pull start ... inside the party's taken branch"; Backfill.Step places it
+/// on the staying member nearest the leaver), then follows it through every later doorway. A room entry is one event: the joiner (and every seat) emits
+/// <c>room_enter</c> once per room, never flickering across a doorway.
 /// </summary>
 public sealed class JoinerDoorwayTests
 {
@@ -27,10 +28,18 @@ public sealed class JoinerDoorwayTests
     private const int LeaderId = 1;
     private const int JoinerId = 2;
     private const int MaxTicks = 12000;
-    private const int HealthCap = 1500;
+    // Scenario setup, not an assertion. 1500 -> 1000 (prespawn aggro): the healerless Warden died at 1273 in the Pair,
+    // so nobody led the joiner on.
+    private const int HealthCap = 1000;
     private const string GatedRoom = "pair-hall";
 
-    private sealed record Drive(List<SimEvent> Events, int? FillTick, Run Final);
+    /// <param name="Events">Every event of the drive.</param>
+    /// <param name="FillTick">The refill's pull start tick, or null.</param>
+    /// <param name="Final">The run at the end.</param>
+    /// <param name="AbandonPos">Where the leaver stood at the abandon.</param>
+    /// <param name="JoinerAtFill">The joiner's position on the fill step's state.</param>
+    /// <param name="StayingAtFill">The living staying party members' positions on the fill step's state.</param>
+    private sealed record Drive(List<SimEvent> Events, int? FillTick, Run Final, Vec3? AbandonPos, Vec3? JoinerAtFill, List<Vec3> StayingAtFill);
 
     private static readonly Lazy<Drive> Driven = new(DriveRun);
 
@@ -70,15 +79,19 @@ public sealed class JoinerDoorwayTests
         var queue = new List<QueueRequest> { new(dungeon.Id, run.Encounter.KeyLevel, "none") };
         var abandoned = false;
         int? fillTick = null;
+        Vec3? abandonPos = null;
+        Vec3? joinerAtFill = null;
+        var stayingAtFill = new List<Vec3>();
 
         while (run.State.Tick < MaxTicks && run.RunEnd.ResultTick is null)
         {
             var tick = run.State.Tick;
-            if (!abandoned && run.Encounter.PullIndex == 0 && run.State.Actors.Values.Count(a => a.Alive && a.Kind == ActorKind.Enemy) == 1)
+            if (!abandoned && run.Encounter.PullIndex == 0 && run.State.Actors.Values.Count(a => a.Alive && a.Kind == ActorKind.Enemy && !a.Idle) == 1)
             {
-                // As in BackfillGateTests: seat 2 leaves as the Choir's last enemy is fought.
+                // Seat 2 leaves as the Choir's last enemy is fought.
                 book = Backfill.Abandon(book, run, JoinerId);
                 abandoned = true;
+                abandonPos = run.State.Actors[JoinerId].Pos;
             }
 
             var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
@@ -92,7 +105,7 @@ public sealed class JoinerDoorwayTests
                 {
                     // ScriptedWarden's travel: the route, holding for the party, not the tank role.
                     commands.RemoveAll(c => c.ActorId == LeaderId);
-                    if (Follow.LeadRoute(tick, leader, run) is { } walk)
+                    if (Follow.LeadRoute(tick, leader, run, book.Open.Select(s => s.ActorId).ToList()) is { } walk)
                     {
                         commands.Add(walk);
                     }
@@ -112,12 +125,15 @@ public sealed class JoinerDoorwayTests
             }
             if (stepped.Fills.Any(f => f.ActorId == JoinerId))
             {
-                fillTick = stepped.Step.Run.State.Tick;
+                var filled = stepped.Step.Run.State;
+                fillTick = filled.Tick;
+                joinerAtFill = filled.Actors[JoinerId].Pos;
+                stayingAtFill = filled.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != JoinerId).Select(a => a.Pos).ToList();
             }
             run = stepped.Step.Run;
             events.AddRange(stepped.Step.Events);
         }
-        return new Drive(events, fillTick, run);
+        return new Drive(events, fillTick, run, abandonPos, joinerAtFill, stayingAtFill);
     }
 
     /// <summary>
@@ -212,14 +228,26 @@ public sealed class JoinerDoorwayTests
         {
             _output.WriteLine($"{e.Tick} {e.Type} {(e.Type == "room_enter" ? KeyOf(e).Actor + " " + KeyOf(e).Room : e.Type is "gate_closed" or "gate_open" ? ((JsString)e.Get("room")!).Value : e.Type == "run_end" ? string.Empty : ((JsString)e.Get("pullId")!).Value)}");
         }
+        foreach (var e in r.Events.Where(e => e.Type == "death"))
+        {
+            _output.WriteLine($"{e.Tick} death actor {((JsInt)e.Get("actorId")!).Value}");
+        }
+        foreach (var a in r.Final.State.Actors.Values.Where(a => a.Kind == ActorKind.Player || (a.Alive && !a.Idle)))
+        {
+            _output.WriteLine($"final tick {r.Final.State.Tick}: {a.Id} {a.ClassId} alive={a.Alive} idle={a.Idle} hp={a.Health} pos=({a.Pos.X},{a.Pos.Z}) target={a.TargetId}");
+        }
 
-        // Non-vacuity: the seat is refilled, and the joiner walks through pair-hall's doorway after it.
+        // BIBLE s9.1 and s10: "a joiner arrives at the next pull start ... inside the party's taken branch". The seat is
+        // refilled when pair-hall engages, and on that step the joiner stands with the party (on a living staying member),
+        // not where the leaver idled in the Choir.
         Assert.NotNull(r.FillTick);
-        var joined = enters.Where(e => KeyOf(e).Actor == JoinerId && e.Tick >= r.FillTick!.Value).ToList();
-        Assert.Contains(joined, e => KeyOf(e).Room == GatedRoom);
+        Assert.NotNull(r.JoinerAtFill);
+        Assert.Contains(r.JoinerAtFill!.Value, r.StayingAtFill);
+        Assert.NotEqual(r.AbandonPos, r.JoinerAtFill);
 
+        var joined = enters.Where(e => KeyOf(e).Actor == JoinerId && e.Tick >= r.FillTick!.Value).ToList();
         var gated = joined.Count(e => KeyOf(e).Room == GatedRoom);
-        Assert.True(gated == 1, $"joiner {JoinerId} emitted room_enter {GatedRoom} {gated} times after its fill at {r.FillTick}: ticks {string.Join(",", joined.Where(e => KeyOf(e).Room == GatedRoom).Select(e => e.Tick))}");
+        Assert.True(gated <= 1,$"joiner {JoinerId} emitted room_enter {GatedRoom} {gated} times after its fill at {r.FillTick}: ticks {string.Join(",", joined.Where(e => KeyOf(e).Room == GatedRoom).Select(e => e.Tick))}");
 
         var repeats = enters.GroupBy(KeyOf).Where(g => g.Count() > 1).Select(g => $"{g.Key.Actor} {g.Key.Room} x{g.Count()} at {string.Join(",", g.Select(e => e.Tick))}").ToList();
         Assert.True(repeats.Count == 0, $"room_enter repeats: {string.Join("; ", repeats)}");

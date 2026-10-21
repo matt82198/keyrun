@@ -12,7 +12,7 @@ namespace Keyrun.Bots.Shared;
 public static class Priority
 {
     private static IEnumerable<ActorState> AliveEnemies(SortedDictionary<int, ActorState> actors) =>
-        actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive);
+        actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle);
 
     private static IEnumerable<ActorState> AliveAllies(SortedDictionary<int, ActorState> actors) =>
         actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive);

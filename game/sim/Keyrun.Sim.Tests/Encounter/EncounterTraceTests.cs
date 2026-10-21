@@ -65,17 +65,57 @@ public sealed class EncounterTraceTests
         var setup = EncounterTestKit.Setup(OracleRun.SetupNameOf(trace));
         var content = (JsObject)setup.Get("content")!;
         var dungeon = EncounterJson.ParseDungeon(setup.Get("dungeon")!);
-        // A frozen-TS replay, as RunSetup loads one: the TS drew every scheduled telegraph (TelegraphSpec.TsUnchecked)
-        // and fired every step on schedule, mid-cast or not (ScriptStep.TsCastReplace).
+        // A frozen-TS replay, as RunSetup loads one: the TS has no spansCast rule and drew every scheduled telegraph
+        // (TelegraphSpec.TsUnchecked), and fired every step on schedule, holding it while its caster was busy
+        // (ScriptStep.TsCastReplace, CastDeferral).
         var scripts = EncounterJson.ParseScripts(content.Get("enemyScripts")!).ToDictionary(
             kv => kv.Key,
             kv => (IReadOnlyList<ScriptStep>)kv.Value
-                .Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { TsUnchecked = true } } : s)
+                .Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { SpansCast = false, TsUnchecked = true } } : s)
                 .Select(s => s with { TsCastReplace = true }).ToList());
-        var abilities = EncounterJson.ParseAbilities(content.Get("abilities")!);
+        // STARTCAST-BUSY (#325): a step due while its caster is busy is held until the cast lands, so the replay needs each
+        // ability's cast time (a cast-time cast claims its caster for the rest of the tick) ...
+        var abilityJson = (JsObject)content.Get("abilities")!;
+        var abilities = EncounterJson.ParseAbilities(abilityJson).ToDictionary(
+            kv => kv.Key,
+            kv => kv.Value with { CastTicks = abilityJson.Get(kv.Key) is JsObject ao && ao.Get("castTicks") is JsInt ct ? (int)ct.Value : 0 },
+            StringComparer.Ordinal);
         var keyLevel = OracleRun.KeyLevel(setup);
         var records = OracleRun.Records(trace);
         var tally = new Tally();
+
+        // ... and each enemy's cast in flight on every tick, not only on the full lines (this replay runs no combat). Each
+        // enemy cast_complete the oracle recorded on tick X for an ability with castTicks C was in flight on (X - C, X].
+        var enemyCasts = new List<(int Actor, string Ability, int Start, int Ends)>();
+        foreach (var rec in records)
+        {
+            foreach (var e in rec.Events.Where(e => e.Type == "cast_complete"))
+            {
+                var ab = ((JsString)e.Get("abilityId")!).Value;
+                if (abilities.TryGetValue(ab, out var sa) && sa.CastTicks > 0)
+                {
+                    enemyCasts.Add(((int)((JsInt)e.Get("actorId")!).Value, ab, e.Tick - sa.CastTicks, e.Tick));
+                }
+            }
+        }
+
+        void CastsInFlight(SimState st, int t)
+        {
+            foreach (var a in st.Actors.Values.Where(a => a.Kind == ActorKind.Enemy))
+            {
+                var c = enemyCasts.FirstOrDefault(x => x.Actor == a.Id && x.Start < t && t <= x.Ends);
+                if (c.Ability is not null)
+                {
+                    a.CastId = c.Ability;
+                    a.CastEndsTick = c.Ends;
+                }
+                else if (a.CastEndsTick is { } ends && ends < t)
+                {
+                    a.CastId = null;
+                    a.CastEndsTick = null;
+                }
+            }
+        }
 
         var state = new SimState { Tick = 0, Seed = 1, Prng = new PrngState(1, 2, 3, 4), Phase = "combat" };
         var party = OracleRun.Party(setup);
@@ -118,6 +158,7 @@ public sealed class EncounterTraceTests
             var exact = records[i - 1].P is not null;
             state.Tick = r.T - 1;
             state.RunTimerTicks = r.T - 1;
+            CastsInFlight(state, state.Tick);
 
             var ours = new List<SimEvent>();
             var step = EncounterStep.Step(state, encounter, dungeon, scripts, ours.Add,
@@ -231,9 +272,12 @@ public sealed class EncounterTraceTests
     // 7, 0, 1, 1; k10 16, 16, 7, 0, 0, 3).
     // SPELL-QUEUE (PR #370: bots press in the last 8 ticks of their own cast; Combat/SpellQueue.cs) re-recorded, measured
     // by this replay: k2 was 10, 10, 7, 0, 0, 0 (now 8, 8, 7, 0, 1, 1); k10 unchanged.
+    // PR #370 merged with INTEGRATE-PLAYABLE (#396) and re-recorded on the merged tree (ORACLE_WRITE=1), measured by
+    // this replay: the k2 traces are byte-identical to PR #370's own, so the k2 rows are PR #370's (main alone: k2 12,
+    // 12, 7, 0, 1, 1); k10 PR #370 alone 15, 15, 7, 0, 0, 3, main alone 19, 18, 7, 0, 0, 2.
     [InlineData("bots-hv-k2-s7", 8, 8, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
     [InlineData("bots-hv-k2-s11", 8, 8, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 15, 15, 7, 0, 0, 3)]
+    [InlineData("bots-hv-k10-s7", 15, 15, 7, 0, 0, 3)] // MERGE-370 re-record: was 19, 18, 7, 0, 0, 2 on main (measured by this replay on the merged trace: telegraphs=15 hits=15 exact 0 / 3; the same as PR #370 alone). INTEGRATE-PLAYABLE CAST-DEFERRAL re-record: was 16, 16, 7, 0, 0, 2 (measured by this replay: telegraphs=19 (exact 0) hits=18 (exact 2); held boss casts re-draw their telegraph when issued). INTEGRATE-PLAYABLE #325 re-fold re-record: was 17, 17, 7, 0, 0, 3 (measured by this replay: telegraphs=16 (exact 0) hits=16 (exact 2); the run now ends at 2071, before the 2126 cleave). INTEGRATE-PLAYABLE re-record (integrated tree, e19bc046 traces): was 16, 15, 7, 0, 0, 2, tallied by this replay from the recorded trace; SLAM-CIRCLE-HITS re-record (slam circle + CHASE-AREA-REACH): was 16, 16, 7, 0, 0, 3 (measured by this replay against the regenerated oracle); k2 rows unchanged
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

@@ -115,7 +115,9 @@ public static class Combos
     /// no-ops: combos do not chain. C#-only: partyEffect applies to every living actor of the Payoff actor's faction,
     /// and cloud opens a <see cref="FloorCloud"/> on the carrier (BIBLE section 4 Anthem and Steam). An applyEffect
     /// whose effect is a heal-over-time, closed on an enemy carrier, goes to the Payoff actor's living allies near the
-    /// carrier instead (BIBLE section 4 Consecrate; <see cref="HealPulseRadiusMm"/>).
+    /// carrier instead (BIBLE section 4 Consecrate; <see cref="HealPulseRadiusMm"/>). C# deviation in behaviour
+    /// (HEAL-NEVER-HOSTILE, as Casting.ApplyEffects): a heal op heals the carrier only when it is the Payoff actor's own
+    /// faction, so a Hymn field heal closed on an enemy never heals it.
     /// </summary>
     /// <param name="state">Sim state.</param>
     /// <param name="source">The Payoff actor.</param>
@@ -144,7 +146,10 @@ public static class Combos
                     Mitigation.DealDamage(state.Tick, source, target, d.Amount, effectDefs, emit, source.Id, weighting);
                     break;
                 case HealOp h:
-                    Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
+                    if (target.Kind == source.Kind)
+                    {
+                        Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
+                    }
                     break;
                 case ApplyEffectOp a:
                     if (effectDefs.TryGetValue(a.EffectId, out var def))
@@ -278,11 +283,30 @@ public static class Combos
         Damage.ResolveModified(tick, closer, raw, modified, effectDefs, emit, closer.Id);
     }
 
+    /// <summary>
+    /// The id of a cloud <paramref name="source"/> opens now: effectId:sourceId:tick, unique among
+    /// <see cref="SimState.FloorClouds"/>. One source can open two clouds in one tick (a cast completing at the tick and
+    /// an instant Payoff in that tick's commands, Rules.Make), so the n-th repeat in a tick takes effectId:sourceId#n:tick.
+    /// The first cloud keeps the plain id (no hash or golden moves), every id still ends in ":tick", and the suffix is a
+    /// count over the state's own list, so it is deterministic: no random, no wall clock.
+    /// </summary>
+    private static string UniqueCloudId(SimState state, ActorState source, CloudOp op)
+    {
+        var head = op.EffectId + ":" + source.Id;
+        var tail = ":" + state.Tick;
+        var id = head + tail;
+        for (var n = 1; state.FloorClouds.Exists(c => c.Id == id); n++)
+        {
+            id = head + "#" + n + tail;
+        }
+        return id;
+    }
+
     private static void OpenCloud(SimState state, ActorState source, ActorState target, CloudOp op, IReadOnlyDictionary<string, EffectDef> effectDefs)
     {
         var cloud = new FloorCloud
         {
-            Id = op.EffectId + ":" + source.Id + ":" + state.Tick,
+            Id = UniqueCloudId(state, source, op),
             EffectId = op.EffectId,
             SourceId = source.Id,
             SourceKind = source.Kind,

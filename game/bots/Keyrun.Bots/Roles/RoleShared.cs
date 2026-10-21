@@ -95,7 +95,7 @@ public static class RoleShared
     {
         ArgumentNullException.ThrowIfNull(view);
         var actors = view.State.Actors;
-        var living = actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive).ToList();
+        var living = actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle).ToList();
         if (living.Count == 0)
         {
             return false;

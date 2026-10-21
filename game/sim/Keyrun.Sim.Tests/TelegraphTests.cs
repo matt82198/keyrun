@@ -274,7 +274,7 @@ public sealed class TelegraphTests
                 }
             }
         }
-        Assert.Equal(37, count); // SPELL-QUEUE (PR #370) re-record: was 41 (scripted-pull 6, k2-s7 10 -> 8, k2-s11 10 -> 8, k10-s7 15); ZERO-GCD f-80b5cf16 re-record: was 46 (telegraph events counted per trace: scripted-pull 6, k2-s7 12 -> 10, k2-s11 12 -> 10, k10-s7 16 -> 15); DEAD-CASTER-TELEGRAPH re-record: was 42 (k2-s7 11 -> 13, k2-s11 11 -> 13); scripted-pull 6 + bots-hv k2-s7 11, k2-s11 11, k10-s7 14 (KF3-SEED-ENGAGE seed.lash; 37 after SLAM-TELEGRAPH B1, 34 after D14)
+        Assert.Equal(37, count); // MERGE-370 re-record (PR #370 merged with INTEGRATE-PLAYABLE #396): was 49 on main, 37 on PR #370 alone, measured 37 on the merged traces (scripted-pull 6, k2-s7 8, k2-s11 8, k10-s7 15). SPELL-QUEUE (PR #370) re-record: was 41 (scripted-pull 6, k2-s7 10 -> 8, k2-s11 10 -> 8, k10-s7 15); ZERO-GCD f-80b5cf16 re-record: was 46 (scripted-pull 6, k2-s7 12 -> 10, k2-s11 12 -> 10, k10-s7 16 -> 15). INTEGRATE-PLAYABLE CAST-DEFERRAL re-record: was 46 (k10-s7 16 -> 19, held boss casts re-draw their telegraph when issued). INTEGRATE-PLAYABLE #325 re-fold re-record: was 47 (k10-s7 17 -> 16, the run ends at 2071 before the 2126 cleave). LOCK-TELEGRAPH re-record: was 46 (k10-s7 16 -> 17, the Lock circle). DEAD-CASTER-TELEGRAPH re-record: was 42 (k2-s7 11 -> 13, k2-s11 11 -> 13); scripted-pull 6 + bots-hv k2-s7 11, k2-s11 11, k10-s7 14 (KF3-SEED-ENGAGE seed.lash; 37 after SLAM-TELEGRAPH B1, 34 after D14)
         Assert.Subset(new SortedSet<string>(new[] { "circle", "cone", "line" }), shapes);
     }
 
