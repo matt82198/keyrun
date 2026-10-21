@@ -95,6 +95,16 @@ public sealed class TextMatchesDataFamilyTests
         return Applied(s.Patched).Where(o => !had.Contains(o.EffectId)).ToList();
     }
 
+    /// <summary>
+    /// The tag that frees an ability's GCD only while its caster holds an unexpired Brace (game/sim/Keyrun.Sim/Combat/
+    /// Riposte.cs FreeAfterBraceTag; this project does not reference Keyrun.Sim, so the string is repeated here).
+    /// </summary>
+    private const string FreeAfterBraceTag = "riposte:free-after-brace";
+
+    private static bool FreeAfterBrace(AbilityDef a) => a.Tags?.Contains(FreeAfterBraceTag) == true;
+
+    private static readonly Regex ConditionalNoGcd = Rx(@"\bno GCD (when|after|if|following)\b");
+
     /// <summary>The class an ability belongs to: its id prefix ("warden.strike" is Warden's).</summary>
     private static string ClassOf(AbilityDef a) => a.Id[..a.Id.IndexOf('.', StringComparison.Ordinal)];
 
@@ -110,10 +120,14 @@ public sealed class TextMatchesDataFamilyTests
     private static readonly Rule[] Rules =
     {
         // GCD.
-        new("gcd", "no GCD", Rx(@"\bno GCD\b"), (s, _) => s.Patched.GcdTicks == 0 && s.Base.GcdTicks > 0),
-        // No content field makes a GCD conditional: a patched gcdTicks applies to every cast. A sentence that limits
-        // the free GCD to some casts is backed only when the patched GCD is still the base one outside that case.
-        new("gcd", "no GCD only sometimes", Rx(@"\bno GCD (when|after|if|following)\b"), (s, _) => s.Patched.GcdTicks == s.Base.GcdTicks),
+        // A free GCD is either unconditional (patched gcdTicks 0) or the one conditional free GCD the sim runs: the
+        // Riposte tag, which skips the GCD only for a cast that follows Brace.
+        new("gcd", "no GCD", Rx(@"\bno GCD\b"),
+            (s, _) => s.Base.GcdTicks > 0 && (s.Patched.GcdTicks == 0 || (ConditionalNoGcd.IsMatch(s.Text) && FreeAfterBrace(s.Patched) && !FreeAfterBrace(s.Base)))),
+        // A patched gcdTicks applies to every cast. A sentence that limits the free GCD to some casts is backed only
+        // when the patched GCD is still the base one, the Riposte tag frees it, and the case the sentence names is Brace.
+        new("gcd", "no GCD only sometimes", ConditionalNoGcd,
+            (s, _) => s.Patched.GcdTicks == s.Base.GcdTicks && FreeAfterBrace(s.Patched) && Named(@"\bfollows Brace\b").IsMatch(s.Text)),
         new("gcd", "follows a class ability", Named(@"\bfollows (?<name>[A-Z][a-z]+( [A-Z][a-z]+)?)"),
             (s, m) => ClassAbilities(s.Base).Any(a => a.Name == m.Groups["name"].Value)),
 
@@ -153,7 +167,6 @@ public sealed class TextMatchesDataFamilyTests
     /// </summary>
     private static readonly HashSet<string> KnownMismatches = new(StringComparer.Ordinal)
     {
-        "talent warden/warden.strike/riposte [no GCD only sometimes]",
         "facet warden.weapon.mobileWard [follows its caster]",
     };
 
@@ -206,6 +219,8 @@ public sealed class TextMatchesDataFamilyTests
         var strikeOps = strike.Effects.Where(o => o is not WindowOp).ToArray();
         yield return new object[] { "Strike costs no GCD.", strike, strike };
         yield return new object[] { "Strike costs no GCD when it follows Brace.", strike, strike with { GcdTicks = 0 } };
+        yield return new object[] { "Strike costs no GCD when it follows Brace.", strike, strike };
+        yield return new object[] { "Strike costs no GCD when it follows Bulwark.", strike, strike with { Tags = new ValueList<string>(new[] { "riposte:free-after-brace" }) } };
         yield return new object[] { "Strike is free when it follows Bulwurk.", strike, strike };
         yield return new object[] { "Strike also braces you.", strike, strike };
         yield return new object[] { "Bulwark braces only you.", bulwark, bulwark };
@@ -233,6 +248,7 @@ public sealed class TextMatchesDataFamilyTests
     // Each rule accepts the true sentence the shipped data does back, so a rule cannot pass by rejecting everything.
     [Theory]
     [InlineData("talent warden/warden.strike/rend")]
+    [InlineData("talent warden/warden.strike/riposte")]
     [InlineData("talent warden/warden.vigil/reserve")]
     [InlineData("talent cinder/cinder.coldSnap/deepFreeze")]
     [InlineData("talent warden/warden.bulwark/mobile")]
