@@ -31,6 +31,7 @@ public sealed class ScriptedWarden
 
     private const string Kick = "warden.shieldBash";
     private const string Defensive = "warden.brace";
+    private const string Taunt = "warden.taunt";
 
     /// <summary>Appends the scripted commands for <paramref name="tick"/>.</summary>
     /// <param name="tick">The pre-step tick.</param>
@@ -81,6 +82,11 @@ public sealed class ScriptedWarden
                 : new MoveCommand(tick, me.Id, new Dir2(0, 0), Fixed.YawBetween(me.Pos, foe.Pos)));
         }
 
+        if (LooseEnemy(state, me, abilities[Taunt], tick) is { } loose)
+        {
+            into.Add(new CastCommand(tick, me.Id, Taunt, loose.Id));
+        }
+
         if (!Cooldowns.IsGcdReady(me, tick))
         {
             return;
@@ -104,6 +110,27 @@ public sealed class ScriptedWarden
                 return;
             }
         }
+    }
+
+    /// <summary>
+    /// HOLDER-LOCK (STATE.md D30): the nearest living engaged enemy in Taunt range whose locked holder is another living
+    /// player (lowest id on a tie), when Taunt is ready; else null. Only a taunt moves a holder, so this is the one way
+    /// the Warden takes back an enemy a party member body-pulled (the bot tank's rule, TankEngage.PickLooseEnemy).
+    /// </summary>
+    internal static ActorState? LooseEnemy(SimState state, ActorState me, AbilityDef taunt, int tick)
+    {
+        if (!Ready(me, taunt, tick))
+        {
+            return null;
+        }
+        return state.Actors.Values
+            .Where(e => e.Kind == ActorKind.Enemy && e.Alive && !e.Idle
+                && e.HolderId is { } h && h != me.Id
+                && state.Actors.TryGetValue(h, out var holder) && holder.Alive && holder.Kind == ActorKind.Player
+                && Casting.RangeMm(me, e) <= taunt.Range)
+            .OrderBy(e => Casting.RangeMm(me, e))
+            .ThenBy(e => e.Id)
+            .FirstOrDefault();
     }
 
     private static bool Ready(ActorState me, AbilityDef def, int tick) =>
