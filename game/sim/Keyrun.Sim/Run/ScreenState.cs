@@ -56,7 +56,7 @@ public sealed record ScreenState(
 
     /// <summary>
     /// A start key no key reaches: the schedule is absent, so the key carries no Clause and Queue hands the host none.
-    /// This is the fail-closed default of <see cref="Open(string, IReadOnlyList{string}, int)"/>.
+    /// Callers pass it as the clause start key to <see cref="Open(string, IReadOnlyList{string}, int, int, int)"/> when there is no schedule.
     /// </summary>
     public const int NoClauseStartKey = MaxKey + 1;
 
@@ -73,17 +73,6 @@ public sealed record ScreenState(
         ArgumentNullException.ThrowIfNull(clauseIds);
         return new ScreenState(dungeonId, clauseIds, Clamp(keyLevel), rotationIndex, clauseStartKey, false);
     }
-
-    /// <summary>
-    /// Opens the band with no Clause schedule (<see cref="NoClauseStartKey"/>): no key carries a Clause, so a queue
-    /// hands the host none. A caller that has the schedule uses the five-argument <see cref="Open(string, IReadOnlyList{string}, int, int, int)"/>.
-    /// </summary>
-    /// <param name="dungeonId">The dungeon.</param>
-    /// <param name="clauseIds">Every Clause id content defines.</param>
-    /// <param name="keyLevel">The starting key.</param>
-    /// <returns>The state.</returns>
-    public static ScreenState Open(string dungeonId, IReadOnlyList<string> clauseIds, int keyLevel) =>
-        Open(dungeonId, clauseIds, keyLevel, 0, NoClauseStartKey);
 
     /// <summary>
     /// The Clause the key carries (BIBLE s8, read-only: <see cref="ClauseRotation.ForKey"/> over this band's key and
