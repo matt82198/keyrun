@@ -67,6 +67,22 @@ describe("openPayoff", () => {
     expect(openPayoff([you, actor(102, "enemy", "e", SUNDERED)], 1, 120, undefined, slots)).toBeNull();
   });
 
+  // PR #415 veto: the Chanter bot now opens Attuned on enemies, so your own Kindled and another class's Window can be
+  // open at once. Targeting the Kindled enemy must not shadow the other Window, and the Kindled must never be the one
+  // named. A new assertion (no shipped openPayoff is known to have failed it).
+  it("names another class's Window while your own Kindled is open on your target (Attuned beside Kindled)", () => {
+    const ATTUNED: ActorWindow = { windowId: "attuned", setupClass: "chanter", endsTick: 160, durationTicks: 60, lock: false };
+    const you = { ...actor(1, "player", "cinder"), targetId: 102 };
+    for (const order of [[102, 104], [104, 102]]) {
+      const enemies = order.map((id) => actor(id, "enemy", "e", id === 102 ? KINDLED : ATTUNED));
+      const open = openPayoff([you, ...enemies], 1, 120, info, slots);
+      expect(open?.enemyId).toBe(104);
+      expect(open?.comboName).toBe("Flashfire");
+      expect([...open!.abilityIds].sort()).toEqual(["cinder.coldSnap", "cinder.detonate"]);
+    }
+    expect(openPayoff([you, actor(102, "enemy", "e", KINDLED), actor(104, "enemy", "e", ATTUNED)], 1, 160, info, slots)).toBeNull();
+  });
+
   it("prefers your current target when several enemies carry a closable Window", () => {
     const you = { ...actor(1, "player", "cinder"), targetId: 104 };
     const open = openPayoff([you, actor(102, "enemy", "e", SUNDERED), actor(104, "enemy", "e", SUNDERED)], 1, 120, info, slots);

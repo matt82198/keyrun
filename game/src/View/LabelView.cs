@@ -143,6 +143,12 @@ public partial class LabelView : Node3D
         var state = Driver.State;
         var targetId = state.Actors.TryGetValue(SimDriver.WardenId, out var me) ? me.TargetId : null;
         var frames = UnitFrameModel.Build(state, Driver.Setup?.HumanActorId ?? SimDriver.WardenId);
+        // f-07f1b477: the enemy the boss unit frame names draws no over-head plate (PlateRule.DrawsOverhead).
+        var bossFrameId = frames.FirstOrDefault(f => f.Kind == "boss")?.ActorId;
+        // f-77a68e6b: enemy plates draw only within PlateRule.PlateDistanceMm of the viewing player (WoW's nameplate
+        // max distance), measured from the human's sim position; with no human in the state every enemy is in range.
+        var viewerId = Driver.Setup?.HumanActorId ?? SimDriver.WardenId;
+        Vec3? viewer = state.Actors.TryGetValue(viewerId, out var viewing) ? viewing.Pos : null;
         foreach (var (id, actor) in state.Actors)
         {
             EnsureBody(id, actor);
@@ -151,8 +157,10 @@ public partial class LabelView : Node3D
                 plate = new Plate(id, Driver.DisplayName(actor));
                 _plates[id] = plate;
             }
-            // The Warden's own name and health live on the ability bar's meters, not over his head.
-            plate.Visible = actor.Alive && id != SimDriver.WardenId;
+            // The Warden's own name and health live on the ability bar's meters, not over his head; the boss's name
+            // lives on its unit frame.
+            plate.Visible = PlateRule.DrawsOverhead(id, actor.Alive, id == SimDriver.WardenId, bossFrameId,
+                enemy: actor.Kind != ActorKind.Player, distanceMm: viewer is { } v ? DistanceMm(v, actor.Pos) : 0);
             if (!plate.Visible)
             {
                 continue;
@@ -523,6 +531,14 @@ public partial class LabelView : Node3D
     // The plate anchor above the feet, metres, per class (ActorBindingRow.PlateHeightMm via PlateRule: 250 mm over the
     // higher of the target height and the scaled model top, the boss capped at 5 m), so a plate sits just over its head.
     private static float PlateHeight(ActorState actor) => ActorView.Binding.For(actor.ClassId).PlateHeightMm * 0.001f;
+
+    // Straight-line distance between two sim positions, mm (integer floor square root), for PlateRule's plate range.
+    private static long DistanceMm(Vec3 a, Vec3 b)
+    {
+        long dx = a.X - b.X, dy = a.Y - b.Y, dz = a.Z - b.Z;
+        long sq = (dx * dx) + (dy * dy) + (dz * dz);
+        return sq <= 0 ? 0 : Fixed.Isqrt(sq);
+    }
 
     private sealed class Plate(int id, string baseName)
     {

@@ -48,6 +48,20 @@ public sealed record RulesConfig
     /// </summary>
     public IReadOnlyDictionary<string, OverheatRule>? Overheat { get; init; }
 
+    /// <summary>
+    /// The Pair's spread and stack mark rules (BIBLE section 9.6 item 2; <see cref="PairMarks"/>), or null for none.
+    /// Null on every oracle run (the frozen TS marks carry no consequence); a host builds it from
+    /// game/content/data/run.json <c>pairMarks</c>.
+    /// </summary>
+    public MarkRules? Marks { get; init; }
+
+    /// <summary>
+    /// The frozen TS push-out (sim/combat: every overlapping pair parts symmetrically, so an enemy can shove a player).
+    /// True only on an oracle replay (Keyrun.Replay RunSetup), so the traces keep checking the TS rules tick for tick;
+    /// false (the default) everywhere else, where STATE.md D54 ENEMIES-NEVER-DISPLACE holds.
+    /// </summary>
+    public bool TsSymmetricPushOut { get; init; }
+
     /// <summary>This config with its movement fields taken from <paramref name="movement"/>.</summary>
     /// <param name="movement">The host's validated movement rules.</param>
     /// <returns>A new config.</returns>
@@ -63,7 +77,8 @@ public sealed record RulesConfig
 /// <list type="number">
 /// <item>Complete every cast whose castEndsTick is this tick (actors ascending), then its Windows and Payoff.</item>
 /// <item>Run the tick's commands in order: target, stopcast, move/dash, cast (an instant cast completes now, then
-/// its Windows and Payoff). A dead actor's commands are dropped except cast (the onDeath DEATH-CAST EXCEPTION).</item>
+/// its Windows and Payoff). A held spell-queue press whose lock is over joins them as its actor's cast command
+/// (<see cref="SpellQueue"/>). A dead actor's commands are dropped except cast (the onDeath DEATH-CAST EXCEPTION).</item>
 /// <item>Push live actors apart, then clamp every actor to the bounds.</item>
 /// <item>Per actor: due periodic ticks, Window expiries, then the generic effect expiry; then floor expiries, then
 /// the C#-only combo clouds (<see cref="Combos.TickClouds"/>; none on an oracle run).</item>
@@ -134,7 +149,10 @@ public static class Rules
                 }
             }
 
-            foreach (var cmd in commands)
+            // The spell queue window: a held press whose cast/GCD lock is over runs as its actor's cast command, in the
+            // fixed order (Combat/SpellQueue.cs).
+            var fired = new HashSet<Command>(ReferenceEqualityComparer.Instance);
+            foreach (var cmd in SpellQueue.WithFiring(state, commands, cfg.Abilities, fired))
             {
                 if (!state.Actors.TryGetValue(cmd.ActorId, out var actor))
                 {
@@ -169,6 +187,7 @@ public static class Rules
                         // context) cannot hand the silence back.
                         var castHooks = actor.Kind == ActorKind.Player ? hooks : noClause;
                         var err = Casting.StartCast(state, actor, def, c.TargetId, c.Point, state.Tick, castHooks, ctx);
+                        SpellQueue.AfterPress(actor, def, c, err, fired.Contains(c), state.Tick);
                         if (err is null && def.CastTicks == 0)
                         {
                             var resolved = Abilities.ResolveVerse(def, actor);
@@ -184,9 +203,41 @@ public static class Rules
             {
                 for (var j = i + 1; j < actors.Count; j++)
                 {
-                    if (actors[i].Alive && actors[j].Alive)
+                    // PRESPAWN-AGGRO (C#-only, BIBLE section 9.1 "an idle group ... does not move unless it is a patrol"):
+                    // push-out never shoves an idle body, so an idle group stands exactly where it was placed until it
+                    // engages; a stack the content puts on one spawn point is placed as a non-overlapping row at spawn
+                    // (Pulls.SpawnAllIdle), so it never needs a shove. A party member
+                    // close enough to touch an idle body is, under the 4000 mm default ring, inside its aggro ring and engages it this tick. No actor of
+                    // an oracle run is idle, so the TS push-out is unchanged there.
+                    if (actors[i].Alive && actors[j].Alive && !actors[i].Idle && !actors[j].Idle)
                     {
-                        Movement.ResolveCollision(actors[i], actors[j], cfg.ActorRadiusMm);
+                        // D54 ENEMIES-NEVER-DISPLACE (defer to WoW; f-e17638f7): an enemy never pushes a player. It
+                        // closes to melee and stacks on its target, so enemy-versus-player separation moves the enemy by
+                        // the whole overlap and the player stays. Enemy-enemy and player-player stay symmetric, so a
+                        // pack parts around its target. This supersedes the TS port's symmetric rule (sim/combat).
+                        if (cfg.TsSymmetricPushOut)
+                        {
+                            Movement.ResolveCollision(actors[i], actors[j], cfg.ActorRadiusMm);
+                        }
+                        else if (actors[i].Kind == ActorKind.Player && actors[j].Kind == ActorKind.Enemy)
+                        {
+                            Movement.ResolveCollisionMoverOnly(actors[i], actors[j], cfg.ActorRadiusMm);
+                        }
+                        else if (actors[i].Kind == ActorKind.Enemy && actors[j].Kind == ActorKind.Player)
+                        {
+                            Movement.ResolveCollisionMoverOnly(actors[j], actors[i], cfg.ActorRadiusMm);
+                        }
+                        else if (actors[i].Kind == ActorKind.Enemy && actors[j].Kind == ActorKind.Enemy &&
+                            actors[i].TargetId is { } ti && ti == actors[j].TargetId &&
+                            state.Actors.TryGetValue(ti, out var shared) && shared.Alive && shared.Kind == ActorKind.Player)
+                        {
+                            // D54: two enemies on one player part and the blocked one slides around him (a pack fans).
+                            Movement.ResolveCollisionAround(actors[i], actors[j], shared.Pos, cfg.ActorRadiusMm);
+                        }
+                        else
+                        {
+                            Movement.ResolveCollision(actors[i], actors[j], cfg.ActorRadiusMm);
+                        }
                     }
                 }
             }
@@ -194,6 +245,10 @@ public static class Rules
             {
                 Movement.ClampToBounds(actor, cfg.Bounds);
             }
+
+            // C#-only (null on every oracle run): the Pair's spread and stack marks resolve on the tick they run out,
+            // after movement and before the generic expiry below drops them.
+            PairMarks.Resolve(state, cfg.Marks, cfg.Effects, emit, hooks.Weighting);
 
             foreach (var actor in actors)
             {

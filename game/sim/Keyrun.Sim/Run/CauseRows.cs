@@ -25,16 +25,22 @@ public static class CauseRows
     /// <summary>
     /// Merges rows that share a seat and a display name (ordinal): damage and hits summed, the killing blow kept if any
     /// actor of the kind landed it, the lowest source id kept. Ordered as the panel reads them: the killing blow first,
-    /// then damage descending, then source id ascending.
+    /// then damage descending, then source id ascending. A row whose source is the seat itself is dropped before the
+    /// merge (finding f-1326b59a): closing a Cinderfield burns the closer (STATE.md D34, Combos.cs BurnCloser: source
+    /// and target both the closer), and a seat is never listed as a cause of its own damage.
     /// </summary>
     /// <param name="rows">Per-actor rows.</param>
-    /// <returns>One row per (seat, name).</returns>
+    /// <returns>One row per (seat, name), none naming the seat as its own source.</returns>
     public static IReadOnlyList<CauseRow> MergeByName(IEnumerable<CauseRow> rows)
     {
         ArgumentNullException.ThrowIfNull(rows);
         var merged = new List<CauseRow>();
         foreach (var row in rows)
         {
+            if (row.SourceId == row.Seat)
+            {
+                continue;
+            }
             var i = merged.FindIndex(m => m.Seat == row.Seat && string.Equals(m.SourceName, row.SourceName, StringComparison.Ordinal));
             if (i < 0)
             {

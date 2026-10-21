@@ -15,7 +15,10 @@ public sealed record ProgressionLoad(Progression Progression, string? Error);
 
 /// <summary>
 /// Persists the character's banked progression across runs (BIBLE s7 "Every run banks Ash, win or lose"; the gear the
-/// end-of-run choice equips): Ash total, runs, the five gear slots, the crafting PRNG and the "since last run" delta.
+/// end-of-run choice equips): Ash total, runs, the five gear slots, the crafting PRNG, the "since last run" delta,
+/// the talent build picked on the screen (BIBLE s6, an optional "talents" member: a save without it has no picks), and
+/// the banked run history (f-275d47c9, an optional "history" member of key, result and ascended per run, from which
+/// <see cref="Ascension.Marks"/> counts: a save without it has none).
 /// The codec is pure and deterministic (canonical JSON, slots in <see cref="Rewards.GearSlots"/> order), so the same
 /// progression always writes the same text. Loading never throws: a missing save is a fresh character, and a corrupt
 /// one is a fresh character plus the reason, so a bad file can never block or crash a run.
@@ -53,8 +56,16 @@ public static class ProgressionSave
             ("runs", JsValue.Int(progression.Runs)),
             ("prng", JsValue.Arr(JsValue.Int(p.S0), JsValue.Int(p.S1), JsValue.Int(p.S2), JsValue.Int(p.S3))),
             ("equipped", JsValue.Arr(equipped)),
-            ("last", last)).ToCanonicalJson();
+            ("last", last),
+            ("talents", TalentsJs(progression.Talents)),
+            ("history", JsValue.Arr(progression.History.Select(r => (JsValue)RunRecordJs(r))))).ToCanonicalJson();
     }
+
+    // One banked run (f-275d47c9): the key, the result and whether the character was ascended, so marks are countable.
+    private static JsObject RunRecordJs(RunRecord r) => JsValue.Obj(
+        ("key", JsValue.Int(r.KeyLevel)),
+        ("result", JsValue.Str(r.Result.ToJs())),
+        ("ascended", JsValue.Bool(r.Ascended)));
 
     /// <summary>
     /// Loads a progression from save text. Null text (no save yet) is a fresh character with no error; text that is
@@ -227,6 +238,11 @@ public static class ProgressionSave
                 throw new FormatException($"slot \"{item.Slot}\" equipped twice");
             }
         }
+        var history = ParseHistory(root.Get("history"));
+        if (history.Count > runs)
+        {
+            throw new FormatException(FormattableString.Invariant($"history has {history.Count} runs but only {runs} were banked"));
+        }
         return new Progression
         {
             AshTotal = ash,
@@ -234,7 +250,63 @@ public static class ProgressionSave
             Prng = new PrngState(w[0], w[1], w[2], w[3]),
             Equipped = equipped,
             LastRun = ParseDelta(root.Get("last") ?? throw new FormatException("missing \"last\"")),
-        };
+            History = history,
+        }.WithTalents(ParseTalents(root.Get("talents")));
+    }
+
+    // A save written before runs were recorded has no member: its runs simply have no history (and earned no marks).
+    private static IReadOnlyList<RunRecord> ParseHistory(JsValue? v)
+    {
+        if (v is null)
+        {
+            return Array.Empty<RunRecord>();
+        }
+        if (v is not JsArray a)
+        {
+            throw new FormatException("\"history\" must be an array");
+        }
+        return a.Items.Select(e =>
+        {
+            if (e is not JsObject o)
+            {
+                throw new FormatException("a history entry must be an object");
+            }
+            var key = Int(o, "key");
+            if (key < 1 || key > int.MaxValue)
+            {
+                throw new FormatException(FormattableString.Invariant($"history key {key} must be 1 or more"));
+            }
+            var ascended = o.Get("ascended") is JsBool b ? b.Value : throw new FormatException("\"ascended\" must be a boolean");
+            return new RunRecord((int)key, ParseResult(Str(o, "result")), ascended);
+        }).ToList();
+    }
+
+    private static RunResult ParseResult(string result) => result switch
+    {
+        "timed" => RunResult.Timed,
+        "depleted" => RunResult.Depleted,
+        "abandoned" => RunResult.Abandoned,
+        var other => throw new FormatException($"unknown run result \"{other}\""),
+    };
+
+    // The screen's talent build (BIBLE s6), ability id to option id in ordinal key order.
+    private static JsObject TalentsJs(IReadOnlyDictionary<string, string> talents) => JsValue.Obj(
+        talents.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+            .Select(kv => new KeyValuePair<string, JsValue>(kv.Key, JsValue.Str(kv.Value))));
+
+    // A save written before talents were saved has no member: that character simply has no picks yet.
+    private static IEnumerable<KeyValuePair<string, string>> ParseTalents(JsValue? v)
+    {
+        if (v is null)
+        {
+            return Array.Empty<KeyValuePair<string, string>>();
+        }
+        if (v is not JsObject o)
+        {
+            throw new FormatException("\"talents\" must be an object");
+        }
+        return o.Members.Select(m => new KeyValuePair<string, string>(
+            m.Key, m.Value is JsString { Value.Length: > 0 } s ? s.Value : throw new FormatException($"talent \"{m.Key}\" must be a non-empty option id"))).ToList();
     }
 
     private static RunDelta? ParseDelta(JsValue v)
@@ -247,15 +319,10 @@ public static class ProgressionSave
         {
             throw new FormatException("\"last\" must be an object or null");
         }
-        var result = Str(o, "result") switch
-        {
-            "timed" => RunResult.Timed,
-            "depleted" => RunResult.Depleted,
-            "abandoned" => RunResult.Abandoned,
-            var other => throw new FormatException($"unknown run result \"{other}\""),
-        };
+        var result = ParseResult(Str(o, "result"));
         var ash = Int(o, "ash");
-        if (ash != Ash.ForResult(result))
+        // A save written before D45 recorded 10 Ash for an abandoned run; it still loads as written.
+        if (ash != Ash.ForResult(result) && !(result == RunResult.Abandoned && ash == Ash.LegacyAbandoned))
         {
             throw new FormatException("last run Ash does not match its result");
         }

@@ -20,7 +20,7 @@ import type { AbilityDef, EffectOp } from "./abilities";
 import { abilitySchool } from "./abilities";
 import type { EffectDef } from "./effects";
 import { applyEffectInstance, removeEffectInstances } from "./effects";
-import { removeDispellableEffects } from "./effects-remove";
+import { effectPolarity, removeDispellableEffects } from "./effects-remove";
 import { isAbilityReady, startGcd, consumeCharge } from "./cooldowns";
 import { applyHeal } from "./damage";
 import { creditResource, dealDamage } from "./mitigation";
@@ -59,8 +59,15 @@ export function startCast(
   _point: Vec3 | undefined,
   now: Tick,
 ): string | null {
+  // BIBLE s3: a cast in flight is never silently replaced; a busy caster rejects the new cast (stopcast cancels).
+  // A dead caster is exempt: its only casts are onDeath steps, and BIBLE s9 needs the Seed's on-death Window.
+  if (actor.alive && actor.castId !== null) return "casting";
   const rules = getActiveEncounterRules();
   if (rules && shouldSilence(now, rules)) return "silenced";
+  // f-80b5cf16 follow-up: a player's ability is never usable while that player is already casting; the press is
+  // refused and the cast under way continues (no replacement, no cast_stopped). Enemies are exempt: their scripts rely
+  // on a later same-tick step taking the cast over (the Hollow Warden's Lock loop). Mirrors Casting.cs IsCastingPlayer.
+  if (actor.kind === "player" && actor.castId !== null) return "casting";
   if (!isAbilityReady(actor, def, now)) return "not_ready";
   if (actor.resource < def.cost.amount) return "insufficient_resource";
   if (isSchoolLocked(actor, abilitySchool(def), now)) return "school_locked";
@@ -127,10 +134,14 @@ function applyEffects(
     if (op.op === "damage") {
       dealDamage(state, source, target, op.amount, ctx.effects, emit, source.id);
     } else if (op.op === "heal") {
-      applyHeal(state, target, op.amount, source.id, emit);
+      // HEAL-NEVER-HOSTILE (twin of Casting.cs ApplyEffects, #390; D28 the C# sim is the oracle): a heal,
+      // or a beneficial applyEffect, lands only on the caster's own faction. Every other op still lands.
+      if (target.kind === source.kind) applyHeal(state, target, op.amount, source.id, emit);
     } else if (op.op === "applyEffect") {
       const effDef = ctx.effects[op.effectId];
-      if (effDef) applyEffectInstance(target, effDef, source.id, op.durationTicks, op.stacks, state.tick);
+      if (effDef && (target.kind === source.kind || effectPolarity(effDef) !== "beneficial")) {
+        applyEffectInstance(target, effDef, source.id, op.durationTicks, op.stacks, state.tick);
+      }
     } else if (op.op === "removeEffect") {
       if (op.effectId === "*") removeDispellableEffects(source, target, ctx.effects);
       else removeEffectInstances(target, op.effectId);

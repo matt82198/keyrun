@@ -14,8 +14,9 @@
       2. "HUD party seat=1 name=Warden hp=H/400 res=R/M" (the party frame reads the human's health and resource);
       3. "HUD party seat=1 ... DOWNED" after the sim's death event for actor 1 (the DOWNED chip);
       4. "HUD objective pull=1/4 id=choir name="The Choir"" (the current pull's content name);
-      5. "HUD slack ticks=620 of=620" first (Timer.InitialSlackTicks(2) = 600 + 20), then a lower value after the
-         death (the sim spends 300 on a death and 500 on the wipe);
+      5. "HUD slack ticks=620 of=620" first (Timer.InitialSlackTicks(2) = 600 + 20), then a "penalty=N" above 0
+         after the death (STATE.md D46, Mythic+: a death adds 300 to the run clock and the wipe 500 more), with the
+         bank never drained below 620 (deaths no longer spend it);
       6. "HUD runend result=depleted choices=3 cleared=0 ... title="Party wiped on pull 1 of 4 -- key stays at +2"" (the
          sim reports a lasting wipe as "depleted"; the panel must not call it cleared, and names the pull it was lost
          on, numbered as the objective line numbers it: lane 3C-d), three "HUD runend choice n=<1..3> slot=<slot>
@@ -37,8 +38,17 @@
          (Scripts.WillStart), so the floor and the HUD must not call SPREAD/STACK for it. Before SLAM-TELEGRAPH this
          check asserted the opposite: a ping from the telegraph the sim drew after run_end for that dead-target cast.
          Run C (check 11) proves the live-run call.
-    Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:  -- --autorun --ticks <PartyTicks>
+    Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:
+        -- --autorun --ticks <PartyTicks> --careless-seat <CarelessSeat>
         (default 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
+        (--careless-seat S@T:GROUP, CARELESS-SEAT, default 3@300:pair; Matt 2026-10-20, verbatim: "no a bad player will
+        accidentally aggro more groups, just test it naturally", STATE.md D43: under PRESPAWN-AGGRO the Warden walks
+        into every ring first, so no enemy ever picked a bot seat. Bot seat S (the Cinder) plays carelessly from run tick
+        T, mid-Choir: it strays off the party toward the idle Pair, waits at the Choir room's far doorway while the Choir
+        fight lasts (Careless.HoldPoint; no gate walls it since STATE.md D44, PATH-TO-BOSS, so it pulls between fights, not
+        mid-fight), runs on when the Choir clears, and walks into the Pair's aggro ring ahead of the Warden. The sim's own aggro rule engages
+        the Pair on it and the Pair's own targeting (no threat yet, so the nearest living player) goes for it. Nothing
+        makes an enemy hit a bot; check 12's bot-damage line comes from that pull.)
       9. "HUD party seat=1 name=Warden", "seat=2 name=Chanter", "seat=3 name=Cinder" (BotCommandSource drives 2, 3);
      10. in pull 1 (before the Pair spawns): a Chanter heal on a party seat and a Cinder damage hit on an enemy (at
          seed 1 the 3B healer role spends every GCD on heals and never casts Dissonance; the Cinder kit has no heal);
@@ -88,12 +98,16 @@
          never also refill a seat).
     Run F (lane 3J, backfill in the real loop; three-seat party, key 2, no --requeue):
         -- --autorun --ticks 3500 --abandon-seat <AbandonSeat> --joiner-key 2
-        (3500 since PARTY-TOGETHER, was 3300: the joiner now walks into the Pair hall before it casts; on seed 1 key 2
-        the refilled Chanter enters pair-hall at tick 3268 and first casts at 3345)
-        (--abandon-seat A@T: SimDriver calls AbandonSeat(A) at run tick T and, with --joiner-key K, adds one
+        (3500 since PARTY-TOGETHER, was 3300. Since JOINER-ARRIVES (BIBLE s9.1/s10 "a joiner arrives at the next pull
+        start ... inside the party's taken branch") the refilled seat is placed at the pull start on the nearest living
+        staying party member and casts from its first tick there: on seed 1 key 2 the Chanter refills at 2052 on the
+        Cinder and completes chanter.chorus at 2053 (headless replica RunFJoinerActsTests))
+        (--abandon-seat A@T: SimDriver calls AbandonSeat(A) at run tick T, or A@pullN+O (R-415-D) O ticks after pull
+        N's pull_start, logged "SEAT abandon actor=A tick=T pull=N start=S offset=O" with T = S + O; with --joiner-key K, it adds one
         QueueRequest at key K straight to the Queue node at Hud/Screen/Queue; this is the scripted path, the screen's
         Queue button is not pressed mid-run)
-     21. "SEAT abandon actor=A tick=T" in pull 1, then "QUEUE add dungeon=hollow-vault key=2";
+     21. "SEAT abandon actor=A tick=T" (pull-relative: "... pull=N start=S offset=O", T = S + O) in pull 1, then
+         "QUEUE add dungeon=hollow-vault key=2";
      22. the party survives to "PULL spawn index=1 id=pair", and in that same step (no TICK line between them)
          "SEAT refill actor=A tick=X key=2" with X = that step's TICK tick + 1 (Backfill.Step's FillTick: the first
          tick whose commands are the joiner's), then "QUEUE consume n=1 size=0";
@@ -103,7 +117,12 @@
          Choir fight; the Warden now fights the Choir melee after the kick, so seed 1 key 2 clears the Choir at 1757 and
          pull 2 starts at tick 1840 with all three seats alive; 2@3000 from lane NAV-CORE now falls in pull 2; 2@1500 -> 2@1700
          by ROOM-LOCK-IN D27 (Choir pull_start 50, room locked): a Chanter leaving at 1500 lets the Warden die at 1794, before
-         the 1809 clear; at 1700 the Choir clears at 1749, pull 2 starts at 1844 and the seat refills at 1844). The old 1@1000 cannot work on the
+         the 1809 clear; at 1700 the Choir clears at 1749, pull 2 starts at 1844 and the seat refills at 1844; 2@1700 -> 2@pull0+1350 by
+         R-415-D, a leaver mid-pull is a scenario, not a number: on #415's gear-free pacing the Choir clears at 1532, so
+         1700 fell 55 ticks into the Pair and the party wiped with no pull start to refill at; the Choir's pull_start is 76
+         on main and on #415, so 2@pull0+1350 leaves at 1426 on both, inside the Choir: with the bot gear this host runs
+         (RunFJoinerActsTests) it clears at 1969 and the seat refills at 2082 on main and on #415; gear-free it clears at
+         1969 on main and 1549 on #415, refill 2082 and 1662). The old 1@1000 cannot work on the
          route: the next pull spawns only when a party member walks into its room, and an abandoned human leader stands
          idle, so his bots never travel; 3@1000 to 3@3000 leave the Choir uncleared without the Cinder's damage.
     Run G (lane 3J, key mismatch): as F with --joiner-key 3
@@ -203,21 +222,30 @@
      Before HOST-HEADING a recording keeps the legacy heading (reason=input-log), writes no startHeading, and a replay
      ignores the field: 36-39 fail (RED). -HeadingOnly runs the source checks and run M alone.
      Run K1's byte comparison with the committed example ignores the one "startHeading" header line (the example
-     predates the field and fixtures are not regenerated); K1 asserts that line separately.
+     predates the field and fixtures are not regenerated); K1 asserts that line separately. K1's and L1's comparisons
+     also leave out the "rotationIndex" header line (the weekly affix rotation, AffixWeek.cs): K1 asserts it is there,
+     L1 that it is 0 (L1 replays a log without one, so its run is built at 0, never at today's week).
     Run A also carries the ability bar icons (lane ABILITY-ICONS; the bar prints one line per slot under --autorun):
      40. nine "HUD bar slot=<key> ability=warden.<id> icon=res://assets/kenney-board-game-icons/<file>.png tex=64x64"
          lines, one per slot 1-5, Q, E, R, F (tex is the loaded Texture2D's size, so a missing file or an unmapped id
          reads icon=none tex=none and fails). Before ABILITY-ICONS the bar draws only text: no "HUD bar" line, 40 RED.
     Run N (lane TINT-RUNOVER, a non-clear run end with a living out-of-range target; three-seat party, key 2):
-        -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (default 1400 and 2@600, no --joiner-key)
+        -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (default 1400 and 2@200, no --joiner-key)
         (the bar prints "HUD bar range tinted=N over=0|1 tick=T" under --autorun whenever the count of range-tinted
-        slots or the run-over state changes. At seed 1 the Chanter leaves at 600, the Warden dies at 1014 with the
-        Choir enemy it targeted alive and out of range, the bar tints 4 slots at 1025, and the party wipes: run_end
-        depleted at 1271)
+        slots or the run-over state changes. At seed 1 the Chanter leaves at 200, still at the entrance (14771,-998),
+        the Warden dies at 427 where he stands (19246,-405), the Cinder at 583, and the Choir enemy the Warden
+        targeted (100) walks on to the Chanter, 3216 mm from the Warden's body, past his 3000 mm reach: the bar tints 4
+        slots at 585, and the party wipes: run_end depleted at 840.
+        Why 2@200, not 2@600 (PRESPAWN-AGGRO, PR #308): the Choir now engages at its aggro ring (pull_start 76) and
+        not on room entry, so by 600 the Chanter has walked up into the fight and the whole party stands within about
+        3.7 m of the Warden. With 2@600 he died at 895 and his target stayed within 1855 mm of his body (inside his
+        reach) until the wipe at 1308, so the live tint never showed and the control could not happen (CI run
+        39486265558, "HUD bar range tinted=0 over=1 tick=1308" its only range line). The assertion is unchanged; only
+        the leave tick moves, so the party still wipes with the Warden's target alive and out of range.)
      41. a "HUD runend result=depleted ... cleared=0" line (the run did not clear), at least one "HUD bar range
          tinted=N over=0" line with N > 0 (control: the live run tints), at least one "over=1" line, and every
          "over=1" line reads tinted=0. Before TINT-RUNOVER the bar passed no runOver and printed "tinted=4 over=1
-         tick=1271": 41 RED.
+         tick=1271" (the 2@600 run before PRESPAWN-AGGRO): 41 RED.
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Host/HudSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -226,10 +254,11 @@ param(
     [int]$Ticks = 600,
     [int]$PingTicks = 600,
     [int]$PartyTicks = 7000,
+    [string]$CarelessSeat = '3@300:pair',
     [int]$BossTicks = 600,
     [int]$QueueTicks = 600,
     [int]$BackfillTicks = 3500,
-    [string]$AbandonSeat = '2@1700',
+    [string]$AbandonSeat = '2@pull0+1350',
     [int]$ScreenFirstFrames = 240,
     [int]$WipeFrames = 6600,
     [int]$PingAt = 100,
@@ -240,7 +269,8 @@ param(
     [int]$YawFrames = 900,
     [int]$HeadingFrames = 420,
     [int]$TintTicks = 1400,
-    [string]$TintAbandon = '2@600',
+    [string]$TintAbandon = '2@200',
+    [string]$KeepK1Record = '',
     [switch]$HeadingOnly
 )
 $ErrorActionPreference = 'Stop'
@@ -312,6 +342,17 @@ function Get-StartHeadingText([string]$path) {
     if ($hit.Success) { return $hit.Groups[1].Value }
     return $null
 }
+
+# The weekly affix rotation (AffixWeek.cs): every recording carries a "rotationIndex" header line, the index the run was
+# built with (this reset week's, Tuesday 15:00 UTC, or --rotation N's on a live run, the replayed log's on a replay, 0 for a log that has none). The committed
+# examples predate the field, so the byte comparisons leave that one line out and assert it separately.
+function Get-RotationIndexText([string]$path) {
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
+    $hit = [regex]::Match([IO.File]::ReadAllText($path), '(?m)^  "rotationIndex": ([0-9]+),$')
+    if ($hit.Success) { return $hit.Groups[1].Value }
+    return $null
+}
+function Remove-RotationIndexLine([string]$text) { return $text -replace '(?m)^  "rotationIndex": [0-9]+,\n', '' }
 
 # One interactive launch for run M: exit code and output lines.
 function Invoke-Interactive([int]$frames, [string[]]$userArgs) {
@@ -492,8 +533,11 @@ if ($slackLines.Count -eq 0) {
     if ($slackFirst -notmatch '^HUD slack ticks=620 of=620\b') {
         $failures.Add("run A: first Slack line is not the key-2 bank 620 of 620: '$slackFirst'")
     }
-    $slackLower = $slackLines | Where-Object { $_ -match '^HUD slack ticks=(\d+) ' -and [int]$Matches[1] -lt 620 } | Select-Object -First 1
-    if (-not $slackLower) { $failures.Add('run A: Slack never dropped below 620 after the death') }
+    # D46 (Mythic+): the death adds time to the run clock (penalty=) and never drains the bank.
+    $slackLower = $slackLines | Where-Object { $_ -match '\bpenalty=(\d+)\b' -and [int]$Matches[1] -gt 0 } | Select-Object -First 1
+    if (-not $slackLower) { $failures.Add('run A: no "HUD slack ... penalty=N" line above 0 after the death (the death added no time to the run clock)') }
+    $drained = $slackLines | Where-Object { $_ -match '^HUD slack ticks=(\d+) ' -and [int]$Matches[1] -lt 620 } | Select-Object -First 1
+    if ($drained) { $failures.Add("run A: a death drained the Slack bank (D46: deaths only add time to the clock): '$drained'") }
 }
 
 $runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 1 of 4 -- key stays at \+2"$'
@@ -554,8 +598,9 @@ if (-not $runEndB) { $failures.Add("run B: no 'HUD runend ... title=""Party wipe
 # ---- Run C: the three-seat bot party (lane 3H) -------------------------------------------------------------------
 # The human Warden (seat 1) plus a Chanter (healer) and a Cinder (damage) driven by Keyrun.Bots through
 # BotCommandSource. Run twice with the same seed: the bot command streams must hash equal (determinism).
-$c = Invoke-Arena $PartyTicks @()
-$c2 = Invoke-Arena $PartyTicks @()
+# CARELESS-SEAT (STATE.md D43): one bot seat plays carelessly and pulls the Pair itself (header, run C).
+$c = Invoke-Arena $PartyTicks @('--careless-seat', $CarelessSeat)
+$c2 = Invoke-Arena $PartyTicks @('--careless-seat', $CarelessSeat)
 if ($c.Code -ne 0) { $failures.Add("run C: godot exited $($c.Code) (expected 0)") }
 $seats = @()
 foreach ($s in @(@{ Seat = 1; Name = 'Warden' }, @{ Seat = 2; Name = 'Chanter' }, @{ Seat = 3; Name = 'Cinder' })) {
@@ -729,18 +774,25 @@ if (-not $queueE) {
 $seatParts = $AbandonSeat -split '@'
 $seatActor = $seatParts[0]
 $seatTick = $seatParts[1]
+# R-415-D: A@pullN+O leaves O ticks after pull N's pull_start; its SEAT abandon line names the anchor and T = S + O.
+$seatRel = $null
+if ($seatTick -match '^pull(\d+)\+(\d+)$') { $seatRel = [pscustomobject]@{ Pull = [int]$Matches[1]; Offset = [int]$Matches[2] } }
+$abandonPattern = if ($seatRel) { "^SEAT abandon actor=$seatActor tick=(\d+) pull=$($seatRel.Pull) start=(\d+) offset=$($seatRel.Offset)$" } else { "^SEAT abandon actor=$seatActor tick=$seatTick$" }
 function Invoke-Backfill([string]$run, [int]$joinerKey) {
     $r = Invoke-Arena $BackfillTicks @('--abandon-seat', $AbandonSeat, '--joiner-key', "$joinerKey")
     if ($r.Code -ne 0) { $failures.Add("run ${run}: godot exited $($r.Code) (expected 0)") }
     $lines = @(FirstRun $r.Lines)
     $res = [pscustomobject]@{ Lines = $lines; Abandon = $null; Add = $null; Pull = $null; IPull = -1; Refill = $null; Consume = $null }
-    $res.Abandon = First $lines "^SEAT abandon actor=$seatActor tick=$seatTick$"
+    $res.Abandon = First $lines $abandonPattern
+    if ($res.Abandon -and $seatRel -and $res.Abandon -match $abandonPattern -and [int]$Matches[1] -ne [int]$Matches[2] + $seatRel.Offset) {
+        $failures.Add("run ${run}: the abandon tick is not the pull start plus the offset: '$($res.Abandon)'")
+    }
     $res.Add = First $lines "^QUEUE add dungeon=hollow-vault key=$joinerKey "
     $res.Pull = First $lines '^PULL spawn index=1 id=pair '
     if ($res.Pull) { $res.IPull = [array]::IndexOf($lines, $res.Pull) }
     $res.Refill = First $lines '^SEAT refill '
     $res.Consume = First $lines '^QUEUE consume '
-    if (-not $res.Abandon) { $failures.Add("run ${run}: no 'SEAT abandon actor=$seatActor tick=$seatTick' line") }
+    if (-not $res.Abandon) { $failures.Add("run ${run}: no SEAT abandon line for --abandon-seat $AbandonSeat (want '$abandonPattern')") }
     if (-not $res.Add) { $failures.Add("run ${run}: no 'QUEUE add dungeon=hollow-vault key=$joinerKey' line (the scripted joiner never reached the Queue node)") }
     if (-not $res.Pull) {
         $failures.Add("run ${run}: the party did not reach 'PULL spawn index=1 id=pair' (no next pull start to refill at)")
@@ -955,7 +1007,8 @@ if (-not $recDone) {
         # is asserted here and left out of the byte comparison (the fixture is not regenerated).
         $kHeading = Get-StartHeadingText $recPath
         if ($null -eq $kHeading) { $failures.Add("run K1: the input log has no `"startHeading`" header line") }
-        $recText = ([IO.File]::ReadAllText($recPath)) -replace '(?m)^  "startHeading": [^,\r\n]+,\n', ''
+        if ($null -eq (Get-RotationIndexText $recPath)) { $failures.Add("run K1: the input log has no `"rotationIndex`" header line (the weekly affix rotation is not recorded)") }
+        $recText = Remove-RotationIndexLine (([IO.File]::ReadAllText($recPath)) -replace '(?m)^  "startHeading": [^,\r\n]+,\n', '')
         if (-not (Test-Path -LiteralPath $examplePath)) {
             $failures.Add("run K1: no committed example at $examplePath")
         } elseif ($recText -cne [IO.File]::ReadAllText($examplePath)) {
@@ -997,6 +1050,8 @@ if (@($m1 | Where-Object { $_ -match '\|SCREEN reopen ' }).Count -lt 1 -or @($m1
         if ($m2[$i] -ne $m1[$i]) { $failures.Add("run K2: marker $i is '$($m2[$i])', K1 had '$($m1[$i])' (same line at the same tick expected)"); break }
     }
 }
+# -KeepK1Record PATH: keep a copy of K1's recording so the committed example can be regenerated from a real run.
+if ($KeepK1Record -and (Test-Path -LiteralPath $recPath)) { Copy-Item -LiteralPath $recPath -Destination $KeepK1Record }
 foreach ($p in @($recPath, $k1LogPath, $k2LogPath)) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p } }
 
 # ---- Run L: the camera yaw is recorded beside the keys and replayed through the rig movement reads (lane 3E-c) -------
@@ -1054,7 +1109,10 @@ if (-not $recDoneL) {
         if (@($lEvents | Where-Object { $_.key -eq 'W' -and $_.pressed }).Count -ne 1) { $failures.Add('run L1: the input log does not hold the replayed W press') }
         if (-not (Test-Path -LiteralPath $yawExamplePath)) {
             $failures.Add("run L1: no committed example at $yawExamplePath")
-        } elseif ([Convert]::ToBase64String([IO.File]::ReadAllBytes($lRecPath)) -ne [Convert]::ToBase64String([IO.File]::ReadAllBytes($yawExamplePath))) {
+        } elseif ((Get-RotationIndexText $lRecPath) -ne '0') {
+            # L1 replays <walk>, which has no rotationIndex, so the run is built at 0 and records 0, never this week's.
+            $failures.Add("run L1: the input log's rotationIndex is '$(Get-RotationIndexText $lRecPath)' (want 0: the replayed log's, not today's week)")
+        } elseif ((Remove-RotationIndexLine ([IO.File]::ReadAllText($lRecPath))) -cne [IO.File]::ReadAllText($yawExamplePath)) {
             $failures.Add("run L1: the recorded log differs from the committed example $yawExamplePath (regenerate it from run L1 with a stated reason)")
         }
     }

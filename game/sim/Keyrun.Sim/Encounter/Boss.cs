@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
@@ -45,6 +46,14 @@ public sealed record BossConfig(int BossActorId, IReadOnlyList<BossTwinSpec> Twi
     /// gate). The Lock is opened by <see cref="BossRules"/> instead.
     /// </summary>
     public IReadOnlyList<string> SuppressedBossCasts { get; init; } = new[] { "hollowWarden.lock" };
+
+    /// <summary>
+    /// LOCK-TELEGRAPH (BIBLE s3 "Cast bars are the enemy's language", f-dfafcec6): true when each Lock begins with the
+    /// boss casting its Lock ability (the first of <see cref="SuppressedBossCasts"/>) for that ability's castTicks, with
+    /// a cast bar and its script step's floor telegraph, the Window opening on the tick the cast lands. False (the
+    /// default, and every synthetic test config) opens the Window on the tick the Lock is due, with no cast.
+    /// </summary>
+    public bool CastLock { get; init; }
 }
 
 /// <summary>One open Lock Window on the boss.</summary>
@@ -84,7 +93,19 @@ public sealed record BossState(BossConfig Config)
 
     /// <summary>A broken Lock's shield is dropped on the next encounter step.</summary>
     public bool ShieldDropPending { get; init; }
+
+    /// <summary>The Lock the boss is casting (<see cref="BossConfig.CastLock"/>), or null.</summary>
+    public LockCast? Casting { get; init; }
 }
+
+/// <summary>
+/// LOCK-TELEGRAPH: a Lock the boss is casting (<see cref="BossConfig.CastLock"/>). Its cast bar and floor circle start on
+/// <paramref name="StartTick"/>; on <paramref name="LandsTick"/> the cast lands, the circle resolves and the Window opens.
+/// </summary>
+/// <param name="Index">1-based number of the Lock it opens.</param>
+/// <param name="StartTick">Tick the cast starts.</param>
+/// <param name="LandsTick">Tick the cast lands and the Window opens (<c>StartTick</c> plus the Lock ability's castTicks).</param>
+public sealed record LockCast(int Index, int StartTick, int LandsTick);
 
 /// <summary>The armed boss's pre-combat output for one tick.</summary>
 /// <param name="Boss">The next boss state.</param>
@@ -113,10 +134,16 @@ public sealed record BossPostStep(BossState Boss, IReadOnlyList<ActorState> Spaw
 /// different class (the <c>combo</c> event closing that Setup's Window), breaks it and drops the shield. A Window that
 /// ends unbroken is a failed Lock; the third failed Lock enrages the boss into a Tempo spike (its script loops fire
 /// <see cref="BossConfig.EnrageTempoBp"/> as often), never an instant wipe.</item>
+/// <item>LOCK-TELEGRAPH (<see cref="BossConfig.CastLock"/>, BIBLE s3 "Cast bars are the enemy's language"): a due Lock
+/// begins as a cast. On the first due tick the boss is not mid-cast and has no telegraph of its own pending, it casts
+/// its Lock ability (a <c>lock_cast</c> event; a real cast bar for the ability's castTicks, its other script steps held
+/// for the cast) with its Lock script step's floor telegraph spanning the cast; on the tick the cast lands the circle
+/// resolves and the Window opens. The cast's own content effects never land (<see cref="CombatAbilities"/>): these
+/// rules own the shield and the Window.</item>
 /// <item>The boss's death ends the encounter: every Twin still standing dies on the boss's death tick (a <c>death</c>
 /// event with <c>reason: "boss_death"</c>), as WoW despawns a boss's adds when the boss dies.</item>
 /// </list>
-/// Events: <c>boss_add_spawn</c>, <c>death</c> (a Twin falling with the boss), <c>lock_open</c>, <c>lock_broken</c>, <c>lock_failed</c>, <c>boss_enrage</c>.
+/// Events: <c>boss_add_spawn</c>, <c>death</c> (a Twin falling with the boss), <c>lock_cast</c>, <c>lock_open</c>, <c>lock_broken</c>, <c>lock_failed</c>, <c>boss_enrage</c>.
 /// </summary>
 public static class BossRules
 {
@@ -185,12 +212,27 @@ public static class BossRules
     /// <summary>
     /// Pre-combat (inside <see cref="EncounterStep.Step"/>, on the tick's state): a pending shield drop is patched; an
     /// open Window that has run out fails (counting toward the enrage); with the boss alive and no Window open, the
-    /// 50% gate (or the 30 s repeat once it has opened) opens the next Lock and shields the boss.
+    /// 50% gate (or the 30 s repeat once it has opened) opens the next Lock and shields the boss. With
+    /// <see cref="BossConfig.CastLock"/> and a Lock ability with castTicks &gt; 0 the due Lock is cast first (see the
+    /// class summary): the cast starts on the first due tick the boss is free, and the Window opens on the tick it lands.
     /// </summary>
-    public static BossPreStep PreCombat(SimState state, BossState boss, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts, Action<SimEvent> emit)
+    /// <param name="state">The tick's state (read only).</param>
+    /// <param name="boss">The boss state.</param>
+    /// <param name="scripts">The run's scripts this tick.</param>
+    /// <param name="emit">Event sink.</param>
+    /// <param name="abilities">Ability views (the Lock ability's castTicks); null = none, so the Lock is never cast.</param>
+    /// <param name="pendingTelegraphs">The telegraph registry before this tick (a Lock cast waits for the boss's own).</param>
+    public static BossPreStep PreCombat(
+        SimState state,
+        BossState boss,
+        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts,
+        Action<SimEvent> emit,
+        IReadOnlyDictionary<string, ScriptAbility>? abilities = null,
+        IReadOnlyList<Telegraph>? pendingTelegraphs = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(boss);
+        ArgumentNullException.ThrowIfNull(scripts);
         ArgumentNullException.ThrowIfNull(emit);
         var cfg = boss.Config;
         var tick = state.Tick;
@@ -224,7 +266,14 @@ public static class BossRules
         var bossAlive = state.Actors.TryGetValue(cfg.BossActorId, out var bossActor) && bossActor.Alive;
         if (!bossAlive)
         {
-            next = next with { Active = null };
+            next = next with { Active = null, Casting = null };
+        }
+        else if (next.Casting is { } casting)
+        {
+            if (tick >= casting.LandsTick)
+            {
+                next = OpenLock(next, casting.Index, tick, emit, patches) with { Casting = null };
+            }
         }
         else if (next.Active is null)
         {
@@ -232,18 +281,112 @@ public static class BossRules
             if (due)
             {
                 var index = next.LocksOpened + 1;
-                var window = new LockWindow(index, tick, tick + cfg.LockWindowTicks);
-                emit(new SimEvent(tick, "lock_open",
-                    ("actorId", JsValue.Int(cfg.BossActorId)),
-                    ("lockIndex", JsValue.Int(index)),
-                    ("endsTick", JsValue.Int(window.EndsTick))));
-                // Patches land after this tick's combat (state tick + 1), so the shield ends exactly at EndsTick.
-                patches.Add(new BreakBarEffectPatch(cfg.BossActorId, cfg.ShieldEffectId, cfg.LockWindowTicks - 1, 1));
-                next = next with { Active = window, LocksOpened = index, NextLockTick = tick + cfg.LockRepeatTicks };
+                var castTicks = LockCastTicks(cfg, abilities);
+                if (castTicks <= 0)
+                {
+                    next = OpenLock(next, index, tick, emit, patches) with { NextLockTick = tick + cfg.LockRepeatTicks };
+                }
+                else if (bossActor!.CastId is null && !HasOwnTelegraphPending(pendingTelegraphs, cfg.BossActorId, tick))
+                {
+                    // The boss never begins the Lock over a cast of its own, or while a circle it drew is still down: that
+                    // cast would be replaced and its circle would resolve on nothing (wrong data shown). The Lock waits.
+                    var landsTick = tick + castTicks;
+                    emit(new SimEvent(tick, "lock_cast",
+                        ("actorId", JsValue.Int(cfg.BossActorId)),
+                        ("lockIndex", JsValue.Int(index)),
+                        ("landsTick", JsValue.Int(landsTick))));
+                    next = next with { Casting = new LockCast(index, tick, landsTick), NextLockTick = tick + cfg.LockRepeatTicks };
+                }
             }
         }
 
-        return new BossPreStep(next, EffectiveScripts(next, scripts), cfg.TwinsBar, patches);
+        var effective = EffectiveScripts(next, scripts);
+        if (next.Casting is { } lockCast)
+        {
+            effective = WithLockCast(effective, cfg, lockCast, scripts);
+        }
+        return new BossPreStep(next, effective, cfg.TwinsBar, patches);
+    }
+
+    /// <summary>Opens Lock <paramref name="index"/> on <paramref name="tick"/>: <c>lock_open</c>, the shield patch, the Window.</summary>
+    private static BossState OpenLock(BossState boss, int index, int tick, Action<SimEvent> emit, List<BreakBarEffectPatch> patches)
+    {
+        var cfg = boss.Config;
+        var window = new LockWindow(index, tick, tick + cfg.LockWindowTicks);
+        emit(new SimEvent(tick, "lock_open",
+            ("actorId", JsValue.Int(cfg.BossActorId)),
+            ("lockIndex", JsValue.Int(index)),
+            ("endsTick", JsValue.Int(window.EndsTick))));
+        // Patches land after this tick's combat (state tick + 1), so the shield ends exactly at EndsTick.
+        patches.Add(new BreakBarEffectPatch(cfg.BossActorId, cfg.ShieldEffectId, cfg.LockWindowTicks - 1, 1));
+        return boss with { Active = window, LocksOpened = index };
+    }
+
+    /// <summary>The Lock ability's castTicks when the Lock is cast (<see cref="BossConfig.CastLock"/>), else 0.</summary>
+    private static int LockCastTicks(BossConfig cfg, IReadOnlyDictionary<string, ScriptAbility>? abilities) =>
+        cfg.CastLock && cfg.SuppressedBossCasts.Count > 0 && abilities is not null &&
+        abilities.TryGetValue(cfg.SuppressedBossCasts[0], out var ability)
+            ? Math.Max(0, ability.CastTicks)
+            : 0;
+
+    /// <summary>True when a telegraph <paramref name="actorId"/> drew resolves on or after <paramref name="tick"/>.</summary>
+    private static bool HasOwnTelegraphPending(IReadOnlyList<Telegraph>? pending, int actorId, int tick) =>
+        pending is not null && pending.Any(t => t.SourceId == actorId && t.ResolvesTick >= tick);
+
+    /// <summary>
+    /// The boss's script while it casts the Lock: only the Lock cast, a one-shot step on the cast's start tick (its other
+    /// steps are held, so no cast replaces the bar), with the target and telegraph of the boss's Lock script step. The
+    /// telegraph spans the cast with a lead of exactly the cast time, so the circle is drawn as the bar starts and
+    /// resolves as it lands, whatever lead the step holds (an oracle setup clears spansCast; Tempo shrinks the lead).
+    /// </summary>
+    private static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> WithLockCast(
+        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> effective,
+        BossConfig cfg,
+        LockCast casting,
+        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts)
+    {
+        var lockId = cfg.SuppressedBossCasts[0];
+        var content = scripts.TryGetValue(cfg.BossActorId, out var bossScript) && bossScript is not null
+            ? bossScript.FirstOrDefault(s => string.Equals(s.Cast, lockId, StringComparison.Ordinal))
+            : null;
+        var castTicks = casting.LandsTick - casting.StartTick;
+        var step = ScriptStep.At(casting.StartTick, lockId) with
+        {
+            Telegraph = content?.Telegraph is { } tg ? tg with { SpansCast = true, LeadTicks = castTicks } : null,
+            Target = content?.Target,
+        };
+        var result = new SortedDictionary<int, IReadOnlyList<ScriptStep>>();
+        foreach (var kv in effective)
+        {
+            result[kv.Key] = kv.Value;
+        }
+        result[cfg.BossActorId] = new[] { step };
+        return result;
+    }
+
+    /// <summary>
+    /// The ability table combat runs on an armed run (<c>RunRoot.StepRun</c>): with <see cref="BossConfig.CastLock"/>
+    /// the Lock abilities (<see cref="BossConfig.SuppressedBossCasts"/>) keep their cast time, tags and shape but carry no
+    /// effects, so the Lock cast is a cast bar whose landing applies nothing itself: these rules own its shield and Window
+    /// (the content self Window would otherwise also open on the boss and take the party's Payoffs). Otherwise unchanged.
+    /// </summary>
+    /// <param name="config">The armed rules.</param>
+    /// <param name="abilities">The run's abilities.</param>
+    /// <returns><paramref name="abilities"/> itself, or a copy with the Lock abilities' effects removed.</returns>
+    public static IReadOnlyDictionary<string, AbilityDef> CombatAbilities(BossConfig config, IReadOnlyDictionary<string, AbilityDef> abilities)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(abilities);
+        if (!config.CastLock || !config.SuppressedBossCasts.Any(abilities.ContainsKey))
+        {
+            return abilities;
+        }
+        var result = new Dictionary<string, AbilityDef>(StringComparer.Ordinal);
+        foreach (var kv in abilities)
+        {
+            result[kv.Key] = config.SuppressedBossCasts.Contains(kv.Key) ? kv.Value with { Effects = Array.Empty<EffectOp>() } : kv.Value;
+        }
+        return result;
     }
 
     /// <summary>
@@ -267,7 +410,8 @@ public static class BossRules
         var next = boss;
         var spawned = new List<ActorState>();
 
-        if (!next.TwinsSpawned && state.Actors.TryGetValue(cfg.BossActorId, out var bossActor) && bossActor.Alive)
+        // PRESPAWN-AGGRO: a prespawned boss stands idle in its arena; the Twins join it on its engage, not at run start.
+        if (!next.TwinsSpawned && state.Actors.TryGetValue(cfg.BossActorId, out var bossActor) && bossActor.Alive && !bossActor.Idle)
         {
             foreach (var twin in cfg.Twins)
             {

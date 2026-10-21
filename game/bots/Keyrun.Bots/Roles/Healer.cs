@@ -11,7 +11,8 @@ namespace Keyrun.Bots.Roles;
 /// Port of bots/src/roles/healer.ts, the healer state machine: kick the priority cast, flee a hostile floor patch
 /// while staying within heal range of the party centroid, swap a stance loop into Mend when the party's missing
 /// health crosses the threshold, dispel before healing, then heal the lowest ally under the threshold through the
-/// shape-aware picker (<see cref="HealPick"/>).
+/// shape-aware picker (<see cref="HealPick"/>); with nobody under it, open a Setup Window on an enemy for a ready
+/// Payoff partner (<see cref="HealerSetup"/>).
 /// </summary>
 public sealed class HealerRole : IRole
 {
@@ -32,6 +33,29 @@ public sealed class HealerRole : IRole
 
     /// <inheritdoc />
     public IReadOnlyList<Command> Decide(BotView view, ActorState self) => HealerDecide(view, self);
+
+    /// <summary>
+    /// HEALER-TOPS-OFF (the WoW Mythic+ dungeon loop): between pulls, with no living enemy, the healer tops the party
+    /// off: the lowest living ally under full health, through the same shape-aware picker as a fight heal
+    /// (<see cref="HealPick"/>). Nobody hurt = nothing to do.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">The healer.</param>
+    /// <returns>Commands, possibly empty.</returns>
+    public static IReadOnlyList<Command> TopOffCommands(BotView view, ActorState self)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        var actors = view.State.Actors;
+        return Priority.PickHealTarget(actors, 1.0) is { } id && actors.TryGetValue(id, out var target)
+            ? HealPick.HealCommands(view, self, RoleShared.KitOf(view, self.ClassId), target)
+            : Array.Empty<Command>();
+    }
+
+    /// <summary>True when <see cref="TopOffCommands"/> has an ally to heal: a living ally under full health.</summary>
+    /// <param name="actors">The state's actors.</param>
+    /// <returns>Whether the party needs topping off.</returns>
+    public static bool NeedsTopOff(SortedDictionary<int, ActorState> actors) => Priority.PickHealTarget(actors, 1.0) is not null;
 
     private static double PartyMissingHealthRatio(SortedDictionary<int, ActorState> actors)
     {
@@ -99,9 +123,10 @@ public sealed class HealerRole : IRole
         if (dispelId is null)
         {
             var healId = Priority.PickHealTarget(actors, HealThresholdPct);
+            // CADENCE-SETUP (f-b31e8f34): nobody under the threshold, so open a Setup for a ready Payoff partner.
             return healId is { } hid && actors.TryGetValue(hid, out var healTarget)
                 ? HealPick.HealCommands(view, self, kit, healTarget)
-                : Array.Empty<Command>();
+                : HealerSetup.SetupCommands(view, self, kit);
         }
 
         var abilityId = kit.DispelAbilityId ?? "dispel";

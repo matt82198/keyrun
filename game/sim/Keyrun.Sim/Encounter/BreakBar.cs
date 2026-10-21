@@ -149,6 +149,33 @@ public static class BreakBar
         return inputs;
     }
 
+    /// <summary>
+    /// C#-only (f-8b3fff18, BIBLE s9 Twins and s9.3 "Stops as well as kicks"): the living bar actors that hold an
+    /// active onEmpty effect of their bar at <paramref name="tick"/> (an instance ending after it), i.e. the Twins still
+    /// inside their stagger stun. <see cref="EncounterStep"/> holds their scripts for the stun. Only bar actors count,
+    /// so a run with no Break bar (every oracle run) is never affected.
+    /// </summary>
+    /// <param name="sources">The tick's bar sources.</param>
+    /// <param name="actors">The tick's actors.</param>
+    /// <param name="tick">The tick.</param>
+    /// <returns>The held actor ids (empty when none).</returns>
+    public static IReadOnlySet<int> StunnedActors(IEnumerable<BreakBarSource> sources, IReadOnlyDictionary<int, ActorState> actors, int tick)
+    {
+        var held = new HashSet<int>();
+        foreach (var source in sources)
+        {
+            foreach (var actorId in source.ActorIds)
+            {
+                if (actors.TryGetValue(actorId, out var actor) && actor.Alive &&
+                    actor.Effects.Exists(e => e.EndsTick > tick && source.OnEmpty.Any(o => o.EffectId == e.EffectId)))
+                {
+                    held.Add(actorId);
+                }
+            }
+        }
+        return held;
+    }
+
     /// <summary>breakbar.ts:140 breakBarEffectPatches: one patch per actor per onEmpty effect, only when it just staggered.</summary>
     public static IReadOnlyList<BreakBarEffectPatch> EffectPatches(BreakBarSource source, bool justStaggered)
     {

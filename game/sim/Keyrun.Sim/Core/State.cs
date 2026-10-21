@@ -154,6 +154,16 @@ public sealed class FloorCloud
 }
 
 /// <summary>
+/// A press held in the spell queue window (sim/core/state.ts QueuedPress): the cast command's ability, target and
+/// point, and the tick the key went down. Immutable, so an actor clone may share it.
+/// </summary>
+/// <param name="AbilityId">The pressed ability.</param>
+/// <param name="TargetId">The press's target, or null.</param>
+/// <param name="Point">The press's ground point, or null.</param>
+/// <param name="PressTick">The tick of the press.</param>
+public sealed record QueuedPress(string AbilityId, int? TargetId, Vec3? Point, int PressTick);
+
+/// <summary>
 /// One actor (sim/core/state.ts ActorState). Mutable: rules mutate the clone that <see cref="Tick.Step"/>
 /// hands them, exactly as the TS mutates its structuredClone.
 /// </summary>
@@ -210,6 +220,12 @@ public sealed class ActorState
     /// </summary>
     public bool CastIsOverheat { get; set; }
 
+    /// <summary>
+    /// The one press waiting in the spell queue window (Combat/SpellQueue.cs, sim/combat/spell-queue.ts), or null.
+    /// Players only; never projected into an oracle trace.
+    /// </summary>
+    public QueuedPress? QueuedCast { get; set; }
+
     /// <summary>Ability id to ready tick, in JS key order.</summary>
     public JsRecord<int> Cooldowns { get; set; } = new();
 
@@ -227,6 +243,13 @@ public sealed class ActorState
 
     /// <summary>Per-actor chase margin override; null = encounter/chase.ts CHASE_MARGIN_MM.</summary>
     public long? ChaseMarginMm { get; set; }
+
+    /// <summary>
+    /// PRESPAWN-AGGRO (C#-only; BIBLE section 9.1): true while the actor's group stands idle in formation, before it
+    /// engages. An idle enemy runs no script, casts nothing, never chases and is never auto-targeted; it can still be
+    /// hit, and taking damage engages its whole group. False for every actor of an oracle run.
+    /// </summary>
+    public bool Idle { get; set; }
 
     /// <summary>
     /// The wearer's summed gear damageDoneBp (BIBLE s7 "Tier is power"; Runs.GearPower). C#-only: 0 on every oracle run.

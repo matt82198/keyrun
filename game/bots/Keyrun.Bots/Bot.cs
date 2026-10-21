@@ -101,8 +101,6 @@ public static class Bot
         // (the reaction delay would leave it a third of the leader's speed), and skips its role. In a fight it started
         // outside the fight's room, it walks in the same way while its role still decides (its casts are kept, its own
         // moves dropped). A dodge or a ping reaction wins over both. Inert in the oracle runner: its view carries no layout.
-        // Shut out of the party's locked room (BACKFILL-GATE, Follow.ShutRoom), its role's moves stay dropped while it
-        // waits at the gate, so nothing presses into the gate clamp.
         // KF2 (BOTS-ENGAGE-CHOIR): a bot in the leader seat walks the route between fights, so a party with no human
         // leading reaches the next pull instead of idling at the Entrance. Skill-dial-free like the follow walk.
         // SEED-BLOOM-TEACHES (BIBLE s9.6 item 3): while an encounter floor Window (the Seed's Death Bloom) is open, a bot
@@ -122,11 +120,15 @@ public static class Bot
         }
 
         var follow = avoid is null && !pingCommands.Any() ? Follow.FollowCommand(view, self) : null;
-        var travelling = follow is not null || (avoid is null && !pingCommands.Any() && Follow.ShutRoom(view, self) is not null);
+        var travelling = follow is not null;
+        // HEALER-TOPS-OFF (the WoW Mythic+ dungeon loop): between pulls a travelling healer still tops off a hurt ally
+        // (its casts kept, its own moves dropped, through the same reaction delay and skill roll as a fight decision),
+        // so the party never walks into the next pack hurt. Every other bot, and a healer with nobody hurt, only travels.
+        var topOff = travelling && self.Role == ActorRole.Healer && !Follow.AnyLivingEnemy(view.State) && Roles.HealerRole.NeedsTopOff(view.State.Actors);
         if (follow is not null)
         {
             commands.Add(follow);
-            if (!Follow.AnyLivingEnemy(view.State))
+            if (!Follow.AnyLivingEnemy(view.State) && !topOff)
             {
                 return new BotDecision(commands, memory, prng);
             }
@@ -146,7 +148,7 @@ public static class Bot
 
         if (!pingCast && roles.For(self.Role) is { } role)
         {
-            var decided = role.Decide(view, self);
+            var decided = topOff ? Roles.HealerRole.TopOffCommands(view, self) : role.Decide(view, self);
             commands.AddRange(!travelling ? decided : decided.Where(c => c is not MoveCommand and not DashCommand));
         }
 

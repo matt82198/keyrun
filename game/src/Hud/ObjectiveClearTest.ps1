@@ -7,8 +7,12 @@
     while ObjectiveModel.Build reported "remaining=0/0 complete" ("No enemies remain") without counting actors.
 
     Reads the HUD's own proof lines of one autorun and asserts: after the run_end EVENT, the first "HUD objective
-    ... complete" line's remaining count equals the enemies alive at run_end (every actor from a "PULL spawn" line
-    or a "boss_add_spawn" EVENT, minus every actor with a "death" EVENT before run_end).
+    ... complete" line's remaining count equals the enemies alive at run_end (every actor from a "PULL spawn" line,
+    a "GROUP idle" line or a "boss_add_spawn" EVENT, minus every actor with a "death" EVENT before run_end).
+    "GROUP idle" (PRESPAWN-AGGRO / PATH-PACKS): on a layout run every pull and optional pack stands idle in the state
+    from tick 0, and a skipped pack never logs a PULL spawn line; without it the census held only the engaged pulls,
+    so a cleared run that skipped two packs (14 enemies alive, HUD "remaining=14/31") read as 0 alive: RED on a true
+    HUD line (PR #396 run 39526047866, run C).
 
     On origin/main 9cc91ec, seed 1 key 2 (the visual audit's run: Twin B dies at 3150, the boss at 3396, run_end at
     3398, Twin A alive at 30 HP) the line reads "remaining=0/0 complete" against 1 alive: RED.
@@ -38,6 +42,10 @@ function Get-ObjectiveClearFailures([string[]]$all) {
     for ($i = 0; $i -lt $iEnd; $i++) {
         $line = $all[$i]
         if ($line -match '^PULL spawn index=\d+ id=\S+ actors=(\S+)$') {
+            foreach ($pair in $Matches[1].Split(',')) { [void]$spawned.Add([int]$pair.Split(':')[0]) }
+        } elseif ($line -match '^GROUP idle id=\S+ pull=-?\d+ actors=(\S+)$') {
+            # PRESPAWN-AGGRO / PATH-PACKS: a group idle in the state from tick 0 (a pack the party skipped never logs a
+            # PULL spawn line or an engage, yet its enemies are alive; RunLog CombatNarrator.IdleGroupLines).
             foreach ($pair in $Matches[1].Split(',')) { [void]$spawned.Add([int]$pair.Split(':')[0]) }
         } elseif ($line -match '^EVENT \{"actorId":(\d+),.*"type":"boss_add_spawn"') {
             [void]$spawned.Add([int]$Matches[1])

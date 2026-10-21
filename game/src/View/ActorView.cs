@@ -206,7 +206,9 @@ public partial class ActorView : Node3D
         {
             return;
         }
-        var before = Driver.PreviousState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
+        // KF1-READABLE: diff and read events over every step this frame ran, not only the latest (a slow frame runs
+        // several, and a swing resolved on an earlier one used to vanish).
+        var before = Driver.FrameStartState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
         var newTick = !ReferenceEquals(Driver.State, _seenState);
         _seenState = Driver.State;
         var speed = 0f;
@@ -216,7 +218,7 @@ public partial class ActorView : Node3D
         }
         _lastPosition = Position;
         _hasLastPosition = true;
-        _animator.Update(before, now, newTick, speed, Driver.LastEvents, Driver.State.Tick);
+        _animator.Update(before, now, newTick, speed, Driver.FrameEvents, Driver.State.Tick, (int)(Driver.Alpha * 1000f));
     }
 
     // KF1: every health drop lights the body for AnimRule.FlashTicks sim ticks (an additive overlay on each mesh), so a
@@ -234,7 +236,7 @@ public partial class ActorView : Node3D
             // The first state this view sees is a baseline, not a step (no flash on the run's opening frame).
             var stepped = _flashSeen is not null;
             _flashSeen = Driver.State;
-            var before = Driver.PreviousState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
+            var before = Driver.FrameStartState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
             if (stepped && now.Health < before.Health)
             {
                 _hurtTick = Driver.State.Tick;

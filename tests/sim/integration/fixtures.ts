@@ -11,6 +11,13 @@
  * end to end (sim/encounter's telegraph is informational; the actual damage comes from the
  * enemy's ordinary cast completing through sim/combat/casting.ts against its live facing/shape,
  * per sim/index.ts's stepRun doc comment).
+ *
+ * Facing (integrate/playable-dungeon: SLAM-CIRCLE-HITS #369 merged with ENEMY-ENGAGE): the cone cleave now counts
+ * toward the boss's engage reach (chase.ts engageReachMm), so the boss is a chaser and, in reach, turns to face its
+ * script target (BIBLE s3: "a slow frontal cone, readable from the boss's facing"). This content has no threat op, so
+ * that target is the NEAREST living player. The dummy therefore stands nearest, at (1000, 0, 0) in front of the boss,
+ * where the boss keeps facing it. At its old (3000, 0, 0) the party behind the boss was nearer, the boss turned to
+ * face them, and the cleave hit the bots instead of the dummy.
  */
 import type { AbilityDef } from "@sim/combat/abilities";
 import type { Command } from "@sim/core/commands";
@@ -53,7 +60,7 @@ export const CLEAVE: AbilityDef = {
   effects: [{ op: "damage", amount: 20, school: "physical" }],
 };
 
-/** Boss at the origin, facing +x (yaw 0); the dummy sits at (3000, 0, 0), well inside the cone. */
+/** Boss at the origin, facing +x (yaw 0); the dummy sits at (1000, 0, 0), well inside the cone and nearest the boss. */
 export const DUNGEON: DungeonDef = {
   id: "golden-pull",
   pulls: [
@@ -78,10 +85,10 @@ export const CONTENT: RunContent = {
   },
 };
 
-/** Player behind the boss (outside the +x-facing cone), dummy inside it. Both within ATTACK's range. */
+/** Player behind the boss (outside the +x-facing cone), dummy inside it and nearer the boss than any party member. Both within ATTACK's range. */
 export const BASE_PARTY: PartyMemberSpec[] = [
   { id: PLAYER_ID, classId: "warrior", role: "damage", pos: { x: -2000, y: 0, z: 0 }, maxHealth: 200, maxResource: 100 },
-  { id: DUMMY_ID, classId: "target-dummy", role: "damage", pos: { x: 3000, y: 0, z: 0 }, maxHealth: 300, maxResource: 0 },
+  { id: DUMMY_ID, classId: "target-dummy", role: "damage", pos: { x: 1000, y: 0, z: 0 }, maxHealth: 300, maxResource: 0 },
 ];
 
 /** Three real bots/src-controlled party members, positioned behind the boss like the player (so

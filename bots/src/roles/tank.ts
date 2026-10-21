@@ -38,7 +38,7 @@ function defensiveCommands(view: BotView, self: ActorState, kit: EffectiveKit): 
   const tick = view.state.tick;
   const healthPct = self.health / self.maxHealth;
   const pressured = healthPct < TANK_DEFENSIVE_THRESHOLD_PCT || underPackPressure(view, self);
-  if (kit.defensiveAbilityId && pressured && abilityReady(self, kit.defensiveAbilityId, tick)) {
+  if (kit.defensiveAbilityId && pressured && abilityReady(self, kit.defensiveAbilityId, tick, kit)) {
     return [{ tick, actorId: self.id, kind: "cast", abilityId: kit.defensiveAbilityId }];
   }
   // Pack pressure: Vigil covers Brace's expiry instead of waiting for the 60% floor (tank-pressure.ts).

@@ -33,6 +33,7 @@
  */
 import type { ActorId, ActorState, BotView, Command, Tick } from "./types.js";
 import { abilityReady } from "./roles.js";
+import { resolveKit } from "./kits.js";
 import { isInterruptResponsible } from "./shared/priority.js";
 import { moveToward } from "./shared/command.js";
 import { isPingLive, latestLivePing, WINDOW_EFFECT_PREFIX, type PingEvent } from "./shared/pings.js";
@@ -67,11 +68,12 @@ export function interruptPingCommands(view: BotView, self: ActorState, pings: re
   const target = firstEnemyWithCast(view.state.actors, ping.targetId);
   if (!target) return [];
 
+  const selfKit = resolveKit(self.classId, view.classKit);
   const eligible = Object.values(view.state.actors)
     .filter((a) => a.kind === "player" && a.alive && a.role === "damage")
-    .filter((a) => abilityReady(a, interruptId, tick))
+    .filter((a) => abilityReady(a, interruptId, tick, selfKit))
     .map((a) => a.id);
-  if (!abilityReady(self, interruptId, tick) || !isInterruptResponsible(self.id, eligible)) return [];
+  if (!abilityReady(self, interruptId, tick, selfKit) || !isInterruptResponsible(self.id, eligible)) return [];
 
   return [{ tick, actorId: self.id, kind: "cast", abilityId: interruptId, targetId: target.id }];
 }

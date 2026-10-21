@@ -10,7 +10,7 @@
  * Usage: `import { abilityReady, readyAndAffordable, ledgerKickCommand, inLull } from "./shared.js"`
  */
 import type { ActorState, BotView, Command, Tick } from "../types.js";
-import { resolveInterrupt } from "../shared/ledger.js";
+import { resolveInterrupt, isCastLocked } from "../shared/ledger.js";
 import { resolveKit, priorityInterruptAbilityIds, type EffectiveKit } from "../kits.js";
 
 /**
@@ -28,8 +28,18 @@ export function inLull(view: BotView): boolean {
   return living.every((e) => e.targetId !== null && actors[e.targetId]?.kind === "enemy");
 }
 
-export function abilityReady(self: ActorState, abilityId: string, tick: Tick): boolean {
-  return (self.cooldowns[abilityId] ?? 0) <= tick && self.gcdReadyTick <= tick;
+/** True when `abilityId`'s own gcdTicks is 0 per the kit (off the GCD, finding f-80b5cf16). */
+export function isOffGcd(kit: Pick<EffectiveKit, "offGcdAbilityIds"> | undefined, abilityId: string): boolean {
+  return kit?.offGcdAbilityIds?.includes(abilityId) ?? false;
+}
+
+/**
+ * Not locked out by its own cast (the sim refuses a press then, except in the spell queue window's last ticks, where
+ * it holds the press until the cast ends: isCastLocked), off cooldown and off the GCD; an ability in the kit's
+ * offGcdAbilityIds only waits for its own cooldown.
+ */
+export function abilityReady(self: ActorState, abilityId: string, tick: Tick, kit?: Pick<EffectiveKit, "offGcdAbilityIds">): boolean {
+  return !isCastLocked(self, tick) && (self.cooldowns[abilityId] ?? 0) <= tick && (isOffGcd(kit, abilityId) || self.gcdReadyTick <= tick);
 }
 
 export function affordable(self: ActorState, abilityId: string, kit: EffectiveKit): boolean {
@@ -37,7 +47,7 @@ export function affordable(self: ActorState, abilityId: string, kit: EffectiveKi
 }
 
 export function readyAndAffordable(self: ActorState, abilityId: string, tick: Tick, kit: EffectiveKit): boolean {
-  return abilityReady(self, abilityId, tick) && affordable(self, abilityId, kit);
+  return abilityReady(self, abilityId, tick, kit) && affordable(self, abilityId, kit);
 }
 
 /**
@@ -57,7 +67,7 @@ export function ledgerKickCommand(view: BotView, self: ActorState, kit: Effectiv
     .filter((a) => resolveKit(a.classId, view.classKit).interruptAbilityId === interruptId)
     .map((a) => a.id);
 
-  const assignment = resolveInterrupt(view.state.actors, interruptId, eligible, tick, priorityInterruptAbilityIds());
+  const assignment = resolveInterrupt(view.state.actors, interruptId, eligible, tick, priorityInterruptAbilityIds(), isOffGcd(kit, interruptId));
   if (!assignment || assignment.kickerId !== self.id) return null;
   return { tick, actorId: self.id, kind: "cast", abilityId: interruptId, targetId: assignment.targetId };
 }

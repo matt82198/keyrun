@@ -152,11 +152,18 @@ describe("hud-wiring: a spot ping lands at the crosshair's floor point (item 6)"
 
 describe("hud-wiring: target pings carry cast/window context (item 4)", () => {
   it("reads Kick! when pinged mid-way through the lieutenant's interruptible heal", async () => {
-    const { h } = await targetingLieutenant();
-    let snap = h.tick();
-    for (let i = 0; i < 300 && !(lt(snap).cast?.abilityId === HEAL && lt(snap).cast?.kickable); i++) snap = h.tick();
+    // Finding f-80b5cf16: a gcdTicks-0 kick is off the GCD, so a bot kicks the heal on the first tick it sees it and
+    // the heal reads kickable after one step only: the step it starts on. Find that step on a probe run, then press G
+    // on the same step of an identical run (bots decide on the pre-step state, so they cannot kick it that step).
+    const probe = (await targetingLieutenant()).h;
+    let snap = probe.tick();
+    let steps = 1;
+    for (; steps < 300 && !(lt(snap).cast?.abilityId === HEAL && lt(snap).cast?.kickable); steps++) snap = probe.tick();
     expect(lt(snap).cast?.kickable).toBe(true);
-    h.tick([G]);
+    const { h } = await targetingLieutenant();
+    for (let i = 1; i < steps; i++) h.tick();
+    const pinged = h.tick([G]);
+    expect(lt(pinged).cast?.abilityId).toBe(HEAL);
     const { event, label } = h.lastPing();
     expect(event).toMatchObject({ kind: "target", targetId: LIEUTENANT });
     expect(label).toBe("Kick!");
@@ -198,14 +205,29 @@ describe("hud-wiring: the bar is told which payoff keys a Window has made live (
     expect(unlitWithoutWindow).toBeGreaterThan(0);
   });
 
-  it("as cinder: your own class's Kindled never lights your bar (no self-combo)", async () => {
+  // CADENCE-SETUP (f-b31e8f34): the Chanter bot now opens Attuned on enemies (chanter>cinder is Flashfire). Every tick
+  // is checked, none skipped (PR #415 veto of a skip): the bar lights with exactly the Cinder's payoff keys on every
+  // tick another class's Window is open, and is unlit on every other tick, including every tick its own Kindled is
+  // open. Both halves must occur in the run. The two Windows never sit on separate enemies at once in this run (the
+  // healer opens Attuned only on a target with no open Window), so that case is pinned on openPayoff directly in
+  // tests/client/render/payoff-ready.test.ts.
+  it("as cinder: your own class's Kindled never lights your bar (no self-combo); another class's Window does", async () => {
     const h = await harness(setupFor("cinder"));
     let kindledTicks = 0;
+    let litByOther = 0;
     for (let i = 0; i < 400; i++) {
       const snap = h.tick([], i < 10);
-      if (snap.actors.some((a) => a.kind === "enemy" && a.window?.setupClass === "cinder")) kindledTicks += 1;
-      expect(h.payoffArgs[h.payoffArgs.length - 1]?.size ?? 0).toBe(0);
+      const arg = h.payoffArgs[h.payoffArgs.length - 1];
+      const open = (a: Snapshot["actors"][number]) => a.kind === "enemy" && a.alive && !!a.window && snap.tick < a.window.endsTick;
+      if (snap.actors.some((a) => open(a) && a.window!.setupClass !== "cinder")) {
+        expect([...(arg ?? [])].sort()).toEqual(["cinder.coldSnap", "cinder.detonate"]);
+        litByOther += 1;
+      } else {
+        expect(arg?.size ?? 0).toBe(0);
+        if (snap.actors.some((a) => a.kind === "enemy" && a.window?.setupClass === "cinder")) kindledTicks += 1;
+      }
     }
     expect(kindledTicks).toBeGreaterThan(0);
+    expect(litByOther).toBeGreaterThan(0);
   });
 });

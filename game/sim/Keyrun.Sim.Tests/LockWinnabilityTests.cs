@@ -283,7 +283,8 @@ public sealed class LockWinnabilityTests
     /// game/src/Host/HostRunSetup.cs BuildBossConfig over content/data/enemies/hollow-warden.json: the boss's one Break
     /// bar is the Twins' bar, the two enemies naming it are the Twins (ids 901, 902 in id order, Tempo-scaled health
     /// and scripts, at +/-4000 mm x), and the boss ability tagged <c>setup:lock</c> gives the Window length, the
-    /// shield effect and the suppressed cast. The 50%, 30 s and three-fail structure are the BossConfig defaults.
+    /// shield effect and the suppressed cast, which the boss casts before each Window opens (CastLock, as the host
+    /// arms it since LOCK-TELEGRAPH). The 50%, 30 s and three-fail structure are the BossConfig defaults.
     /// </summary>
     private static BossConfig BossConfigFromContent(RunContent content, int keyLevel)
     {
@@ -315,6 +316,7 @@ public sealed class LockWinnabilityTests
             LockWindowTicks = window.DurationTicks,
             ShieldEffectId = shield.EffectId,
             SuppressedBossCasts = new[] { lockAbility.Id },
+            CastLock = true,
         };
     }
 
