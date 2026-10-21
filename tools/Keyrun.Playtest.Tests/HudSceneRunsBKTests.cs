@@ -7,6 +7,7 @@ using Keyrun.Bots;
 using Keyrun.Bots.Shared;
 using Keyrun.Content;
 using Keyrun.Host;
+using Keyrun.Hud;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Runs;
@@ -51,6 +52,15 @@ public sealed class HudSceneRunsBKTests
 
     private static int Int(SimEvent e, string field) => e.Get(field) is JsInt i ? (int)i.Value : -1;
 
+    /// <summary>
+    /// R-PILE-10 (HudSceneTest check 8; dungeon loop decided as WoW Mythic+ does, BIBLE s3 cast bars and telegraphs): a
+    /// mechanic aimed at a living player is legitimate and drops when the player dies. Pinned on run B's exact setup,
+    /// the same four facts check 8 reads from the host log: (a) the Warden's death tick (his <c>death</c> event); (b) every
+    /// <c>HUD ping label=SPREAD|STACK</c> call (Pings.OnStepped: a new <see cref="PingCall.Key"/> after a step, logged at
+    /// that step's tick) comes strictly before it, and at least one does (a run with no call is vacuous and fails);
+    /// (c) on the death tick every live telegraph cancels (<c>telegraph_cancel</c>, TELEGRAPH-CANCEL-ON-DEATH); (d) after
+    /// it no cast starts on actor 1 (R-DEADCAST-1) and no further call appears.
+    /// </summary>
     [Fact(DisplayName = "Run B (pull 2, solo Warden): a mark telegraph is drawn only while the Warden lives, is cancelled the tick he dies, and no mark cast starts on a dead target")]
     public void Run_b_marks_never_outlive_the_solo_warden()
     {
@@ -62,30 +72,75 @@ public sealed class HudSceneRunsBKTests
         var backfill = BackfillState.Empty;
         var events = new List<SimEvent>();
         var castsAfterDeath = new List<string>();
+        var castStartsOnWarden = new List<string>();
+        var seenCalls = new HashSet<string>(StringComparer.Ordinal);
+        var pings = new List<(int Tick, string Line)>();
+        List<int>? registryBeforeDeath = null;
+        List<int>? registryAfterDeath = null;
         int? death = null;
         while (run.State.Tick < 900)
         {
             var tick = run.State.Tick;
+            var before = run.State;
+            var registryBefore = run.Encounter.Telegraphs.Select(t => t.Id).ToList();
             var commands = new List<Command>();
             warden.Sample(tick, run, commands, null);
             var step = Backfill.Step(backfill, run, commands, Array.Empty<QueueRequest>());
             backfill = step.Backfill;
             run = step.Step.Run;
             events.AddRange(step.Step.Events);
+            if (death is null && step.Step.Events.Any(e => e.Type == "death" && Int(e, "actorId") == WardenId))
+            {
+                registryBeforeDeath = registryBefore;
+                registryAfterDeath = run.Encounter.Telegraphs.Select(t => t.Id).ToList();
+            }
+            // Pings.OnStepped: each call seen for the first time after this step prints one "HUD ping" line, after
+            // the step's TICK and EVENT lines, so the line belongs to this step's tick.
+            foreach (var call in PingCalls.Calls(run).Where(c => seenCalls.Add(c.Key)))
+            {
+                pings.Add((tick, call.LogLine()));
+            }
             death ??= step.Step.Events.FirstOrDefault(e => e.Type == "death" && Int(e, "actorId") == WardenId)?.Tick;
             if (death is not null)
             {
                 castsAfterDeath.AddRange(run.State.Actors.Values
                     .Where(a => a.Kind == ActorKind.Enemy && a.CastId is not null)
                     .Select(a => FormattableString.Invariant($"{a.Id}:{a.CastId}@{run.State.Tick}")));
+                // CombatNarrator's "CAST start ... target=" rule: a new CastId or CastStartTick is a cast start.
+                castStartsOnWarden.AddRange(run.State.Actors.Values
+                    .Where(a => a.CastId is not null &&
+                        (!before.Actors.TryGetValue(a.Id, out var p) || p.CastId != a.CastId || p.CastStartTick != a.CastStartTick) &&
+                        (a.CastTargetPinned ? a.CastTargetId : a.TargetId) == WardenId)
+                    .Select(a => FormattableString.Invariant($"{a.Id}:{a.CastId}@{tick}")));
             }
         }
 
         var telegraphs = events.Where(e => e.Type == "telegraph").ToList();
+        // (a) the death tick.
         Assert.True(death is not null, "the solo Warden never died in run B");
+        var d = death!.Value;
+        // (b) every call is made while he lives, and there is at least one (vacuity guard).
+        Assert.True(pings.Count > 0,
+            $"no HUD ping SPREAD/STACK call in run B (Warden dead at {d}): the scenario no longer reaches the Pair's mark, the test is vacuous");
+        Assert.All(pings, p => Assert.True(p.Tick < d, $"'{p.Line}' at tick {p.Tick}, not strictly before the Warden's death at {d}"));
+        // (c) every telegraph live on the death tick (in the registry entering that step, not hit on it) cancels on
+        // that tick, and none outlives the step.
+        var hitAtDeath = events.Where(e => e.Type == "telegraph_hit" && e.Tick == d).Select(e => Int(e, "telegraphId")).ToHashSet();
+        var liveAtDeath = registryBeforeDeath!.Where(id => !hitAtDeath.Contains(id)).OrderBy(x => x).ToList();
+        var cancelledAtDeath = events.Where(e => e.Type == "telegraph_cancel" && e.Tick == d)
+            .Select(e => Int(e, "telegraphId")).OrderBy(x => x).ToList();
+        Assert.True(liveAtDeath.Count > 0, $"no telegraph live when the Warden died at {d}: nothing to cancel, the test is vacuous");
+        Assert.Equal(liveAtDeath, cancelledAtDeath);
+        Assert.True(registryAfterDeath!.Count == 0, $"telegraphs {string.Join(",", registryAfterDeath)} outlive the Warden's death at {d}");
+        // Check 8's log count (a "telegraph" EVENT carries no telegraphId): drawn by d, less hit by d and cancelled before d.
+        var logLive = telegraphs.Count(t => t.Tick <= d) - events.Count(e => e.Type == "telegraph_hit" && e.Tick <= d) -
+            events.Count(e => e.Type == "telegraph_cancel" && e.Tick < d);
+        Assert.Equal(liveAtDeath.Count, logLive);
+        // (d) after the death: no cast starts on actor 1, no further call.
+        Assert.True(castStartsOnWarden.Count == 0, $"a cast started on the dead Warden (died at {d}): {string.Join(", ", castStartsOnWarden.Take(5))}");
+        Assert.DoesNotContain(pings, p => p.Tick >= d);
         Assert.True(telegraphs.Count > 0,
             $"no telegraph in run B (Warden dead at {death}): the scenario no longer reaches the Pair's mark, the test is vacuous");
-        var d = death!.Value;
         Assert.All(telegraphs, t => Assert.True(t.Tick < d, $"telegraph {Str(t, "cast")} by {Int(t, "actorId")} drawn at {t.Tick}, the Warden died at {d}"));
         var cancels = events.Where(e => e.Type == "telegraph_cancel").ToList();
         Assert.Equal(

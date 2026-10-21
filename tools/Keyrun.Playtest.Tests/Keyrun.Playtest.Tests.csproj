@@ -32,6 +32,8 @@
     <Compile Include="../../game/src/Host/CastTargeting.cs" Link="Host/CastTargeting.cs" />
     <!-- Run F's abandon-seat plan, fixed or pull-relative (R-415-D; SeatAbandonPlanTests, RunFJoinerActsTests). Godot-free. -->
     <Compile Include="../../game/src/Host/SeatAbandonPlan.cs" Link="Host/SeatAbandonPlan.cs" />
+    <!-- HudSceneTest run B's "HUD ping" calls (R-PILE-10; HudSceneRunsBKTests). The Godot-free half of Hud/Pings.cs. -->
+    <Compile Include="../../game/src/Hud/PingCalls.cs" Link="Hud/PingCalls.cs" />
   </ItemGroup>
 
   <ItemGroup>
