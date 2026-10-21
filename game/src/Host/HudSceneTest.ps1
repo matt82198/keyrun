@@ -140,7 +140,8 @@
          (D-PINNED-FIXTURES-362: with the healer press the undisturbed Choir clears at 1580 and pull 2 starts at 1693, so
          1700 fell in pull 2); the merge-forward onto #415 keeps the pull-relative form, which serves that same intent
          (the leave stays inside the Choir), and RunFJoinerActsTests pins the leave inside pull 0 on the merged tree.
-         The old 1@1000 cannot work on the
+         BOTS-FIVE-BUTTONS (#298) had likewise moved 2@1700 -> 2@1500 (its bots clear the Choir at 1552); the bots
+         integration keeps the pull-relative form for the same intent. The old 1@1000 cannot work on the
          route: the next pull spawns only when a party member walks into its room, and an abandoned human leader stands
          idle, so his bots never travel; 3@1000 to 3@3000 leave the Choir uncleared without the Cinder's damage.
     Run G (lane 3J, key mismatch): as F with --joiner-key 3

@@ -24,6 +24,7 @@ import { moveToward } from "../shared/command.js";
 import { readyAndAffordable, ledgerKickCommand } from "./shared.js";
 import { healCommands } from "./heal-pick.js";
 import { setupCommands } from "./healer-setup.js";
+import { idleCommands, stanceSwapReady } from "./healer-idle.js";
 
 const DISPELLABLE_PREFIX = "dispellable:";
 /** ActorState.pos is already integer millimetres (sim/CLAUDE.md), so this 30m design constant is
@@ -133,12 +134,22 @@ export function healerDecide(view: BotView, self: ActorState): Command[] {
     // only the caster (roles/heal-pick.ts).
     const healId = pickHealTarget(view.state.actors, HEAL_THRESHOLD_PCT);
     const healTarget = healId !== null ? view.state.actors[healId] : undefined;
-    if (healTarget) return healCommands(view, self, kit, healTarget);
-    // CADENCE-SETUP (f-b31e8f34): nobody under the threshold, so open a Setup for a ready Payoff
-    // partner (roles/healer-setup.ts); D-HEALER-DOWNTIME: no Setup to open, so press a non-heal
-    // rotation button.
-    const setup = setupCommands(view, self, kit);
-    return setup.length > 0 ? setup : pressCommands(view, self, kit);
+    if (!healTarget) {
+      // CADENCE-SETUP (f-b31e8f34): nobody under the threshold, so open a Setup for a ready Payoff
+      // partner (roles/healer-setup.ts); BOTS-FIVE-BUTTONS (f-45e27a2d): no Setup to open, so close a
+      // Window, Refrain into Ward, or cast the damaging Payoff (roles/healer-idle.ts);
+      // D-HEALER-DOWNTIME: none of those, so press a non-heal rotation button.
+      const setup = setupCommands(view, self, kit);
+      if (setup.length > 0) return setup;
+      const idle = idleCommands(view, self, kit, MEND_VERSE_VALUE);
+      return idle.length > 0 ? idle : pressCommands(view, self, kit);
+    }
+    // BOTS-FIVE-BUTTONS: someone needs healing while the stance sits in Ward, so Refrain back to
+    // Mend first (its Mend burst heals on the swap) before the shape-aware heal.
+    if (stanceSwapReady(self, kit, tick) && self.resource !== MEND_VERSE_VALUE) {
+      return [{ tick, actorId: self.id, kind: "cast", abilityId: kit.stanceSwapAbilityId! }];
+    }
+    return healCommands(view, self, kit, healTarget);
   }
   const targetId = dispelId;
   const abilityId = kit.dispelAbilityId ?? "dispel";

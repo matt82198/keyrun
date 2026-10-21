@@ -18,6 +18,7 @@ import { findClosableWindow, openWindowsOn } from "../shared/windows.js";
 import { floorEscapeCommand, meleeReapproachCommand, friendlyWindowApproachCommand } from "../shared/floor.js";
 import { resolveKit, type EffectiveKit } from "../kits.js";
 import { readyAndAffordable, ledgerKickCommand } from "./shared.js";
+import { arrangeFillers } from "./fillers.js";
 
 /** How close a Payoff-capable ally must be for a Setup to be worth opening (design/BIBLE.md Sec 4:
  * "a timing game between two people"). ActorState.pos is integer mm (sim/CLAUDE.md), so this 30m
@@ -118,7 +119,8 @@ export function damageDecide(view: BotView, self: ActorState): Command[] {
   const setup = setupForAllyCommand(view, self, kit);
   if (setup.length > 0) return setup;
 
-  const abilityId = pickResourceAwareRotation(kit, self, tick);
+  const rotationKit = { ...kit, rotation: arrangeFillers(view, self, kit, kit.rotation, self.targetId) };
+  const abilityId = pickResourceAwareRotation(rotationKit, self, tick);
   if (abilityId) {
     const cmd: Command = { tick, actorId: self.id, kind: "cast", abilityId };
     if (self.targetId !== null) cmd.targetId = self.targetId;
