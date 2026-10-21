@@ -22,6 +22,8 @@
     Test-KeyrunDotnetRuntime -DotnetRoot <dir or ''>                  @{ Ok; Code; Lines }: <dir>/dotnet.exe exists, or with no
                                                                       root, dotnet resolves on PATH; else Code 6 'PREFLIGHT missing-dotnet'
     Test-KeyrunRunLogWritten -LogPath <file>                          $true when the --log file was created
+    Resolve-KeyrunRunLogPath -RepoRoot <dir> -ProjectRel <p> -LogRel <f>
+                                                                      where screens.ps1 writes the --log file (absolute --path or --log honoured)
 #>
 
 $script:KeyrunPreflightSourceDirs = @('src', 'sim', 'bots', 'content')
@@ -121,4 +123,17 @@ function Test-KeyrunDotnetRuntime {
 function Test-KeyrunRunLogWritten {
     param([Parameter(Mandatory = $true)][string]$LogPath)
     return (Test-Path -LiteralPath $LogPath -PathType Leaf)
+}
+
+function Resolve-KeyrunRunLogPath {
+    # Where Godot writes the --log file: a relative --log resolves against the --path project folder (default game), not the repo root.
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$ProjectRel,
+        [Parameter(Mandatory = $true)][string]$LogRel
+    )
+    # Godot accepts an absolute --path; only a relative one is under the repo root (same rule as Test-KeyrunDotnetAssembly).
+    if ([IO.Path]::IsPathRooted($LogRel)) { return $LogRel }
+    if ([IO.Path]::IsPathRooted($ProjectRel)) { return (Join-Path $ProjectRel $LogRel) }
+    return (Join-Path (Join-Path $RepoRoot $ProjectRel) $LogRel)
 }
