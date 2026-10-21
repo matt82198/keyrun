@@ -126,13 +126,22 @@ Write-Output "fastcheck: build ok at $([int]$sw.Elapsed.TotalSeconds)s"
 # --- Tests. ---
 $failed = @()
 foreach ($proj in $selected) {
-    & $dotnet test $proj --no-build --nologo -v q
+    # Category=Balance facts (fork parity) are reported below, not gated; every other assertion gates.
+    & $dotnet test $proj --no-build --nologo -v q --filter 'Category!=Balance'
     if ($LASTEXITCODE -ne 0) { $failed += $proj }
+}
+# balance: reported, never part of the exit code (CI runs it in the non-required `balance` job).
+$balanceRed = $false
+if ($selected.Contains($Bots)) {
+    Write-Output 'balance: (reported, not a gate) Keyrun.Bots.Tests --filter Category=Balance'
+    & $dotnet test $Bots --no-build --nologo -v q --filter 'Category=Balance'
+    if ($LASTEXITCODE -ne 0) { $balanceRed = $true }
+    Write-Output "balance: $(if ($balanceRed) { 'RED (reported, not a gate failure: open a finding)' } else { 'green' })"
 }
 $secs = [int]$sw.Elapsed.TotalSeconds
 if ($failed.Count) {
     Write-Output "fastcheck: FAIL tests in $($failed -join ', ') after ${secs}s"
     exit 1
 }
-Write-Output "fastcheck: PASS in ${secs}s"
+Write-Output "fastcheck: PASS in ${secs}s$(if ($balanceRed) { ' (balance red, reported)' })"
 exit 0

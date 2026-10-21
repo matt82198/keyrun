@@ -11,10 +11,11 @@ namespace Keyrun.Host;
 /// One recorded key transition of a <c>keyrun.input-log/1</c> file (lane 3E-b): at host tick <paramref name="Tick"/> the
 /// physical key <paramref name="Key"/> went down (<paramref name="Pressed"/> true) or up.
 /// </summary>
-/// <param name="Tick">The replay clock value (<see cref="ReplayClock"/>, finding f-6a00609e). A recording stamps the
-/// host's stepped-tick count (<see cref="SimDriver.TicksRun"/>: ticks stepped since launch, across runs; 0 on the first
-/// between-runs screen). A replay reads it as a first-Screen frame until the launch's first run exists and as
-/// <see cref="SimDriver.TicksRun"/> after, never reset at the run start. The event is applied before the next step.</param>
+/// <param name="Tick">The input-log clock value (<see cref="ReplayClock"/>, findings f-6a00609e and f-6b922005, ruling
+/// R-CLOCK-1): a first-Screen frame until the launch's first run exists, then the screen frames counted before the run
+/// started plus <see cref="SimDriver.TicksRun"/> (ticks stepped since launch, across runs). A recording stamps it
+/// (<see cref="ReplayClock.Stamp"/>) and a replay reads it (<see cref="ReplayClock.Now"/>), so a live recording
+/// round-trips. The event is applied before the next step.</param>
 /// <param name="Key">The Godot physical key (its <see cref="Godot.Key"/> name in the file, e.g. <c>W</c>, <c>Enter</c>,
 /// <c>Key1</c>, <c>Tab</c>).</param>
 /// <param name="Pressed">True for a press, false for a release.</param>
@@ -42,13 +43,15 @@ public sealed record InputLogEvent(int Tick, Key Key, bool Pressed);
 /// file without it (every log written before the ready check, including the committed fixtures, and every
 /// <c>--press-enter</c> recording, whose ready answers the host gives at the pop) replays with the host answering ready
 /// for the human at the pop (<see cref="QueuedRunGate.HumanReadyAtPop"/>), so its run starts on the tick it always did.
-/// Finding f-6a00609e: a replay reads every tick (events and camera) against <see cref="ReplayClock"/>: until the
-/// launch's first run exists the clock counts the host frames the first Screen has been up (0 = the frame it is hooked),
-/// from the first run on it is <see cref="SimDriver.TicksRun"/>, and nothing resets at the run start. So a hand-written
-/// log can drive the Screen and its talent panel on spaced frames (T at 0, picks at 40/80/120, Enter at 200), while
-/// every recorded log (all of whose first-Screen keys are stamped 0, and whose Enter starts the run in that frame)
-/// replays on the ticks it always did. The file shape is unchanged; the parse (<see cref="InputLogDocument.Parse"/>, the
-/// Godot-free half) also refuses any field the shape does not define, so an invented field is never silently ignored.
+/// Findings f-6a00609e and f-6b922005 (ruling R-CLOCK-1): every tick (events and camera) is on ONE clock,
+/// <see cref="ReplayClock"/>, which the recorder stamps and a replay reads: until the launch's first run exists it counts
+/// the host frames the first Screen has been up (0 = the frame it is hooked); from the first run on it is those frames
+/// (frozen at the run start) plus <see cref="SimDriver.TicksRun"/>. So it never goes down, a live recording with keys on
+/// the Screen and in the run's first ticks is monotonic and replays on the frames and ticks it was recorded on, a
+/// hand-written log can drive the Screen and its talent panel on spaced frames (T at 0, picks at 40/80/120, Enter at 200),
+/// and every log whose Enter is on frame 0 (every committed fixture) replays on the ticks it always did. The file shape
+/// is unchanged; the parse (<see cref="InputLogDocument.Parse"/>, the Godot-free half) also refuses any field the shape
+/// does not define, so an invented field is never silently ignored.
 /// </summary>
 public sealed class InputLog
 {
@@ -244,7 +247,8 @@ public sealed class InputLog
 }
 
 /// <summary>
-/// <c>--record-input</c> (lane 3E-b): collects every key transition the game reads, stamped with the host tick. Two
+/// <c>--record-input</c> (lane 3E-b): collects every key transition the game reads, stamped with the input-log clock
+/// (SimDriver passes <see cref="ReplayClock.Stamp"/>, the value a replay reads; f-6b922005, R-CLOCK-1). Two
 /// sources, so the log is complete whatever the event delivery does: <see cref="InputEventKey"/> events as the viewport delivers
 /// them (every key PlayerInput, the between-runs screen, the run-end panel and SimDriver handle), and, before each step,
 /// a diff of the keys PlayerInput polls (<see cref="PlayerInput.PolledKeys"/>, WASD) against what the events said, which
@@ -344,8 +348,9 @@ public sealed class InputRecorder
 /// <summary>
 /// <c>--replay-input</c> (lane 3E-b): hands back a log's events once the replay clock reaches theirs, in order; lane 3E-c
 /// does the same for its camera headings. The clock is the caller's: SimDriver passes <see cref="ReplayClock.Now"/>
-/// (first-Screen frames before the launch's first run exists, <see cref="SimDriver.TicksRun"/> after; finding
-/// f-6a00609e). The due cursors are Godot-free <see cref="ReplayFeed{T}"/>s; SimDriver feeds each item to the engine.
+/// (first-Screen frames before the launch's first run exists, those frames plus <see cref="SimDriver.TicksRun"/> after;
+/// f-6a00609e, R-CLOCK-1). The due cursors are Godot-free <see cref="ReplayFeed{T}"/>s; SimDriver feeds each item to the
+/// engine.
 /// </summary>
 public sealed class InputReplayer
 {
