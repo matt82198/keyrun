@@ -17,6 +17,8 @@ namespace Keyrun.Sim.Tests;
 /// ends it (control: the flag is what keeps the boss casting), and the Twins' Break-bar stagger still ends their slams
 /// through the #344 stagger path (<c>cast_stopped</c>), not as an <c>interrupt</c>, so the Twins' mechanics and Echo's
 /// interrupt count are unchanged by the stun rule.
+/// f-94749699 (WoW: an immune target takes no stun, "Immune"): the stun-immune boss never holds the stunned effect at
+/// all (an <c>immune</c> event instead), while a stunnable boss and a Twin beside the immune boss still take it.
 /// </summary>
 public sealed class BossStunRuleTests
 {
@@ -58,25 +60,67 @@ public sealed class BossStunRuleTests
         }
     }
 
-    /// <summary>Stuns the boss mid-cast with Cold Snap and steps past the cast's end; returns the events from the stun.</summary>
-    private static (string Cast, List<SimEvent> FromStun, Run Run) StunTheBossMidCast(bool bossStunImmune)
+    /// <summary>
+    /// Stuns the boss mid-cast with Cold Snap and steps past the cast's end; returns the events from the stun, the run
+    /// right after the stun's tick, and every tick's boss effect ids from the stun to the cast's end.
+    /// </summary>
+    private static (string Cast, List<SimEvent> FromStun, Run AfterStun, List<string> BossEffectsSeen) StunTheBossMidCast(bool bossStunImmune)
     {
         var events = new List<SimEvent>();
         var (run, cast, ends) = UntilBossMidCast(WithHostStops(BuildRun(), bossStunImmune), events);
         var from = events.Count;
         run = StepOne(run, events, new CastCommand(run.State.Tick, Cinder, ColdSnap, Boss));
-        Assert.Contains(run.State.Actors[Boss].Effects, e => e.EffectId == "stunned");
+        var afterStun = run;
+        var seen = new List<string>(run.State.Actors[Boss].Effects.Select(e => e.EffectId));
         while (run.State.Tick <= ends + 1)
         {
             run = StepOne(run, events);
+            seen.AddRange(run.State.Actors[Boss].Effects.Select(e => e.EffectId));
         }
-        return (cast, events.Skip(from).ToList(), run);
+        return (cast, events.Skip(from).ToList(), afterStun, seen);
+    }
+
+    [Fact(DisplayName = "A stun on the stun-immune boss is refused: no stunned effect lands, an immune event, the cast runs on (f-94749699)")]
+    public void Stun_immune_boss_refuses_the_stunned_effect()
+    {
+        var (cast, fromStun, afterStun, seen) = StunTheBossMidCast(bossStunImmune: true);
+        Assert.DoesNotContain(afterStun.State.Actors[Boss].Effects, e => e.EffectId == "stunned");
+        Assert.DoesNotContain("stunned", seen);
+        var immune = Assert.Single(fromStun, e => e.Type == "immune" && By(e, "targetId", Boss));
+        Assert.True(By(immune, "sourceId", Cinder));
+        Assert.Equal("stunned", immune.Get("effectId") is JsString s ? s.Value : null);
+        Assert.Equal(cast, afterStun.State.Actors[Boss].CastId);
+        Assert.Contains(fromStun, e => e.Type == "cast_complete" && By(e, "actorId", Boss) && e.Get("abilityId") is JsString c && c.Value == cast);
+    }
+
+    [Fact(DisplayName = "Control: a stunnable boss still takes the stunned effect from the same stun, and no immune event")]
+    public void Stunnable_boss_takes_the_stunned_effect()
+    {
+        var (_, fromStun, afterStun, _) = StunTheBossMidCast(bossStunImmune: false);
+        Assert.Contains(afterStun.State.Actors[Boss].Effects, e => e.EffectId == "stunned" && e.SourceId == Cinder);
+        Assert.DoesNotContain(fromStun, e => e.Type == "immune");
+    }
+
+    [Fact(DisplayName = "With the boss stun-immune, a stunnable Twin still takes the stunned effect, and no immune event")]
+    public void Stunnable_twin_takes_the_stunned_effect_beside_an_immune_boss()
+    {
+        var run = WithHostStops(BuildRun(), bossStunImmune: true);
+        var events = new List<SimEvent>();
+        while (!run.State.Actors.ContainsKey(TwinA))
+        {
+            Assert.True(run.State.Tick < 300, "TwinA never spawned");
+            run = StepOne(run, events);
+        }
+        var from = events.Count;
+        run = StepOne(run, events, new CastCommand(run.State.Tick, Cinder, ColdSnap, TwinA));
+        Assert.Contains(run.State.Actors[TwinA].Effects, e => e.EffectId == "stunned" && e.SourceId == Cinder);
+        Assert.DoesNotContain(events.Skip(from), e => e.Type == "immune");
     }
 
     [Fact(DisplayName = "A stun on the stun-immune boss leaves its uninterruptible cast running to completion (f-c63b43bf)")]
     public void Stun_immune_boss_keeps_casting_through_a_stun()
     {
-        var (cast, fromStun, _) = StunTheBossMidCast(bossStunImmune: true);
+        var (cast, fromStun, _, _) = StunTheBossMidCast(bossStunImmune: true);
         Assert.False(BuildRun().Content.Abilities[cast].Interruptible);
         Assert.DoesNotContain(fromStun, e => e.Type == "interrupt" && By(e, "targetId", Boss));
         Assert.Contains(fromStun, e => e.Type == "cast_complete" && By(e, "actorId", Boss) && e.Get("abilityId") is JsString s && s.Value == cast);
@@ -85,7 +129,7 @@ public sealed class BossStunRuleTests
     [Fact(DisplayName = "Control: the same stun on a stunnable boss ends its uninterruptible cast (the flag is what keeps it casting)")]
     public void Stunnable_boss_is_stopped_by_the_same_stun()
     {
-        var (cast, fromStun, _) = StunTheBossMidCast(bossStunImmune: false);
+        var (cast, fromStun, _, _) = StunTheBossMidCast(bossStunImmune: false);
         var interrupt = Assert.Single(fromStun, e => e.Type == "interrupt" && By(e, "targetId", Boss));
         Assert.Equal("stunned", interrupt.Get("stop") is JsString s ? s.Value : null);
         Assert.DoesNotContain(fromStun, e => e.Type == "cast_complete" && By(e, "actorId", Boss) && e.Get("abilityId") is JsString c && c.Value == cast);
