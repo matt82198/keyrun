@@ -95,6 +95,8 @@ if (@($godotArgs | Where-Object { $selfBuilding -contains $_ }).Count -eq 0) {
     $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
     $preflight = Test-KeyrunDotnetRuntime -DotnetRoot $dotnetRoot
     if ($preflight.Ok) { $preflight = Test-KeyrunDotnetAssembly -RepoRoot $repoRoot -ProjectRel $projRel }
+    # Import cache (finding f-30dcbb08): unimported .glb models render as capsules. The --import pass itself is exempt (tools/godot/import.ps1 runs it).
+    if ($preflight.Ok -and @($godotArgs | Where-Object { $_ -eq '--import' }).Count -eq 0) { $preflight = Test-KeyrunImportCache -RepoRoot $repoRoot -ProjectRel $projRel }
     if (-not $preflight.Ok) {
         foreach ($line in $preflight.Lines) { Write-Output $line }
         exit $preflight.Code

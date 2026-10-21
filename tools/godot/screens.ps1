@@ -265,6 +265,8 @@ function Save-ScreenShot {
 # Preflight before the lock (finding f-3ccab3b2): a capture of a project without a fresh .NET assembly is a boot-scene-only run.
 $preflight = Test-KeyrunDotnetRuntime -DotnetRoot $dotnetRoot
 if ($preflight.Ok) { $preflight = Test-KeyrunDotnetAssembly -RepoRoot $repo -ProjectRel $projRel }
+# Import cache (finding f-30dcbb08): a fresh worktree has no .godot/imported, so the .glb models render as capsules. Refused, never imported here (tools/godot/import.ps1 does that).
+if ($preflight.Ok) { $preflight = Test-KeyrunImportCache -RepoRoot $repo -ProjectRel $projRel }
 if (-not $preflight.Ok) {
     foreach ($line in $preflight.Lines) { Write-Output $line }
     exit $preflight.Code
