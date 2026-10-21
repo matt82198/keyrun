@@ -55,14 +55,18 @@ public static class UnitFrameModel
 public readonly record struct FrameRow(float Top, float Bottom);
 
 /// <summary>
-/// A unit frame's vertical layout (Godot-free): the name, the health bar, then the cast row and the Break bar row
-/// (BREAK-BAR) each only when present, stacked under the health bar.
+/// A unit frame's vertical layout (Godot-free): the name, the health bar, then the cast row, the Break bar row
+/// (BREAK-BAR) and the Lock row (LOCK-ROW) each only when present, stacked under the health bar.
 /// </summary>
 /// <param name="Height">The frame's height.</param>
 /// <param name="Cast">The cast row, or null when the enemy is not casting.</param>
 /// <param name="Break">The Break bar row, or null when the frame has no Break bar.</param>
-public sealed record UnitFrameRows(float Height, FrameRow? Cast, FrameRow? Break)
+/// <param name="Lock">The Lock row, or null when the boss's Lock is not showing.</param>
+public sealed record UnitFrameRows(float Height, FrameRow? Cast, FrameRow? Break, FrameRow? Lock = null)
 {
+    /// <summary>The Lock row's height (LOCK-ROW).</summary>
+    public const float LockHeight = 15;
+
     /// <summary>The health bar's top edge.</summary>
     public const float HealthTop = 24;
 
@@ -82,8 +86,9 @@ public sealed record UnitFrameRows(float Height, FrameRow? Cast, FrameRow? Break
     /// </summary>
     /// <param name="casting">The frame's enemy has a live cast.</param>
     /// <param name="breakBar">The frame carries a Break bar row.</param>
+    /// <param name="lockRow">The frame carries a Lock row (LOCK-ROW), under the Break bar row.</param>
     /// <returns>The layout.</returns>
-    public static UnitFrameRows For(bool casting, bool breakBar)
+    public static UnitFrameRows For(bool casting, bool breakBar, bool lockRow = false)
     {
         var y = HealthBottom;
         FrameRow? cast = null;
@@ -98,7 +103,13 @@ public sealed record UnitFrameRows(float Height, FrameRow? Cast, FrameRow? Break
             brk = new FrameRow(y + Pad, y + BreakBar.RowHeight);
             y += BreakBar.RowHeight;
         }
-        return new UnitFrameRows(y + Pad, cast, brk);
+        FrameRow? lck = null;
+        if (lockRow)
+        {
+            lck = new FrameRow(y + Pad, y + Pad + LockHeight);
+            y += Pad + LockHeight;
+        }
+        return new UnitFrameRows(y + Pad, cast, brk, lck);
     }
 }
 
@@ -129,6 +140,8 @@ public partial class UnitFrames : Control
     private readonly Dictionary<string, int> _castLogged = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _rowsLogged = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _lockLogged = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _lockRowLogged = new(StringComparer.Ordinal);
+    private readonly Keyrun.Sim.Encounter.LockRowTracker _lockRow = new(Keyrun.Content.LockRule.FlashTicks);
     private SimDriver? _driver;
 
     /// <summary>The driver to read the run from.</summary>
@@ -235,7 +248,8 @@ public partial class UnitFrames : Control
 
     private float FrameHeightOf(UnitFrame frame) => RowsOf(frame).Height;
 
-    // The frame's rows: a cast row while its enemy casts, a Break bar row when the boss has a Break bar (BossBreakBarReadout).
+    // The frame's rows: a cast row while its enemy casts, a Break bar row when the boss has a Break bar (BossBreakBarReadout),
+    // a Lock row while the armed boss's Lock is showing (LOCK-ROW).
     private UnitFrameRows RowsOf(UnitFrame frame)
     {
         if (_driver?.Run is not { } run)
@@ -244,8 +258,23 @@ public partial class UnitFrames : Control
         }
         var casting = run.State.Actors.TryGetValue(frame.ActorId, out var actor) && IsCasting(actor);
         var breakBar = frame.Kind == "boss" && Keyrun.Sim.Encounter.BossBreakBarReadout.For(run.Encounter, frame.ActorId) is not null;
-        return UnitFrameRows.For(casting, breakBar);
+        return UnitFrameRows.For(casting, breakBar, LockRowOf(frame, run) is not null);
     }
+
+    // LOCK-ROW (f-8566b4f0; BIBLE s3 shape plus colour, never colour alone): the armed boss's Lock state in words and the
+    // Tempo on the line (R-LOCK-1), from the sim events this control has read.
+    private Keyrun.Sim.Encounter.BossLockRow? LockRowOf(UnitFrame frame, Run run) =>
+        frame.Kind == "boss" && run.Encounter.Boss is { } boss && boss.Config.BossActorId == frame.ActorId
+            ? _lockRow.Row(boss.Config, run.State.Tick)
+            : null;
+
+    private static int LockRowColor(Keyrun.Sim.Encounter.LockRowState state) => state switch
+    {
+        Keyrun.Sim.Encounter.LockRowState.Broken => Keyrun.Content.LockRule.BrokenColor,
+        Keyrun.Sim.Encounter.LockRowState.Failed => Keyrun.Content.LockRule.FailedColor,
+        Keyrun.Sim.Encounter.LockRowState.Enraged => Keyrun.Content.LockRule.EnrageColor,
+        _ => Keyrun.Content.LockRule.OpenColor,
+    };
 
     private static bool IsCasting(ActorState actor) =>
         actor.CastId is not null && actor.CastStartTick is not null && actor.CastEndsTick is not null;
@@ -271,6 +300,17 @@ public partial class UnitFrames : Control
         DrawRect(new Rect2(hp.Position, new Vector2(hp.Size.X * frac, hp.Size.Y)), HealthFill);
         DrawString(ThemeDB.FallbackFont, new Vector2(hp.Position.X + 4, hp.End.Y - 2),
             FormattableString.Invariant($"{actor.Health} / {actor.MaxHealth}"), HorizontalAlignment.Left, -1, SmallFont, Colors.White);
+
+        if (rows.Lock is { } lockRowRect && LockRowOf(frame, run) is { } lockRow)
+        {
+            // LOCK-ROW: a framed row in the ring's colour with the state and stake in words (never the colour alone).
+            var box = new Rect2(hp.Position.X, rect.Position.Y + lockRowRect.Top, hp.Size.X, lockRowRect.Bottom - lockRowRect.Top);
+            DrawRect(box, new Color(0.05f, 0.05f, 0.07f, 0.85f));
+            DrawRect(box, Keyrun.View.LockView.ToColor(LockRowColor(lockRow.State), 1000), filled: false, width: 2f);
+            var text = Keyrun.Content.HudLayout.FitTitle(lockRow.Text, (int)box.Size.X - 8,
+                s => (int)Math.Ceiling(HudNodes.Width(s, SmallFont)));
+            HudNodes.Text(this, new Vector2(box.Position.X + 4, box.End.Y - 3), text, SmallFont, Colors.White);
+        }
 
         if (actor.CastId is not { } castId || actor.CastStartTick is not { } start || actor.CastEndsTick is not { } end ||
             rows.Cast is not { } castRow)
@@ -300,6 +340,8 @@ public partial class UnitFrames : Control
         _castLogged.Clear();
         _rowsLogged.Clear();
         _lockLogged.Clear();
+        _lockRowLogged.Clear();
+        _lockRow.Reset();
     }
 
     private static string Row(FrameRow? row) =>
@@ -310,9 +352,13 @@ public partial class UnitFrames : Control
     // "HUD unitframe rows kind=K actor=A height=H hp=T-B cast=T-B|none start=S|- spell="X" break=T-B|none tick=N"
     // whenever a shown frame's row layout changes (rows in pixels from the frame's top edge), and
     // "HUD unitframe lock kind=boss actor=A text="LOCK xN/M" tempoBp=T tick=N" whenever a boss frame's Lock stack
-    // readout changes (LOCK-STAKES).
+    // readout changes (LOCK-STAKES), and
+    // "HUD unitframe lockrow kind=boss actor=A state=S lock=I stakeBp=T text="LOCK open -- ..." row=T-B tick=N" whenever
+    // the boss frame's Lock row changes (LOCK-ROW; state=none row=none when it clears).
     private void OnStepped(int tick, IReadOnlyList<SimEvent> events)
     {
+        // LOCK-ROW: every step's events feed the Lock row, interactive or autorun.
+        _lockRow.Observe(events);
         if (_driver?.Run is not { } run || !_driver.Options.Autorun)
         {
             return;
@@ -345,6 +391,20 @@ public partial class UnitFrames : Control
                 {
                     _lockLogged[key] = lockLine;
                     HudNodes.Proof(_driver, lockLine + FormattableString.Invariant($" tick={tick}"));
+                }
+            }
+            if (f.Kind == "boss" && run.Encounter.Boss is not null)
+            {
+                var lockRow = LockRowOf(f, run);
+                var lockRowLine = lockRow is null
+                    ? FormattableString.Invariant($"HUD unitframe lockrow kind={f.Kind} actor={f.ActorId} state=none lock=0 stakeBp=0 text=\"\" row=none")
+                    : FormattableString.Invariant(
+                        $"HUD unitframe lockrow kind={f.Kind} actor={f.ActorId} state={lockRow.State.ToString().ToLowerInvariant()} lock={lockRow.LockIndex} stakeBp={lockRow.StakeTempoBp} text=\"{lockRow.Text}\" row={Row(rows.Lock)}");
+                var known = _lockRowLogged.TryGetValue(key, out var lastLockRow);
+                if ((known || lockRow is not null) && lastLockRow != lockRowLine)
+                {
+                    _lockRowLogged[key] = lockRowLine;
+                    HudNodes.Proof(_driver, lockRowLine + FormattableString.Invariant($" tick={tick}"));
                 }
             }
             if (actor.CastId is { } castId && actor.CastStartTick is { } start && actor.CastEndsTick is not null &&
