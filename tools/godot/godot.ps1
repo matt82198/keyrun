@@ -20,7 +20,17 @@
   300) the whole process tree is killed and this exits 124. Killing this wrapper also kills the game it started.
   Godot's stdout and stderr lines are written to this script's output stream, in arrival order.
 
+  Preflight (tools/godot/preflight.ps1, finding f-3ccab3b2): before the lock is taken, a launch that loads the project
+  needs the project's .NET assembly under <project>/.godot/mono/temp/bin/Debug and newer than the .cs files under src, sim,
+  bots and content. Otherwise this prints "PREFLIGHT missing-assembly <path>" or "PREFLIGHT stale-assembly <path> newer=<file>",
+  the build command, and exits 6 without launching. It never builds. The same exit 6 ("PREFLIGHT missing-dotnet <path>")
+  covers a missing .NET runtime: no dotnet executable under the resolved DOTNET_ROOT and, with no root, none on PATH. Launches that build or export the assembly
+  (--build-solutions, --export-release, --export-debug) and --version or --help load no project and are exempt.
+
 .NOTES
+  Exit codes: the Godot exit code, 2 Godot binary missing, 4 another Godot instance holds the launch lock,
+  6 the .NET assembly is missing or stale (preflight; nothing was launched), 124 wall-clock cap reached.
+
   PowerShell consumes a bare -- when it binds script arguments. To pass Godot's
   user-argument separator, quote it:  tools/godot/godot.ps1 --headless --path game '--' --smoke
   or use KEYRUN_USER_ARGS:  $env:KEYRUN_USER_ARGS='--smoke'  (appended after a -- separator).
@@ -72,6 +82,23 @@ if ($env:KEYRUN_USER_ARGS) {
         $godotArgs += '--'
     }
     $godotArgs += ($env:KEYRUN_USER_ARGS -split '\s+' | Where-Object { $_ })
+}
+
+# Preflight before the lock: the same check screens.ps1 runs (finding f-3ccab3b2). Self-building and non-project launches are exempt.
+. (Join-Path $PSScriptRoot 'preflight.ps1')
+$selfBuilding = @('--build-solutions', '--export-release', '--export-debug', '--version', '--help', '-h')
+if (@($godotArgs | Where-Object { $selfBuilding -contains $_ }).Count -eq 0) {
+    $projRel = 'game'
+    for ($i = 0; $i -lt ($godotArgs.Count - 1); $i++) {
+        if ($godotArgs[$i] -eq '--path') { $projRel = $godotArgs[$i + 1] }
+    }
+    $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+    $preflight = Test-KeyrunDotnetRuntime -DotnetRoot $dotnetRoot
+    if ($preflight.Ok) { $preflight = Test-KeyrunDotnetAssembly -RepoRoot $repoRoot -ProjectRel $projRel }
+    if (-not $preflight.Ok) {
+        foreach ($line in $preflight.Lines) { Write-Output $line }
+        exit $preflight.Code
+    }
 }
 
 . (Join-Path $PSScriptRoot 'launch-lock.ps1')
