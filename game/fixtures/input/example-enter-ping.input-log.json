@@ -2,8 +2,6 @@
   "schema": "keyrun.input-log/1",
   "seed": 1,
   "key": 2,
-  "rotationIndex": 2,
-  "startHeading": -1.5707964,
   "events": [
     { "tick": 9, "key": "Enter", "pressed": true },
     { "tick": 11, "key": "G", "pressed": true },

@@ -1095,6 +1095,19 @@ if (-not $recDone) {
             $failures.Add("run K1: no committed example at $examplePath")
         } elseif ($recText -cne [IO.File]::ReadAllText($examplePath)) {
             $failures.Add("run K1: the recorded log differs from the committed example $examplePath (regenerate it from run K1 with a stated reason)")
+            # Name the difference, line by line, so a CI log shows the field (R-CLOCK-2: the comparison itself is unchanged).
+            Write-Host 'K1 diff:'
+            $k1Want = @([IO.File]::ReadAllText($examplePath) -split "`n")
+            $k1Got = @($recText -split "`n")
+            $k1Max = [Math]::Max($k1Want.Count, $k1Got.Count)
+            for ($k1i = 0; $k1i -lt $k1Max; $k1i++) {
+                $w = if ($k1i -lt $k1Want.Count) { $k1Want[$k1i] } else { '<missing>' }
+                $g = if ($k1i -lt $k1Got.Count) { $k1Got[$k1i] } else { '<missing>' }
+                if ($w -cne $g) {
+                    Write-Host ("K1 diff line {0} expected: {1}" -f ($k1i + 1), ($w -replace "`r", '<CR>'))
+                    Write-Host ("K1 diff line {0} actual:   {1}" -f ($k1i + 1), ($g -replace "`r", '<CR>'))
+                }
+            }
         }
     }
 }
