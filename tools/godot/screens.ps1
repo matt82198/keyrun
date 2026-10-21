@@ -26,8 +26,16 @@
   without launching. It never builds; the orchestrator runs the build. A missing .NET runtime (no dotnet.exe under the
   resolved DOTNET_ROOT) is the same exit 6 with "PREFLIGHT missing-dotnet <path>".
 
+  Import cache (finding f-30dcbb08): when any .glb under <project>/assets has no fresh import cache, this runs
+  tools/godot/import.ps1 first (its own lock and wall-clock cap; MaxSeconds covers only the game launch) and continues.
+  Exit 6 only when the import itself fails or leaves the cache missing.
+
   End check: when the capture stops, the --log file named in GodotArgs must exist. When it was never created the
   frames and the mp4 are kept, and this prints "SCREENS no-run-log <path>" and exits 7. A boot-scene-only run is never a success.
+
+  Model gate (finding f-30dcbb08): src/View/ActorView.cs writes "ACTOR model=<res path|capsule> fallback=<0|1> id=<n>"
+  per bound actor to the run log. This prints "SCREENS models actors=<n> fallback=<k>"; when k > 0 it prints
+  "SCREENS FAIL model-fallback <k> actors rendered as capsules" and exits 9 (frames and mp4 kept).
 
   Single instance (tools/godot/launch-lock.ps1): the capture takes the same machine-wide launch lock as
   tools/godot/godot.ps1 before it starts Godot, and holds it until the game is stopped. While another live process
@@ -61,7 +69,8 @@
   Exit codes: 0 success, 1 no frames captured, 2 Godot binary missing,
   3 ffmpeg missing, 4 ffmpeg failed, 5 another Godot instance holds the launch lock,
   6 the .NET assembly is missing or stale (preflight; nothing was launched),
-  7 the --log run file was never created (boot-scene-only run; frames and mp4 kept).
+  7 the --log run file was never created (boot-scene-only run; frames and mp4 kept),
+  9 at least one actor rendered the capsule fallback instead of its model (frames and mp4 kept).
   Frames are kept on every exit path.
 #>
 param(
@@ -265,8 +274,13 @@ function Save-ScreenShot {
 # Preflight before the lock (finding f-3ccab3b2): a capture of a project without a fresh .NET assembly is a boot-scene-only run.
 $preflight = Test-KeyrunDotnetRuntime -DotnetRoot $dotnetRoot
 if ($preflight.Ok) { $preflight = Test-KeyrunDotnetAssembly -RepoRoot $repo -ProjectRel $projRel }
-# Import cache (finding f-30dcbb08): a fresh worktree has no .godot/imported, so the .glb models render as capsules. Refused, never imported here (tools/godot/import.ps1 does that).
-if ($preflight.Ok) { $preflight = Test-KeyrunImportCache -RepoRoot $repo -ProjectRel $projRel }
+# Import cache (finding f-30dcbb08; Matt 2026-10-21 "so no capture ever runs without assets"): a fresh worktree has no
+# .godot/imported, so the .glb models would render as capsules. Run tools/godot/import.ps1 first (its own lock and cap; the
+# capture cap below covers only the game launch) and continue; exit 6 only when the import itself fails.
+if ($preflight.Ok) {
+    $preflight = Invoke-KeyrunImportIfMissing -RepoRoot $repo -ProjectRel $projRel
+    if ($preflight.Ok -and $preflight.Ran) { foreach ($line in $preflight.Lines) { Write-Output $line } }
+}
 if (-not $preflight.Ok) {
     foreach ($line in $preflight.Lines) { Write-Output $line }
     exit $preflight.Code
@@ -343,6 +357,10 @@ if (-not $proc.HasExited) {
 }
 Write-Output ("DONE reason='{0}' frames={1} elapsed={2}s folder={3}" -f $reason, $saved.Count, [int](((Get-Date) - $start).TotalSeconds), $outDirFull)
 Write-Output ("SCREENS stop={0}" -f $reason)
+# Model fallback gate (finding f-30dcbb08): ActorView writes 'ACTOR model=<path|capsule> fallback=<0|1>' per actor to the run
+# log. Printed here, enforced (exit 9) after the run-log check below, so a capture with placeholders is never a success.
+$models = Measure-KeyrunActorModels -LogPath $logPath
+Write-Output $models.Lines[0]
 
 if ($saved.Count -eq 0) {
     Write-Output ("SCREENS frames=0 mp4=none dir={0}" -f $outDirFull)
@@ -398,5 +416,9 @@ Write-Output ("SCREENS frames={0} mp4={1} dir={2}" -f $saved.Count, $mp4Out, $ou
 if (-not (Test-KeyrunRunLogWritten -LogPath $logPath)) {
     Write-Output ("SCREENS no-run-log {0}" -f $logPath)
     exit 7
+}
+if (-not $models.Ok) {
+    foreach ($line in @($models.Lines | Select-Object -Skip 1)) { Write-Output $line }
+    exit $models.Code
 }
 exit 0

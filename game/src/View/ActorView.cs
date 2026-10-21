@@ -13,7 +13,8 @@ namespace Keyrun.View;
 /// lane 4: the KayKit Skeletons and the 1.9x Knight boss), loaded from its row's pack folder, scaled and tinted per its
 /// row with its feet at the root and facing local +x, animated by <see cref="ActorAnimator"/>; a class
 /// with no row, or a row whose file is missing, keeps the capsule (with a small nose showing facing) and logs
-/// <c>ACTOR fallback capsule id=N class=C</c> once. KF1: a health drop flashes the bound model for
+/// <c>ACTOR fallback capsule id=N class=C</c> once. Either way it writes the gate line
+/// <c>ACTOR model=&lt;res path|capsule&gt; fallback=&lt;0|1&gt; id=N</c> to the run log (finding f-30dcbb08). KF1: a health drop flashes the bound model for
 /// <see cref="AnimRule.FlashTicks"/> sim ticks (<see cref="AnimRule.FlashPermille"/>), logged as <c>ANIM flash</c>.
 /// f-84d213a5: a party bot between the camera and the player or the player's target (or pressed against the lens) fades
 /// to <see cref="PartyFade.FadedPermille"/> and eases back when it moves (<see cref="PartyFade"/>), logged as
@@ -131,12 +132,15 @@ public partial class ActorView : Node3D
         _classId = actor.ClassId;
         var row = Binding.For(actor.ClassId);
         var path = row.ResPath; // res://assets/<pack folder>/<file>: kaykit-adventurers or kaykit-skeletons
-        if (path is null || !ResourceLoader.Exists(path))
+        // An unimported .glb (fresh worktree, finding f-30dcbb08) can exist yet fail to load: that is a fallback too.
+        var scene = path is not null && ResourceLoader.Exists(path) ? GD.Load<PackedScene>(path) : null;
+        if (scene is null)
         {
             GD.Print($"ACTOR fallback capsule id={ActorId} class={actor.ClassId}");
+            LogModelLine(null);
             return;
         }
-        var model = GD.Load<PackedScene>(path).Instantiate<Node3D>();
+        var model = scene.Instantiate<Node3D>();
         model.Name = "Model";
         var s = row.ScalePermille / 1000f;
         model.Scale = new Vector3(s, s, s);
@@ -164,7 +168,26 @@ public partial class ActorView : Node3D
         }
         GD.Print($"ACTOR model id={ActorId} class={actor.ClassId} file={row.ModelFile} scale={s:0.000} " +
                  (_animator is null ? "clips=static" : _animator.Matched));
+        LogModelLine(path);
         _measureIn = MeasureAfterFrames;
+    }
+
+    /// <summary>
+    /// Writes the model gate line <c>ACTOR model=&lt;res path|capsule&gt; fallback=&lt;0|1&gt; id=N</c> to the run log
+    /// (console and <c>--log</c> file) once per bound actor. tools/godot/screens.ps1 counts the fallback=1 lines and exits 9
+    /// when any actor rendered the capsule (finding f-30dcbb08); SimDriverSceneTest.ps1 pins fallback=0 in CI.
+    /// </summary>
+    /// <param name="path">The loaded model's resource path, or null for the capsule fallback.</param>
+    private void LogModelLine(string? path)
+    {
+        var line = System.FormattableString.Invariant(
+            $"ACTOR model={path ?? "capsule"} fallback={(path is null ? 1 : 0)} id={ActorId}");
+        if (Driver is null)
+        {
+            GD.Print(line);
+            return;
+        }
+        Driver.HostLine(line);
     }
 
     private static void Tint(Node model, Color tint)

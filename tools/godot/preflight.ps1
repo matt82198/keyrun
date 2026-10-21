@@ -24,6 +24,13 @@
     Test-KeyrunImportCache -RepoRoot <dir> [-ProjectRel game]         @{ Ok; Code; Lines } (finding f-30dcbb08): every .glb under
                                                                       <project>/assets needs a fresh <name>.glb-<hash>.scn in .godot/imported;
                                                                       else Code 6 'PREFLIGHT missing-import-cache <n> models unimported; run tools/godot/import.ps1'
+    Invoke-KeyrunImportIfMissing -RepoRoot <dir> [-ProjectRel game] [-ImportScript <ps1>]
+                                                                      @{ Ok; Code; Ran; Lines }: runs tools/godot/import.ps1 only when
+                                                                      Test-KeyrunImportCache fails; Code 6 'PREFLIGHT import failed exit=<n>'
+                                                                      or 'PREFLIGHT import-cache still missing after import: ...'
+    Measure-KeyrunActorModels -LogPath <file>                         @{ Ok; Code; Actors; Fallback; Lines }: counts the run log's
+                                                                      'ACTOR model=<path|capsule> fallback=<0|1>' lines; Code 9 with
+                                                                      'SCREENS FAIL model-fallback <k> actors rendered as capsules' when k > 0
     Test-KeyrunRunLogWritten -LogPath <file>                          $true when the --log file was created
     Resolve-KeyrunRunLogPath -RepoRoot <dir> -ProjectRel <p> -LogRel <f>
                                                                       where screens.ps1 writes the --log file (absolute --path or --log honoured)
@@ -138,6 +145,67 @@ function Test-KeyrunImportCache {
             ("PREFLIGHT missing-import-cache {0} models unimported; run tools/godot/import.ps1" -f $missing)) }
     }
     return [pscustomobject]@{ Ok = $true; Code = 0; Lines = @() }
+}
+
+function Invoke-KeyrunImportIfMissing {
+    # Matt 2026-10-21: "Run a one-time Godot --import in the worktree setup script, so no capture ever runs without assets."
+    # Runs the import script (default <repo>/tools/godot/import.ps1, in a child powershell so its exit cannot end the
+    # caller) only when Test-KeyrunImportCache reports models unimported. The import has its own lock and wall-clock cap;
+    # a caller's capture cap never covers it. Ran is $true when the script was invoked.
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [string]$ProjectRel = 'game',
+        [string]$ImportScript = ''
+    )
+    if (-not $ImportScript) { $ImportScript = Join-Path (Join-Path (Join-Path $RepoRoot 'tools') 'godot') 'import.ps1' }
+    $before = Test-KeyrunImportCache -RepoRoot $RepoRoot -ProjectRel $ProjectRel
+    if ($before.Ok) { return [pscustomobject]@{ Ok = $true; Code = 0; Ran = $false; Lines = @() } }
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add(('{0}; importing now' -f $before.Lines[0]))
+    $shell = (Get-Process -Id $PID).Path
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $out = & $shell -NoProfile -ExecutionPolicy Bypass -File $ImportScript -ProjectRel $ProjectRel 2>&1
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+    foreach ($o in @($out)) { if ($null -ne $o) { $lines.Add([string]$o) } }
+    if ($code -ne 0) {
+        $lines.Add(('PREFLIGHT import failed exit={0}' -f $code))
+        return [pscustomobject]@{ Ok = $false; Code = 6; Ran = $true; Lines = $lines.ToArray() }
+    }
+    $after = Test-KeyrunImportCache -RepoRoot $RepoRoot -ProjectRel $ProjectRel
+    if (-not $after.Ok) {
+        $lines.Add(('PREFLIGHT import-cache still missing after import: {0}' -f $after.Lines[0]))
+        return [pscustomobject]@{ Ok = $false; Code = 6; Ran = $true; Lines = $lines.ToArray() }
+    }
+    return [pscustomobject]@{ Ok = $true; Code = 0; Ran = $true; Lines = $lines.ToArray() }
+}
+
+function Measure-KeyrunActorModels {
+    # Model fallback gate (finding f-30dcbb08; Matt 2026-10-21: the real models must be visible before a capture is
+    # shown or called done). src/View/ActorView.cs writes one 'ACTOR model=<res path|capsule> fallback=<0|1> id=<n>'
+    # line per actor it binds to the run log. Code 9 when any actor fell back to the capsule.
+    param([Parameter(Mandatory = $true)][string]$LogPath)
+    $actors = 0
+    $fallback = 0
+    if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
+        foreach ($l in [IO.File]::ReadAllLines($LogPath)) {
+            $m = [regex]::Match($l, '^ACTOR model=\S+ fallback=([01])(\s|$)')
+            if (-not $m.Success) { continue }
+            $actors++
+            if ($m.Groups[1].Value -eq '1') { $fallback++ }
+        }
+    }
+    $lines = @(('SCREENS models actors={0} fallback={1}' -f $actors, $fallback))
+    if ($fallback -gt 0) {
+        $lines += ('SCREENS FAIL model-fallback {0} actors rendered as capsules' -f $fallback)
+        return [pscustomobject]@{ Ok = $false; Code = 9; Actors = $actors; Fallback = $fallback; Lines = $lines }
+    }
+    return [pscustomobject]@{ Ok = $true; Code = 0; Actors = $actors; Fallback = $fallback; Lines = $lines }
 }
 
 function Test-KeyrunDotnetRuntime {

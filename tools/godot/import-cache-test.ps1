@@ -16,6 +16,21 @@
     I5  a model in a sub folder (game/assets/sub/z.gltf.glb) with a fresh cache: Ok (the scan is recursive)
     I6  no .glb under game/assets at all (no assets folder): Ok, nothing to import
 
+  Import-if-missing (Invoke-KeyrunImportIfMissing; screens.ps1 and setup-worktree.ps1 call it). The import script is a
+  stub written into the fixture at tools/godot/import.ps1, so no Godot runs:
+    J1  cache fresh: Ran false, Ok, the stub is never invoked (its marker file is absent)
+    J2  cache missing, the stub fills it and exits 0: Ran true, Ok, Code 0
+    J3  cache missing, the stub exits 8: Code 6, a line 'PREFLIGHT import failed exit=8'
+    J4  cache missing, the stub exits 0 without filling it: Code 6, a line starting 'PREFLIGHT import-cache still missing'
+
+  Model fallback gate (Measure-KeyrunActorModels; screens.ps1 exit 9). Run-log fixtures with ActorView's
+  'ACTOR model=<res path|capsule> fallback=<0|1> id=<n>' lines:
+    M1  three models and one capsule: Actors 4, Fallback 1, Code 9, the lines
+        'SCREENS models actors=4 fallback=1' and 'SCREENS FAIL model-fallback 1 actors rendered as capsules'
+    M2  three models: Ok, Code 0, the single line 'SCREENS models actors=3 fallback=0'
+    M3  only the older 'ACTOR model id=' and 'ACTOR fallback capsule' console lines: neither is counted, actors=0
+    M4  no log file: Ok, actors=0 fallback=0
+
   Run:  powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/import-cache-test.ps1
   Exit 0 = PASS, 1 = FAIL.
 #>
@@ -109,6 +124,81 @@ try {
     $root = New-Fixture 'i6'
     $r = Test-KeyrunImportCache -RepoRoot $root -ProjectRel 'game'
     Check 'I6.no-models-ok' ($r.Ok -and $r.Code -eq 0) "Ok=$($r.Ok) Code=$($r.Code) lines=[$($r.Lines -join ' | ')]"
+
+    # J1..J4: Invoke-KeyrunImportIfMissing with a stub import script in the fixture's tools/godot/.
+    # The stub resolves its repo root from its own location (as the real import.ps1 does), writes a marker, then
+    # fills the cache when FILL is set and exits with CODE.
+    function New-ImportStub([string]$root, [bool]$fill, [int]$code) {
+        $fillLine = '$false'
+        if ($fill) { $fillLine = '$true' }
+        Write-Text (Join-Path $root 'tools\godot\import.ps1') @(
+            'param([string]$ProjectRel = ''game'')',
+            '$repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot ''..\..'')).Path',
+            '[IO.File]::WriteAllText((Join-Path $repo ''import-ran.txt''), ''ran'')',
+            ('if ({0}) {{' -f $fillLine),
+            '    $dir = Join-Path $repo ($ProjectRel + ''\.godot\imported'')',
+            '    New-Item -ItemType Directory -Path $dir -Force | Out-Null',
+            '    [IO.File]::WriteAllText((Join-Path $dir ''x.glb-0123456789abcdef0123456789abcdef.scn''), ''SCN'')',
+            '}',
+            'Write-Output ''IMPORT stub''',
+            ('exit {0}' -f $code))
+    }
+
+    $root = New-Fixture 'j1'
+    Add-Model $root 'assets\x.glb' $past
+    Add-Cache $root 'x.glb-0123456789abcdef0123456789abcdef.scn' $newer
+    New-ImportStub $root $true 0
+    $r = Invoke-KeyrunImportIfMissing -RepoRoot $root -ProjectRel 'game'
+    Check 'J1.cached-not-run' ($r.Ok -and $r.Code -eq 0 -and (-not $r.Ran) -and -not (Test-Path -LiteralPath (Join-Path $root 'import-ran.txt'))) "Ok=$($r.Ok) Code=$($r.Code) Ran=$($r.Ran) lines=[$($r.Lines -join ' | ')]"
+
+    $root = New-Fixture 'j2'
+    Add-Model $root 'assets\x.glb' $past
+    New-ImportStub $root $true 0
+    $r = Invoke-KeyrunImportIfMissing -RepoRoot $root -ProjectRel 'game'
+    Check 'J2.missing-imports-then-ok' ($r.Ok -and $r.Code -eq 0 -and $r.Ran -and (Test-Path -LiteralPath (Join-Path $root 'import-ran.txt'))) "Ok=$($r.Ok) Code=$($r.Code) Ran=$($r.Ran) lines=[$($r.Lines -join ' | ')]"
+
+    $root = New-Fixture 'j3'
+    Add-Model $root 'assets\x.glb' $past
+    New-ImportStub $root $false 8
+    $r = Invoke-KeyrunImportIfMissing -RepoRoot $root -ProjectRel 'game'
+    Check 'J3.import-fails-code-6' ((-not $r.Ok) -and $r.Code -eq 6 -and $r.Ran -and (@($r.Lines) -contains 'PREFLIGHT import failed exit=8')) "Ok=$($r.Ok) Code=$($r.Code) Ran=$($r.Ran) lines=[$($r.Lines -join ' | ')]"
+
+    $root = New-Fixture 'j4'
+    Add-Model $root 'assets\x.glb' $past
+    New-ImportStub $root $false 0
+    $r = Invoke-KeyrunImportIfMissing -RepoRoot $root -ProjectRel 'game'
+    Check 'J4.import-leaves-cache-missing-code-6' ((-not $r.Ok) -and $r.Code -eq 6 -and @($r.Lines | Where-Object { $_ -like 'PREFLIGHT import-cache still missing*' }).Count -eq 1) "Ok=$($r.Ok) Code=$($r.Code) Ran=$($r.Ran) lines=[$($r.Lines -join ' | ')]"
+
+    # M1..M4: the model fallback count over a run log.
+    $logDir = Join-Path $work 'logs'
+    $log = Join-Path $logDir 'm1.txt'
+    Write-Text $log @(
+        'TICK 0 warden=(0,0) yaw=0 hp=100 res=0 events=0',
+        'ACTOR model=res://assets/kaykit-adventurers/Knight.glb fallback=0 id=1',
+        'ACTOR model=res://assets/kaykit-adventurers/Mage.glb fallback=0 id=2',
+        'ACTOR model=capsule fallback=1 id=7',
+        'ACTOR model=res://assets/kaykit-skeletons/Skeleton_Minion.glb fallback=0 id=8')
+    $r = Measure-KeyrunActorModels -LogPath $log
+    Check 'M1.one-capsule-code-9' ((-not $r.Ok) -and $r.Code -eq 9 -and $r.Actors -eq 4 -and $r.Fallback -eq 1) "Ok=$($r.Ok) Code=$($r.Code) Actors=$($r.Actors) Fallback=$($r.Fallback)"
+    Check 'M1.exact-lines' ($r.Lines.Count -eq 2 -and $r.Lines[0] -eq 'SCREENS models actors=4 fallback=1' -and $r.Lines[1] -eq 'SCREENS FAIL model-fallback 1 actors rendered as capsules') "lines=[$($r.Lines -join ' | ')]"
+
+    $log = Join-Path $logDir 'm2.txt'
+    Write-Text $log @(
+        'ACTOR model=res://assets/kaykit-adventurers/Knight.glb fallback=0 id=1',
+        'ACTOR model=res://assets/kaykit-adventurers/Mage.glb fallback=0 id=2',
+        'ACTOR model=res://assets/kaykit-adventurers/Rogue_Hooded.glb fallback=0 id=3')
+    $r = Measure-KeyrunActorModels -LogPath $log
+    Check 'M2.all-models-ok' ($r.Ok -and $r.Code -eq 0 -and $r.Actors -eq 3 -and $r.Fallback -eq 0 -and $r.Lines.Count -eq 1 -and $r.Lines[0] -eq 'SCREENS models actors=3 fallback=0') "Ok=$($r.Ok) Code=$($r.Code) lines=[$($r.Lines -join ' | ')]"
+
+    $log = Join-Path $logDir 'm3.txt'
+    Write-Text $log @(
+        'ACTOR model id=1 class=warden file=Knight.glb scale=1.000 clips=static',
+        'ACTOR fallback capsule id=7 class=choir.melee')
+    $r = Measure-KeyrunActorModels -LogPath $log
+    Check 'M3.older-lines-not-counted' ($r.Ok -and $r.Actors -eq 0 -and $r.Fallback -eq 0) "Ok=$($r.Ok) Actors=$($r.Actors) Fallback=$($r.Fallback)"
+
+    $r = Measure-KeyrunActorModels -LogPath (Join-Path $logDir 'absent.txt')
+    Check 'M4.no-log-zero' ($r.Ok -and $r.Code -eq 0 -and $r.Actors -eq 0 -and $r.Fallback -eq 0) "Ok=$($r.Ok) Code=$($r.Code) Actors=$($r.Actors)"
 } catch {
     Check 'import-cache.exception' $false $_.Exception.Message
 } finally {

@@ -42,6 +42,16 @@ jobs:
           if ($code -ne 0) { throw "launch-lock test exited $code" }
           if ($out -notmatch '(?m)^launch-lock-test: PASS') { throw 'launch-lock test did not print PASS' }
 
+      - name: import-cache test (import preflight, import-if-missing, model fallback gate; fixtures only, never launches Godot)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./tools/godot/import-cache-test.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "import-cache test exited $code" }
+          if ($out -notmatch '(?m)^import-cache-test: PASS') { throw 'import-cache test did not print PASS' }
+
   game-e2e:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -95,6 +105,19 @@ jobs:
         # not run to the 30-minute job timeout with no output.
         timeout-minutes: 12
         run: ./tools/godot/godot.ps1 --headless --path game --build-solutions --quit
+
+      # f-30dcbb08: the scene tests refuse an unimported tree (exit 6) and SimDriverSceneTest pins ACTOR fallback=0,
+      # so the import cache must be filled first. import.ps1 exits non-zero when any model is still unimported.
+      - name: Import assets (godot --headless --import, must print IMPORT done)
+        shell: pwsh
+        timeout-minutes: 12
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./tools/godot/import.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "import.ps1 exited $code" }
+          if ($out -notmatch '(?m)^IMPORT done files=\d+') { throw 'import.ps1 did not print IMPORT done' }
 
       - name: SimDriver scene test (40 sim ticks headless, must print PASS)
         shell: pwsh
