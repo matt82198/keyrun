@@ -71,7 +71,7 @@ public static class EndOfRun
         }
         var seed = RewardSeed(run);
         return facetPools is null
-            ? Rewards.RollRewardChoices(seed, run.Encounter.KeyLevel, result, Rewards.GearSlots)
+            ? Rewards.WithAscensionCard(Rewards.RollRewardChoices(seed, run.Encounter.KeyLevel, result, Rewards.GearSlots), Rewards.GearSlots, equipped)
             : Rewards.RollRewardChoices(seed, run.Encounter.KeyLevel, result, Rewards.GearSlots, facetPools, equipped);
     }
 

@@ -21,7 +21,8 @@ namespace Keyrun.Hud;
 /// <list type="bullet">
 /// <item><b>Character</b>: the class, the "since last run" line, banked Ash, the five abilities with their keybinds,
 /// and the equipped gear with tier, Facet and crafting charges left (Tab selects an item, R rerolls its Facet).</item>
-/// <item><b>Key</b>: the key stepper (Left/Right, 2-20) and the <see cref="ClausePick"/> of three (1-3).</item>
+/// <item><b>Key</b>: the key stepper (Left/Right, 2-20), the readiness line, the key's Clause as text (shown, never picked:
+/// BIBLE s8, lane U2; the <see cref="ClausePick"/> stays hidden) and the private last-three-runs strip.</item>
 /// <item><b>Queue</b>: one button (Enter or a click), which locks the Key band and raises <see cref="Queued"/>.</item>
 /// </list>
 /// Progression (Ash, gear, the crafting PRNG) is the pure <see cref="Progression"/> and the Key band the pure
@@ -77,11 +78,11 @@ public partial class Screen : Control
     private const float TabsLeft = 200;
     private const float TabWidth = 150;
 
-    // The autorun script: one key per frame once the run has ended (keys 1, R, R, R, Right, 2, then the talent panel
-    // T, 1, Down, 2, Backspace, 1, T, then Enter).
+    // The autorun script: one key per frame once the run has ended (keys 1, R, R, R, Right, then the talent panel
+    // T, 1, Down, 2, Backspace, 1, T, then Enter). The Key band does not pick a Clause (BIBLE s8, lane U2).
     private static readonly Key[] AutorunKeys =
     {
-        Key.Key1, Key.R, Key.R, Key.R, Key.Right, Key.Key2,
+        Key.Key1, Key.R, Key.R, Key.R, Key.Right,
         Key.T, Key.Key1, Key.Down, Key.Key2, Key.Backspace, Key.Key1, Key.T,
         Key.Enter,
     };
@@ -259,7 +260,10 @@ public partial class Screen : Control
         AcceptEvent();
     }
 
-    /// <summary>Picks Clause offer <paramref name="n"/> (0-based).</summary>
+    /// <summary>
+    /// Picks Clause offer <paramref name="n"/> (0-based). No input reaches this since lane U2 (the Clause is shown, never
+    /// picked); lane U1 removes the pick rule it calls.
+    /// </summary>
     /// <param name="n">The offer index.</param>
     public void PickClause(int n)
     {
@@ -558,15 +562,6 @@ public partial class Screen : Control
             case Key.Down when Tab == LobbyTab.Character:
                 CycleClass(1);
                 return true;
-            case Key.Key1 or Key.Kp1:
-                PickClause(0);
-                return true;
-            case Key.Key2 or Key.Kp2:
-                PickClause(1);
-                return true;
-            case Key.Key3 or Key.Kp3:
-                PickClause(2);
-                return true;
             case Key.Left or Key.Minus or Key.KpSubtract:
                 StepKey(-1);
                 return true;
@@ -731,6 +726,9 @@ public partial class Screen : Control
         {
             ProofRunFacets(started, loadout?.Facets);
         }
+        // The Key band is locked in now: re-proof it so the readiness line reads the wait ("Queued at key N"), BIBLE s10.
+        // Emitted after the queue lines above, which the scene test reads by position.
+        ProofKeyBand();
         Close();
     }
 
@@ -1105,19 +1103,24 @@ public partial class Screen : Control
         }
         Proof(FormattableString.Invariant($"SCREEN key level={s.KeyLevel} locked={(s.Locked ? 1 : 0)}"));
         Proof(FormattableString.Invariant($"SCREEN affixes key={s.KeyLevel} line=\"{AffixLine(s.KeyLevel)}\""));
-        for (var i = 0; i < s.Clause.Offers.Count; i++)
+        Proof(FormattableString.Invariant($"SCREEN readiness line=\"{s.ReadinessLine}\""));
+        // The Clause row: the one Clause the Queue hands the run, as text. The picker is hidden (BIBLE s8, lane U2).
+        var (name, text) = ClauseText(s.Clause.Picked);
+        Proof(FormattableString.Invariant($"SCREEN clause shown id={s.Clause.Picked} name=\"{name}\" picker=hidden"));
+        // The text as laid out at the design viewport (1280x720), with the same wrap the Key band draws.
+        var box = ClauseTextWidth(LayoutFor(DesignSize()).Key);
+        var lines = Wrap(text, box, SmallFont, 2);
+        var widest = lines.Count == 0 ? 0f : lines.Max(line => HudNodes.Width(line, SmallFont));
+        Proof(FormattableString.Invariant($"SCREEN fit clause lines={lines.Count} widest={Math.Ceiling(widest)} box={Math.Floor(box)}"));
+        // The private last-three-runs strip: the same lines the band draws, from the saved history.
+        var runs = RunStripText.Lines(_progression.History);
+        if (runs.Count == 0)
         {
-            var id = s.Clause.Offers[i];
-            Proof(FormattableString.Invariant($"SCREEN clause n={i + 1} id={id} name=\"{ClauseText(id).Name}\" picked={(id == s.Clause.Picked ? 1 : 0)}"));
+            Proof("SCREEN runs none");
         }
-        // The cards as laid out at the design viewport (1280x720), with the same wrap the ClausePick draws.
-        var box = ClausePick.TextWidthFor(LayoutFor(DesignSize()).Pick.Size.X);
-        for (var i = 0; i < s.Clause.Offers.Count; i++)
+        for (var i = 0; i < runs.Count; i++)
         {
-            var text = ClausePick.TextLines(ClauseText(s.Clause.Offers[i]).Text, box);
-            var widest = text.Count == 0 ? 0f : text.Max(line => HudNodes.Width(line, ClausePick.TextFont));
-            Proof(FormattableString.Invariant(
-                $"SCREEN fit clause n={i + 1} lines={text.Count} widest={Math.Ceiling(widest)} box={Math.Floor(box)}"));
+            Proof(FormattableString.Invariant($"SCREEN runs n={i + 1} \"{runs[i]}\""));
         }
     }
 
@@ -1235,7 +1238,7 @@ public partial class Screen : Control
         {
             pick.Position = l.Pick.Position;
             pick.Size = l.Pick.Size;
-            pick.Visible = Tab == LobbyTab.Play;
+            pick.Visible = false; // BIBLE s8 "Nobody picks a Clause" (lane U2): the Clause is shown as text on the Key band
         }
         if (GetNodeOrNull<TalentPanel>(TalentPanel.NodeName) is { } talents)
         {
@@ -1244,6 +1247,9 @@ public partial class Screen : Control
         }
         return l;
     }
+
+    // The Clause row's text width on the Key band: the band less the 14px inset each side.
+    private static float ClauseTextWidth(Rect2 key) => Math.Max(0f, key.Size.X - 28);
 
     // The layout for a screen of `size` (pure): the draw uses the node's Size, the fit proof lines the design size. The
     // tab bar sits in the title row, so every tab's panels start at the same top as the old three bands did, and each
@@ -1537,7 +1543,20 @@ public partial class Screen : Control
         }
         HudNodes.Text(this, new Vector2(r.Position.X + 74, r.Position.Y + 76), FormattableString.Invariant($"Key {state.KeyLevel}"), TitleFont, Parchment);
         HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 98), AffixLine(state.KeyLevel), SmallFont, Calm);
-        HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 116), state.Locked ? "Clause (locked)" : "Clause: pick one", BodyFont, Gold);
+        var inner = ClauseTextWidth(r);
+        HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 118), Clip(state.ReadinessLine, inner, BodyFont),
+            BodyFont, state.Locked ? Calm : Good);
+        // The Clause row: the one Clause the Queue hands the run, shown as text and never picked (BIBLE s8). Lane U1
+        // makes the key's Clause pure in Clause.cs (ClauseRotation); until it lands, this is the band's own Clause.
+        var (name, text) = ClauseText(state.Clause.Picked);
+        HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 144), Clip("Clause: " + name, inner, BodyFont), BodyFont, Gold);
+        var clauseLines = Wrap(text, inner, SmallFont, 2);
+        for (var j = 0; j < clauseLines.Count; j++)
+        {
+            HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 164 + (j * 14)), clauseLines[j], SmallFont, Colors.White);
+        }
+        // The private last-three-runs strip under the Clause row (BIBLE s10): the saved history, nothing else.
+        RunStrip.Draw(this, new Rect2(r.Position.X + 14, r.Position.Y + 206, inner, 90), _progression.History);
     }
 
     /// <summary>

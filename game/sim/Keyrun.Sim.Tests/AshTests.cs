@@ -164,4 +164,55 @@ public sealed class AshTests
         Assert.Equal("+30 Ash", Progression.Start(1).BankRun(RunResult.Depleted).LastRun!.Text());
         Assert.Equal(EndOfRun.NothingLine, Progression.Start(1).BankRun(RunResult.Abandoned).LastRun!.Text());
     }
+
+    // An Ascension card as Rewards.WithAscensionCard offers it: tier 10, the Ascension facet, on the slot's held ability.
+    private static Item AscensionCard(string slot) =>
+        new($"reward-{slot}-{Rewards.AscensionFacetId}-t{Progression.MaxTier}-2", slot, Progression.MaxTier, new Facet(Rewards.AscensionFacetId, "Ascension mark", "warden.strike"), Rewards.StartingCharges);
+
+    // A character with all five gear slots at the tier-10 cap (Ascended).
+    private static Progression Capped() =>
+        Rewards.GearSlots.Aggregate(
+            Progression.Start(1),
+            (p, slot) => p.Take(new Item($"reward-{slot}-edge-t10-0", slot, Progression.MaxTier, new Facet($"{slot}-edge", "Strike also applies Sundered", "ability-1"), Rewards.StartingCharges)));
+
+    [Fact]
+    public void Taking_an_ascension_card_equips_nothing_and_adds_one_mark()
+    {
+        var before = Capped();
+        var after = before.Take(AscensionCard("weapon"));
+        foreach (var slot in Rewards.GearSlots)
+        {
+            Assert.Equal(before.Equipped[slot], after.Equipped[slot]);
+        }
+        Assert.Equal(1, after.AscensionCardMarks);
+        Assert.Equal(1, Ascension.Marks(after));
+        Assert.Equal(Ascension.SlotsAtCap(before), Ascension.SlotsAtCap(after));
+    }
+
+    [Fact]
+    public void Each_ascension_card_taken_adds_a_mark_on_top_of_the_run_marks()
+    {
+        var p = Capped().Take(AscensionCard("weapon")).Take(AscensionCard("armor"));
+        Assert.Equal(2, p.AscensionCardMarks);
+        Assert.Equal(2, Ascension.Marks(p));
+
+        var played = p.BankRun(RunResult.Timed, 12);
+        Assert.Equal(3, Ascension.Marks(played));
+    }
+
+    [Fact]
+    public void An_ascension_card_is_no_reward_on_the_since_last_run_line()
+    {
+        var p = Capped().BankRun(RunResult.Timed, 12).Take(AscensionCard("weapon"));
+        Assert.Null(p.LastRun!.Taken);
+        Assert.Equal("+50 Ash", p.LastRun.Text());
+    }
+
+    [Fact]
+    public void A_gear_reward_taken_after_an_ascension_card_still_equips()
+    {
+        var p = Capped().Take(AscensionCard("weapon")).Take(Fresh(10) with { Id = "next" });
+        Assert.Equal("next", p.Equipped["weapon"].Id);
+        Assert.Equal(1, p.AscensionCardMarks);
+    }
 }

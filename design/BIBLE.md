@@ -11,7 +11,7 @@ Every decision in this document passes all three or it is out:
 1. **Depth and difficulty.** Classes with real decisions on five buttons; keys that are genuinely hard because
    of what enemies *do*, not how much health they have.
 2. **A high key inside a minute.** Open the screen, pick a key, press Queue, be in the dungeon. No gatekeeping,
-   no score, no lobby negotiation.
+   no score, no lobby negotiation. A single ready-check between Queue and the dungeon is not lobby negotiation (amended 2026-10-21, orchestrator ruling; Matt may overrule; QueuedRunGateTests.cs:45 A_queue_press_starts_no_run_until_the_human_answers_ready).
 3. **Strangers are chill by default.** The systems remove the reasons people are not: no shareable score to judge
    by, no run ruined by one mistake, backfill instead of abandonment, pings instead of typing.
 
@@ -43,7 +43,7 @@ pings, so secondary systems can never balloon past the core kit.
 - **Fixed tick, integer math, deterministic** (research/07; `sim/CLAUDE.md`). Interrupts resolve by intended
   tick with a fixed tiebreak, never arrival order: a race is never a coin flip.
 - **Cast bars are the enemy's language.** Every dangerous enemy action is a cast with a visible bar and a floor
-  telegraph (circle, cone, line) drawn ahead of resolution. Shape plus colour, never colour alone (research/06).
+  telegraph (circle, cone, line) drawn ahead of resolution. Shape plus colour, never colour alone (research/06). Plain auto-attacks are exempt from this rule, and every damage or window cast is telegraphed or named (amended 2026-10-21, decision: auto-attacks are the exempt list, EveryEnemyAbilityTelegraphedTests.cs:204).
 - **Soft roles, no trinity lock** (research/03). Every class has real self-sustain and some group utility. A party
   without a "healer" class is harder, never blocked from queueing. The queue matches on key level only.
 - **Damage is a pipeline of integers**: base → source modifiers → target modifiers → class armor → absorbs →
@@ -176,8 +176,7 @@ pair combo, so there is always something to close even when the enemy Window was
 
 - **Five slots**: Weapon, Armor, Charm, Ring, Keystone. Each item has a **Tier** (1–10) and one **Facet**.
 - **Tier is power and it is capped at 10.** Ten is the end. Best-in-slot is a specific Facet set at Tier 10 for
-  your build, and it is hard: the last two tiers drop only from boss mechanics done correctly on high keys
-  (Monster Hunter's transparent, target-farmable sources — research/05). No item level after 10, ever.
+  your build, and it is hard: the last two tiers (9-10) drop from key level 15 and up, for any run result, not only from boss mechanics (amended 2026-10-21, decision: key-level rule, ledger f-baeb031a, implemented in game/sim/Keyrun.Sim/Encounter/Rewards.cs:24-27 and :39; supersedes the boss-mechanics-only rule, which cited Monster Hunter's transparent, target-farmable sources, research/05). No item level after 10, ever.
 - **Facets change function** (Diablo IV's lesson — research/05): a Facet retags an ability's Window, adds a
   second Payoff to a neutral ability, changes a floor patch's shape, or alters the resource loop. Facets are the
   chase; numbers are just the tier.
@@ -355,8 +354,7 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
     of a teaching pull lies inside its room, so the party is in the room when the gate shuts. Optional packs never
     shut a gate.
   - **The teaching beats are unchanged.** The Choir still teaches the kick, and the Pair still teaches spread and
-    stack. The Seed elite stands idle in its chamber until it is engaged, so it cannot be opened on by a party that
-    has not engaged it, and it drops its Window on death as before. The boss stands idle in the Warden arena behind
+    stack. The Seed elite activates when the party enters its chamber, as WoW mini-bosses do (amended 2026-10-21, orchestrator ruling R6; Matt may overrule; the Seed is the one group that activates on room entry, sim constant Aggro.RoomActivatedPullIds = {"seed"}, PR #505; every other group engages on its aggro radius), and it drops its Window on death as before. The boss stands idle in the Warden arena behind
     the Hollow Door (9.5). It can only be engaged once the door is open, and the Lock's 50% and 30-second rhythm
     counts from its own fight.
   - **Linked groups chain-pull.** Content may link groups. A link is drawn on the floor as a dashed line between
@@ -518,7 +516,7 @@ example 104%) and do nothing else. The fight beyond the door is unchanged.
 2. **The Pair** — five melee; every 20 s one player is marked to *spread* (a ring: stand apart), ten seconds
    later the pack calls a *stack* (a circle: stand together, damage split). Teaches reading shape.
 3. **The Seed** — an elite that on death drops a Window on the floor; a Combo landed in it grants bonus loot at
-   run end. Teaches the boss's core rule with no stakes.
+   run end. Teaches the boss's core rule with no stakes. It activates when the party enters its chamber, as WoW mini-bosses do (amended 2026-10-21, orchestrator ruling R6; Matt may overrule); every other group engages on its aggro radius.
 
 **Boss: the Hollow Warden.** Three mechanics, sequenced, never layered (research/06):
 1. **Cleave** — a slow frontal cone, readable from the boss's facing. Stand behind or beside.

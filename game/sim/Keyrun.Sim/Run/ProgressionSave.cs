@@ -58,7 +58,8 @@ public static class ProgressionSave
             ("equipped", JsValue.Arr(equipped)),
             ("last", last),
             ("talents", TalentsJs(progression.Talents)),
-            ("history", JsValue.Arr(progression.History.Select(r => (JsValue)RunRecordJs(r))))).ToCanonicalJson();
+            ("history", JsValue.Arr(progression.History.Select(r => (JsValue)RunRecordJs(r)))),
+            ("ascensionCards", JsValue.Int(progression.AscensionCardMarks))).ToCanonicalJson();
     }
 
     // One banked run (f-275d47c9): the key, the result and whether the character was ascended, so marks are countable.
@@ -251,7 +252,22 @@ public static class ProgressionSave
             Equipped = equipped,
             LastRun = ParseDelta(root.Get("last") ?? throw new FormatException("missing \"last\"")),
             History = history,
+            AscensionCardMarks = ParseAscensionCards(root.Get("ascensionCards")),
         }.WithTalents(ParseTalents(root.Get("talents")));
+    }
+
+    // A save written before Ascension cards were recorded has no member: that character holds no card marks yet.
+    private static int ParseAscensionCards(JsValue? v)
+    {
+        if (v is null)
+        {
+            return 0;
+        }
+        if (v is not JsInt i || i.Value < 0 || i.Value > int.MaxValue)
+        {
+            throw new FormatException("\"ascensionCards\" must be a non-negative integer");
+        }
+        return (int)i.Value;
     }
 
     // A save written before runs were recorded has no member: its runs simply have no history (and earned no marks).

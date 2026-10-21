@@ -172,6 +172,42 @@ public sealed class EndOfRunChoiceTests
         Assert.True(found > 100, $"only {found} worst-case seeds");
     }
 
+    [Theory]
+    [InlineData(End.TimedClear)]
+    [InlineData(End.UntimedClear)]
+    [InlineData(End.Wipe)]
+    public void A_character_at_the_cap_is_offered_exactly_one_ascension_card(End end)
+    {
+        // Every gear slot holds its first pool facet at tier 10: the cap. The offer a finished run shows must carry one
+        // Ascension card (BIBLE s7 "After the cap: Ascension") and two other distinct cards, whatever the ending.
+        var capped = Rewards.GearSlots.ToDictionary(
+            s => s,
+            s => new Item($"owned-{s}", s, Progression.MaxTier, Pools[s][0], 2),
+            StringComparer.Ordinal);
+        for (var seed = 1L; seed <= 12; seed++)
+        {
+            var run = Ended(end, keyLevel: 2 + (int)(seed % 19), seed: seed);
+            var offer = EndOfRun.Offer(run, Pools, capped)!;
+            Assert.Equal(3, offer.Count);
+            Assert.Equal(1, offer.Count(Ascension.IsCard));
+            Assert.Equal(3, offer.Select(Key).Distinct(StringComparer.Ordinal).Count());
+        }
+    }
+
+    [Fact]
+    public void A_character_one_tier_below_the_cap_is_offered_no_ascension_card()
+    {
+        var almost = Rewards.GearSlots.ToDictionary(
+            s => s,
+            s => new Item($"owned-{s}", s, s == "ring" ? Progression.MaxTier - 1 : Progression.MaxTier, Pools[s][0], 2),
+            StringComparer.Ordinal);
+        for (var seed = 1L; seed <= 12; seed++)
+        {
+            var run = Ended(End.TimedClear, keyLevel: 2 + (int)(seed % 19), seed: seed);
+            Assert.DoesNotContain(EndOfRun.Offer(run, Pools, almost)!, Ascension.IsCard);
+        }
+    }
+
     [Fact]
     public void A_roll_that_already_holds_an_upgrade_is_left_exactly_as_drawn()
     {
@@ -206,11 +242,16 @@ public sealed class EndOfRunChoiceTests
     [Fact]
     public void Gear_above_the_key_band_gets_the_plain_roll_because_quality_comes_from_the_key()
     {
+        // Amended 2026-10-21 (U9, Ascension): a character at the cap in every slot is offered one Ascension card as the
+        // third card (BIBLE s7 "After the cap"). The first two cards are still the plain roll, so the tier band stays a
+        // function of the key: gear above the band adds no quality to the other cards.
         var gear = Rewards.GearSlots.ToDictionary(s => s, s => new Item($"owned-{s}", s, 10, Pools[s][0], 0), StringComparer.Ordinal);
         for (var seed = 0L; seed < 100; seed++)
         {
             var plain = Rewards.RollRewardChoices(seed, 4, RunResult.Timed, Rewards.GearSlots, Pools);
-            Assert.Equal(plain.Select(i => i.Id), Rewards.RollRewardChoices(seed, 4, RunResult.Timed, Rewards.GearSlots, Pools, gear).Select(i => i.Id));
+            var offer = Rewards.RollRewardChoices(seed, 4, RunResult.Timed, Rewards.GearSlots, Pools, gear);
+            Assert.Equal(plain.Take(2).Select(i => i.Id), offer.Take(2).Select(i => i.Id));
+            Assert.True(Ascension.IsCard(offer[2]));
         }
     }
 
