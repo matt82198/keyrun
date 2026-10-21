@@ -55,6 +55,13 @@ public sealed record RulesConfig
     /// </summary>
     public MarkRules? Marks { get; init; }
 
+    /// <summary>
+    /// The frozen TS push-out (sim/combat: every overlapping pair parts symmetrically, so an enemy can shove a player).
+    /// True only on an oracle replay (Keyrun.Replay RunSetup), so the traces keep checking the TS rules tick for tick;
+    /// false (the default) everywhere else, where STATE.md D54 ENEMIES-NEVER-DISPLACE holds.
+    /// </summary>
+    public bool TsSymmetricPushOut { get; init; }
+
     /// <summary>This config with its movement fields taken from <paramref name="movement"/>.</summary>
     /// <param name="movement">The host's validated movement rules.</param>
     /// <returns>A new config.</returns>
@@ -199,7 +206,33 @@ public static class Rules
                     // an oracle run is idle, so the TS push-out is unchanged there.
                     if (actors[i].Alive && actors[j].Alive && !actors[i].Idle && !actors[j].Idle)
                     {
-                        Movement.ResolveCollision(actors[i], actors[j], cfg.ActorRadiusMm);
+                        // D54 ENEMIES-NEVER-DISPLACE (defer to WoW; f-e17638f7): an enemy never pushes a player. It
+                        // closes to melee and stacks on its target, so enemy-versus-player separation moves the enemy by
+                        // the whole overlap and the player stays. Enemy-enemy and player-player stay symmetric, so a
+                        // pack parts around its target. This supersedes the TS port's symmetric rule (sim/combat).
+                        if (cfg.TsSymmetricPushOut)
+                        {
+                            Movement.ResolveCollision(actors[i], actors[j], cfg.ActorRadiusMm);
+                        }
+                        else if (actors[i].Kind == ActorKind.Player && actors[j].Kind == ActorKind.Enemy)
+                        {
+                            Movement.ResolveCollisionMoverOnly(actors[i], actors[j], cfg.ActorRadiusMm);
+                        }
+                        else if (actors[i].Kind == ActorKind.Enemy && actors[j].Kind == ActorKind.Player)
+                        {
+                            Movement.ResolveCollisionMoverOnly(actors[j], actors[i], cfg.ActorRadiusMm);
+                        }
+                        else if (actors[i].Kind == ActorKind.Enemy && actors[j].Kind == ActorKind.Enemy &&
+                            actors[i].TargetId is { } ti && ti == actors[j].TargetId &&
+                            state.Actors.TryGetValue(ti, out var shared) && shared.Alive && shared.Kind == ActorKind.Player)
+                        {
+                            // D54: two enemies on one player part and the blocked one slides around him (a pack fans).
+                            Movement.ResolveCollisionAround(actors[i], actors[j], shared.Pos, cfg.ActorRadiusMm);
+                        }
+                        else
+                        {
+                            Movement.ResolveCollision(actors[i], actors[j], cfg.ActorRadiusMm);
+                        }
                     }
                 }
             }

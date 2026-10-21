@@ -43,6 +43,7 @@ public static class RunWiring
             Clause = encounterRules is null ? null : new EncounterClause(encounterRules),
             Overheat = content.Overheat,
             Marks = content.Marks,
+            TsSymmetricPushOut = content.TsSymmetricPushOut,
         };
     }
 

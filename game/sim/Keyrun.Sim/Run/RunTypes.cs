@@ -83,6 +83,12 @@ public sealed record RunContent
     /// </summary>
     public MarkRules? Marks { get; init; }
 
+    /// <summary>
+    /// The frozen TS push-out (<see cref="RulesConfig.TsSymmetricPushOut"/>): true only on an oracle replay; false (the
+    /// default, every host run) keeps STATE.md D54, an enemy never displaces a player.
+    /// </summary>
+    public bool TsSymmetricPushOut { get; init; }
+
     /// <summary>Break-bar sources in their JS key order, or null for none (stepRun then drains none).</summary>
     public IReadOnlyList<BreakBarSource>? BreakBarSources { get; init; }
 

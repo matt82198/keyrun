@@ -146,6 +146,9 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
             Clauses = c.Get("clauses") is { } clauses
                 ? Obj(clauses, "content.clauses").Members.ToDictionary(kv => kv.Key, kv => Clause(kv.Value, "content.clauses." + kv.Key), StringComparer.Ordinal)
                 : null,
+            // The oracle traces record the TS push-out (an enemy can shove a player); STATE.md D54 supersedes it in the
+            // game, never in a replay of the frozen TS run (TraceReplayTests replays it tick for tick).
+            TsSymmetricPushOut = true,
         };
     }
 
