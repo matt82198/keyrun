@@ -11,6 +11,8 @@
     "dungeonId": "hollow-vault",
     "forkAfterPull": "pair",
     "rejoinPull": "seed",
-    "branches": []
+    "branches": [
+      { "id": "sentry-hall", "name": "Sentry Hall", "rooms": ["sentry-hall"] }
+    ]
   }
 }
