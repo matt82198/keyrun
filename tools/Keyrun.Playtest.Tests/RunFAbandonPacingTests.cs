@@ -78,6 +78,12 @@ public sealed class RunFAbandonPacingTests
         return actors;
     }
 
+    // The events the step at pre-step tick preTick hands back. That step advances the run to preTick + 1 and stamps its
+    // events preTick + 1 (Tick.Step's next.Tick += 1, then Run.cs's Aggro.Engage(next, ..., next.Tick, emit)), so they
+    // are the trace's events stamped preTick + 1 (f-5813f5d2).
+    private static List<SimEvent> StepEvents(Trace trace, int preTick) =>
+        trace.Events.TryGetValue(preTick + 1, out var step) ? step : new List<SimEvent>();
+
     // SimDriver.StepOnce's order: MaybeScriptedAbandon at the pre-step tick, then the step, then the anchor from its
     // events and the run's state after it.
     private static int? AbandonTick(SeatAbandonPlan plan, Trace trace)
@@ -89,7 +95,7 @@ public sealed class RunFAbandonPacingTests
             {
                 return tick;
             }
-            var events = trace.Events.TryGetValue(tick, out var step) ? step : new List<SimEvent>();
+            var events = StepEvents(trace, tick);
             anchor ??= plan.AnchorAt(tick, events, Dungeon, ActorsAfter(trace, tick));
         }
         return null;
@@ -114,6 +120,37 @@ public sealed class RunFAbandonPacingTests
         var at = AbandonTick(SeatAbandonPlan.Parse(RunFJoinerActsTests.Abandon), trace);
         Assert.True(at is not null && at > trace.Start && at < trace.Clear,
             $"{RunFJoinerActsTests.Abandon} abandons at {at?.ToString() ?? "never"}, outside the Choir ({trace.Start}..{trace.Clear}) with engage {engageShift:+0;-0;0} and fight {fightShift:+0;-0;0}");
+    }
+
+    // f-5813f5d2: the double must hand a pull_start to the same step the real sim does, so a pull_start-offset plan
+    // abandons the same number of ticks after the pull_start in both. +0 is the offset the old double got wrong (it fed an
+    // event stamped t to the step at pre-step t, one step late, so A@pull0+0 never fired: false finding f-854228f4).
+    [Fact(DisplayName = "the double hands pull 0's pull_start to the step the real sim emits it from, and no earlier one")]
+    public void The_double_hands_pull_start_to_the_real_sims_step()
+    {
+        var real = SeatAbandonZeroOffsetTests.RunReal("2@pull0+0");
+        Assert.True(real.PullStart is not null && real.EmittedAtPreTick is not null, "the real sim never started pull 0");
+        var lag = real.PullStart!.Value - real.EmittedAtPreTick!.Value;
+        var trace = Choir(0, 0);
+        static bool HasPullStart(List<SimEvent> events) =>
+            events.Any(e => e.Type == "pull_start" && e.Get("pullIndex") is JsInt { Value: 0 });
+        var carrying = Enumerable.Range(0, MaxTicks).Where(t => HasPullStart(StepEvents(trace, t))).ToList();
+        Assert.True(carrying.SequenceEqual(new[] { trace.Start - lag }),
+            $"the real sim emits pull_start {real.PullStart} from the step at pre-step {real.EmittedAtPreTick} (lag {lag}); the double hands pull_start {trace.Start} to the steps at pre-step [{string.Join(", ", carrying)}], expected [{trace.Start - lag}]");
+    }
+
+    [Theory(DisplayName = "the double abandons a pull_start-offset plan the same ticks after pull_start as the real sim")]
+    [InlineData("2@pull0+0")]
+    [InlineData("2@pull0+1")]
+    public void The_double_abandons_on_the_real_sims_tick(string abandon)
+    {
+        var real = SeatAbandonZeroOffsetTests.RunReal(abandon);
+        Assert.True(real.PullStart is not null && real.Abandon is not null,
+            $"the real sim never started pull 0 or never abandoned {abandon} (pull_start {real.PullStart?.ToString() ?? "none"}, abandon {real.Abandon?.ToString() ?? "never"})");
+        var trace = Choir(0, 0);
+        var at = AbandonTick(SeatAbandonPlan.Parse(abandon), trace);
+        Assert.True(at - trace.Start == real.Abandon - real.PullStart,
+            $"{abandon}: the real sim abandons {real.Abandon - real.PullStart} ticks after pull_start ({real.PullStart} -> {real.Abandon}), the double {(at is null ? "never" : (at - trace.Start).ToString())} ({trace.Start} -> {at?.ToString() ?? "never"})");
     }
 
     [Theory(DisplayName = "the fixed-tick and pull_start-offset fixtures run F used land outside the Choir under a pacing change")]
