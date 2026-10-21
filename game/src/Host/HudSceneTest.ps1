@@ -7,10 +7,11 @@
   Boots the real game (Main.tscn -> Arena.tscn) headless at --fixed-fps 60 twice and reads the HUD's own
   "HUD ..." lines from the engine output (the HUD prints what it draws when --autorun is on):
 
-    Run A (pull 1, the Choir, solo Warden):  -- --autorun --ticks 600 --solo
+    Run A (pull 1, the Choir, solo Warden):  -- --autorun --ticks 900 --solo
+      (900 since PR #362, was 600: a Warden with 3500 bp armor dies at tick 505 with run_end at 606 by measurement)
       (600 since lane NAV-CORE, was 400: the Warden first walks from the Entrance into the Choir room, so the wipe's
       run_end moved from tick 374 to 413)
-      1. exit 0 and "AUTORUN done ticks=600";
+      1. exit 0 and "AUTORUN done ticks=900";
       2. "HUD party seat=1 name=Warden hp=H/400 res=R/M" (the party frame reads the human's health and resource);
       3. "HUD party seat=1 ... DOWNED" after the sim's death event for actor 1 (the DOWNED chip);
       4. "HUD objective pull=1/4 id=choir name="The Choir"" (the current pull's content name);
@@ -28,7 +29,7 @@
          on pull <n> of <total> -- key stays at +<key>" (an untimed key keeps its level: Matt 2026-10-20, f-7c7abdf4;
          "key depleted" is banned from every title) (run C clears the dungeon since lane TUNE-BOSS, so the clear title
          is checked on it; the count of cleared runs is printed).
-    Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 600 --pull 2 --solo
+    Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 900 --pull 2 --solo
       (600 since lane NAV-CORE, was 400: the Pair now spawns at the far side of its hall, 7 m off, run_end at tick 455)
       7. "HUD objective pull=2/4 id=pair name="The Pair"", and the wipe title "Party wiped on pull 2 of 4 -- key
          stays at +2" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
@@ -85,7 +86,7 @@
          probe used. Since lane TUNE-BOSS (STATE.md D14) every swept key (2, 5, 8, 10 at seeds 1 and 7) clears from
          pull 1 (the D14 sweep, end ticks 6787 to 8603; re-swept on the lane NAV-CORE route, see its PR); run D keeps
          --pull 4 because it proves the armed boss at key 10 in 600 ticks, not the route.
-    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 600 --solo --requeue
+    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 900 --solo --requeue
         (--requeue: an autorun starts the queued run only when asked, so runs A-D and the other scene tests stay one
         run each; an interactive game always starts it; 480 -> 600 by ROOM-LOCK-IN D27: the solo Warden now dies at 390
         and the depleted run_end lands at 491, past the old 480)
@@ -244,12 +245,12 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$Ticks = 600,
-    [int]$PingTicks = 600,
+    [int]$Ticks = 900,
+    [int]$PingTicks = 900,
     [int]$PartyTicks = 7000,
     [string]$CarelessSeat = '3@300:pair',
     [int]$BossTicks = 600,
-    [int]$QueueTicks = 600,
+    [int]$QueueTicks = 900,
     [int]$BackfillTicks = 3500,
     [string]$AbandonSeat = '2@1700',
     [int]$ScreenFirstFrames = 240,
