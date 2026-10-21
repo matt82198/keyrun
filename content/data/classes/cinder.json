@@ -185,7 +185,7 @@
         {
           "id": "overflow",
           "name": "Overflow",
-          "text": "Only dumps part of your Heat, keeping some banked.",
+          "text": "Only dumps part of your Heat, keeping some banked; hits harder.",
           "patch": {
             "tags": [
               "payoff",
@@ -195,7 +195,7 @@
             "effects": [
               {
                 "op": "damage",
-                "amount": 100,
+                "amount": 150,
                 "school": "frost"
               },
               {
@@ -250,7 +250,7 @@
             "effects": [
               {
                 "op": "damage",
-                "amount": 180,
+                "amount": 240,
                 "school": "fire"
               },
               {
