@@ -144,7 +144,7 @@
         {
           "id": "surge",
           "name": "Surge",
-          "text": "Adds a 1.5-second cooldown; hits harder and grants far more Momentum.",
+          "text": "Adds a 1.5-second cooldown; hits harder, grants far more Momentum, and leaves Sundered on its target for an ally to close.",
           "patch": {
             "cooldownTicks": 30,
             "effects": [
@@ -159,6 +159,13 @@
               },
               {
                 "op": "payoff"
+              },
+              {
+                "op": "window",
+                "windowId": "sundered",
+                "durationTicks": 60,
+                "onTarget": true,
+                "setupClass": "warden"
               }
             ]
           }

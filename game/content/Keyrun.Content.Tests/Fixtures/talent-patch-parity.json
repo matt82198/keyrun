@@ -3126,6 +3126,13 @@
           },
           {
             "op": "payoff"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "warden",
+            "windowId": "sundered"
           }
         ],
         "gcdTicks": 30,
@@ -4632,7 +4639,7 @@
             "windowId": "hymn"
           }
         ],
-        "gcdTicks": 30,
+        "gcdTicks": 0,
         "id": "chanter.hymn",
         "interruptible": true,
         "name": "Hymn",
