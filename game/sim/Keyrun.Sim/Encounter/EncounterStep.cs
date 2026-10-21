@@ -78,7 +78,7 @@ public static class EncounterStep
         }
 
         // index.ts:119-123: scripts, emit their telegraph events, register them.
-        var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities, encounter.PendingSteps);
+        var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities, encounter.PendingSteps, encounter.DeferredCasts);
         foreach (var e in scripted.TelegraphEvents)
         {
             emit(e);
@@ -129,6 +129,7 @@ public static class EncounterStep
             BreakBars = breakBars,
             FiredOnDeath = scripted.FiredOnDeath,
             PendingSteps = scripted.PendingSteps,
+            DeferredCasts = scripted.DeferredCasts,
             NextTelegraphId = advance.NextTelegraphId,
         };
         if (boss is not null)

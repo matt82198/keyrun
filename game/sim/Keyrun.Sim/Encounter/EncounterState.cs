@@ -65,6 +65,13 @@ public sealed record EncounterState
     /// </summary>
     public IReadOnlyDictionary<int, IReadOnlyList<int>> PendingSteps { get; init; } = new SortedDictionary<int, IReadOnlyList<int>>();
 
+    /// <summary>
+    /// STARTCAST-BUSY: frozen-TS replay steps (<see cref="ScriptStep.TsCastReplace"/>) that came due while their caster
+    /// was busy, held until it is free (<see cref="CastDeferral"/>; TS <c>deferredCasts</c>, default []). Always empty
+    /// for the CAST-FINISH steps, which wait in <see cref="PendingSteps"/> instead.
+    /// </summary>
+    public IReadOnlyList<DeferredCast> DeferredCasts { get; init; } = Array.Empty<DeferredCast>();
+
     /// <summary>Echo adds queued but not yet spawned.</summary>
     public IReadOnlyList<EchoSpawnRequest> PendingEchoSpawns { get; init; } = Array.Empty<EchoSpawnRequest>();
 

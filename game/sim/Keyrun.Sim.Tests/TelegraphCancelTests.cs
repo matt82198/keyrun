@@ -12,8 +12,9 @@ namespace Keyrun.Sim.Tests;
 /// <summary>
 /// TELEGRAPH-CANCEL (wrong data shown is P0; BIBLE s3: "Every dangerous enemy action is a cast with a visible bar and a
 /// floor telegraph (circle, cone, line) drawn ahead of resolution"). A <see cref="TelegraphSpec.SpansCast"/> telegraph
-/// stands for a cast that is under way. When that cast ends without landing (kicked, stopped, or overwritten by the same
-/// enemy's next cast) the telegraph is a promise of a hit that will not come, so the sim emits
+/// stands for a cast that is under way. When that cast ends without landing (kicked or stopped; since STARTCAST-BUSY
+/// (#325) a cast is never overwritten by the same enemy's next cast) the telegraph is a promise of a hit that will not
+/// come, so the sim emits
 /// <c>{type:"telegraph_cancel", telegraphId, actorId, cast}</c> on the tick the cast ends, drops it from the registry,
 /// and never resolves it (no <c>telegraph_hit</c>). Everything runs through <see cref="RunRoot.StepRun"/>.
 /// </summary>
@@ -39,8 +40,9 @@ public sealed class TelegraphCancelTests
         Telegraph = new TelegraphSpec("circle", lead) { Radius = 2000, SpansCast = true },
     };
 
-    // CAST-FINISH: an enemy now finishes the cast it starts (a step due mid-cast waits for it to land), so its own next
-    // cast overwrites a bar only under the frozen-TS rule (ScriptStep.TsCastReplace), the one place that path still runs.
+    // CAST-FINISH: an enemy finishes the cast it starts (a step due mid-cast waits for it to land). The frozen-TS rule
+    // (ScriptStep.TsCastReplace) fires a step on its schedule; since CAST-DEFERRAL (#325's CastDeferral) a step due while
+    // its caster is busy is held and issued the first tick the caster is free, never replacing the bar under way.
     private static ScriptStep TsAt(int tick, string cast, int lead) => At(tick, cast, lead) with { TsCastReplace = true };
 
     private static Run BuildRun(params ScriptStep[] script)
@@ -147,32 +149,35 @@ public sealed class TelegraphCancelTests
         AssertCancelled(events, pending, firstId,Long, 35);
     }
 
-    [Fact(DisplayName = "A cast overwritten mid-bar by the same enemy's next cast cancels its telegraph on the overwrite tick")]
-    public void Cast_overwritten_mid_bar_cancels_its_telegraph()
+    [Fact(DisplayName = "A frozen-TS step due mid-bar is deferred: the live telegraph is not cancelled and the step starts the first tick the caster is free")]
+    public void Step_due_mid_bar_is_deferred_and_the_live_telegraph_stands()
     {
-        // Frozen-TS rule: e.long starts on 20 (lands 60); e.short starts on 40 and replaces it (lands 50).
+        // Frozen-TS rule: e.long starts on 20 (lands 60); e.short, due on 40, is held (the caster is busy) and starts on
+        // 60, the bar's landing tick (lands 70). Nothing is cancelled; each shape is drawn as its cast starts.
         var run = BuildRun(TsAt(20, Long, 40), TsAt(40, Short, 10));
         var (events, pending, firstId) = Play(run, 90);
-        AssertCancelled(events, pending, firstId,Long, 40);
-        AssertLands(events, pending, firstId,Short);
+        Assert.DoesNotContain(events, e => e.Type == "telegraph_cancel");
+        AssertLands(events, pending, firstId, Long);
+        AssertLands(events, pending, firstId, Short);
+        Assert.Equal(60, Telegraphed(events, firstId, Short).Drawn.Tick);
+        Assert.Contains(events, e => e.Type == "cast_complete" && Str(e, "abilityId") == Long && e.Tick == 60);
+        Assert.Contains(events, e => e.Type == "cast_complete" && Str(e, "abilityId") == Short && e.Tick == 70);
     }
 
-    [Fact(DisplayName = "A cast overwritten on the tick it starts never draws a telegraph, so there is nothing to cancel")]
-    public void Cast_overwritten_on_its_start_tick_draws_no_telegraph()
+    [Fact(DisplayName = "A frozen-TS step due on the tick another cast starts is deferred, not dropped, and its telegraph is drawn when it actually starts")]
+    public void Step_due_on_a_cast_start_tick_is_deferred_and_drawn_when_it_starts()
     {
-        // Both fire on 20, short first in script order: e.short starts and e.long replaces it on the same tick.
-        // TELEGRAPH-HONEST (#351, Scripts.CastHeldAt) telegraphs only the step left holding the cast on its fire tick,
-        // so e.short is never drawn at all: no telegraph, no telegraph_cancel, no hit. #323 was written on a base without
-        // #351 and expected draw-then-cancel on tick 20; the merged contract is stronger (never shown, not shown and
-        // retracted), and the cancel path itself stays covered by the kick, stop and mid-bar overwrite cases.
-        // Frozen-TS rule (CAST-FINISH: only there does a later step replace a cast on its start tick).
+        // Both due on 20, short first in script order: e.short starts on 20 (lands 30) and claims the caster; e.long is
+        // held, starts on 30 and lands on 70. Its shape is drawn on 30 (not on 20, when it would have announced a cast
+        // that was not under way), and both casts land with no cancel.
         var run = BuildRun(TsAt(20, Short, 10), TsAt(20, Long, 40));
         var (events, pending, firstId) = Play(run, 90);
-        Assert.DoesNotContain(events, e => e.Type == "telegraph" && Str(e, "cast") == Short);
         Assert.DoesNotContain(events, e => e.Type == "telegraph_cancel");
-        Assert.DoesNotContain(events, e => e.Type == "cast_complete" && Str(e, "abilityId") == Short);
-        Assert.All(pending.Values, tgs => Assert.DoesNotContain(tgs, tg => tg.AbilityId == Short));
-        AssertLands(events, pending, firstId,Long);
+        AssertLands(events, pending, firstId, Short);
+        AssertLands(events, pending, firstId, Long);
+        Assert.Equal(30, Telegraphed(events, firstId, Long).Drawn.Tick);
+        Assert.Contains(events, e => e.Type == "cast_complete" && Str(e, "abilityId") == Short && e.Tick == 30);
+        Assert.Contains(events, e => e.Type == "cast_complete" && Str(e, "abilityId") == Long && e.Tick == 70);
     }
 
     [Fact(DisplayName = "CAST-FINISH: a step due mid-bar waits for the bar to land; both casts land and both telegraphs resolve")]

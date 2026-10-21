@@ -19,8 +19,8 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 290466,
-      "fnv": "728cda2b"
+      "bytes": 294304,
+      "fnv": "53836839"
     },
     "bots-hv-k2-s11.trace.jsonl": {
       "bytes": 238930,
@@ -439,11 +439,14 @@
       "sim/encounter/clauses.ts": {
         "fnv": "122a3f67"
       },
+      "sim/encounter/deferred-casts.ts": {
+        "fnv": "9d375f07"
+      },
       "sim/encounter/echo-spawns.ts": {
         "fnv": "01dfd36a"
       },
       "sim/encounter/index.ts": {
-        "fnv": "7ce399c4"
+        "fnv": "4fb5a876"
       },
       "sim/encounter/pulls.ts": {
         "fnv": "f8c4f7a5"
@@ -455,10 +458,10 @@
         "fnv": "571b37c3"
       },
       "sim/encounter/scripts.ts": {
-        "fnv": "ee48e508"
+        "fnv": "bf656bcd"
       },
       "sim/encounter/telegraphs.ts": {
-        "fnv": "c74ea649"
+        "fnv": "72042ae8"
       },
       "sim/encounter/tempo.ts": {
         "fnv": "99a7a8ec"
@@ -537,13 +540,13 @@
       "traceHash": "d5c20907"
     },
     {
-      "finalTick": 2071,
+      "finalTick": 2081,
       "name": "bots-hv-k10-s7",
-      "records": 2072,
+      "records": 2082,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "6f856fd1"
+      "traceHash": "9d2294c1"
     }
   ],
   "version": 1
