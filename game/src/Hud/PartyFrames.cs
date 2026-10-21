@@ -211,6 +211,78 @@ public static class PartyFrameModel
     private static string Capitalise(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 }
 
+/// <summary>
+/// The pure kick-ready rule (BIBLE s10 kick-ready readout, Godot-free): a kick is ready at tick T when T has reached the
+/// tick its cooldown ends. The ready pip and the draining arc both read this rule; neither computes kick order.
+/// </summary>
+public static class KickReadiness
+{
+    /// <summary>True when a kick whose cooldown ends at <paramref name="cooldownEndTick"/> is ready at <paramref name="tick"/>.</summary>
+    /// <param name="tick">The current sim tick.</param>
+    /// <param name="cooldownEndTick">The tick the kick's cooldown ends (sim: actor.Cooldowns[kickId], 0 when never used).</param>
+    /// <returns>True at or after the end tick.</returns>
+    public static bool IsReady(int tick, int cooldownEndTick) => tick >= cooldownEndTick;
+
+    /// <summary>Ticks of cooldown still to run at <paramref name="tick"/>, never negative.</summary>
+    /// <param name="tick">The current sim tick.</param>
+    /// <param name="cooldownEndTick">The tick the cooldown ends.</param>
+    /// <returns>Ticks left; 0 when ready.</returns>
+    public static int TicksLeft(int tick, int cooldownEndTick) => Math.Max(0, cooldownEndTick - tick);
+
+    /// <summary>The share of the full cooldown still to drain, in [0, 1] (the arc's sweep).</summary>
+    /// <param name="tick">The current sim tick.</param>
+    /// <param name="cooldownEndTick">The tick the cooldown ends.</param>
+    /// <param name="cooldownTicks">The kick's full cooldown length.</param>
+    /// <returns>1 at the start of a cooldown, 0 when ready or when the kick has no cooldown.</returns>
+    public static double RemainingFraction(int tick, int cooldownEndTick, int cooldownTicks) =>
+        cooldownTicks <= 0 ? 0d : Math.Clamp(TicksLeft(tick, cooldownEndTick) / (double)cooldownTicks, 0d, 1d);
+}
+
+/// <summary>
+/// One party member's kick-ready readout: the kick ability in the member's class Interrupt slot and the sim's own cooldown
+/// end tick for it, read at <see cref="Tick"/>.
+/// </summary>
+/// <param name="AbilityId">The kick ability id (the class Interrupt slot).</param>
+/// <param name="Tick">The sim tick the readout was read at.</param>
+/// <param name="CooldownEndTick">The tick the kick's cooldown ends.</param>
+/// <param name="CooldownTicks">The kick's full cooldown length.</param>
+public sealed record KickReadout(string AbilityId, int Tick, int CooldownEndTick, int CooldownTicks)
+{
+    /// <summary>True when the kick is ready now.</summary>
+    public bool Ready => KickReadiness.IsReady(Tick, CooldownEndTick);
+
+    /// <summary>Ticks of cooldown left; 0 when ready.</summary>
+    public int TicksLeft => KickReadiness.TicksLeft(Tick, CooldownEndTick);
+
+    /// <summary>Share of the cooldown still to drain, in [0, 1].</summary>
+    public double RemainingFraction => KickReadiness.RemainingFraction(Tick, CooldownEndTick, CooldownTicks);
+}
+
+/// <summary>Reads each party member's kick-ready state from the sim (Godot-free). Read only: never a rule decision.</summary>
+public static class PartyKick
+{
+    /// <summary>The kick readout for <paramref name="actor"/>, or null when the content or registry does not name a kick.</summary>
+    /// <param name="run">The run.</param>
+    /// <param name="actor">The player actor.</param>
+    /// <param name="registry">Content for the class Interrupt slot, or null (no readout).</param>
+    /// <returns>The readout, or null.</returns>
+    public static KickReadout? For(Run run, ActorState actor, ContentRegistry? registry)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        ArgumentNullException.ThrowIfNull(actor);
+        if (registry is null || !registry.Classes.TryGetValue(actor.ClassId, out var cls))
+        {
+            return null;
+        }
+        if (!run.Content.Abilities.TryGetValue(cls.Abilities.Interrupt, out var def))
+        {
+            return null;
+        }
+        var end = actor.Cooldowns.TryGetValue(def.Id, out var readyTick) ? readyTick : 0;
+        return new KickReadout(def.Id, run.State.Tick, end, def.CooldownTicks);
+    }
+}
+
 /// <summary>Shared HUD plumbing: find the driver, print autorun proof lines, colours.</summary>
 public static class HudNodes
 {
@@ -310,8 +382,17 @@ public partial class PartyFrames : Control
     private static readonly Color CastKickFrame = new(1f, 0.6f, 0.1f, 1f);
     private static readonly Color CastLockedFrame = new(0.55f, 0.55f, 0.6f, 1f);
 
+    // The kick-ready readout (BIBLE s10): a filled pip with a ring when the kick is ready, a hollow ring with an
+    // amber arc that shrinks as the cooldown drains otherwise. The shape differs by state, so colour is never the only cue.
+    private const float KickPipRadius = 6f;
+    private const float KickSlotWidth = 22f;
+    private static readonly Color KickReadyFill = new(0.45f, 0.95f, 0.5f, 1f);
+    private static readonly Color KickDimRing = new(0.45f, 0.47f, 0.52f, 1f);
+    private static readonly Color KickArc = new(1f, 0.72f, 0.3f, 1f);
+
     private readonly Dictionary<int, string> _logged = new();
     private readonly Dictionary<int, int> _castLogged = new();
+    private readonly Dictionary<int, string> _kickLogged = new();
     private SimDriver? _driver;
 
     /// <summary>The driver to read the run from.</summary>
@@ -356,8 +437,17 @@ public partial class PartyFrames : Control
         foreach (var f in frames)
         {
             var rect = new Rect2(0, y, FrameWidth, FrameHeight);
-            DrawFrame(rect, f);
-            if (run.State.Actors.TryGetValue(f.Seat, out var member))
+            KickReadout? kick = null;
+            if (run.State.Actors.TryGetValue(f.Seat, out var member) && member.Alive)
+            {
+                kick = PartyKick.For(run, member, _driver.Registry);
+            }
+            DrawFrame(rect, f, kick is not null);
+            if (kick is not null)
+            {
+                DrawKick(rect, kick);
+            }
+            if (run.State.Actors.TryGetValue(f.Seat, out member))
             {
                 DrawCast(rect, member, run);
             }
@@ -392,7 +482,25 @@ public partial class PartyFrames : Control
         DrawString(font, new Vector2(bar.Position.X + 4, bar.End.Y - 3), label, HorizontalAlignment.Left, -1, CastFont, Colors.White);
     }
 
-    private void DrawFrame(Rect2 rect, PartyFrame f)
+    // The kick-ready readout, drawn in the frame's bottom-right corner (the chips leave KickSlotWidth free there).
+    private void DrawKick(Rect2 frame, KickReadout kick)
+    {
+        var c = new Vector2(frame.End.X - KickSlotWidth / 2 - 2, frame.End.Y - KickSlotWidth / 2 - 2);
+        if (kick.Ready)
+        {
+            DrawCircle(c, KickPipRadius, KickReadyFill);
+            DrawArc(c, KickPipRadius + 2.5f, 0f, Mathf.Tau, 32, Colors.White, 1.5f, true);
+            return;
+        }
+        DrawArc(c, KickPipRadius, 0f, Mathf.Tau, 32, KickDimRing, 1.5f, true);
+        var remaining = (float)kick.RemainingFraction;
+        if (remaining > 0f)
+        {
+            DrawArc(c, KickPipRadius, -Mathf.Pi / 2, -Mathf.Pi / 2 + (Mathf.Tau * remaining), 32, KickArc, 3f, true);
+        }
+    }
+
+    private void DrawFrame(Rect2 rect, PartyFrame f, bool kickSlot)
     {
         DrawRect(rect, HudNodes.Back);
         DrawRect(rect, f.IsLocal ? new Color(1f, 0.9f, 0.55f, 1f) : HudNodes.Edge, filled: false, width: f.IsLocal ? 2f : 1f);
@@ -408,11 +516,12 @@ public partial class PartyFrames : Control
         // Chips under the bars, left to right.
         var x = rect.Position.X + 8;
         var cy = res.End.Y + 3;
+        var chipRight = rect.End.X - 4 - (kickSlot ? KickSlotWidth : 0f);
         foreach (var chip in f.Chips)
         {
             var text = chip.Text;
             var w = HudNodes.Width(text, ChipFont) + 8;
-            if (x + w > rect.End.X - 4)
+            if (x + w > chipRight)
             {
                 break;
             }
@@ -437,6 +546,7 @@ public partial class PartyFrames : Control
     {
         _logged.Clear();
         _castLogged.Clear();
+        _kickLogged.Clear();
         LogFrames();
     }
 
@@ -444,6 +554,41 @@ public partial class PartyFrames : Control
     {
         LogFrames();
         LogCasts();
+        LogKicks();
+    }
+
+    // "HUD party kick seat=S ability=X state=ready" or "state=cooldown left=N", once per change of state, and once per
+    // tenth of the cooldown while it drains (the arc's steps), so the drain reads from the log.
+    private void LogKicks()
+    {
+        if (_driver?.Run is not { } run)
+        {
+            return;
+        }
+        foreach (var actor in run.State.Actors.Values)
+        {
+            if (actor.Kind != ActorKind.Player || !actor.Alive)
+            {
+                continue;
+            }
+            var kick = PartyKick.For(run, actor, _driver.Registry);
+            if (kick is null)
+            {
+                continue;
+            }
+            var key = kick.Ready
+                ? "ready"
+                : FormattableString.Invariant($"cooldown:{(int)Math.Ceiling(kick.RemainingFraction * 10)}");
+            if (_kickLogged.TryGetValue(actor.Id, out var last) && last == key)
+            {
+                continue;
+            }
+            _kickLogged[actor.Id] = key;
+            var state = kick.Ready
+                ? "state=ready"
+                : FormattableString.Invariant($"state=cooldown left={kick.TicksLeft}");
+            HudNodes.Proof(_driver, FormattableString.Invariant($"HUD party kick seat={actor.Id} ability={kick.AbilityId} {state}"));
+        }
     }
 
     // "HUD party cast seat=S ability=X" once per cast start of a party member: the cast DrawCast puts in that frame.
