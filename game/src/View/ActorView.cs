@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Keyrun.Content;
@@ -284,6 +285,51 @@ public partial class ActorView : Node3D
         _lastPosition = Position;
         _hasLastPosition = true;
         _animator.Update(before, now, newTick, speed, Driver.FrameEvents, Driver.State.Tick, (int)(Driver.Alpha * 1000f));
+        if (newTick)
+        {
+            PlayStrikeCues(now);
+        }
+    }
+
+    // COMBAT-STRIKE-CUE (KF1, view-only; Godot code, not compiled or run by the tests, one method by design): on each new
+    // sim tick a melee strike that lands damage (StrikeCueRule over the frame's events) flashes a short bar in front of
+    // this actor for StrikeCueRule.DurationMs, then frees it. The bar rides the actor's Rotation, so it faces the swing.
+    private void PlayStrikeCues(ActorState now)
+    {
+        var abilities = Driver?.Run?.Content.Abilities;
+        if (abilities is null || Driver is null)
+        {
+            return;
+        }
+        var facts = new List<StrikeEvent>();
+        foreach (var e in Driver.FrameEvents)
+        {
+            if (e.Type == StrikeCueRule.DamageEvent && e.Get("sourceId") is JsInt src)
+            {
+                facts.Add(new StrikeEvent(e.Type, e.Tick, (int)src.Value));
+            }
+            else if (e.Type == StrikeCueRule.ResolveEvent && e.Get("actorId") is JsInt actor && e.Get("abilityId") is JsString ability)
+            {
+                facts.Add(new StrikeEvent(e.Type, e.Tick, (int)actor.Value, ability.Value));
+            }
+        }
+        var melee = StrikeCueRule.MeleeIds(abilities.Values.Select(a => (a.Id, a.Tags)));
+        var yaw = SwingFacing.RenderYaw(Driver.State, now, abilities, _hold);
+        foreach (var cue in StrikeCueRule.Cues(facts, melee, _ => yaw))
+        {
+            if (cue.ActorId != ActorId)
+            {
+                continue;
+            }
+            var bar = new MeshInstance3D
+            {
+                Mesh = new BoxMesh { Size = new Vector3(0.15f, 0.06f, 1.6f) },
+                Position = new Vector3(0f, 1.0f, 0.9f),
+                MaterialOverride = new StandardMaterial3D { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = new Color(1f, 0.85f, 0.4f) },
+            };
+            AddChild(bar);
+            GetTree().CreateTimer(cue.DurationMs / 1000.0).Timeout += bar.QueueFree;
+        }
     }
 
     // KF1: every health drop lights the body for AnimRule.FlashTicks sim ticks (an additive overlay on each mesh), so a
