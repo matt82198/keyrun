@@ -98,7 +98,9 @@ export function applyBreakBarPatches(
  * enemy points at the party's tank (the one living-or-not player actor with `role: "tank"`, if any);
  * every living damage-role player without a living-enemy target points at the current pull's first
  * living enemy. Mutates `state.actors` in place; safe to call every tick (already-resolved targets
- * are left alone) and at run creation. */
+ * are left alone) and at run creation. Writes targetId directly, not through targeting.ts setTarget:
+ * this auto-retarget is the sim's, not the caster's, and the recorded oracle traces have a cast whose
+ * start target died mid-cast land on the auto-picked next enemy (twin of RunWiring.cs FixupTargeting). */
 export function fixupTargeting(state: SimState): void {
   const tank = Object.values(state.actors).find((a) => a.kind === "player" && a.role === "tank");
   const enemies = Object.values(state.actors).filter((a) => a.kind === "enemy" && a.alive);

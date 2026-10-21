@@ -359,7 +359,7 @@
         "fnv": "5018f7d9"
       },
       "sim/combat/casting.ts": {
-        "fnv": "196b8572"
+        "fnv": "13f0da68"
       },
       "sim/combat/clause-hooks.ts": {
         "fnv": "43aaf28e"
@@ -392,13 +392,13 @@
         "fnv": "b176fb7d"
       },
       "sim/combat/rules.ts": {
-        "fnv": "3ef52eb5"
+        "fnv": "6d928721"
       },
       "sim/combat/spell-queue.ts": {
         "fnv": "a385f55d"
       },
       "sim/combat/targeting.ts": {
-        "fnv": "f49c6064"
+        "fnv": "1a24bc9b"
       },
       "sim/combat/threat.ts": {
         "fnv": "7f76745e"
@@ -431,7 +431,7 @@
         "fnv": "46854278"
       },
       "sim/core/state.ts": {
-        "fnv": "c108df28"
+        "fnv": "ce4b6c0b"
       },
       "sim/core/tick.ts": {
         "fnv": "7ce3bffc"
@@ -488,7 +488,7 @@
         "fnv": "0432becb"
       },
       "sim/run-wiring.ts": {
-        "fnv": "6cbbbc86"
+        "fnv": "f1e591bc"
       },
       "tests/sim/golden/build-content-pull.ts": {
         "fnv": "c240b5d6"

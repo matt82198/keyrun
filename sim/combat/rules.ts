@@ -48,6 +48,7 @@ import {
   type WindowsContext,
 } from "./windows";
 import { configureAffinityEffects } from "./affinity";
+import { releaseCastTarget, setTarget } from "./targeting";
 
 export interface RulesConfig {
   abilities: Record<string, AbilityDef>;
@@ -93,6 +94,8 @@ export function makeRules(cfg: RulesConfig): StepRules {
         const def = cfg.abilities[actor.castId];
         completeCast(state, actor, ctx, emit);
         if (def) applyWindowsAndCombos(state, actor, def, wctx, emit);
+        // CAST-KEEPS-START-TARGET: the cast's effects and Windows both resolved on its start target; drop the pin.
+        releaseCastTarget(actor);
       }
     }
 
@@ -109,7 +112,8 @@ export function makeRules(cfg: RulesConfig): StepRules {
       // other command kind for a dead actor is still dropped, exactly as before.
       if (!actor.alive && cmd.kind !== "cast") continue;
       if (cmd.kind === "target") {
-        actor.targetId = cmd.targetId;
+        // CAST-KEEPS-START-TARGET (f-bd8fbbb1): a mid-cast retarget is for the next press (targeting.ts setTarget).
+        setTarget(actor, cmd.targetId);
       } else if (cmd.kind === "stopcast") {
         stopcast(actor, emit, state.tick);
       } else if (cmd.kind === "move" || cmd.kind === "dash") {

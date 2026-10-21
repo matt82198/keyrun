@@ -51,6 +51,11 @@ export interface ActorState {
   castId: string | null;
   castEndsTick: Tick | null;
   castStartTick: Tick | null;
+  /** CAST-KEEPS-START-TARGET (f-bd8fbbb1; twin of Keyrun.Sim ActorState.CastTargetId): the target the cast in flight
+   * started on, pinned by sim/combat/targeting.ts setTarget only when the actor retargets mid-cast; absent otherwise,
+   * so a run that never retargets mid-cast hashes exactly as before. Released when the cast completes, stops or is
+   * interrupted. Read through castTargetOf. */
+  castTargetId?: ActorId | null;
   cooldowns: Record<string, Tick>;
   gcdReadyTick: Tick;
   effects: EffectInstance[];
