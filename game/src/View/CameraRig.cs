@@ -49,6 +49,10 @@ namespace Keyrun.View;
 /// inside the HUD's top band (<see cref="HudTopPermille"/>); the boom and the pitch lift ease toward it at
 /// <see cref="BoomRate"/> and return to the zoom and the mouse pitch when the target is small or far. The wall clamp
 /// still runs after it.</item>
+/// <item>CAMERA-VERTICAL (Matt 2026-10-21 "run the playthroughs vertical camera"): <c>--camera vertical</c>, or V in
+/// play, puts the rig on <see cref="CameraMode.VerticalPitchMrad"/> at <see cref="CameraMode.VerticalBoomMm"/>
+/// (<see cref="SetMode"/>), still following the Warden; the wall clamp, the outside audit and the headroom fit are
+/// chase-only (<see cref="CameraMode.ChaseRules"/>). SimDriver logs <c>CAMERA mode=M pitch=P dist=D</c> at run start.</item>
 /// </list>
 /// Render-only: it never writes sim state; <see cref="Yaw"/> is still the heading PlayerInput's WASD reads.
 /// </summary>
@@ -101,6 +105,12 @@ public partial class CameraRig : Node3D
 
     /// <summary>The wheel zoom: the boom the camera wants behind the pivot, mm (walls may shorten it).</summary>
     public int ZoomMm { get; private set; } = CameraFraming.DefaultBoomMm;
+
+    /// <summary>CAMERA-VERTICAL: the preset in use (<c>--camera chase|vertical</c>, V flips it in play).</summary>
+    public CameraModeKind Mode { get; private set; } = CameraModeKind.Chase;
+
+    /// <summary>The player's pitch in milliradians (the value the <c>CAMERA mode=</c> line prints).</summary>
+    public int PitchMrad => Mathf.RoundToInt(Pitch * 1000f);
 
     /// <summary>Margin kept between a framed point and the frustum edge in the party readout, metres.</summary>
     [Export]
@@ -163,12 +173,33 @@ public partial class CameraRig : Node3D
         Pitch = Mathf.Clamp(Pitch + pitchDelta, MinPitch, MaxPitch);
     }
 
-    /// <summary>Zooms by mouse-wheel notches (negative is in), within the <see cref="CameraFraming"/> zoom clamp.</summary>
-    public void Zoom(int notches) => ZoomMm = CameraFraming.Zoom(ZoomMm, notches);
+    /// <summary>Zooms by mouse-wheel notches (negative is in), within the mode's zoom clamp (<see cref="CameraMode.Zoom"/>).</summary>
+    public void Zoom(int notches) => ZoomMm = CameraMode.Zoom(Mode, ZoomMm, notches);
+
+    /// <summary>
+    /// CAMERA-VERTICAL: puts the rig on a preset's pitch and zoom (<see cref="CameraMode.For"/>); the heading is kept.
+    /// Vertical (68.75 degrees down at 16.5 m) looks down on the party and the floor telegraphs; chase is the follow camera.
+    /// </summary>
+    /// <param name="mode">The preset.</param>
+    public void SetMode(CameraModeKind mode)
+    {
+        Mode = mode;
+        var view = CameraMode.For(mode);
+        ZoomMm = view.BoomMm;
+        Pitch = Mathf.Clamp(view.PitchMrad / 1000f, MinPitch, MaxPitch);
+        _pitchLift = 0f;
+    }
 
     /// <inheritdoc />
     public override void _UnhandledInput(InputEvent @event)
     {
+        if (@event is InputEventKey { Pressed: true, Echo: false, PhysicalKeycode: Key.V })
+        {
+            // CAMERA-VERTICAL: V flips chase and vertical in play (a view key like the wheel, not a keybinds.json action).
+            SetMode(CameraMode.Toggle(Mode));
+            GD.Print(CameraMode.ProofLine(Mode, PitchMrad, ZoomMm));
+            return;
+        }
         if (@event is InputEventMouseButton { Pressed: true } wheel)
         {
             if (wheel.ButtonIndex == MouseButton.WheelUp)
@@ -259,6 +290,12 @@ public partial class CameraRig : Node3D
     private (int BoomMm, float Pitch) HeadroomTarget()
     {
         var follow = (BoomMm: ZoomMm, Pitch);
+        if (!CameraMode.ChaseRules(Mode))
+        {
+            // CAMERA-VERTICAL: looking down from above the walls, the boss's top is in view; a flatter pitch would undo it.
+            _headroomOn = false;
+            return follow;
+        }
         if (Driver is null || Target is null
             || !Driver.State.Actors.TryGetValue(SimDriver.WardenId, out var me))
         {
@@ -401,7 +438,8 @@ public partial class CameraRig : Node3D
     private float ClampToWalls(float boom, Basis basis, out bool cut)
     {
         cut = false;
-        if (_walls.Count == 0)
+        // CAMERA-VERTICAL: the clamp treats walls as full-height prisms; the vertical camera sits far above the 1.6 m walls.
+        if (_walls.Count == 0 || !CameraMode.ChaseRules(Mode))
         {
             return boom;
         }
@@ -486,7 +524,8 @@ public partial class CameraRig : Node3D
                 break;
             }
         }
-        if (!inside)
+        // CAMERA-VERTICAL: above the walls the camera may hang over the space behind a wall; that is not a leak.
+        if (!inside && CameraMode.ChaseRules(Mode))
         {
             _outside++;
             GD.Print(FormattableString.Invariant($"CAMERA outside frame={_frames} at=({x},{z})"));
