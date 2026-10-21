@@ -19,16 +19,16 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 276650,
-      "fnv": "d025f32b"
+      "bytes": 291265,
+      "fnv": "3c32f383"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 216223,
-      "fnv": "17813cf0"
+      "bytes": 234793,
+      "fnv": "9da452ae"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 216220,
-      "fnv": "d4434bd7"
+      "bytes": 234790,
+      "fnv": "ffe37baf"
     },
     "content-pull.setup.json": {
       "bytes": 23098,
@@ -272,7 +272,7 @@
         "fnv": "36ffc9d9"
       },
       "content/data/classes/chanter.json": {
-        "fnv": "496ee0c0"
+        "fnv": "4d14bbea"
       },
       "content/data/classes/cinder.json": {
         "fnv": "e3b6e3ed"
@@ -368,7 +368,7 @@
         "fnv": "43aaf28e"
       },
       "sim/combat/combos.ts": {
-        "fnv": "ed5b126c"
+        "fnv": "b0284c57"
       },
       "sim/combat/cooldowns.ts": {
         "fnv": "828c0fc8"
@@ -537,31 +537,31 @@
       "traceHash": "014e427d"
     },
     {
-      "finalTick": 1423,
+      "finalTick": 1565,
       "name": "bots-hv-k2-s7",
-      "records": 1424,
+      "records": 1566,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "c47bc285"
+      "traceHash": "0b577722"
     },
     {
-      "finalTick": 1423,
+      "finalTick": 1565,
       "name": "bots-hv-k2-s11",
-      "records": 1424,
+      "records": 1566,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "c47bc285"
+      "traceHash": "0b577722"
     },
     {
-      "finalTick": 1989,
+      "finalTick": 2045,
       "name": "bots-hv-k10-s7",
-      "records": 1990,
+      "records": 2046,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "3faf0def"
+      "traceHash": "45af272e"
     }
   ],
   "version": 1

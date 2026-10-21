@@ -24,13 +24,18 @@ public sealed class BankedChargeSpendTests
     private const string Cadence = "chanter.cadence";
     private const string Hymn = "chanter.hymn";
 
-    /// <summary>Encore's Chorus exactly as the talent screen patches it and the sim runs it (2 charges, cooldown 100).</summary>
+    /// <summary>
+    /// A two-charge Encore Chorus (cooldown 100): Encore as the talent screen patches it, plus the second charge the ring
+    /// Facet chanter.ring.versedReserves ("Chorus grants an extra charge", charges 2) gives. R-ENCORE-1 took the second
+    /// charge off Encore itself (it now trades it for a floor Window), so the Facet is how a Chanter banks a Chorus.
+    /// </summary>
     private static S.AbilityDef EncoreChorus()
     {
         var reg = C.ContentLoader.Load();
         var option = reg.Classes["chanter"].Talents.First(t => t.AbilityId == Chorus).Options.First(o => o.Id == "encore");
-        var def = ForkParityTests.ToSim(C.TalentPicks.ApplyPatch(reg.Abilities[Chorus], option.Patch));
-        Assert.Equal(2, def.Charges);
+        var talented = ForkParityTests.ToSim(C.TalentPicks.ApplyPatch(reg.Abilities[Chorus], option.Patch));
+        Assert.Equal(1, talented.Charges);
+        var def = talented with { Charges = 2 };
         Assert.Equal(100, def.CooldownTicks);
         return def;
     }

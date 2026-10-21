@@ -4363,7 +4363,7 @@
     {
       "ability": {
         "castTicks": 0,
-        "charges": 2,
+        "charges": 1,
         "cooldownTicks": 100,
         "cost": {
           "amount": 0,
@@ -4400,6 +4400,14 @@
               "effectId": "chorusEcho",
               "op": "applyEffect",
               "stacks": 1
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "encore"
             }
           ],
           "ward": [
@@ -4411,6 +4419,14 @@
             },
             {
               "op": "payoff"
+            },
+            {
+              "durationTicks": 60,
+              "onTarget": false,
+              "op": "window",
+              "radiusMm": 2200,
+              "setupClass": "chanter",
+              "windowId": "encore"
             }
           ]
         }

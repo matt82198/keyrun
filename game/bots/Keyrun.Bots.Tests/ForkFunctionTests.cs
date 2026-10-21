@@ -19,9 +19,10 @@ namespace Keyrun.Bots.Tests;
 /// <list type="bullet">
 /// <item>Reckoning "Overwhelm" (vs "Execute", cheaper and lighter): a frontal cone at the full 100 Momentum that still
 /// closes a Window, then leaves Sundered on its target for an ally to close.</item>
+/// <item>Chorus "Encore" (R-ENCORE-1: a choice node is a situational tradeoff, never a strict upgrade): every Chorus
+/// leaves an Encore floor Window where the Chanter stands, for any other class's Payoff to close, and in exchange it
+/// gives up the second charge (one charge, the base ability's). Discipline, its control, heals and opens no Window.</item>
 /// </list>
-/// Chorus "Encore" is not changed here: its one function change measured as dominating Discipline beyond noise, and
-/// the ruling says to stop and report rather than iterate (see the PR body).
 /// </summary>
 public sealed class ForkFunctionTests
 {
@@ -30,6 +31,7 @@ public sealed class ForkFunctionTests
     private const int EnemyA = 100;
     private const int EnemyB = 101;
     private const int CastTick = 10;
+    private const int ChanterId = 3;
 
     private static readonly Lazy<C.ContentRegistry> Registry = new(() => C.ContentLoader.Load());
 
@@ -93,6 +95,43 @@ public sealed class ForkFunctionTests
     {
         var events = CastReckoning(Talented("warden", "warden.reckoning", "execute"));
         Assert.Contains(events, e => e.Type == "combo" && e.Get("comboId") is JsString { Value: "forge" });
+        Assert.DoesNotContain(events, e => e.Type == "window_opened");
+    }
+
+    /// <summary>A Chanter in Mend verse at (500, 0, 0) casts <paramref name="chorus"/> on itself; returns that step's events.</summary>
+    private static List<SimEvent> CastChorus(S.AbilityDef chorus)
+    {
+        var content = Content();
+        var abilities = new Dictionary<string, S.AbilityDef>(content.Abilities, StringComparer.Ordinal) { [chorus.Id] = chorus };
+        var rules = S.Rules.Make(RunWiring.RulesConfigOf(content) with { Abilities = abilities });
+        var chanter = S.Actors.Create(ChanterId, ActorKind.Player, "chanter", ActorRole.Healer, new Vec3(500, 0, 0), 1000, 1);
+        chanter.Resource = 1;
+        var tank = S.Actors.Create(WardenId, ActorKind.Player, "warden", ActorRole.Tank, new Vec3(1500, 0, 0), 1000, 100);
+        tank.Health = 100;
+        var state = RunWiring.MergeActors(SimState.Create(1), new[] { chanter, tank });
+        state.Phase = "combat";
+        state.Tick = CastTick;
+        var events = new List<SimEvent>();
+        rules(state, new Command[] { new CastCommand(CastTick, ChanterId, chorus.Id, ChanterId) }, events.Add);
+        return events;
+    }
+
+    [Fact(DisplayName = "fork function > Encore's Chorus leaves an Encore floor Window where the Chanter stands and gives up the second charge (R-ENCORE-1)")]
+    public void Encore_Chorus_opens_a_floor_Window_for_one_charge()
+    {
+        var encore = Talented("chanter", "chanter.chorus", "encore");
+        Assert.Equal(1, encore.Charges);
+        var events = CastChorus(encore);
+        Assert.Contains(events, e => e.Type == "heal");
+        Assert.Contains(events, e => e.Type == "window_opened" && e.Get("windowId") is JsString { Value: "encore" } &&
+            e.Get("onTarget") is JsBool { Value: false } && e.Get("setupClass") is JsString { Value: "chanter" });
+    }
+
+    [Fact(DisplayName = "fork function > Discipline's Chorus heals and opens no Window (R-ENCORE-1 control)")]
+    public void Discipline_Chorus_opens_no_Window()
+    {
+        var events = CastChorus(Talented("chanter", "chanter.chorus", "discipline"));
+        Assert.Contains(events, e => e.Type == "heal");
         Assert.DoesNotContain(events, e => e.Type == "window_opened");
     }
 }
