@@ -85,9 +85,10 @@ export function tankEngageCommands(view: BotView, self: ActorState, kit: Effecti
   const d = dist(self, target);
 
   const tauntRange = rangeOf(kit.tauntAbilityId) ?? DEFAULT_REACH_MM;
+  // R-TAUNT-1 (WoW: a taunt never roots the tank; it taunts and keeps walking in): the taunt is off the GCD and does not
+  // end the decision. Returning here left an out-of-reach or in-reach tank with only the taunt, standing on the pack.
   if (loose && kit.tauntAbilityId && d <= tauntRange && abilityReady(self, kit.tauntAbilityId, tick, kit)) {
     out.push({ tick, actorId: self.id, kind: "cast", abilityId: kit.tauntAbilityId, targetId: target.id });
-    return out;
   }
 
   if (d > reachMm(kit) - REACH_MARGIN_MM) {
