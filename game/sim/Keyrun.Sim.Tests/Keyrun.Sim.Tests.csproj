@@ -30,6 +30,10 @@
     <Compile Include="../../src/Host/MovieDirector.cs" Link="Host/MovieDirector.cs" />
     <!-- The weekly affix rotation index (whole Tuesday 15:00 UTC resets since the epoch) is host-side, Godot-free, tested here. -->
     <Compile Include="../../src/Host/AffixWeek.cs" Link="Host/AffixWeek.cs" />
+    <!-- f-6a00609e: the input log's Godot-free document parse and the replay's screen-frame clock and due feed. -->
+    <Compile Include="../../src/Host/InputLogDocument.cs" Link="Host/InputLogDocument.cs" />
+    <Compile Include="../../src/Host/ReplayClock.cs" Link="Host/ReplayClock.cs" />
+    <Compile Include="../../src/Host/ReplayFeed.cs" Link="Host/ReplayFeed.cs" />
     <!-- f-7c7abdf4: the Godot-free run clock bar reading (its player-facing label) is tested here. -->
     <Compile Include="../../src/Hud/SlackReading.cs" Link="Hud/SlackReading.cs" />
     <!-- f-275d47c9: the Godot-free private Ascension readout (the Character tab and run-end panel lines) is tested here. -->

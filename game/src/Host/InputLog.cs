@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
-using System.Text.Json;
 using Godot;
 
 namespace Keyrun.Host;
@@ -12,23 +11,14 @@ namespace Keyrun.Host;
 /// One recorded key transition of a <c>keyrun.input-log/1</c> file (lane 3E-b): at host tick <paramref name="Tick"/> the
 /// physical key <paramref name="Key"/> went down (<paramref name="Pressed"/> true) or up.
 /// </summary>
-/// <param name="Tick">The host's stepped-tick count when the key changed (<see cref="SimDriver.TicksRun"/>: ticks stepped
-/// since launch, across runs; 0 on the first between-runs screen). The event is applied before the next step.</param>
+/// <param name="Tick">The replay clock value (<see cref="ReplayClock"/>, finding f-6a00609e). A recording stamps the
+/// host's stepped-tick count (<see cref="SimDriver.TicksRun"/>: ticks stepped since launch, across runs; 0 on the first
+/// between-runs screen). A replay reads it as a first-Screen frame until the launch's first run exists and as
+/// <see cref="SimDriver.TicksRun"/> after, never reset at the run start. The event is applied before the next step.</param>
 /// <param name="Key">The Godot physical key (its <see cref="Godot.Key"/> name in the file, e.g. <c>W</c>, <c>Enter</c>,
 /// <c>Key1</c>, <c>Tab</c>).</param>
 /// <param name="Pressed">True for a press, false for a release.</param>
 public sealed record InputLogEvent(int Tick, Key Key, bool Pressed);
-
-/// <summary>
-/// One recorded camera heading of a <c>keyrun.input-log/2</c> file (lane 3E-c): from host tick <paramref name="Tick"/>
-/// on, the CameraRig's <see cref="Keyrun.View.CameraRig.Yaw"/> (the heading PlayerInput's WASD is relative to) was
-/// <paramref name="Yaw"/>.
-/// </summary>
-/// <param name="Tick">The host tick (<see cref="SimDriver.TicksRun"/>) of the step the heading was first sampled for.
-/// The heading is restored before that step.</param>
-/// <param name="Yaw">The heading, radians in [-Pi, Pi], the float32 the rig held. The file writes it in the shortest form
-/// that reads back to the same float32 (<c>"R"</c>, invariant), so a replay restores it bit for bit.</param>
-public sealed record InputLogCamera(int Tick, float Yaw);
 
 /// <summary>
 /// The <c>keyrun.input-log</c> file (lane 3E-b, ENGINE-PLAN row 3E; camera headings lane 3E-c): the keys a human pressed
@@ -52,14 +42,21 @@ public sealed record InputLogCamera(int Tick, float Yaw);
 /// file without it (every log written before the ready check, including the committed fixtures, and every
 /// <c>--press-enter</c> recording, whose ready answers the host gives at the pop) replays with the host answering ready
 /// for the human at the pop (<see cref="QueuedRunGate.HumanReadyAtPop"/>), so its run starts on the tick it always did.
+/// Finding f-6a00609e: a replay reads every tick (events and camera) against <see cref="ReplayClock"/>: until the
+/// launch's first run exists the clock counts the host frames the first Screen has been up (0 = the frame it is hooked),
+/// from the first run on it is <see cref="SimDriver.TicksRun"/>, and nothing resets at the run start. So a hand-written
+/// log can drive the Screen and its talent panel on spaced frames (T at 0, picks at 40/80/120, Enter at 200), while
+/// every recorded log (all of whose first-Screen keys are stamped 0, and whose Enter starts the run in that frame)
+/// replays on the ticks it always did. The file shape is unchanged; the parse (<see cref="InputLogDocument.Parse"/>, the
+/// Godot-free half) also refuses any field the shape does not define, so an invented field is never silently ignored.
 /// </summary>
 public sealed class InputLog
 {
     /// <summary>The key-only schema id (lane 3E-b).</summary>
-    public const string SchemaV1 = "keyrun.input-log/1";
+    public const string SchemaV1 = InputLogDocument.SchemaV1;
 
     /// <summary>The schema id with camera headings (lane 3E-c).</summary>
-    public const string SchemaV2 = "keyrun.input-log/2";
+    public const string SchemaV2 = InputLogDocument.SchemaV2;
 
     /// <summary>Builds a log.</summary>
     /// <param name="seed">The run seed.</param>
@@ -210,90 +207,23 @@ public sealed class InputLog
         return Parse(File.ReadAllText(path), path);
     }
 
-    /// <summary>Parses file text, fail-closed: an unknown schema, a missing or mistyped field, an unknown key name, a tick
-    /// that goes down, a camera list in a <c>/1</c> file or a <c>/2</c> file without one, and a <c>startHeading</c> that
-    /// is present but not a finite number are all refused.</summary>
+    /// <summary>Parses file text, fail-closed: an unknown schema, a missing or mistyped field, a field the shape does not
+    /// define, an unknown key name, a tick that is negative or goes down, a camera list in a <c>/1</c> file or a <c>/2</c>
+    /// file without one, and a <c>startHeading</c> that is present but not a finite number are all refused. The structure
+    /// is <see cref="InputLogDocument.Parse"/> (Godot-free); this adds the key names (<see cref="ParseKey"/>).</summary>
     /// <param name="json">The text.</param>
     /// <param name="source">Where it came from (error messages).</param>
     /// <returns>The log.</returns>
     /// <exception cref="ArgumentException">Not a well-formed keyrun.input-log/1 or /2 document.</exception>
     public static InputLog Parse(string json, string source)
     {
-        ArgumentNullException.ThrowIfNull(json);
-        try
+        var doc = InputLogDocument.Parse(json, source);
+        var events = new List<InputLogEvent>(doc.Events.Count);
+        foreach (var e in doc.Events)
         {
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("schema", out var schemaEl) ||
-                schemaEl.ValueKind != JsonValueKind.String || schemaEl.GetString() is not (SchemaV1 or SchemaV2))
-            {
-                throw new ArgumentException($"{source}: not a {SchemaV1} or {SchemaV2} file (schema field missing or different)");
-            }
-            var schema = schemaEl.GetString()!;
-            var seed = Field(root, "seed", source, schema).GetInt64();
-            var key = Field(root, "key", source, schema).GetInt32();
-            float? startHeading = null;
-            if (root.TryGetProperty("startHeading", out var headingEl))
-            {
-                if (headingEl.ValueKind != JsonValueKind.Number || !headingEl.TryGetSingle(out var heading) || !float.IsFinite(heading))
-                {
-                    throw new ArgumentException($"{source}: {schema} startHeading must be a finite number (radians)");
-                }
-                startHeading = heading;
-            }
-            var readyKeys = false;
-            if (root.TryGetProperty("readyKeys", out var readyEl))
-            {
-                if (readyEl.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-                {
-                    throw new ArgumentException($"{source}: {schema} readyKeys must be true or false");
-                }
-                readyKeys = readyEl.GetBoolean();
-            }
-            if (!root.TryGetProperty("events", out var list) || list.ValueKind != JsonValueKind.Array)
-            {
-                throw new ArgumentException($"{source}: {schema} needs an events array");
-            }
-            var events = new List<InputLogEvent>();
-            foreach (var item in list.EnumerateArray())
-            {
-                var at = $"{source}: event {events.Count}";
-                if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("tick", out var tick) || tick.ValueKind != JsonValueKind.Number ||
-                    !item.TryGetProperty("key", out var name) || name.ValueKind != JsonValueKind.String ||
-                    !item.TryGetProperty("pressed", out var pressed) || pressed.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-                {
-                    throw new ArgumentException($"{at} needs tick (number), key (string) and pressed (true|false)");
-                }
-                events.Add(new InputLogEvent(tick.GetInt32(), ParseKey(name.GetString()!, at), pressed.GetBoolean()));
-            }
-            var hasCamera = root.TryGetProperty("camera", out var camList);
-            if (schema == SchemaV1 && hasCamera)
-            {
-                throw new ArgumentException($"{source}: a {SchemaV1} file has no camera list (camera headings are {SchemaV2})");
-            }
-            if (schema == SchemaV2 && (!hasCamera || camList.ValueKind != JsonValueKind.Array))
-            {
-                throw new ArgumentException($"{source}: {SchemaV2} needs a camera array");
-            }
-            var camera = new List<InputLogCamera>();
-            if (schema == SchemaV2)
-            {
-                foreach (var item in camList.EnumerateArray())
-                {
-                    if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("tick", out var tick) || tick.ValueKind != JsonValueKind.Number ||
-                        !item.TryGetProperty("yaw", out var yaw) || yaw.ValueKind != JsonValueKind.Number)
-                    {
-                        throw new ArgumentException($"{source}: camera {camera.Count} needs tick (number) and yaw (number)");
-                    }
-                    camera.Add(new InputLogCamera(tick.GetInt32(), yaw.GetSingle()));
-                }
-            }
-            return new InputLog(seed, key, events, camera, startHeading, AffixWeek.ReadRecorded(root, source), readyKeys);
+            events.Add(new InputLogEvent(e.Tick, ParseKey(e.Key, $"{source}: event {events.Count}"), e.Pressed));
         }
-        catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException)
-        {
-            throw new ArgumentException($"{source}: not a well-formed {SchemaV1} or {SchemaV2} file ({ex.Message})", ex);
-        }
+        return new InputLog(doc.Seed, doc.KeyLevel, events, doc.Camera, doc.StartHeading, doc.RotationIndex, doc.ReadyKeys);
     }
 
     /// <summary>A Godot <see cref="Godot.Key"/> name (exact, case-sensitive, never a number) as the key.</summary>
@@ -311,11 +241,6 @@ public sealed class InputLog
         }
         return key;
     }
-
-    private static JsonElement Field(JsonElement root, string name, string source, string schema) =>
-        root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number
-            ? v
-            : throw new ArgumentException($"{source}: {schema} needs a numeric {name}");
 }
 
 /// <summary>
@@ -417,56 +342,44 @@ public sealed class InputRecorder
 }
 
 /// <summary>
-/// <c>--replay-input</c> (lane 3E-b): hands back a log's events once the host tick reaches theirs, in order; lane 3E-c
-/// does the same for its camera headings. Godot-free bookkeeping; SimDriver feeds each one to the engine.
+/// <c>--replay-input</c> (lane 3E-b): hands back a log's events once the replay clock reaches theirs, in order; lane 3E-c
+/// does the same for its camera headings. The clock is the caller's: SimDriver passes <see cref="ReplayClock.Now"/>
+/// (first-Screen frames before the launch's first run exists, <see cref="SimDriver.TicksRun"/> after; finding
+/// f-6a00609e). The due cursors are Godot-free <see cref="ReplayFeed{T}"/>s; SimDriver feeds each item to the engine.
 /// </summary>
 public sealed class InputReplayer
 {
-    private readonly InputLog _log;
-    private int _next;
-    private int _nextCamera;
+    private readonly ReplayFeed<InputLogEvent> _events;
+    private readonly ReplayFeed<InputLogCamera> _camera;
 
     /// <summary>Builds a replayer.</summary>
     /// <param name="log">The log to play.</param>
-    public InputReplayer(InputLog log) => _log = log ?? throw new ArgumentNullException(nameof(log));
+    public InputReplayer(InputLog log)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        _events = new ReplayFeed<InputLogEvent>(log.Events, e => e.Tick);
+        _camera = new ReplayFeed<InputLogCamera>(log.Camera, c => c.Tick);
+    }
 
     /// <summary>Key events applied so far.</summary>
-    public int Applied => _next;
+    public int Applied => _events.Applied;
 
     /// <summary>Camera headings applied so far.</summary>
-    public int CameraApplied => _nextCamera;
+    public int CameraApplied => _camera.Applied;
 
     /// <summary>All key events and camera headings applied.</summary>
-    public bool Done => _next >= _log.Events.Count && _nextCamera >= _log.Camera.Count;
+    public bool Done => _events.Done && _camera.Done;
 
     /// <summary>The tick of the last applied key event, or -1.</summary>
-    public int LastTick => _next == 0 ? -1 : _log.Events[_next - 1].Tick;
+    public int LastTick => _events.LastTick;
 
-    /// <summary>The events now due (tick at or before <paramref name="tick"/>) that have not been handed out.</summary>
-    /// <param name="tick">The host tick.</param>
+    /// <summary>The events now due (tick at or before <paramref name="now"/>) that have not been handed out.</summary>
+    /// <param name="now">The replay clock (<see cref="ReplayClock.Now"/>).</param>
     /// <returns>The due events, in log order.</returns>
-    public IReadOnlyList<InputLogEvent> Due(int tick)
-    {
-        var due = new List<InputLogEvent>();
-        while (_next < _log.Events.Count && _log.Events[_next].Tick <= tick)
-        {
-            due.Add(_log.Events[_next]);
-            _next++;
-        }
-        return due;
-    }
+    public IReadOnlyList<InputLogEvent> Due(int now) => _events.Due(now);
 
-    /// <summary>The camera headings now due (tick at or before <paramref name="tick"/>) that have not been handed out.</summary>
-    /// <param name="tick">The host tick.</param>
+    /// <summary>The camera headings now due (tick at or before <paramref name="now"/>) that have not been handed out.</summary>
+    /// <param name="now">The replay clock (<see cref="ReplayClock.Now"/>).</param>
     /// <returns>The due headings, in log order (the last one is the heading in force).</returns>
-    public IReadOnlyList<InputLogCamera> DueCamera(int tick)
-    {
-        var due = new List<InputLogCamera>();
-        while (_nextCamera < _log.Camera.Count && _log.Camera[_nextCamera].Tick <= tick)
-        {
-            due.Add(_log.Camera[_nextCamera]);
-            _nextCamera++;
-        }
-        return due;
-    }
+    public IReadOnlyList<InputLogCamera> DueCamera(int now) => _camera.Due(now);
 }
