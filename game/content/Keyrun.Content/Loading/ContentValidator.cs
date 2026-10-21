@@ -58,9 +58,9 @@ public static class ContentValidator
 
     /// <summary>
     /// BIBLE section 9.2 forces + route invariants: a positive bar; every value names a known enemy once, is not
-    /// negative, and is earned only by a teaching-pull or pack enemy (nothing farmable); every teaching-pull and pack
-    /// enemy has a value; the fork precedes the rejoin; branch and room ids are unique; packs and hazards stand in a
-    /// branch room; and every branch's critical path plus all of its packs reaches the bar.
+    /// negative, and is earned only by a teaching-pull or layout-pack enemy (nothing farmable); every teaching-pull and
+    /// layout-pack enemy has a value; the fork precedes the rejoin; and every hazard stands in a layout room (R7: one
+    /// pack layer; the packs themselves are checked by LayoutValidator.CheckPacks).
     /// </summary>
     private static void CheckForces(ContentRegistry reg)
     {
@@ -95,30 +95,6 @@ public static class ContentValidator
         if (rejoin <= fork)
             Fail("route rejoinPull \"" + route.RejoinPull + "\" must come after forkAfterPull \"" + route.ForkAfterPull + "\"");
 
-        var branchIds = new HashSet<string>(System.StringComparer.Ordinal);
-        var rooms = new HashSet<string>(System.StringComparer.Ordinal);
-        foreach (BranchDef branch in route.Branches)
-        {
-            if (!branchIds.Add(branch.Id)) Fail("duplicate branch id \"" + branch.Id + "\"");
-            if (branch.Rooms.Count == 0) Fail("branch \"" + branch.Id + "\" has no rooms");
-            foreach (string room in branch.Rooms)
-                if (!rooms.Add(room)) Fail("room \"" + room + "\" is in more than one branch");
-        }
-
-        foreach (PackDef pack in reg.Packs.Values)
-        {
-            string where = "pack \"" + pack.Id + "\"";
-            if (!rooms.Contains(pack.Room)) Fail(where + " is in unknown room \"" + pack.Room + "\"");
-            if (pack.RingMm <= 0) Fail(where + " ringMm must be positive, got " + pack.RingMm);
-            if (pack.Enemies.Count == 0) Fail(where + " has no enemies");
-            foreach (PullEnemy member in pack.Enemies)
-            {
-                if (!reg.Enemies.ContainsKey(member.EnemyId)) Fail(where + " references unknown enemy \"" + member.EnemyId + "\"");
-                if (member.Count <= 0) Fail(where + " enemy \"" + member.EnemyId + "\" count must be positive, got " + member.Count);
-                if (!valued.Contains(member.EnemyId)) Fail(where + " enemy \"" + member.EnemyId + "\" has no forces value");
-                earners.Add(member.EnemyId);
-            }
-        }
         // SKIPPABLE-PACKS: a layout pack's members earn too (LayoutValidator checks each has a value).
         foreach (LayoutPack pack in reg.Layout.Packs)
             foreach (PullEnemy member in pack.Enemies)
@@ -128,15 +104,10 @@ public static class ContentValidator
             if (value.Points > 0 && !earners.Contains(value.EnemyId))
                 Fail("enemy \"" + value.EnemyId + "\" is worth " + value.Points + " forces but is in no pull or pack");
 
+        // R7: the only pack layer is layout.json, so a hazard's room is one of its Room boxes.
+        var rooms = new HashSet<string>(reg.Layout.Boxes.Where(b => b.Kind == LayoutBoxKind.Room).Select(b => b.Id), System.StringComparer.Ordinal);
         foreach (HazardDef hazard in reg.Hazards.Values)
             if (!rooms.Contains(hazard.Room)) Fail("hazard \"" + hazard.Id + "\" is in unknown room \"" + hazard.Room + "\"");
-
-        foreach (BranchDef branch in route.Branches)
-        {
-            int total = RouteForces.BranchPoints(reg, branch);
-            if (total < forces.Required)
-                Fail("branch \"" + branch.Id + "\" reaches " + total + " of the " + forces.Required + " forces required (critical path plus every pack)");
-        }
     }
 
     private static void CheckHeatOverheat(ContentRegistry reg)

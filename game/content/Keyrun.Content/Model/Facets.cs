@@ -102,9 +102,6 @@ public sealed record ContentRegistry
     /// <summary>The Forces bar size, per-enemy points and the route (forces.json; C#-only, BIBLE section 9.2).</summary>
     public required ForcesTable Forces { get; init; }
 
-    /// <summary>Optional packs by id (packs.json; C#-only, BIBLE section 9.1).</summary>
-    public required ValueMap<PackDef> Packs { get; init; }
-
     /// <summary>Room hazards by id (hazards.json; C#-only, BIBLE section 9.4).</summary>
     public required ValueMap<HazardDef> Hazards { get; init; }
 
