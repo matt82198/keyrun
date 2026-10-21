@@ -421,15 +421,15 @@ seed-chamber). Today's routes reach 600+400 = 1000, 600+420 = 1020 and 600+240 =
 | S1 | VAULT-KITS (content data) | `game/content/data/enemies/vault.json`, `game/content/data/abilities/vault.json`, `game/content/data/effects/vault.json` (new), `game/content/Keyrun.Content/Loading/ContentLoader.cs` (registers them), `game/content/Keyrun.Content.Tests/EnemyLineTelegraphGuardTests.cs`, `game/content/Keyrun.Content.Tests/VaultKitsTests.cs` (new) | `VaultKitsTests.Every_9_3_cast_loads_with_its_bible_cast_time_cooldown_and_telegraph` (+ `Ash_Hexer_death_leaves_Cinders_2000_mm_led_by_40_ticks`) | none |
 | S2 | VAULT-FORCES (content data) | `game/content/data/forces.json`, `game/content/Keyrun.Content.Tests/VaultForcesTests.cs` (new) | `VaultForcesTests.Every_9_2_enemy_carries_its_bible_points` (35/80/90/70/60) | S1 |
 | S3 | PACK-SCHEMA (validator) | `game/content/Keyrun.Content/Model/Layout.cs` (pack `patrol` loop, pack `links`), `game/content/Keyrun.Content/Loading/LayoutValidator.cs`, `game/content/Keyrun.Content.Tests/PackSchemaTests.cs` (new) | `PackSchemaTests.A_patrol_waypoint_outside_its_room_fails_the_load` | none |
-| S4 | BRANCH-BAR (validator) | `game/content/Keyrun.Content/Loading/ContentValidator.cs`, `game/content/Keyrun.Content.Tests/BranchBarTests.cs` (new) | `BranchBarTests.Branch_neutral_packs_that_fill_the_bar_alone_fail_the_load` (bible :428-429 as a load rule) | none |
+| S4 | SKIP-BAR (validator; restated for one path by R-PACKS-1) | `game/content/Keyrun.Content/Loading/ContentValidator.cs`, `game/content/Keyrun.Content.Tests/SkipBarTests.cs` (new) | `SkipBarTests.A_layout_without_two_disjoint_pack_sets_that_reach_the_bar_fails_the_load` (at least two disjoint minimal sets must reach 1000) | none |
 | S5 | PATROL (sim rule) | `game/sim/Keyrun.Sim/Encounter/Aggro.cs`, `game/sim/Keyrun.Sim/Encounter/LayoutPacks.cs`, `game/sim/Keyrun.Sim/Encounter/Patrol.cs` (new), `game/sim/Keyrun.Sim.Tests/Encounter/PatrolTests.cs` (new) | `PatrolTests.A_patrol_ring_walks_its_loop_and_engages_where_it_stands_that_tick` | S3 |
 | S6 | HAZARDS (sim rule) | `game/sim/Keyrun.Sim/Encounter/Hazards.cs` (new), `game/sim/Keyrun.Sim/Encounter/EncounterStep.cs`, `game/content/Keyrun.Content/Model/Hazards.cs`, `game/content/data/hazards.json`, `game/sim/Keyrun.Sim.Tests/Encounter/HazardsTests.cs` (new) | `HazardsTests.Vent_Gout_erupts_set_A_then_set_B_160_ticks_later_and_stops_when_W2_is_dead` | S7 (hazard rooms must exist, ContentValidator.cs:111-112) |
-| S7 | FORK-LAYOUT (layout) | `game/content/data/layout.json` (Fork landing, five rooms, W1-E3 with `branch`, W1 patrol; old packs per decisions 4 and 5), and re-derives `PathPackTests.cs`, `OptionalBranchForcesTests.cs`, `RouteContentTests.cs`, `SkippablePackTests.cs` (content tests), `PathPackRouteTests.cs`, `SkippablePackRouteTests.cs` (bots tests), plus `game/content/Keyrun.Content.Tests/BiblePacksLayoutTests.cs` (new) | `BiblePacksLayoutTests.Each_9_2_pack_stands_in_its_bible_room_with_its_members_and_points` | S1, S2, S3; decisions 1, 4, 5 |
-| S8 | FORCES-COMPLETION (sim rule) | `game/sim/Keyrun.Sim/Run/RunWiring.cs`, `game/sim/Keyrun.Sim/Encounter/Timer.cs`, `game/sim/Keyrun.Sim.Tests/ForcesCompletionTests.cs` (new) | `ForcesCompletionTests.A_boss_kill_at_999_points_does_not_complete_the_run_until_forces_reach_1000` | decision 3 |
-| S9 | BOTS-ROUTE (bots) | `game/bots/Keyrun.Bots/shared/RoutePlan.cs` (new), `game/bots/Keyrun.Bots/shared/Follow.cs`, `game/bots/Keyrun.Bots/shared/Ledger.cs`, `game/bots/Keyrun.Bots.Tests/RoutePlanTests.cs` (new) | `RoutePlanTests.West_takes_W2_and_East_takes_E3_plus_E1_and_each_reaches_1000` | S7 (S5, S6 for a seeded clear) |
+| S7 | PATH-LAYOUT (layout; R-PACKS-1) | `game/content/data/layout.json` (five rooms on the one path between pair-hall and seed-chamber, W1-E3 in bible order with no `branch`, W1 patrol; removes cantor-vigil, warrior-remnant and hall-sentries per R-PACKS-4/5), and re-derives `PathPackTests.cs`, `OptionalBranchForcesTests.cs`, `RouteContentTests.cs`, `SkippablePackTests.cs` (content tests), `PathPackRouteTests.cs`, `SkippablePackRouteTests.cs` (bots tests), plus `game/content/Keyrun.Content.Tests/BiblePacksLayoutTests.cs` (new) | `BiblePacksLayoutTests.Each_9_2_pack_stands_in_its_bible_room_with_its_members_and_points` | S1, S2, S3 |
+| S8 | FORCES-COMPLETION (sim rule; R-PACKS-3) | `game/sim/Keyrun.Sim/Run/RunWiring.cs`, `game/sim/Keyrun.Sim/Encounter/Timer.cs`, `game/sim/Keyrun.Sim.Tests/ForcesCompletionTests.cs` (new) | `ForcesCompletionTests.A_boss_kill_at_999_points_does_not_complete_the_run_until_forces_reach_1000` | S9 |
+| S9 | BOTS-ROUTE (bots) | `game/bots/Keyrun.Bots/shared/RoutePlan.cs` (new), `game/bots/Keyrun.Bots/shared/Follow.cs`, `game/bots/Keyrun.Bots/shared/Ledger.cs`, `game/bots/Keyrun.Bots.Tests/RoutePlanTests.cs` (new) | `RoutePlanTests.The_plan_pulls_a_minimal_pack_set_that_reaches_1000_and_walks_past_the_rest` | S7, S5, S6 |
 
-**Waves.** Wave A runs S1, S3, S4 and S8 (S8 only once decision 3 is made). Wave B runs S2 and S5. Wave C is S7.
-Wave D runs S6 and S9.
+**Waves (single path, per the rulings below).** Wave A runs S1, S3 and S4, then S2 once S1 lands. Wave B is S7, the
+layout under R-PACKS-1. Wave C runs S5 and S6. Wave D is S9, then S8.
 
 **Notes.**
 - S7 moves the replay digest, so it re-measures it per D28 and records the reason.
@@ -456,3 +456,38 @@ Wave D runs S6 and S9.
    WoW default: remove it. Keeping it breaks bible :428-435, because W2 and E3 both stop being required.
 6. **Overflow:** a run opened at 110% raises a reward tier (bible :394-397), or forces past 100% do nothing (bible
    :509-510; f-e8bddb37). WoW default: do nothing, because Mythic+ pays nothing for overflow.
+
+### Orchestrator rulings 2026-10-21
+
+Precedence: Matt's D44 (2026-10-21, verbatim "no more gates, just path to boss with packs", STATE.md:1532) is newer
+than his 2026-10-20 "not following the bible" verdict (f-82d9390e) and is a decision, so it governs the shape. The
+bible governs the packs' content (9.2 :417-426, 9.3 :449-459). WoW Mythic+ governs loop questions (bible :264-269).
+
+- **R-PACKS-1 (decision 1): one forward path (D44), not a Fork landing.** W1, W2, E1, E2 and E3 become prespawned
+  packs along that single path, in bible order (west, then east). Each keeps its bible enemies, casts and points.
+  Route choice survives the way Mythic+ has it: the party picks which skippable packs to pull to reach 100%, not which
+  branch to walk. **Flagged for Matt as reversible:** a fork is a later layout PR if he wants the bible 9.1 map back.
+- **R-PACKS-2 (decision 2): no branch seal** (D44: no gates).
+- **R-PACKS-3 (decision 3): no Hollow Door** (D44). The run completes only with the boss dead and forces at 100%
+  (WoW). S8 builds this only after S9, so the bots can reach 100% first. Until then, completion stays on the pull
+  count (RunWiring.cs:368).
+- **R-PACKS-4 (decision 4): cantor-vigil and warrior-remnant are removed in S7, in the same PR as the new packs.** The
+  LayoutValidator 1000 bar (LayoutValidator.cs:191-198) proves the route still reaches 1000.
+- **R-PACKS-5 (decision 5): hall-sentries is removed** (`hall.sentry` is not a bible enemy). On one path no neutral
+  pack can make W2 or E3 non-skippable, because adding a pack only adds ways to reach the bar. The numbers are below.
+- **R-PACKS-6 (decision 6): overflow past 100% does nothing** (WoW; bible :509-510). The bible :394-397 overflow tier
+  is not built.
+
+**Single-path arithmetic (R-PACKS-1, 4, 5).** Teaching pulls 600, plus W1 220, W2 400, E1 140, E2 180 and E3 260.
+Pulling every pack gives 1800 (180%). Every pack is optional, and the bar needs at least 400 from packs.
+
+- **Minimal sets that reach 1000:** W2 (1000), W1+E2 (1000), E1+E3 (1000), E2+E3 (1040) and W1+E3 (1080).
+- **Sets that fall short:** any one pack other than W2 (W1 820, E1 740, E2 780, E3 860), W1+E1 (960) and E1+E2 (920).
+- **Validator results:**
+  - The old skippable rule passes: without any single pack, 1800 - 400 = 1400 still reaches 1000 (LayoutValidator.cs:194-198).
+  - The walking-line rule passes: the line alone is 600 (:202-207).
+  - CheckBranchTotals has nothing left to check (no pack has a `branch`).
+- **What this changes from the bible:** bible :428-435's "W2 required on West, E3 required on East" cannot hold on one
+  path. Both are skippable (W1+E2 = 1000), and no neutral pack changes that.
+- **S4 SKIP-BAR** keeps the route choice honest instead. It fails the load unless at least two disjoint minimal sets
+  reach 1000. Today there are W2 and E1+E3, for example.
