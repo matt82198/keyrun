@@ -25,7 +25,8 @@ public sealed record Item(string Id, string Slot, int Tier, Facet Facet, int Cha
 /// the xoshiro128** PRNG. The tier band widens with the key; tiers 9-10 at key 15+ whatever the run result (Matt
 /// 2026-10-20, ledger f-baeb031a: loot quality comes from key level, the result pays through the key jump; a
 /// documented break from the frozen rewards.ts, which opened tiers 9-10 only on a timed clear).
-/// The three are never identical (slot, facet, tier), re-drawn up to 20 times on a collision.
+/// The three never share a (slot, facet), not even at two tiers (BIBLE s7 "Facets change function", f-0b0afff2): a
+/// facet already on offer is re-drawn up to 20 times. The frozen rewards.ts only kept (slot, facet, tier) distinct.
 /// </summary>
 public static class Rewards
 {
@@ -110,7 +111,9 @@ public static class Rewards
         return (new Item(id, slot, tier, facet, StartingCharges), s3);
     }
 
-    private static string ItemKey(Item item) => string.Create(CultureInfo.InvariantCulture, $"{item.Slot}:{item.Facet.Id}:{item.Tier}");
+    // A card's identity for the choice of three is its (slot, facet), never its tier (BIBLE s7 "Facets change
+    // function"; f-0b0afff2): the same facet at two tiers is a choice between numbers, not functions.
+    private static string FacetKey(Item item) => string.Create(CultureInfo.InvariantCulture, $"{item.Slot}:{item.Facet.Id}");
 
     /// <summary>
     /// rewards.ts:119 rollRewardChoices: three distinct items. An empty <paramref name="slotsOwned"/> means all five
@@ -177,7 +180,7 @@ public static class Rewards
             return items;
         }
         var band = TierBand(keyLevel);
-        var taken = new HashSet<string>(StringComparer.Ordinal) { ItemKey(items[0]), ItemKey(items[1]) };
+        var taken = new HashSet<string>(StringComparer.Ordinal) { FacetKey(items[0]), FacetKey(items[1]) };
         foreach (var slot in slotsOwned.Count > 0 ? slotsOwned : GearSlots)
         {
             if (!facetPools.TryGetValue(slot, out var facets) || facets.Count == 0)
@@ -205,7 +208,7 @@ public static class Rewards
             foreach (var facet in facets)
             {
                 var card = new Item(string.Create(CultureInfo.InvariantCulture, $"reward-{slot}-{facet.Id}-t{tier}-2"), slot, tier, facet, StartingCharges);
-                if (IsUpgrade(card, equipped) && !taken.Contains(ItemKey(card)))
+                if (IsUpgrade(card, equipped) && !taken.Contains(FacetKey(card)))
                 {
                     return new[] { items[0], items[1], card };
                 }
@@ -248,40 +251,41 @@ public static class Rewards
             {
                 var (drawn, next) = DrawItem(state, pool, facetsOf, band, i);
                 state = next;
-                if (!seen.Contains(ItemKey(drawn)))
+                // Draw without replacement over (slot, facet): a facet already on offer is re-drawn whatever its tier
+                // (f-0b0afff2). A roll with no facet repeat consumes exactly the stream it always did, so its cards are
+                // unchanged; only a roll that used to offer one facet at two tiers re-draws that card.
+                if (!seen.Contains(FacetKey(drawn)))
                 {
                     chosen = drawn;
                     break;
                 }
             }
             // rewards.ts:141: after 20 collisions, one more draw from the current state. The frozen TS kept it even as
-            // a duplicate; BIBLE s7 offers three distinct choices, so a duplicate falls to the first unseen card in
-            // slot, facet, tier order, and a pool with fewer than three distinct cards fails closed.
+            // a duplicate; BIBLE s7 offers three distinct choices, so a repeated facet falls to the first unseen
+            // (slot, facet) in slot then pool order at the drawn tier, and a pool with fewer than three distinct
+            // facets fails closed.
             var item = chosen ?? DrawItem(state, pool, facetsOf, band, i).Item;
-            if (seen.Contains(ItemKey(item)))
+            if (seen.Contains(FacetKey(item)))
             {
-                item = FirstUnseen(pool, facetsOf, band, i, seen)
-                    ?? throw new ArgumentException("the pool cannot offer three distinct choices", nameof(slotsOwned));
+                item = FirstUnseen(pool, facetsOf, item.Tier, i, seen)
+                    ?? throw new ArgumentException("the pool cannot offer three distinct facets", nameof(slotsOwned));
             }
-            seen.Add(ItemKey(item));
+            seen.Add(FacetKey(item));
             items.Add(item);
         }
         return items;
     }
 
-    private static Item? FirstUnseen(IReadOnlyList<string> pool, Func<string, IReadOnlyList<Facet>> facetsOf, (int Min, int Max) band, int suffix, HashSet<string> seen)
+    private static Item? FirstUnseen(IReadOnlyList<string> pool, Func<string, IReadOnlyList<Facet>> facetsOf, int tier, int suffix, HashSet<string> seen)
     {
         foreach (var slot in pool)
         {
             foreach (var facet in facetsOf(slot))
             {
-                for (var tier = band.Min; tier <= band.Max; tier++)
+                var item = new Item(string.Create(CultureInfo.InvariantCulture, $"reward-{slot}-{facet.Id}-t{tier}-{suffix}"), slot, tier, facet, StartingCharges);
+                if (!seen.Contains(FacetKey(item)))
                 {
-                    var item = new Item(string.Create(CultureInfo.InvariantCulture, $"reward-{slot}-{facet.Id}-t{tier}-{suffix}"), slot, tier, facet, StartingCharges);
-                    if (!seen.Contains(ItemKey(item)))
-                    {
-                        return item;
-                    }
+                    return item;
                 }
             }
         }
