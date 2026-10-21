@@ -98,8 +98,10 @@
          never also refill a seat).
     Run F (lane 3J, backfill in the real loop; three-seat party, key 2, no --requeue):
         -- --autorun --ticks 3500 --abandon-seat <AbandonSeat> --joiner-key 2
-        (3500 since PARTY-TOGETHER, was 3300: the joiner now walks into the Pair hall before it casts; on seed 1 key 2
-        the refilled Chanter enters pair-hall at tick 3268 and first casts at 3345)
+        (3500 since PARTY-TOGETHER, was 3300. Since JOINER-ARRIVES (BIBLE s9.1/s10 "a joiner arrives at the next pull
+        start ... inside the party's taken branch") the refilled seat is placed at the pull start on the nearest living
+        staying party member and casts from its first tick there: on seed 1 key 2 the Chanter refills at 2052 on the
+        Cinder and completes chanter.chorus at 2053 (headless replica RunFJoinerActsTests))
         (--abandon-seat A@T: SimDriver calls AbandonSeat(A) at run tick T and, with --joiner-key K, adds one
         QueueRequest at key K straight to the Queue node at Hud/Screen/Queue; this is the scripted path, the screen's
         Queue button is not pressed mid-run)
@@ -261,6 +263,7 @@ param(
     [int]$HeadingFrames = 420,
     [int]$TintTicks = 1400,
     [string]$TintAbandon = '2@200',
+    [string]$KeepK1Record = '',
     [switch]$HeadingOnly
 )
 $ErrorActionPreference = 'Stop'
@@ -1033,6 +1036,8 @@ if (@($m1 | Where-Object { $_ -match '\|SCREEN reopen ' }).Count -lt 1 -or @($m1
         if ($m2[$i] -ne $m1[$i]) { $failures.Add("run K2: marker $i is '$($m2[$i])', K1 had '$($m1[$i])' (same line at the same tick expected)"); break }
     }
 }
+# -KeepK1Record PATH: keep a copy of K1's recording so the committed example can be regenerated from a real run.
+if ($KeepK1Record -and (Test-Path -LiteralPath $recPath)) { Copy-Item -LiteralPath $recPath -Destination $KeepK1Record }
 foreach ($p in @($recPath, $k1LogPath, $k2LogPath)) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p } }
 
 # ---- Run L: the camera yaw is recorded beside the keys and replayed through the rig movement reads (lane 3E-c) -------
