@@ -9,8 +9,9 @@ namespace Keyrun.Hud;
 /// The Screen's talent panel (BIBLE s6 "Talents: forks on the five": one fork of two or three mutually exclusive
 /// options per rotational ability, and "Respec is free on the screen, always. The screen is a build lab"). Opened
 /// with T on the between-runs <see cref="Screen"/> (out of combat by construction), it lays one row per fork over the
-/// Character and Key bands: the ability's name, then a card per option with its name and what it changes, the pick
-/// outlined. Up/Down select a fork, 1-3 (or a click) pick a side, Backspace (or the button) respecs for free.
+/// Character and Key bands: the ability's name, then a card per option with its name and what it changes. The cursor's
+/// fork row reads green; a pick carries a gold PICKED tag with a check and a thick gold border, and its row header names
+/// it (<see cref="TalentPanelMarks"/>, f-0a21646d). Up/Down select a fork, 1-3 (or a click) pick a side, Backspace (or the button) respecs for free.
 /// The pick state is the pure <see cref="TalentPicks"/>, held by the owning <see cref="Screen"/>; this control only
 /// draws it and maps clicks. The fork and option text come read-only from the class's content data.
 /// </summary>
@@ -26,7 +27,8 @@ public partial class TalentPanel : Control
     public const string Caption = "Pick one side of each fork. Respec is free. Picks apply to the next run you queue.";
 
     private const int TitleFont = 16;
-    private const int NameFont = 14;
+    /// <summary>Option name and fork header font size.</summary>
+    public const int NameFont = 14;
     private const float Inset = TalentCardLayout.Inset;
     private const float Header = TalentCardLayout.Header;
     private const float Footer = TalentCardLayout.Footer;
@@ -36,7 +38,10 @@ public partial class TalentPanel : Control
 
     private static readonly Color Gold = new(1f, 0.85f, 0.5f);
     private static readonly Color Calm = new(0.7f, 0.85f, 1f);
-    private static readonly Color Picked = new(0.5f, 1f, 0.6f);
+    // The cursor's green (the fork row under Up/Down) and the pick's gold (f-0a21646d: never one channel for both).
+    private static readonly Color Cursor = new(0.5f, 1f, 0.6f);
+    private static readonly Color PickGold = new(1f, 0.78f, 0.25f);
+    private static readonly Color TagInk = new(0.1f, 0.07f, 0.03f);
 
     private Screen? OwningScreen => GetParent() as Screen;
 
@@ -155,6 +160,9 @@ public partial class TalentPanel : Control
             TitleFont, Gold);
         HudNodes.Text(this, new Vector2(Inset, 46), Caption, TextFont, Calm);
 
+        // f-0a21646d: the cursor (green row tint, green row border, green name) and the pick (gold PICKED tag with a
+        // drawn check, thick gold border, the header naming the pick) never share a channel; both read from the live
+        // build every frame through TalentPanelMarks.
         var row = RowHeight(Size, picks.ForkCount);
         for (var f = 0; f < picks.ForkCount; f++)
         {
@@ -162,19 +170,28 @@ public partial class TalentPanel : Control
             var selected = f == screen.TalentFork;
             if (selected)
             {
-                DrawRect(new Rect2(4, y + 2, Size.X - 8, row - 4), new Color(0.5f, 1f, 0.6f, 0.07f));
+                var band = new Rect2(4, y + 2, Size.X - 8, row - 4);
+                DrawRect(band, new Color(0.5f, 1f, 0.6f, 0.07f));
+                DrawRect(band, Cursor, filled: false, width: 2f);
             }
-            HudNodes.Text(this, new Vector2(Inset, y + 18), screen.TalentAbilityName(picks.Forks[f].AbilityId), NameFont,
-                selected ? Picked : Colors.White);
+            var header = TalentPanelMarks.Header(screen.TalentAbilityName(picks.Forks[f].AbilityId), picks, f);
+            HudNodes.Text(this, new Vector2(Inset, y + 18), header, NameFont, selected ? Cursor : Colors.White);
         }
-        foreach (var card in Cards(Size, picks))
+        var marks = TalentPanelMarks.Marks(picks, screen.TalentFork);
+        var cards = Cards(Size, picks);
+        for (var i = 0; i < cards.Count; i++)
         {
+            var card = cards[i];
+            var isPicked = marks[i].Picked;
             var option = picks.Forks[card.Fork].Options[card.Option];
-            var isPicked = picks.PickedIndex(card.Fork) == card.Option;
             DrawRect(card.Rect, new Color(0.12f, 0.1f, 0.08f));
-            DrawRect(card.Rect, isPicked ? Picked : HudNodes.Edge, filled: false, width: isPicked ? 3f : 1f);
+            DrawRect(card.Rect, isPicked ? PickGold : HudNodes.Edge, filled: false, width: isPicked ? TalentPanelMarks.PickedBorder : 1f);
+            if (isPicked)
+            {
+                DrawPickedTag(card.Rect);
+            }
             HudNodes.Text(this, card.Rect.Position + new Vector2(TextInset, 20),
-                FormattableString.Invariant($"{card.Option + 1}  {option.Name}"), NameFont, isPicked ? Picked : new Color(1f, 0.9f, 0.55f));
+                FormattableString.Invariant($"{card.Option + 1}  {option.Name}"), NameFont, isPicked ? PickGold : new Color(1f, 0.9f, 0.55f));
             var lines = TextLines(option.Text, card.Rect);
             for (var j = 0; j < lines.Count; j++)
             {
@@ -186,6 +203,25 @@ public partial class TalentPanel : Control
         DrawRect(button, Gold, filled: false, width: 1f);
         HudNodes.Text(this, button.Position + new Vector2(10, 18), "Respec (free)  Backspace", TextFont, Colors.White);
         HudNodes.Text(this, new Vector2(button.End.X + 16, button.Position.Y + 18), "Up/Down fork    1-3 pick    T close", TextFont, Calm);
+    }
+
+    /// <summary>The PICKED tag of a card (panel-local), from <see cref="TalentPanelMarks.Tag"/>.</summary>
+    /// <param name="card">The card.</param>
+    /// <returns>The tag.</returns>
+    public static Rect2 TagFor(Rect2 card)
+    {
+        var t = TalentPanelMarks.Tag(new PixelRect((int)card.Position.X, (int)card.Position.Y, (int)card.Size.X, (int)card.Size.Y));
+        return new Rect2(t.X, t.Y, t.Width, t.Height);
+    }
+
+    // The pick marker: a filled gold tag with a dark drawn check (a shape, not a font glyph) and the word PICKED.
+    private void DrawPickedTag(Rect2 card)
+    {
+        var tag = TagFor(card);
+        DrawRect(tag, PickGold);
+        var p = tag.Position;
+        DrawPolyline(new[] { p + new Vector2(4, 8), p + new Vector2(8, 12), p + new Vector2(15, 4) }, TagInk, 2.5f, antialiased: true);
+        HudNodes.Text(this, p + new Vector2(19, 12), "PICKED", 10, TagInk);
     }
 
     private static float RowHeight(Vector2 size, int forks) => TalentCardLayout.RowHeight((int)size.Y, forks);
