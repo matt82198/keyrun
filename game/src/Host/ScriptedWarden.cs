@@ -98,9 +98,12 @@ public sealed class ScriptedWarden
                 : new MoveCommand(tick, me.Id, new Dir2(0, 0), Fixed.YawBetween(me.Pos, foe.Pos)));
         }
 
-        if (LooseEnemy(state, me, abilities[Taunt], tick) is { } loose)
+        // R-307-C item 2 (HOLDER-LOCK D30): an enemy another living player holds is taunted back. PILE-INT merge: #326's
+        // LOOSE-PICKUP above taunts an enemy aimed at another seat; this holder check runs only when that one did not
+        // already queue the Taunt this tick, so the two rules never press it twice.
+        if (!tauntInRange && LooseEnemy(state, me, abilities[Taunt], tick) is { } held)
         {
-            into.Add(new CastCommand(tick, me.Id, Taunt, loose.Id));
+            into.Add(new CastCommand(tick, me.Id, Taunt, held.Id));
         }
 
         if (!Cooldowns.IsGcdReady(me, tick))

@@ -358,6 +358,9 @@ public sealed class EncounterTraceTests
     // PR #370 merged with INTEGRATE-PLAYABLE (#396) and re-recorded on the merged tree (ORACLE_WRITE=1), measured by
     // this replay: the k2 traces are byte-identical to PR #370's own, so the k2 rows are PR #370's (main alone: k2 12,
     // 12, 7, 0, 1, 1); k10 PR #370 alone 15, 15, 7, 0, 0, 3, main alone 19, 18, 7, 0, 0, 2.
+    // PILE-INT (R-PILE-INT: #307 c99d4a94 + #362 d80b8233 + #364 e7e2092b + setup-lesson e60d840b + #326 f79b304b merged onto main 8f131464) re-recorded on the integrated tree with ORACLE_WRITE=1: k2 traces c777e2f2 timed@1407, k10 eca7f962
+    // timed@1855. Measured by this replay: the k2 rows below pass unchanged (9, 9, 7, 0, 0, 0); the k10 row first
+    // diverges at t=1789 (the replay draws the slam telegraph at 1788, the oracle does not), so its row is not re-measured.
     // MERGE-362 (#362 merged with CADENCE-SETUP #415 and #344, re-recorded on the merged tree with ORACLE_WRITE=1;
     // k2 traces 2dc1cb67 timed@1407, k10 736f595c timed@1955), measured by this replay: see each row's MERGE-362 note.
     [InlineData("bots-hv-k2-s7", 9, 9, 7, 0, 0, 0)] // MERGE-362 re-record: was 7, 7, 7, 0, 0, 1 on main (#362 alone 11, 11, 7, 0, 1, 0); measured by this replay on the 2dc1cb67 trace: telegraphs=9 (exact 0) hits=9 (exact 0). CADENCE-SETUP (f-b31e8f34) re-record: was 8, 8, 7, 0, 1, 1 (measured by this replay: telegraphs=7 (exact 0) hits=7 (exact 1)). DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)

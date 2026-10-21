@@ -172,8 +172,16 @@ public sealed class CadenceSetupTests
     {
         var chanter = Chanter(Mend);
         var cmds = HealerRole.HealerDecide(View(Warden(), chanter, Cinder(), Enemy()), chanter);
-        Assert.Empty(cmds);
+        AssertNoCadenceSetup(cmds);
     }
+
+    /// <summary>
+    /// R-PILE-1: these facts assert "no Cadence Setup command" (their intent), not "no command": with nobody to heal,
+    /// D-HEALER-DOWNTIME (#362) has the healer press a non-heal rotation button at the party's enemy, as a WoW healer
+    /// does, and that press is not the Attuned setup.
+    /// </summary>
+    private static void AssertNoCadenceSetup(IReadOnlyList<Command> cmds) =>
+        Assert.DoesNotContain(cmds.OfType<CastCommand>(), c => c.AbilityId == "chanter.cadence" && c.TargetId == 50);
 
     [Fact(DisplayName = "Cadence setup > an ally under the heal threshold still gets the heal, not the setup")]
     public void Heal_beats_setup()
@@ -196,7 +204,7 @@ public sealed class CadenceSetupTests
             warden.Cooldowns[id] = ready;
         }
         var cmds = HealerRole.HealerDecide(View(warden, chanter, Cinder(cooldowns: CinderPayoffsDown()), Enemy()), chanter);
-        Assert.Empty(cmds);
+        AssertNoCadenceSetup(cmds);
     }
 
     [Fact(DisplayName = "Cadence setup > a ready tank is not a setup partner (only the Window-hunting damage role is)")]
@@ -204,7 +212,7 @@ public sealed class CadenceSetupTests
     {
         var chanter = Chanter(Mend);
         var cmds = HealerRole.HealerDecide(View(Warden(), chanter, Cinder(cooldowns: CinderPayoffsDown()), Enemy()), chanter);
-        Assert.Empty(cmds);
+        AssertNoCadenceSetup(cmds);
     }
 
     [Fact(DisplayName = "Cadence setup > a Window already on the enemy: no setup (an older Window would shadow Attuned)")]
@@ -213,7 +221,7 @@ public sealed class CadenceSetupTests
         var chanter = Chanter(Mend);
         var kindled = new[] { Effect("window:kindled:cinder", 3, 200) };
         var cmds = HealerRole.HealerDecide(View(Warden(), chanter, Cinder(cooldowns: CinderSetupsDown()), Enemy(effects: kindled)), chanter);
-        Assert.Empty(cmds);
+        AssertNoCadenceSetup(cmds);
     }
 
     [Fact(DisplayName = "Cadence setup > in Ward the healer sets up too (the Ward shield never lands on an enemy, HEAL-NEVER-HOSTILE)")]

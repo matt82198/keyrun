@@ -19,20 +19,20 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 326619,
-      "fnv": "f70acec9"
+      "bytes": 249728,
+      "fnv": "d87349aa"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 239700,
-      "fnv": "ac8cab14"
+      "bytes": 210334,
+      "fnv": "4bea42e2"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 239697,
-      "fnv": "59656f49"
+      "bytes": 210331,
+      "fnv": "a1c09f83"
     },
     "content-pull.setup.json": {
       "bytes": 22931,
-      "fnv": "d7995b73"
+      "fnv": "94a66522"
     },
     "content-pull.trace.jsonl": {
       "bytes": 30550,
@@ -44,11 +44,11 @@
     },
     "hollow-vault-k10.setup.json": {
       "bytes": 25287,
-      "fnv": "e9258a29"
+      "fnv": "957593bc"
     },
     "hollow-vault-k2.setup.json": {
       "bytes": 25285,
-      "fnv": "916861d3"
+      "fnv": "65a2beae"
     },
     "intdiv.vectors.json": {
       "bytes": 371573,
@@ -116,7 +116,7 @@
         "fnv": "90408d7b"
       },
       "bots/src/roles/healer.ts": {
-        "fnv": "8d8e8ca0"
+        "fnv": "146c28d0"
       },
       "bots/src/roles/shared.ts": {
         "fnv": "55e41671"
@@ -263,7 +263,7 @@
         "fnv": "b7eb7a89"
       },
       "content/data/abilities/enemies.json": {
-        "fnv": "7dc15cf8"
+        "fnv": "a62be289"
       },
       "content/data/abilities/warden.json": {
         "fnv": "36ffc9d9"
@@ -272,7 +272,7 @@
         "fnv": "4989fb8d"
       },
       "content/data/classes/cinder.json": {
-        "fnv": "707a3e01"
+        "fnv": "e3b6e3ed"
       },
       "content/data/classes/warden.json": {
         "fnv": "29adfb9c"
@@ -386,7 +386,7 @@
         "fnv": "ac601358"
       },
       "sim/combat/mitigation.ts": {
-        "fnv": "f6804874"
+        "fnv": "d29a30eb"
       },
       "sim/combat/movement.ts": {
         "fnv": "193be6de"
@@ -531,31 +531,31 @@
       "traceHash": "014e427d"
     },
     {
-      "finalTick": 1717,
+      "finalTick": 1407,
       "name": "bots-hv-k2-s7",
-      "records": 1718,
+      "records": 1408,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "d6bab866"
+      "traceHash": "c777e2f2"
     },
     {
-      "finalTick": 1717,
+      "finalTick": 1407,
       "name": "bots-hv-k2-s11",
-      "records": 1718,
+      "records": 1408,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "d6bab866"
+      "traceHash": "c777e2f2"
     },
     {
-      "finalTick": 2134,
+      "finalTick": 1855,
       "name": "bots-hv-k10-s7",
-      "records": 2135,
+      "records": 1856,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "e149a22e"
+      "traceHash": "eca7f962"
     }
   ],
   "version": 1
