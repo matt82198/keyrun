@@ -32,8 +32,16 @@ public sealed class MitigateThroughLedgerKickTests
 
     private sealed record Scene(Policy Policy, ContentRegistry Registry, BotView View);
 
+    /// <summary>What a scene tweak may read: the run's own sim abilities and the scene's view builder.</summary>
+    /// <param name="Abilities">The run's sim ability table (run.Content.Abilities).</param>
+    /// <param name="ViewOf">Builds the bot view of a state exactly as the scene's own view is built.</param>
+    private sealed record SceneKit(System.Collections.Generic.IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef> Abilities, System.Func<SimState, BotView> ViewOf);
+
     /// <summary>The kick-plan run's state on <see cref="Tick"/>, the boss (and Twins) on the tank with a cleave under way.</summary>
-    private static Scene MidCleave(System.Action<SimState> tweak)
+    private static Scene MidCleave(System.Action<SimState> tweak) => MidCleave((state, _) => tweak(state));
+
+    /// <inheritdoc cref="MidCleave(System.Action{SimState})"/>
+    private static Scene MidCleave(System.Action<SimState, SceneKit> tweak)
     {
         var content = ContentLoader.Load();
         var policy = PolicyReader.Parse(KickPlan, content);
@@ -56,9 +64,10 @@ public sealed class MitigateThroughLedgerKickTests
         boss.CastStartTick = Tick - hold;
         boss.CastEndsTick = Tick - hold + CleaveTicks;
         Assert.Equal(Tick, Ledger.KickOpensTick(boss));
-        tweak(state);
-        var view = BotViews.BuildBotView(state, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, KitRegistry.From(registry)) with { Layout = run.Content.Layout };
-        return new Scene(policy, registry, view);
+        var kits = KitRegistry.From(registry);
+        BotView ViewOf(SimState s) => BotViews.BuildBotView(s, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
+        tweak(state, new SceneKit(run.Content.Abilities, ViewOf));
+        return new Scene(policy, registry, ViewOf(state));
     }
 
     private static void Ready(ActorState a, params string[] abilityIds)
@@ -71,6 +80,36 @@ public sealed class MitigateThroughLedgerKickTests
         a.CastId = null;
         a.CastStartTick = null;
         a.CastEndsTick = null;
+    }
+
+    /// <summary>
+    /// R-BOTS-10 (a scene re-derivation; the healer fact's assertions are unchanged): under #327's party ledger
+    /// (Ledger.ResolvePartyInterrupt: least recently kicked first, ties to the lowest seat id) the Warden, seat 1, wins
+    /// every tie with a ready Chanter, so with both interrupts ready the ledger names the Warden at the cleave and the
+    /// fact's premise (the ledger names the Chanter) is false. In this run the Warden has not kicked by <see cref="Tick"/>
+    /// (Shield Bash cooldown entry 0), so the scene spends it, inside the ledger, on an earlier cast: the boss's previous
+    /// cleave, one cleave cooldown (the content's hollowWarden.cleave cooldownTicks, 160) before this one. At that cast's
+    /// kick-open tick the ledger is asked who kicks; it names the Warden, which spends Shield Bash there through the sim's
+    /// own charge rule (Cooldowns.ConsumeCharge). Shield Bash's 480-tick cooldown then runs past this cleave, so here the
+    /// ledger passes the Warden over and names the ready Chanter, genuinely, by its own rotation.
+    /// </summary>
+    private static void SpendWardenKickOnThePreviousCleave(SimState state, SceneKit sceneKit)
+    {
+        var earlier = state.Clone();
+        var boss = earlier.Actors[Boss];
+        var period = sceneKit.Abilities[boss.CastId!].CooldownTicks;
+        boss.CastStartTick -= period;
+        boss.CastEndsTick -= period;
+        earlier.Tick = Ledger.KickOpensTick(boss);
+        Assert.True(earlier.Tick < Tick, "the previous cleave opens its kick before this one");
+        var view = sceneKit.ViewOf(earlier);
+        var warden = earlier.Actors[PlaytestRunner.TankId];
+        var kit = view.Kits.ResolveKit(warden.ClassId, view.ClassKit);
+        var kick = RoleShared.LedgerKickCommand(view, warden, kit);
+        Assert.Equal(kit.InterruptAbilityId, kick?.AbilityId);
+        var shieldBash = sceneKit.Abilities[kick!.AbilityId];
+        Keyrun.Sim.Combat.Cooldowns.ConsumeCharge(state.Actors[PlaytestRunner.TankId], shieldBash, earlier.Tick);
+        Assert.True(Readiness.CooldownReadyTick(state.Actors[PlaytestRunner.TankId], shieldBash.Id) > Tick, "the Warden's Shield Bash is still on cooldown at this cleave");
     }
 
     private static System.Collections.Generic.List<string> PolicyCasts(Scene scene, int seatId)
@@ -105,7 +144,7 @@ public sealed class MitigateThroughLedgerKickTests
     public void Healer_heals_while_the_ledger_wants_a_kick()
     {
         const int Chanter = 2;
-        var scene = MidCleave(state =>
+        var scene = MidCleave((state, sceneKit) =>
         {
             var tank = state.Actors[PlaytestRunner.TankId];
             tank.Health = tank.MaxHealth / 2;
@@ -114,6 +153,7 @@ public sealed class MitigateThroughLedgerKickTests
             healer.Resource = healer.MaxResource;
             Ready(healer, healer.Cooldowns.Select(kv => kv.Key).ToArray());
             Ready(healer, "chanter.rebuke");
+            SpendWardenKickOnThePreviousCleave(state, sceneKit);
         });
         var healer = scene.View.State.Actors[Chanter];
         var kit = scene.View.Kits.ResolveKit(healer.ClassId, scene.View.ClassKit);
