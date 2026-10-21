@@ -123,6 +123,14 @@ public static class Scripts
     {
         abilities.TryGetValue(step.Cast, out var ability);
         var (targetId, blocked) = ScriptTarget.Resolve(state, actor, step.Target, ability);
+        // LOCK-KEEPS-TARGET: a self-shaped cast lands on its caster whatever the command's target, and StartCast sets
+        // the caster's target from the command, so naming the caster turned a boss casting its Lock onto itself (off
+        // its tank, off TankPressure's attacker count). In WoW a boss casting on itself keeps its threat target. A
+        // frozen-TS replay (TsCastReplace) keeps the TS rule its oracle trace recorded.
+        if (!step.TsCastReplace && ability?.ShapeKind == "self" && targetId == actorId)
+        {
+            targetId = null;
+        }
         return blocked ? null : new CastCommand(state.Tick, actorId, step.Cast, targetId);
     }
 

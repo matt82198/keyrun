@@ -141,4 +141,49 @@ public sealed class LockTelegraphTests
                 $"{cast}: telegraph drawn on tick {tg.Tick} resolves on {resolves}, but no {cast} lands then");
         }
     }
+
+    // LOCK-KEEPS-TARGET (the Choir lesson red from 71aa6c24): the Lock is a self-shaped cast, and the boss took itself as
+    // its target when it began it (ScriptTarget resolves a self shape to the caster, StartCast sets the caster's target).
+    // A boss that targets itself drops off the tank's pack-pressure count (TankPressure.AttackersOf), so at seed 1 key 2
+    // the tank skipped Bulwark on 5486 and the 5533 cleave killed the Chanter. In WoW a boss casting on itself keeps its
+    // threat target.
+    [Fact(DisplayName = "The Lock cast leaves the boss on the player it was targeting (a self cast never retargets the boss onto itself)")]
+    public void Lock_cast_keeps_the_boss_target()
+    {
+        // Above half until the boss has fought a while (its target-shaped slam picks a player), then at half: the Lock.
+        var run = BossTestKit.BuildRun(bossHealth: 30001, armed: false);
+        run = run with
+        {
+            Content = run.Content with
+            {
+                EnemyScripts = new Dictionary<int, IReadOnlyList<ScriptStep>> { [BossTestKit.Boss] = ContentBossScript() },
+            },
+        };
+        run = run with { Encounter = BossRules.Arm(run.Encounter, BossTestKit.Config() with { CastLock = true }) };
+        var events = new List<SimEvent>();
+        var targets = new Dictionary<int, int?>();
+        var dropped = false;
+        while (run.State.Tick < 600)
+        {
+            if (!dropped && run.State.Tick >= 150)
+            {
+                run.State.Actors[BossTestKit.Boss].Health = 30000;
+                dropped = true;
+            }
+            var stepped = RunRoot.StepRun(run, Array.Empty<Command>());
+            events.AddRange(stepped.Events);
+            run = stepped.Run;
+            targets[run.State.Tick] = run.State.Actors[BossTestKit.Boss].TargetId;
+        }
+        var begin = events.FirstOrDefault(e => e.Type == "lock_cast");
+        Assert.True(begin is not null, "no lock_cast after the boss reached half health");
+        var start = begin!.Tick;
+        var before = targets[start];
+        Assert.True(before is not null && before != BossTestKit.Boss, $"the boss had no player target before the Lock on {start} (target {before?.ToString() ?? "none"})");
+        var lands = (int)Int(begin, "landsTick");
+        for (var t = start + 1; t <= lands + 10; t++)
+        {
+            Assert.True(targets[t] == before, $"tick {t}: the boss targets {targets[t]?.ToString() ?? "none"}, not {before} (the Lock began on {start})");
+        }
+    }
 }
