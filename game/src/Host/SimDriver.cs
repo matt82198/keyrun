@@ -86,7 +86,8 @@ public sealed class TickAccumulator
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
 /// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T</c>, <c>--joiner-key K</c>,
 /// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
-/// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>, <c>--rotation N</c>.
+/// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>, <c>--rotation N</c>,
+/// <c>--ready-hold F</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -143,6 +144,10 @@ public sealed class TickAccumulator
 /// index (<see cref="AffixWeek.ForRun"/>) instead of the week since the last Tuesday 15:00 UTC reset, so an
 /// <c>--autorun</c> or <c>--record-input</c> scene test at keys 5-9 never depends on the date. On a replay the log's
 /// recorded index wins. Null = the clock.</param>
+/// <param name="ReadyHold">Scene-test seam (<c>--ready-hold F</c>, finding f-e24b4fa4): a scripted launch (<c>--autorun</c>,
+/// <c>--press-enter</c>) normally answers the queue pop's ready check for the human at the pop
+/// (<see cref="QueuedRunGate.HumanReadyAtPop"/>); with F the "Group found" dialog stays up F frames first and the scripted
+/// human then answers ready (no key is pushed, so a recording is unchanged). 0 = answer at the pop.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -162,7 +167,8 @@ public sealed record ArenaOptions(
     YawPlan? PressYaw = null,
     bool BotsHold = false,
     CarelessSeatPlan? CarelessSeat = null,
-    int? Rotation = null)
+    int? Rotation = null,
+    int ReadyHold = 0)
 {
     /// <summary>
     /// Default autorun length: 20 s, long enough for the lieutenant's first heal (tick 196 at key 2), the kick, and
@@ -201,6 +207,7 @@ public sealed record ArenaOptions(
         string? replayInput = null;
         YawPlan? pressYaw = null;
         CarelessSeatPlan? careless = null;
+        var readyHold = 0;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -244,6 +251,9 @@ public sealed record ArenaOptions(
                 case "--press-ping":
                     pressPing = PositiveInt(args, ref i);
                     break;
+                case "--ready-hold":
+                    readyHold = PositiveInt(args, ref i);
+                    break;
                 case "--press-yaw":
                     pressYaw = YawPlan.Parse(Value(args, ref i));
                     break;
@@ -270,7 +280,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -425,6 +435,17 @@ public interface ICommandSource
 /// that starts a run (<see cref="StartQueuedRun"/>) also leaves the queue, so it never also refills a seat. The joiner's
 /// commands are the seat's own command source (PlayerInput for seat 1, BotCommandSource for 2 and 3), whose commands
 /// are dropped while the seat is open.</para>
+/// <para>Finding f-e24b4fa4 (BIBLE s10 "ready check on pop", RULING R-229): a <see cref="Screen.Queued"/> request no
+/// longer starts the run at once. The host pops the Queue node's ready check (<see cref="Keyrun.Hud.Queue.Pop"/>, the
+/// pure <see cref="QueuedRunGate"/> over Keyrun.Sim's 10-second <see cref="ReadyCheck"/>) for the human seat plus the bot
+/// seats; the bots answer ready at once and the human answers Enter or Esc on the "Group found" line. All ready
+/// (<see cref="QueuedRunGate.Entered"/>) starts the queued run through <see cref="StartQueuedRun"/>, as before; a decline
+/// or the timeout (<see cref="QueuedRunGate.Requeued"/>) drops the request from the Queue node and reopens the screen
+/// (<see cref="Screen.OpenFirst"/>, logged <c>SCREEN requeue requeued=S open=1 key=K</c>). While the check is open Enter
+/// belongs to it: the run-end Enter and the scripted <c>--press-enter</c> wait. A scripted launch (<c>--autorun</c>,
+/// <c>--press-enter</c>, and a <c>--replay-input</c> of a log without recorded ready answers) answers ready for the human
+/// at the pop (<see cref="QueuedRunGate.HumanReadyAtPop"/>), so its run starts on the frame and tick it always did,
+/// logged <c>QUEUE ready seat=N answer=ready tick=T</c>; <c>--ready-hold F</c> keeps the dialog up F frames first.</para>
 /// </remarks>
 public partial class SimDriver : Node
 {
@@ -470,6 +491,7 @@ public partial class SimDriver : Node
     private CameraRig? _rig;
     private bool _cameraBaselined;
     private bool _yawPressed;
+    private int _readyHoldWait;
     private bool _done;
 
     /// <summary>The PlayerInput node.</summary>
@@ -644,6 +666,7 @@ public partial class SimDriver : Node
             }
         }
         MaybeScriptedEnter();
+        MaybeReadyHold();
         MaybeReplay();
         if (_done || Run is null)
         {
@@ -690,7 +713,8 @@ public partial class SimDriver : Node
     /// <inheritdoc />
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (Options.Autorun || Run?.RunEnd.Result is not { } result || _screen?.IsOpen == true ||
+        // f-e24b4fa4: while the queue pop's ready check is open, Enter is its answer (Queue), never the run's.
+        if (Options.Autorun || Run?.RunEnd.Result is not { } result || _screen?.IsOpen == true || _queue?.Checking == true ||
             @event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Enter or Key.KpEnter })
         {
             return;
@@ -718,7 +742,13 @@ public partial class SimDriver : Node
     {
         if (_screen is not null)
         {
-            _screen.Queued -= StartQueuedRun;
+            _screen.Queued -= OnQueued;
+        }
+        if (_queue is not null)
+        {
+            _queue.Gate.Entered -= StartQueuedRun;
+            _queue.Gate.Requeued -= OnPopRequeued;
+            _queue.KeyAnswered -= OnReadyKey;
         }
         if (_player is not null)
         {
@@ -836,6 +866,82 @@ public partial class SimDriver : Node
         }
     }
 
+    /// <summary>Writes one host line to the run log (console and <c>--log</c> file): the Queue node's ready-check lines.</summary>
+    /// <param name="line">The line.</param>
+    public void HostLine(string line) => _log?.Line(line);
+
+    // f-e24b4fa4 (BIBLE s10 "ready check on pop"): Screen.Queued pops the Queue node's ready check for the human seat plus
+    // the bot seats instead of starting the run; the gate's Entered starts it (StartQueuedRun), Requeued reopens the
+    // screen (OnPopRequeued). A launch that would not start a queued run (plain --autorun) pops nothing, as before. No
+    // Queue node in the scene: the request starts the run at once.
+    private void OnQueued(QueueRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (_done || Registry is null || (Options.Autorun && !Options.Requeue))
+        {
+            return;
+        }
+        if (_queue is not { } queue || Setup is not { } setup)
+        {
+            StartQueuedRun(request);
+            return;
+        }
+        _readyHoldWait = 0;
+        var humanReady = QueuedRunGate.HumanReadyAtPop(
+            Options.Autorun, Options.PressEnter, _replayer is not null, _replayLog?.ReadyKeys == true, Options.ReadyHold);
+        queue.Pop(request, setup.HumanActorId, setup.BotActorIds, humanReady);
+    }
+
+    // A decline or the timeout: the request leaves the Queue node (it can never refill a seat), nobody is penalised, and
+    // the between-runs screen comes back so the player can queue again (its Key band unlocks on Open).
+    private void OnPopRequeued(QueueRequest request, ReadyCheck check)
+    {
+        if (_queue is { } queue)
+        {
+            for (var i = queue.Requests.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(queue.Requests[i], request))
+                {
+                    queue.Consume(new[] { i });
+                    break;
+                }
+            }
+        }
+        if (_done || _screen is not { } screen)
+        {
+            return;
+        }
+        screen.OpenFirst();
+        _log?.Line(FormattableString.Invariant(
+            $"SCREEN requeue requeued={string.Join(',', check.Requeued)} open={(screen.IsOpen ? 1 : 0)} key={screen.State?.KeyLevel ?? 0}"));
+    }
+
+    // The human answered the ready check with a key: a recording says its ready answers are keys, so its replay leaves
+    // the answer to the replayed keys instead of answering at the pop.
+    private void OnReadyKey()
+    {
+        if (_recorder is not null)
+        {
+            _recorder.ReadyKeys = true;
+        }
+    }
+
+    // --ready-hold F: a scripted launch's human answers ready once the dialog has been up F frames (no key is pushed).
+    private void MaybeReadyHold()
+    {
+        if (Options.ReadyHold == 0 || _queue is not { Checking: true } queue ||
+            (!Options.Autorun && Options.PressEnter == 0 && _replayer is null))
+        {
+            return;
+        }
+        if (++_readyHoldWait < Options.ReadyHold)
+        {
+            return;
+        }
+        _readyHoldWait = 0;
+        queue.Answer(queue.Gate.HumanSeat, ready: true, queue.ClockTick);
+    }
+
     /// <summary>
     /// The player in <paramref name="actorId"/>'s seat leaves the current run (lane 3J, BIBLE s10 backfill): the seat's
     /// commands are dropped from the next step on, and the next pull start offers it to the queue at the run's key.
@@ -855,7 +961,13 @@ public partial class SimDriver : Node
             return;
         }
         _screen = screen;
-        _screen.Queued += StartQueuedRun;
+        _screen.Queued += OnQueued;
+        if (_queue is not null)
+        {
+            _queue.Gate.Entered += StartQueuedRun;
+            _queue.Gate.Requeued += OnPopRequeued;
+            _queue.KeyAnswered += OnReadyKey;
+        }
         if (StartsOnScreen && Run is null)
         {
             // Lane 3D-b: the first run is the one the player queues on the screen (Queued -> StartQueuedRun).
@@ -874,7 +986,8 @@ public partial class SimDriver : Node
         {
             return;
         }
-        if (_screen?.IsOpen != true && Run?.RunEnd.Result is null)
+        // f-e24b4fa4: an open ready check is not an Enter prompt (the scripted human answers it, never a counted press).
+        if ((_screen?.IsOpen != true && Run?.RunEnd.Result is null) || _queue?.Checking == true)
         {
             _enterWait = 0;
             return;

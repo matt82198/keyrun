@@ -46,6 +46,12 @@ public sealed record InputLogCamera(int Tick, float Yaw);
 /// Weekly affix rotation: either shape may carry an optional <c>"rotationIndex": N</c> header line after <c>key</c> (and
 /// before <c>startHeading</c>), the <see cref="AffixWeek"/> index the run was built with; every recording writes it. A
 /// replay builds its run at that index, never at the replay's own week; a file without it replays at 0.
+/// Finding f-e24b4fa4 (BIBLE s10 ready check on pop): either shape may carry an optional <c>"readyKeys": true</c> header
+/// line (after <c>startHeading</c>), written only when the human answered a queue pop's ready check with a key during
+/// the recording, so the answers are among the events. A replay of such a log leaves the ready answer to those keys; a
+/// file without it (every log written before the ready check, including the committed fixtures, and every
+/// <c>--press-enter</c> recording, whose ready answers the host gives at the pop) replays with the host answering ready
+/// for the human at the pop (<see cref="QueuedRunGate.HumanReadyAtPop"/>), so its run starts on the tick it always did.
 /// </summary>
 public sealed class InputLog
 {
@@ -64,11 +70,13 @@ public sealed class InputLog
     /// legacy baseline).</param>
     /// <param name="rotationIndex">The weekly affix rotation index the run was built with (<see cref="AffixWeek"/>), or
     /// null when the log does not say (every log written before the weekly rotation; a replay then uses 0).</param>
+    /// <param name="readyKeys">The human's ready-check answers are recorded keys (<see cref="ReadyKeys"/>).</param>
     /// <exception cref="ArgumentException">A tick is negative or goes down, or a yaw or the start heading is not
     /// finite, or the rotation index is negative.</exception>
     public InputLog(long seed, int keyLevel, IReadOnlyList<InputLogEvent> events, IReadOnlyList<InputLogCamera>? camera = null,
-        float? startHeading = null, int? rotationIndex = null)
+        float? startHeading = null, int? rotationIndex = null, bool readyKeys = false)
     {
+        ReadyKeys = readyKeys;
         if (rotationIndex is < 0)
         {
             throw new ArgumentException($"input log: rotationIndex {rotationIndex} is negative");
@@ -109,6 +117,10 @@ public sealed class InputLog
     /// <c>rotationIndex</c>). A replay builds its run from this, never from the replay's date.</summary>
     public int? RotationIndex { get; }
 
+    /// <summary>True when the human answered a ready check with a key while recording (the file's <c>readyKeys</c>):
+    /// a replay leaves the answer to the replayed keys. False: the host answers ready for the human at the pop.</summary>
+    public bool ReadyKeys { get; }
+
     /// <summary>The run seed the log was recorded at.</summary>
     public long Seed { get; }
 
@@ -141,6 +153,10 @@ public sealed class InputLog
         if (StartHeading is { } heading)
         {
             sb.Append(CultureInfo.InvariantCulture, $"  \"startHeading\": {FormatYaw(heading)},\n");
+        }
+        if (ReadyKeys)
+        {
+            sb.Append("  \"readyKeys\": true,\n");
         }
         sb.Append("  \"events\": [");
         for (var i = 0; i < Events.Count; i++)
@@ -225,6 +241,15 @@ public sealed class InputLog
                 }
                 startHeading = heading;
             }
+            var readyKeys = false;
+            if (root.TryGetProperty("readyKeys", out var readyEl))
+            {
+                if (readyEl.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                {
+                    throw new ArgumentException($"{source}: {schema} readyKeys must be true or false");
+                }
+                readyKeys = readyEl.GetBoolean();
+            }
             if (!root.TryGetProperty("events", out var list) || list.ValueKind != JsonValueKind.Array)
             {
                 throw new ArgumentException($"{source}: {schema} needs an events array");
@@ -263,7 +288,7 @@ public sealed class InputLog
                     camera.Add(new InputLogCamera(tick.GetInt32(), yaw.GetSingle()));
                 }
             }
-            return new InputLog(seed, key, events, camera, startHeading, AffixWeek.ReadRecorded(root, source));
+            return new InputLog(seed, key, events, camera, startHeading, AffixWeek.ReadRecorded(root, source), readyKeys);
         }
         catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException)
         {
@@ -384,7 +409,11 @@ public sealed class InputRecorder
     /// <param name="rotationIndex">The weekly affix rotation index the run was built with (<see cref="AffixWeek"/>).</param>
     /// <returns>The log.</returns>
     public InputLog ToLog(long seed, int keyLevel, int? rotationIndex = null) =>
-        new(seed, keyLevel, _events.ToArray(), _camera.ToArray(), StartHeading, rotationIndex);
+        new(seed, keyLevel, _events.ToArray(), _camera.ToArray(), StartHeading, rotationIndex, ReadyKeys);
+
+    /// <summary>Set once the human answers a ready check with a key while recording (SimDriver, from the Queue node):
+    /// the log is written with <see cref="InputLog.ReadyKeys"/>.</summary>
+    public bool ReadyKeys { get; set; }
 }
 
 /// <summary>
