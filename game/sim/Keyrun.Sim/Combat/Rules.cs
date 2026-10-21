@@ -134,7 +134,6 @@ public static class Rules
             var noClause = new ClauseHooks(null);
             var ctx = new CastContext(cfg.Abilities, cfg.Effects, cfg.LockoutTicks) { Hooks = hooks, Overheat = cfg.Overheat };
             var wctx = new WindowsContext(cfg.Effects, combos, fieldCombos, new FloorWindowRegistry(state.FloorWindows), hooks) { Overheat = cfg.Overheat };
-            var stopMarks = Casting.StopMarks(state);
 
             foreach (var actor in state.Actors.Values.ToList())
             {
@@ -201,8 +200,8 @@ public static class Rules
                         break;
                 }
             }
-            // BIBLE 9.3: a stun, freeze or silence that landed this step ends an interruptible cast (a stop).
-            Casting.StopControlledCasts(state, stopMarks, ctx, emit);
+            // BIBLE 9.3 stops are not resolved here: the run root ends a stopped cast after combat (Runs.ControlStops,
+            // STUN-STOPS-CAST #329 and the f-c63b43bf ruling), so oracle runs, which set no stop effects, are untouched.
 
             var actors = state.Actors.Values.ToList();
             for (var i = 0; i < actors.Count; i++)

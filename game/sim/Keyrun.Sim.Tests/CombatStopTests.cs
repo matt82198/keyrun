@@ -6,6 +6,7 @@ using System.Text.Json;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
+using Keyrun.Sim.Runs;
 using Xunit;
 using static Keyrun.Sim.Tests.CombatCastTestKit;
 using static Keyrun.Sim.Tests.CombatTestKit;
@@ -14,10 +15,13 @@ namespace Keyrun.Sim.Tests;
 
 /// <summary>
 /// FORCES-ROUTE-PLAN M2 STOPS (design/BIBLE.md section 9.3, "Stops as well as kicks"): a stun, freeze or silence that
-/// lands on a caster during an interruptible cast ends it with an <c>interrupt {by: "stop"}</c> event. Drives the
+/// lands on a caster during an interruptible cast ends it with an <c>interrupt</c> event that names the stop. Drives the
 /// REAL content through <see cref="Rules.Make"/>: Choral Mending (choir.healCast), Cold Snap, the Shatter combo and
 /// the effect defs from the hollow-vault-k2 oracle setup, and Dissonance's ward variant from
-/// content/data/abilities/chanter.json.
+/// content/data/abilities/chanter.json. Each tick then runs the run root's stop step, <see cref="ControlStops.Apply"/>,
+/// with the host's wiring (game/src/Host/HostRunSetup.cs StopEffectIds and StunEffectIds), as Run.cs does after combat:
+/// main's STUN-STOPS-CAST (#329) owns the stop rule, and finding f-c63b43bf (ruling "defer to WoW") makes a stun stop
+/// every cast of a stunnable actor, the uninterruptible ones included.
 /// </summary>
 public class CombatStopTests
 {
@@ -26,13 +30,17 @@ public class CombatStopTests
     private const int ChanterId = 3;
     private const int CantorId = 10;
 
+    // game/src/Host/HostRunSetup.cs:40 and :47 (the sim test project does not reference the Godot host).
+    private static readonly IReadOnlyList<string> HostStops = new[] { "stunned", "silenced" };
+    private static readonly IReadOnlyList<string> HostStuns = new[] { "stunned" };
+
     private static readonly OracleSetupContent Content = OracleSetupContent.Load("hollow-vault-k2.setup.json");
 
     // The Warden's sundered setup (Window on its target) and Cinder's bare Payoff: Shatter's real combo row closes it.
     private static readonly AbilityDef Sunder = Def("test.sunder", new AbilityShape(ShapeKind.Target), new EffectOp[] { new WindowOp("sundered", 60, true, "warden") }, costResource: "none", range: 25000);
     private static readonly AbilityDef Detonate = Def("test.detonate", new AbilityShape(ShapeKind.Target), new EffectOp[] { new PayoffOp() }, costResource: "none", range: 25000);
 
-    // A cast the Cantor cannot be stopped out of: Choral Mending with interruptible false.
+    // A cast the Cantor cannot be kicked out of: Choral Mending with interruptible false.
     private static readonly AbilityDef Unstoppable = Content.Abilities["choir.healCast"] with { Id = "test.unstoppableMending", Interruptible = false };
 
     public enum Stop
@@ -52,7 +60,7 @@ public class CombatStopTests
         var events = run.Apply(stop);
         Assert.Null(run.Cantor.CastId);
         var interrupt = Assert.Single(events, e => e.Type == "interrupt");
-        Assert.Equal("stop", Str(interrupt, "by"));
+        Assert.Equal(StopEffect(stop), Str(interrupt, "stop"));
         Assert.Equal(CantorId, Int(interrupt, "targetId"));
         Assert.Equal("choir.healCast", Str(interrupt, "abilityId"));
         Assert.Equal(stop == Stop.WardDissonance ? ChanterId : CinderId, Int(interrupt, "sourceId"));
@@ -63,16 +71,30 @@ public class CombatStopTests
         Assert.DoesNotContain(run.Events, e => e.Type == "cast_complete" && Str(e, "abilityId") == "choir.healCast");
     }
 
+    [Fact]
+    public void A_silence_is_a_no_op_on_a_cast_that_is_not_interruptible()
+    {
+        var run = Arrange(Unstoppable.Id);
+        var events = run.Apply(Stop.WardDissonance);
+        Assert.Equal(Unstoppable.Id, run.Cantor.CastId);
+        Assert.DoesNotContain(events, e => e.Type == "interrupt");
+    }
+
+    /// <summary>
+    /// Finding f-c63b43bf (ruling "defer to WoW", main #423): uninterruptible means kick-immune, not stun-immune, so a
+    /// stun (Shatter, Cold Snap) stops the Cantor's uninterruptible cast too.
+    /// </summary>
     [Theory]
     [InlineData(Stop.Shatter)]
     [InlineData(Stop.ColdSnap)]
-    [InlineData(Stop.WardDissonance)]
-    public void Each_stop_is_a_no_op_on_a_cast_that_is_not_interruptible(Stop stop)
+    public void A_stun_ends_even_a_cast_that_is_not_interruptible(Stop stop)
     {
         var run = Arrange(Unstoppable.Id);
         var events = run.Apply(stop);
-        Assert.Equal(Unstoppable.Id, run.Cantor.CastId);
-        Assert.DoesNotContain(events, e => e.Type == "interrupt");
+        Assert.Null(run.Cantor.CastId);
+        var interrupt = Assert.Single(events, e => e.Type == "interrupt");
+        Assert.Equal("stunned", Str(interrupt, "stop"));
+        Assert.Equal(Unstoppable.Id, Str(interrupt, "abilityId"));
     }
 
     [Fact]
@@ -115,7 +137,7 @@ public class CombatStopTests
         Assert.Null(run.Cantor.CastId);
         var interrupt = Assert.Single(events, e => e.Type == "interrupt");
         Assert.Equal(kickerId, Int(interrupt, "sourceId"));
-        Assert.Null(interrupt.Get("by"));
+        Assert.Null(interrupt.Get("stop"));
         Assert.Contains(run.Cantor.Effects, e => e.EffectId.StartsWith("lockout:", StringComparison.Ordinal));
     }
 
@@ -129,6 +151,8 @@ public class CombatStopTests
         Assert.Equal("choir.healCast", run.Cantor.CastId);
         Assert.DoesNotContain(events, e => e.Type == "interrupt");
     }
+
+    private static string StopEffect(Stop stop) => stop == Stop.WardDissonance ? "silenced" : "stunned";
 
     private static Run Arrange(string? cantorCast)
     {
@@ -145,11 +169,11 @@ public class CombatStopTests
             ["chanter.dissonance"] = WardDissonance(Content.Abilities["chanter.dissonance"]),
         };
         var rules = Rules.Make(Config(abilities, Content.Effects, boundsHalf: 50000, combos: Content.Combos, fieldCombos: Content.FieldCombos));
-        var run = new Run(state, rules, cinder, cantor);
+        var run = new Run(state, rules, abilities);
         if (cantorCast is not null)
         {
             run.Step(Cast(CantorId, cantorCast, CantorId));
-            Assert.Equal(cantorCast, cantor.CastId);
+            Assert.Equal(cantorCast, run.Cantor.CastId);
         }
         return run;
     }
@@ -185,27 +209,31 @@ public class CombatStopTests
 
     private sealed class Run
     {
-        private readonly SimState _state;
         private readonly StepRules _rules;
+        private readonly IReadOnlyDictionary<string, AbilityDef> _abilities;
+        private SimState _state;
 
-        public Run(SimState state, StepRules rules, ActorState cinder, ActorState cantor)
+        public Run(SimState state, StepRules rules, IReadOnlyDictionary<string, AbilityDef> abilities)
         {
             _state = state;
             _rules = rules;
-            Cinder = cinder;
-            Cantor = cantor;
+            _abilities = abilities;
         }
 
-        public ActorState Cinder { get; }
+        // Read through the state each time: the stop step replaces the state with a clone when it ends a cast.
+        public ActorState Cinder => _state.Actors[CinderId];
 
-        public ActorState Cantor { get; }
+        public ActorState Cantor => _state.Actors[CantorId];
 
         public List<SimEvent> Events { get; } = new();
 
+        // One tick as the run root steps it: combat, then the stop step against the tick's starting state.
         public List<SimEvent> Step(params Command[] cmds)
         {
             var (events, emit) = Collector();
+            var before = _state.Clone();
             Tick(_state, _rules, cmds, emit);
+            _state = ControlStops.Apply(before, _state, HostStops, _abilities, before.Tick, emit, new ControlStops.StunRules(HostStuns, null, null));
             Events.AddRange(events);
             return events;
         }
