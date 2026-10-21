@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
+using Keyrun.Bots.Shared;
 using Keyrun.Content;
 using Keyrun.Host;
 using Keyrun.Sim.Core;
@@ -40,7 +42,8 @@ namespace Keyrun.View;
 /// <see cref="CameraFraming.PlayerHeightMm"/> above them): <c>CAMERA framing frame=F player=P zoom=Z boom=B</c>, P the
 /// Warden's drawn height in permille of the frame (game/src/View/CameraFramingSceneTest.ps1).</item>
 /// <item>CAMERA-HEADROOM (KF1 receipts demo-012-t048s, demo-025-t050s; the boss's head cut off at the top edge):
-/// while the Warden's current target would have its top out of the frame (the Hollow Warden at melee reach, a 4.7 m boss
+/// while the tallest engaged hostile in the view cone and within reach (<see cref="HeadroomBodyOf"/>: the boss over a twin,
+/// else the Warden's current target) would have its top out of the frame (the Hollow Warden at melee reach, a 4.7 m boss
 /// filling the view at the default 5 m boom and -0.3 rad pitch), <see cref="HeadroomTarget"/> asks
 /// <see cref="CameraHeadroom.Adjust"/> for the least boom pull-back, then the least flatter pitch, that keeps the top
 /// inside the HUD's top band (<see cref="HudTopPermille"/>); the boom and the pitch lift ease toward it at
@@ -244,28 +247,28 @@ public partial class CameraRig : Node3D
         }
     }
 
-    // CAMERA-HEADROOM: the boom and pitch this frame eases toward. The wheel zoom and the mouse pitch, unless the Warden's
-    // current target (the largest engaged body in the KF1 receipts: the Hollow Warden, a 4.7 m boss at melee reach) would
+    // The Warden's reach for the CAMERA-HEADROOM body choice, mm: the sim exposes no per-actor reach to the rig, so the
+    // party's melee reach (3 m, the auto-attack range; the Hollow Warden stands at 2 m in the KF1 receipts) is the bound.
+    private const int HeadroomReachMm = 3000;
+
+    // CAMERA-HEADROOM: the boom and pitch this frame eases toward. The wheel zoom and the mouse pitch, unless the body
+    // HeadroomBodyOf frames (the tallest engaged hostile in the view cone and within reach, the boss over a twin) would
     // leave its top out of the frame; then the boom is pulled back, or the pitch turned flatter, by the least that fits
-    // (CameraHeadroom.Adjust, the pure rule). The target's distance is its feet measured ahead of the pivot along the
-    // view heading (-sin Yaw, -cos Yaw). A target that is small or far returns the zoom and the mouse pitch.
+    // (CameraHeadroom.Adjust, the pure rule). The body's distance is its feet measured ahead of the pivot along the
+    // view heading (-sin Yaw, -cos Yaw). A body that is small or far returns the zoom and the mouse pitch.
     private (int BoomMm, float Pitch) HeadroomTarget()
     {
         var follow = (BoomMm: ZoomMm, Pitch);
-        if (Driver is null || Target is null)
+        if (Driver is null || Target is null
+            || !Driver.State.Actors.TryGetValue(SimDriver.WardenId, out var me))
         {
             return follow;
         }
-        var state = Driver.State;
-        if (!state.Actors.TryGetValue(SimDriver.WardenId, out var me) || me.TargetId is not { } id
-            || !state.Actors.TryGetValue(id, out var actor) || !actor.Alive)
+        if (HeadroomBodyOf(me) is not { } body)
         {
             return follow;
         }
-        var row = ActorView.Binding.For(actor.ClassId);
-        var topMm = Math.Max(row.TargetHeightMm, row.StandingHeightMm);
-        var before = Driver.PreviousState.Actors.TryGetValue(id, out var prev) ? prev : actor;
-        var feet = ActorView.ToMetres(before.Pos).Lerp(ActorView.ToMetres(actor.Pos), Driver.Alpha);
+        var (id, topMm, feet) = body;
         var rel = feet - Target.GlobalPosition;
         var aheadMm = Mathf.RoundToInt((-Mathf.Sin(Yaw) * rel.X - Mathf.Cos(Yaw) * rel.Z) / MmToM);
         var pitchMrad = Mathf.RoundToInt(Pitch * 1000f);
@@ -285,6 +288,43 @@ public partial class CameraRig : Node3D
         }
         _headroomUnsolved = !fit.Fits;
         return (fit.BoomMm, fit.PitchMrad == pitchMrad ? Pitch : fit.PitchMrad / 1000f);
+    }
+
+    // The body CAMERA-HEADROOM frames (CameraHeadroomBody.Select, the pure rule): the tallest engaged hostile inside the view
+    // cone and within the Warden's reach, measured from the pivot. When none qualifies, the Warden's current target while
+    // it lives; null when neither exists. Id, top above the feet (mm) and the feet, lerped like the bodies the view draws.
+    private (int Id, int TopMm, Vector3 Feet)? HeadroomBodyOf(ActorState me)
+    {
+        var state = Driver!.State;
+        var cam = Camera is not null ? Camera.GlobalPosition : GlobalPosition;
+        var (camX, camZ) = ToMm(cam.X, cam.Z);
+        var (pivotX, pivotZ) = ToMm(GlobalPosition.X, GlobalPosition.Z);
+        var ids = new List<int>();
+        var feet = new List<Vector3>();
+        var bodies = new List<HeadroomBody>();
+        foreach (var (id, actor) in state.Actors.OrderBy(kv => kv.Key))
+        {
+            var row = ActorView.Binding.For(actor.ClassId);
+            var before = Driver.PreviousState.Actors.TryGetValue(id, out var prev) ? prev : actor;
+            var at = ActorView.ToMetres(before.Pos).Lerp(ActorView.ToMetres(actor.Pos), Driver.Alpha);
+            var (x, z) = ToMm(at.X, at.Z);
+            ids.Add(id);
+            feet.Add(at);
+            bodies.Add(new HeadroomBody(x, z, Math.Max(row.TargetHeightMm, row.StandingHeightMm),
+                actor.Kind != me.Kind, EngagedTargets.IsEngagedHostile(me, actor)));
+        }
+        var forwardX = Mathf.RoundToInt(-Mathf.Sin(Yaw) * 1000f);
+        var forwardZ = Mathf.RoundToInt(-Mathf.Cos(Yaw) * 1000f);
+        if (CameraHeadroomBody.Select(bodies, camX, camZ, forwardX, forwardZ, pivotX, pivotZ, HeadroomReachMm) is { } index)
+        {
+            return (ids[index], bodies[index].TopMm, feet[index]);
+        }
+        if (me.TargetId is { } targetId && state.Actors.TryGetValue(targetId, out var current) && current.Alive)
+        {
+            var at = ids.IndexOf(targetId);
+            return (targetId, bodies[at].TopMm, feet[at]);
+        }
+        return null;
     }
 
     // CAMERA-FRAMING: the party fit is a readout at the drawn boom with no pitch room (it never moves the camera): fit=
