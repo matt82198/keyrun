@@ -18,7 +18,9 @@ namespace Keyrun.View;
 /// <see cref="AnimRule.FlashTicks"/> sim ticks (<see cref="AnimRule.FlashPermille"/>), logged as <c>ANIM flash</c>.
 /// f-84d213a5: a party bot between the camera and the player or the player's target (or pressed against the lens) fades
 /// to <see cref="PartyFade.FadedPermille"/> and eases back when it moves (<see cref="PartyFade"/>), logged as
-/// <c>FADE actor=N alpha=A tick=T</c> on each change; the player's own model and enemies never fade.
+/// <c>FADE actor=N alpha=A tick=T</c> on each change; the player's own model and enemies never fade by that rule.
+/// CAMERA-FG: on top of it, any actor body within <see cref="CameraNearFade.FadeDistanceMm"/> of the camera fades by
+/// distance (<see cref="CameraNearFade"/>), the Warden's own model included; the lower alpha of the two rules wins.
 /// </summary>
 public partial class ActorView : Node3D
 {
@@ -349,6 +351,13 @@ public partial class ActorView : Node3D
             }
             var centre = ToMm3(GlobalPosition + new Vector3(0, PartyFade.BodyCentreMm * MmToM, 0));
             want = PartyFade.AlphaPermille(ToMm3(camera.GlobalPosition), _foci, new FadeBody(role, centre, PartyFade.BodyRadiusMm));
+        }
+        // CAMERA-FG: every actor body near the lens fades by distance (CameraNearFade), the Warden's own model included.
+        if (camera is not null)
+        {
+            var chest = GlobalPosition + new Vector3(0, PartyFade.BodyCentreMm * MmToM, 0);
+            var distanceMm = Mathf.RoundToInt(camera.GlobalPosition.DistanceTo(chest) / MmToM);
+            want = Mathf.Min(want, CameraNearFade.AlphaPermille(distanceMm));
         }
         if (want != _fadeWant)
         {
