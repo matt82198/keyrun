@@ -39,6 +39,13 @@ namespace Keyrun.View;
 /// Proof line, measured on the drawn camera (<c>Camera3D.UnprojectPosition</c> of the Warden's feet and
 /// <see cref="CameraFraming.PlayerHeightMm"/> above them): <c>CAMERA framing frame=F player=P zoom=Z boom=B</c>, P the
 /// Warden's drawn height in permille of the frame (game/src/View/CameraFramingSceneTest.ps1).</item>
+/// <item>CAMERA-HEADROOM (KF1 receipts demo-012-t048s, demo-025-t050s; the boss's head cut off at the top edge):
+/// while the Warden's current target would have its top out of the frame (the Hollow Warden at melee reach, a 4.7 m boss
+/// filling the view at the default 5 m boom and -0.3 rad pitch), <see cref="HeadroomTarget"/> asks
+/// <see cref="CameraHeadroom.Adjust"/> for the least boom pull-back, then the least flatter pitch, that keeps the top
+/// inside the HUD's top band (<see cref="HudTopPermille"/>); the boom and the pitch lift ease toward it at
+/// <see cref="BoomRate"/> and return to the zoom and the mouse pitch when the target is small or far. The wall clamp
+/// still runs after it.</item>
 /// </list>
 /// Render-only: it never writes sim state; <see cref="Yaw"/> is still the heading PlayerInput's WASD reads.
 /// </summary>
@@ -63,6 +70,9 @@ public partial class CameraRig : Node3D
     private bool _unsolvable;
     private ulong _unsolvedEpisodes;
     private float _boomWant;
+    private float _pitchLift;
+    private bool _headroomOn;
+    private bool _headroomUnsolved;
     private int _fitMm;
     private int _framedPermille = -1;
     private bool _headed;
@@ -210,14 +220,16 @@ public partial class CameraRig : Node3D
         {
             GlobalPosition = Target.GlobalPosition + new Vector3(0, PivotHeight, 0);
         }
-        Rotation = new Vector3(Pitch, Yaw, 0);
+        var (wantMm, wantPitch) = HeadroomTarget();
+        _pitchLift = Ease(_pitchLift, wantPitch - Pitch, BoomRate, dt);
+        Rotation = new Vector3(Pitch + _pitchLift, Yaw, 0);
         if (Camera is null)
         {
             Boom = ZoomMm * MmToM;
             return;
         }
 
-        _boomWant = Ease(_boomWant, ZoomMm * MmToM, BoomRate, dt);
+        _boomWant = Ease(_boomWant, wantMm * MmToM, BoomRate, dt);
         Boom = ClampToWalls(_boomWant, Transform.Basis, out var cut);
         if (cut)
         {
@@ -230,6 +242,49 @@ public partial class CameraRig : Node3D
             CutAwayOccluders(_layout);
             Audit();
         }
+    }
+
+    // CAMERA-HEADROOM: the boom and pitch this frame eases toward. The wheel zoom and the mouse pitch, unless the Warden's
+    // current target (the largest engaged body in the KF1 receipts: the Hollow Warden, a 4.7 m boss at melee reach) would
+    // leave its top out of the frame; then the boom is pulled back, or the pitch turned flatter, by the least that fits
+    // (CameraHeadroom.Adjust, the pure rule). The target's distance is its feet measured ahead of the pivot along the
+    // view heading (-sin Yaw, -cos Yaw). A target that is small or far returns the zoom and the mouse pitch.
+    private (int BoomMm, float Pitch) HeadroomTarget()
+    {
+        var follow = (BoomMm: ZoomMm, Pitch);
+        if (Driver is null || Target is null)
+        {
+            return follow;
+        }
+        var state = Driver.State;
+        if (!state.Actors.TryGetValue(SimDriver.WardenId, out var me) || me.TargetId is not { } id
+            || !state.Actors.TryGetValue(id, out var actor) || !actor.Alive)
+        {
+            return follow;
+        }
+        var row = ActorView.Binding.For(actor.ClassId);
+        var topMm = Math.Max(row.TargetHeightMm, row.StandingHeightMm);
+        var before = Driver.PreviousState.Actors.TryGetValue(id, out var prev) ? prev : actor;
+        var feet = ActorView.ToMetres(before.Pos).Lerp(ActorView.ToMetres(actor.Pos), Driver.Alpha);
+        var rel = feet - Target.GlobalPosition;
+        var aheadMm = Mathf.RoundToInt((-Mathf.Sin(Yaw) * rel.X - Mathf.Cos(Yaw) * rel.Z) / MmToM);
+        var pitchMrad = Mathf.RoundToInt(Pitch * 1000f);
+        var fit = CameraHeadroom.Adjust(
+            ZoomMm, pitchMrad, CameraFraming.VerticalFovDeg, Mathf.RoundToInt(PivotHeight / MmToM), topMm, aheadMm,
+            HudTopPermille, CameraFraming.MaxZoomMm, Mathf.RoundToInt(MaxPitch * 1000f));
+        var engaged = fit.BoomMm != ZoomMm || fit.PitchMrad != pitchMrad;
+        if (engaged && !_headroomOn)
+        {
+            GD.Print(FormattableString.Invariant(
+                $"CAMERA headroom id={id} top={topMm} distance={aheadMm} boom={fit.BoomMm} pitch={fit.PitchMrad} fits={fit.Fits}"));
+        }
+        _headroomOn = engaged;
+        if (!fit.Fits && !_headroomUnsolved)
+        {
+            GD.Print(FormattableString.Invariant($"CAMERA headroom unsolvable frame={_frames} id={id} top={topMm} distance={aheadMm}"));
+        }
+        _headroomUnsolved = !fit.Fits;
+        return (fit.BoomMm, fit.PitchMrad == pitchMrad ? Pitch : fit.PitchMrad / 1000f);
     }
 
     // CAMERA-FRAMING: the party fit is a readout at the drawn boom with no pitch room (it never moves the camera): fit=
