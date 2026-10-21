@@ -25,12 +25,19 @@ namespace Keyrun.Playtest.Tests;
 /// holds on part of the 20-tick window (Hymn readiness is tick-dependent); 454 (tank 255/400) is the first tick at
 /// which it holds on every window tick, and the walk then starts at 454 and runs all 20 ticks.
 /// </para>
+/// <para>
+/// R-BOTS-6 re-pin (BOTS-INTEGRATE: #295 + #327 + #298 on main a7069768; a measurement, the assertions are unchanged):
+/// was 454, where the tank now stands at 382/400 (the guard read "the tank is not under 70% at 454: 382/400"). Measured
+/// in one pass over seed 1 key 2 (kick plan, a replica of the runner's loop that ends Timed at 9588 as the runner does),
+/// testing the scene on every tick from 100: it holds on single ticks 545-550 but never across a 20-tick window there;
+/// 9452 (boss pull, tank 235/400) is the first tick at which it holds on every window tick.
+/// </para>
 /// </summary>
 public sealed class PolicyHealerWalkTests
 {
     private const string KickPlan = "{\"mitigate\": [\"warden\"], \"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"cinder\", \"chanter\", \"warden\"]}]}";
     private const int Chanter = 2;
-    private const int Tick = 454; // R-PILE-8: was 194 on #326's own tree; measured on the integrated tree (summary)
+    private const int Tick = 9452; // R-BOTS-6: was 454 (R-PILE-8), 194 on #326's own tree; measured (summary)
     private const int Window = 20;
 
     [Fact(DisplayName = "R-PILE-8 guard: the pinned scene exists at its tick (the tank under 70% is the triage target and the heal pick walks)")]
