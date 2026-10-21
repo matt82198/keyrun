@@ -3116,7 +3116,7 @@
         },
         "effects": [
           {
-            "amount": 120,
+            "amount": 140,
             "op": "damage",
             "school": "physical"
           },
@@ -3592,7 +3592,7 @@
         },
         "effects": [
           {
-            "amount": 125,
+            "amount": 150,
             "op": "damage",
             "school": "fire"
           },

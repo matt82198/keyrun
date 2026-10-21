@@ -90,7 +90,6 @@ public sealed class ForkParityTests
         ["warden.strike"] = "Rend, Riposte and Warcry all equal the base run: the bots never cast warden.strike.",
         ["cinder.emberBolt"] = "Instant, Piercing and Overcharge all equal the base run: the bots never cast cinder.emberBolt.",
         ["chanter.refrain"] = "Overture and Crescendo equal the base run: the bots never cast chanter.refrain.",
-        ["chanter.dissonance"] = "Amplify and Discord equal the base run: the bots never cast chanter.dissonance.",
     };
 
     /// <summary>One run's measures.</summary>
