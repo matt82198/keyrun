@@ -1,0 +1,2 @@
+- TINT-RUNOVER-HEADLESS HudRunOverTintTests (`tools/Keyrun.Playtest.Tests/`) drives run N's real state to a living hostile target beyond reach and pins the run-over switch both ways (f-c9a92309, ruling option c); HudSceneTest.ps1 check 41 keeps its assertion, with its header note replaced by the measured facts.
+BUILDLOG: TINT-RUNOVER headless half: run N has no post-cap tint window (seeds 1-20 identical, the Warden's target frozen at 102 at 2289 mm), so the run-over switch is proven headless by HudRunOverTintTests instead.
