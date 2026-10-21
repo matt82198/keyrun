@@ -24,6 +24,11 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// cooldown; the refused cleave made the boss look busy, held the slam due after it, and the replay re-drew that slam
 /// where the oracle's boss was free; on a merged trace the same phantom cleave held a slam and lock due on one tick,
 /// which read as a tiebreak divergence but was not: both sides break that tie in script order).</item>
+/// <item>A target-shaped cast combat refuses out of range (pair.spreadMark, seed.lash) never starts either. The replay
+/// has no positions between projections, so it cannot judge range itself; combat reports the refusal as a
+/// <c>cast_refused</c> event (enemies only, reason out_of_range; Rules.cs and sim/combat/rules.ts), and the ledger
+/// reads it from the trace instead of re-deriving the rule (f-fa598b6b: otherwise the refused cast shows a phantom busy
+/// caster and holds a cast the oracle does not hold).</item>
 /// </list>
 /// </remarks>
 internal sealed class EncounterCastLedger
@@ -32,6 +37,7 @@ internal sealed class EncounterCastLedger
     private readonly List<(int Actor, string Ability, int Start, int Ends, int Cut)> _spans = new();
 
     private readonly IReadOnlyDictionary<string, int> _cooldownTicks;
+    private readonly HashSet<(int Actor, string Ability, int Tick)> _refused = new();
 
     /// <summary>Creates an empty ledger.</summary>
     /// <param name="castTicks">Each ability's cast time in ticks (0 for instant casts, which are never in flight).</param>
@@ -72,7 +78,7 @@ internal sealed class EncounterCastLedger
     public void Started(int actor, string ability, int tick)
     {
         var c = CastTicksOf(ability);
-        if (c > 0 && OffCooldown(actor, ability, tick))
+        if (c > 0 && !_refused.Contains((actor, ability, tick)) && OffCooldown(actor, ability, tick))
         {
             Add(actor, ability, tick, tick + c);
         }
@@ -91,6 +97,19 @@ internal sealed class EncounterCastLedger
         var last = _spans.Where(s => s.Actor == actor && s.Ability == ability && s.Start < tick)
             .Select(s => (int?)s.Start).DefaultIfEmpty(null).Max();
         return last is not { } l || tick >= l + cd;
+    }
+
+    /// <summary>
+    /// Records combat's <c>cast_refused</c> of <paramref name="ability"/> by an enemy on <paramref name="tick"/>: the cast
+    /// the encounter step issued that tick never started, so it is not in flight and starts no cooldown (f-fa598b6b).
+    /// </summary>
+    /// <param name="actor">The caster.</param>
+    /// <param name="ability">The ability.</param>
+    /// <param name="tick">The event tick (the tick the step issued the cast).</param>
+    public void Refused(int actor, string ability, int tick)
+    {
+        _refused.Add((actor, ability, tick));
+        _spans.RemoveAll(s => s.Actor == actor && s.Ability == ability && s.Start == tick);
     }
 
     /// <summary>Records an oracle <c>interrupt</c> of <paramref name="actor"/>'s cast on <paramref name="tick"/>.</summary>
