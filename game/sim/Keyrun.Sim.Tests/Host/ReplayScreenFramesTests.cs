@@ -12,8 +12,9 @@ namespace Keyrun.Sim.Tests.Host;
 /// before any run exists, on spaced ticks, so the D15 capture can show them. Before the fix the replay read only
 /// <c>SimDriver.TicksRun</c>, which never advances while there is no run, so every event after tick 0 waited for Enter.
 /// The rule (<see cref="ReplayClock"/>): until the launch's first run exists, the replay clock is the count of host
-/// frames the first Screen has been up (0 = the frame it opens); from the first run on it is <c>TicksRun</c>; nothing
-/// resets at the run start. These tests drive the real Godot-free pieces SimDriver uses (<see cref="InputLogDocument"/>,
+/// frames the first Screen has been up (0 = the frame it opens); from the first run on it is those frames plus
+/// <c>TicksRun</c> (ruling R-CLOCK-1, finding f-6b922005), and the recorder stamps the same value, so a live recording
+/// round-trips. These tests drive the real Godot-free pieces SimDriver uses (<see cref="InputLogDocument"/>,
 /// <see cref="ReplayClock"/>, <see cref="ReplayFeed{T}"/>) through a frame loop in SimDriver._Process's order: a replay
 /// pass at the top of the frame, the screen frame counted when no run exists, otherwise one step per frame (60 Hz sim at
 /// 60 fps) with a replay pass before it. A replayed Enter on the first Screen starts the run in the same frame, as
@@ -107,23 +108,82 @@ public sealed class ReplayScreenFramesTests
         Assert.NotNull(dir);
         var log = InputLogDocument.Parse(File.ReadAllText(Path.Combine(dir!.FullName, EnterPingPath)), EnterPingPath);
         var fired = Play(log, 800);
+        // Golden re-recorded 2026-10-21 on 24916b4b under the sim-tick recorder (R-CLOCK-2): Enter 0 -> 9, G 2 -> 11, Enter 694 -> 703, Enter 697 -> 706 (run starts on screen frame 9, so each run tick is +9 on the frame).
         var expected = new[]
         {
-            new Fired("Enter", 0, false, 0),
-            new Fired("G", 2, true, 2),
-            new Fired("Enter", 694, true, 694),
-            new Fired("Enter", 697, true, 697),
+            new Fired("Enter", 9, false, 0),
+            new Fired("G", 11, true, 2),
+            new Fired("Enter", 703, true, 694),
+            new Fired("Enter", 706, true, 697),
         };
         Assert.Equal(expected, fired);
     }
 
-    [Fact(DisplayName = "f-6a00609e: nothing resets at the run start: an event stamped 250 after an Enter at screen frame 200 fires at sim tick 250, not 50")]
-    public void A_tick_past_the_run_start_is_a_sim_tick_not_a_frame_offset()
+    // Ruling R-CLOCK-1 (orchestrator 2026-10-21, finding f-6b922005; supersedes #469's "fires at sim tick 250, not 50"):
+    // the input log has ONE clock, ScreenFramesAtRunStart + TicksRun once the run exists, so a tick past the run start
+    // is read from the screen frame the run started on.
+    [Fact(DisplayName = "R-CLOCK-1 (f-6b922005): one clock across Screen and run: an event stamped 250 after an Enter at screen frame 200 fires at sim tick 50")]
+    public void A_tick_past_the_run_start_is_the_screen_frames_at_run_start_plus_the_sim_tick()
     {
         var json = "{ \"schema\": \"keyrun.input-log/1\", \"seed\": 1, \"key\": 2, \"events\": [" +
             "{ \"tick\": 200, \"key\": \"Enter\", \"pressed\": true }, { \"tick\": 250, \"key\": \"W\", \"pressed\": true } ] }";
         var fired = Play(InputLogDocument.Parse(json, "t"), 600);
-        Assert.Equal(new[] { new Fired("Enter", 200, false, 0), new Fired("W", 450, true, 250) }, fired);
+        Assert.Equal(new[] { new Fired("Enter", 200, false, 0), new Fired("W", 250, true, 50) }, fired);
+    }
+
+    private sealed record Live(string Key, int At);
+
+    // A live --record-input launch in SimDriver's order: a key arrives in _Input before the frame's _Process and is
+    // stamped with the recorder's clock (ReplayClock.Stamp, the call SimDriver makes); a first-Screen Enter starts the run
+    // in that delivery; a frame with no run counts one screen frame, a frame with a run steps once. Screen keys are
+    // scheduled by frame (no run yet), run keys by TicksRun. Returns the stamps and the recorded log text.
+    private static (List<int> Stamps, string Json) Record(IReadOnlyList<Live> screenKeys, IReadOnlyList<Live> runKeys, int frames)
+    {
+        var clock = new ReplayClock();
+        var stamps = new List<int>();
+        var events = new List<string>();
+        var run = false;
+        var ticksRun = 0;
+        for (var frame = 0; frame < frames; frame++)
+        {
+            var due = run ? runKeys.Where(k => k.At == ticksRun).ToList() : screenKeys.Where(k => k.At == frame).ToList();
+            foreach (var key in due)
+            {
+                var stamp = clock.Stamp(run, ticksRun);
+                stamps.Add(stamp);
+                events.Add($"{{ \"tick\": {stamp}, \"key\": \"{key.Key}\", \"pressed\": true }}");
+                if (!run && key.Key == "Enter")
+                {
+                    run = true; // Screen.Queue -> StartQueuedRun, inside the same Input delivery
+                }
+            }
+            if (!run)
+            {
+                clock.EndFrame(run, screenUp: true);
+                continue;
+            }
+            ticksRun++;
+        }
+        var json = "{ \"schema\": \"keyrun.input-log/1\", \"seed\": 1, \"key\": 2, \"events\": [" + string.Join(", ", events) + "] }";
+        return (stamps, json);
+    }
+
+    [Fact(DisplayName = "R-CLOCK-1 (f-6b922005): a live recording (T at frame 0, Key1 at 40, Enter at 200 starting the run, W at TicksRun 10) parses and replays W at TicksRun 10")]
+    public void A_live_recording_across_screen_and_run_round_trips()
+    {
+        var (stamps, json) = Record(
+            new[] { new Live("T", 0), new Live("Key1", 40), new Live("Enter", 200) },
+            new[] { new Live("W", 10) },
+            400);
+        Assert.Equal(new[] { 0, 40, 200, 210 }, stamps);
+        var fired = Play(InputLogDocument.Parse(json, "recorded"), 400);
+        Assert.Equal(new[]
+        {
+            new Fired("T", 0, false, 0),
+            new Fired("Key1", 40, false, 0),
+            new Fired("Enter", 200, false, 0),
+            new Fired("W", 210, true, 10),
+        }, fired);
     }
 
     [Fact(DisplayName = "f-6a00609e: the committed fixtures and the spaced log parse with their headers and ticks intact")]

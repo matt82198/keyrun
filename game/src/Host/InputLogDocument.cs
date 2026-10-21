@@ -9,9 +9,9 @@ namespace Keyrun.Host;
 /// <paramref name="Tick"/> on, the CameraRig's <c>Yaw</c> (the heading PlayerInput's WASD is relative to) was
 /// <paramref name="Yaw"/>.
 /// </summary>
-/// <param name="Tick">The replay clock value (<see cref="ReplayClock"/>: a first-Screen frame before the launch's first
-/// run exists, <c>SimDriver.TicksRun</c> after) the heading was first sampled for. The heading is restored before
-/// that step.</param>
+/// <param name="Tick">The input-log clock value (<see cref="ReplayClock"/>, R-CLOCK-1: a first-Screen frame before the
+/// launch's first run exists, the screen frames at the run start plus <c>SimDriver.TicksRun</c> after) the heading was
+/// first sampled for. The heading is restored before that step.</param>
 /// <param name="Yaw">The heading, radians in [-Pi, Pi], the float32 the rig held. The file writes it in the shortest form
 /// that reads back to the same float32 (<c>"R"</c>, invariant), so a replay restores it bit for bit.</param>
 public sealed record InputLogCamera(int Tick, float Yaw);
