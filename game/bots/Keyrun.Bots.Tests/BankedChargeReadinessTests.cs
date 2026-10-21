@@ -82,7 +82,8 @@ public sealed class BankedChargeReadinessTests
         var healer = BotTestKit.MakeActor(id: 2, classId: "chanter", role: ActorRole.Healer);
         healer.Cooldowns[Chorus] = 792;
         var tank = BotTestKit.MakeActor(id: 1, classId: "warden", role: ActorRole.Tank, x: 1000);
-        tank.Health = 53;
+        // R-PILE-7d: a banked charge is held for a tank at 53%; 30% is the emergency case
+        tank.Health = 30;
         var view = BotTestKit.View(BotTestKit.MakeState(700, tank, healer)) with { Kits = RealContent.Kits.ForRun(run) };
 
         var commands = HealPick.HealCommands(view, healer, RoleShared.KitOf(view, "chanter"), tank);
