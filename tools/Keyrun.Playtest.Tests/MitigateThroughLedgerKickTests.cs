@@ -24,6 +24,7 @@ public sealed class MitigateThroughLedgerKickTests
     // (D-PINNED-FIXTURES-362): with the healer press and Mending 6000 this run ends Timed at 4519 (boss pull 3966-4518).
     private const int Tick = 4133;
     private const int Boss = 900;
+    private const int CleaveTicks = 40;
 
     private sealed record Scene(Policy Policy, ContentRegistry Registry, BotView View);
 
@@ -40,10 +41,17 @@ public sealed class MitigateThroughLedgerKickTests
         {
             enemy.TargetId = PlaytestRunner.TankId;
         }
+        // The scene's intent is "the ledger wants a kick NOW": the frozen tick is the cleave's kick-open tick (cast start
+        // plus the BOT-KICK-TIMING hold, Ledger.KickOpensTick as RoleShared.LedgerKickCommand reads it), not a fixed
+        // offset into the cast. A 40-tick cleave opens 12 ticks in, so it starts at 5474 and resolves at 5514.
         var boss = state.Actors[Boss];
         boss.CastId = "hollowWarden.cleave";
-        boss.CastStartTick = Tick - 10;
-        boss.CastEndsTick = Tick + 30;
+        boss.CastStartTick = Tick;
+        boss.CastEndsTick = Tick + CleaveTicks;
+        var hold = Ledger.KickOpensTick(boss) - Tick;
+        boss.CastStartTick = Tick - hold;
+        boss.CastEndsTick = Tick - hold + CleaveTicks;
+        Assert.Equal(Tick, Ledger.KickOpensTick(boss));
         tweak(state);
         var view = BotViews.BuildBotView(state, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, KitRegistry.From(registry)) with { Layout = run.Content.Layout };
         return new Scene(policy, registry, view);

@@ -207,7 +207,9 @@ public sealed class KickTimingTests
                     .Where(a => string.Equals(RoleShared.KitOf(view, a.ClassId).InterruptAbilityId, interruptId, StringComparison.Ordinal))
                     .Select(a => a.Id)
                     .ToList();
-                ledger[p.Id] = Ledger.ResolveInterrupt(run.State.Actors, interruptId, eligible, tick, view.Kits.PriorityInterruptAbilityIds())?.KickerId;
+                // As production RoleShared.LedgerKickCommand: an off-GCD interrupt (main #370) need not wait out the GCD.
+                var offGcd = Readiness.IsOffGcd(RoleShared.KitOf(view, p.ClassId), interruptId);
+                ledger[p.Id] = Ledger.ResolveInterrupt(run.State.Actors, interruptId, eligible, tick, view.Kits.PriorityInterruptAbilityIds(), offGcd)?.KickerId;
             }
 
             var stepped = RunRoot.StepRun(run, commands);
