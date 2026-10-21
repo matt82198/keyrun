@@ -153,6 +153,28 @@ public static class AnimRule
     }
 
     /// <summary>
+    /// ENEMY-BODY-STABLE: the hit flash for one actor's role. An enemy body never flashes (0 at every tick, so its colour
+    /// and alpha stay stable and its cast and shape stay readable); a party body (<see cref="FadeRole.Self"/>,
+    /// <see cref="FadeRole.Ally"/>) keeps <see cref="FlashPermille"/> unchanged.
+    /// </summary>
+    /// <param name="role">Who the body is.</param>
+    /// <param name="ticksSinceHurt">The current sim tick minus the hurt tick.</param>
+    /// <param name="alphaPermille">The render interpolation into the current tick (0 to 999).</param>
+    /// <returns>The flash strength in permille, 0 to 1000.</returns>
+    public static int FlashPermilleFor(FadeRole role, int ticksSinceHurt, int alphaPermille) =>
+        role == FadeRole.Enemy ? 0 : FlashPermille(ticksSinceHurt, alphaPermille);
+
+    /// <summary>
+    /// ENEMY-BODY-STABLE receipt line for a hit flash applied on an actor: <c>FLASH actor=N tick=T strength=S</c>, written
+    /// through Driver.HostLine so it reaches the run log (GD.Print never does).
+    /// </summary>
+    /// <param name="actorId">The sim actor id.</param>
+    /// <param name="tick">The sim tick the flash is shown on.</param>
+    /// <param name="strength">The flash strength in permille.</param>
+    public static string FlashLine(int actorId, int tick, int strength) =>
+        FormattableString.Invariant($"FLASH actor={actorId} tick={tick} strength={strength}");
+
+    /// <summary>
     /// True when <paramref name="events"/> (one sim step's events as type and <c>targetId</c>) hold an
     /// <see cref="InterruptEvent"/> on <paramref name="actorId"/>: its cast was kicked this step. The kicked caster plays
     /// the hit one-shot (a flinch) instead of dropping its cast loop straight to idle.

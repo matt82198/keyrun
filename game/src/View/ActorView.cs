@@ -15,7 +15,8 @@ namespace Keyrun.View;
 /// with no row, or a row whose file is missing, keeps the capsule (with a small nose showing facing) and logs
 /// <c>ACTOR fallback capsule id=N class=C</c> once. Either way it writes the gate line
 /// <c>ACTOR model=&lt;res path|capsule&gt; fallback=&lt;0|1&gt; id=N</c> to the run log (finding f-30dcbb08). KF1: a health drop flashes the bound model for
-/// <see cref="AnimRule.FlashTicks"/> sim ticks (<see cref="AnimRule.FlashPermille"/>), logged as <c>ANIM flash</c>.
+/// <see cref="AnimRule.FlashTicks"/> sim ticks (<see cref="AnimRule.FlashPermilleFor"/>, party bodies only: an enemy never
+/// flashes, ENEMY-BODY-STABLE), logged as <c>ANIM flash</c> and, through the host, <c>FLASH actor=N tick=T strength=S</c>.
 /// f-84d213a5: a party bot between the camera and the player or the player's target (or pressed against the lens) fades
 /// to <see cref="PartyFade.FadedPermille"/> and eases back when it moves (<see cref="PartyFade"/>), logged as
 /// <c>FADE actor=N alpha=A tick=T</c> on each change; the player's own model and enemies never fade by that rule.
@@ -23,7 +24,8 @@ namespace Keyrun.View;
 /// distance (<see cref="CameraNearFade"/>), the Warden's own model included; a body that occludes the pivot fades whatever its
 /// distance (<see cref="CameraNearFade.Occludes"/>, the Warden's own model excepted); a party body drawn taller than a third
 /// of the viewport is capped at <see cref="PartyFade.FadedPermille"/> (<see cref="CameraNearFade.ScreenHeightCapPermille"/>,
-/// the boss and the twins never capped); the lowest alpha of the rules wins.
+/// the lowest alpha of the party rules wins (<see cref="CameraNearFade.AppliedPermille"/>). ENEMY-BODY-STABLE: no enemy
+/// (the boss and the twins) is faded by any camera rule or flashed on a hit, so its colour and alpha stay stable.
 /// Each 60 sim ticks in a pull, every living body (party and enemies) logs a
 /// <c>CAMERA tick=T actor=N dist=D near=A applied=A occl=0|1 sh=S cap=C</c> line.
 /// </summary>
@@ -70,6 +72,7 @@ public partial class ActorView : Node3D
     private SimState? _flashSeen;
     private int _hurtTick = int.MinValue / 2;
     private bool _flashOn;
+    private int _flashLoggedTick = int.MinValue;
 
     private readonly System.Collections.Generic.List<(int X, int Y, int Z)> _foci = new();
     private System.Collections.Generic.List<FadeSurface>? _fadeSurfaces;
@@ -291,7 +294,8 @@ public partial class ActorView : Node3D
                 _hurtTick = Driver.State.Tick;
             }
         }
-        var strength = AnimRule.FlashPermille(Driver.State.Tick - _hurtTick, (int)(Driver.Alpha * 1000f));
+        // ENEMY-BODY-STABLE: an enemy never flashes (its strength is 0 at every tick), so no enemy mesh gets the overlay.
+        var strength = AnimRule.FlashPermilleFor(RoleOf(now), Driver.State.Tick - _hurtTick, (int)(Driver.Alpha * 1000f));
         if (strength <= 0)
         {
             SetFlashOverlay(false);
@@ -306,6 +310,12 @@ public partial class ActorView : Node3D
         };
         _flash.AlbedoColor = new Color(FlashColor, FlashColor.A * strength / 1000f);
         SetFlashOverlay(true);
+        // ENEMY-BODY-STABLE receipt: one FLASH line per sim tick the overlay is shown, through Driver.HostLine (the run log).
+        if (Driver.State.Tick != _flashLoggedTick)
+        {
+            _flashLoggedTick = Driver.State.Tick;
+            Driver.HostLine(AnimRule.FlashLine(ActorId, _flashLoggedTick, strength));
+        }
     }
 
     private void SetFlashOverlay(bool on)
@@ -338,9 +348,7 @@ public partial class ActorView : Node3D
         {
             return;
         }
-        var role = ActorId == SimDriver.WardenId ? FadeRole.Self
-            : now.Kind == ActorKind.Player ? FadeRole.Ally
-            : FadeRole.Enemy;
+        var role = RoleOf(now);
         var want = PartyFade.OpaquePermille;
         var camera = GetViewport()?.GetCamera3D();
         if (role == FadeRole.Ally && camera is not null)
@@ -371,7 +379,9 @@ public partial class ActorView : Node3D
             // the cap is 1000 for Self and enemies, so the boss and the twins are never held by it.
             var screenHeight = ScreenHeight(camera, GlobalPosition, GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero);
             var cap = CameraNearFade.ScreenHeightCapPermille(role, screenHeight);
-            want = Mathf.Min(want, Mathf.Min(CameraNearFade.AlphaPermille(distanceMm, occludes), cap));
+            // ENEMY-BODY-STABLE: the one entry point for the near-camera rules. An enemy is 1000 whatever the distance,
+            // occlusion or height; a party body is the lowest of its rules (the same numbers as before).
+            want = Mathf.Min(want, CameraNearFade.AppliedPermille(role, distanceMm, occludes, screenHeight));
             LogCamera(now, distanceMm, CameraNearFade.AlphaPermille(distanceMm), occludes, screenHeight, cap, want);
         }
         if (want != _fadeWant)
@@ -387,6 +397,13 @@ public partial class ActorView : Node3D
         }
         ApplyFade(_fade);
     }
+
+    // ENEMY-BODY-STABLE: who the body is, for the flash and the near-camera rules. The player's own model is Self, another
+    // player-kind actor is Ally (a party bot), and every other actor is an Enemy (never flashed, never faded).
+    private FadeRole RoleOf(ActorState now) =>
+        ActorId == SimDriver.WardenId ? FadeRole.Self
+        : now.Kind == ActorKind.Player ? FadeRole.Ally
+        : FadeRole.Enemy;
 
     // CAMERA proof line on the run log (the TICK/EVENT channel, Driver.HostLine): once per 60 sim ticks while an enemy is
     // alive (a pull), one line per living body: party (Kind Player, the Warden included) and enemies (the boss and the
