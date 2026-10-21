@@ -48,8 +48,10 @@ public static class ContentValidator
         CheckFacets(reg);
         CheckRun(reg.Run);
         CheckHeatOverheat(reg);
+        CheckPairMarks(reg);
         CheckForces(reg);
         LayoutValidator.Check(reg);
+        GearValidator.Check(reg);
     }
 
     /// <summary>
@@ -115,6 +117,10 @@ public static class ContentValidator
                 earners.Add(member.EnemyId);
             }
         }
+        // SKIPPABLE-PACKS: a layout pack's members earn too (LayoutValidator checks each has a value).
+        foreach (LayoutPack pack in reg.Layout.Packs)
+            foreach (PullEnemy member in pack.Enemies)
+                earners.Add(member.EnemyId);
 
         foreach (ForcesValue value in forces.Values)
             if (value.Points > 0 && !earners.Contains(value.EnemyId))
@@ -137,6 +143,20 @@ public static class ContentValidator
         if (!reg.Effects.ContainsKey(h.ChillEffectId))
             Fail("run heatOverheat.chillEffectId \"" + h.ChillEffectId + "\" is not an effect");
         if (h.ChillTicks <= 0) Fail("run heatOverheat.chillTicks must be positive, got " + h.ChillTicks);
+    }
+
+    /// <summary>run.json pairMarks (BIBLE section 9.6 item 2): both marks name real effects; every number is positive.</summary>
+    private static void CheckPairMarks(ContentRegistry reg)
+    {
+        PairMarksConfig m = reg.Run.PairMarks;
+        if (!reg.Effects.ContainsKey(m.SpreadEffectId))
+            Fail("run pairMarks.spreadEffectId \"" + m.SpreadEffectId + "\" is not an effect");
+        if (!reg.Effects.ContainsKey(m.StackEffectId))
+            Fail("run pairMarks.stackEffectId \"" + m.StackEffectId + "\" is not an effect");
+        if (m.SpreadRadiusMm <= 0) Fail("run pairMarks.spreadRadiusMm must be positive, got " + m.SpreadRadiusMm);
+        if (m.SpreadDamage <= 0) Fail("run pairMarks.spreadDamage must be positive, got " + m.SpreadDamage);
+        if (m.StackRadiusMm <= 0) Fail("run pairMarks.stackRadiusMm must be positive, got " + m.StackRadiusMm);
+        if (m.StackDamage <= 0) Fail("run pairMarks.stackDamage must be positive, got " + m.StackDamage);
     }
 
     private static void CheckRun(RunConfig run)
@@ -164,8 +184,12 @@ public static class ContentValidator
         if (ops is null) return;
         foreach (EffectOp op in ops)
         {
-            if (!riderOps && op is PartyEffectOp or CloudOp)
-                Fail(where + " uses the C#-only combo op \"" + (op is CloudOp ? "cloud" : "partyEffect") + "\", allowed only in " + ContentLoader.ComboRidersFile);
+            if (!riderOps && op is PartyEffectOp or CloudOp or CloserBurnOp)
+                Fail(where + " uses the C#-only combo op \"" + (op switch { CloudOp => "cloud", CloserBurnOp => "closerBurn", _ => "partyEffect" })
+                    + "\", allowed only in " + ContentLoader.ComboRidersFile);
+            if (op is CloserBurnOp burn && !(burn.MaxHealthBp > 0 && burn.MaxHealthBp <= burn.CapBp && burn.CapBp < 10000))
+                Fail(where + " closerBurn needs 0 < maxHealthBp <= capBp < 10000 (the burn alone must never kill a closer at full health), got maxHealthBp "
+                    + burn.MaxHealthBp + " and capBp " + burn.CapBp);
             if (op is PartyEffectOp party && party.DurationTicks <= 0)
                 Fail(where + " partyEffect durationTicks must be positive, got " + party.DurationTicks);
             if (op is CloudOp cloud && cloud.DurationTicks <= 0)

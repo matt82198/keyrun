@@ -1,0 +1,29 @@
+<Project>
+  <!--
+    KeyrunSignOutputs: opt-in Authenticode signing of local builds so Windows security can accept them.
+    Off by default (CI unchanged). Enable with: dotnet build game/Keyrun.sln -p:KeyrunSign=true
+    Cert: picked by subject from CurrentUser\My at build time; no thumbprint, key or password lives in the repo.
+    Signer: PowerShell Set-AuthenticodeSignature (the Windows SDK signtool.exe is not installed on the dev box).
+    The script runs through -Command, so no .ps1 file and no execution-policy change is involved.
+    Timestamping uses DigiCert; if it fails the file is signed without a timestamp and the build warns (KRSIGN2).
+    A missing cert is an error (KRSIGN1): asking for signed outputs and getting unsigned ones is a failure.
+  -->
+  <PropertyGroup>
+    <KeyrunSignSubject Condition="'$(KeyrunSignSubject)' == ''">CN=Keyrun Dev (Matt Culliton)</KeyrunSignSubject>
+    <KeyrunSignTimestampUrl Condition="'$(KeyrunSignTimestampUrl)' == ''">http://timestamp.digicert.com</KeyrunSignTimestampUrl>
+  </PropertyGroup>
+
+  <Target Name="KeyrunSignOutputs" AfterTargets="Build" Condition="'$(KeyrunSign)' == 'true'">
+    <PropertyGroup>
+      <_KrSignDir>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(OutDir)'))).TrimEnd('\'))</_KrSignDir>
+      <_KrSignA>$ErrorActionPreference='Stop'; $c=Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Where-Object { $_.Subject -eq '$(KeyrunSignSubject)' } | Sort-Object NotAfter -Descending | Select-Object -First 1;</_KrSignA>
+      <_KrSignB>if (-not $c) { Write-Host 'error KRSIGN1: no code-signing cert with subject $(KeyrunSignSubject) in CurrentUser\My'; exit 1 };</_KrSignB>
+      <_KrSignC>Get-ChildItem -LiteralPath '$(_KrSignDir)' -File | Where-Object { $_.Name -like 'Keyrun*.dll' -or $_.Name -like 'Keyrun*.exe' } | ForEach-Object { $f=$_.FullName; $s=Get-AuthenticodeSignature -LiteralPath $f;</_KrSignC>
+      <_KrSignD>if ($s.SignerCertificate -and $s.SignerCertificate.Thumbprint -eq $c.Thumbprint) { Write-Host ('KeyrunSign: already signed ' + $_.Name); return };</_KrSignD>
+      <_KrSignE>$r=$null; try { $r=Set-AuthenticodeSignature -LiteralPath $f -Certificate $c -HashAlgorithm SHA256 -TimestampServer '$(KeyrunSignTimestampUrl)' } catch { $r=$null };</_KrSignE>
+      <_KrSignF>if (-not $r -or -not $r.SignerCertificate -or -not $r.TimeStamperCertificate) { Write-Host ('warning KRSIGN2: timestamping failed for ' + $_.Name + ', signed without a timestamp'); $r=Set-AuthenticodeSignature -LiteralPath $f -Certificate $c -HashAlgorithm SHA256 };</_KrSignF>
+      <_KrSignG>if (-not $r.SignerCertificate) { Write-Host ('error KRSIGN3: signing failed for ' + $_.Name + ': ' + $r.StatusMessage); exit 1 }; Write-Host ('KeyrunSign: signed ' + $_.Name + ' (' + $r.Status + ')') }</_KrSignG>
+    </PropertyGroup>
+    <Exec Command="powershell.exe -NoProfile -NonInteractive -Command &quot;$(_KrSignA) $(_KrSignB) $(_KrSignC) $(_KrSignD) $(_KrSignE) $(_KrSignF) $(_KrSignG)&quot;" />
+  </Target>
+</Project>

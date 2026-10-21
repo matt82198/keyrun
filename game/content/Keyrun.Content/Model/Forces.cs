@@ -92,6 +92,16 @@ public static class RouteForces
         return pack.Enemies.Sum(e => e.Count * forces.PointsOf(e.EnemyId));
     }
 
+    /// <summary>A layout pack's points (SKIPPABLE-PACKS): sum of count x value over its groups.</summary>
+    /// <param name="forces">The forces table.</param>
+    /// <param name="pack">The pack.</param>
+    public static int LayoutPackPoints(ForcesTable forces, LayoutPack pack)
+    {
+        System.ArgumentNullException.ThrowIfNull(forces);
+        System.ArgumentNullException.ThrowIfNull(pack);
+        return pack.Enemies.Sum(e => e.Count * forces.PointsOf(e.EnemyId));
+    }
+
     /// <summary>Every teaching pull's points (the critical path every route plays).</summary>
     /// <param name="forces">The forces table.</param>
     /// <param name="dungeon">The dungeon.</param>

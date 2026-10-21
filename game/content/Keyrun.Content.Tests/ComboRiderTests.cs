@@ -46,13 +46,41 @@ public sealed class ComboRiderTests
     }
 
     [Fact]
-    public void Only_anthem_and_steam_have_riders_and_the_frozen_combo_rows_are_unchanged()
+    public void Cinderfield_field_rider_burns_the_closer_15_percent_capped_at_20()
+    {
+        // keyrun STATE.md D34 (finding f-17c18460): the closer is still burned, as a share of its max health, capped.
+        ContentRegistry reg = ContentLoader.Load();
+
+        CloserBurnOp burn = Assert.IsType<CloserBurnOp>(Assert.Single(reg.ComboRiders["cinderfield-field"].Effects));
+        Assert.Equal(1500, burn.MaxHealthBp);
+        Assert.Equal(2000, burn.CapBp);
+        Assert.Equal("fire", burn.School);
+        DamageOp frozen = Assert.IsType<DamageOp>(Assert.Single(reg.Combos["cinderfield-field"].Effects));
+        Assert.Equal(80, frozen.Amount);
+    }
+
+    [Fact]
+    public void Only_anthem_steam_and_cinderfield_field_have_riders_and_the_frozen_combo_rows_are_unchanged()
     {
         ContentRegistry reg = ContentLoader.Load();
 
-        Assert.Equal(new[] { "anthem", "steam" }, reg.ComboRiders.Keys.OrderBy(k => k, System.StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "anthem", "cinderfield-field", "steam" }, reg.ComboRiders.Keys.OrderBy(k => k, System.StringComparer.Ordinal).ToArray());
         Assert.IsType<ApplyEffectOp>(Assert.Single(reg.Combos["anthem"].Effects));
         Assert.Equal("blinded", Assert.IsType<ApplyEffectOp>(reg.Combos["steam"].Effects[1]).EffectId);
+    }
+
+    [Fact]
+    public void A_closer_burn_that_could_kill_a_full_health_closer_is_rejected()
+    {
+        var ex = LoadFails(new MutableSource().Edit(RiderFile, n => n[2]!["effects"]![0]!["capBp"] = 10000));
+        Assert.Contains("closerBurn", ex.Message);
+        ex = LoadFails(new MutableSource().Edit(RiderFile, n => n[2]!["effects"]![0]!["maxHealthBp"] = 2500));
+        Assert.Contains("maxHealthBp", ex.Message);
+        ex = LoadFails(new MutableSource().Edit(RiderFile, n => n[2]!["effects"]![0]!["maxHealthBp"] = 0));
+        Assert.Contains("maxHealthBp", ex.Message);
+        ex = LoadFails(new MutableSource().Edit("combos.json", n =>
+            n[0]!["effects"]!.AsArray().Add(JsonNode.Parse("{\"op\":\"closerBurn\",\"maxHealthBp\":1500,\"capBp\":2000,\"school\":\"fire\"}"))));
+        Assert.Contains("C#-only combo op \"closerBurn\"", ex.Message);
     }
 
     [Fact]

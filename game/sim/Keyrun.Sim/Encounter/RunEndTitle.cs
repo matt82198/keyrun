@@ -55,4 +55,25 @@ public static class RunEndTitle
             _ => ClearedUntimed(encounter.KeyLevel),
         };
     }
+
+    /// <summary>
+    /// The run-end panel's title for <paramref name="run"/>, or null while it is live: <see cref="Of"/> over the run's
+    /// result, whether every pull was cleared (the sim finishes a lasting wipe as depleted with completed forced, so
+    /// the pull index is what tells a cleared run from a wipe), and the run clock at the end tick (the clock keeps
+    /// advancing after the end, RUN-END-FREEZE). The one source both RunEndView.Of and the sim use.
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <param name="lostNumber">1-based pull lost on, used only when not cleared.</param>
+    /// <param name="lostTotal">Pull count of the full dungeon, used only when not cleared.</param>
+    /// <returns>The title line, or null.</returns>
+    public static string? ForRun(Keyrun.Sim.Runs.Run run, int lostNumber, int lostTotal)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.RunEnd.Result is not { } result)
+        {
+            return null;
+        }
+        var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
+        return Of(result, cleared, run.RunEnd.ResultTick ?? run.State.RunTimerTicks, run.Encounter, lostNumber, lostTotal);
+    }
 }

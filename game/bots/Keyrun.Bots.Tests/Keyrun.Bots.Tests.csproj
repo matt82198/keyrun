@@ -32,4 +32,12 @@
     <ProjectReference Include="../../../tools/Keyrun.Replay/Keyrun.Replay.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      CINDER-OVERHEAT-HOST: the host's run setup is Godot-free (it only uses Keyrun.Sim, Keyrun.Content and
+      Keyrun.Bots.Shared), so it is compiled in here and tested as the game builds it (HostRunOverheatTests).
+    -->
+    <Compile Include="../../src/Host/HostRunSetup.cs" Link="Host/HostRunSetup.cs" />
+  </ItemGroup>
+
 </Project>

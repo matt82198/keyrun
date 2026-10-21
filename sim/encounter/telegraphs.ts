@@ -21,6 +21,7 @@
 import type { ActorId, SimState, Tick, Vec3 } from "./types";
 import type { BreakBarState } from "./breakbar";
 import type { EchoSpawnRequest, EncounterRules } from "./clauses";
+import type { DeferredCast } from "./deferred-casts";
 import { faceDir } from "../combat/targeting";
 
 export interface Telegraph {
@@ -46,6 +47,12 @@ export interface EncounterState {
   keyLevel: number;
   depleted: boolean;
   rules: EncounterRules;
+  /** Player deaths this run, each counted (MPLUS-DEATH-PENALTY, STATE.md D46). Optional, defaults
+   * to 0 wherever read (timer.ts), same convention as `firedOnDeath` below. */
+  deaths?: number;
+  /** Time deaths and wipes have added to the run clock, ticks (STATE.md D46). Optional, defaults
+   * to 0 wherever read (timer.ts). */
+  penaltyTicks?: number;
   /** [actorId] -> ability ids whose "onDeath" script step has already fired for that actor
    * (death-trigger-wiring): threaded into sim/encounter/scripts.ts's `stepEnemyScripts` each tick
    * so an "onDeath" step's FIRE-ONCE CONTRACT (see that file's docstring) survives across ticks
@@ -59,6 +66,10 @@ export interface EncounterState {
    * writes this every tick. Optional, defaults to `[]` wherever read, same convention as
    * `firedOnDeath` above. */
   pendingEchoSpawns?: EchoSpawnRequest[];
+  /** STARTCAST-BUSY: scripted casts held for a busy caster (sim/encounter/scripts.ts DeferredCast), threaded
+   * through `stepEnemyScripts` each tick. Optional, defaults to `[]` wherever read, same convention as
+   * `firedOnDeath` above. */
+  deferredCasts?: DeferredCast[];
   /** Next actor id `stepEchoSpawns` will assign to a realized Echo add -- starts at
    * sim/encounter/index.ts's `ECHO_ACTOR_ID_BASE`, far above any dungeon/party id, so a spawned
    * add never collides with one. */

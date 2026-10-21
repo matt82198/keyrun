@@ -80,6 +80,15 @@ public sealed record ActorBindingRow(
     /// over the hat) and the 4.69 m boss's at 4.937 m just over its helmet.
     /// </summary>
     public int PlateHeightMm => PlateRule.PlateHeightMm(TargetHeightMm, NativeHeightMm, ScalePermille, Boss);
+
+    /// <summary>
+    /// How much of the pack's albedo brightness <see cref="TintRgb"/> keeps, permille (integer Rec. 601 luma of the tint:
+    /// 299 R + 587 G + 114 B over 255), or null for an untinted row. The view multiplies the tint into the albedo, so a
+    /// tint at 300 permille leaves the body at under a third of its pack brightness.
+    /// </summary>
+    public int? TintLumaPermille => TintRgb is int rgb
+        ? (299 * ((rgb >> 16) & 0xFF) + 587 * ((rgb >> 8) & 0xFF) + 114 * (rgb & 0xFF)) / 255
+        : null;
 }
 
 /// <summary>
@@ -106,6 +115,14 @@ public sealed class ActorBinding
     /// bodies are sized to it; bigger roles set their own <see cref="ActorBindingRow.TargetHeightMm"/>.
     /// </summary>
     public const int HeadLineMm = 1800;
+
+    /// <summary>
+    /// The least <see cref="ActorBindingRow.TintLumaPermille"/> a tinted row may have (BOSS-READABILITY, design/BIBLE.md
+    /// section 3 "the player must read what enemies do"; ART-PLAN section 3 readability rule): a tint recolours a body,
+    /// it never darkens it below half its pack brightness, so its silhouette and pose stay readable against the dark
+    /// stone floors. The 0x50505C "hollow" boss tint (319 permille) rendered the Hollow Warden near-black.
+    /// </summary>
+    public const int MinTintLumaPermille = 500;
 
     /// <summary>
     /// The effect the sim puts on the Twins when their shared break bar empties (content hollow-warden.json
@@ -152,6 +169,11 @@ public sealed class ActorBinding
         new ActorBindingRow("choir.lieutenant", "Skeleton_Mage.glb", 2630, 684, 0xB070E0, Array.Empty<string>(),
             ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
 
+        // Hall Sentry (Mythic+ trash only the Hall Sentries pack fields, game/content/data/enemies/hall.json): the same
+        // CC0 Skeleton Warrior as the Choir Acolyte, washed bronze so the pack reads as its own enemy.
+        new ActorBindingRow("hall.sentry", "Skeleton_Warrior.glb", 2590, 695, 0xD0A060, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
         // Paired Warrior x5: the bare Skeleton Minion.
         new ActorBindingRow("pair.melee", "Skeleton_Minion.glb", 2166, 831, null, Array.Empty<string>(),
             ActorClips.Skeleton, Folder: SkeletonsFolder),
@@ -167,9 +189,10 @@ public sealed class ActorBinding
         new ActorBindingRow("hollowWarden.twinB", "Skeleton_Warrior.glb", 2590, 799, 0xFF88C8, Array.Empty<string>(),
             ActorClips.Skeleton, TargetHeightMm: HeadLineMm * 115 / 100, Folder: SkeletonsFolder),
 
-        // The Hollow Warden: the player's own Knight at 1.9x its native height, darkened (hollow), with the two-handed
-        // sword it cleaves and slams with; no spawn clip (the Adventurers have none), it starts in Idle.
-        new ActorBindingRow("hollowWarden.boss", "Knight.glb", KnightNativeHeightMm, 1900, 0x50505C,
+        // The Hollow Warden: the player's own Knight at 1.9x its native height, washed a pale cold steel (hollow; BOSS-
+        // READABILITY: the 0x50505C dark tint rendered it near-black on the stone floor), with the two-handed sword
+        // it cleaves and slams with; no spawn clip (the Adventurers have none), it starts in Idle.
+        new ActorBindingRow("hollowWarden.boss", "Knight.glb", KnightNativeHeightMm, 1900, 0xB4C0DC,
             new[] { "1H_Sword_Offhand", "Badge_Shield", "Rectangle_Shield", "Round_Shield", "Spike_Shield", "1H_Sword" },
             ActorClips.Default with { Move = "Walking_A", Act = "2H_Melee_Attack_Chop" },
             TargetHeightMm: KnightNativeHeightMm * 19 / 10, Boss: true),

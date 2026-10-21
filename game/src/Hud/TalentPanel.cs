@@ -150,7 +150,7 @@ public partial class TalentPanel : Control
         {
             return;
         }
-        DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.07f, 0.08f, 0.1f, 0.99f));
+        DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.085f, 0.072f, 0.06f, 0.99f));
         DrawRect(new Rect2(Vector2.Zero, Size), HudNodes.Edge, filled: false, width: 1f);
         HudNodes.Text(this, new Vector2(Inset, 24), FormattableString.Invariant($"Talents: {screen.TalentClassName()}  ({picks.Count}/{picks.ForkCount} picked)"),
             TitleFont, Gold);
@@ -172,7 +172,7 @@ public partial class TalentPanel : Control
         {
             var option = picks.Forks[card.Fork].Options[card.Option];
             var isPicked = picks.PickedIndex(card.Fork) == card.Option;
-            DrawRect(card.Rect, new Color(0.12f, 0.13f, 0.17f));
+            DrawRect(card.Rect, new Color(0.12f, 0.1f, 0.08f));
             DrawRect(card.Rect, isPicked ? Picked : HudNodes.Edge, filled: false, width: isPicked ? 3f : 1f);
             HudNodes.Text(this, card.Rect.Position + new Vector2(TextInset, 20),
                 FormattableString.Invariant($"{card.Option + 1}  {option.Name}"), NameFont, isPicked ? Picked : new Color(1f, 0.9f, 0.55f));

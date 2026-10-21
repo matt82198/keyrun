@@ -13,6 +13,14 @@
     "chillEffectId": "chill",
     "chillTicks": 60
   },
+  "pairMarks": {
+    "spreadEffectId": "spreadMarked",
+    "spreadRadiusMm": 3000,
+    "spreadDamage": 80,
+    "stackEffectId": "stackMarked",
+    "stackRadiusMm": 1500,
+    "stackDamage": 150
+  },
   "affixes": {
     "oneAffixKey": 5,
     "bothAffixKey": 10,

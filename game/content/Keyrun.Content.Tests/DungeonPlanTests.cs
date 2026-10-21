@@ -173,18 +173,14 @@ public sealed class DungeonPlanTests
     }
 
     [Fact]
-    public void Each_gated_corridor_gets_one_gate_across_its_doorway()
+    public void The_shipped_path_to_the_boss_builds_no_gate()
     {
+        // PATH-TO-BOSS (STATE.md D44): no corridor of the shipped layout is gated, so the plan stands no gate piece
+        // across any doorway (the view draws none).
         var layout = Real;
         var plan = DungeonPlan.Build(layout, ThemeLoader.Load());
-        var gated = layout.Boxes.Where(b => b.Gate is not null).Select(b => b.Id).ToArray();
-        Assert.Equal(gated, plan.Gates.Select(g => g.BoxId).ToArray());
-        foreach (var g in plan.Gates)
-        {
-            var k = layout.Boxes.Select(b => b.Id).ToList().IndexOf(g.BoxId);
-            Assert.Equal(layout.Route[k - 1].X, g.Piece.X);
-            Assert.Equal(layout.Boxes[k].MaxZ - layout.Boxes[k].MinZ, g.Piece.SizeX);
-        }
+        Assert.DoesNotContain(layout.Boxes, b => b.Gate is not null);
+        Assert.Empty(plan.Gates);
     }
 
     [Fact]

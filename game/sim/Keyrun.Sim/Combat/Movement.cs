@@ -143,6 +143,88 @@ public static class Movement
         b.Pos = b.Pos with { X = b.Pos.X + pushX, Z = b.Pos.Z + pushZ };
     }
 
+    /// <summary>
+    /// D54 (defer to WoW: a pack stacks around the player it attacks, it does not queue in single file): two overlapping
+    /// enemies on one target part symmetrically (<see cref="ResolveCollision(ActorState, ActorState, long)"/>), then the
+    /// one farther from the target (the blocked one; the higher id on a tie) also slides sideways around it by the
+    /// overlap, perpendicular to its line to the target, away from the nearer one's bearing (by id parity when the two
+    /// stand on one line through the target: odd ids counterclockwise). A pack on one line, as PRESPAWN-AGGRO places a
+    /// pull, therefore fans around its target instead of pressing the front one in. Integer only.
+    /// </summary>
+    /// <param name="a">One enemy.</param>
+    /// <param name="b">The other enemy.</param>
+    /// <param name="target">Where their shared target stands.</param>
+    /// <param name="radiusMm">The equal actor radius, mm.</param>
+    public static void ResolveCollisionAround(ActorState a, ActorState b, Vec3 target, long radiusMm)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        var dx = b.Pos.X - a.Pos.X;
+        var dz = b.Pos.Z - a.Pos.Z;
+        var dist2 = (dx * dx) + (dz * dz);
+        var minDist = radiusMm * 2;
+        if (dist2 >= minDist * minDist)
+        {
+            return;
+        }
+        var overlap = minDist - Isqrt(dist2);
+        ResolveCollision(a, b, radiusMm);
+        long D2(ActorState s) => ((s.Pos.X - target.X) * (s.Pos.X - target.X)) + ((s.Pos.Z - target.Z) * (s.Pos.Z - target.Z));
+        var (front, rear) = D2(a) < D2(b) || (D2(a) == D2(b) && a.Id < b.Id) ? (a, b) : (b, a);
+        var rx = rear.Pos.X - target.X;
+        var rz = rear.Pos.Z - target.Z;
+        var len = Isqrt((rx * rx) + (rz * rz));
+        if (len == 0)
+        {
+            return;
+        }
+        var fx = front.Pos.X - target.X;
+        var fz = front.Pos.Z - target.Z;
+        var cross = (fx * rz) - (fz * rx);
+        var side = cross > 0 ? 1 : cross < 0 ? -1 : (rear.Id % 2 != 0 ? 1 : -1);
+        // (-rz, rx) is the counterclockwise perpendicular of the rear's bearing (cross(r, perp) > 0).
+        rear.Pos = rear.Pos with
+        {
+            X = rear.Pos.X + (side * IntMath.TruncDiv(-rz * overlap, len)),
+            Z = rear.Pos.Z + (side * IntMath.TruncDiv(rx * overlap, len)),
+        };
+    }
+
+    /// <summary>
+    /// D54 ENEMIES-NEVER-DISPLACE (defer to WoW: a mob chasing or meleeing a player never pushes them; it closes to melee
+    /// and stacks on its target): moves <paramref name="mover"/> out of <paramref name="anchor"/> by the WHOLE overlap
+    /// along their XZ delta and leaves <paramref name="anchor"/> where it stands. Coincident centres move the mover
+    /// +x by the full contact distance (the symmetric rule's tie direction). Integer only.
+    /// </summary>
+    /// <param name="anchor">The actor that never moves (the player).</param>
+    /// <param name="mover">The actor pushed out (the enemy).</param>
+    /// <param name="radiusMm">The equal actor radius, mm.</param>
+    public static void ResolveCollisionMoverOnly(ActorState anchor, ActorState mover, long radiusMm)
+    {
+        ArgumentNullException.ThrowIfNull(anchor);
+        ArgumentNullException.ThrowIfNull(mover);
+        var dx = mover.Pos.X - anchor.Pos.X;
+        var dz = mover.Pos.Z - anchor.Pos.Z;
+        var dist2 = (dx * dx) + (dz * dz);
+        var minDist = radiusMm * 2;
+        if (dist2 >= minDist * minDist)
+        {
+            return;
+        }
+        var dist = Isqrt(dist2);
+        if (dist == 0)
+        {
+            mover.Pos = mover.Pos with { X = mover.Pos.X + minDist };
+            return;
+        }
+        var overlap = minDist - dist;
+        mover.Pos = mover.Pos with
+        {
+            X = mover.Pos.X + IntMath.TruncDiv(dx * overlap, dist),
+            Z = mover.Pos.Z + IntMath.TruncDiv(dz * overlap, dist),
+        };
+    }
+
     /// <summary>Clamps the actor's x and z into <paramref name="bounds"/> (y untouched).</summary>
     public static void ClampToBounds(ActorState actor, Bounds bounds)
     {
