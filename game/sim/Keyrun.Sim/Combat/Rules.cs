@@ -191,6 +191,14 @@ public static class Rules
                         var castHooks = actor.Kind == ActorKind.Player ? hooks : noClause;
                         var err = Casting.StartCast(state, actor, def, c.TargetId, c.Point, state.Tick, castHooks, ctx);
                         SpellQueue.AfterPress(actor, def, c, err, fired.Contains(c), state.Tick);
+                        // CAST-REFUSED (f-fa598b6b): an enemy cast refused out of range never starts. Its command is
+                        // encounter-generated, so it is in no trace record; this event is how a replay without combat
+                        // (EncounterCastLedger) learns the caster stayed free. Players' presses are in the record, and
+                        // other reasons are not reported. Mirrors sim/combat/rules.ts.
+                        if (err == "out_of_range" && actor.Kind == ActorKind.Enemy)
+                        {
+                            emit(new SimEvent(state.Tick, "cast_refused", ("actorId", JsValue.Int(actor.Id)), ("abilityId", JsValue.Str(def.Id)), ("reason", JsValue.Str(err))));
+                        }
                         if (err is null && def.CastTicks == 0)
                         {
                             var resolved = Abilities.ResolveVerse(def, actor);
