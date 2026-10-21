@@ -19,16 +19,16 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 249662,
-      "fnv": "f95a3a02"
+      "bytes": 276650,
+      "fnv": "eb586a96"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 210333,
-      "fnv": "bfad023f"
+      "bytes": 216223,
+      "fnv": "c1802e5f"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 210330,
-      "fnv": "541aedf8"
+      "bytes": 216220,
+      "fnv": "b0b93678"
     },
     "content-pull.setup.json": {
       "bytes": 23098,
@@ -404,7 +404,7 @@
         "fnv": "a385f55d"
       },
       "sim/combat/targeting.ts": {
-        "fnv": "1a24bc9b"
+        "fnv": "635baf1f"
       },
       "sim/combat/threat.ts": {
         "fnv": "7f76745e"
@@ -494,7 +494,7 @@
         "fnv": "0432becb"
       },
       "sim/run-wiring.ts": {
-        "fnv": "fa1b1356"
+        "fnv": "c05b466d"
       },
       "tests/sim/golden/build-content-pull.ts": {
         "fnv": "c240b5d6"
@@ -534,31 +534,31 @@
       "traceHash": "014e427d"
     },
     {
-      "finalTick": 1407,
+      "finalTick": 1423,
       "name": "bots-hv-k2-s7",
-      "records": 1408,
+      "records": 1424,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "36715d32"
+      "traceHash": "46f7aef4"
     },
     {
-      "finalTick": 1407,
+      "finalTick": 1423,
       "name": "bots-hv-k2-s11",
-      "records": 1408,
+      "records": 1424,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "36715d32"
+      "traceHash": "46f7aef4"
     },
     {
-      "finalTick": 1855,
+      "finalTick": 1989,
       "name": "bots-hv-k10-s7",
-      "records": 1856,
+      "records": 1990,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "346e3c22"
+      "traceHash": "eba9e2a3"
     }
   ],
   "version": 1
