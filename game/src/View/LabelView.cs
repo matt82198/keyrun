@@ -6,6 +6,10 @@ using Keyrun.Content;
 using Keyrun.Host;
 using Keyrun.Hud;
 using Keyrun.Sim.Core;
+using KickOrder = Keyrun.Bots.Shared.KickOrder;
+using KickSeat = Keyrun.Bots.Shared.KickSeat;
+using KitRegistry = Keyrun.Bots.KitRegistry;
+using Readiness = Keyrun.Bots.Shared.Readiness;
 
 namespace Keyrun.View;
 
@@ -76,6 +80,9 @@ public partial class LabelView : Node3D
     private readonly HashSet<string> _crowdLogged = new(StringComparer.Ordinal);
     private readonly Dictionary<int, int> _castLogged = new();
     private readonly Dictionary<int, CastBarView.CastEnding> _endings = new();
+    private readonly Dictionary<int, int> _kickLogged = new();
+    private IReadOnlyDictionary<int, int> _kickNumbers = new Dictionary<int, int>();
+    private KitRegistry? _kits;
 
     private Control? _canvas;
 
@@ -195,6 +202,8 @@ public partial class LabelView : Node3D
             }
         }
 
+        _kickNumbers = KickNumbers();
+
         _gone.Clear();
         foreach (var id in _plates.Keys)
         {
@@ -228,7 +237,59 @@ public partial class LabelView : Node3D
             var centre = name.X + (name.Width / 2f);
             Line(font, new Vector2(centre, name.Y + PlatePad + NameFont), d.Text, NameFont, d.Targeted ? TargetColor : Colors.White);
             DrawCast(font, d);
+            DrawKickNumber(font, d);
         }
+    }
+
+    // KICK-ORDER (BIBLE s3 "A suggested kick order"): a kickable caster's plate carries its kick number, the place in the
+    // party's kick order its kick comes off cooldown (1 kicks next). The number is drawn left of the cast's mark, in the
+    // cast text size with the outline; the shape is the digit, not a colour.
+    private void DrawKickNumber(Font font, Drawn d)
+    {
+        if (d.Cast is null || d.Placed.Mark is not { } markBox || !_kickNumbers.TryGetValue(d.Placed.Id, out var number))
+        {
+            return;
+        }
+        var text = number.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var at = new Vector2(markBox.X - HudNodes.Width(text, CastFont) - 4f, markBox.Y + markBox.Height - 2);
+        _canvas!.DrawStringOutline(font, at, text, HorizontalAlignment.Left, -1, CastFont, 3, Outline);
+        _canvas.DrawString(font, at, text, HorizontalAlignment.Left, -1, CastFont, Colors.White);
+    }
+
+    // KICK-ORDER: the party's kick places this frame (KickOrder.Compute over every living player whose class has an
+    // interrupt, read from its cooldown) and the number each kickable caster carries (KickOrder.NumberCasters, casters in
+    // actor-id order). One "HUD kick order seat=S n=N" host line per seat whose place changes.
+    private IReadOnlyDictionary<int, int> KickNumbers()
+    {
+        if (Driver is not { } driver)
+        {
+            return _kickNumbers;
+        }
+        var kits = driver.Registry is { } registry ? (_kits ??= KitRegistry.From(registry)) : KitRegistry.Empty;
+        var state = driver.State;
+        var seats = new List<KickSeat>();
+        foreach (var a in state.Actors.Values)
+        {
+            if (a.Kind != ActorKind.Player || !a.Alive || kits.GetClassKit(a.ClassId)?.InterruptAbilityId is not { Length: > 0 } interrupt)
+            {
+                continue;
+            }
+            seats.Add(new KickSeat(a.Id, Readiness.CooldownReadyTick(a, interrupt)));
+        }
+        var order = KickOrder.Compute(seats, state.Tick);
+        var casters = state.Actors.Values
+            .Where(a => a.Kind == ActorKind.Enemy && a.Alive && a.CastId is { } castId && MarkOf(castId) == CastMark.Kick)
+            .Select(a => a.Id)
+            .ToList();
+        foreach (var slot in order)
+        {
+            if (!_kickLogged.TryGetValue(slot.SeatId, out var last) || last != slot.Order)
+            {
+                _kickLogged[slot.SeatId] = slot.Order;
+                driver.HostLine(FormattableString.Invariant($"HUD kick order seat={slot.SeatId} n={slot.Order}"));
+            }
+        }
+        return KickOrder.NumberCasters(casters, order);
     }
 
     // STACKED-PLATES: the cast rows under a plate's name: the spell label, the kick/locked mark (diamond or square, amber
