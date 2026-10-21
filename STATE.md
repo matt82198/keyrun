@@ -159,6 +159,13 @@ Remaining rungs (post-#98), cheapest and most visible first:
   colour is time-only; setupClass never rendered; capsules have no names on the non-#98 path; SPREAD/STACK
   telegraph text labels (no text yet); 3 of 4 bots die in pull 2 (balance).
 
+## CHECKPOINT 2026-10-21 00:35Z (orchestrator, after compaction)
+WHY: #396 (integrate: playable dungeon, one PR) is the only path to Matt's end-to-end run (D10/D15), so everything else is sequenced behind it. Written from gh state (read 2026-10-21), not from lane narration.
+- #396 OPEN DRAFT at dd34a14c. A lane is fixing two reds: ForkParityTests cheapShot dominated, and the re-fold of #325 via revert of e676386a; ChoirLessonTests Depleted. The integration branch has 3 self-reverts in its last 20 commits (monitor churn flag) and is 157 commits ahead of main; origin ref present.
+- MERGED this span: #371 1b9877d3; #397 7709e4a7; #398 6f5c282e (BIBLE s9 decisions); #399 0da27a43 (PLAYTESTERS map row). #400 OPEN (e6c6fed7), chest tiers retargeting to main, lane in flight.
+- Recon 2026-10-21 (read-only, bound by gh): close after #396 merges, because their heads are ancestors of integrate/playable-dungeon: #308 2ae5c7a5, #333 5ff061cd, #369 918d8489, #335 2764c19e, #244 6469469b. Verify-then-close: #344 b979989c (OPEN), #325 139b0da5 (OPEN).
+- NEEDS MATT: #326 (TEMPO-CAST-FLOOR, 1724b737) was folded into the integrate branch, then reverted by 67910219, so the cast-floor logic for path packs is currently OUT of #396. Re-fold or drop is Matt's call. feat/no-push-rule 7334a6c8 (ENEMY-NO-PUSH; commit says WIP) is in neither #396 nor main. #375 42b92dfa and #370 d5fc921b are outside #396. pr250 (#250 OPEN, 817969b6, 3 test-guard files) is live and outside #396. lane/rebase-242 (#242 CLOSED) has zero net diff vs main: stale; delete needs Matt.
+
 ## NEXT STEPS (engine plan, design/ENGINE-PLAN.md; Phase 5 "Matt playing" stays the acceptance test)
 PURPOSE: Keyrun is a Windows desktop 3D dungeon game per design/BIBLE.md; the TypeScript browser client was first paint only (status: throwaway); the Godot build is the real thing (status: real).
 TS feature work is FROZEN at main 6e1548d (sim/ bots/ client/ server/ screen/). Former items 1-7 (Slack delta, cast-bar
