@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Keyrun.Bots;
+using Keyrun.Bots.Roles;
 using Keyrun.Bots.Shared;
 using Keyrun.Content;
 using Keyrun.Host;
@@ -27,7 +28,8 @@ public sealed class NoPolicyParityTests
         var setup = HostRunSetup.Build(registry, "hollow-vault", key, "warden", withBots: true);
         var created = RunRoot.CreateRun(seed, setup.Party, setup.Dungeon, setup.Content, null);
         var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
-        var source = new BotCommandSource(setup.Party.Select(p => p.Id), KitRegistry.From(registry), seed);
+        var kits = KitRegistry.From(registry);
+        var source = new BotCommandSource(setup.Party.Select(p => p.Id), kits, seed);
         var log = new StringBuilder();
         while (run.State.Tick < maxTicks && run.RunEnd.ResultTick is null)
         {
@@ -46,7 +48,12 @@ public sealed class NoPolicyParityTests
                 }
                 else
                 {
-                    commands.RemoveAll(c => c.ActorId == leader.Id && c is MoveCommand or DashCommand);
+                    // R-SEED-1a (f-244d102b): BotCommandSource.cs:162-166 passes every batch command, the leader's TankEngage
+                    // approach move included, so the reference keeps exactly that move (TankEngage.ApproachMove) and strips
+                    // the rest of the leader's moves in a fight, as before.
+                    var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits.ForRun(run.Content.Abilities)) with { Layout = run.Content.Layout };
+                    var approach = leader.Role == ActorRole.Tank ? TankEngage.ApproachMove(view, leader, view.Kits.ResolveKit(leader.ClassId, view.ClassKit)) : null;
+                    commands.RemoveAll(c => c.ActorId == leader.Id && c is MoveCommand or DashCommand && !Equals(c, approach));
                 }
             }
             foreach (var c in commands)

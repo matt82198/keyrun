@@ -130,13 +130,19 @@ describe("lull signal (roles/shared.ts inLull)", () => {
   const healer = actor({ id: 1, role: "healer" });
   const tank = actor({ id: 2, role: "tank", pos: { x: 1, y: 0, z: 0 } });
 
-  it("a lone enemy aimed at its own pack is a lull; aimed at a player, untargeted, or none is not", () => {
+  // R-SEED-1a (finding f-244d102b): a living enemy is engaged whatever it is aimed at, so a caster tending its own pack
+  // is NOT a lull and the tank fights it. The C# rule (RoleShared.InLull) is "every living enemy is idle"; the TS sim
+  // has no idle state, so no living enemy is idle here and inLull is false in every row, including the pack-aimed one.
+  it("a living enemy is engaged, whatever it is aimed at, so it is not a lull (R-SEED-1a, f-244d102b)", () => {
     const healerFoe = (targetId: number | null) => actor({ id: 102, kind: "enemy", role: "damage", targetId });
     const ally = actor({ id: 101, kind: "enemy", role: "damage", alive: false });
-    expect(inLull(viewOf([healer, tank, ally, healerFoe(101)]))).toBe(true);
-    expect(inLull(viewOf([healer, tank, ally, healerFoe(102)]))).toBe(true);
+    expect(inLull(viewOf([healer, tank, ally, healerFoe(101)]))).toBe(false);
+    expect(inLull(viewOf([healer, tank, ally, healerFoe(102)]))).toBe(false);
     expect(inLull(viewOf([healer, tank, ally, healerFoe(2)]))).toBe(false);
     expect(inLull(viewOf([healer, tank, ally, healerFoe(null)]))).toBe(false);
+  });
+
+  it("no living enemy is never a lull (at least one living enemy is required)", () => {
     expect(inLull(viewOf([healer, tank]))).toBe(false);
   });
 });

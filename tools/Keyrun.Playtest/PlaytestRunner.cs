@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Keyrun.Bots;
+using Keyrun.Bots.Roles;
 using Keyrun.Bots.Shared;
 using Keyrun.Host;
 using Keyrun.Sim.Core;
@@ -23,6 +24,12 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
 
     /// <summary>Hard stop, ticks; a run still going is "unfinished". Default: twice par.</summary>
     public int? MaxTicks { get; init; }
+
+    /// <summary>
+    /// Test seam (read-only): called once per tick with the tick, the run before the step and the commands about to be
+    /// stepped, after the leader's travel and fight strip are applied. Null in play.
+    /// </summary>
+    public Action<int, Run, IReadOnlyList<Command>>? Observe { get; init; }
 }
 
 /// <summary>A finished playtest: the final run, the event/command log and the stats the summary reads.</summary>
@@ -154,7 +161,13 @@ public static class PlaytestRunner
                 }
                 else
                 {
-                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge));
+                    // R-SEED-1a (f-244d102b): the host passes the leader's fight approach through (BotCommandSource.cs:162-166
+                    // adds every batch command; ScriptedWarden.cs:81-97 emits its own approach moves), so the mirror exempts
+                    // exactly the TankEngage approach move, identified by its origin (TankEngage.ApproachMove), and no other.
+                    var approach = leader.Role == ActorRole.Tank
+                        ? TankEngage.ApproachMove(view, leader, view.Kits.ResolveKit(leader.ClassId, view.ClassKit))
+                        : null;
+                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && !Equals(c, approach));
                 }
             }
 
@@ -163,6 +176,7 @@ public static class PlaytestRunner
                 log.Append("C ").Append(c).Append('\n');
             }
             stats.ObserveCommands(commands);
+            options.Observe?.Invoke(tick, run, commands);
             var before = run;
             var stepped = RunRoot.StepRun(run, commands);
             run = stepped.Run;
