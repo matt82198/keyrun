@@ -61,6 +61,7 @@ public sealed class ProgressionSaveTests : IDisposable
         Assert.Equal(expected.Prng, actual.Prng);
         Assert.Equal(expected.LastRun, actual.LastRun);
         Assert.Equal(expected.Talents, actual.Talents);
+        Assert.Equal(expected.AscensionCardMarks, actual.AscensionCardMarks);
         Assert.Equal(expected.Equipped.Keys.OrderBy(k => k, StringComparer.Ordinal), actual.Equipped.Keys.OrderBy(k => k, StringComparer.Ordinal));
         foreach (var (slot, item) in expected.Equipped)
         {
@@ -244,6 +245,26 @@ public sealed class ProgressionSaveTests : IDisposable
         Assert.Null(loaded.Error);
         Assert.Equal(30, loaded.Progression.AshTotal);
         Assert.Empty(loaded.Progression.Talents);
+    }
+
+    [Fact]
+    public void Ascension_card_marks_round_trip_through_the_save()
+    {
+        var marked = Progression.Start(7) with { AscensionCardMarks = 2 };
+
+        var loaded = ProgressionSave.Load(ProgressionSave.Serialize(marked), seed: 999);
+
+        Assert.Null(loaded.Error);
+        Assert.Equal(2, loaded.Progression.AscensionCardMarks);
+    }
+
+    [Fact]
+    public void A_save_written_before_ascension_cards_existed_loads_with_no_marks()
+    {
+        var loaded = ProgressionSave.Load("{\"v\":1,\"ash\":30,\"runs\":1,\"prng\":[1,2,3,4],\"equipped\":[],\"last\":null}", seed: 5);
+
+        Assert.Null(loaded.Error);
+        Assert.Equal(0, loaded.Progression.AscensionCardMarks);
     }
 
     [Theory]

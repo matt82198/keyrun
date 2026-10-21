@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Keyrun.Sim.Encounter;
+using Keyrun.Sim.Runs;
 using Xunit;
 
 namespace Keyrun.Sim.Tests.Encounter;
@@ -157,5 +159,72 @@ public sealed class RewardsTests
         Assert.Equal(
             Rewards.RollRewardChoices(9, 6, RunResult.Timed, Rewards.GearSlots).Select(i => i.Id),
             Rewards.RollRewardChoices(9, 6, RunResult.Timed, System.Array.Empty<string>()).Select(i => i.Id));
+    }
+
+    // Four facets per slot, as the shipped class tables have (the same shape EndOfRunChoiceTests uses).
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<Facet>> FourPerSlot = Rewards.GearSlots.ToDictionary(
+        s => s,
+        s => (IReadOnlyList<Facet>)Enumerable.Range(0, 4).Select(i => new Facet($"{s}.f{i}", $"{s} facet {i}", $"ability.{s}.{i}")).ToList(),
+        StringComparer.Ordinal);
+
+    // Every slot holds its own first facet at the given tier; the weapon takes its own tier.
+    private static Dictionary<string, Item> Gear(int tierOfWeapon, int tier) =>
+        Rewards.GearSlots.ToDictionary(
+            s => s,
+            s => new Item($"owned-{s}", s, s == "weapon" ? tierOfWeapon : tier, FourPerSlot[s][0], 2),
+            StringComparer.Ordinal);
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(8)]
+    [InlineData(15)]
+    [InlineData(20)]
+    public void Every_slot_at_the_cap_offers_exactly_one_ascension_card_among_three_distinct_cards(int key)
+    {
+        var capped = Gear(Progression.MaxTier, Progression.MaxTier);
+        for (var seed = 0L; seed < 300; seed++)
+        {
+            var offer = Rewards.RollRewardChoices(seed, key, RunResult.Timed, Rewards.GearSlots, FourPerSlot, capped);
+            Assert.Equal(3, offer.Count);
+            Assert.Equal(1, offer.Count(Ascension.IsCard));
+            Assert.Equal(3, offer.Select(Key).Distinct(StringComparer.Ordinal).Count());
+            Assert.All(offer, i => Assert.InRange(i.Tier, 1, Progression.MaxTier));
+        }
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(15)]
+    public void Below_the_cap_no_ascension_card_appears(int key)
+    {
+        // Four slots at the cap and the weapon one tier short: the character is not ascended, so no card is one.
+        var almost = Gear(Progression.MaxTier - 1, Progression.MaxTier);
+        for (var seed = 0L; seed < 300; seed++)
+        {
+            var offer = Rewards.RollRewardChoices(seed, key, RunResult.Timed, Rewards.GearSlots, FourPerSlot, almost);
+            Assert.DoesNotContain(offer, Ascension.IsCard);
+        }
+    }
+
+    [Fact]
+    public void The_ascension_card_names_a_slot_at_the_cap_and_never_an_equipped_facet()
+    {
+        var capped = Gear(Progression.MaxTier, Progression.MaxTier);
+        var offer = Rewards.RollRewardChoices(42, 15, RunResult.Timed, Rewards.GearSlots, FourPerSlot, capped);
+        var card = offer.Single(Ascension.IsCard);
+        Assert.Equal(Progression.MaxTier, card.Tier);
+        Assert.Contains(card.Slot, Rewards.GearSlots);
+        Assert.Equal(Rewards.AscensionFacetId, card.Facet.Id);
+        Assert.DoesNotContain(FourPerSlot[card.Slot], f => f.Id == card.Facet.Id);
+    }
+
+    [Fact]
+    public void A_fresh_character_is_never_offered_an_ascension_card()
+    {
+        for (var seed = 0L; seed < 300; seed++)
+        {
+            var offer = Rewards.RollRewardChoices(seed, 10, RunResult.Timed, Rewards.GearSlots, FourPerSlot, new Dictionary<string, Item>(StringComparer.Ordinal));
+            Assert.DoesNotContain(offer, Ascension.IsCard);
+        }
     }
 }
