@@ -153,7 +153,7 @@ public sealed class PolicyBot : IBot
         var inFloor = Floor.FloorEscapeCommand(view, self) is not null;
         var kept = new List<Command>();
         var droppedCast = false;
-        foreach (var c in role.Decide(view, self))
+        foreach (var c in DecideOffLedger(role, view, self, kit))
         {
             switch (c)
             {
@@ -185,6 +185,29 @@ public sealed class PolicyBot : IBot
 
     private static bool IsEnemy(BotView view, int id) =>
         view.State.Actors.TryGetValue(id, out var a) && a.Kind == ActorKind.Enemy;
+
+    /// <summary>
+    /// MITIGATE-THROUGH-LEDGER: the scripted role's decision with the scripted kick ledger switched off for this seat (its
+    /// kicks come from the plan only). Every role decides the ledger's kick first and returns it alone, so dropping that
+    /// kick afterwards also dropped everything the role would have pressed instead: a mitigating tank skipped Bulwark
+    /// and the healer stood idle while the boss cast its cleave (seed 1 key 2, 5480-5515), and the cleave killed the
+    /// Chanter. In WoW a player who is not on kicks still heals and presses their defensive. When the role hands this
+    /// seat the ledger kick, it decides again on a copy of the view where the seat's interrupt is not ready, which is
+    /// exactly what makes the ledger pass it over.
+    /// </summary>
+    private static IReadOnlyList<Command> DecideOffLedger(IRole role, BotView view, ActorState self, Keyrun.Bots.EffectiveKit kit)
+    {
+        var decided = role.Decide(view, self);
+        var interrupt = kit.InterruptAbilityId;
+        if (string.IsNullOrEmpty(interrupt) || !decided.Any(c => c is CastCommand k && string.Equals(k.AbilityId, interrupt, StringComparison.Ordinal)))
+        {
+            return decided;
+        }
+        var state = view.State.Clone();
+        var copy = state.Actors[self.Id];
+        copy.Cooldowns[interrupt] = Math.Max(Readiness.CooldownReadyTick(copy, interrupt), state.Tick + 1);
+        return role.Decide(view with { State = state }, copy);
+    }
 
     // bot.ts dangerAvoidCommand, gated by the plan.
     private static MoveCommand? DangerAvoid(BotView view, ActorState self)
