@@ -116,7 +116,10 @@
          Choir fight; the Warden now fights the Choir melee after the kick, so seed 1 key 2 clears the Choir at 1757 and
          pull 2 starts at tick 1840 with all three seats alive; 2@3000 from lane NAV-CORE now falls in pull 2; 2@1500 -> 2@1700
          by ROOM-LOCK-IN D27 (Choir pull_start 50, room locked): a Chanter leaving at 1500 lets the Warden die at 1794, before
-         the 1809 clear; at 1700 the Choir clears at 1749, pull 2 starts at 1844 and the seat refills at 1844). The old 1@1000 cannot work on the
+         the 1809 clear; at 1700 the Choir clears at 1749, pull 2 starts at 1844 and the seat refills at 1844; 2@1700 -> 2@1500 by
+         D-PINNED-FIXTURES-362: with the healer press the undisturbed Choir clears at 1580 and pull 2 starts at 1693, so 1700
+         fell in pull 2; at 1500 the Choir clears at 1607, pull 2 starts at 1720 and the seat refills at 1720, headless
+         RunFJoinerActsTests). The old 1@1000 cannot work on the
          route: the next pull spawns only when a party member walks into its room, and an abandoned human leader stands
          idle, so his bots never travel; 3@1000 to 3@3000 leave the Choir uncleared without the Cinder's damage.
     Run G (lane 3J, key mismatch): as F with --joiner-key 3
@@ -252,7 +255,7 @@ param(
     [int]$BossTicks = 600,
     [int]$QueueTicks = 900,
     [int]$BackfillTicks = 3500,
-    [string]$AbandonSeat = '2@1700',
+    [string]$AbandonSeat = '2@1500',
     [int]$ScreenFirstFrames = 240,
     [int]$WipeFrames = 6600,
     [int]$PingAt = 100,

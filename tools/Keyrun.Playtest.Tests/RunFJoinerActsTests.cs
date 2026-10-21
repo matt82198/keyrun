@@ -18,7 +18,7 @@ namespace Keyrun.Playtest.Tests;
 /// abandonment"): the run SimDriver builds at key 2, seed 1 (<see cref="HostRunSetup.Build"/>, then
 /// <see cref="BossRules.Arm"/>), seat 1 the autorun <see cref="ScriptedWarden"/> and seats 2 and 3 the host's own
 /// <see cref="BotCommandSource"/>, stepped in SimDriver.StepOnce's order through <see cref="Backfill.Step"/>. Seat 2 is
-/// abandoned at tick 1700 (<c>--abandon-seat 2@1700</c>) and one key-2 request joins the queue (<c>--joiner-key 2</c>).
+/// abandoned at tick 1500 (<c>--abandon-seat 2@1500</c>), late in the Choir fight, and one key-2 request joins the queue (<c>--joiner-key 2</c>).
 /// The joiner must take the seat at the next pull start and then act: a <c>cast_complete</c> by seat 2 after the fill,
 /// within run F's 3500 ticks.
 /// </summary>
@@ -27,7 +27,10 @@ public sealed class RunFJoinerActsTests
     private const int Key = 2;
     private const long Seed = 1;
     private const int SeatId = 2;
-    private const int AbandonTick = 1700; // HudSceneTest $AbandonSeat '2@1700'
+    // HudSceneTest $AbandonSeat '2@1500'. Was 1700 (D-PINNED-FIXTURES-362): with the healer press the undisturbed Choir
+    // clears at 1580 and the Pair starts at 1693, so 1700 fell inside pull 2; at 1500 the Choir clears at 1607, the Pair
+    // starts at 1720 and the seat refills there (measured on seed 1 key 2).
+    private const int AbandonTick = 1500;
     private const int MaxTicks = 3500; // run F's --ticks (HudSceneTest $BackfillTicks)
 
     private sealed record Drive(int? FillTick, List<SimEvent> Events, List<string> Log, Run Final);
