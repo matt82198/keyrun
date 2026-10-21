@@ -189,6 +189,28 @@ public sealed class ActorBinding
         new ActorBindingRow("hollowWarden.twinB", "Skeleton_Warrior.glb", 2590, 799, 0xFF88C8, Array.Empty<string>(),
             ActorClips.Skeleton, TargetHeightMm: HeadLineMm * 115 / 100, Folder: SkeletonsFolder),
 
+        // BIBLE 9.3 vault enemies (game/content/data/enemies/vault.json, FORCES-ROUTE-PLAN slice S1): the same CC0
+        // skeletons as the Choir and the Pair, each tinted toward its cast's telegraph colour so a pack reads by body.
+        // Hollow Hound: the small bare Skeleton Minion, washed ash grey.
+        new ActorBindingRow("vault.hound", "Skeleton_Minion.glb", 2166, 831, 0xC0B8B0, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
+        // Ash Hexer: robed Skeleton Mage, violet (Searing Hex).
+        new ActorBindingRow("ash.hexer", "Skeleton_Mage.glb", 2630, 684, 0xC090F0, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
+        // Vault Brute: Skeleton Warrior, stone grey (Crushing Slam).
+        new ActorBindingRow("vault.brute", "Skeleton_Warrior.glb", 2590, 695, 0xB0B0B8, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
+        // Bellows Keeper: robed Skeleton Mage, ember orange (Stoke).
+        new ActorBindingRow("bellows.keeper", "Skeleton_Mage.glb", 2630, 684, 0xF0B070, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
+        // Drowned Chorister: robed Skeleton Mage, sea green (Undertow).
+        new ActorBindingRow("drowned.chorister", "Skeleton_Mage.glb", 2630, 684, 0x80E0C0, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
         // The Hollow Warden: the player's own Knight at 1.9x its native height, washed a pale cold steel (hollow; BOSS-
         // READABILITY: the 0x50505C dark tint rendered it near-black on the stone floor), with the two-handed sword
         // it cleaves and slams with; no spawn clip (the Adventurers have none), it starts in Idle.

@@ -59,8 +59,9 @@ public sealed class AbilityAnimTests
         // Exactly the enemy melee casts wind up a strike: no spell (a Pair mark, the Warden's Bulwark) winds up a punch.
         var casts = StrikeCasts();
         var names = casts.Select(c => c.Ability).Distinct().OrderBy(s => s, StringComparer.Ordinal).ToList();
+        // vault.crushingSlam joined with VAULT-KITS (S1): the Vault Brute's BIBLE 9.3 melee cast, a strike, not a spell.
         Assert.Equal(
-            new[] { "hollowWarden.cleave", "hollowWarden.slam", "seed.lash", "seed.slam", "twins.slam" },
+            new[] { "hollowWarden.cleave", "hollowWarden.slam", "seed.lash", "seed.slam", "twins.slam", "vault.crushingSlam" },
             names);
         foreach (var (enemy, ability, clip, castTicks) in casts)
         {

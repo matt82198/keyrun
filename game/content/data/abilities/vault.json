@@ -1,0 +1,144 @@
+[
+  {
+    "id": "ash.searingHex",
+    "name": "Searing Hex",
+    "castTicks": 50,
+    "gcdTicks": 0,
+    "cooldownTicks": 200,
+    "charges": 1,
+    "range": 25000,
+    "shape": {
+      "kind": "target"
+    },
+    "interruptible": true,
+    "tags": [],
+    "effects": [
+      {
+        "op": "applyEffect",
+        "effectId": "searingHex",
+        "durationTicks": 120,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
+  },
+  {
+    "id": "ash.cinders",
+    "name": "Cinders",
+    "castTicks": 0,
+    "gcdTicks": 0,
+    "cooldownTicks": 0,
+    "charges": 1,
+    "range": 0,
+    "shape": {
+      "kind": "circle",
+      "radius": 2000
+    },
+    "interruptible": false,
+    "tags": [],
+    "effects": [
+      {
+        "op": "applyEffect",
+        "effectId": "cinders",
+        "durationTicks": 120,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
+  },
+  {
+    "id": "bellows.stoke",
+    "name": "Stoke",
+    "castTicks": 70,
+    "gcdTicks": 0,
+    "cooldownTicks": 240,
+    "charges": 1,
+    "range": 0,
+    "shape": {
+      "kind": "circle",
+      "radius": 4000
+    },
+    "interruptible": true,
+    "tags": [],
+    "effects": [
+      {
+        "op": "applyEffect",
+        "effectId": "stoked",
+        "durationTicks": 160,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
+  },
+  {
+    "id": "drowned.undertow",
+    "name": "Undertow",
+    "castTicks": 60,
+    "gcdTicks": 0,
+    "cooldownTicks": 180,
+    "charges": 1,
+    "range": 25000,
+    "shape": {
+      "kind": "target"
+    },
+    "interruptible": true,
+    "tags": [],
+    "effects": [
+      {
+        "op": "damage",
+        "amount": 10,
+        "school": "frost"
+      },
+      {
+        "op": "pull",
+        "distanceMm": 5000
+      },
+      {
+        "op": "applyEffect",
+        "effectId": "rooted",
+        "durationTicks": 20,
+        "stacks": 1
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
+  },
+  {
+    "id": "vault.crushingSlam",
+    "name": "Crushing Slam",
+    "castTicks": 40,
+    "gcdTicks": 0,
+    "cooldownTicks": 160,
+    "charges": 1,
+    "range": 3500,
+    "shape": {
+      "kind": "cone",
+      "radius": 3500,
+      "angle1024": 256
+    },
+    "interruptible": false,
+    "tags": [],
+    "effects": [
+      {
+        "op": "damagePct",
+        "maxHealthBp": 4000,
+        "school": "physical"
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
+  }
+]
