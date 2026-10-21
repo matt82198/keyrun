@@ -204,7 +204,7 @@ pair combo, so there is always something to close even when the enemy Window was
 - **The timer and Slack.** The run has a par time, and the run timer counts against it from the first tick, as in
   Mythic+ (section 9 principle). **Slack** is a grace bank shown as a second bar: 30 s plus 1 s per key level above 1.
   A death costs 15 s of Slack and a full wipe 25 s, the same 15 s a death costs a Mythic+ timer. The run is
-  **timed** when it finishes no later than par plus the Slack still left. Otherwise the key is *depleted*: the party
+  **timed** when it finishes no later than par plus the Slack still left. Otherwise the key is *depleted*: the party (superseded 2026-10-20, see Decisions)
   may still finish for the run reward and Ash, but not the key upgrade. **Decision (Matt, 2026-10-20), as relayed:**
   an untimed key stays at the same level, with no drop. This is a deliberate divergence from WoW, for test 3. A timed
   run upgrades the key by **+1**, **+2** if it finishes within 80% of par, and **+3** within 60% of par. A +2 or +3
@@ -242,6 +242,35 @@ pulls, and add 4-6 optional trash packs across two branching paths, plus a 100% 
 before the boss door opens. Route choice and pull size become real decisions against the timer. Mixed packs give
 several kickable casters, and two rooms get floor hazards." This section is that option made concrete. It does not
 change par (an open `[DECIDE]`, section 12). The key's affixes are set in section 8.
+
+### Decisions 2026-10-20 (Matt; core loop defers to WoW Mythic+)
+
+These entries record Matt's 2026-10-20 dungeon-loop decisions. Every lane is judged against them. Where an
+older line above contradicts one of them, that line is kept and marked "(superseded 2026-10-20, see Decisions)".
+
+- **Lean into Mythic+.** Matt, verbatim: "honestly just lean into m+ design heavily while in the dungeon". The
+  dungeon leans into Mythic+ heavily: timer and chest tiers, forces percent, mixed packs with kick and stop
+  casters, patrols, skips, death time penalty, rotating affixes, and key upgrade. The screen, gear and social
+  rules stay as written in this bible. (f-228202e1). Note: "chest tiers" has no section of its own yet; the
+  nearest specified rules are the upgrade tiers (section 8) and the end-of-run choice (section 7).
+- **Feel: almost exact to WoW, less button clutter.** Matt, verbatim: "it should feel almost exact to wow with
+  less button clutter". The only intended divergence from WoW Mythic+ is fewer buttons: the ten-keybind budget
+  (section 2). (f-3897cb62)
+- **Prespawn with aggro distance.** Matt, verbatim: "everything should be prespawned with an aggro distance".
+  All packs exist idle from run start and engage when a living party member enters their aggro radius. Spawn on
+  room entry is removed. (f-6d538dd2)
+- **Zero downtime means stakes.** Matt, verbatim: "when i say 0 downtime, i mean the high stakes m+ introduces,
+  not literally spawning enemies on the player". Stakes come from the timer, forces, route and pull size. Nothing
+  spawns on the player. (f-66f25047)
+- **Untimed key keeps its level.** An untimed key stays the same level, with no depletion. (f-7c7abdf4)
+- **Private rating.** A WoW-style Mythic+ rating is shown only on the player's own screen. It is never shown to
+  others and never used to filter groups. This keeps section 0's "no shareable score". (f-a3230c59)
+- **Loot from key level.** Loot quality comes from the key level. A timed +2 or +3 moves the key up 2 or 3 levels.
+  Choose-one-of-three stays. (f-baeb031a)
+- **Twins die with the Warden.** The Sundered Twins die with the Hollow Warden. Boss death ends the encounter and
+  any adds despawn, as in WoW. Sim change pending. (f-77fcfca4)
+- **Affixes follow current WoW.** From +5, one of Fortified or Tyrannical rotates. From +10, both are on. A
+  rotating Clause layers on top. (f-319aced5)
 
 ### 9.1 The map
 
