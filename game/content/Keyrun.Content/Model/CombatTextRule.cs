@@ -41,6 +41,37 @@ public static class CombatTextRule
         return true;
     }
 
+    /// <summary>The sim event type a stun-immune actor's refused stun emits (ControlStops.RefuseImmuneStuns, #429).</summary>
+    public const string ImmuneEventType = "immune";
+
+    /// <summary>The text a human's refused effect floats over its target (WoW floats "Immune" over the target).</summary>
+    public const string ImmuneText = "IMMUNE";
+
+    /// <summary>
+    /// Finding f-04dba988 (WoW floats "Immune" over a target that refuses an effect): true when one sim event floats an
+    /// <see cref="ImmuneText"/> over its target: an <see cref="ImmuneEventType"/> event (#429: a stun-immune actor
+    /// refused a stun; sourceId is who applied it, targetId the immune actor) whose source is the human's seat and that
+    /// names a target. HUD-DECLUTTER limits floating text to the human's seat, so a bot's or an enemy's refused effect
+    /// shows nothing, as does any other event type (a stun that lands emits no immune event) and an immune event with
+    /// no source or target id.
+    /// </summary>
+    /// <param name="eventType">The event's type.</param>
+    /// <param name="sourceId">The event's sourceId, or null when it carries none.</param>
+    /// <param name="targetId">The event's targetId, or null when it carries none.</param>
+    /// <param name="humanActorId">The played character's actor id.</param>
+    /// <param name="immuneTargetId">The actor the text floats over (0 when no text).</param>
+    /// <returns>True when an IMMUNE text is shown.</returns>
+    public static bool HumanImmune(string eventType, long? sourceId, long? targetId, int humanActorId, out int immuneTargetId)
+    {
+        immuneTargetId = 0;
+        if (eventType != ImmuneEventType || sourceId != humanActorId || targetId is not { } target)
+        {
+            return false;
+        }
+        immuneTargetId = (int)target;
+        return true;
+    }
+
     // Lane DMG-NUMBERS (finding f-07a02dc5): where a floating number draws.
 
     /// <summary>Pixels between the target's plate edge and a number placed beside it.</summary>
