@@ -202,6 +202,13 @@ public sealed class EveryEnemyAbilityTelegraphedTests
                 {
                     gaps.Add($"{enemyId} {abilityId}: telegraph {bad}");
                 }
+                // TELEGRAPH-TARGET (BIBLE s3: the floor shape is the area that will be hit): seed.lash is a single-target
+                // cast at range, so its telegraph is a line from the caster, as long as its range, to its target, never a
+                // caster-centred circle.
+                if (abilityId == "seed.lash" && (StrOf(tg.Get("shape")) != "line" || IntOf(tg.Get("length")) != IntOf(a.Get("range"))))
+                {
+                    gaps.Add($"{enemyId} {abilityId}: telegraph must be a line of length range {IntOf(a.Get("range"))} from caster to target, is {StrOf(tg.Get("shape"))} length {IntOf(tg.Get("length"))}");
+                }
                 if (IntOf(tg.Get("leadTicks")) is not { } lead || lead < MinLeadTicks)
                 {
                     gaps.Add($"{enemyId} {abilityId}: leadTicks {IntOf(tg.Get("leadTicks"))} below {MinLeadTicks}");
