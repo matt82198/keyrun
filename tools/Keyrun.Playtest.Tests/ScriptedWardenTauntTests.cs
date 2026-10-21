@@ -91,6 +91,43 @@ public sealed class ScriptedWardenTauntTests
         Assert.Empty(TauntsFrom(Engage(run, (pair[0], CarelessSeat, range + 2000))));
     }
 
+    // Steps the run with the autorun Warden's commands each tick until the enemy's holder is the Warden; the tick it
+    // flipped, or null within the window.
+    private static int? StepUntilWardenHolds(Run run, int enemyId, int window)
+    {
+        var warden = new ScriptedWarden();
+        for (var i = 0; i < window; i++)
+        {
+            var commands = new List<Command>();
+            warden.Sample(run.State.Tick, run, commands);
+            run = RunRoot.StepRun(run, commands).Run;
+            if (run.State.Actors[enemyId].HolderId == WardenId)
+            {
+                return run.State.Tick;
+            }
+        }
+        return null;
+    }
+
+    [Fact(DisplayName = "Through the run loop the autorun Warden takes back a loose enemy within one second of Taunt coming ready (f-2e1fc45a)")]
+    public void Warden_takes_back_a_loose_enemy_within_his_reaction_window()
+    {
+        var (run, pair) = Build();
+        var engaged = Engage(run, (pair[0], CarelessSeat, 1500));
+        // Taunt is on cooldown for 10 more ticks when the Cinder body-pulls, so the window opens when it comes ready.
+        const int CooldownLeft = 10;
+        var state = engaged.State.Clone();
+        var readyAt = state.Tick + CooldownLeft;
+        state.Actors[WardenId].Cooldowns[Taunt] = readyAt;
+        engaged = engaged with { State = state };
+        Assert.Equal(CarelessSeat, engaged.State.Actors[pair[0]].HolderId);
+
+        // Reaction window: one second (Tick.TickHz ticks) after Taunt is ready; a WoW tank taunts a loose add on sight.
+        var flipped = StepUntilWardenHolds(engaged, pair[0], CooldownLeft + Tick.TickHz);
+        Assert.True(flipped is not null, $"the Warden never took enemy {pair[0]} back from seat {CarelessSeat} within {CooldownLeft + Tick.TickHz} ticks");
+        Assert.InRange(flipped!.Value, readyAt, readyAt + Tick.TickHz);
+    }
+
     [Fact(DisplayName = "The autorun Warden does not press Taunt while it is on cooldown")]
     public void Warden_does_not_taunt_on_cooldown()
     {
