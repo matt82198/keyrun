@@ -33,13 +33,14 @@ public sealed class ContentCountTests
         // 19 TS loadContent files from content/data plus the C#-only game/content/data/run.json, layout.json, theme.json,
         // combo-riders.json and the forces + route files forces.json, packs.json and hazards.json (FORCES-ROUTE-PLAN
         // increment 2), gear.json (five gear slots, BIBLE section 7), and enemies/hall.json (the C#-only Mythic+ trash
-        // only a layout pack fields, PATH-PACKS: 27 -> 28, an inventory raise for a real 8th enemy, STATE.md D49).
+        // only a layout pack fields, PATH-PACKS: 27 -> 28, an inventory raise for a real 8th enemy, STATE.md D49), and
+        // palette.json (the render palette for telegraph and floor colours, feat-telegraph-palette: 28 -> 29).
         string[] csharpOnly =
         {
             "run.json", "layout.json", "theme.json", "combo-riders.json", "forces.json", "packs.json", "hazards.json",
-            "gear.json", "enemies/hall.json",
+            "gear.json", "enemies/hall.json", "palette.json",
         };
-        Assert.Equal(28, embedded.Length);
+        Assert.Equal(29, embedded.Length);
         Assert.Equal(19, embedded.Count(p => !csharpOnly.Contains(p)));
         Assert.Equal(embedded, loaded);
     }
