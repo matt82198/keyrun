@@ -204,7 +204,7 @@ pair combo, so there is always something to close even when the enemy Window was
 - **The timer and Slack.** The run has a par time, and the run timer counts against it from the first tick, as in
   Mythic+ (section 9 principle). **Slack** is a grace bank shown as a second bar: 30 s plus 1 s per key level above 1.
   A death costs 15 s of Slack and a full wipe 25 s, the same 15 s a death costs a Mythic+ timer. The run is
-  **timed** when it finishes no later than par plus the Slack still left. Otherwise the key is *depleted*: the party (superseded 2026-10-20, see Decisions)
+  **timed** when it finishes no later than par plus the Slack still left. Otherwise the key is *depleted*: the party (superseded 2026-10-20, see Decisions and Chest tiers)
   may still finish for the run reward and Ash, but not the key upgrade. **Decision (Matt, 2026-10-20), as relayed:**
   an untimed key stays at the same level, with no drop. This is a deliberate divergence from WoW, for test 3. A timed
   run upgrades the key by **+1**, **+2** if it finishes within 80% of par, and **+3** within 60% of par. A +2 or +3
@@ -212,6 +212,23 @@ pair combo, so there is always something to close even when the enemy Window was
   against par, and they do not change the par value (a `[DECIDE]`, section 12). **Test 3 holds with a death penalty:**
   the bank always covers at least two deaths, so one death never depletes a run that was on pace, and only repeated
   mistakes or a slow route can. One mistake never flips a clearable run by itself (research/01).
+
+### Chest tiers (defer to WoW Mythic+)
+
+Matt's 2026-10-20 decisions, cited by finding id in the Decisions subsection of section 9: f-baeb031a (loot from key
+level) and f-7c7abdf4 (untimed key keeps its level). Per the section 9 principle, these defer to Mythic+ and the
+timer rules above.
+
+- **Timed under 100% of the timer: +1.** The key goes up one level.
+- **Timed under 80% of the timer: +2.** The key jumps two levels.
+- **Timed under 60% of the timer: +3.** The key jumps three levels.
+- **Untimed: the key stays the same level.** No depletion and no downgrade (f-7c7abdf4). This replaces the
+  depletion rule in the timer bullet above.
+- **Loot quality is set by the key level that was run.** A +2 or +3 pays by the key movement it earns. The
+  one-of-three choice at the end of a run is unchanged (section 7).
+- **The thresholds (100%, 80%, 60%) are WoW's current values.** Verify them against the live game before tuning.
+- **Open, not decided here:** a run that finishes between par and par plus Slack counts as timed under the
+  depletion rule, but no tier above covers it. Matt's decision does not cover that band, so it is flagged for him.
 
 ## 9. The POC dungeon: Hollow Vault
 
