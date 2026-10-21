@@ -116,6 +116,7 @@ public partial class UnitFrames : Control
     private const float Top = 124;
     private const int NameFont = 15;
     private const int SmallFont = 11;
+    private const int LockStacksFont = 13;
 
     private static readonly Color HealthFill = new(0.78f, 0.22f, 0.2f, 1f);
     private static readonly Color TargetEdge = new(1f, 0.92f, 0.35f, 1f);
@@ -127,6 +128,7 @@ public partial class UnitFrames : Control
     private readonly HashSet<string> _shown = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _castLogged = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _rowsLogged = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _lockLogged = new(StringComparer.Ordinal);
     private SimDriver? _driver;
 
     /// <summary>The driver to read the run from.</summary>
@@ -253,6 +255,14 @@ public partial class UnitFrames : Control
         DrawRect(rect, HudNodes.Back);
         DrawRect(rect, frame.Kind == "boss" ? BossEdge : TargetEdge, filled: false, width: 2f);
         HudNodes.Text(this, rect.Position + new Vector2(8, 18), _driver!.DisplayName(actor), NameFont, Colors.White);
+        // LOCK-STAKES (R-LOCK-1): the boss's Tempo stacks from failed Locks, right-aligned on the name row in the Lock's
+        // failed red ("LOCK x1/3"). Not in the Break bar: that bar is the Twins'.
+        if (frame.Kind == "boss" && Keyrun.Sim.Encounter.BossLockReadout.For(run.Encounter, frame.ActorId) is { } lockStacks)
+        {
+            var w = HudNodes.Width(lockStacks.Text, LockStacksFont);
+            HudNodes.Text(this, new Vector2(rect.End.X - 8 - w, rect.Position.Y + 18), lockStacks.Text, LockStacksFont,
+                Keyrun.View.LockView.ToColor(Keyrun.Content.LockRule.FailedColor, 1000));
+        }
 
         var rows = RowsOf(frame);
         var hp = new Rect2(rect.Position.X + 8, rect.Position.Y + UnitFrameRows.HealthTop, rect.Size.X - 16, UnitFrameRows.HealthBottom - UnitFrameRows.HealthTop);
@@ -289,6 +299,7 @@ public partial class UnitFrames : Control
         _shown.Clear();
         _castLogged.Clear();
         _rowsLogged.Clear();
+        _lockLogged.Clear();
     }
 
     private static string Row(FrameRow? row) =>
@@ -297,7 +308,9 @@ public partial class UnitFrames : Control
     // Proof lines (autorun only): "HUD unitframe kind=K actor=A name="N" hp=H/M" when a frame first shows an enemy,
     // "HUD unitframe cast kind=K actor=A ability=X interruptible=0|1" once per cast start on a shown frame, and
     // "HUD unitframe rows kind=K actor=A height=H hp=T-B cast=T-B|none start=S|- spell="X" break=T-B|none tick=N"
-    // whenever a shown frame's row layout changes (rows in pixels from the frame's top edge).
+    // whenever a shown frame's row layout changes (rows in pixels from the frame's top edge), and
+    // "HUD unitframe lock kind=boss actor=A text="LOCK xN/M" tempoBp=T tick=N" whenever a boss frame's Lock stack
+    // readout changes (LOCK-STAKES).
     private void OnStepped(int tick, IReadOnlyList<SimEvent> events)
     {
         if (_driver?.Run is not { } run || !_driver.Options.Autorun)
@@ -323,6 +336,16 @@ public partial class UnitFrames : Control
             {
                 _rowsLogged[key] = rowsLine;
                 HudNodes.Proof(_driver, rowsLine + FormattableString.Invariant($" tick={tick}"));
+            }
+            if (f.Kind == "boss" && Keyrun.Sim.Encounter.BossLockReadout.For(run.Encounter, f.ActorId) is { } lockStacks)
+            {
+                var lockLine = FormattableString.Invariant(
+                    $"HUD unitframe lock kind={f.Kind} actor={f.ActorId} text=\"{lockStacks.Text}\" tempoBp={lockStacks.TempoBp}");
+                if (!_lockLogged.TryGetValue(key, out var lastLock) || lastLock != lockLine)
+                {
+                    _lockLogged[key] = lockLine;
+                    HudNodes.Proof(_driver, lockLine + FormattableString.Invariant($" tick={tick}"));
+                }
             }
             if (actor.CastId is { } castId && actor.CastStartTick is { } start && actor.CastEndsTick is not null &&
                 (!_castLogged.TryGetValue(key, out var last) || last != start))
