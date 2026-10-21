@@ -3,9 +3,25 @@ name: Game
 # Jobs game-test and game-e2e are NON-required until phase 4A renames them
 # test and e2e (ENGINE-PLAN section 5); tests.yml stays the required gate.
 on:
+  # Docs-only changes skip this workflow; docs-only.yml defines the same required check names for them.
+  # Keep this list identical to docs-only.yml and tests.yml (YAML anchors are not used on purpose).
   push:
     branches: [main]
+    paths-ignore:
+      - 'STATE.md'
+      - 'BUILDLOG.md'
+      - 'docs/**'
+      - 'design/**'
+      - '**/*.md'
+      - '.github/CODEOWNERS'
   pull_request:
+    paths-ignore:
+      - 'STATE.md'
+      - 'BUILDLOG.md'
+      - 'docs/**'
+      - 'design/**'
+      - '**/*.md'
+      - '.github/CODEOWNERS'
 
 permissions:
   contents: read
@@ -30,7 +46,8 @@ jobs:
           dotnet-version: 8.0.x
       - name: dotnet test (sim purity and unit tests, no engine)
         shell: pwsh
-        run: dotnet test game/Keyrun.sln --nologo --logger "console;verbosity=normal"
+        # Category=Balance (fork parity) runs in the non-required `balance` job; no other project carries the trait.
+        run: dotnet test game/Keyrun.sln --nologo --filter "Category!=Balance" --logger "console;verbosity=normal"
 
       - name: launch-lock test (tools/godot lock, wall-clock cap, preflight; stub only, never launches Godot)
         shell: pwsh
@@ -51,6 +68,28 @@ jobs:
           Write-Output $out
           if ($code -ne 0) { throw "import-cache test exited $code" }
           if ($out -notmatch '(?m)^import-cache-test: PASS') { throw 'import-cache test did not print PASS' }
+
+  # Reported, NOT required (the required checks on main are test, e2e, game-test, game-gate, game-e2e).
+  # The fork-parity dominance oracle has chaotic margins; a red here opens a finding and never blocks a merge.
+  balance:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: dotnet test (Category=Balance, fork parity dominance)
+        shell: pwsh
+        run: dotnet test game/bots/Keyrun.Bots.Tests --nologo --filter "Category=Balance" --logger "console;verbosity=detailed" --logger "trx;LogFileName=balance.trx" --results-directory balance-results
+      - name: Upload balance test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: balance-test-output
+          path: balance-results/
+          if-no-files-found: warn
+          retention-days: 14
 
   game-e2e:
     runs-on: windows-latest

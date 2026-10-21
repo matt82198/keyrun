@@ -428,6 +428,8 @@ public sealed class ForkParityTests
         return pairs;
     }
 
+    // Balance oracle: runs in the reported, non-required `balance` CI job, not in game-test (game/CLAUDE.md).
+    [Trait("Category", "Balance")]
     [Fact(DisplayName = "fork parity > no fork option is dominated by a sibling over the seeded Hollow Vault runs at keys 2 and 10")]
     public void No_fork_option_is_dominated()
     {
