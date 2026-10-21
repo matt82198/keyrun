@@ -27,8 +27,10 @@ namespace Keyrun.Sim.Tests;
 /// every tick of the bar, and was drawn at least <see cref="MinLeadTicks"/> ticks before it resolves.</item>
 /// </list>
 /// Only auto-attacks are exempt, by name (<see cref="AutoAttacks"/>), and each exempt entry must itself look like an
-/// auto-attack (instant, single-target, melee range, damage only) so the list cannot hide a slam. A heal, a self
-/// shield or a Window the party uses is not a threat to the player and needs no floor telegraph.
+/// auto-attack (instant, single-target, melee range, damage only) so the list cannot hide a slam. A heal or a self
+/// shield is not a threat to the player and needs no floor telegraph. A window-opening cast that deals no damage is
+/// exempt only by name (<see cref="WindowCastsWithoutFloorTelegraph"/>): an untelegraphed window cast that is not
+/// named fails, and so does any damaging ability without a telegraph.
 /// </summary>
 public sealed class EveryEnemyAbilityTelegraphedTests
 {
@@ -44,6 +46,21 @@ public sealed class EveryEnemyAbilityTelegraphedTests
     {
         ["choir.meleeSwing"] = "Choir Acolyte / Choir Cantor melee auto-attack",
         ["pair.meleeSwing"] = "Paired Warrior melee auto-attack",
+    };
+
+    /// <summary>
+    /// Window-opening casts that deal no damage and apply no control, so no floor telegraph is drawn for them. Ruling
+    /// 2026-10-21 18:21Z (orchestrator, recorded in the lane brief): seed.lock and seed.deathBloom open a Window and
+    /// deal no damage; the bible (design/BIBLE.md section 3) requires a floor telegraph for every DANGEROUS action, and
+    /// WoW draws no floor shape for a non-damaging cast. Named here so the exemption is explicit: each entry must exist
+    /// in content, open a window, and deal no damage (<see cref="Named_window_casts_are_real_and_deal_no_damage"/>), so
+    /// giving one of them a damage component turns the test red. No other untelegraphed window cast or damaging
+    /// ability is exempt.
+    /// </summary>
+    public static readonly IReadOnlySet<string> WindowCastsWithoutFloorTelegraph = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "seed.lock",
+        "seed.deathBloom",
     };
 
     private const int AutoAttackMaxRangeMm = 3000;
@@ -91,9 +108,15 @@ public sealed class EveryEnemyAbilityTelegraphedTests
         var tags = ability.Get("tags") is JsArray t ? t.Items.Select(v => StrOf(v)).ToList() : new List<string?>();
         var selfShape = StrOf((ability.Get("shape") as JsObject)?.Get("kind")) == "self";
         return tags.Contains("control")
-            || Effects(ability).Any(op => StrOf(op.Get("op")) == "damage")
+            || DealsDamage(ability)
             || (!selfShape && Effects(ability).Any(op => StrOf(op.Get("op")) == "applyEffect"));
     }
+
+    /// <summary>Has a damage pipeline entry, whatever its amount (a zero-amount damage entry still counts).</summary>
+    private static bool DealsDamage(JsObject ability) => Effects(ability).Any(op => StrOf(op.Get("op")) == "damage");
+
+    /// <summary>Opens a Window the party uses (a window pipeline entry): the only kind of cast the named exemption covers.</summary>
+    private static bool IsWindowCast(JsObject ability) => Effects(ability).Any(op => StrOf(op.Get("op")) == "window");
 
     private static int CastTicks(JsObject ability) => (int)(IntOf(ability.Get("castTicks")) ?? 0);
 
@@ -244,6 +267,79 @@ public sealed class EveryEnemyAbilityTelegraphedTests
             }
         }
         Assert.True(gaps.Count == 0, $"{gaps.Count} untelegraphed enemy threats (BIBLE s3):\n" + string.Join("\n", gaps));
+    }
+
+    [Fact(DisplayName = "Every enemy ability that deals damage, or opens a window, has a floor telegraph unless it is a named window-cast exemption")]
+    public void Every_damage_or_window_cast_is_telegraphed_or_named()
+    {
+        var abilities = EnemyAbilities();
+        var gaps = new List<string>();
+        var judged = 0;
+        foreach (var (enemyId, enemy) in Enemies().OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        {
+            foreach (var id in Kit(enemy))
+            {
+                if (!abilities.TryGetValue(id, out var a) || AutoAttacks.ContainsKey(id))
+                {
+                    continue;
+                }
+                var damage = DealsDamage(a);
+                var window = IsWindowCast(a);
+                if (!damage && !window)
+                {
+                    continue;
+                }
+                judged++;
+                var telegraphed = ScriptSteps(enemy).Any(s => StrOf(s.Get("cast")) == id && s.Get("telegraph") is JsObject);
+                if (telegraphed)
+                {
+                    continue;
+                }
+                if (damage)
+                {
+                    gaps.Add($"{enemyId} {id}: deals damage and has no floor telegraph");
+                }
+                else if (!WindowCastsWithoutFloorTelegraph.Contains(id))
+                {
+                    gaps.Add($"{enemyId} {id}: opens a window with no floor telegraph and is not in WindowCastsWithoutFloorTelegraph");
+                }
+            }
+        }
+        Assert.True(judged >= 8, $"only {judged} damaging or window casts judged: the classifier is not reading the content");
+        Assert.True(gaps.Count == 0, $"{gaps.Count} untelegraphed damaging or window casts (BIBLE s3):\n" + string.Join("\n", gaps));
+    }
+
+    [Fact(DisplayName = "Every named window-cast exemption is a real enemy cast that opens a window and deals no damage or control")]
+    public void Named_window_casts_are_real_and_deal_no_damage()
+    {
+        var abilities = EnemyAbilities();
+        var kitted = Enemies().Values.SelectMany(Kit).ToHashSet(StringComparer.Ordinal);
+        var problems = new List<string>();
+        foreach (var id in WindowCastsWithoutFloorTelegraph.OrderBy(x => x, StringComparer.Ordinal))
+        {
+            if (!abilities.TryGetValue(id, out var a))
+            {
+                problems.Add($"{id}: not an ability in content/data/abilities/enemies.json");
+                continue;
+            }
+            if (!kitted.Contains(id))
+            {
+                problems.Add($"{id}: no enemy kit lists it");
+            }
+            if (DealsDamage(a))
+            {
+                problems.Add($"{id}: now deals damage, so it needs a floor telegraph and must come out of WindowCastsWithoutFloorTelegraph");
+            }
+            if (IsThreat(a) && !DealsDamage(a))
+            {
+                problems.Add($"{id}: now applies control or an effect to another actor, so it needs a floor telegraph and must come out of WindowCastsWithoutFloorTelegraph");
+            }
+            if (!IsWindowCast(a))
+            {
+                problems.Add($"{id}: opens no window, so the window exemption does not describe it");
+            }
+        }
+        Assert.True(problems.Count == 0, "bad WindowCastsWithoutFloorTelegraph entries (BIBLE s3):\n" + string.Join("\n", problems));
     }
 
     /// <summary>One played run: its events, each tick's pending telegraphs, and each tick's enemy cast bars.</summary>
