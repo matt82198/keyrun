@@ -108,7 +108,7 @@ public static class LayoutPackGroups
                     merged[actorId] = staggered ? StaggerSwing(script, packOnlyIndex++, packOnlyCount) : script;
                 }
             }
-            packs.Add(new PackGroup(pack.Id, spawns, new Vec3(pack.Center.X, 0, pack.Center.Z), pack.AggroMm));
+            packs.Add(new PackGroup(pack.Id, spawns, new Vec3(pack.Center.X, 0, pack.Center.Z), pack.AggroMm, pack.Links.ToList()));
         }
         return (packs, merged);
     }

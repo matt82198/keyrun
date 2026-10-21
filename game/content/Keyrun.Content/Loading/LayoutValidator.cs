@@ -156,6 +156,12 @@ public static class LayoutValidator
             if (pack.AggroMm <= 0) Fail(where + " aggroMm must be positive, got " + pack.AggroMm);
             if (!Inside(room!, pack.Center)) Fail(where + " centre (" + pack.Center.X + ", " + pack.Center.Z + ") is outside room \"" + pack.Room + "\"");
             if (pack.Enemies.Count == 0) Fail(where + " has no enemies");
+            // R-SEED-1: a link names a pull or another pack, never the pack itself (a self-link is a no-op the author did not mean).
+            foreach (string link in pack.Links)
+            {
+                if (link == pack.Id) Fail(where + " links to itself");
+                else if (!pullOrder.Contains(link) && !layout.Packs.Any(q => q.Id == link)) Fail(where + " links to unknown pull or pack \"" + link + "\"");
+            }
             foreach (PullEnemy member in pack.Enemies)
             {
                 if (!reg.Enemies.ContainsKey(member.EnemyId)) Fail(where + " references unknown enemy \"" + member.EnemyId + "\"");

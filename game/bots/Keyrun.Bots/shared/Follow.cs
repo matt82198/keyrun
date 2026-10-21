@@ -250,7 +250,8 @@ public static class Follow
     /// pull's aggro ring) and waits there for the party; once the party is in, and anywhere else, it walks the route
     /// forward (<see cref="WalkRoute"/>), so it engages the pull first with the party behind it. The bot sees only the
     /// view (positions, idle flags, the layout); it never reads the run's pull index. Null for any other bot, off a
-    /// layout run, in a fight, or while it holds at the point.
+    /// layout run, in a fight, or while it holds at the point. In a fight it only closes on the nearest engaged enemy
+    /// when its nearest engaged enemy is beyond its basic-attack reach (R-SEED-1 rule (c), <see cref="CloseOnEngaged"/>).
     /// </summary>
     /// <param name="view">This tick's view.</param>
     /// <param name="self">The bot.</param>
@@ -259,13 +260,17 @@ public static class Follow
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(self);
-        if (view.Layout is not { } layout || AnyLivingEnemy(view.State))
+        if (view.Layout is not { } layout)
         {
             return null;
         }
         if (Leader(view.State)?.Id != self.Id)
         {
             return null;
+        }
+        if (AnyLivingEnemy(view.State))
+        {
+            return CloseOnEngaged(view, self, layout);
         }
         var tick = view.State.Tick;
         var (_, high) = Span(layout, self.Pos);
@@ -278,6 +283,67 @@ public static class Follow
         }
         return WalkRoute(tick, self, layout);
     }
+
+    /// <summary>
+    /// The reach of the class's basic attack, mm: the shortest positive <c>range</c> among its rotational abilities, read
+    /// from the run's own ability defs (<see cref="KitRegistry.RunAbility"/>). For the Warden every positive rotation range
+    /// is 3000 mm (warden.strike, the basic attack, is one of them), so the reach is 3000 mm. A range-0 ability is self-cast
+    /// and gives no reach. Null when the kit or the run defs do not say (no close-in then: it fails closed, never a guessed
+    /// constant).
+    /// </summary>
+    /// <param name="kits">The content-backed kits of the run.</param>
+    /// <param name="classId">The leader's class.</param>
+    /// <returns>The basic-attack reach, mm, or null.</returns>
+    public static long? BasicAttackRangeMm(KitRegistry kits, string classId)
+    {
+        ArgumentNullException.ThrowIfNull(kits);
+        var kit = kits.GetClassKit(classId);
+        if (kit is null)
+        {
+            return null;
+        }
+        long? reach = null;
+        foreach (var id in kit.Rotation)
+        {
+            if (kits.RunAbility(id) is { Range: > 0 } def && (reach is null || def.Range < reach))
+            {
+                reach = def.Range;
+            }
+        }
+        return reach;
+    }
+
+    /// <summary>
+    /// R-SEED-1 rule (c), the leader seat's close-in while a fight is on: the leader walks toward its engaged target (its
+    /// current target when that is a living, non-idle enemy, else the nearest one) until the target is inside its
+    /// basic-attack reach (<see cref="BasicAttackRangeMm"/>) less the tank's walk-in margin (<see cref="Roles.TankEngage.ReachMarginMm"/>,
+    /// the margin TankEngage already walks inside reach by; the same margin keeps the close-in and the tank's approach
+    /// agreeing). A caster that never chases (WoW linked packs) is thus reached and killed, and the roles decide once the
+    /// target is in reach. Null when the target is already close enough, or no reach is known. Integers only.
+    /// </summary>
+    /// <param name="view">This tick's view (its run defs give the reach).</param>
+    /// <param name="self">The leader.</param>
+    /// <param name="layout">The layout.</param>
+    /// <returns>The move toward the engaged target, or null.</returns>
+    private static MoveCommand? CloseOnEngaged(BotView view, ActorState self, NavLayout layout)
+    {
+        if (BasicAttackRangeMm(view.Kits, self.ClassId) is not { } reach)
+        {
+            return null;
+        }
+        var state = view.State;
+        var goal = self.TargetId is { } targetId && state.Actors.TryGetValue(targetId, out var target) && IsEngagedEnemy(target)
+            ? target
+            : state.Actors.Values.Where(IsEngagedEnemy).OrderBy(e => Distance2(self.Pos, e.Pos)).ThenBy(e => e.Id).FirstOrDefault();
+        var closeTo = reach - Roles.TankEngage.ReachMarginMm;
+        if (goal is null || Distance2(self.Pos, goal.Pos) <= closeTo * closeTo)
+        {
+            return null;
+        }
+        return WalkTo(state.Tick, self, layout, goal.Pos);
+    }
+
+    private static bool IsEngagedEnemy(ActorState a) => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle;
 
     private static bool HasPull(NavLayout layout, NavBox room) =>
         layout.Triggers.Any(t => layout.RoomFor(t.PullId) is { } r && string.Equals(r.Id, room.Id, StringComparison.Ordinal));

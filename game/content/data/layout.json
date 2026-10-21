@@ -72,7 +72,7 @@
     },
     {
       "id": "warrior-remnant", "name": "Warrior Remnant", "room": "seed-chamber", "optional": true,
-      "center": { "x": 69000, "z": 5500 }, "aggroMm": 4000,
+      "center": { "x": 69000, "z": 5500 }, "aggroMm": 4000, "links": ["seed"],
       "enemies": [
         { "enemyId": "pair.melee", "count": 5, "spawn": { "x": 0, "z": 500 } },
         { "enemyId": "choir.lieutenant", "count": 2, "spawn": { "x": 0, "z": -500 } }

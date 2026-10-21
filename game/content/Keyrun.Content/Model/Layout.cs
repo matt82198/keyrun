@@ -170,4 +170,11 @@ public sealed record LayoutPack
 
     /// <summary>Member groups; each group's <c>spawn</c> is its offset from <see cref="Center"/>, mm.</summary>
     public required ValueList<PullEnemy> Enemies { get; init; }
+
+    /// <summary>
+    /// R-SEED-1 (WoW linked packs): the pull or pack ids this pack engages with. When any of them engages (a party member
+    /// in its ring, or it takes damage), this pack engages on the same tick, whole, as WoW's linked packs do. Empty for a
+    /// pack that engages on its own ring only. Every id must name a pull or another pack (checked by the layout validator).
+    /// </summary>
+    public ValueList<string> Links { get; init; } = new();
 }

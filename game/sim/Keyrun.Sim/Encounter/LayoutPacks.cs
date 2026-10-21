@@ -14,7 +14,8 @@ namespace Keyrun.Sim.Encounter;
 /// <param name="Spawns">Its members, placed in the world (actor ids unique in the run).</param>
 /// <param name="Center">Aggro ring centre, mm.</param>
 /// <param name="AggroMm">Aggro ring radius, mm.</param>
-public sealed record PackGroup(string Id, IReadOnlyList<PullSpawn> Spawns, Vec3 Center, long AggroMm);
+/// <param name="Links">R-SEED-1: the pull or pack ids that engage with this pack (layout.json <c>links</c>), or null for none.</param>
+public sealed record PackGroup(string Id, IReadOnlyList<PullSpawn> Spawns, Vec3 Center, long AggroMm, IReadOnlyList<string>? Links = null);
 
 /// <summary>
 /// PATH-PACKS on PRESPAWN-AGGRO (new behaviour, no TS oracle; layout runs only; Matt 2026-10-20 "no more gates, just

@@ -154,7 +154,18 @@ public static class PlaytestRunner
                 }
                 else
                 {
-                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge));
+                    // R-SEED-1 rule (c): in a fight the leader keeps only the close-in move Follow.LeadCommand gives it
+                    // (no living engaged enemy in melee range of the party: walk to the nearest engaged enemy).
+                    // The view carries the run's ability defs (KitRegistry.ForRun), as the host's BotCommandSource does, so the
+                    // leader reads its basic-attack reach from the run's own warden.strike (3000 mm).
+                    var closeIn = Follow.LeadCommand(view with { Kits = kits.ForRun(run.Content.Abilities) }, leader);
+                    // A zero-dir MoveCommand is the leader's turn (TankEngage faces its target before it casts), not travel:
+                    // it stays, so the cone it casts lands where the leader faces.
+                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && !IsTurn(c));
+                    if (closeIn is not null && !commands.Contains(closeIn))
+                    {
+                        commands.Add(closeIn);
+                    }
                 }
             }
 
@@ -178,6 +189,9 @@ public static class PlaytestRunner
         }
         return new PlaytestResult(run, log.ToString(), stats, setup, registry);
     }
+
+    // R-SEED-1: a leader MoveCommand with no travel (zero dir) only sets facing.
+    private static bool IsTurn(Command c) => c is MoveCommand { Dir: { X: 0, Z: 0 } };
 
     // pull.restHealthPct: the leader waits while any living seat is under the threshold.
     private static bool Resting(SimState state, Policy? policy)
