@@ -127,13 +127,21 @@ public sealed class NavRouteTests
         Assert.Equal(r.Final.Dungeon.Pulls.Count, r.Final.Encounter.PullIndex);
         Assert.Equal(4, r.PullStarts.Count);
         Assert.NotEqual(0, r.PullStarts[0].Tick);
-        foreach (var s in r.PullStarts)
+        var entries = FirstEntries(r.Events);
+        for (var i = 0; i < r.PullStarts.Count; i++)
         {
+            var s = r.PullStarts[i];
+            if (PullRooms[i] == "seed-chamber")
+            {
+                // KF3 Seed spawn gate (BIBLE section 9.6): the Seed activates on the tick the tank enters its room, not on its ring.
+                Assert.True(entries.TryGetValue((LeaderId, "seed-chamber"), out var roomEntry) && roomEntry == s.Tick,
+                    $"pull_start at tick {s.Tick}: the Seed did not activate on the tank's entry into seed-chamber ({roomEntry})");
+                continue;
+            }
             Assert.False(s.InRingBefore, $"pull_start at tick {s.Tick}: a party member was already in the aggro ring the tick before");
             Assert.True(s.InRingAfter, $"pull_start at tick {s.Tick}: no party member stands in the aggro ring");
             Assert.True(Aggro.InRing(s.LeaderPos, s.Center, s.AggroMm), $"pull_start at tick {s.Tick}: the tank (leader) at {s.LeaderPos} is not in the ring; a follower pulled it");
         }
-        var entries = FirstEntries(r.Events);
         for (var i = 0; i < PullRooms.Length; i++)
         {
             Assert.True(entries.TryGetValue((LeaderId, PullRooms[i]), out var entered), $"the leader never entered {PullRooms[i]}");

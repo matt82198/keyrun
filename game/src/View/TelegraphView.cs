@@ -24,9 +24,8 @@ public partial class TelegraphView : Node3D
     private const float FadeSeconds = 0.65f;
     private const int ArcSegments = 32;
 
-    private static readonly Color FillColor = new(0.9f, 0.08f, 0.05f, 0.5f);
-    private static readonly Color OutlineColor = new(0.9f, 0.1f, 0.05f, 0.16f);
-    private static readonly Color FlashColor = new(1f, 0.55f, 0.4f, 0.95f);
+    // Telegraph colours per shape from game/content/data/palette.json (feat-telegraph-palette; BIBLE section 3 contrast rule).
+    private static readonly Keyrun.Content.PaletteDef Palette = Keyrun.Content.PaletteLoader.Load();
 
     private readonly Dictionary<int, Shown> _shown = new();
     private readonly List<int> _scratch = new();
@@ -86,10 +85,10 @@ public partial class TelegraphView : Node3D
                 s.ResolvedAge = age;
                 s.Fill.Scale = Vector3.One;
                 var c = age < FlashSeconds
-                    ? FlashColor
-                    : FillColor.Lerp(new Color(FillColor, 0f), Mathf.Clamp((age - FlashSeconds) / FadeSeconds, 0f, 1f));
+                    ? s.FlashColor
+                    : s.FillColor.Lerp(new Color(s.FillColor, 0f), Mathf.Clamp((age - FlashSeconds) / FadeSeconds, 0f, 1f));
                 s.FillMaterial.AlbedoColor = c;
-                s.OutlineMaterial.AlbedoColor = new Color(OutlineColor, OutlineColor.A * (1f - Mathf.Clamp(age / (FlashSeconds + FadeSeconds), 0f, 1f)));
+                s.OutlineMaterial.AlbedoColor = new Color(s.OutlineColor, s.OutlineColor.A * (1f - Mathf.Clamp(age / (FlashSeconds + FadeSeconds), 0f, 1f)));
                 if (age >= FlashSeconds + FadeSeconds)
                 {
                     _scratch.Add(id);
@@ -147,8 +146,9 @@ public partial class TelegraphView : Node3D
 
         var outline = root.GetNode<MeshInstance3D>("Outline");
         var fill = root.GetNode<MeshInstance3D>("Fill");
-        var outlineMat = NewMaterial(OutlineColor);
-        var fillMat = NewMaterial(FillColor);
+        var colors = ShapeColors(tg.Shape);
+        var outlineMat = NewMaterial(colors.Outline);
+        var fillMat = NewMaterial(colors.Fill);
         outline.Mesh = mesh;
         outline.MaterialOverride = outlineMat;
         fill.Mesh = mesh;
@@ -158,8 +158,23 @@ public partial class TelegraphView : Node3D
         var key = (tg.SourceId, tg.ResolvesTick);
         var start = _leadStart.TryGetValue(key, out var t0) ? t0 : Driver!.State.Tick - 1;
         _leadStart.Remove(key);
-        return new Shown(root, fill, fillMat, outlineMat, start, tg.ResolvesTick);
+        return new Shown(root, fill, fillMat, outlineMat, start, tg.ResolvesTick, colors.Fill, colors.Outline, colors.Flash);
     }
+
+    // The palette row for a telegraph shape ("circle", "cone" or "line"; any other shape draws as a cone, as Spawn does).
+    private static (Color Fill, Color Outline, Color Flash) ShapeColors(string shape)
+    {
+        var row = shape switch
+        {
+            "circle" => Palette.Telegraph.Circle,
+            "line" => Palette.Telegraph.Line,
+            _ => Palette.Telegraph.Cone,
+        };
+        return (ToColor(row.Fill), ToColor(row.Outline), ToColor(row.Flash));
+    }
+
+    // The palette stores 0..255 channels and a 0..100 alpha percentage (ContentPurityTests keeps the content assembly integer-only).
+    private static Color ToColor(PaletteColor c) => new(c.R / 255f, c.G / 255f, c.B / 255f, c.A / 100f);
 
     private static StandardMaterial3D NewMaterial(Color c) => new()
     {
@@ -210,7 +225,8 @@ public partial class TelegraphView : Node3D
 
     private sealed class Shown
     {
-        public Shown(Node3D root, MeshInstance3D fill, StandardMaterial3D fillMaterial, StandardMaterial3D outlineMaterial, int startTick, int resolvesTick)
+        public Shown(Node3D root, MeshInstance3D fill, StandardMaterial3D fillMaterial, StandardMaterial3D outlineMaterial, int startTick, int resolvesTick,
+            Color fillColor, Color outlineColor, Color flashColor)
         {
             Root = root;
             Fill = fill;
@@ -218,6 +234,9 @@ public partial class TelegraphView : Node3D
             OutlineMaterial = outlineMaterial;
             StartTick = startTick;
             ResolvesTick = resolvesTick;
+            FillColor = fillColor;
+            OutlineColor = outlineColor;
+            FlashColor = flashColor;
         }
 
         public Node3D Root { get; }
@@ -231,6 +250,15 @@ public partial class TelegraphView : Node3D
         public int StartTick { get; }
 
         public int ResolvesTick { get; }
+
+        /// <summary>The palette fill this telegraph's shape grows and fades from.</summary>
+        public Color FillColor { get; }
+
+        /// <summary>The palette outline drawn under the fill.</summary>
+        public Color OutlineColor { get; }
+
+        /// <summary>The palette flash the fill shows when the telegraph lands.</summary>
+        public Color FlashColor { get; }
 
         public float? ResolvedAge { get; set; }
     }

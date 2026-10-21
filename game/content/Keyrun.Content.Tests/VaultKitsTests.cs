@@ -134,6 +134,26 @@ public sealed class VaultKitsTests
         Assert.Equal(4000, Assert.IsType<DamagePctOp>(Assert.Single(slam.Effects)).MaxHealthBp);
     }
 
+    [Fact(DisplayName = "Crushing Slam is in the melee set, so the Brute's slam plays the strike cue the Warden's Strike plays")]
+    public void Crushing_Slam_plays_the_melee_strike_cue()
+    {
+        // KF1 strike cue (melee-abilities.json): one cue rule (StrikeCueRule.DurationMs and Pose) for every listed melee
+        // ability, so membership gives the slam the Warden's Strike's exact cue parameters.
+        Assert.Contains("warden.strike", Reg.MeleeAbilities);
+        Assert.Contains("vault.crushingSlam", Reg.MeleeAbilities);
+        var cues = StrikeCueRule.Cues(
+            new[]
+            {
+                new StrikeEvent(StrikeCueRule.ResolveEvent, 42, 7, "vault.crushingSlam"),
+                new StrikeEvent(StrikeCueRule.DamageEvent, 42, 7, TargetId: 9),
+            },
+            StrikeCueRule.MeleeIds(Reg.MeleeAbilities),
+            _ => 0);
+        StrikeCue cue = Assert.Single(cues);
+        Assert.Equal("vault.crushingSlam", cue.AbilityId);
+        Assert.Equal(StrikeCueRule.DurationMs, cue.DurationMs);
+    }
+
     [Fact(DisplayName = "The dungeon has exactly the four BIBLE 9.3 kickable casts")]
     public void The_dungeon_has_exactly_the_four_bible_kickable_casts()
     {

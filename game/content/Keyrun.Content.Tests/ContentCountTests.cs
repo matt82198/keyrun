@@ -35,15 +35,16 @@ public sealed class ContentCountTests
         // gear.json (five gear slots, BIBLE section 7), and enemies/hall.json (the C#-only Mythic+ trash only a layout
         // pack fields, PATH-PACKS: 27 -> 28, an inventory raise for a real 8th enemy, STATE.md D49). FOLD-U3 retired
         // packs.json (R7: one pack layer, the packs live in layout.json), so 28 -> 27. melee-abilities.json (KF1 strike-cue
-        // melee set, ruling R9/R10) is C#-only too, so 27 -> 28. VAULT-KITS (FORCES-ROUTE-PLAN slice S1, BIBLE 9.3) adds the
-        // C#-only abilities/vault.json, effects/vault.json and enemies/vault.json, so 28 -> 31.
+        // melee set, ruling R9/R10) is C#-only too, so 27 -> 28. palette.json (the render palette for telegraph and floor
+        // colours, feat-telegraph-palette) is C#-only too, so 28 -> 29. VAULT-KITS (FORCES-ROUTE-PLAN slice S1, BIBLE 9.3)
+        // adds the C#-only abilities/vault.json, effects/vault.json and enemies/vault.json, so 29 -> 32.
         string[] csharpOnly =
         {
             "run.json", "layout.json", "theme.json", "combo-riders.json", "forces.json", "hazards.json",
-            "gear.json", "enemies/hall.json", "melee-abilities.json",
+            "gear.json", "enemies/hall.json", "melee-abilities.json", "palette.json",
             "abilities/vault.json", "effects/vault.json", "enemies/vault.json",
         };
-        Assert.Equal(31, embedded.Length);
+        Assert.Equal(32, embedded.Length);
         Assert.Equal(19, embedded.Count(p => !csharpOnly.Contains(p)));
         Assert.Equal(embedded, loaded);
     }

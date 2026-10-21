@@ -78,6 +78,8 @@ public static class ContentCombos
         C.PartyEffectOp p => new PartyEffectOp(p.EffectId, p.DurationTicks, p.Stacks),
         C.CloudOp c => new CloudOp(c.EffectId, c.DurationTicks, c.RadiusMm),
         C.CloserBurnOp b => new CloserBurnOp(b.MaxHealthBp, b.CapBp, b.School),
+        C.DamagePctOp d => new DamagePctOp(d.MaxHealthBp, d.School),
+        C.PullOp p => new PullOp(p.DistanceMm),
         _ => throw new InvalidOperationException($"run setup: {where} has an op the sim does not run ({op.GetType().Name})"),
     };
 }

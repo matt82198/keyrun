@@ -269,6 +269,14 @@ public sealed class ActorState
     public bool Idle { get; set; }
 
     /// <summary>
+    /// KF3 Seed spawn gate (C#-only; BIBLE section 9.6; finding f-70c82aca): true while an idle actor of a room-activated
+    /// group (<c>Encounter.Aggro.RoomActivatedPullIds</c>) waits for a party member to enter its room. A dormant enemy is
+    /// not a hostile target for any shape or target cast, so no cast from outside the room can damage it or engage it.
+    /// Cleared with <see cref="Idle"/> on the group's engage. False for every other actor, every oracle run included.
+    /// </summary>
+    public bool Dormant { get; set; }
+
+    /// <summary>
     /// The wearer's summed gear damageDoneBp (BIBLE s7 "Tier is power"; Runs.GearPower). C#-only: 0 on every oracle run.
     /// </summary>
     public long GearDamageDoneBp { get; set; }
