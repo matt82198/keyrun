@@ -99,7 +99,11 @@ public sealed class KickTimingTests
         Assert.NotNull(KickAt(CastStart + 1, 2, null, Choir(), Chanter(2)));
     }
 
-    private sealed record CastSeen(int Start, int Ends, int? KickTick, int? KickerId, int? LedgerKickerId, bool Completed);
+    /// <summary>
+    /// One Choir heal cast as the run saw it. <paramref name="CasterDied"/> marks a cast that ended in cast_stopped on its
+    /// caster's death tick (R-DEADCAST-1): it never resolves, so no kick is owed (R-BOTS-2). Any other end stays owed.
+    /// </summary>
+    private sealed record CastSeen(int Start, int Ends, int? KickTick, int? KickerId, int? LedgerKickerId, bool Completed, bool CasterDied = false);
 
     [Fact(DisplayName = "Kick timing: run C's Choir pull on the real layout, every heal cast is kicked 40+ ticks in, before it resolves, by the ledger's kicker")]
     public void Choir_pull_every_heal_is_kicked_late_but_in_time()
@@ -107,11 +111,12 @@ public sealed class KickTimingTests
         var casts = DriveChoirPull();
         foreach (var c in casts)
         {
-            _output.WriteLine($"healCast start={c.Start} ends={c.Ends} kick={c.KickTick?.ToString() ?? "none"} kicker={c.KickerId?.ToString() ?? "none"} ledger={c.LedgerKickerId?.ToString() ?? "none"} completed={c.Completed}");
+            _output.WriteLine($"healCast start={c.Start} ends={c.Ends} kick={c.KickTick?.ToString() ?? "none"} kicker={c.KickerId?.ToString() ?? "none"} ledger={c.LedgerKickerId?.ToString() ?? "none"} completed={c.Completed} casterDied={c.CasterDied}");
         }
-        Assert.True(casts.Count >= 2, $"only {casts.Count} Choir heal casts were seen; the check would be vacuous");
+        var owed = casts.Where(c => !c.CasterDied).ToList();
+        Assert.True(owed.Count >= 2, $"only {owed.Count} Choir heal casts owed a kick ({casts.Count} seen); the check would be vacuous");
         var failures = new List<string>();
-        foreach (var c in casts)
+        foreach (var c in owed)
         {
             if (c.KickTick is not { } kick)
             {
@@ -214,8 +219,19 @@ public sealed class KickTimingTests
 
             var stepped = RunRoot.StepRun(run, commands);
             run = stepped.Run;
+            var diedThisStep = stepped.Events.Where(e => e.Type == "death").Select(e => (int)((JsInt)e.Get("actorId")!).Value).ToHashSet();
             foreach (var e in stepped.Events)
             {
+                if (e.Type == "cast_stopped" && ((JsString)e.Get("abilityId")!).Value == HealCast)
+                {
+                    // R-BOTS-2: a cast stopped on its caster's death tick owes no kick.
+                    var stoppedId = (int)((JsInt)e.Get("actorId")!).Value;
+                    if (diedThisStep.Contains(stoppedId) && open.Remove(stoppedId, out var stopped))
+                    {
+                        casts.Add(stopped with { CasterDied = true });
+                    }
+                    continue;
+                }
                 if (e.Type == "interrupt" && ((JsString)e.Get("abilityId")!).Value == HealCast)
                 {
                     var target = (int)((JsInt)e.Get("targetId")!).Value;

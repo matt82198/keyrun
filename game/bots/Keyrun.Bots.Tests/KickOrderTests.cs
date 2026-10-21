@@ -131,7 +131,14 @@ public sealed class KickOrderTests
         Assert.Equal(new[] { 1 }, kickers);
     }
 
-    private sealed record CastSeen(int Start, int? KickTick, int? KickerId, int KickCommands, int MaxKicksOneTick, bool Completed);
+    /// <summary>
+    /// One Choir heal cast as the run saw it. <paramref name="LandedKicks"/> counts the "interrupt" events on it (a kick
+    /// counts when it lands, R-BOTS-1); <paramref name="KickCommands"/> counts the presses aimed at it, printed only: a
+    /// seat re-pressing inside the spell-queue window (main #370) is ordinary input, not a second kick.
+    /// <paramref name="CasterDied"/> marks a cast that ended in cast_stopped on its caster's death tick (R-DEADCAST-1):
+    /// it never resolves, so no kick is owed (R-BOTS-2).
+    /// </summary>
+    private sealed record CastSeen(int Start, int? KickTick, int? KickerId, int LandedKicks, int KickCommands, int MaxKicksOneTick, bool Completed, bool CasterDied);
 
     [Fact(DisplayName = "Kick order: run C's Choir pull, every heal cast gets one kick and consecutive casts are kicked by different seats")]
     public void Choir_pull_kicks_rotate_with_no_double_kick()
@@ -139,26 +146,27 @@ public sealed class KickOrderTests
         var casts = DriveChoirPull();
         foreach (var c in casts)
         {
-            _output.WriteLine($"healCast start={c.Start} kick={c.KickTick?.ToString() ?? "none"} kicker={c.KickerId?.ToString() ?? "none"} kickCommands={c.KickCommands} maxOneTick={c.MaxKicksOneTick} completed={c.Completed}");
+            _output.WriteLine($"healCast start={c.Start} kick={c.KickTick?.ToString() ?? "none"} kicker={c.KickerId?.ToString() ?? "none"} landed={c.LandedKicks} kickCommands={c.KickCommands} maxOneTick={c.MaxKicksOneTick} completed={c.Completed} casterDied={c.CasterDied}");
         }
-        Assert.True(casts.Count >= 3, $"only {casts.Count} Choir heal casts were seen; the rotation check would be vacuous");
+        var owed = casts.Where(c => !c.CasterDied).ToList();
+        Assert.True(owed.Count >= 3, $"only {owed.Count} Choir heal casts owed a kick ({casts.Count} seen); the rotation check would be vacuous");
         var failures = new List<string>();
-        foreach (var c in casts)
+        foreach (var c in owed)
         {
             if (c.KickerId is null)
             {
                 failures.Add($"cast {c.Start} was never kicked (completed={c.Completed})");
             }
-            if (c.KickCommands != 1)
+            if (c.LandedKicks != 1)
             {
-                failures.Add($"cast {c.Start} drew {c.KickCommands} kick commands (max {c.MaxKicksOneTick} on one tick), want exactly one");
+                failures.Add($"cast {c.Start} took {c.LandedKicks} landed kicks ({c.KickCommands} presses), want exactly one");
             }
         }
-        for (var i = 1; i < casts.Count; i++)
+        for (var i = 1; i < owed.Count; i++)
         {
-            if (casts[i].KickerId is { } k && k == casts[i - 1].KickerId)
+            if (owed[i].KickerId is { } k && k == owed[i - 1].KickerId)
             {
-                failures.Add($"casts {casts[i - 1].Start} and {casts[i].Start} were both kicked by seat {k}");
+                failures.Add($"casts {owed[i - 1].Start} and {owed[i].Start} were both kicked by seat {k}");
             }
         }
         Assert.True(failures.Count == 0, string.Join("; ", failures));
@@ -200,7 +208,7 @@ public sealed class KickOrderTests
             {
                 if (!open.ContainsKey(choir.Id))
                 {
-                    open[choir.Id] = new CastSeen(choir.CastStartTick!.Value, null, null, 0, 0, false);
+                    open[choir.Id] = new CastSeen(choir.CastStartTick!.Value, null, null, 0, 0, 0, false, false);
                 }
             }
             var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
@@ -238,24 +246,46 @@ public sealed class KickOrderTests
 
             var stepped = RunRoot.StepRun(run, commands);
             run = stepped.Run;
+            // A cast stays open until its caster no longer holds that same cast after the step; every interrupt that
+            // lands on it while open is tallied, so a second landed kick on one cast (by any seat) counts as two.
+            var diedThisStep = stepped.Events.Where(e => e.Type == "death").Select(e => (int)((JsInt)e.Get("actorId")!).Value).ToHashSet();
             foreach (var e in stepped.Events)
             {
                 if (e.Type == "interrupt" && ((JsString)e.Get("abilityId")!).Value == HealCast)
                 {
                     var target = (int)((JsInt)e.Get("targetId")!).Value;
                     var source = (int)((JsInt)e.Get("sourceId")!).Value;
-                    if (open.Remove(target, out var c))
+                    if (open.TryGetValue(target, out var c))
                     {
-                        casts.Add(c with { KickTick = e.Tick, KickerId = source });
+                        open[target] = c with { KickTick = c.KickTick ?? e.Tick, KickerId = c.KickerId ?? source, LandedKicks = c.LandedKicks + 1 };
                     }
                 }
                 else if (e.Type == "cast_complete" && ((JsString)e.Get("abilityId")!).Value == HealCast)
                 {
                     var actor = (int)((JsInt)e.Get("actorId")!).Value;
-                    if (open.Remove(actor, out var c))
+                    if (open.TryGetValue(actor, out var c))
                     {
-                        casts.Add(c with { Completed = true });
+                        open[actor] = c with { Completed = true };
                     }
+                }
+                else if (e.Type == "cast_stopped" && ((JsString)e.Get("abilityId")!).Value == HealCast)
+                {
+                    // R-BOTS-2: a cast stopped on its caster's death tick owes no kick. Any other stop stays owed.
+                    var actor = (int)((JsInt)e.Get("actorId")!).Value;
+                    if (diedThisStep.Contains(actor) && open.TryGetValue(actor, out var c))
+                    {
+                        open[actor] = c with { CasterDied = true };
+                    }
+                }
+            }
+            foreach (var (casterId, c) in open.ToList())
+            {
+                var stillCasting = run.State.Actors.TryGetValue(casterId, out var caster)
+                    && caster.Alive && caster.CastId == HealCast && caster.CastStartTick == c.Start;
+                if (!stillCasting)
+                {
+                    open.Remove(casterId);
+                    casts.Add(c);
                 }
             }
             if (stepped.Events.Any(e => e.Type == "pull_clear"))
