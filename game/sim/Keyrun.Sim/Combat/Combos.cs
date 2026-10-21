@@ -154,7 +154,13 @@ public static class Combos
                 case ApplyEffectOp a:
                     if (effectDefs.TryGetValue(a.EffectId, out var def))
                     {
-                        if (IsHealPulse(def) && target.Kind != source.Kind)
+                        if (IsPartyHaste(def))
+                        {
+                            // R-ANTHEM-1 (f-7d5df7f9; BIBLE section 5 Anthem "Party gains 15% haste"): combo haste is
+                            // party haste, as a PartyEffectOp, never the carrier's. Twin of combos.ts applyComboEffects.
+                            ApplyToParty(state, source, def, a.DurationTicks, a.Stacks);
+                        }
+                        else if (IsHealPulse(def) && target.Kind != source.Kind)
                         {
                             ApplyHealPulseToAllies(state, source, target, def, a);
                         }
@@ -183,13 +189,7 @@ public static class Combos
                 case PartyEffectOp p:
                     if (effectDefs.TryGetValue(p.EffectId, out var partyDef))
                     {
-                        foreach (var member in state.Actors.Values)
-                        {
-                            if (member.Alive && member.Kind == source.Kind)
-                            {
-                                Effects.ApplyEffectInstance(member, partyDef, source.Id, p.DurationTicks, p.Stacks, state.Tick);
-                            }
-                        }
+                        ApplyToParty(state, source, partyDef, p.DurationTicks, p.Stacks);
                     }
                     break;
                 case CloudOp c:
@@ -217,6 +217,31 @@ public static class Combos
         foreach (var cloud in state.FloorClouds)
         {
             ApplyCloud(state, cloud, effectDefs);
+        }
+    }
+
+    /// <summary>
+    /// R-ANTHEM-1 (finding f-7d5df7f9): true when <paramref name="def"/> carries positive haste (Anthem's
+    /// <c>hasted</c>). A combo's applyEffect of such an effect is party haste: it goes to the Payoff actor's party, never
+    /// the Window's carrier. Twin of combos.ts isPartyHaste.
+    /// </summary>
+    /// <param name="def">The effect definition.</param>
+    /// <returns>True for a haste buff.</returns>
+    public static bool IsPartyHaste(EffectDef def)
+    {
+        ArgumentNullException.ThrowIfNull(def);
+        return def.Modifiers.HasteBp is > 0;
+    }
+
+    /// <summary>Applies <paramref name="def"/> to every living actor of <paramref name="source"/>'s faction.</summary>
+    private static void ApplyToParty(SimState state, ActorState source, EffectDef def, int durationTicks, long stacks)
+    {
+        foreach (var member in state.Actors.Values)
+        {
+            if (member.Alive && member.Kind == source.Kind)
+            {
+                Effects.ApplyEffectInstance(member, def, source.Id, durationTicks, stacks, state.Tick);
+            }
         }
     }
 

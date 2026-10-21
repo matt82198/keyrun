@@ -27,15 +27,12 @@ public partial class TalentPanel : Control
 
     private const int TitleFont = 16;
     private const int NameFont = 14;
-    private const float Inset = 14;
-    private const float Header = 60;
-    private const float Footer = 42;
-    private const float CardGap = 8;
-    private const float MaxRow = 104;
-    private const float RowLabel = 24;
-    private const float TextInset = 10;
-    private const float TextTop = 36;
-    private const float TextLineHeight = 14;
+    private const float Inset = TalentCardLayout.Inset;
+    private const float Header = TalentCardLayout.Header;
+    private const float Footer = TalentCardLayout.Footer;
+    private const float TextInset = TalentCardLayout.TextInset;
+    private const float TextTop = TalentCardLayout.TextTop;
+    private const float TextLineHeight = TalentCardLayout.TextLineHeight;
 
     private static readonly Color Gold = new(1f, 0.85f, 0.5f);
     private static readonly Color Calm = new(0.7f, 0.85f, 1f);
@@ -49,23 +46,25 @@ public partial class TalentPanel : Control
     /// <param name="Rect">The card.</param>
     public readonly record struct Card(int Fork, int Option, Rect2 Rect);
 
-    /// <summary>The fork rows and option cards for a panel of <paramref name="size"/> (pure; draw, clicks and fit proof share it).</summary>
+    /// <summary>
+    /// The fork rows and option cards for a panel of <paramref name="size"/> (pure; draw, clicks and fit proof share it),
+    /// from <see cref="TalentCardLayout"/>: each fork's cards share the whole row.
+    /// </summary>
     /// <param name="size">The panel size.</param>
     /// <param name="picks">The build.</param>
     /// <returns>The cards, fork-major.</returns>
     public static IReadOnlyList<Card> Cards(Vector2 size, TalentPicks picks)
     {
         ArgumentNullException.ThrowIfNull(picks);
-        var cards = new List<Card>();
-        var row = RowHeight(size, picks.ForkCount);
-        var width = CardWidth(size);
+        var counts = new List<int>(picks.ForkCount);
         for (var f = 0; f < picks.ForkCount; f++)
         {
-            var y = Header + (f * row) + RowLabel;
-            for (var o = 0; o < picks.Forks[f].Options.Count; o++)
-            {
-                cards.Add(new Card(f, o, new Rect2(Inset + (o * (width + CardGap)), y, width, row - RowLabel - 6)));
-            }
+            counts.Add(picks.Forks[f].Options.Count);
+        }
+        var cards = new List<Card>();
+        foreach (var c in TalentCardLayout.Cards((int)size.X, (int)size.Y, counts))
+        {
+            cards.Add(new Card(c.Fork, c.Option, new Rect2(c.Rect.X, c.Rect.Y, c.Rect.Width, c.Rect.Height)));
         }
         return cards;
     }
@@ -83,12 +82,12 @@ public partial class TalentPanel : Control
     /// <summary>The most description lines a card of <paramref name="cardHeight"/> holds (at least 1).</summary>
     /// <param name="cardHeight">The card height.</param>
     /// <returns>The line cap.</returns>
-    public static int MaxLinesFor(float cardHeight) => Math.Max(1, (int)((cardHeight - TextTop + TextLineHeight - 4) / TextLineHeight));
+    public static int MaxLinesFor(float cardHeight) => TalentCardLayout.MaxLinesFor((int)cardHeight);
 
     /// <summary>The bottom of the last description line inside a card, card-local.</summary>
     /// <param name="lines">Lines drawn.</param>
     /// <returns>The baseline of the last line plus a descender.</returns>
-    public static float TextBottom(int lines) => TextTop + ((lines - 1) * TextLineHeight) + 4;
+    public static float TextBottom(int lines) => TalentCardLayout.TextBottom(lines);
 
     /// <summary>An option description wrapped to its card (the draw and the Screen's fit proof share it).</summary>
     /// <param name="text">The description.</param>
@@ -189,8 +188,5 @@ public partial class TalentPanel : Control
         HudNodes.Text(this, new Vector2(button.End.X + 16, button.Position.Y + 18), "Up/Down fork    1-3 pick    T close", TextFont, Calm);
     }
 
-    private static float RowHeight(Vector2 size, int forks) =>
-        forks <= 0 ? 0 : Math.Min(MaxRow, (size.Y - Header - Footer) / forks);
-
-    private static float CardWidth(Vector2 size) => Math.Max(0f, (size.X - (2 * Inset) - (2 * CardGap)) / 3f);
+    private static float RowHeight(Vector2 size, int forks) => TalentCardLayout.RowHeight((int)size.Y, forks);
 }

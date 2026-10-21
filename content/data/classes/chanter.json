@@ -149,19 +149,20 @@
         {
           "id": "encore",
           "name": "Encore",
-          "text": "Gains a second charge and a shorter cooldown; Mend's Chorus heals again at half strength 2.5 seconds later.",
+          "text": "Shorter cooldown, and every Chorus leaves an Encore floor Window where you stand for 3 seconds that any other class's Payoff closes; Mend's Chorus heals again at half strength 2.5 seconds later. The trade: one charge only, never a banked second, and each pulse heals far less than Discipline's.",
           "patch": {
-            "charges": 2,
             "cooldownTicks": 100,
             "variants": {
               "mend": [
                 { "op": "heal", "amount": 120 },
                 { "op": "payoff" },
-                { "op": "applyEffect", "effectId": "chorusEcho", "durationTicks": 50, "stacks": 1 }
+                { "op": "applyEffect", "effectId": "chorusEcho", "durationTicks": 50, "stacks": 1 },
+                { "op": "window", "windowId": "encore", "durationTicks": 60, "onTarget": false, "setupClass": "chanter", "radiusMm": 2200 }
               ],
               "ward": [
                 { "op": "applyEffect", "effectId": "wardPulse", "durationTicks": 60, "stacks": 1 },
-                { "op": "payoff" }
+                { "op": "payoff" },
+                { "op": "window", "windowId": "encore", "durationTicks": 60, "onTarget": false, "setupClass": "chanter", "radiusMm": 2200 }
               ]
             }
           }

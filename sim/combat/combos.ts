@@ -33,6 +33,11 @@ export interface ComboDef {
  */
 export type ComboTable = Record<string, Record<string, ComboDef>>;
 
+/** R-ANTHEM-1: an effect whose modifiers carry positive haste (Anthem's `hasted`) is a party buff in a combo. */
+export function isPartyHaste(def: EffectDef): boolean {
+  return (def.modifiers.hasteBp ?? 0) > 0;
+}
+
 export function lookupCombo(table: ComboTable, setupClass: string, payoffClass: string): ComboDef | undefined {
   return table[setupClass]?.[payoffClass];
 }
@@ -60,7 +65,16 @@ export function applyComboEffects(
       if (target.kind === source.kind) applyHeal(state, target, op.amount, source.id, emit);
     } else if (op.op === "applyEffect") {
       const def = effectDefs[op.effectId];
-      if (def) applyEffectInstance(target, def, source.id, op.durationTicks, op.stacks, state.tick);
+      if (def && isPartyHaste(def)) {
+        // R-ANTHEM-1 (f-7d5df7f9; BIBLE Sec 5 Anthem "Party gains 15% haste"): combo haste is party haste. It goes
+        // to every living actor of the Payoff actor's faction, never the carrier (an enemy, on an enemy Window).
+        // Twin of Combos.cs ApplyComboEffects.
+        for (const member of Object.values(state.actors)) {
+          if (member.alive && member.kind === source.kind) {
+            applyEffectInstance(member, def, source.id, op.durationTicks, op.stacks, state.tick);
+          }
+        }
+      } else if (def) applyEffectInstance(target, def, source.id, op.durationTicks, op.stacks, state.tick);
     } else if (op.op === "removeEffect") {
       if (op.effectId === "*") removeDispellableEffects(source, target, effectDefs);
       else removeEffectInstances(target, op.effectId);

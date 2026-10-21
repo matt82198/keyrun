@@ -19,16 +19,16 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 249662,
-      "fnv": "f95a3a02"
+      "bytes": 291265,
+      "fnv": "3c32f383"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 210333,
-      "fnv": "bfad023f"
+      "bytes": 234793,
+      "fnv": "9da452ae"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 210330,
-      "fnv": "541aedf8"
+      "bytes": 234790,
+      "fnv": "ffe37baf"
     },
     "content-pull.setup.json": {
       "bytes": 23098,
@@ -272,13 +272,13 @@
         "fnv": "36ffc9d9"
       },
       "content/data/classes/chanter.json": {
-        "fnv": "496ee0c0"
+        "fnv": "4d14bbea"
       },
       "content/data/classes/cinder.json": {
         "fnv": "e3b6e3ed"
       },
       "content/data/classes/warden.json": {
-        "fnv": "407706b5"
+        "fnv": "7b768472"
       },
       "content/data/clauses.json": {
         "fnv": "66ee123f"
@@ -362,13 +362,13 @@
         "fnv": "5018f7d9"
       },
       "sim/combat/casting.ts": {
-        "fnv": "b0735395"
+        "fnv": "fda94e9e"
       },
       "sim/combat/clause-hooks.ts": {
         "fnv": "43aaf28e"
       },
       "sim/combat/combos.ts": {
-        "fnv": "ed5b126c"
+        "fnv": "b0284c57"
       },
       "sim/combat/cooldowns.ts": {
         "fnv": "828c0fc8"
@@ -385,6 +385,9 @@
       "sim/combat/floor-telegraphs.ts": {
         "fnv": "b79df7f0"
       },
+      "sim/combat/haste.ts": {
+        "fnv": "bd6850e3"
+      },
       "sim/combat/holder.ts": {
         "fnv": "ac601358"
       },
@@ -398,13 +401,13 @@
         "fnv": "b176fb7d"
       },
       "sim/combat/rules.ts": {
-        "fnv": "7567ddd8"
+        "fnv": "87b52e82"
       },
       "sim/combat/spell-queue.ts": {
         "fnv": "a385f55d"
       },
       "sim/combat/targeting.ts": {
-        "fnv": "1a24bc9b"
+        "fnv": "635baf1f"
       },
       "sim/combat/threat.ts": {
         "fnv": "7f76745e"
@@ -494,7 +497,7 @@
         "fnv": "0432becb"
       },
       "sim/run-wiring.ts": {
-        "fnv": "fa1b1356"
+        "fnv": "c05b466d"
       },
       "tests/sim/golden/build-content-pull.ts": {
         "fnv": "c240b5d6"
@@ -534,31 +537,31 @@
       "traceHash": "014e427d"
     },
     {
-      "finalTick": 1407,
+      "finalTick": 1565,
       "name": "bots-hv-k2-s7",
-      "records": 1408,
+      "records": 1566,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "36715d32"
+      "traceHash": "0b577722"
     },
     {
-      "finalTick": 1407,
+      "finalTick": 1565,
       "name": "bots-hv-k2-s11",
-      "records": 1408,
+      "records": 1566,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "36715d32"
+      "traceHash": "0b577722"
     },
     {
-      "finalTick": 1855,
+      "finalTick": 2045,
       "name": "bots-hv-k10-s7",
-      "records": 1856,
+      "records": 2046,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "346e3c22"
+      "traceHash": "45af272e"
     }
   ],
   "version": 1

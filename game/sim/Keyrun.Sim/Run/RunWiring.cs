@@ -209,9 +209,10 @@ public static class RunWiring
     /// <see cref="Holder.LockHolders"/> locks every living enemy without a living holder onto the nearest living player.
     /// </summary>
     /// <remarks>
-    /// Writes TargetId directly, not through <see cref="Casting.SetTarget"/>: this auto-retarget is the sim's, not the
-    /// caster's, and the oracle traces bots-hv-k2-s7/k2-s11/k10-s7 record a Cinder flare whose start target died
-    /// mid-cast landing on the auto-picked next enemy. Pinning here too would make those casts whiff (pending a ruling).
+    /// RETARGET-FIZZLE (RULING R-RETARGET-1, finding f-f1ab879b; WoW): every write goes through
+    /// <see cref="Casting.SetTarget"/>, so a cast whose start target died mid-cast stays pinned on that dead target and
+    /// fizzles (cast_complete, no effect) instead of hopping to the auto-picked next enemy; the new target is for the
+    /// next press. The oracle traces bots-hv-k2-s7/k2-s11 (t=421) and k10-s7 (t=1502) record such a Cinder flare.
     /// </remarks>
     /// <param name="state">The state to fix up.</param>
     public static void FixupTargeting(SimState state)
@@ -225,7 +226,7 @@ public static class RunWiring
         {
             foreach (var enemy in enemies.Where(e => e.TargetId is null))
             {
-                enemy.TargetId = tank.Id;
+                Casting.SetTarget(enemy, tank.Id);
             }
         }
         if (enemies.Count == 0)
@@ -243,7 +244,7 @@ public static class RunWiring
                 && current.Kind == ActorKind.Enemy && current.Alive;
             if (!currentIsLivingEnemy)
             {
-                actor.TargetId = firstEnemy.Id;
+                Casting.SetTarget(actor, firstEnemy.Id);
             }
         }
     }
