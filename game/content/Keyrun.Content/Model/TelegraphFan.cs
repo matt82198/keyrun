@@ -5,7 +5,8 @@ namespace Keyrun.Content;
 /// telegraph as a flat fan centred on the caster's facing, apex at the origin, out to the telegraph's radius.
 /// A circle carries a radius and no angle (hollowWarden.slam, hollow-warden-boss.trace.jsonl:286), so it spans the
 /// full turn; before this lane the view took <c>Angle1024 ?? 0</c> and a circle built zero-area triangles that drew
-/// nothing. A cone keeps its own angle; a line still draws as its angle (none, so empty) until it gets its own mesh.
+/// nothing. A cone keeps its own angle; a line draws its own rectangle (<see cref="TelegraphDrawability.LineCorners"/>),
+/// never a fan, so its angle (none, so empty) is not read.
 /// Pure and Godot-free so the decision is unit-tested. Display only; never a rule.
 /// </summary>
 public static class TelegraphFan
