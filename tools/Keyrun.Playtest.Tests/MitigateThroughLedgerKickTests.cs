@@ -30,7 +30,12 @@ public sealed class MitigateThroughLedgerKickTests
     // with main 0f6a8989; a measurement, the assertions are unchanged): was 8857, past this run's end. The kick-plan run
     // (Warden mitigating) now ends Timed at 8764 with 0 deaths, boss pull 8162-8763, first boss cleave 8318-8358, so 11
     // ticks in is 8329. (Before the main merge the same run ended Timed at 8633 with its first cleave at 8145-8185.)
-    private const int Tick = 8329;
+    // PR-502 re-derivation (ruling G5 2026-10-21, MVP-MAP U8; a measurement on the merged tree: origin/main 1a7996a8 merged
+    // into feat/mvp-u8-layout-forces, the assertions are unchanged). Was 8329, which the merged run no longer reaches: the
+    // Hall Sentries are now an optional pack off the walking line (layout.json), so the kick-plan run no longer fights them
+    // and now ends Timed at 7889, with boss cleaves 7395-7435, 7551-7591 and 7795-7835. 11 ticks into the first cleave is
+    // 7406; the run's own state at 7406 has the boss casting hollowWarden.cleave, start 7395, end 7435.
+    private const int Tick = 7406;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 

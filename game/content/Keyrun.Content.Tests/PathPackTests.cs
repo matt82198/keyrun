@@ -13,13 +13,31 @@ namespace Keyrun.Content.Tests;
 /// line, then the next teaching pull, and the boss last. The line alone (teaching pulls plus required packs) leaves the
 /// forces bar short, so the bar reaches 100% only once the party pulls enough packs, and any one optional pack is
 /// enough. The validator fails closed on a required pack off the line and on a line that fills the bar by itself.
+/// MVP-U8 (MVP-MAP G5): the shipped layout has no required pack any more (the Hall Sentries are an optional layout pack
+/// off the line), so these rules are pinned on a fixture that puts one required pack back on the line.
 /// </summary>
 public sealed class PathPackTests
 {
     private const string LayoutFile = "layout.json";
 
+    /// <summary>A required pack on the walking line: the old Hall Sentries shape (pair-hall, 240 forces on the line).</summary>
+    private const string RequiredLinePack = """
+        { "id": "line-sentries", "name": "Line Sentries", "room": "pair-hall", "optional": false,
+          "center": { "x": 51500, "z": 0 }, "aggroMm": 3000,
+          "enemies": [
+            { "enemyId": "hall.sentry", "count": 2, "spawn": { "x": -500, "z": 1000 } },
+            { "enemyId": "hall.sentry", "count": 2, "spawn": { "x": -500, "z": -1000 } },
+            { "enemyId": "hall.sentry", "count": 1, "spawn": { "x": 1000, "z": 0 } }
+          ] }
+        """;
+
     private static ContentLoadException LoadFails(MutableSource source) =>
         Assert.Throws<ContentLoadException>(() => ContentLoader.Load(source.Build()));
+
+    private static MutableSource WithRequiredLinePack() =>
+        new MutableSource().Edit(LayoutFile, n => n["packs"]!.AsArray().Add(JsonNode.Parse(RequiredLinePack)));
+
+    private static ContentRegistry LoadWithRequiredLinePack() => ContentLoader.Load(WithRequiredLinePack().Build());
 
     private static JsonObject Pack(JsonNode root, string id) =>
         root["packs"]!.AsArray().Select(p => p!.AsObject()).First(p => (string)p["id"]! == id);
@@ -62,9 +80,9 @@ public sealed class PathPackTests
     }
 
     [Fact]
-    public void The_shipped_layout_has_a_required_pack_standing_on_the_walking_line()
+    public void A_required_pack_on_the_walking_line_stands_within_its_ring_of_it()
     {
-        LayoutDef layout = ContentLoader.Load().Layout;
+        LayoutDef layout = LoadWithRequiredLinePack().Layout;
         var line = Line(layout);
         var required = layout.Packs.Where(p => !p.Optional).ToList();
         Assert.NotEmpty(required);
@@ -78,7 +96,7 @@ public sealed class PathPackTests
     [Fact]
     public void Walking_the_line_meets_a_pull_then_a_pack_then_a_pull_and_the_boss_last()
     {
-        ContentRegistry reg = ContentLoader.Load();
+        ContentRegistry reg = LoadWithRequiredLinePack();
         LayoutDef layout = reg.Layout;
         var line = Line(layout);
         var stops = PullPoints(reg).Select(kv => (Id: kv.Key, Pack: false, Arc: Project(line, kv.Value).Arc))
@@ -98,7 +116,7 @@ public sealed class PathPackTests
     [Fact]
     public void The_forces_bar_fills_only_with_enough_packs()
     {
-        ContentRegistry reg = ContentLoader.Load();
+        ContentRegistry reg = LoadWithRequiredLinePack();
         ForcesTable forces = reg.Forces;
         LayoutDef layout = reg.Layout;
         int teaching = RouteForces.CriticalPathPoints(forces, reg.Dungeons[layout.Dungeon]);
@@ -118,8 +136,7 @@ public sealed class PathPackTests
     [Fact]
     public void A_required_pack_off_the_walking_line_is_rejected()
     {
-        string id = ContentLoader.Load().Layout.Packs.First(p => !p.Optional).Id;
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Pack(n, id)["center"]!["z"] = 4500));
+        var ex = LoadFails(WithRequiredLinePack().Edit(LayoutFile, n => Pack(n, "line-sentries")["center"]!["z"] = 4500));
         Assert.Contains("required pack", ex.Message);
         Assert.Contains("walking line", ex.Message);
     }
@@ -127,9 +144,8 @@ public sealed class PathPackTests
     [Fact]
     public void A_walking_line_that_fills_the_bar_by_itself_is_rejected()
     {
-        string id = ContentLoader.Load().Layout.Packs.First(p => !p.Optional).Id;
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n =>
-            Pack(n, id)["enemies"]!.AsArray()[0]!["count"] = 40));
+        var ex = LoadFails(WithRequiredLinePack().Edit(LayoutFile, n =>
+            Pack(n, "line-sentries")["enemies"]!.AsArray()[0]!["count"] = 40));
         Assert.Contains("without an optional pack", ex.Message);
     }
 }

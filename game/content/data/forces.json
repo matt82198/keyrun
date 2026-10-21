@@ -11,7 +11,6 @@
   "route": {
     "dungeonId": "hollow-vault",
     "forkAfterPull": "pair",
-    "rejoinPull": "seed",
-    "branches": []
+    "rejoinPull": "seed"
   }
 }
