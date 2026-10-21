@@ -1,5 +1,6 @@
 {
   "required": 1000,
+  "bossDoorRequiredBp": 6000,
   "values": [
     { "enemyId": "choir.melee", "points": 40 },
     { "enemyId": "choir.lieutenant", "points": 80 },

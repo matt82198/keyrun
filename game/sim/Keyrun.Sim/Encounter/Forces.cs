@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
@@ -73,4 +74,58 @@ public static class Forces
     /// <returns>The reading.</returns>
     public static ForcesReading Read(SimState state, IReadOnlyDictionary<string, int> pointsByEnemy, int required) =>
         new(Points(state, pointsByEnemy), required);
+}
+
+/// <summary>
+/// The Hollow Door's data (BIBLE s9.5, ruling R3): the Seed pull whose clear opens it, the boss pull it guards, the
+/// forces table, the bar's size and the share of the bar the door needs (basis points, 10000 = 100%).
+/// </summary>
+/// <param name="SeedPullId">The pull whose every enemy must be dead before the door can open.</param>
+/// <param name="BossPullId">The pull the door guards (the Warden).</param>
+/// <param name="PointsByEnemy">Enemy id to forces value (forces.json).</param>
+/// <param name="Required">Points that fill the bar (forces.json required).</param>
+/// <param name="RequiredBp">The share of the bar the door needs, basis points (forces.json bossDoorRequiredBp).</param>
+public sealed record BossDoorGate(string SeedPullId, string BossPullId, IReadOnlyDictionary<string, int> PointsByEnemy, int Required, int RequiredBp);
+
+/// <summary>
+/// The Hollow Door (BIBLE s9.5, ruling R3): the boss pull may engage only once the Seed pull is cleared AND the Forces
+/// bar reads at or above the gate's requirement. Pure: reads the run's state, never mutates it.
+/// </summary>
+public static class BossDoor
+{
+    /// <summary>True when the door is open on <paramref name="state"/>: the Seed is cleared and the bar is at the requirement.</summary>
+    /// <param name="state">The run state.</param>
+    /// <param name="dungeon">The dungeon (its pulls name the Seed).</param>
+    /// <param name="gate">The door's data.</param>
+    public static bool IsOpen(SimState state, DungeonDef dungeon, BossDoorGate gate)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(dungeon);
+        ArgumentNullException.ThrowIfNull(gate);
+        return SeedCleared(state, dungeon, gate.SeedPullId)
+            && Forces.Read(state, gate.PointsByEnemy, gate.Required).PercentBp >= gate.RequiredBp;
+    }
+
+    /// <summary>The group ids the engage step may engage this tick: every id except the boss while the door is shut.</summary>
+    /// <param name="gate">The door's data, or null for no door (every oracle run and every flat-arena run).</param>
+    /// <param name="dungeon">The dungeon.</param>
+    /// <param name="state">The post-combat state.</param>
+    /// <param name="groupIds">The groups the aggro rule triggered.</param>
+    public static IReadOnlyList<string> Admit(BossDoorGate? gate, DungeonDef dungeon, SimState state, IReadOnlyList<string> groupIds)
+    {
+        ArgumentNullException.ThrowIfNull(groupIds);
+        if (gate is null || !groupIds.Contains(gate.BossPullId, StringComparer.Ordinal) || IsOpen(state, dungeon, gate))
+        {
+            return groupIds;
+        }
+        return groupIds.Where(id => !string.Equals(id, gate.BossPullId, StringComparison.Ordinal)).ToList();
+    }
+
+    // Every enemy of the Seed pull is dead or absent. A missing or empty Seed pull never counts as cleared (fail closed).
+    private static bool SeedCleared(SimState state, DungeonDef dungeon, string seedPullId)
+    {
+        var seed = dungeon.Pulls.FirstOrDefault(p => string.Equals(p.Id, seedPullId, StringComparison.Ordinal));
+        return seed is not null && seed.Spawns.Count > 0
+            && seed.Spawns.All(s => !state.Actors.TryGetValue(s.ActorId, out var a) || !a.Alive);
+    }
 }
