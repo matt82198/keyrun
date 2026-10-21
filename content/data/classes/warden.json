@@ -181,7 +181,7 @@
         {
           "id": "fortress",
           "name": "Fortress",
-          "text": "Bigger patch, lasts longer.",
+          "text": "Rallies the line: everyone in the bigger, longer-lasting ring is braced and hasted. Keeps the cast time.",
           "patch": {
             "shape": {
               "kind": "circle",
@@ -198,6 +198,12 @@
               {
                 "op": "applyEffect",
                 "effectId": "braced",
+                "durationTicks": 240,
+                "stacks": 1
+              },
+              {
+                "op": "applyEffect",
+                "effectId": "hasted",
                 "durationTicks": 240,
                 "stacks": 1
               }
@@ -257,7 +263,7 @@
         {
           "id": "overwhelm",
           "name": "Overwhelm",
-          "text": "Reckoning becomes a frontal cone at its full 100 Momentum: it hits every enemy in front of you, still closes a Window, then leaves Sundered on its target for an ally to close. Execute finishes more often.",
+          "text": "Reckoning becomes a frontal cone at its full 100 Momentum: it hits every enemy in front of you, still closes a Window, hands 25 Momentum back, then leaves Sundered on its target for an ally to close.",
           "patch": {
             "shape": {
               "kind": "cone",
@@ -280,6 +286,10 @@
               },
               {
                 "op": "payoff"
+              },
+              {
+                "op": "resource",
+                "delta": 25
               },
               {
                 "op": "window",
@@ -313,13 +323,12 @@
         {
           "id": "reserve",
           "name": "Reserve",
-          "text": "Cheaper, shorter cooldown; the shield lasts 3s instead of 5s.",
+          "text": "Vigil shields everyone around you, not only yourself; the shield lasts 3s instead of 5s.",
           "patch": {
-            "cost": {
-              "resource": "momentum",
-              "amount": 25
+            "shape": {
+              "kind": "circle",
+              "radius": 4000
             },
-            "cooldownTicks": 90,
             "effects": [
               {
                 "op": "applyEffect",
