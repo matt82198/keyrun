@@ -22,21 +22,27 @@
       6. two "SCREEN reroll slot=<slot> ok=1 facet=warden.<slot>.* charges=1|0" lines (the class's listed pool for
          that slot), then "SCREEN reroll slot=<slot> ok=0 charges=0 refused=..." (the third is refused), each followed
          by the item line showing the charges left: 1, 0, 0;
-      7. "SCREEN key level=3 locked=0" (the stepper moved from key 2), with three distinct Clause offers;
-      8. "SCREEN clause n=2 ... picked=1" for key 3, then "SCREEN queue dungeon=hollow-vault key=3 clause=<that id>".
+      7. "SCREEN key level=3 locked=0" (the stepper moved from key 2);
+      8. "SCREEN clause shown id=<id> name=\"...\" picker=hidden" for key 3 (lane U2: the Clause is shown as text, no
+         offer list is drawn, and no "SCREEN clause n=" line exists), then "SCREEN queue dungeon=hollow-vault key=3
+         clause=<that id>";
+      13. (lane U2, BIBLE s10) "SCREEN readiness line=\"Ready: key 3 can be queued now.\"" before Queue, then
+         "SCREEN readiness line=\"Queued at key 3: waiting for the run to start.\"" after it; "SCREEN runs n=1
+         \"Key 2, depleted\"" (the one banked run, the private last-runs strip), and no "SCREEN runs n=2" line;
       9. "SCREEN queue caption="Enter starts the next run at this key and Clause."" (lane HUD-FU: the one line drawn
          under the Queue box, Screen.QueueCaption, says what the host does since 3I; never "the host does not read
          the queued key and Clause").
      10. "SCREEN help visible=0" between the open and Queue, "SCREEN help visible=1" after Queue (lane SCREEN-OVERFLOW:
          the in-run help line no longer shows through the screen);
-     11. "SCREEN fit clause n=<1..3> lines=<n> widest=<px> box=<px>" with widest <= box (each Clause description is
-         wrapped inside its card), and "SCREEN fit caption lines=<n> right=<px> viewport=<px>" with right <= viewport.
+     11. "SCREEN fit clause lines=<n> widest=<px> box=<px>" with widest <= box (the shown Clause description is wrapped
+         inside the Key band), and "SCREEN fit caption lines=<n> right=<px> viewport=<px>" with right <= viewport.
      12. "SCREEN queue facets applied=1 skipped=0", "SCREEN queue facet actor=1 slot=<slot> facet=<the item's facet>
          ability=<id> <stats> base <stats>" with the queued stats differing from the base (lane FACET-APPLIED,
          BIBLE s7: before it no Facet patch reached any run and none of these lines exist: RED), and no
          "SCREEN run facet ..." line (that line reports a run the Queue started, which only --requeue does).
   Before 3D there is no screen and none of 2-8 appear (RED). Before HUD-FU there is no caption line: 9 fails (RED).
   Before SCREEN-OVERFLOW 10-11 fail (RED); with the wrap removed the fit lines report widest > box (RED).
+  Before lane U2 there is no readiness line, no runs line and the Key band lists three picks: 8 and 13 fail (RED).
 
   Run from the repo root:  powershell -ExecutionPolicy Bypass -File game/src/Hud/ScreenSceneTest.ps1
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
@@ -132,23 +138,37 @@ if (-not $key2) { $failures.Add('no "SCREEN key level=2 locked=0" line (the scre
 if (-not $key3) { $failures.Add('no "SCREEN key level=3 locked=0" line (the key stepper did not step up)') }
 
 $queue = First '^SCREEN queue dungeon=hollow-vault key=3 clause=(echo|tide|hush|pact)$'
-$picked = $null
+$shown = $null
 if (-not $queue) {
     $failures.Add('no "SCREEN queue dungeon=hollow-vault key=3 clause=<id>" line')
 } else {
-    # The last Clause band before Queue: three distinct offers, n=2 picked, and Queue carries that id.
+    # Lane U2 (BIBLE s8 "Nobody picks a Clause"): the Key band shows the one Clause as text with the picker hidden, so no
+    # offer list is printed; Queue carries the Clause the band shows.
     $iQueue = IndexOf $queue
-    $band = @($lines[0..$iQueue] | Where-Object { $_ -match '^SCREEN clause n=[123] ' } | Select-Object -Last 3)
-    $ids = @($band | ForEach-Object { if ($_ -match ' id=(\w+) ') { $Matches[1] } })
-    if (($ids | Sort-Object -Unique).Count -ne 3) { $failures.Add("the Clause band does not offer three distinct Clauses: $($band -join ' | ')") }
-    $picked = $band | Where-Object { $_ -match '^SCREEN clause n=2 id=(\w+) name="[^"]+" picked=1$' } | Select-Object -First 1
-    if (-not $picked) {
-        $failures.Add("Clause offer 2 is not the pick before Queue: $($band -join ' | ')")
+    $shown = @($lines[0..$iQueue] | Where-Object { $_ -match '^SCREEN clause shown ' } | Select-Object -Last 1)[0]
+    $offers = @($lines[0..$iQueue] | Where-Object { $_ -match '^SCREEN clause n=' })
+    if ($offers.Count -gt 0) { $failures.Add("the Key band still lists Clause offers to pick: '$($offers[0])'") }
+    $shownId = $null
+    if ($shown -match '^SCREEN clause shown id=(\w+) name="[^"]+" picker=hidden$') {
+        $shownId = $Matches[1]
     } else {
-        $null = $picked -match ' id=(\w+) '
-        if ($queue -notmatch "clause=$($Matches[1])$") { $failures.Add("Queue carries another Clause than the pick: '$queue' vs '$picked'") }
+        $failures.Add("no 'SCREEN clause shown id=<id> name=<text> picker=hidden' line before Queue (got: '$shown')")
     }
+    if ($shownId -and $queue -notmatch "clause=$shownId$") { $failures.Add("Queue carries another Clause than the one shown: '$queue' vs '$shown'") }
 }
+
+# Lane U2 (BIBLE s10): the readiness line under the key stepper reads "Ready" while the band is open and names the
+# wait once queued; the private last-three-runs strip shows the one banked run (key 2, depleted) and no second run.
+if (-not (First '^SCREEN readiness line="Ready: key 3 can be queued now\."$')) {
+    $failures.Add('no readiness line reading Ready for key 3 after the key stepped to 3')
+}
+if (-not (First '^SCREEN readiness line="Queued at key 3: waiting for the run to start\."$')) {
+    $failures.Add('no readiness line reading Queued at key 3 after Queue')
+}
+if (-not (First '^SCREEN runs n=1 "Key 2, depleted"$')) {
+    $failures.Add('no runs line n=1 reading Key 2, depleted (the private strip does not show the banked run)')
+}
+if (First '^SCREEN runs n=2 ') { $failures.Add('a second "SCREEN runs n=2" line, but the scene banks exactly one run') }
 
 $captions = @($lines | Where-Object { $_ -match '^SCREEN queue caption=' })
 $caption = First '^SCREEN queue caption="Enter starts the next run at this key and Clause\."$'
@@ -172,10 +192,10 @@ if ($open -and $queue) {
 if (-not $helpHidden) { $failures.Add('no "SCREEN help visible=0" line between the screen opening and Queue (the in-run help line shows through the screen)') }
 if (-not $helpShown) { $failures.Add('no "SCREEN help visible=1" line after Queue (the help line does not come back for the run)') }
 
-$fits = @($lines | Where-Object { $_ -match '^SCREEN fit clause n=[123] ' })
-if ($fits.Count -lt 3) { $failures.Add("expected 'SCREEN fit clause n=<1..3> lines=<n> widest=<px> box=<px>' lines, got $($fits.Count)") }
+$fits = @($lines | Where-Object { $_ -match '^SCREEN fit clause ' })
+if ($fits.Count -lt 1) { $failures.Add("expected 'SCREEN fit clause lines=<n> widest=<px> box=<px>' lines, got $($fits.Count)") }
 foreach ($f in $fits) {
-    if ($f -notmatch '^SCREEN fit clause n=[123] lines=(\d+) widest=(\d+) box=(\d+)$') {
+    if ($f -notmatch '^SCREEN fit clause lines=(\d+) widest=(\d+) box=(\d+)$') {
         $failures.Add("malformed clause fit line: '$f'")
     } elseif ([int]$Matches[2] -gt [int]$Matches[3]) {
         $failures.Add("a Clause description runs past its card: '$f'")
@@ -337,7 +357,7 @@ if ($rFacet) {
 }
 
 Write-Output '--- asserted SCREEN lines ---'
-foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $picked, $queue, $caption, $helpHidden, $helpShown) + $fits + @($capFit, $tOpen) + $forkRows + $picks + @($tClose, $qTalents, $qTalent) + $cardFits + @($panelFit, $qFacets, $qFacet, $rFacet)) {
+foreach ($l in @($summary, $bank, $take, $open, $class) + $abilities + $items + $rerolls + @($key2, $key3, $shown, $queue, $caption, $helpHidden, $helpShown) + $fits + @($capFit, $tOpen) + $forkRows + $picks + @($tClose, $qTalents, $qTalent) + $cardFits + @($panelFit, $qFacets, $qFacet, $rFacet)) {
     if ($l) { Write-Output $l }
 }
 
