@@ -27,7 +27,7 @@ Vitest. No game engine beyond Three.js for rendering, no bundler beyond esbuild.
   - **game/bots/** - Keyrun.Bots, party AI, pure net8.0. Added in phase 3 (ENGINE-PLAN section 5).
 - **tools/godot/** - engine wrapper scripts (godot.ps1 / godot.sh resolve the binary and DOTNET_ROOT) and the
   export-template installer (install-templates.ps1, SHA512-verified).
-  Fail closed (preflight.ps1, tests screens-preflight-test.ps1 + launch-lock-test.ps1 H + import-cache-test.ps1): exit 6 = no dotnet / missing or stale game assembly / import cache missing or import failed, nothing launched (godot.ps1 and screens.ps1); exit 7 = screens.ps1 run log never written (boot-scene-only run); exit 9 = screens.ps1 run had an actor on the capsule fallback.
+  Fail closed (preflight.ps1, tests screens-preflight-test.ps1 + launch-lock-test.ps1 H + import-cache-test.ps1): exit 6 = no dotnet / missing or stale game assembly / import cache missing or import failed, nothing launched (godot.ps1 and screens.ps1); exit 7 = screens.ps1 run log never written (boot-scene-only run); exit 9 = screens.ps1 run had an actor on the capsule fallback; exit 10 = screens.ps1 model gate not evaluated (run log stayed locked; frames and mp4 kept, test screens-log-lock-test.ps1 K3).
   Every fresh keyrun worktree starts with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/setup-worktree.ps1` (Debug build, then the one-time Godot import when the cache is missing; prints `SETUP done build=ok import=<ran|cached> files=<n>`).
 - **.github/workflows/game.yml** - `game-test` (dotnet test game/Keyrun.sln) and `game-e2e` (headless smoke and
   export). Both are non-required until phase 4A renames them `test` and `e2e`; tests.yml stays the required gate.
