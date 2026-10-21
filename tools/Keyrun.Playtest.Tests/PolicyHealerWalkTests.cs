@@ -32,13 +32,34 @@ namespace Keyrun.Playtest.Tests;
 /// testing the scene on every tick from 100: it holds on single ticks 545-550 but never across a 20-tick window there;
 /// 9452 (boss pull, tank 235/400) is the first tick at which it holds on every window tick.
 /// </para>
+/// <para>
+/// R-BOTS-11 re-pin (a measurement; the assertions are unchanged): 9452 lies past the run's end (it ends Timed at 9313,
+/// the guard read <c>Expected: 9452 Actual: 9313</c>), so both facts were dead. The pin is now the walk itself, and the
+/// window is that walk's measured length, not a number chosen to pass. Measured on this tree by playing seed 1 key 2
+/// (kick plan, a replica of the runner's loop, Timed at 9313) and reading the Chanter on every tick (real run):
+/// <code>
+///   t=544 tank 300/400  healer (14771,-998)  decides Target 100 + Cast chanter.dissonance (no walk)
+///   t=545 tank 255/400  healer (14771,-998)  decides Move (946,325)   walk starts: tank under 70%, heal pick walks
+///   t=546 tank 255/400  healer (14941,-940)  decides Move (946,325)
+///   t=547 tank 255/400  healer (15111,-882)  decides Move (946,325)
+///   t=548 tank 255/400  healer (15281,-824)  decides Move (946,325)
+///   t=549 tank 255/400  healer (15451,-766)  decides Move (946,325)
+///   t=550 tank 255/400  healer (15621,-708)  decides Move (946,325)   last step
+///   t=551 tank 255/400  healer (15791,-650)  decides Cast chanter.hymn   in Hymn's pool: the walk is over
+/// </code>
+/// The scene (tank under 70%, the tank is the triage target, the heal pick is a single Move) holds on exactly ticks
+/// 545-550, so the walk is six one-tick steps (about 1.0 m at 170 mm per tick), the same six steps as the original
+/// R-326-B walk. The pin is the walk's first tick and the window is its length, <see cref="WalkLastTick"/> -
+/// <see cref="Tick"/> + 1 = 6.
+/// </para>
 /// </summary>
 public sealed class PolicyHealerWalkTests
 {
     private const string KickPlan = "{\"mitigate\": [\"warden\"], \"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"cinder\", \"chanter\", \"warden\"]}]}";
     private const int Chanter = 2;
-    private const int Tick = 9452; // R-BOTS-6: was 454 (R-PILE-8), 194 on #326's own tree; measured (summary)
-    private const int Window = 20;
+    private const int Tick = 545; // R-BOTS-11: the measured walk's first tick (was 9452, past the run's end 9313)
+    private const int WalkLastTick = 550; // R-BOTS-11: the measured walk's last step (the trace above); 551 casts Hymn
+    private const int Window = WalkLastTick - Tick + 1;
 
     [Fact(DisplayName = "R-PILE-8 guard: the pinned scene exists at its tick (the tank under 70% is the triage target and the heal pick walks)")]
     public void The_pinned_scene_exists_at_its_tick()
