@@ -17,7 +17,8 @@ namespace Keyrun.Sim.Runs;
 /// <item>Caller commands then enemy commands through <see cref="Tick.Step"/> with <see cref="Rules.Make"/> built from the
 /// content and the run's Clause (<see cref="RunWiring.RulesConfigOf"/>).</item>
 /// <item>Break-bar onEmpty patches; the next pull's spawn (with <c>pull_start</c>) when the index advanced.</item>
-/// <item>Echo spawns, targeting fixup, Slack spend on player deaths and wipe, run-end detection and <c>run_end</c>.</item>
+/// <item>Echo spawns, releases (a layout run's dead seats respawn at the entrance, <see cref="Release"/>), targeting
+/// fixup, run-clock time for player deaths and wipe, run-end detection and <c>run_end</c>.</item>
 /// </list>
 /// </summary>
 public static class RunRoot
@@ -90,7 +91,11 @@ public static class RunRoot
         var encounter = EncounterState.Create(keyLevel, content.ParTicks ?? 24000, rules) with { Engaged = engaged };
 
         RunWiring.FixupTargeting(state);
-        return new Run(state, encounter, dungeon, effective, RunEndState.Initial) { SeedRule = SeedRuleOf(effective) };
+        return new Run(state, encounter, dungeon, effective, RunEndState.Initial)
+        {
+            SeedRule = SeedRuleOf(effective),
+            Spawns = Release.SpawnsOf(state),
+        };
     }
 
     /// <summary>
@@ -258,12 +263,19 @@ public static class RunRoot
             nextEncounter = Pulls.CheckPullAdvance(nextState, run.Dungeon, nextEncounter, run.State.Tick, emit);
         }
 
-        RunWiring.FixupTargeting(nextState);
         // PATH-TO-BOSS (STATE.md D44): an open (abandoned or unfilled) seat is not in the run, so it never holds a wipe open.
         var openSeats = opts?.OpenSeats;
+        // WIPE-IS-RELEASE (R-BACKFILL-2, layout runs): seats whose release delay is over respawn at the entrance before
+        // targeting and the wipe check read the party; this tick's dead seats get their respawn tick.
+        IReadOnlyDictionary<int, int> releases;
+        (nextState, releases) = Release.Step(run, nextState, openSeats, emit);
+
+        RunWiring.FixupTargeting(nextState);
         nextEncounter = RunWiring.ApplyDeathsAndWipe(nextState, nextEncounter, events, nextState.Tick, emit, openSeats);
 
-        var runEnd = RunWiring.CheckRunEnd(run.RunEnd, nextState, nextEncounter, run.Dungeon, nextState.Tick, opts?.AbandonRequested ?? false, emit, openSeats);
+        var runEnd = RunWiring.CheckRunEnd(
+            run.RunEnd, nextState, nextEncounter, run.Dungeon, nextState.Tick, opts?.AbandonRequested ?? false, emit, openSeats,
+            release: layout is not null);
         if (runEnd.Result is RunResult result && run.RunEnd.Result is null)
         {
             if (result == RunResult.Depleted)
@@ -281,6 +293,8 @@ public static class RunRoot
             Rewards = rewards,
             SeedRule = run.SeedRule,
             ActiveScripts = activeScripts,
+            Spawns = run.Spawns,
+            Releases = releases,
         };
         return new RunStepResult(next, events);
     }

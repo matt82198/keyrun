@@ -28,6 +28,14 @@ public static class RunEndTitle
     public static string ClearedUntimed(int keyLevel) =>
         FormattableString.Invariant($"Run cleared -- key stays at +{keyLevel}");
 
+    /// <summary>
+    /// A layout run the timer cap ended before the boss died (R-BACKFILL-2: a wipe no longer ends a run, the cap does).
+    /// </summary>
+    /// <param name="keyLevel">The run's key level.</param>
+    /// <returns>"Out of time -- key stays at +K".</returns>
+    public static string OutOfTime(int keyLevel) =>
+        FormattableString.Invariant($"Out of time -- key stays at +{keyLevel}");
+
     /// <summary>A lasting wipe (finished as depleted): the pull it was lost on and the level the key keeps.</summary>
     /// <param name="lostNumber">1-based pull lost on.</param>
     /// <param name="lostTotal">Pull count of the full dungeon.</param>
@@ -58,8 +66,9 @@ public static class RunEndTitle
 
     /// <summary>
     /// The run-end panel's title for <paramref name="run"/>, or null while it is live: <see cref="Of"/> over the run's
-    /// result, whether every pull was cleared (the sim finishes a lasting wipe as depleted with completed forced, so
-    /// the pull index is what tells a cleared run from a wipe), and the run clock at the end tick (the clock keeps
+    /// result, whether every pull was cleared (a layout-less run finishes a lasting wipe as depleted with completed
+    /// forced, so the pull index is what tells a cleared run from a wipe; an uncleared depleted layout run was ended by
+    /// the timer cap, <see cref="OutOfTime"/>), and the run clock at the end tick (the clock keeps
     /// advancing after the end, RUN-END-FREEZE). The one source both RunEndView.Of and the sim use.
     /// </summary>
     /// <param name="run">The run.</param>
@@ -74,6 +83,11 @@ public static class RunEndTitle
             return null;
         }
         var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
+        // R-BACKFILL-2: a layout run never ends on a wipe; an uncleared depleted layout run was ended by the timer cap.
+        if (!cleared && result == RunResult.Depleted && run.Content.Layout is not null)
+        {
+            return OutOfTime(run.Encounter.KeyLevel);
+        }
         return Of(result, cleared, run.RunEnd.ResultTick ?? run.State.RunTimerTicks, run.Encounter, lostNumber, lostTotal);
     }
 }

@@ -126,6 +126,22 @@ public static class Timer
     private const int ParBpDenom = 10000;
 
     /// <summary>
+    /// The timer cap as a share of par (R-BACKFILL-2, BIBLE s8 "the run ends only at the timer cap, the boss kill, or
+    /// abandonment"): twice par on the run clock. It lies past par, so a party that is over par may still finish a
+    /// depleted key for the run reward, and a party that keeps wiping still reaches an end.
+    /// </summary>
+    public const int CapParBp = 20000;
+
+    /// <summary>The run clock (<see cref="ClockTicks"/>) at which a layout run ends depleted: par times <see cref="CapParBp"/>.</summary>
+    /// <param name="encounter">The encounter, for its par.</param>
+    /// <returns>Cap ticks on the run clock.</returns>
+    public static long CapTicks(EncounterState encounter)
+    {
+        ArgumentNullException.ThrowIfNull(encounter);
+        return (long)encounter.ParTicks * CapParBp / ParBpDenom;
+    }
+
+    /// <summary>
     /// The last elapsed tick a completed run can finish on and still be timed (D46): par less the time deaths and wipes
     /// have added to the clock. Every death pulls the deadline in by its cost; nothing else does.
     /// </summary>

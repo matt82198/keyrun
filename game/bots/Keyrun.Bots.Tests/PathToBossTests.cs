@@ -111,24 +111,33 @@ public sealed class PathToBossTests
         Assert.True(at.X > corridor.MaxX, $"the tank never walked through corridor-2 (at {at.X}, end {corridor.MaxX}) with the Choir uncleared");
     }
 
-    [Fact(DisplayName = "Path to boss: with every seated player dead, an abandoned seat standing out of combat does not hold the run open")]
-    public void An_abandoned_seat_out_of_combat_never_holds_a_dead_party_run_open()
+    [Fact(DisplayName = "Path to boss: with every seated player dead, an abandoned seat standing out of combat does not hold the wipe open")]
+    public void An_abandoned_seat_out_of_combat_never_holds_a_dead_party_wipe_open()
     {
+        // R-BACKFILL-2 (f-47a7a6db): the wipe counts despite the abandoned Chanter, and it releases the seated dead
+        // (respawn at the entrance after RunWiring.ReleaseDelayTicks) instead of ending the run after the wipe grace.
         var (run, _, _) = Setup();
         var opts = new StepRunOpts(OpenSeats: new[] { ChanterId });
         Kill(run, WardenId);
         Kill(run, CinderId);
         var wipeStart = run.State.Tick + 1;
-        SimEvent? end = null;
-        for (var i = 0; i < RunWiring.WipeGraceTicks + 20 && end is null; i++)
+        int? respawned = null;
+        for (var i = 0; i < RunWiring.ReleaseDelayTicks + 20 && respawned is null; i++)
         {
             var s = RunRoot.StepRun(run, Array.Empty<Command>(), opts);
             run = s.Run;
-            end = s.Events.FirstOrDefault(e => e.Type == "run_end");
+            Assert.DoesNotContain(s.Events, e => e.Type == "run_end");
+            if (run.State.Tick == wipeStart)
+            {
+                Assert.Equal(wipeStart, run.RunEnd.WipeStartTick);
+            }
+            respawned = s.Events.FirstOrDefault(e => e.Type == "respawn")?.Tick;
         }
-        Assert.True(end is not null, $"no run_end within {RunWiring.WipeGraceTicks + 20} ticks: the abandoned Chanter held the dead party's run open");
-        Assert.Equal("depleted", ((JsString)end!.Get("result")!).Value);
-        Assert.Equal(wipeStart + RunWiring.WipeGraceTicks, end.Tick);
+        Assert.True(respawned is not null, $"no respawn within {RunWiring.ReleaseDelayTicks + 20} ticks of the wipe at {wipeStart}");
+        Assert.Equal(wipeStart + RunWiring.ReleaseDelayTicks, respawned);
+        Assert.Null(run.RunEnd.Result);
+        Assert.True(run.State.Actors[WardenId].Alive);
+        Assert.True(run.State.Actors[CinderId].Alive);
         Assert.True(run.State.Actors[ChanterId].Alive);
         Assert.Empty(run.Encounter.Engaged);
     }
