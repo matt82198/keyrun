@@ -81,7 +81,7 @@
         {
           "id": "focused",
           "name": "Focused Break",
-          "text": "Single target, hits much harder.",
+          "text": "Single target, hits much harder, and leaves Sundered on its target for an ally to close, but builds no Momentum.",
           "patch": {
             "shape": {
               "kind": "target"
@@ -97,11 +97,14 @@
                 "school": "physical"
               },
               {
-                "op": "resource",
-                "delta": 15
+                "op": "payoff"
               },
               {
-                "op": "payoff"
+                "op": "window",
+                "windowId": "sundered",
+                "durationTicks": 60,
+                "onTarget": true,
+                "setupClass": "warden"
               }
             ]
           }

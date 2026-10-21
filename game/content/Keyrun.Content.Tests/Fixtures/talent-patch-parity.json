@@ -3027,11 +3027,14 @@
             "school": "physical"
           },
           {
-            "delta": 15,
-            "op": "resource"
+            "op": "payoff"
           },
           {
-            "op": "payoff"
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "warden",
+            "windowId": "sundered"
           }
         ],
         "gcdTicks": 30,
