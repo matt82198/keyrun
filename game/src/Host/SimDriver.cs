@@ -84,7 +84,7 @@ public sealed class TickAccumulator
 /// <summary>
 /// The arena's user arguments (after <c>--</c> on the Godot command line), in the style of Main.cs's
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
-/// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T</c>, <c>--joiner-key K</c>,
+/// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T|A@pullN+O</c>, <c>--joiner-key K</c>,
 /// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
 /// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>, <c>--rotation N</c>,
 /// <c>--ready-hold F</c>.
@@ -103,7 +103,8 @@ public sealed class TickAccumulator
 /// 3I). Off by default so an autorun stays one run (the scene tests and CI read one run's lines, and the HUD test's
 /// run B reads the Pair's marks after the solo wipe). An interactive game always starts the queued run.</param>
 /// <param name="AbandonSeat">Scripted backfill proof (<c>--abandon-seat A@T</c>, lane 3J): the player in actor A's seat
-/// leaves at run tick T (<see cref="SimDriver.AbandonSeat"/>). Null = nobody leaves.</param>
+/// leaves at run tick T (<see cref="SimDriver.AbandonSeat"/>); <c>A@pullN+O</c> (R-415-D) leaves O ticks after pull N's
+/// pull_start (<see cref="SeatAbandonPlan"/>). Null = nobody leaves.</param>
 /// <param name="JoinerKey">With <see cref="AbandonSeat"/>, <c>--joiner-key K</c> adds one <see cref="QueueRequest"/> at
 /// key K straight to the Queue node at the abandon (the scripted joiner; the screen's Queue button is not pressed
 /// mid-run). Null = no joiner is queued.</param>
@@ -305,30 +306,6 @@ public sealed record ArenaOptions(
     }
 }
 
-/// <summary>A scripted seat abandon (<c>--abandon-seat A@T</c>, lane 3J): actor <paramref name="ActorId"/> leaves at run
-/// tick <paramref name="Tick"/>.</summary>
-/// <param name="ActorId">The seat's player actor (1 the human, 2 and 3 the bot seats).</param>
-/// <param name="Tick">The run tick (pre-step) at which the seat empties.</param>
-public sealed record SeatAbandonPlan(int ActorId, int Tick)
-{
-    /// <summary>Parses <c>A@T</c> (A a positive actor id, T a tick of 0 or more).</summary>
-    /// <param name="raw">The flag value.</param>
-    /// <returns>The plan.</returns>
-    /// <exception cref="ArgumentException">Not of the form A@T.</exception>
-    public static SeatAbandonPlan Parse(string raw)
-    {
-        ArgumentNullException.ThrowIfNull(raw);
-        var parts = raw.Split('@');
-        if (parts.Length != 2 ||
-            !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var actor) || actor <= 0 ||
-            !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var tick))
-        {
-            throw new ArgumentException($"--abandon-seat needs actorId@tick, got '{raw}'");
-        }
-        return new SeatAbandonPlan(actor, tick);
-    }
-}
-
 /// <summary>A careless bot seat (<c>--careless-seat S@T:GROUP</c>, CARELESS-SEAT): bot actor <paramref name="ActorId"/>
 /// strays toward the idle group <paramref name="GroupId"/> from run tick <paramref name="Tick"/> (<see cref="Careless"/>).</summary>
 /// <param name="ActorId">The bot seat's player actor (2 and 3 in the three-seat party).</param>
@@ -474,6 +451,8 @@ public partial class SimDriver : Node
     private Screen? _screen;
     private Queue? _queue;
     private BackfillState _backfill = BackfillState.Empty;
+    // R-415-D: the run tick of a pull-relative --abandon-seat plan's anchor pull_start, once this run has seen it.
+    private int? _abandonAnchor;
     private RunLog? _log;
     private int _pendingCaptures;
     // f-50d8099e: --write-movie frames are picked from the trace (MovieDirector), one director per run.
@@ -1055,15 +1034,18 @@ public partial class SimDriver : Node
     }
 
     // --abandon-seat A@T (lane 3J's scripted proof): at run tick T the seat empties and, with --joiner-key K, one
-    // request at key K joins the Queue node (the screen's Queue button is not pressed mid-run).
+    // request at key K joins the Queue node (the screen's Queue button is not pressed mid-run). R-415-D: A@pullN+O
+    // empties the seat O ticks after pull N's pull_start (SeatAbandonPlan.ResolveTick), and its line names the anchor.
     private void MaybeScriptedAbandon(Run run)
     {
-        if (Options.AbandonSeat is not { } plan || run.State.Tick != plan.Tick || run.RunEnd.Result is not null)
+        if (Options.AbandonSeat is not { } plan || run.State.Tick != plan.ResolveTick(_abandonAnchor) || run.RunEnd.Result is not null)
         {
             return;
         }
         AbandonSeat(plan.ActorId);
-        _log?.Line(FormattableString.Invariant($"SEAT abandon actor={plan.ActorId} tick={run.State.Tick}"));
+        _log?.Line(plan.AnchorPull is { } pull
+            ? FormattableString.Invariant($"SEAT abandon actor={plan.ActorId} tick={run.State.Tick} pull={pull} start={_abandonAnchor} offset={plan.Tick}")
+            : FormattableString.Invariant($"SEAT abandon actor={plan.ActorId} tick={run.State.Tick}"));
         if (Options.JoinerKey is { } key && _queue is not null)
         {
             var clause = run.Encounter.Rules.ActiveClauseId
@@ -1119,6 +1101,9 @@ public partial class SimDriver : Node
         var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
         Run = run;
         _backfill = BackfillState.Empty;
+        // A pull engaged at creation (a --pull N start) drops its pull_start (see below): it started at the run's first tick.
+        _abandonAnchor = Options.AbandonSeat?.AnchorPull is { } anchorPull && anchorPull == run.Encounter.PullIndex &&
+            Pulls.IsEngaged(run.Encounter, dungeon, run.Encounter.PullIndex) ? run.State.Tick : null;
         State = run.State;
         PreviousState = run.State;
         LastEvents = Array.Empty<SimEvent>();
@@ -1181,6 +1166,7 @@ public partial class SimDriver : Node
         var step = Backfill.Step(_backfill, run, _commands, queue?.Requests ?? Array.Empty<QueueRequest>());
         var result = step.Step;
         _backfill = step.Backfill;
+        _abandonAnchor ??= Options.AbandonSeat?.AnchorFrom(result.Events);
         Run = result.Run;
         PreviousState = run.State;
         State = result.Run.State;

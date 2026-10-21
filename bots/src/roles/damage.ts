@@ -22,7 +22,7 @@ import { readyAndAffordable, ledgerKickCommand } from "./shared.js";
 /** How close a Payoff-capable ally must be for a Setup to be worth opening (design/BIBLE.md Sec 4:
  * "a timing game between two people"). ActorState.pos is integer mm (sim/CLAUDE.md), so this 30m
  * design constant is converted to mm once, here, never by re-scaling an already-mm position. */
-const PAYOFF_ALLY_RANGE_MM = 30 * 1000;
+export const PAYOFF_ALLY_RANGE_MM = 30 * 1000;
 
 function aliveEnemies(actors: Record<ActorId, ActorState>): ActorState[] {
   return Object.values(actors).filter((a) => a.kind === "enemy" && a.alive);

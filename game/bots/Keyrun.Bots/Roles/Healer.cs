@@ -11,7 +11,8 @@ namespace Keyrun.Bots.Roles;
 /// Port of bots/src/roles/healer.ts, the healer state machine: kick the priority cast, flee a hostile floor patch
 /// while staying within heal range of the party centroid, swap a stance loop into Mend when the party's missing
 /// health crosses the threshold, dispel before healing, then heal the lowest ally under the threshold through the
-/// shape-aware picker (<see cref="HealPick"/>).
+/// shape-aware picker (<see cref="HealPick"/>); with nobody under it, open a Setup Window on an enemy for a ready
+/// Payoff partner (<see cref="HealerSetup"/>).
 /// </summary>
 public sealed class HealerRole : IRole
 {
@@ -122,9 +123,10 @@ public sealed class HealerRole : IRole
         if (dispelId is null)
         {
             var healId = Priority.PickHealTarget(actors, HealThresholdPct);
+            // CADENCE-SETUP (f-b31e8f34): nobody under the threshold, so open a Setup for a ready Payoff partner.
             return healId is { } hid && actors.TryGetValue(hid, out var healTarget)
                 ? HealPick.HealCommands(view, self, kit, healTarget)
-                : Array.Empty<Command>();
+                : HealerSetup.SetupCommands(view, self, kit);
         }
 
         var abilityId = kit.DispelAbilityId ?? "dispel";

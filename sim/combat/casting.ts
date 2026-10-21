@@ -20,7 +20,7 @@ import type { AbilityDef, EffectOp } from "./abilities";
 import { abilitySchool } from "./abilities";
 import type { EffectDef } from "./effects";
 import { applyEffectInstance, removeEffectInstances } from "./effects";
-import { removeDispellableEffects } from "./effects-remove";
+import { effectPolarity, removeDispellableEffects } from "./effects-remove";
 import { isAbilityReady, startGcd, consumeCharge } from "./cooldowns";
 import { applyHeal } from "./damage";
 import { creditResource, dealDamage } from "./mitigation";
@@ -134,10 +134,14 @@ function applyEffects(
     if (op.op === "damage") {
       dealDamage(state, source, target, op.amount, ctx.effects, emit, source.id);
     } else if (op.op === "heal") {
-      applyHeal(state, target, op.amount, source.id, emit);
+      // HEAL-NEVER-HOSTILE (twin of Casting.cs ApplyEffects, #390; D28 the C# sim is the oracle): a heal,
+      // or a beneficial applyEffect, lands only on the caster's own faction. Every other op still lands.
+      if (target.kind === source.kind) applyHeal(state, target, op.amount, source.id, emit);
     } else if (op.op === "applyEffect") {
       const effDef = ctx.effects[op.effectId];
-      if (effDef) applyEffectInstance(target, effDef, source.id, op.durationTicks, op.stacks, state.tick);
+      if (effDef && (target.kind === source.kind || effectPolarity(effDef) !== "beneficial")) {
+        applyEffectInstance(target, effDef, source.id, op.durationTicks, op.stacks, state.tick);
+      }
     } else if (op.op === "removeEffect") {
       if (op.effectId === "*") removeDispellableEffects(source, target, ctx.effects);
       else removeEffectInstances(target, op.effectId);

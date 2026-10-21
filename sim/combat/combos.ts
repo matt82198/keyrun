@@ -56,7 +56,8 @@ export function applyComboEffects(
     if (op.op === "damage") {
       dealDamage(state, source, target, op.amount, effectDefs, emit, source.id);
     } else if (op.op === "heal") {
-      applyHeal(state, target, op.amount, source.id, emit);
+      // HEAL-NEVER-HOSTILE (twin of Combos.cs ApplyComboEffects, #390): a combo heal lands only on the payoff caster's faction.
+      if (target.kind === source.kind) applyHeal(state, target, op.amount, source.id, emit);
     } else if (op.op === "applyEffect") {
       const def = effectDefs[op.effectId];
       if (def) applyEffectInstance(target, def, source.id, op.durationTicks, op.stacks, state.tick);
