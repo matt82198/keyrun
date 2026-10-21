@@ -92,6 +92,37 @@ public sealed class CauseRowsTests
         Assert.Equal(new[] { 3, 1, 1 }, Seats(rows));
     }
 
+    [Fact]
+    public void A_seat_is_never_listed_as_a_cause_of_its_own_damage()
+    {
+        // Finding f-1326b59a: the run-end panel printed `HUD runend cause seat=1 source=1 name="Warden"`. Closing a
+        // Cinderfield burns the closer (STATE.md D34; Combos.cs BurnCloser emits one damage event whose source and
+        // target are both the closer, and the death event it may cause carries the same source), so the private run
+        // log holds a (seat 1, source 1) row. "What got you" names what hurt the seat; the seat itself is not one.
+        var rows = CauseRows.MergeByName(new[]
+        {
+            new CauseRow(1, 1, "Warden", 300, 2, true),
+            new CauseRow(1, 100, "Choir Blade", 280, 4, false),
+            new CauseRow(3, 3, "Cinder", 90, 1, false),
+            new CauseRow(3, 1, "Warden", 40, 1, false),
+        });
+
+        Assert.DoesNotContain(rows, r => r.SourceId == r.Seat);
+        Assert.Equal(new[] { "Choir Blade", "Warden" }, Names(rows));
+        Assert.Equal(new[] { 1, 3 }, Seats(rows));
+        Assert.False(rows[0].KillingBlow);
+        Assert.Equal(280, rows[0].Damage);
+        Assert.Equal(40, rows[1].Damage);
+    }
+
+    [Fact]
+    public void A_seat_whose_only_damage_was_its_own_has_no_cause_rows()
+    {
+        var rows = CauseRows.MergeByName(new[] { new CauseRow(2, 2, "Chanter", 50, 1, false) });
+
+        Assert.Empty(rows);
+    }
+
     private static string[] Names(IReadOnlyList<CauseRow> rows) => Map(rows, r => r.SourceName);
 
     private static long[] Damages(IReadOnlyList<CauseRow> rows) => Map(rows, r => r.Damage);
