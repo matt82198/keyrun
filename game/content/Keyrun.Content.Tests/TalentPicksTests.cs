@@ -58,7 +58,10 @@ public sealed class TalentPicksTests
 
         Assert.Equal(1, picks.Count);
         Assert.Equal("riposte", picks.PickedOption(fork));
-        Assert.Equal(0, strike.GcdTicks); // Riposte's patch
+        // Riposte's patch is tags only. The free GCD is conditional (only after Brace, sim Combat/Riposte.cs), so the
+        // patch must NOT zero the GCD outright (f-d37651d1: gcdTicks 0 made every Strike GCD-free).
+        Assert.Contains("riposte:free-after-brace", strike.Tags);
+        Assert.Equal(Reg.Abilities["warden.strike"].GcdTicks, strike.GcdTicks);
         Assert.Equal(Reg.Abilities["warden.strike"].Effects, strike.Effects); // Rend's patch is gone
     }
 
@@ -118,5 +121,35 @@ public sealed class TalentPicksTests
 
         Assert.Equal(baseStrike with { CooldownTicks = 77, Name = "Strike II" }, patched);
         Assert.Equal(baseStrike, TalentPicks.ApplyPatch(baseStrike, new AbilityPatch()));
+    }
+
+    [Fact]
+    public void Restore_rebuilds_a_saved_build_exactly_whatever_order_the_choices_come_in()
+    {
+        var built = TalentPicks.Start(Warden).Pick(0, 0).Pick(1, 1);
+        var reversed = built.Choices.Reverse().ToList();
+
+        var restored = TalentPicks.Restore(Warden, reversed);
+
+        Assert.Equal(built, restored);
+        Assert.Equal(built.Resolve(Reg.Abilities), restored.Resolve(Reg.Abilities));
+    }
+
+    [Fact]
+    public void Restore_drops_a_saved_pick_the_content_no_longer_has_and_keeps_the_rest()
+    {
+        var strike = Warden.Talents.Select((fork, i) => (fork, i)).Single(x => x.fork.AbilityId == "warden.strike").i;
+        var saved = new[]
+        {
+            new System.Collections.Generic.KeyValuePair<string, string>("warden.strike", "rend"),
+            new System.Collections.Generic.KeyValuePair<string, string>("warden.guardBreak", "retired-option"),
+            new System.Collections.Generic.KeyValuePair<string, string>("cinder.flare", "wildfire"),
+        };
+
+        var restored = TalentPicks.Restore(Warden, saved);
+
+        Assert.Equal(1, restored.Count);
+        Assert.Equal("rend", restored.PickedOption(strike));
+        Assert.Single(restored.Resolve(Reg.Abilities));
     }
 }

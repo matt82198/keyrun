@@ -25,7 +25,7 @@ public sealed class DamageRole : IRole
     public IReadOnlyList<Command> Decide(BotView view, ActorState self) => DamageDecide(view, self);
 
     private static int? PickAnyEnemyTarget(SortedDictionary<int, ActorState> actors) =>
-        actors.Values.FirstOrDefault(a => a.Kind == ActorKind.Enemy && a.Alive)?.Id;
+        actors.Values.FirstOrDefault(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle)?.Id;
 
     private static List<Command> PayoffOnWindowCommand(BotView view, ActorState self, EffectiveKit kit)
     {

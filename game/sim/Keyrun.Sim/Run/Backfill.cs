@@ -173,7 +173,43 @@ public static class Backfill
         }
         consumed.Sort();
         var book = new BackfillState(open, state.Filled.Concat(fills).ToList());
-        return new BackfillStep(stepped, book, applied, fills, consumed);
+        var arrived = stepped with { Run = next with { State = Arrive(next.State, state.Open, fills) } };
+        return new BackfillStep(arrived, book, applied, fills, consumed);
+    }
+
+    /// <summary>
+    /// BIBLE s9.1 and s10: "a joiner arrives at the next pull start ... inside the party's taken branch". Each filled
+    /// seat's actor is placed on the living party member who stayed (never an open or just-filled seat) nearest to where
+    /// the leaver stood (squared XZ distance, lowest id on a tie): the rear of the party on the route it took, so the
+    /// joiner starts the pull with the party instead of where the leaver idled. With nobody left standing it stays put.
+    /// </summary>
+    private static SimState Arrive(SimState state, IReadOnlyList<SeatAbandon> wasOpen, IReadOnlyList<SeatFill> fills)
+    {
+        var moved = new List<ActorState>();
+        foreach (var fill in fills)
+        {
+            var seat = state.Actors[fill.ActorId];
+            var anchor = state.Actors.Values
+                .Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != seat.Id && !wasOpen.Any(s => s.ActorId == a.Id))
+                .OrderBy(a => DistSq(a.Pos, seat.Pos))
+                .ThenBy(a => a.Id)
+                .FirstOrDefault();
+            if (anchor is null)
+            {
+                continue;
+            }
+            var placed = seat.Clone();
+            placed.Pos = anchor.Pos;
+            moved.Add(placed);
+        }
+        return RunWiring.MergeActors(state, moved);
+    }
+
+    private static long DistSq(Vec3 a, Vec3 b)
+    {
+        var dx = a.X - b.X;
+        var dz = a.Z - b.Z;
+        return (dx * dx) + (dz * dz);
     }
 
     private static int PickJoiner(int runKeyLevel, IReadOnlyList<QueueRequest> queue, IReadOnlyList<int> taken)

@@ -3,7 +3,8 @@
  * single StepRules function for one 20 Hz tick. Fixed per-tick order:
  *   1. Complete any cast whose castEndsTick === state.tick (natural completion).
  *   2. Process this tick's commands in array order: target, stopcast, move, cast (instant
- *      abilities, castTicks === 0, complete immediately within this same step).
+ *      abilities, castTicks === 0, complete immediately within this same step). A held spell-queue
+ *      press whose lock is over joins them as its actor's cast command (spell-queue.ts).
  *   3. Resolve actor-actor collisions and clamp to arena bounds.
  *   4. Run due periodic effect ticks, then expire effects whose endsTick <= state.tick.
  * This function never advances state.tick itself -- sim/core/tick.ts's step() is the single owner
@@ -33,6 +34,7 @@ import type { ActorState, Command, SimEvent, SimState, StepRules } from "./types
 import type { AbilityDef, EffectOp } from "./abilities";
 import type { EffectDef } from "./effects";
 import { startCast, completeCast, stopcast, type CastContext } from "./casting";
+import { afterPress, withFiring } from "./spell-queue";
 import { applyMovement, resolveCollision, clampToBounds, DASH_DISTANCE_MM, type Bounds } from "./movement";
 import { expireEffects, duePeriodicInstances, advancePeriodic, aggregateModifiers } from "./effects";
 import { applyHeal } from "./damage";
@@ -94,7 +96,10 @@ export function makeRules(cfg: RulesConfig): StepRules {
       }
     }
 
-    for (const cmd of commands) {
+    // The spell queue window: a held press whose cast/GCD lock is over runs as its actor's cast command, in the
+    // fixed order (spell-queue.ts; Rules.cs).
+    const queued = withFiring(state, commands, cfg.abilities);
+    for (const cmd of queued.commands) {
       const actor = state.actors[cmd.actorId];
       if (!actor) continue;
       // DEATH-CAST EXCEPTION (death-trigger-wiring): sim/encounter/scripts.ts's "onDeath" script
@@ -117,6 +122,7 @@ export function makeRules(cfg: RulesConfig): StepRules {
         const def = cfg.abilities[cmd.abilityId];
         if (!def) continue;
         const err = startCast(state, actor, def, cmd.targetId, cmd.point, state.tick);
+        afterPress(actor, def, cmd, err, queued.fired.has(cmd), state.tick);
         if (!err && def.castTicks === 0) {
           completeCast(state, actor, ctx, emit);
           applyWindowsAndCombos(state, actor, def, wctx, emit);

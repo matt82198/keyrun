@@ -1,0 +1,2 @@
+- CONTENT-CLAUDE-MD-CURRENT content/CLAUDE.md's ScriptStep and Break bar bullets now match the code (docs only): `"onDeath"` and the numeric-`at`-with-`every` phase offset are implemented, `seed.deathBloom` is scripted, `pair.spreadMark`/`pair.stackCall` no longer share a phase, and the Sundered Twins Break bar is wired through `sim/encounter/index.ts` and `sim/index.ts`.
+BUILDLOG: content/CLAUDE.md's ScriptStep and Break bar bullets were stale against sim/encounter/scripts.ts, sim/encounter/index.ts, content/data/enemies/pair.json and seed.json; rewritten to match the code.

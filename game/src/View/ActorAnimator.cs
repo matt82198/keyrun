@@ -12,11 +12,18 @@ namespace Keyrun.View;
 /// when an ability resolves (the sim's <c>cast_complete</c> for this actor, or the global cooldown restarting) or health
 /// drops (a hit), and idle or run from the interpolated speed. COMBAT-ANIM: the choice is <see cref="AnimRule"/>'s, and
 /// a one-shot plays to its end whether the actor moves or not, then returns to run or idle. Lane 4: a spawn clip once when the body is first bound (<see cref="PlaySpawn"/>; skeletons
-/// rise out of the floor, held until it ends unless the actor dies), and the hit clip as the stagger reaction when a
+/// rise out of the floor; KF1-SPAWN-HOLD: held only while <see cref="HoldAnim.KeepsRise"/>, so moving, casting, a swing,
+/// a stagger or death cuts it with a <see cref="HoldAnim.RiseCutBlendMs"/> blend, and a fresh idle loop starts at the
+/// actor's own <see cref="HoldAnim.IdlePhaseMs"/>), and the hit clip as the stagger reaction when a
 /// fresh <see cref="ActorBinding.StaggerEffectId"/> effect lands (the Twins' break bar emptying). Read-only: it never
 /// writes sim state. KF1: the swing one-shot starts at <see cref="AnimRule.SwingStartMs"/> (its blow lands on the hit
 /// tick, not 300 to 800 ms after it), and a caster the sim's <c>interrupt</c> event targets plays the hit clip (a kick
-/// flinch). A model without an AnimationPlayer gets no animator (<see cref="TryCreate"/> returns null), so it
+/// flinch). KF1-WINDUP (<see cref="AbilityAnim"/>): a cast plays its swing's wind-up so the contact frame lands on the
+/// resolve frame (a strike for the whole bar instead of the Spellcasting loop), and an ability that reads differently
+/// swings its own clip. KF1-READABLE: a cast's own <c>cast_complete</c> plays the release over the next cast it chains
+/// into (for <see cref="AnimRule.ReleaseEndsMs"/>, then the cast pose resumes), and every clip start prints a
+/// <see cref="AnimRule.ViewLine"/> (<c>VIEW anim actor=N clip=X tick=T</c>). A model without an AnimationPlayer gets no
+/// animator (<see cref="TryCreate"/> returns null), so it
 /// keeps its static pose.
 /// </summary>
 public sealed class ActorAnimator
@@ -34,14 +41,21 @@ public sealed class ActorAnimator
     private readonly string? _hit;
     private readonly string? _death;
     private readonly string? _spawn;
-    private readonly float _actStartSeconds;
+    private readonly string _rowAct;
+    private readonly Dictionary<string, string?> _abilityClips = new(StringComparer.Ordinal);
     private string? _oneShot;
+    private AnimClip _oneShotKind;
+    private string? _windup;
     private bool _dead;
     private bool _spawning;
+    private readonly string _moveClip;
+    private readonly int _scalePermille;
 
-    private ActorAnimator(AnimationPlayer player, ActorClips clips)
+    private ActorAnimator(AnimationPlayer player, ActorClips clips, int scalePermille)
     {
         _player = player;
+        _moveClip = clips.Move;
+        _scalePermille = scalePermille;
         var names = player.GetAnimationList();
         _idle = Match(names, clips.Idle, loop: true);
         _move = Match(names, clips.Move, loop: true);
@@ -50,9 +64,17 @@ public sealed class ActorAnimator
         _hit = Match(names, clips.Hit, loop: false);
         _death = Match(names, clips.Death, loop: false);
         _spawn = clips.Spawn is null ? null : Match(names, clips.Spawn, loop: false);
-        // KF1: the swing starts just before its contact frame, so the blow lands on the sim's hit tick.
-        _actStartSeconds = AnimRule.SwingStartMs(clips.Act) / 1000f;
+        _rowAct = clips.Act;
+        _oneShotAct = clips.Act;
+        if (_act is not null)
+        {
+            _abilityClips[clips.Act] = _act;
+        }
     }
+
+    // KF1-READABLE: the swing clip name of the playing Act one-shot (the row's, or the resolved ability's own from
+    // AbilityAnim.ActClip); AnimRule's contact table is keyed by it, not by the matched library path.
+    private string _oneShotAct;
 
     /// <summary>The clip names this animator resolved, for the ACTOR log line ("idle=Idle move=Running_A ...").</summary>
     public string Matched =>
@@ -78,14 +100,17 @@ public sealed class ActorAnimator
     /// <summary>True while the death clip is (or has finished) playing: the view keeps the body visible.</summary>
     public bool HoldsDeath => _dead && _death is not null;
 
-    /// <summary>An animator for the first AnimationPlayer under <paramref name="model"/>, or null when it has none.</summary>
-    public static ActorAnimator? TryCreate(Node model, ActorClips clips)
+    /// <summary>
+    /// An animator for the first AnimationPlayer under <paramref name="model"/>, or null when it has none.
+    /// <paramref name="scalePermille"/> is the scale the model is drawn at (KF1-GAIT: its stride scales with it).
+    /// </summary>
+    public static ActorAnimator? TryCreate(Node model, ActorClips clips, int scalePermille = 1000)
     {
         foreach (var node in model.FindChildren("*", "AnimationPlayer", true, false))
         {
             if (node is AnimationPlayer player)
             {
-                return new ActorAnimator(player, clips);
+                return new ActorAnimator(player, clips, scalePermille);
             }
         }
         return null;
@@ -97,7 +122,7 @@ public sealed class ActorAnimator
     /// events (the <c>cast_complete</c> for this actor is the swing signal, <see cref="AnimRule.Resolved"/>).
     /// </summary>
     public void Update(ActorState before, ActorState now, bool newTick, float speedMps,
-        IReadOnlyList<SimEvent>? events = null, int tick = -1)
+        IReadOnlyList<SimEvent>? events = null, int tick = -1, int alphaPermille = 0)
     {
         if (!now.Alive)
         {
@@ -106,7 +131,12 @@ public sealed class ActorAnimator
                 _dead = true;
                 _spawning = false;
                 _oneShot = null;
+                _player.SpeedScale = 1f;
                 Play(_death);
+                if (_death is not null)
+                {
+                    GD.Print(AnimRule.ViewLine(now.Id, _death, tick) + " kind=Death");
+                }
             }
             return;
         }
@@ -116,47 +146,120 @@ public sealed class ActorAnimator
             _player.Stop();
         }
 
-        // The spawn clip is held to its end (the body slides while it rises rather than skipping the rise).
-        if (_spawning && _spawn is not null)
+        // KF1-WINDUP: a cast whose swing has a measured contact frame plays that swing's wind-up (a strike for its whole
+        // bar, a spell for its release window), posed from sim time each frame so contact lands on the resolve frame.
+        if (now.CastId is string castId && now.CastStartTick is int castStart && now.CastEndsTick is int castEnds)
         {
-            if (_player.IsPlaying() && _player.CurrentAnimation == _spawn)
+            var name = AbilityAnim.ActClip(castId, _rowAct);
+            var windClip = AbilityClip(name);
+            if (windClip is not null && AbilityAnim.Windup(name, castStart, castEnds, tick, alphaPermille) is WindupPose pose)
             {
+                if (_windup != windClip || _player.CurrentAnimation != windClip)
+                {
+                    // KF1-SPAWN-HOLD: a cast cuts the spawn rise (HoldAnim.KeepsRise is false while casting) with the
+                    // longer rise-cut blend, so a body cut mid-rise into its wind-up comes up out of the floor.
+                    var windBlend = Blend;
+                    if (_spawning && _spawn is not null && _player.IsPlaying() && _player.CurrentAnimation == _spawn)
+                    {
+                        GD.Print(FormattableString.Invariant(
+                            $"ANIM risecut actor={now.Id} tick={tick} at={_player.CurrentAnimationPosition:0.00} moving={(speedMps > MoveSpeedMps ? 1 : 0)} casting=1 acted=0 staggered=0"));
+                        windBlend = HoldAnim.RiseCutBlendMs / 1000f;
+                    }
+                    _spawning = false;
+                    _player.Play(windClip, windBlend);
+                    GD.Print(FormattableString.Invariant(
+                        $"ANIM windup actor={now.Id} tick={tick} clip={windClip} ability={castId} ends={castEnds} from={pose.ClipMs} speed={pose.SpeedPermille}"));
+                }
+                _windup = windClip;
+                _oneShot = null;
+                _player.SpeedScale = pose.SpeedPermille / 1000f;
+                _player.Seek(pose.ClipMs / 1000f, true);
                 return;
             }
-            _spawning = false;
         }
+        // A wind-up the cast no longer shows: it resolved this step (the swing carries on from contact) or was cut (a
+        // kick flinches, a stun or cancel returns to run or idle below).
+        var woundUp = _windup;
+        _windup = null;
 
         // COMBAT-ANIM: the clip choice is AnimRule's (Keyrun.Content, pure); this only gathers the facts and plays.
         var playing = _oneShot is not null && _player.IsPlaying() && _player.CurrentAnimation == _oneShot
-            ? (_oneShot == _act ? AnimClip.Act : AnimClip.Hit)
+            ? _oneShotKind
             : AnimClip.None;
+        // KF1-WINDUP: the swing is the resolved ability's own clip (AbilityAnim.ActClip), else the row's.
+        var actName = AbilityAnim.ActClip(ResolvedAbility(now.Id, events), _rowAct);
+        var actClip = AbilityClip(actName);
+        var released = actClip is not null && AnimRule.Resolved(now.Id, Pairs(events));
         var facts = new AnimFacts(
             Alive: true,
             NewTick: newTick,
             Moving: speedMps > MoveSpeedMps,
             Casting: now.CastId is not null && _cast is not null,
-            Acted: _act is not null && (AnimRule.Resolved(now.Id, Pairs(events)) || now.GcdReadyTick > before.GcdReadyTick),
+            Acted: actClip is not null && (released || now.GcdReadyTick > before.GcdReadyTick),
             Hurt: _hit is not null && now.Health < before.Health,
             Staggered: _hit is not null && (StaggerLanded(before, now) || AnimRule.Kicked(now.Id, Targets(events))),
-            Playing: playing);
+            Playing: playing,
+            // KF1-READABLE: a release plays over the cast it chains into, for its window, then the cast pose resumes.
+            Released: released,
+            InRelease: playing == AnimClip.Act &&
+                AnimRule.InRelease(_oneShotAct, (int)(_player.CurrentAnimationPosition * 1000.0)));
+
+        // KF1-SPAWN-HOLD: the spawn rise holds only while the body stands still with nothing else to show
+        // (HoldAnim.KeepsRise); a chaser, caster or swinger cuts it with a longer blend instead of sliding a half-buried
+        // body across the floor for the whole 3.6 s rise.
+        var blend = Blend;
+        if (_spawning && _spawn is not null)
+        {
+            if (_player.IsPlaying() && _player.CurrentAnimation == _spawn)
+            {
+                if (HoldAnim.KeepsRise(facts))
+                {
+                    return;
+                }
+                GD.Print(FormattableString.Invariant(
+                    $"ANIM risecut actor={now.Id} tick={tick} at={_player.CurrentAnimationPosition:0.00} moving={(facts.Moving ? 1 : 0)} casting={(facts.Casting ? 1 : 0)} acted={(facts.Acted ? 1 : 0)} staggered={(facts.Staggered ? 1 : 0)}"));
+                blend = HoldAnim.RiseCutBlendMs / 1000f;
+            }
+            _spawning = false;
+        }
+
         var decision = AnimRule.Decide(facts);
-        var clip = ClipFor(decision.Clip);
+        var clip = decision.Clip == AnimClip.Act ? actClip : ClipFor(decision.Clip);
         if (decision.OneShot && clip is not null)
         {
             _oneShot = clip;
+            _oneShotKind = decision.Clip;
             if (decision.Restart)
             {
-                var from = decision.Clip == AnimClip.Act ? _actStartSeconds : 0f;
-                _player.Play(clip, Blend);
+                // KF1: an instant starts just before contact so its blow lands on the hit tick; KF1-WINDUP: a swing the
+                // cast already wound up carries on from contact.
+                var from = decision.Clip == AnimClip.Act
+                    ? AbilityAnim.ResolveStartMs(actName, woundUp is not null && woundUp == clip) / 1000f
+                    : 0f;
+                if (decision.Clip == AnimClip.Act)
+                {
+                    _oneShotAct = actName;
+                }
+                _player.SpeedScale = 1f; // a one-shot's contact frame is timed at its own rate (AnimRule.SwingStartMs)
+                _player.Play(clip, blend);
                 _player.Seek(from, true);
                 // Proof line (like ACTOR): which one-shot started, on whom, on which tick, from where in the clip.
-                GD.Print(FormattableString.Invariant(
-                    $"ANIM oneshot actor={now.Id} tick={tick} clip={clip} kind={decision.Clip} from={from:0.00} moving={(facts.Moving ? 1 : 0)}"));
+                GD.Print(AnimRule.ViewLine(now.Id, clip, tick) + FormattableString.Invariant(
+                    $" kind={decision.Clip} from={from:0.00} moving={(facts.Moving ? 1 : 0)} casting={(facts.Casting ? 1 : 0)}"));
             }
             return;
         }
         _oneShot = null;
-        Play(clip ?? _idle);
+        var next = clip ?? _idle;
+        if (decision.Clip == AnimClip.Cast && next is not null && !(_player.CurrentAnimation == next && _player.IsPlaying()))
+        {
+            GD.Print(AnimRule.ViewLine(now.Id, next, tick) + " kind=Cast");
+        }
+        // KF1-GAIT: the run or walk loop steps at the body's speed, so the planted foot stays still on the floor.
+        _player.SpeedScale = next is not null && next == _move
+            ? GaitRule.PlaybackPermille(_moveClip, (int)(speedMps * 1000f), _scalePermille) / 1000f
+            : 1f;
+        Play(next, blend, now.Id);
     }
 
     private string? ClipFor(AnimClip clip) => clip switch
@@ -169,6 +272,35 @@ public sealed class ActorAnimator
         AnimClip.Death => _death,
         _ => null,
     };
+
+    // The model's animation for a swing clip name (the row's, or an ability's own from AbilityAnim.ActClip), or null
+    // when the model lacks it. Matched once per name.
+    private string? AbilityClip(string name)
+    {
+        if (!_abilityClips.TryGetValue(name, out var clip))
+        {
+            clip = Match(_player.GetAnimationList(), name, loop: false);
+            _abilityClips[name] = clip;
+        }
+        return clip;
+    }
+
+    // The ability id of this step's cast_complete for this actor, or null.
+    private static string? ResolvedAbility(int actorId, IReadOnlyList<SimEvent>? events)
+    {
+        if (events is null)
+        {
+            return null;
+        }
+        foreach (var e in events)
+        {
+            if (e.Type == AnimRule.ResolveEvent && e.Get("actorId") is JsInt id && id.Value == actorId)
+            {
+                return e.Get("abilityId") is JsString ability ? ability.Value : null;
+            }
+        }
+        return null;
+    }
 
     // One step's events as (type, actorId) pairs for AnimRule.Resolved.
     private static IEnumerable<(string Type, int? ActorId)> Pairs(IReadOnlyList<SimEvent>? events)
@@ -213,13 +345,20 @@ public sealed class ActorAnimator
         return ends;
     }
 
-    private void Play(string? clip)
+    private void Play(string? clip, float blend = Blend, int actorId = -1)
     {
         if (clip is null || (_player.CurrentAnimation == clip && _player.IsPlaying()))
         {
             return;
         }
-        _player.Play(clip, Blend);
+        _player.Play(clip, blend);
+        // KF1-SPAWN-HOLD: an idle loop starts at the actor's own phase (HoldAnim.IdlePhaseMs), so a pack bound on one
+        // frame (every pack at run start under prespawn) does not breathe in lockstep while it holds.
+        if (clip == _idle && actorId >= 0 && _player.GetAnimation(clip) is { } anim)
+        {
+            var phaseMs = HoldAnim.IdlePhaseMs(actorId, (int)(anim.Length * 1000f));
+            _player.Seek(phaseMs / 1000f, true);
+        }
     }
 
     // Exact name first, then a case-insensitive substring; loops the looping states on the shared animation resource.

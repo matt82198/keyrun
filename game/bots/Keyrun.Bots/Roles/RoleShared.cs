@@ -95,7 +95,7 @@ public static class RoleShared
     {
         ArgumentNullException.ThrowIfNull(view);
         var actors = view.State.Actors;
-        var living = actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive).ToList();
+        var living = actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle).ToList();
         if (living.Count == 0)
         {
             return false;
@@ -103,12 +103,13 @@ public static class RoleShared
         return living.All(e => e.TargetId is { } tid && actors.TryGetValue(tid, out var t) && t.Kind == ActorKind.Enemy);
     }
 
-    /// <summary>shared.ts abilityReady (one definition, <see cref="Readiness.AbilityReady"/>).</summary>
+    /// <summary>shared.ts abilityReady (one definition, <see cref="Readiness.AbilityReady(ActorState, string, int, EffectiveKit)"/>).</summary>
     /// <param name="self">Actor.</param>
     /// <param name="abilityId">Ability.</param>
     /// <param name="tick">Current tick.</param>
-    /// <returns>True when off cooldown and off the GCD.</returns>
-    public static bool AbilityReady(ActorState self, string abilityId, int tick) => Readiness.AbilityReady(self, abilityId, tick);
+    /// <param name="kit">Effective kit (its OffGcdAbilityIds skip the GCD wait).</param>
+    /// <returns>True when off cooldown and off the GCD (or the ability is off the GCD).</returns>
+    public static bool AbilityReady(ActorState self, string abilityId, int tick, EffectiveKit kit) => Readiness.AbilityReady(self, abilityId, tick, kit);
 
     /// <summary>shared.ts affordable: <c>self.resource &gt;= (kit.costByAbility[abilityId] ?? 0)</c>.</summary>
     /// <param name="self">Actor.</param>
@@ -139,7 +140,7 @@ public static class RoleShared
     /// <param name="kit">Effective kit.</param>
     /// <returns>True when castable and affordable now.</returns>
     public static bool ReadyAndAffordable(ActorState self, string abilityId, int tick, EffectiveKit kit) =>
-        AbilityReady(self, abilityId, tick) && Affordable(self, abilityId, kit);
+        AbilityReady(self, abilityId, tick, kit) && Affordable(self, abilityId, kit);
 
     /// <summary>The kit resolved for <paramref name="classId"/> on this view (TS <c>resolveKit(classId, view.classKit)</c>).</summary>
     /// <param name="view">Bot view.</param>
@@ -176,7 +177,7 @@ public static class RoleShared
             .Where(a => string.Equals(KitOf(view, a.ClassId).InterruptAbilityId, interruptId, StringComparison.Ordinal))
             .Select(a => a.Id)
             .ToList();
-        var assignment = Ledger.ResolveInterrupt(view.State.Actors, interruptId, eligible, tick, view.Kits.PriorityInterruptAbilityIds());
+        var assignment = Ledger.ResolveInterrupt(view.State.Actors, interruptId, eligible, tick, view.Kits.PriorityInterruptAbilityIds(), Readiness.IsOffGcd(kit, interruptId));
         if (assignment is null || assignment.KickerId != self.Id)
         {
             return null;

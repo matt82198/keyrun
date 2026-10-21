@@ -22,9 +22,9 @@ public sealed record BreakBarWiring(IReadOnlyList<BreakBarSource> Sources, IRead
 public sealed record StepEncounterResult(SimState State, EncounterState Encounter, IReadOnlyList<Command> Commands, IReadOnlyList<BreakBarEffectPatch> EffectPatches)
 {
     /// <summary>
-    /// C#-only (f-8b3fff18): the actors of every bar that staggered this tick, in bar-source then bar-actor order. The
-    /// run root ends their in-progress casts when it applies the stun (<see cref="Runs.RunWiring.StopCasts"/>). Empty
-    /// on a run with no Break bar.
+    /// C#-only (f-8b3fff18): the actors of the armed boss's Twins bar when it staggered this tick, in bar-actor order.
+    /// The run root ends their in-progress casts when it applies the stun (<see cref="Runs.RunWiring.StopCasts"/>).
+    /// Empty on a run with no armed boss; any other bar's stun follows the s9.3 interruptible-only rule (ControlStops).
     /// </summary>
     public IReadOnlyList<int> Staggered { get; init; } = Array.Empty<int>();
 }
@@ -63,7 +63,8 @@ public static class EncounterStep
 
         // Lane 3F (no TS counterpart): an armed boss resolves its Lock and supplies the Twins' scripts and bar first.
         // Unarmed (Boss null, every oracle run) this is skipped and the step is exactly index.ts stepEncounter.
-        BossPreStep? boss = encounter.Boss is { } armed ? BossRules.PreCombat(state, armed, scripts, emit) : null;
+        // LOCK-TELEGRAPH: the ability views give a cast Lock its castTicks, and the registry holds the boss's own circles.
+        BossPreStep? boss = encounter.Boss is { } armed ? BossRules.PreCombat(state, armed, scripts, emit, abilities, encounter.Telegraphs) : null;
         if (boss is not null)
         {
             scripts = boss.Scripts;
@@ -75,8 +76,23 @@ public static class EncounterStep
             sources = sources.Append(boss.TwinsBar).ToList();
         }
 
+        // PRESPAWN-AGGRO (BIBLE section 9.1): an idle group runs no script, so it casts, telegraphs and chases nothing
+        // until it engages. No actor of an oracle run is idle, so this keeps every script there.
+        if (scripts.Keys.Any(id => state.Actors.TryGetValue(id, out var a) && a.Idle))
+        {
+            var awake = new SortedDictionary<int, IReadOnlyList<ScriptStep>>();
+            foreach (var (id, script) in scripts)
+            {
+                if (!(state.Actors.TryGetValue(id, out var a) && a.Idle))
+                {
+                    awake[id] = script;
+                }
+            }
+            scripts = awake;
+        }
+
         // index.ts:119-123: scripts, emit their telegraph events, register them.
-        var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities);
+        var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities, encounter.PendingSteps, encounter.DeferredCasts);
         foreach (var e in scripted.TelegraphEvents)
         {
             emit(e);
@@ -92,7 +108,7 @@ public static class EncounterStep
 
         // index.ts:129-135: Tide drift, resolve, emit hits, drop the resolved.
         var advance = Telegraphs.Advance(state, encounter.Telegraphs, scripted.TelegraphEvents, encounter.NextTelegraphId, emit,
-            all => Clauses.DriftTelegraphs(all, encounter.Rules));
+            all => Clauses.DriftTelegraphs(all, encounter.Rules), scripted.TelegraphCastStarts);
 
         // index.ts:137-141: reset cooldowns of existing bars.
         var breakBars = new JsRecord<BreakBarState>();
@@ -123,7 +139,10 @@ public static class EncounterStep
             breakBars[source.Id] = drained;
             var justStaggered = !wasStaggered && drained.Current <= 0;
             effectPatches.AddRange(BreakBar.EffectPatches(source, justStaggered));
-            if (justStaggered)
+            // Only the armed boss's Twins bar (BIBLE s9 "at empty both are stunned for a burst window") ends the casts
+            // of its actors outright. Any other bar's stun follows the s9.3 pack rule (ControlStops: an interruptible
+            // cast only, StunStopsCastTests).
+            if (justStaggered && boss is not null && source.Id == boss.TwinsBar.Id)
             {
                 staggered.AddRange(source.ActorIds);
             }
@@ -135,6 +154,8 @@ public static class EncounterStep
             Telegraphs = advance.Telegraphs,
             BreakBars = breakBars,
             FiredOnDeath = scripted.FiredOnDeath,
+            PendingSteps = scripted.PendingSteps,
+            DeferredCasts = scripted.DeferredCasts,
             NextTelegraphId = advance.NextTelegraphId,
         };
         if (boss is not null)

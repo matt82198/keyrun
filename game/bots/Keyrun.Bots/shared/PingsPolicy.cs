@@ -52,12 +52,13 @@ public static class PingsPolicy
         {
             return new List<Command>();
         }
+        var selfKit = view.Kits.ResolveKit(self.ClassId, view.ClassKit);
         var eligible = view.State.Actors.Values
             .Where(a => a.Kind == ActorKind.Player && a.Alive && a.Role == ActorRole.Damage)
-            .Where(a => Readiness.AbilityReady(a, interruptId, tick))
+            .Where(a => Readiness.AbilityReady(a, interruptId, tick, selfKit))
             .Select(a => a.Id)
             .ToList();
-        if (!Readiness.AbilityReady(self, interruptId, tick) || !Priority.IsInterruptResponsible(self.Id, eligible))
+        if (!Readiness.AbilityReady(self, interruptId, tick, selfKit) || !Priority.IsInterruptResponsible(self.Id, eligible))
         {
             return new List<Command>();
         }

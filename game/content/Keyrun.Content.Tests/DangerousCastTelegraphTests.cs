@@ -55,4 +55,41 @@ public sealed class DangerousCastTelegraphTests
         // Vacuity guard: seed.slam, seed.lash (KF3-SEED-ENGAGE), hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam.
         Assert.Equal(6, count);
     }
+
+    [Fact]
+    public void The_bosss_Lock_is_a_cast_with_a_bar_and_a_floor_circle_that_spans_it()
+    {
+        // LOCK-TELEGRAPH (f-dfafcec6): the Lock deals no damage, so the rule above never saw it, and it shipped with
+        // castTicks 0 and no telegraph: the boss's biggest mechanic began with no bar and nothing on the floor. The one
+        // boss script step that casts the setup:lock ability must have a cast bar and a circle that spans the cast.
+        var lockStep = Assert.Single(
+            from enemy in Reg.Enemies.Values
+            where enemy.Role == EnemyRole.Boss
+            from step in enemy.Script
+            let ability = Reg.Abilities[step.Cast]
+            where ability.Tags.Contains("setup:lock")
+            select (enemy, step, ability));
+        string at = lockStep.enemy.Id + " -> " + lockStep.ability.Id;
+        Assert.True(lockStep.ability.CastTicks > 0, at + ": castTicks " + lockStep.ability.CastTicks + " (no cast bar)");
+        var telegraph = lockStep.step.Telegraph;
+        Assert.True(telegraph is not null, at + ": no floor telegraph");
+        Assert.Equal(TelegraphShape.Circle, telegraph!.Shape);
+        Assert.True((telegraph.Radius ?? 0) > 0, at + ": telegraph radius " + telegraph.Radius);
+        Assert.True(telegraph.SpansCast == true, at + ": telegraph does not span its cast");
+        Assert.True(telegraph.LeadTicks >= lockStep.ability.CastTicks, at + ": lead " + telegraph.LeadTicks + " < cast " + lockStep.ability.CastTicks);
+    }
+
+    [Fact]
+    public void Every_dangerous_cast_telegraph_spans_the_cast()
+    {
+        // SLAM-TELEGRAPH: the floor shape stays down for the whole cast bar and resolves when the cast lands
+        // (seed.slam, seed.lash, hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam).
+        var slams = DangerousSteps().ToList();
+        Assert.Equal(6, slams.Count);
+        Assert.All(slams, s =>
+        {
+            Assert.True(s.Step.Telegraph?.SpansCast == true, s.Enemy.Id + " -> " + s.Ability.Id + " telegraph does not span its cast");
+            Assert.True(s.Step.Telegraph!.LeadTicks >= s.Ability.CastTicks, s.Enemy.Id + ": lead " + s.Step.Telegraph.LeadTicks + " < cast " + s.Ability.CastTicks);
+        });
+    }
 }
