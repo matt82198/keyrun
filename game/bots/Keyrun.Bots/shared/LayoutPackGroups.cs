@@ -113,6 +113,81 @@ public static class LayoutPackGroups
         return (packs, merged);
     }
 
+    /// <summary>How far inside a pack's aggro ring its pull point stands, mm: the ring's edge less this, so the leader pulls it.</summary>
+    public const long PullInsetMm = 500;
+
+    /// <summary>
+    /// DOOR-100 (BIBLE s9.2, s9.5): while the Enemy Forces bar reads short of its requirement, a leader standing in a room
+    /// whose party is all inside takes the nearest unengaged layout pack in that room that lifts the bar to the requirement,
+    /// and walks to its pull point (<see cref="PullPoint"/>) to pull it. "Nearest" is the pull point nearest the leader; ties
+    /// keep layout pack order. Null (walk the route as before) when there is no door data, the bar already reads full, the
+    /// leader is in no room, the party is not all inside, or no pack in the room lifts the bar.
+    /// </summary>
+    /// <param name="run">The run (its door data, packs, layout, encounter and state).</param>
+    /// <param name="self">The leader.</param>
+    /// <returns>The pull point to walk to, or null.</returns>
+    public static Vec3? ForcesDetourGoal(Keyrun.Sim.Runs.Run run, ActorState self)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        ArgumentNullException.ThrowIfNull(self);
+        var gate = run.Content.BossDoor;
+        var layout = run.Content.Layout;
+        if (gate is null || layout is null || run.Content.Packs is null)
+        {
+            return null;
+        }
+        var banked = Forces.Points(run.State, gate.PointsByEnemy);
+        if (banked >= gate.Required)
+        {
+            return null;
+        }
+        var room = Follow.RoomAt(layout, self.Pos);
+        if (room is null || !NavLayout.PartyInside(run.State, room.Box))
+        {
+            return null;
+        }
+        Vec3? best = null;
+        long bestD2 = long.MaxValue;
+        foreach (var pack in run.Content.Packs)
+        {
+            if (Pulls.IsEngaged(run.Encounter, pack.Id) || Follow.RoomAt(layout, pack.Center)?.Id != room.Id)
+            {
+                continue;
+            }
+            if (banked + PackPoints(pack, gate.PointsByEnemy) < gate.Required)
+            {
+                continue;
+            }
+            var goal = PullPoint(pack);
+            var dx = goal.X - self.Pos.X;
+            var dz = goal.Z - self.Pos.Z;
+            var d2 = (dx * dx) + (dz * dz);
+            if (d2 < bestD2)
+            {
+                bestD2 = d2;
+                best = goal;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// The point a leader walks to in order to pull <paramref name="pack"/>: on the aggro ring's edge (less
+    /// <see cref="PullInsetMm"/>) on the walking line's side of the pack (the line is z = 0 on the shipped layout), so the
+    /// walk into the ring is the pull. Integers only.
+    /// </summary>
+    /// <param name="pack">The pack.</param>
+    /// <returns>The pull point.</returns>
+    public static Vec3 PullPoint(PackGroup pack)
+    {
+        ArgumentNullException.ThrowIfNull(pack);
+        var side = pack.Center.Z > 0 ? -1 : 1;
+        return new Vec3(pack.Center.X, 0, pack.Center.Z + (side * (pack.AggroMm - PullInsetMm)));
+    }
+
+    private static int PackPoints(PackGroup pack, IReadOnlyDictionary<string, int> pointsByEnemy) =>
+        pack.Spawns.Sum(s => pointsByEnemy.TryGetValue(s.ClassId, out var p) ? Math.Max(0, p) : 0);
+
     /// <summary>
     /// STATE.md D47 (WoW-faithful swing timers): in WoW each mob's swing timer is its own, so a pack does not land every
     /// auto-attack on one tick. Member <paramref name="index"/> of <paramref name="count"/> pack-only members runs its
