@@ -159,8 +159,11 @@ public partial class LabelView : Node3D
             }
             // The Warden's own name and health live on the ability bar's meters, not over his head; the boss's name
             // lives on its unit frame.
-            plate.Visible = PlateRule.DrawsOverhead(id, actor.Alive, id == SimDriver.WardenId, bossFrameId,
-                enemy: actor.Kind != ActorKind.Player, distanceMm: viewer is { } v ? DistanceMm(v, actor.Pos) : 0);
+            // LABEL-CULL: the one rule every label reads (LabelGroups.Labelled). A dead actor's plate hides on the frame its
+            // state carries the death, and it is in no "xN" group (LabelGroups.Build), so it never counts.
+            plate.Visible = LabelGroups.Labelled(new LabelActor(id, plate.BaseName, actor.Alive,
+                Enemy: actor.Kind != ActorKind.Player, Human: id == SimDriver.WardenId,
+                DistanceMm: viewer is { } v ? DistanceMm(v, actor.Pos) : 0), bossFrameId);
             if (!plate.Visible)
             {
                 continue;
