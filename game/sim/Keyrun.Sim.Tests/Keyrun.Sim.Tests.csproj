@@ -38,6 +38,8 @@
     <Compile Include="../../src/Hud/SlackReading.cs" Link="Hud/SlackReading.cs" />
     <!-- f-275d47c9: the Godot-free private Ascension readout (the Character tab and run-end panel lines) is tested here. -->
     <Compile Include="../../src/Hud/AscensionReadout.cs" Link="Hud/AscensionReadout.cs" />
+    <!-- U10: the run-end panel's per-card lines (an Ascension card is an Ascension mark, not a tier bonus line) are tested here. -->
+    <Compile Include="../../src/Hud/RunEndCardLines.cs" Link="Hud/RunEndCardLines.cs" />
   </ItemGroup>
 
 </Project>
