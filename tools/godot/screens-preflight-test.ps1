@@ -25,6 +25,10 @@
     D3  no root and no dotnet on PATH (PATH narrowed to an empty folder for the case): Code 6
     R1  Test-KeyrunRunLogWritten: no log file -> false
     R2  Test-KeyrunRunLogWritten: log file present -> true
+    L1  Resolve-KeyrunRunLogPath: relative --path and relative --log resolve under the repo's game folder
+    L2  absolute --path and relative --log resolve under that absolute project folder (no repo-root prefix)
+    L3  an absolute --log passes through unchanged
+    L4  with an absolute --path the log folder is creatable (New-Item does not throw)
 
   Run:  powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/screens-preflight-test.ps1
   Exit 0 = PASS, 1 = FAIL.
@@ -190,6 +194,30 @@ try {
     Check 'R1.no-log-false' ((Test-KeyrunRunLogWritten -LogPath $log) -eq $false) 'reported a log that does not exist'
     Write-Text $log @('EVENT {"type":"run_end"}')
     Check 'R2.log-true' ((Test-KeyrunRunLogWritten -LogPath $log) -eq $true) 'a present log was reported missing'
+
+    # L1-L3: where screens.ps1 writes the --log file (Resolve-KeyrunRunLogPath). A throw is recorded as a FAIL.
+    $logRepo = Join-Path $work 'log-repo'
+    $absGame = (Join-Path $logRepo 'game') -replace '\\', '/'
+    $wantRel = ((Join-Path $logRepo 'game\build\screens-run.txt') -replace '\\', '/')
+    try {
+        $got = (Resolve-KeyrunRunLogPath -RepoRoot $logRepo -ProjectRel 'game' -LogRel 'build/screens-run.txt') -replace '\\', '/'
+        Check 'L1.relative-path-relative-log-under-project' ($got -eq $wantRel) "got=$got want=$wantRel"
+    } catch { Check 'L1.relative-path-relative-log-under-project' $false $_.Exception.Message }
+    try {
+        $got = (Resolve-KeyrunRunLogPath -RepoRoot $logRepo -ProjectRel $absGame -LogRel 'build/screens-run.txt') -replace '\\', '/'
+        Check 'L2.absolute-path-relative-log-under-project' ($got -eq ($absGame + '/build/screens-run.txt')) "got=$got want=$absGame/build/screens-run.txt"
+    } catch { Check 'L2.absolute-path-relative-log-under-project' $false $_.Exception.Message }
+    try {
+        $abs = 'C:/elsewhere/run.txt'
+        $got = Resolve-KeyrunRunLogPath -RepoRoot $logRepo -ProjectRel $absGame -LogRel $abs
+        Check 'L3.absolute-log-passes-through' ($got -eq $abs) "got=$got"
+    } catch { Check 'L3.absolute-log-passes-through' $false $_.Exception.Message }
+    # L4: screens.ps1 creates the log folder next; with an absolute --path that must not throw (it threw 'format is not supported').
+    try {
+        $got = Resolve-KeyrunRunLogPath -RepoRoot $logRepo -ProjectRel $absGame -LogRel 'build/screens-run.txt'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $got) -Force | Out-Null
+        Check 'L4.absolute-path-log-folder-creatable' (Test-Path -LiteralPath (Split-Path -Parent $got) -PathType Container) "folder missing: $got"
+    } catch { Check 'L4.absolute-path-log-folder-creatable' $false $_.Exception.Message }
 } finally {
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }

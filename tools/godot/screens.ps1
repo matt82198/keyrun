@@ -134,11 +134,7 @@ for ($i = 0; $i -lt ($godotArgList.Count - 1); $i++) {
     if ($godotArgList[$i] -eq '--path') { $projRel = $godotArgList[$i + 1] }
     if ($godotArgList[$i] -eq '--log') { $logRel = $godotArgList[$i + 1] }
 }
-if ([IO.Path]::IsPathRooted($logRel)) {
-    $logPath = $logRel
-} else {
-    $logPath = Join-Path (Join-Path $repo $projRel) $logRel
-}
+$logPath = Resolve-KeyrunRunLogPath -RepoRoot $repo -ProjectRel $projRel -LogRel $logRel
 $logDir = Split-Path -Parent $logPath
 if (-not (Test-Path -LiteralPath $logDir)) {
     New-Item -ItemType Directory -Path $logDir | Out-Null

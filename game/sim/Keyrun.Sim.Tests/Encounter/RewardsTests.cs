@@ -131,7 +131,11 @@ public sealed class RewardsTests
 
     [Theory]
     [InlineData(42L, 10, "timed", "", "reward-armor-armor-ward-t4-0 reward-ring-ring-verse-t6-1 reward-keystone-keystone-tempo-t5-2")]
-    [InlineData(7L, 2, "depleted", "", "reward-ring-ring-chorus-t1-0 reward-weapon-weapon-haft-t1-1 reward-weapon-weapon-haft-t2-2")]
+    // Documented break from the frozen TS (f-0b0afff2, BIBLE s7 "Facets change function"): the frozen rewards.ts offers
+    // this key-2 roll "...-weapon-haft-t1-1 reward-weapon-weapon-haft-t2-2", one facet at two tiers, because it only kept
+    // (slot, facet, tier) distinct. The sim now re-draws a facet already on offer; the first two cards and the PRNG
+    // stream up to the repeat are unchanged, and the re-draw lands on keystone-echo t2.
+    [InlineData(7L, 2, "depleted", "", "reward-ring-ring-chorus-t1-0 reward-weapon-weapon-haft-t1-1 reward-keystone-keystone-echo-t2-2")]
     [InlineData(11L, 15, "timed", "", "reward-armor-armor-ward-t6-0 reward-keystone-keystone-tempo-t7-1 reward-ring-ring-verse-t6-2")]
     [InlineData(123456789L, 20, "timed", "", "reward-weapon-weapon-haft-t7-0 reward-keystone-keystone-echo-t8-1 reward-weapon-weapon-brand-t8-2")]
     // Documented break from the frozen TS (f-baeb031a): rewards.ts:85 gives this abandoned key-20 roll the band 7-8
