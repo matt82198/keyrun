@@ -155,7 +155,9 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
     /// verbatim, so a re-recorded setup can carry <c>spansCast: true</c>; it is cleared here so the replay keeps the
     /// TS behaviour the trace recorded. Only the host and content-driven tests apply it. TELEGRAPH-READY: every
     /// telegraph is also marked <see cref="TelegraphSpec.TsUnchecked"/>, because the TS drew a scheduled step's
-    /// telegraph even when combat then refused its cast, and the trace records those telegraphs.
+    /// telegraph even when combat then refused its cast, and the trace records those telegraphs. CAST-FINISH: every step
+    /// is also marked <see cref="ScriptStep.TsCastReplace"/>, because the TS fired each step on its scheduled tick even
+    /// mid-cast, replacing the cast under way, and the trace records those casts.
     /// </summary>
     private static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> TsScripts(IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts)
     {
@@ -164,6 +166,7 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
         {
             result[kv.Key] = kv.Value
                 .Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { SpansCast = false, TsUnchecked = true } } : s)
+                .Select(s => s with { TsCastReplace = true })
                 .ToList();
         }
         return result;
@@ -338,7 +341,7 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
 
     private static RunOptions ParseOptions(JsObject o)
     {
-        OnlyKeys(o, "runOptions", "clauseId", "loadouts");
+        OnlyKeys(o, "runOptions", "clauseId", "loadouts", "rotationIndex");
         Dictionary<int, IReadOnlyDictionary<string, AbilityDef>>? loadouts = null;
         if (o.Get("loadouts") is { } l)
         {
@@ -356,6 +359,9 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
         {
             ClauseId = o.Get("clauseId") is { } id ? Str(id, "runOptions.clauseId") : null,
             Loadouts = loadouts,
+            // The weekly affix rotation index the run was recorded at (absent = 0): a replay takes it from the trace,
+            // never from the replay's date.
+            RotationIndex = o.Get("rotationIndex") is { } r ? Int(r, "runOptions.rotationIndex") : 0,
         };
     }
 }

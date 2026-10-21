@@ -166,6 +166,12 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     public RunRewards Bonus { get; init; } = RunRewards.Empty;
 
     /// <summary>
+    /// "Left mid-run: nothing gained" for a run the player left (STATE.md D45, <see cref="EndOfRun.HudLine"/>), drawn
+    /// where the cards would be; null for every finished run.
+    /// </summary>
+    public string? Nothing { get; init; }
+
+    /// <summary>
     /// The key move drawn right under the result (BIBLE s8, Matt 2026-10-20: timed moves the key by its chest tier,
     /// untimed holds it), or null for a view built without a run.
     /// </summary>
@@ -238,8 +244,10 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     /// <param name="classKit">The local player's class kit ability ids (the facet pool's scope).</param>
     /// <param name="bonus">The run's Seed bonus fold, or null (no bonus loot).</param>
     /// <param name="combos">The run's denied Combos, or null (no late-combo lines).</param>
+    /// <param name="equipped">The character's equipped gear by slot (the screen's <see cref="Progression.Equipped"/>),
+    /// or null for a fresh character: one card is then a strict upgrade over it (BIBLE s7, <see cref="EndOfRun.Offer"/>).</param>
     /// <returns>The view, or null while the run is live.</returns>
-    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log, ContentRegistry? registry, IReadOnlySet<string> classKit, SeedBonusLog? bonus = null, PrivateComboLog? combos = null)
+    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log, ContentRegistry? registry, IReadOnlySet<string> classKit, SeedBonusLog? bonus = null, PrivateComboLog? combos = null, IReadOnlyDictionary<string, Item>? equipped = null)
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(log);
@@ -248,10 +256,11 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         {
             return null;
         }
-        var seed = unchecked((run.State.Seed * 1_000_003L) + tick);
-        var choices = registry is null
-            ? Rewards.RollRewardChoices(seed, run.Encounter.KeyLevel, result, Rewards.GearSlots)
-            : Rewards.RollRewardChoices(seed, run.Encounter.KeyLevel, result, Rewards.GearSlots, Rewards.GearSlots.ToDictionary(s => s, s => Screen.SlotPool(registry, classKit, s), StringComparer.Ordinal));
+        // BIBLE s1/s7: the one offer read (EndOfRun.Offer), the same for a timed clear, an untimed clear and a wipe.
+        var pools = registry is null
+            ? null
+            : Rewards.GearSlots.ToDictionary(s => s, s => Screen.SlotPool(registry, classKit, s), StringComparer.Ordinal);
+        var choices = EndOfRun.Offer(run, pools, equipped ?? new Dictionary<string, Item>(StringComparer.Ordinal))!;
         // The sim finishes a lasting wipe as "depleted" with completed forced (run-wiring.ts checkRunEnd), so the
         // result alone cannot tell a cleared depleted key from a wipe: the pull index past the last pull can.
         var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
@@ -263,9 +272,12 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         // inside its Slack reads "over par", never "within par"; an untimed key names the level it keeps (Of ->
         // RunEndTitle.Wiped / ClearedUntimed: Matt 2026-10-20, f-7c7abdf4).
         var title = RunEndTitle.ForRun(run, lost?.Number ?? 0, lost?.Total ?? 0)!;
-        var rewards = bonus?.Rewards ?? RunRewards.Empty;
+        // D45: a player who leaves mid-run gets nothing -- no cards (EndOfRun.Offer is empty), no bonus loot line.
+        var nothing = EndOfRun.HudLine(run);
+        var rewards = nothing is null ? bonus?.Rewards ?? RunRewards.Empty : RunRewards.Empty;
         return new RunEndView(result, tick, title, cleared, choices, log.CausesFor(localSeat))
         {
+            Nothing = nothing,
             Bonus = rewards,
             BonusLabel = BonusLabelOf(rewards.BonusLoot, registry),
             LateCombos = combos?.LinesFor(localSeat) ?? Array.Empty<ComboBlameLine>(),
@@ -283,6 +295,11 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         {
             // "HUD runend key from=7 to=10 tier=3": the level the panel shows and the screen reopens at.
             yield return key.LogLine();
+        }
+        if (Nothing is { } nothing)
+        {
+            // D45: "HUD runend nothing result=abandoned line="Left mid-run: nothing gained"".
+            yield return FormattableString.Invariant($"HUD runend nothing result={Result.ToJs()} line=\"{nothing}\"");
         }
         for (var i = 0; i < Choices.Count; i++)
         {
@@ -453,7 +470,12 @@ public partial class RunEndPanel : Control
         }
         // Lane 3D-c: in the interactive game Enter opens the between-runs screen; only --solo restarts at once.
         var enter = _driver?.StartsOnScreen == true ? "Enter opens the between-runs screen" : "Enter starts a fresh run";
-        var hint = _taken is null ? "1-3 take a reward    " + enter : enter;
+        var hint = _taken is null && view.Choices.Count > 0 ? "1-3 take a reward    " + enter : enter;
+        if (view.Nothing is { } nothing)
+        {
+            // D45: a run the player left grants nothing; the line sits where the cards would be.
+            HudNodes.Text(this, panel.Position + new Vector2(20, 52 + bonusShift + 28), nothing, CardFont + 2, new Color(0.85f, 0.88f, 0.95f));
+        }
         HudNodes.Text(this, new Vector2(panel.End.X - HudNodes.Width(hint, CardFont) - 20, panel.Position.Y + 30), hint, CardFont, Colors.White);
 
         var cardWidth = (PanelWidth - 40 - (2 * CardGap)) / 3;
@@ -576,7 +598,9 @@ public partial class RunEndPanel : Control
         }
         // The human's class kit scopes the reward facet pool (the Screen's reroll pool, Screen.SlotPool).
         var kit = new HashSet<string>(setup.Slots.Select(s => s.AbilityId), StringComparer.Ordinal);
-        if (RunEndView.Of(run, setup.HumanActorId, _log, registry, kit, _bonus, _combos) is { } view)
+        // The character the pick goes onto (the screen's progression), so one card is a strict upgrade for it (BIBLE s7).
+        var equipped = (GetTree()?.GetFirstNodeInGroup(Screen.GroupName) as Screen)?.Progression.Equipped;
+        if (RunEndView.Of(run, setup.HumanActorId, _log, registry, kit, _bonus, _combos, equipped) is { } view)
         {
             _view = view;
             foreach (var line in view.LogLines())

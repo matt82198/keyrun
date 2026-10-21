@@ -87,6 +87,15 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
     /// <summary>Target override; absent means the default rules of <see cref="ScriptTarget"/>.</summary>
     public ScriptTargetOverride? Target { get; init; }
 
+    /// <summary>
+    /// CAST-FINISH: true only on a frozen-TS replay (tools/Keyrun.Replay RunSetup sets it, as it sets
+    /// <see cref="TelegraphSpec.TsUnchecked"/>). The TS fired every step on its scheduled tick, and combat's StartCast
+    /// then replaced any cast the enemy was still holding, so such a replay keeps that rule and the oracle traces stay
+    /// byte-equal. Every other run (the host, and content-driven tests) holds a step that comes due mid-cast until the
+    /// cast lands (<see cref="Scripts.StepEnemyScripts"/>). C#-only, never read from JSON.
+    /// </summary>
+    public bool TsCastReplace { get; init; }
+
     /// <summary>A <c>{at:"loop", every, cast}</c> step.</summary>
     public static ScriptStep Loop(int? every, string cast) => new(StepTrigger.Loop, cast) { Every = every };
 
