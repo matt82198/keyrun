@@ -51,6 +51,25 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
         return new RunSetup(runSeed, party, dungeon, content, options);
     }
 
+    /// <summary>
+    /// R-BOTS-9: this setup as the frozen TS run played it, for a replay of its recorded trace. The loader keeps every
+    /// ability's <c>variants</c> (the content's verse kit, which the C# sim plays through Abilities.ResolveVerse), but
+    /// the TS sim has no verse rule (sim/**/*.ts reads no <c>variants</c>), so the TS played every verse ability as its
+    /// static Effects and the trace records that. A trace replay strips the variants here, as <see cref="TsScripts"/>
+    /// and <see cref="RunContent.TsSymmetricPushOut"/> keep the other TS-only behaviours; every other reader of a setup
+    /// plays the content's kit.
+    /// </summary>
+    /// <returns>The setup with no ability variants, in content and in every loadout.</returns>
+    public RunSetup WithTsKit()
+    {
+        static IReadOnlyDictionary<string, AbilityDef> Strip(IReadOnlyDictionary<string, AbilityDef> abilities) =>
+            abilities.ToDictionary(kv => kv.Key, kv => kv.Value.Variants is null ? kv.Value : kv.Value with { Variants = null }, StringComparer.Ordinal);
+        var options = Options?.Loadouts is { } loadouts
+            ? Options with { Loadouts = loadouts.ToDictionary(kv => kv.Key, kv => Strip(kv.Value)) }
+            : Options;
+        return this with { Content = Content with { Abilities = Strip(Content.Abilities) }, Options = options };
+    }
+
     private static string Idx(string what, int i) => string.Create(CultureInfo.InvariantCulture, $"{what}[{i}]");
 
     private static JsObject Obj(JsValue? v, string what) => v as JsObject ?? throw new FormatException($"{what} must be an object");
@@ -181,8 +200,10 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
     private static AbilityDef Ability(JsValue v, string what)
     {
         var a = Obj(v, what);
-        // "name" (display) and "variants" (the content layer's talent kits, resolved by the host into loadouts) ride along in
-        // RunContent but no sim code reads them (sim/** has no reader), so they are accepted and not carried.
+        // "name" (display) rides along in RunContent and no sim code reads it, so it is accepted and not carried.
+        // "variants" (a Chanter verse ability's per-verse ops, BIBLE section 5) IS read: Abilities.ResolveVerse plays the
+        // caster's verse variant. R-BOTS-9 (BIBLE section 7, "Facets change function"): a loader that drops them plays
+        // every verse as the static Effects, a different kit than the content (ForkParityTests.ToSim keeps them).
         OnlyKeys(a, what, "id", "castTicks", "gcdTicks", "cooldownTicks", "charges", "cost", "range", "shape", "interruptible", "effects", "tags", "name", "variants");
         var shape = Obj(Req(a, "shape", what), what + ".shape");
         OnlyKeys(shape, what + ".shape", "kind", "radius", "angle1024", "length");
@@ -209,6 +230,12 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
             Interruptible = Bool(Req(a, "interruptible", what), what + ".interruptible"),
             Effects = Ops(Req(a, "effects", what), what + ".effects"),
             Tags = a.Get("tags") is { } tags ? Arr(tags, what + ".tags").Select((t, i) => Str(t, Idx(what + ".tags", i))).ToList() : null,
+            Variants = a.Get("variants") is { } variants && variants is not JsNull
+                ? Obj(variants, what + ".variants").Members.ToDictionary(
+                    kv => kv.Key,
+                    kv => Ops(kv.Value, what + ".variants." + kv.Key),
+                    StringComparer.Ordinal)
+                : null,
         };
     }
 

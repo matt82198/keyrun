@@ -63,7 +63,8 @@ public sealed class RolesOracleTraceTests
     {
         var dir = OracleDir();
         var trace = OracleTrace.Load(Path.Combine(dir, name + ".trace.jsonl"));
-        var setup = RunSetup.Load(Path.Combine(dir, trace.SetupFile), trace.Seed);
+        // R-BOTS-9: the trace is the frozen TS run, which has no verse rule (RunSetup.WithTsKit).
+        var setup = RunSetup.Load(Path.Combine(dir, trace.SetupFile), trace.Seed).WithTsKit();
         var run = RunRoot.CreateRun(setup.Seed, setup.Party, setup.Dungeon, setup.Content, setup.Options);
         var kits = Kits.Value;
         var bots = new SortedDictionary<int, IBot>();
