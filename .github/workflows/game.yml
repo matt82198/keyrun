@@ -1,27 +1,14 @@
 name: Game
 # Godot 4.7.2 .NET desktop game (game/). Windows is the target platform.
-# Jobs game-test and game-e2e are NON-required until phase 4A renames them
-# test and e2e (ENGINE-PLAN section 5); tests.yml stays the required gate.
+# Owns the required checks `game-test`, `game-e2e` and `game-gate`, plus the non-required `balance` job.
+# No paths filter: every PR gets exactly one run of each required name. Each job decides docs-only in its
+# own scope step: a code PR runs the real steps; a docs-only PR runs one pass-through step under the same
+# check name. No job-level `if:` on a required job (a skipped required check counts as success for branch
+# protection: the #473 fail-open this file closes). Docs-only definition as in tests.yml (--no-renames, and tools/game/bots/client/.github are code).
 on:
-  # Docs-only changes skip this workflow; docs-only.yml defines the same required check names for them.
-  # Keep this list identical to docs-only.yml and tests.yml (YAML anchors are not used on purpose).
   push:
     branches: [main]
-    paths-ignore:
-      - 'STATE.md'
-      - 'BUILDLOG.md'
-      - 'docs/**'
-      - 'design/**'
-      - '**/*.md'
-      - '.github/CODEOWNERS'
   pull_request:
-    paths-ignore:
-      - 'STATE.md'
-      - 'BUILDLOG.md'
-      - 'docs/**'
-      - 'design/**'
-      - '**/*.md'
-      - '.github/CODEOWNERS'
 
 permissions:
   contents: read
@@ -41,15 +28,48 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scope (docs-only or code)
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          # Fails closed to code=true (real steps run) when the diff cannot be computed.
+          # --no-renames: a rename lists BOTH paths, so a code file renamed to *.md still reads as code.
+          if ! files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
+            echo "diff failed; treating as code"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$files"
+          code=false
+          while IFS= read -r f; do
+            case "$f" in
+              ""|STATE.md|BUILDLOG.md|docs/*|design/*) ;;
+              tools/*|game/*|bots/*|client/*|.github/*) code=true ;;
+              *.md) ;;
+              *) code=true ;;
+            esac
+          done <<< "$files"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+      - name: Docs-only pass-through
+        if: steps.scope.outputs.code == 'false' && success()
+        run: 'echo "docs-only PR: game-test has no code to run (pass-through)"'
       - uses: actions/setup-dotnet@v4
+        if: steps.scope.outputs.code == 'true' && success()
         with:
           dotnet-version: 8.0.x
       - name: dotnet test (sim purity and unit tests, no engine)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         # Category=Balance (fork parity) runs in the non-required `balance` job; no other project carries the trait.
         run: dotnet test game/Keyrun.sln --nologo --filter "Category!=Balance" --logger "console;verbosity=normal"
 
       - name: launch-lock test (tools/godot lock, wall-clock cap, preflight; stub only, never launches Godot)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -60,6 +80,7 @@ jobs:
           if ($out -notmatch '(?m)^launch-lock-test: PASS') { throw 'launch-lock test did not print PASS' }
 
       - name: import-cache test (import preflight, import-if-missing, model fallback gate; fixtures only, never launches Godot)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -69,21 +90,50 @@ jobs:
           if ($code -ne 0) { throw "import-cache test exited $code" }
           if ($out -notmatch '(?m)^import-cache-test: PASS') { throw 'import-cache test did not print PASS' }
 
-  # Reported, NOT required (the required checks on main are test, e2e, game-test, game-gate, game-e2e).
-  # The fork-parity dominance oracle has chaotic margins; a red here opens a finding and never blocks a merge.
+  # Reported, NOT required. The fork-parity dominance oracle has chaotic margins; a red here opens a finding
+  # and never blocks a merge. Not a required name, so it may be skipped; it still gates its steps on scope.
   balance:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scope (docs-only or code)
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          # Fails closed to code=true (real steps run) when the diff cannot be computed.
+          # --no-renames: a rename lists BOTH paths, so a code file renamed to *.md still reads as code.
+          if ! files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
+            echo "diff failed; treating as code"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$files"
+          code=false
+          while IFS= read -r f; do
+            case "$f" in
+              ""|STATE.md|BUILDLOG.md|docs/*|design/*) ;;
+              tools/*|game/*|bots/*|client/*|.github/*) code=true ;;
+              *.md) ;;
+              *) code=true ;;
+            esac
+          done <<< "$files"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-dotnet@v4
+        if: steps.scope.outputs.code == 'true' && success()
         with:
           dotnet-version: 8.0.x
       - name: dotnet test (Category=Balance, fork parity dominance)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: dotnet test game/bots/Keyrun.Bots.Tests --nologo --filter "Category=Balance" --logger "console;verbosity=detailed" --logger "trx;LogFileName=balance.trx" --results-directory balance-results
       - name: Upload balance test output
-        if: always()
+        if: always() && steps.scope.outputs.code == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: balance-test-output
@@ -100,19 +150,51 @@ jobs:
       KEYRUN_GODOT_TIMEOUT_SEC: '660'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scope (docs-only or code)
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          # Fails closed to code=true (real steps run) when the diff cannot be computed.
+          # --no-renames: a rename lists BOTH paths, so a code file renamed to *.md still reads as code.
+          if ! files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
+            echo "diff failed; treating as code"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$files"
+          code=false
+          while IFS= read -r f; do
+            case "$f" in
+              ""|STATE.md|BUILDLOG.md|docs/*|design/*) ;;
+              tools/*|game/*|bots/*|client/*|.github/*) code=true ;;
+              *.md) ;;
+              *) code=true ;;
+            esac
+          done <<< "$files"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+      - name: Docs-only pass-through
+        if: steps.scope.outputs.code == 'false' && success()
+        run: 'echo "docs-only PR: game-e2e has no code to run (pass-through)"'
       - uses: actions/setup-dotnet@v4
+        if: steps.scope.outputs.code == 'true' && success()
         with:
           dotnet-version: 8.0.x
 
       - name: Cache Godot editor
         id: cache-godot
+        if: steps.scope.outputs.code == 'true' && success()
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/godot
           key: godot-${{ env.GODOT_VERSION }}-stable-mono-win64
 
       - name: Download Godot editor (verified SHA512)
-        if: steps.cache-godot.outputs.cache-hit != 'true'
+        if: steps.scope.outputs.code == 'true' && success() && steps.cache-godot.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -128,6 +210,7 @@ jobs:
           Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $env:RUNNER_TEMP 'godot') -Force
 
       - name: Locate Godot
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $exe = Get-ChildItem -Path (Join-Path $env:RUNNER_TEMP 'godot') -Recurse -Filter "Godot_v$env:GODOT_VERSION-stable_mono_win64_console.exe" | Select-Object -First 1
@@ -135,10 +218,12 @@ jobs:
           "KEYRUN_GODOT=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Engine version
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: ./tools/godot/godot.ps1 --version
 
       - name: Build C# solution in the editor (headless)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         # Escape keyrun-game-e2e-export-hang: a stall must fail visibly here,
         # not run to the 30-minute job timeout with no output.
@@ -148,6 +233,7 @@ jobs:
       # f-30dcbb08: the scene tests refuse an unimported tree (exit 6) and SimDriverSceneTest pins ACTOR fallback=0,
       # so the import cache must be filled first. import.ps1 exits non-zero when any model is still unimported.
       - name: Import assets (godot --headless --import, must print IMPORT done)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         timeout-minutes: 12
         run: |
@@ -159,6 +245,7 @@ jobs:
           if ($out -notmatch '(?m)^IMPORT done files=\d+') { throw 'import.ps1 did not print IMPORT done' }
 
       - name: SimDriver scene test (40 sim ticks headless, must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -169,6 +256,7 @@ jobs:
           if ($out -notmatch '(?m)^SimDriverSceneTest: PASS') { throw 'SimDriver scene test did not print PASS' }
 
       - name: HUD scene test (run-end title, reward cards, recorded input, must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -179,6 +267,7 @@ jobs:
           if ($out -notmatch '(?m)^HudSceneTest: PASS') { throw 'HUD scene test did not print PASS' }
 
       - name: Combat view scene test (must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -189,6 +278,7 @@ jobs:
           if ($out -notmatch '(?m)^CombatViewSceneTest: PASS') { throw 'CombatView scene test did not print PASS' }
 
       - name: Screen scene test (between-runs screen, must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -199,6 +289,7 @@ jobs:
           if ($out -notmatch '(?m)^ScreenSceneTest: PASS') { throw 'Screen scene test did not print PASS' }
 
       - name: Progression save scene test (between-runs save/load across two launches, must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -209,6 +300,7 @@ jobs:
           if ($out -notmatch '(?m)^ProgressionSaveSceneTest: PASS') { throw 'ProgressionSave scene test did not print PASS' }
 
       - name: Run-end bonus loot scene test (end-of-run panel, must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -219,6 +311,7 @@ jobs:
           if ($out -notmatch '(?m)^RunEndBonusSceneTest: PASS') { throw 'RunEndBonus scene test did not print PASS' }
 
       - name: Nameplate declutter test (must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -229,6 +322,7 @@ jobs:
           if ($out -notmatch '(?m)^NameplateDeclutterTest: PASS') { throw 'NameplateDeclutter test did not print PASS' }
 
       - name: Help hint scene test (must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -239,6 +333,7 @@ jobs:
           if ($out -notmatch '(?m)^HelpHintSceneTest: PASS') { throw 'HelpHintSceneTest did not print PASS' }
 
       - name: Combat text overlap test (1280x720 autorun, must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -249,6 +344,7 @@ jobs:
           if ($out -notmatch '(?m)^CombatTextOverlapTest: PASS') { throw 'CombatTextOverlapTest did not print PASS' }
 
       - name: Boot smoke (headless, must print SMOKE ok)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -260,16 +356,19 @@ jobs:
 
       - name: Cache export templates
         id: cache-templates
+        if: steps.scope.outputs.code == 'true' && success()
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/export_templates
           key: godot-templates-${{ env.GODOT_VERSION }}-stable-mono-windows-x86_64
 
       - name: Install export templates
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: ./tools/godot/install-templates.ps1 -TemplatesRoot (Join-Path $env:RUNNER_TEMP 'export_templates')
 
       - name: Link templates into Godot's data dir
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $target = Join-Path $env:APPDATA 'Godot/export_templates'
@@ -278,6 +377,7 @@ jobs:
           New-Item -ItemType Junction -Path $target -Target (Join-Path $env:RUNNER_TEMP 'export_templates') | Out-Null
 
       - name: Export Windows Desktop release
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         # Escape keyrun-game-e2e-export-hang: a stall must fail visibly here.
         # A healthy export takes well under a minute once godot.ps1 disables
@@ -309,6 +409,7 @@ jobs:
           retention-days: 7
 
       - name: Exported exe smoke (must print SMOKE ok)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
@@ -324,6 +425,7 @@ jobs:
       # three seats, the bot heal and damage in pull 1, a live HUD ping and an
       # equal BOTS done hash across both runs. Fails closed on any missing line.
       - name: Exported exe e2e (bot party through pull 1, must print PASS)
+        if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         timeout-minutes: 5
         run: |
@@ -344,6 +446,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Windows build
+        if: steps.scope.outputs.code == 'true' && success()
         uses: actions/upload-artifact@v4
         with:
           name: keyrun-windows-x86_64
@@ -351,10 +454,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # Guard for escape keyrun-game-e2e-export-hang (PR #117 merged with a hung,
-  # then cancelled, game-e2e because nothing required it). Required on main:
-  # any PR whose diff touches game/** or tools/godot/** needs game-e2e success.
-  # Runs on every PR; passes trivially when no game path changed. Fails closed.
+  # Required: game-gate. It keeps `if: always()` on purpose: without it, a failed needed job would SKIP this
+  # job, and a skipped required check counts as success. The job never skips; it reads needs.game-e2e.result.
+  # Runs on every PR; passes trivially when no game path changed (tools/ci/game_gate.py).
   game-gate:
     needs: [game-test, game-e2e]
     if: always()
