@@ -19,16 +19,16 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 272121,
-      "fnv": "feee5d6c"
+      "bytes": 265589,
+      "fnv": "a6a2d066"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 255738,
-      "fnv": "d958a12a"
+      "bytes": 279504,
+      "fnv": "b1d20667"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 255735,
-      "fnv": "899133bf"
+      "bytes": 279501,
+      "fnv": "962d0e5a"
     },
     "content-pull.setup.json": {
       "bytes": 23098,
@@ -119,7 +119,7 @@
         "fnv": "6dbe5d17"
       },
       "bots/src/roles/healer-idle.ts": {
-        "fnv": "faab2e0b"
+        "fnv": "b5073b44"
       },
       "bots/src/roles/healer-setup.ts": {
         "fnv": "90408d7b"
@@ -543,31 +543,31 @@
       "traceHash": "014e427d"
     },
     {
-      "finalTick": 1773,
+      "finalTick": 1894,
       "name": "bots-hv-k2-s7",
-      "records": 1774,
+      "records": 1895,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "aff517a9"
+      "traceHash": "46f87509"
     },
     {
-      "finalTick": 1773,
+      "finalTick": 1894,
       "name": "bots-hv-k2-s11",
-      "records": 1774,
+      "records": 1895,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "aff517a9"
+      "traceHash": "46f87509"
     },
     {
-      "finalTick": 1927,
+      "finalTick": 1852,
       "name": "bots-hv-k10-s7",
-      "records": 1928,
+      "records": 1853,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "9d336123"
+      "traceHash": "95400744"
     }
   ],
   "version": 1
