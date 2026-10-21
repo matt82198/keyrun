@@ -158,30 +158,47 @@ public sealed class MitigateThroughLedgerKickTests
         Assert.DoesNotContain(kit.InterruptAbilityId, casts);
     }
 
-    [Fact(DisplayName = "A healer heals the hurt tank while the scripted kick ledger names it to kick, instead of standing idle")]
-    public void Healer_heals_while_the_ledger_wants_a_kick()
+    // R-DOOR-3 re-anchor (content fact: hollowWarden.cleave is interruptible=false, so the Warden never kicks a boss cleave
+    // and the earlier synthetic "Warden kicked the previous cleave" premise is stale). The real kick in the trajectory is the
+    // Chanter's chanter.rebuke on the second Choral Mending (cast 4780-4860, ledger kick-open 4820, Warden at 245/400).
+    private const int MendKickOpenTick = 4820;
+    private const int MendCastStart = 4780;
+    private const int MendCastEnd = 4860;
+
+    [Fact(DisplayName = "A healer kicks the Choral Mending and heals the hurt tank in the same pull (R-DOOR-3: the real ledger kick, not a boss cleave)")]
+    public void Healer_kicks_the_mending_and_heals_the_hurt_tank()
     {
         const int Chanter = 2;
-        // R-DOOR-1 + R-TAUNT-1 re-derivation (WHY: the first boss cleave on the new trajectory, 10587, has no previous cleave
-        // to spend the Warden's Shield Bash on, so the scene needs the second cleave's kick-open): 10743.
-        var scene = MidCleave(SecondCleaveKickOpenTick, (state, sceneKit) =>
-        {
-            var tank = state.Actors[PlaytestRunner.TankId];
-            tank.Health = tank.MaxHealth / 2;
-            var healer = state.Actors[Chanter];
-            healer.Health = healer.MaxHealth;
-            healer.Resource = healer.MaxResource;
-            Ready(healer, healer.Cooldowns.Select(kv => kv.Key).ToArray());
-            Ready(healer, "chanter.rebuke");
-            SpendWardenKickOnThePreviousCleave(state, sceneKit, SecondCleaveKickOpenTick);
-        });
-        var healer = scene.View.State.Actors[Chanter];
-        var kit = scene.View.Kits.ResolveKit(healer.ClassId, scene.View.ClassKit);
-        Assert.Equal(ActorRole.Healer, healer.Role);
-        Assert.Equal(kit.InterruptAbilityId, RoleShared.LedgerKickCommand(scene.View, healer, kit)?.AbilityId);
+        var content = ContentLoader.Load();
+        var policy = PolicyReader.Parse(KickPlan, content);
+        var registry = PlaytestRunner.WithTalents(content, policy);
+        var run = PlaytestRunner.Play(new PlaytestOptions(2, 1, policy) { MaxTicks = MendKickOpenTick }, content).Run;
+        Assert.Equal(MendKickOpenTick, run.State.Tick);
 
-        var casts = PolicyCasts(scene, Chanter);
-        Assert.True(casts.Count > 0, "the healer pressed nothing with the tank at half health");
-        Assert.DoesNotContain(kit.InterruptAbilityId, casts);
+        var kits = KitRegistry.From(registry);
+        var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
+        var healer = view.State.Actors[Chanter];
+        var kit = view.Kits.ResolveKit(healer.ClassId, view.ClassKit);
+        Assert.Equal(ActorRole.Healer, healer.Role);
+        Assert.Equal("chanter.rebuke", kit.InterruptAbilityId);
+        Assert.Equal(kit.InterruptAbilityId, RoleShared.LedgerKickCommand(view, healer, kit)?.AbilityId);
+
+        // The plan kicks choir.healCast with the Chanter, so the seat takes the kick the ledger names. A kick waits the
+        // human reaction (PolicyBot), so the real run's command stream is the check: the Chanter's rebuke lands in the window.
+        var log = PlaytestRunner.Play(new PlaytestOptions(2, 1, policy), content).Log;
+        var kicks = log.Split('\n')
+            .Where(l => l.StartsWith("C ", System.StringComparison.Ordinal) &&l.Contains($"ActorId = {Chanter}, Kind = cast, AbilityId = {kit.InterruptAbilityId},"))
+            .Select(l => int.Parse(System.Text.RegularExpressions.Regex.Match(l, "Tick = (\\d+)").Groups[1].Value))
+            .Where(t => t >= MendCastStart && t <= MendCastEnd)
+            .ToList();
+        Assert.NotEmpty(kicks);
+
+        // The Chanter heals the hurt Warden inside the same Mending window of the real run.
+        var heals = log.Split('\n')
+            .Where(l => l.Contains("\"type\":\"heal\"") && l.Contains($"\"sourceId\":{Chanter},") && l.Contains($"\"targetId\":{PlaytestRunner.TankId},"))
+            .Select(l => int.Parse(System.Text.RegularExpressions.Regex.Match(l, "\"tick\":(\\d+)").Groups[1].Value))
+            .Where(t => t >= MendCastStart && t <= MendCastEnd)
+            .ToList();
+        Assert.NotEmpty(heals);
     }
 }
