@@ -26,13 +26,14 @@ namespace Keyrun.Hud;
 /// </summary>
 public partial class AbilityBar : Control
 {
-    private const float Slot = 78;
+    private const float Slot = Keyrun.Content.ActionBarLayout.Slot; // the pure layout the no-overlap tests read
     private const float IconSize = 46;
     private const float CooldownIconAlpha = 0.35f; // the icon fades under the cooldown sweep so the seconds stay readable
     private static readonly Color OutOfRangeTint = ToColor(Keyrun.Content.AbilitySlotLook.OutOfRangeTint);
     private static readonly Color KeyShadow = new(0f, 0f, 0f, 0.85f);
-    private const float Gap = 8;
-    private const float BottomMargin = 24;
+    private const float Gap = Keyrun.Content.ActionBarLayout.SlotGap;
+    private const float BottomMargin = Keyrun.Content.ActionBarLayout.BottomMargin;
+    private const float Meters = Keyrun.Content.ActionBarLayout.MetersHeight;
     private const int KeyFont = 18;
     private const int NameFont = 13;
     private const int CaptionFont = 11;
@@ -233,8 +234,8 @@ public partial class AbilityBar : Control
     public static Rect2 Footprint(Vector2 size, int count)
     {
         var width = (count * Slot) + ((count - 1) * Gap);
-        var top = size.Y - BottomMargin - Slot - 44;
-        return new Rect2((size.X - width) / 2, top, width, 44 + Slot);
+        var top = size.Y - BottomMargin - Slot - Meters;
+        return new Rect2((size.X - width) / 2, top, width, Meters + Slot);
     }
 
     /// <inheritdoc />
