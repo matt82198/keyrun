@@ -119,13 +119,9 @@ public static class RunRoot
         }
         var state = run.State.Clone();
         var groups = Aggro.GroupsOf(run.Dungeon, state.Tick, run.Content.Packs);
-        // BOSS-DOOR: a shut Hollow Door keeps the Warden idle even on a fight start (the Seed is never cleared at creation).
-        var admitted = BossDoor.Admit(run.Content.BossDoor, run.Dungeon, state, new[] { run.Dungeon.Pulls[index].Id });
-        if (admitted.Count == 0)
-        {
-            return run;
-        }
-        var encounter = Aggro.Engage(state, run.Encounter, groups, admitted, state.Tick, static _ => { });
+        // R-DOOR-2: the Hollow Door gates only the forward route (the Triggered path below), never a fight start: a run that
+        // begins in the boss pull engages it through a shut door, as main's wipe-is-release rule (#446) has it.
+        var encounter = Aggro.Engage(state, run.Encounter, groups, new[] { run.Dungeon.Pulls[index].Id }, state.Tick, static _ => { });
         RunWiring.FixupTargeting(state);
         return run with { State = state, Encounter = encounter };
     }
@@ -378,7 +374,10 @@ public static class RunRoot
         var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs);
         // BOSS-DOOR (BIBLE s9.5, ruling R3): the Warden engages only through the Hollow Door, once the Seed is cleared and
         // the Forces bar is at the requirement. A shut door holds the boss idle this tick, however close the party stands.
-        var triggered = BossDoor.Admit(run.Content.BossDoor, run.Dungeon, next, Aggro.Triggered(run.State, next, groups, encounter, openSeats));
+        // R-DOOR-2 latch: the door applies only until the boss pull has engaged once (its engaged record is never cleared, so
+        // a wipe release and run-back cannot re-lock it).
+        var door = run.Content.BossDoor is { } gate && !Pulls.IsEngaged(encounter, gate.BossPullId) ? gate : null;
+        var triggered = BossDoor.Admit(door, run.Dungeon, next, Aggro.Triggered(run.State, next, groups, encounter, openSeats));
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);
         return (next, encounter);
     }

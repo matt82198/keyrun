@@ -123,4 +123,34 @@ public sealed class BossDoorGateTests
         Assert.False(Pulls.IsEngaged(run.Encounter, "boss"));
         Assert.False(BossEngaged(events), "the boss pull engaged with the Seed alive");
     }
+
+    // R-DOOR-2 (merge of main's #446 wipe-is-release): the Hollow Door gates only the forward route, never a run that
+    // begins in the boss pull. A --pull start (EngageStartPull) of the boss with the Seed alive and the bar short must engage.
+    [Fact(DisplayName = "BOSS-DOOR (d): a run that begins in the boss pull engages it through a shut door (R-DOOR-2: the door never gates a start)")]
+    public void A_run_starting_in_the_boss_pull_engages_through_a_shut_door()
+    {
+        var gate = Gate(new Dictionary<string, int>(StringComparer.Ordinal) { ["seed.elite"] = 0 });
+        var created = CreateRun(gate);
+        var atBoss = created with { Encounter = created.Encounter with { PullIndex = 2 } };
+        var started = RunRoot.EngageStartPull(atBoss);
+
+        Assert.False(BossDoor.IsOpen(started.State, started.Dungeon, gate), "the door should read shut: the Seed is alive");
+        Assert.True(Pulls.IsEngaged(started.Encounter, "boss"), "the start-in-boss-pull run did not engage its pull through the shut door");
+        Assert.False(started.State.Actors[BossActorId].Idle, "the boss stands idle after a fight start");
+    }
+
+    // R-DOOR-2 latch: once the boss has engaged (the door opened on the forward route, or the run began there), a shut door
+    // never idles it again, so a run-back after a wipe release cannot re-lock the pull.
+    [Fact(DisplayName = "BOSS-DOOR (e): once the boss has engaged, a shut door does not re-idle it on later ticks (R-DOOR-2 latch)")]
+    public void Engaged_boss_stays_engaged_behind_a_shut_door()
+    {
+        var gate = Gate(new Dictionary<string, int>(StringComparer.Ordinal) { ["seed.elite"] = 0 });
+        var created = CreateRun(gate);
+        var atBoss = created with { Encounter = created.Encounter with { PullIndex = 2 } };
+        var started = RunRoot.EngageStartPull(atBoss);
+        var (run, _) = RunTestKit.StepUntil(started, Steps, Array.Empty<Command>());
+
+        Assert.True(Pulls.IsEngaged(run.Encounter, "boss"), "the engaged boss pull was dropped behind a shut door");
+        Assert.False(run.State.Actors[BossActorId].Idle, "the engaged boss went idle behind a shut door");
+    }
 }
