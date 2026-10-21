@@ -54,7 +54,7 @@
   ],
   "packs": [
     {
-      "id": "cantor-vigil", "name": "Cantor Vigil", "room": "choir-room", "optional": true,
+      "id": "cantor-vigil", "name": "Cantor Vigil", "room": "choir-room", "optional": true, "branch": "choir-room",
       "center": { "x": 14000, "z": -6000 }, "aggroMm": 4000,
       "enemies": [
         { "enemyId": "choir.lieutenant", "count": 3, "spawn": { "x": 0, "z": -1000 } },
@@ -71,7 +71,7 @@
       ]
     },
     {
-      "id": "warrior-remnant", "name": "Warrior Remnant", "room": "seed-chamber", "optional": true,
+      "id": "warrior-remnant", "name": "Warrior Remnant", "room": "seed-chamber", "optional": true, "branch": "seed-chamber",
       "center": { "x": 69000, "z": 5500 }, "aggroMm": 4000,
       "enemies": [
         { "enemyId": "pair.melee", "count": 5, "spawn": { "x": 0, "z": 500 } },
