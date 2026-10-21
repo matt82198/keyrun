@@ -26,6 +26,14 @@ public static class Effects
     /// sim/combat/effects.ts:33-55 applyEffectInstance. The same effect from the same source stacks (capped at
     /// maxStacks) and refreshes its end tick, arming a missing periodic timer (:41-46); otherwise a new instance
     /// gets <c>min(maxStacks, max(1, stacks))</c> stacks (:51).
+    /// <para>
+    /// C#-only rule (finding f-0fb803dc, no TS counterpart; sim/ is frozen, STATE.md D12): an application whose
+    /// duration does not outlast its first periodic tick (<c>durationTicks &lt;= periodic.everyTicks</c>) is a delayed
+    /// one-shot event, e.g. Encore's chorusEcho, which heals once at its end. Refreshing such an instance can only lose a
+    /// pending event (the old timer is kept and the new end tick passes before the next tick), so each application gets
+    /// its own instance and fires on its own timer, as a WoW delayed heal echo does. No other content effect is applied
+    /// this way (every other periodic lasts at least two of its intervals), so oracle runs are unchanged.
+    /// </para>
     /// </summary>
     /// <param name="actor">Holder.</param>
     /// <param name="def">Effect definition.</param>
@@ -35,7 +43,8 @@ public static class Effects
     /// <param name="now">Current tick.</param>
     public static void ApplyEffectInstance(ActorState actor, EffectDef def, int sourceId, int durationTicks, long stacks, int now)
     {
-        var existing = actor.Effects.Find(e => e.EffectId == def.Id && e.SourceId == sourceId);
+        var delayedEvent = def.Periodic is not null && durationTicks <= def.Periodic.EveryTicks;
+        var existing = delayedEvent ? null : actor.Effects.Find(e => e.EffectId == def.Id && e.SourceId == sourceId);
         if (existing is not null)
         {
             existing.Stacks = Math.Min(def.MaxStacks, existing.Stacks + stacks);

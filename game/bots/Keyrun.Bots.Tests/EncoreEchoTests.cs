@@ -58,7 +58,14 @@ public sealed class EncoreEchoTests
     /// A Chanter (verse <paramref name="verse"/>: 1 Mend, 0 Ward) casts <paramref name="chorus"/> on itself at
     /// <see cref="CastTick"/> with a hurt tank 1000 mm away; returns every heal the tank takes until tick 260.
     /// </summary>
-    private static List<(int Tick, long Amount)> TankHeals(string source, S.AbilityDef chorus, long verse)
+    private static List<(int Tick, long Amount)> TankHeals(string source, S.AbilityDef chorus, long verse) =>
+        TankHeals(source, chorus, verse, CastTick);
+
+    /// <summary>
+    /// As <see cref="TankHeals(string, S.AbilityDef, long)"/>, casting Chorus at every tick in
+    /// <paramref name="castTicks"/>; the Chanter's verse is set to <paramref name="verse"/> before each cast.
+    /// </summary>
+    private static List<(int Tick, long Amount)> TankHeals(string source, S.AbilityDef chorus, long verse, params int[] castTicks)
     {
         var content = ContentOf(source);
         var abilities = new Dictionary<string, S.AbilityDef>(content.Abilities, StringComparer.Ordinal) { [Chorus] = chorus };
@@ -79,7 +86,12 @@ public sealed class EncoreEchoTests
         }
         while (state.Tick < 260)
         {
-            var cmds = state.Tick == CastTick ? new Command[] { new CastCommand(CastTick, ChanterId, Chorus, ChanterId) } : Array.Empty<Command>();
+            var casting = Array.IndexOf(castTicks, state.Tick) >= 0;
+            if (casting)
+            {
+                state.Actors[ChanterId].Resource = verse;
+            }
+            var cmds = casting ? new Command[] { new CastCommand(state.Tick, ChanterId, Chorus, ChanterId) } : Array.Empty<Command>();
             rules(state, cmds, Emit);
             state.Tick += 1;
         }
@@ -94,6 +106,26 @@ public sealed class EncoreEchoTests
         var heals = TankHeals(source, Talented("encore"), 1);
 
         Assert.Equal(new[] { (CastTick, 120L), (CastTick + EchoDelay, 60L) }, heals);
+    }
+
+    /// <summary>
+    /// Finding f-0fb803dc: both Encore charges spent inside the 50-tick echo window. Each cast is its own delayed echo
+    /// (as a WoW delayed heal echo is): two half-strength echoes land, each 50 ticks after its own cast. Before the fix
+    /// the second application refreshed the first instance's end tick but kept its periodic timer, so the second echo
+    /// was lost. The second cast is one GCD (30 ticks) after the first, inside the window.
+    /// </summary>
+    [Theory]
+    [InlineData("host")]
+    [InlineData("oracle")]
+    public void Encore_both_charges_inside_the_echo_window_echo_twice_each_50_ticks_after_its_own_cast(string source)
+    {
+        const int second = CastTick + 30;
+
+        var heals = TankHeals(source, Talented("encore"), 1, CastTick, second);
+
+        Assert.Equal(
+            new[] { (CastTick, 120L), (second, 120L), (CastTick + EchoDelay, 60L), (second + EchoDelay, 60L) },
+            heals);
     }
 
     [Theory]

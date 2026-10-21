@@ -50,6 +50,7 @@ public static class StatusChips
         ["wardPulse"] = ("SHIELD", Guard),
         ["hasted"] = ("HASTE", Buff), ["gliding"] = ("GLIDE", Buff), ["hymnSpeed"] = ("SPEED", Buff),
         ["mendingHot"] = ("HOT", Buff), ["hymnHeal"] = ("HOT", Buff), ["consecrateHeal"] = ("HOT", Buff),
+        ["chorusEcho"] = ("ECHO", Buff),
         ["lockShield"] = ("LOCK", 0xc77dff), [PingCalls.SpreadEffectId] = ("SPREAD", 0xcc79a7),
         [PingCalls.StackEffectId] = ("STACK", 0x56b4e9),
     };
