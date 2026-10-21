@@ -1,2 +1,2 @@
-Hollow Door gate (BIBLE 9.5, ruling R3): the Warden's pull engages only once the Seed pull is cleared and the Forces bar is at forces.json bossDoorRequiredBp (shipped 6000 bp = the teaching pulls' 600 of 1000 points).
-Files: game/sim/Keyrun.Sim/Encounter/Forces.cs, game/sim/Keyrun.Sim/Run/RunTypes.cs, game/sim/Keyrun.Sim/Run/Run.cs, game/sim/Keyrun.Sim.Tests/Encounter/BossDoorGateTests.cs, game/content/data/forces.json, game/content/Keyrun.Content/Model/Forces.cs, game/src/Host/HostRunSetup.cs.
+- BOSS-DOOR-GATE Hollow Door gate (BIBLE 9.5, ruling R3): the Warden's pull engages only once the Seed pull is cleared and the Forces bar is at forces.json bossDoorRequiredBp (shipped 6000 bp = the teaching pulls' 600 of 1000 points).
+BUILDLOG: Hollow Door gate lands in Forces.cs, Run.cs, RunTypes.cs, BossDoorGateTests.cs, forces.json, Forces.cs (Content) and HostRunSetup.cs, gating the Warden's pull on the Seed pull and the Forces bar (6000 bp shipped).
