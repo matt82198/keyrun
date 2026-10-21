@@ -32,6 +32,16 @@ jobs:
         shell: pwsh
         run: dotnet test game/Keyrun.sln --nologo --logger "console;verbosity=normal"
 
+      - name: launch-lock test (tools/godot lock, wall-clock cap, preflight; stub only, never launches Godot)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./tools/godot/launch-lock-test.ps1 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $out
+          if ($code -ne 0) { throw "launch-lock test exited $code" }
+          if ($out -notmatch '(?m)^launch-lock-test: PASS') { throw 'launch-lock test did not print PASS' }
+
   game-e2e:
     runs-on: windows-latest
     timeout-minutes: 30
