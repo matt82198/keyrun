@@ -215,8 +215,8 @@ public sealed class GearLoadoutTests
     private static IReadOnlyDictionary<string, GearPatch> ContentPatches(string classId) =>
         ContentFacets(classId).ToDictionary(f => f.Facet.Id, f => f.Patch, StringComparer.Ordinal);
 
-    // content/data/facets/<class>.json read the way HostRunSetup.GearPatches converts it (shape width has no sim field;
-    // an appended Window op without setupClass is the wearer's class Window).
+    // content/data/facets/<class>.json read the way HostRunSetup.GearPatches converts it (a line's full width becomes
+    // the sim half-width radius; an appended Window op without setupClass is the wearer's class Window).
     private static List<(Facet Facet, GearPatch Patch)> ContentFacets(string classId)
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(DataPath("facets", classId + ".json")));
@@ -228,6 +228,7 @@ public sealed class GearLoadoutTests
             var patch = new GearPatch
             {
                 CastTicks = p.TryGetProperty("castTicks", out var ct) ? ct.GetInt32() : null,
+                GcdTicks = p.TryGetProperty("gcdTicks", out var gt) ? gt.GetInt32() : null,
                 CooldownTicks = p.TryGetProperty("cooldownTicks", out var cd) ? cd.GetInt32() : null,
                 Charges = p.TryGetProperty("charges", out var ch) ? ch.GetInt64() : null,
                 Range = p.TryGetProperty("range", out var rg) ? rg.GetInt64() : null,
@@ -268,8 +269,10 @@ public sealed class GearLoadoutTests
         return map;
     }
 
-    // A width-bearing line (twinStrike, infernoBolt) keeps kind and length; the sim shape has no width.
-    private static AbilityShape Shape(JsonElement s) => new(
+    // A width-bearing line (twinStrike, infernoBolt) is Abilities.LineShape: radius = half the full width.
+    private static AbilityShape Shape(JsonElement s) => s.TryGetProperty("width", out var w)
+        ? Abilities.LineShape(s.GetProperty("length").GetInt64(), w.GetInt64())
+        : new(
         s.GetProperty("kind").GetString() switch
         {
             "target" => ShapeKind.Target,

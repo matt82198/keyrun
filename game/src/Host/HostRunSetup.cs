@@ -298,8 +298,8 @@ public sealed record HostRunSetup(
     /// The sim patch of every content Facet on <paramref name="classId"/>'s kit (content/schema/facet.ts FacetPatch to
     /// <see cref="GearPatch"/>, ops through the same <c>ToSim</c> the base abilities use). An appended Window op without
     /// a setupClass is the wearer's class Window (every base Window op of a class carries that class id), so it gets
-    /// <paramref name="classId"/>. A Facet whose shape has a line width is left out (the sim
-    /// <see cref="AbilityShape"/> has no width), so it is carried but unapplied.
+    /// <paramref name="classId"/>. A line shape's full width becomes the sim line's half-width radius
+    /// (<see cref="Abilities.LineShape"/>), so a width Facet (twinStrike, infernoBolt) is applied, not just carried.
     /// </summary>
     /// <param name="registry">The content.</param>
     /// <param name="classId">The wearer's class.</param>
@@ -317,10 +317,6 @@ public sealed record HostRunSetup(
         foreach (var facet in registry.Facets.Values.Where(f => kit.Contains(f.AbilityId)).OrderBy(f => f.Id, StringComparer.Ordinal))
         {
             var p = facet.Patch;
-            if (p.Shape?.Width is not null)
-            {
-                continue;
-            }
             var where = $"facet \"{facet.Id}\"";
             IReadOnlyList<EffectOp>? Ops(IEnumerable<C.EffectOp>? ops) => ops?.Select(o => ToSim(
                 o is C.WindowOp { SetupClass: null } w ? w with { SetupClass = classId } : o, where)).ToList();
@@ -332,7 +328,7 @@ public sealed record HostRunSetup(
                 Charges = p.Charges,
                 Cost = p.Cost is { } c ? new AbilityCost(c.Resource, c.Amount) : null,
                 Range = p.Range,
-                Shape = p.Shape is { } s ? new AbilityShape(ToSim(s.Kind), s.Radius, s.Angle1024, s.Length) : null,
+                Shape = p.Shape is { } s ? ToSim(s, where) : null,
                 Interruptible = p.Interruptible,
                 Tags = p.Tags?.ToList(),
                 Effects = Ops(p.Effects),
@@ -504,10 +500,6 @@ public sealed record HostRunSetup(
     // BIBLE section 5: the variants also ride along, and the sim (Abilities.ResolveVerse) plays the caster's verse.
     private static AbilityDef ToSim(C.AbilityDef a)
     {
-        if (a.Shape.Width is not null)
-        {
-            throw new InvalidOperationException($"run setup: ability \"{a.Id}\" has a shape width (facet patches only)");
-        }
         var ops = a.Variants is { } v && v.TryGetValue("mend", out var mend) ? mend : a.Effects;
         Dictionary<string, IReadOnlyList<EffectOp>>? variants = null;
         if (a.Variants is { } all)
@@ -527,12 +519,27 @@ public sealed record HostRunSetup(
             Charges = a.Charges,
             Cost = new AbilityCost(a.Cost.Resource, a.Cost.Amount),
             Range = a.Range,
-            Shape = new AbilityShape(ToSim(a.Shape.Kind), a.Shape.Radius, a.Shape.Angle1024, a.Shape.Length),
+            Shape = ToSim(a.Shape, a.Id),
             Interruptible = a.Interruptible,
             Effects = ops.Select(o => ToSim(o, a.Id)).ToList(),
             Tags = a.Tags.ToList(),
             Variants = variants,
         };
+    }
+
+    // A content shape in sim terms. A width (a Facet's line: twinStrike, infernoBolt) is the line's full width, and the
+    // sim line's radius is its half-width (Abilities.LineShape); a width on any other kind fails closed.
+    private static AbilityShape ToSim(C.AbilityShape s, string where)
+    {
+        if (s.Width is not { } width)
+        {
+            return new AbilityShape(ToSim(s.Kind), s.Radius, s.Angle1024, s.Length);
+        }
+        if (s.Kind != C.ShapeKind.Line)
+        {
+            throw new InvalidOperationException($"run setup: {where} has a width on a {s.Kind} shape (only a line has one)");
+        }
+        return Abilities.LineShape(s.Length ?? 0, width);
     }
 
     private static ShapeKind ToSim(C.ShapeKind k) => k switch
