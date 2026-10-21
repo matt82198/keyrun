@@ -91,6 +91,7 @@ public sealed class ForkParityTests
         ["cinder.emberBolt"] = "Instant, Piercing and Overcharge all equal the base run: the bots never cast cinder.emberBolt.",
         ["chanter.refrain"] = "Overture and Crescendo equal the base run: the bots never cast chanter.refrain.",
         ["chanter.dissonance"] = "Amplify and Discord equal the base run: the bots never cast chanter.dissonance.",
+        ["chanter.cadence"] = "Every option equals the base run on clear tick, deaths and combos: cast only as a heal; the Attuned window lands on an ally so no Attuned combo ever closes in bot play (finding f-b31e8f34).",
     };
 
     /// <summary>One run's measures.</summary>
