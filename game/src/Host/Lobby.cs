@@ -60,6 +60,26 @@ public sealed record Lobby
     public bool Locked => Key.Locked;
 
     /// <summary>
+    /// Opens the lobby with no Clause schedule (<see cref="ScreenState.NoClauseStartKey"/>): the key carries no Clause, so
+    /// a queue hands the run none. The screen itself opens with the schedule (the eight-argument overload).
+    /// </summary>
+    /// <param name="registry">The content.</param>
+    /// <param name="progression">The character's save (its saved talents).</param>
+    /// <param name="dungeonId">The dungeon.</param>
+    /// <param name="clauseIds">Every Clause id content defines.</param>
+    /// <param name="keyLevel">The key (clamped to 2-20).</param>
+    /// <param name="classId">The human's class.</param>
+    /// <returns>The lobby.</returns>
+    public static Lobby Open(
+        C.ContentRegistry registry,
+        Progression progression,
+        string dungeonId,
+        IReadOnlyList<string> clauseIds,
+        int keyLevel,
+        string classId = DefaultClassId) =>
+        Open(registry, progression, dungeonId, clauseIds, keyLevel, 0, ScreenState.NoClauseStartKey, classId);
+
+    /// <summary>
     /// Opens the screen on the Play tab, unlocked, at <paramref name="keyLevel"/>, as <paramref name="classId"/> with that
     /// class's saved build restored from <paramref name="progression"/> (a pick the content no longer has is dropped).
     /// </summary>
@@ -68,6 +88,8 @@ public sealed record Lobby
     /// <param name="dungeonId">The dungeon.</param>
     /// <param name="clauseIds">Every Clause id content defines.</param>
     /// <param name="keyLevel">The key (clamped to 2-20).</param>
+    /// <param name="rotationIndex">The host's affix rotation index, the one the run is built with (the key's Clause follows it).</param>
+    /// <param name="clauseStartKey">The first key that carries a Clause (content run.json affixes.clauseStartKey).</param>
     /// <param name="classId">The human's class.</param>
     /// <returns>The lobby.</returns>
     /// <exception cref="InvalidOperationException">The class is not in content (fail closed).</exception>
@@ -77,6 +99,8 @@ public sealed record Lobby
         string dungeonId,
         IReadOnlyList<string> clauseIds,
         int keyLevel,
+        int rotationIndex,
+        int clauseStartKey,
         string classId = DefaultClassId)
     {
         ArgumentNullException.ThrowIfNull(registry);
@@ -85,7 +109,8 @@ public sealed record Lobby
         {
             throw new InvalidOperationException($"lobby: unknown class \"{classId}\"");
         }
-        return new Lobby(LobbyTab.Play, cls.Id, C.TalentPicks.Restore(cls, progression.Talents), ScreenState.Open(dungeonId, clauseIds, keyLevel));
+        var key = ScreenState.Open(dungeonId, clauseIds, keyLevel, rotationIndex, clauseStartKey);
+        return new Lobby(LobbyTab.Play, cls.Id, C.TalentPicks.Restore(cls, progression.Talents), key);
     }
 
     /// <summary>The classes the Character tab offers: the host roster's classes that content defines, in roster order.</summary>
@@ -234,11 +259,6 @@ public sealed record Lobby
     /// <returns>The lobby, or this one when the band refused.</returns>
     public Lobby StepKey(int delta) => WithKey(Key.StepKey(delta));
 
-    /// <summary>Picks a Clause offer (<see cref="ScreenState.PickClause"/>).</summary>
-    /// <param name="clauseId">The Clause id.</param>
-    /// <returns>The lobby, or this one when the band refused.</returns>
-    public Lobby PickClause(string clauseId) => WithKey(Key.PickClause(clauseId));
-
     /// <summary>
     /// Queue: the locked lobby (still on <see cref="ClassId"/>, which <see cref="ClassFor"/> reads) and the request
     /// (<see cref="QueuedKit.Queue"/> for this class's build and the equipped gear), or null when already queued.
@@ -265,11 +285,11 @@ public sealed record Lobby
         return KeyMove.ForRun(run) is { } move ? Reopen(move.To) : this;
     }
 
-    /// <summary>The screen reopened at <paramref name="keyLevel"/>: Play tab, unlocked, first Clause offer picked.</summary>
+    /// <summary>The screen reopened at <paramref name="keyLevel"/>: Play tab, unlocked, the key's Clause read from that key (R1: no pick).</summary>
     /// <param name="keyLevel">The key.</param>
     /// <returns>The lobby.</returns>
     public Lobby Reopen(int keyLevel) =>
-        this with { Tab = LobbyTab.Play, Key = ScreenState.Open(Key.DungeonId, Key.ClauseIds, keyLevel) };
+        this with { Tab = LobbyTab.Play, Key = ScreenState.Open(Key.DungeonId, Key.ClauseIds, keyLevel, Key.RotationIndex, Key.ClauseStartKey) };
 
     private Lobby WithKey(ScreenState next) => ReferenceEquals(next, Key) ? this : this with { Key = next };
 }

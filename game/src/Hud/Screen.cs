@@ -21,13 +21,13 @@ namespace Keyrun.Hud;
 /// <list type="bullet">
 /// <item><b>Character</b>: the class, the "since last run" line, banked Ash, the five abilities with their keybinds,
 /// and the equipped gear with tier, Facet and crafting charges left (Tab selects an item, R rerolls its Facet).</item>
-/// <item><b>Key</b>: the key stepper (Left/Right, 2-20) and the <see cref="ClausePick"/> of three (1-3).</item>
+/// <item><b>Key</b>: the key stepper (Left/Right, 2-20) and the key's Clause, read-only (BIBLE s8, R1 2026-10-21: the key sets it).</item>
 /// <item><b>Queue</b>: one button (Enter or a click), which locks the Key band and raises <see cref="Queued"/>.</item>
 /// </list>
 /// Progression (Ash, gear, the crafting PRNG) is the pure <see cref="Progression"/> and the Key band the pure
 /// <see cref="ScreenState"/>; this node renders them and maps input. Ash is banked when the run ends, win or lose,
 /// whether or not a reward is taken. Under <c>--autorun</c> every change prints a "SCREEN ..." proof line and a short
-/// script drives the screen through the real input path (take reward 1, reroll three times, key up, Clause 2, the
+/// script drives the screen through the real input path (take reward 1, reroll three times, key up, the
 /// talent panel: T, pick fork 1 side 1, Down, pick side 2, free respec, pick again, T, then Queue).
 /// <para>Talents (BIBLE s6, lane BIBLE-TALENTS-UI): T opens the <see cref="TalentPanel"/> over the Character and Key
 /// bands; the build is the pure <see cref="TalentPicks"/> for the human's class, kept across opens, and Backspace
@@ -77,11 +77,11 @@ public partial class Screen : Control
     private const float TabsLeft = 200;
     private const float TabWidth = 150;
 
-    // The autorun script: one key per frame once the run has ended (keys 1, R, R, R, Right, 2, then the talent panel
+    // The autorun script: one key per frame once the run has ended (keys 1, R, R, R, Right, then the talent panel
     // T, 1, Down, 2, Backspace, 1, T, then Enter).
     private static readonly Key[] AutorunKeys =
     {
-        Key.Key1, Key.R, Key.R, Key.R, Key.Right, Key.Key2,
+        Key.Key1, Key.R, Key.R, Key.R, Key.Right,
         Key.T, Key.Key1, Key.Down, Key.Key2, Key.Backspace, Key.Key1, Key.T,
         Key.Enter,
     };
@@ -257,20 +257,6 @@ public partial class Screen : Control
             StepKey(1);
         }
         AcceptEvent();
-    }
-
-    /// <summary>Picks Clause offer <paramref name="n"/> (0-based).</summary>
-    /// <param name="n">The offer index.</param>
-    public void PickClause(int n)
-    {
-        if (_lobby is not { } lobby || n < 0 || n >= lobby.Key.Clause.Offers.Count)
-        {
-            return;
-        }
-        var next = lobby.PickClause(lobby.Key.Clause.Offers[n]);
-        _status = ReferenceEquals(next, lobby) ? "The Clause is locked in." : string.Empty;
-        _lobby = next;
-        ProofKeyBand();
     }
 
     /// <summary>
@@ -472,7 +458,9 @@ public partial class Screen : Control
         else if (_driver?.Registry is { } reg && reg.Classes.ContainsKey(SimDriver.HumanClassId))
         {
             // TALENT-SAVE: the saved build comes back; a pick the content no longer has is dropped (free respec).
-            _lobby = Lobby.Open(reg, _progression, SimDriver.DungeonId, ClauseIds(), key, SimDriver.HumanClassId);
+            // R1: the key's Clause is read from the same rotation index the run is built with (SimDriver.RotationIndex) and
+            // content's clauseStartKey, so the band never shows a Clause the run does not carry.
+            _lobby = Lobby.Open(reg, _progression, SimDriver.DungeonId, ClauseIds(), key, _driver.RotationIndex, reg.Run.Affixes.ClauseStartKey, SimDriver.HumanClassId);
             var talents = _lobby.Talents;
             Proof(FormattableString.Invariant(
                 $"SCREEN talents restore class={talents.ClassId} saved={_progression.Talents.Count} picks={talents.Count} choices={ChoicesText(talents)}"));
@@ -486,10 +474,6 @@ public partial class Screen : Control
         if (_driver is { } d && !d.Options.Autorun && DisplayServer.GetName() != "headless")
         {
             Input.MouseMode = Input.MouseModeEnum.Visible;
-        }
-        if (GetNodeOrNull<Control>("ClausePick") is { } pick)
-        {
-            pick.MouseFilter = MouseFilterEnum.Pass;
         }
         Proof(FormattableString.Invariant(
             $"SCREEN open ash={_progression.AshTotal} runs={_progression.Runs} since=\"{_progression.LastRun?.Text() ?? string.Empty}\""));
@@ -530,10 +514,6 @@ public partial class Screen : Control
         IsOpen = false;
         SetHelpVisible(true);
         MouseFilter = MouseFilterEnum.Ignore;
-        if (GetNodeOrNull<Control>("ClausePick") is { } pick)
-        {
-            pick.MouseFilter = MouseFilterEnum.Ignore;
-        }
     }
 
     // Returns true when the key was the screen's (Enter is not consumed, so the host's restart still sees it).
@@ -557,15 +537,6 @@ public partial class Screen : Control
                 return true;
             case Key.Down when Tab == LobbyTab.Character:
                 CycleClass(1);
-                return true;
-            case Key.Key1 or Key.Kp1:
-                PickClause(0);
-                return true;
-            case Key.Key2 or Key.Kp2:
-                PickClause(1);
-                return true;
-            case Key.Key3 or Key.Kp3:
-                PickClause(2);
                 return true;
             case Key.Left or Key.Minus or Key.KpSubtract:
                 StepKey(-1);
@@ -1105,20 +1076,10 @@ public partial class Screen : Control
         }
         Proof(FormattableString.Invariant($"SCREEN key level={s.KeyLevel} locked={(s.Locked ? 1 : 0)}"));
         Proof(FormattableString.Invariant($"SCREEN affixes key={s.KeyLevel} line=\"{AffixLine(s.KeyLevel)}\""));
-        for (var i = 0; i < s.Clause.Offers.Count; i++)
-        {
-            var id = s.Clause.Offers[i];
-            Proof(FormattableString.Invariant($"SCREEN clause n={i + 1} id={id} name=\"{ClauseText(id).Name}\" picked={(id == s.Clause.Picked ? 1 : 0)}"));
-        }
-        // The cards as laid out at the design viewport (1280x720), with the same wrap the ClausePick draws.
-        var box = ClausePick.TextWidthFor(LayoutFor(DesignSize()).Pick.Size.X);
-        for (var i = 0; i < s.Clause.Offers.Count; i++)
-        {
-            var text = ClausePick.TextLines(ClauseText(s.Clause.Offers[i]).Text, box);
-            var widest = text.Count == 0 ? 0f : text.Max(line => HudNodes.Width(line, ClausePick.TextFont));
-            Proof(FormattableString.Invariant(
-                $"SCREEN fit clause n={i + 1} lines={text.Count} widest={Math.Ceiling(widest)} box={Math.Floor(box)}"));
-        }
+        // R1 (2026-10-21, BIBLE s8): the key sets the Clause; the band shows it, read-only, one line per key.
+        var clause = s.KeyClause;
+        var name = clause is null ? string.Empty : ClauseText(clause).Name;
+        Proof(FormattableString.Invariant($"SCREEN clause key={s.KeyLevel} id={clause ?? "none"} name=\"{name}\" startKey={s.ClauseStartKey}"));
     }
 
     private void SetHelpVisible(bool visible)
@@ -1225,18 +1186,11 @@ public partial class Screen : Control
         Rect2 Queue,
         Rect2 KeyDown,
         Rect2 KeyUp,
-        Rect2 Pick,
         Rect2 Talents);
 
     private ScreenLayout Layout()
     {
         var l = LayoutFor(Size);
-        if (GetNodeOrNull<Control>("ClausePick") is { } pick)
-        {
-            pick.Position = l.Pick.Position;
-            pick.Size = l.Pick.Size;
-            pick.Visible = Tab == LobbyTab.Play;
-        }
         if (GetNodeOrNull<TalentPanel>(TalentPanel.NodeName) is { } talents)
         {
             talents.Position = l.Talents.Position;
@@ -1264,7 +1218,6 @@ public partial class Screen : Control
         var queue = new Rect2(key.End.X + 16, top, size.X - Margin - key.End.X - 16, 120);
         var keyDown = new Rect2(key.Position.X + 14, key.Position.Y + 44, 40, 40);
         var keyUp = new Rect2(key.Position.X + 150, key.Position.Y + 44, 40, 40);
-        var pick = new Rect2(key.Position.X + 14, key.Position.Y + 128, key.Size.X - 28, 3 * 72);
 
         // Character: class cards | the five gear slots | the class kit.
         var classes = new Rect2(Margin, top, width * 0.28f, height);
@@ -1276,7 +1229,7 @@ public partial class Screen : Control
 
         // Build: the talent panel over the whole content area.
         var talents = new Rect2(Margin, top, width, height);
-        return new ScreenLayout(tabs, classes, cards, gear, kit, summary, key, queue, keyDown, keyUp, pick, talents);
+        return new ScreenLayout(tabs, classes, cards, gear, kit, summary, key, queue, keyDown, keyUp, talents);
     }
 
     private static Rect2 TalentsFor(Vector2 size) => LayoutFor(size).Talents;
@@ -1390,7 +1343,7 @@ public partial class Screen : Control
     {
         LobbyTab.Character => "Q/E tabs    Up/Down class    Tab item    R reroll Facet    Enter queue",
         LobbyTab.Build => "Q/E tabs    Up/Down fork    1-3 pick    Backspace respec    T back    Enter queue",
-        _ => "Q/E tabs    Left/Right key    1-3 Clause    T talents    Enter queue",
+        _ => "Q/E tabs    Left/Right key    T talents    Enter queue",
     };
 
     // Character tab, left: one card per class (name, role, resource), the chosen one framed in gold.
@@ -1537,7 +1490,11 @@ public partial class Screen : Control
         }
         HudNodes.Text(this, new Vector2(r.Position.X + 74, r.Position.Y + 76), FormattableString.Invariant($"Key {state.KeyLevel}"), TitleFont, Parchment);
         HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 98), AffixLine(state.KeyLevel), SmallFont, Calm);
-        HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 116), state.Locked ? "Clause (locked)" : "Clause: pick one", BodyFont, Gold);
+        // R1 (BIBLE s8): the key sets the Clause; the band shows it read-only, and says so below the start key.
+        var label = state.KeyClause is { } clause
+            ? "Clause: " + ClauseText(clause).Name
+            : FormattableString.Invariant($"Clause: none below key {state.ClauseStartKey}");
+        HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 116), Clip(label, r.Size.X - 28, BodyFont), BodyFont, Gold);
     }
 
     /// <summary>
@@ -1563,8 +1520,8 @@ public partial class Screen : Control
         DrawRect(r, Gold, filled: false, width: 2f);
         DrawRect(new Rect2(r.Position + new Vector2(4, 4), r.Size - new Vector2(8, 8)), BronzeDim, filled: false, width: 1f);
         HudNodes.Text(this, r.Position + new Vector2(18, 48), state.Locked ? "QUEUED" : "QUEUE", 28, Gold);
-        var (name, _) = ClauseText(state.Clause.Picked);
-        HudNodes.Text(this, r.Position + new Vector2(18, 80), Clip(FormattableString.Invariant($"{ClassName()}, key {state.KeyLevel} with {name}"), r.Size.X - 36, BodyFont), BodyFont, Parchment);
+        var clauseName = state.KeyClause is { } clause ? ClauseText(clause).Name : "no Clause";
+        HudNodes.Text(this, r.Position + new Vector2(18, 80), Clip(FormattableString.Invariant($"{ClassName()}, key {state.KeyLevel} with {clauseName}"), r.Size.X - 36, BodyFont), BodyFont, Parchment);
         HudNodes.Text(this, r.Position + new Vector2(18, 102), "Enter or click", SmallFont, Dim);
         var y = r.End.Y + 24;
         foreach (var line in CaptionLines(r))
