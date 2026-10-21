@@ -22,14 +22,18 @@ namespace Keyrun.Playtest.Tests;
 /// Godot run reports "the abandon came after pull 2 spawned".
 /// <para><see cref="AbandonSeat"/> and <see cref="BackfillTicks"/> are HudSceneTest's <c>-AbandonSeat</c> and
 /// <c>-BackfillTicks</c> defaults; change them together.</para>
+/// <para>R-BOTS-8: the leave is main's pull-relative form (<see cref="SeatAbandonPlan"/>, RULING R-415-D: "a seat
+/// abandons during the first pull" is a scenario, not a run tick), parsed and resolved exactly as SimDriver does
+/// (<see cref="SeatAbandonPlan.ResolveTick"/> against the anchor pull's pull_start). Was the fixed form 2@1500 (#298),
+/// which the bots integration's pacing moved: the party never started the Pair in 3500 ticks.</para>
 /// </summary>
 public sealed class HostBackfillRunTests
 {
-    /// <summary>HudSceneTest <c>-AbandonSeat</c>: the Chanter (actor 2) leaves at this run tick.</summary>
-    public const int AbandonActor = 2;
+    /// <summary>HudSceneTest <c>-AbandonSeat</c> (R-415-D): the Chanter (actor 2) leaves 1350 ticks after pull 0 starts.</summary>
+    public const string AbandonSeat = "2@pull0+1350";
 
-    /// <summary>HudSceneTest <c>-AbandonSeat</c>'s tick.</summary>
-    public const int AbandonTick = 1500;
+    /// <summary>The seat <see cref="AbandonSeat"/> empties.</summary>
+    public const int AbandonActor = 2;
 
     /// <summary>HudSceneTest <c>-BackfillTicks</c>: the autorun's tick count for runs F and G.</summary>
     public const int BackfillTicks = 3500;
@@ -51,7 +55,7 @@ public sealed class HostBackfillRunTests
         string BotsProof);
 
     /// <summary>SimDriver.StartRun then <paramref name="ticks"/> SimDriver.StepOnce calls, as the arena autorun runs them.</summary>
-    internal static ArenaRun Arena(int ticks, int? abandonActor, int? abandonTick, int? joinerKey)
+    internal static ArenaRun Arena(int ticks, SeatAbandonPlan? abandon, int? joinerKey)
     {
         var setup = HostRunSetup.Build(Registry, DungeonId, KeyLevel, "warden", withBots: true);
         var created = RunRoot.CreateRun(Seed, setup.PartyFor(setup.Dungeon), setup.Dungeon, setup.Content, null);
@@ -64,13 +68,14 @@ public sealed class HostBackfillRunTests
         var events = new List<(int Step, SimEvent Event)>();
         int? abandonedAt = null;
         int? pull2 = null;
+        int? anchor = null;
         for (var n = 0; n < ticks; n++)
         {
             var preTick = run.State.Tick;
-            // SimDriver.MaybeScriptedAbandon.
-            if (abandonActor is { } actor && abandonTick == preTick && run.RunEnd.Result is null)
+            // SimDriver.MaybeScriptedAbandon: the plan's resolved tick (pull-relative: the anchor pull's start + offset).
+            if (abandon is { } plan && abandonedAt is null && plan.ResolveTick(anchor) == preTick && run.RunEnd.Result is null)
             {
-                backfill = Backfill.Abandon(backfill, run, actor);
+                backfill = Backfill.Abandon(backfill, run, plan.ActorId);
                 abandonedAt = preTick;
                 if (joinerKey is { } key)
                 {
@@ -81,11 +86,14 @@ public sealed class HostBackfillRunTests
                 }
             }
             var commands = new List<Command>();
-            warden.Sample(preTick, run, commands);
+            // PlayerInput: SimDriver hands the script its open seats, so the leader does not wait for an abandoned seat.
+            warden.Sample(preTick, run, commands, backfill.Open.Select(s => s.ActorId).ToList());
             bots.Sample(preTick, run, commands);
             bots.TakeReactions();
             var step = Backfill.Step(backfill, run, commands, queue);
             backfill = step.Backfill;
+            // SimDriver.StepOnce: the anchor is the step's pull_start for the plan's pull, kept once seen.
+            anchor ??= abandon?.AnchorFrom(step.Step.Events);
             run = step.Step.Run;
             events.AddRange(step.Step.Events.Select(e => (preTick, e)));
             if (pull2 is null && step.Step.Events.Any(e => e.Type == "pull_start" && e.Get("pullIndex") is JsInt { Value: 1 }))
@@ -106,8 +114,9 @@ public sealed class HostBackfillRunTests
     [Fact(DisplayName = "Host backfill (HudSceneTest run F): the Chanter leaves in pull 1, the party lives to the Pair, and a key-2 joiner takes her seat at its start")]
     public void Run_F_abandons_in_pull_1_and_refills_at_pull_2()
     {
-        var f = Arena(BackfillTicks, AbandonActor, AbandonTick, joinerKey: 2);
-        Assert.True(f.AbandonedAt == AbandonTick, $"the run ended before tick {AbandonTick}, so nobody left");
+        var f = Arena(BackfillTicks, SeatAbandonPlan.Parse(AbandonSeat), joinerKey: 2);
+        Assert.True(f.AbandonedAt is not null, $"nobody left: {AbandonSeat} never resolved in {BackfillTicks} ticks");
+        var AbandonTick = f.AbandonedAt!.Value;
         Assert.True(f.Pull2StartTick is not null, $"the party never started pull 2 (the Pair) in {BackfillTicks} ticks");
         Assert.True(AbandonTick <= f.Pull2StartTick,
             $"the abandon at tick {AbandonTick} came after pull 2 spawned (step {f.Pull2StartTick}); it must be in pull 1");
@@ -130,8 +139,9 @@ public sealed class HostBackfillRunTests
     [Fact(DisplayName = "Host backfill (HudSceneTest run G): a key-3 joiner never takes a key-2 run's seat")]
     public void Run_G_key_mismatch_never_refills()
     {
-        var g = Arena(BackfillTicks, AbandonActor, AbandonTick, joinerKey: 3);
-        Assert.True(g.AbandonedAt == AbandonTick, $"the run ended before tick {AbandonTick}, so nobody left");
+        var g = Arena(BackfillTicks, SeatAbandonPlan.Parse(AbandonSeat), joinerKey: 3);
+        Assert.True(g.AbandonedAt is not null, $"nobody left: {AbandonSeat} never resolved in {BackfillTicks} ticks");
+        var AbandonTick = g.AbandonedAt!.Value;
         Assert.True(g.Pull2StartTick is not null, $"the party never started pull 2 (the Pair) in {BackfillTicks} ticks");
         Assert.True(AbandonTick <= g.Pull2StartTick,
             $"the abandon at tick {AbandonTick} came after pull 2 spawned (step {g.Pull2StartTick}); it must be in pull 1");
