@@ -21,8 +21,11 @@ namespace Keyrun.View;
 /// <c>FADE actor=N alpha=A tick=T</c> on each change; the player's own model and enemies never fade by that rule.
 /// CAMERA-FG: on top of it, any actor body within <see cref="CameraNearFade.FadeDistanceMm"/> of the camera fades by
 /// distance (<see cref="CameraNearFade"/>), the Warden's own model included; a body that occludes the pivot fades whatever its
-/// distance (<see cref="CameraNearFade.Occludes"/>, the Warden's own model excepted); the lowest alpha of the rules wins.
-/// Each 60 sim ticks in a pull, every party body logs a <c>CAMERA tick=T actor=N dist=D near=A applied=A occl=0|1</c> line.
+/// distance (<see cref="CameraNearFade.Occludes"/>, the Warden's own model excepted); a party body drawn taller than a third
+/// of the viewport is capped at <see cref="PartyFade.FadedPermille"/> (<see cref="CameraNearFade.ScreenHeightCapPermille"/>,
+/// the boss and the twins never capped); the lowest alpha of the rules wins.
+/// Each 60 sim ticks in a pull, every living body (party and enemies) logs a
+/// <c>CAMERA tick=T actor=N dist=D near=A applied=A occl=0|1 sh=S cap=C</c> line.
 /// </summary>
 public partial class ActorView : Node3D
 {
@@ -364,8 +367,12 @@ public partial class ActorView : Node3D
             var distanceMm = Mathf.RoundToInt(camera.GlobalPosition.DistanceTo(chest) / MmToM);
             var pivot = camera.GetParent() is Node3D rig ? rig.GlobalPosition : camera.GlobalPosition;
             var occludes = CameraNearFade.Occludes(role, ToMm3(camera.GlobalPosition), ToMm3(pivot), ToMm3(chest));
-            want = Mathf.Min(want, CameraNearFade.AlphaPermille(distanceMm, occludes));
-            LogCamera(now, distanceMm, CameraNearFade.AlphaPermille(distanceMm), occludes, want);
+            // CAMERA-FG screen height: a party body drawn taller than a third of the viewport is capped (CameraNearFade);
+            // the cap is 1000 for Self and enemies, so the boss and the twins are never held by it.
+            var screenHeight = ScreenHeight(camera, GlobalPosition, GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero);
+            var cap = CameraNearFade.ScreenHeightCapPermille(role, screenHeight);
+            want = Mathf.Min(want, Mathf.Min(CameraNearFade.AlphaPermille(distanceMm, occludes), cap));
+            LogCamera(now, distanceMm, CameraNearFade.AlphaPermille(distanceMm), occludes, screenHeight, cap, want);
         }
         if (want != _fadeWant)
         {
@@ -382,23 +389,41 @@ public partial class ActorView : Node3D
     }
 
     // CAMERA proof line on the run log (the TICK/EVENT channel, Driver.HostLine): once per 60 sim ticks while an enemy is
-    // alive (a pull), one line per living party body (Kind Player, the Warden included). dist is the lens to the body's
-    // chest, mm; near is the distance rule's alpha; applied is the alpha this view draws; occl is 1 when the body occludes
-    // the pivot. A tick is logged once per view, so frames do not repeat it.
-    private void LogCamera(ActorState now, int distanceMm, int nearPermille, bool occludes, int appliedPermille)
+    // alive (a pull), one line per living body: party (Kind Player, the Warden included) and enemies (the boss and the
+    // twins), so the capture proves from the log that no enemy is held by the screen-height rule. dist is the lens to the
+    // body's chest, mm; near is the distance rule's alpha; applied is the alpha this view draws; occl is 1 when the body
+    // occludes the pivot; sh is the body's projected height, permille of the viewport; cap is the screen-height rule's
+    // alpha (1000 for every enemy and for the Warden). A tick is logged once per view, so frames do not repeat it.
+    private void LogCamera(ActorState now, int distanceMm, int nearPermille, bool occludes, int screenHeight, int capPermille, int appliedPermille)
     {
         if (Driver is null)
         {
             return;
         }
         var tick = Driver.State.Tick;
-        if (tick % 60 != 0 || tick == _cameraTick || !now.Alive || now.Kind != ActorKind.Player || !PullLive())
+        if (tick % 60 != 0 || tick == _cameraTick || !now.Alive || !PullLive())
         {
             return;
         }
         _cameraTick = tick;
         Driver.HostLine(System.FormattableString.Invariant(
-            $"CAMERA tick={tick} actor={ActorId} dist={distanceMm} near={nearPermille} applied={appliedPermille} occl={(occludes ? 1 : 0)}"));
+            $"CAMERA tick={tick} actor={ActorId} dist={distanceMm} near={nearPermille} applied={appliedPermille} occl={(occludes ? 1 : 0)} sh={screenHeight} cap={capPermille}"));
+    }
+
+    // CAMERA-FG screen height: the body's feet and CameraNearFade.BodyHeightMm above them projected on the drawn camera, as
+    // permille of the viewport height (0 when either point is behind the camera or there is no viewport). Mirrors
+    // CameraRig.MeasureFraming.
+    private static int ScreenHeight(Camera3D camera, Vector3 feet, Vector2 viewportSize)
+    {
+        var head = feet + new Vector3(0, CameraNearFade.BodyHeightMm * MmToM, 0);
+        if (viewportSize.Y <= 0f || camera.IsPositionBehind(feet) || camera.IsPositionBehind(head))
+        {
+            return 0;
+        }
+        return CameraNearFade.ScreenHeightPermille(
+            Mathf.RoundToInt(camera.UnprojectPosition(head).Y),
+            Mathf.RoundToInt(camera.UnprojectPosition(feet).Y),
+            Mathf.RoundToInt(viewportSize.Y));
     }
 
     private bool PullLive()
