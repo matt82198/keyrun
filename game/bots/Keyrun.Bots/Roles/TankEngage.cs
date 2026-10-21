@@ -145,7 +145,7 @@ public static class TankEngage
         {
             output.Add(new MoveCommand(tick, self.Id, new Dir2(0, 0), desiredYaw));
         }
-        var rotationKit = kit with { Rotation = TankPressure.PressureRotation(view, self, kit) };
+        var rotationKit = kit with { Rotation = Fillers.ArrangeFillers(view, self, kit, TankPressure.PressureRotation(view, self, kit), target.Id) };
         if (DamageRole.PickResourceAwareRotation(rotationKit, self, tick) is { } abilityId)
         {
             output.Add(new CastCommand(tick, self.Id, abilityId, target.Id));

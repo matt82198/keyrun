@@ -110,11 +110,13 @@ public sealed class ForkParityTests
     /// these forks at all, so they are named here, loudly, instead of passing silently. An entry is red once the fork
     /// becomes measurable (remove it), and a newly unmeasurable fork is red until it is listed.
     /// </summary>
+    /// <remarks>
+    /// Empty: since the Chanter and Warden bot changes of PR #449 (R-BOTS-17 and kin) the bots cast warden.strike,
+    /// cinder.emberBolt and chanter.refrain in these runs, so every option of those three forks measures differently from
+    /// its siblings; the stale-entry assertion below demands their removal.
+    /// </remarks>
     internal static readonly IReadOnlyDictionary<string, string> UnmeasuredForks = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        ["warden.strike"] = "Rend, Riposte and Warcry all equal the base run: the bots never cast warden.strike.",
-        ["cinder.emberBolt"] = "Instant, Piercing and Overcharge all equal the base run: the bots never cast cinder.emberBolt.",
-        ["chanter.refrain"] = "Overture and Crescendo equal the base run: the bots never cast chanter.refrain.",
     };
 
     /// <summary>One run's measures.</summary>
@@ -144,7 +146,13 @@ public sealed class ForkParityTests
     /// Runs <paramref name="scenario"/> with the bots, every member of <paramref name="classId"/> carrying
     /// <paramref name="talented"/> (null = no loadout, the base kit).
     /// </summary>
-    private static RunMeasures Measure(Scenario scenario, string? classId, S.AbilityDef? talented)
+    /// <param name="scenario">The seeded run.</param>
+    /// <param name="classId">The fork's class, or null for the base kit.</param>
+    /// <param name="talented">The talented ability, or null for the base kit.</param>
+    /// <param name="onStep">Optional observer of each step's events (diagnostic tests only; never changes the run).</param>
+    /// <param name="beforeStep">Optional observer of the run just before each step (never changes the run).</param>
+    /// <param name="afterStep">Optional observer of the run and the step's events just after each step (never changes the run).</param>
+    private static RunMeasures Measure(Scenario scenario, string? classId, S.AbilityDef? talented, Action<IReadOnlyList<SimEvent>>? onStep = null, Action<Run>? beforeStep = null, Action<Run, IReadOnlyList<SimEvent>>? afterStep = null)
     {
         var setup = scenario.Setup;
         var options = setup.Options ?? new RunOptions();
@@ -179,8 +187,11 @@ public sealed class ForkParityTests
             var batch = Bot.RunBots(view, bots, memories, prng);
             memories = batch.Memories;
             prng = batch.Prng;
+            beforeStep?.Invoke(run);
             var stepped = RunRoot.StepRun(run, batch.Commands);
             run = stepped.Run;
+            onStep?.Invoke(stepped.Events.ToList());
+            afterStep?.Invoke(run, stepped.Events.ToList());
             foreach (var e in stepped.Events)
             {
                 if (e.Type == "combo")
@@ -459,6 +470,163 @@ public sealed class ForkParityTests
         Assert.True(unlistedFlat.Count == 0, "forks the check cannot measure (every option runs identically), list them in UnmeasuredForks:\n" + string.Join("\n", unlistedFlat));
         Assert.True(staleFlat.Count == 0, "UnmeasuredForks lists forks that are now measured; remove them:\n" + string.Join("\n", staleFlat));
         Assert.True(flat.Count < all.Count, "no fork is measured at all: the check is vacuous");
+    }
+
+    /// <summary>
+    /// R-FORK-RETUNE-1 (findings f-a49de510, f-82e6a860): Flashpoint changes Cinderfield's function, not its numbers.
+    /// Spreading Flame is the wide floor patch (a field Combo for whoever stands in it); Flashpoint ignites the Cinder's
+    /// target instead, so its Window rides the enemy and an ally's Payoff on that enemy lands the pair burst Combo (Forge
+    /// or Steam), the single-target play (BIBLE s6 "which Window/Payoff tag the ability carries", s7 "retags an
+    /// ability's Window"). It only earns its place if the bots actually use it that way: counted as burst "combo" events
+    /// closing a cinderfield Window on a target (any comboId but the floor's "cinderfield-field"), in every run.
+    /// </summary>
+    [Fact(DisplayName = "fork parity > the bots close Flashpoint's on-target Window for a pair burst Combo in every seeded run")]
+    public void Flashpoint_window_is_closed_on_its_target_by_the_bots()
+    {
+        var registry = Registry.Value;
+        var fork = registry.Classes["cinder"].Talents.Single(f => f.AbilityId == "cinder.cinderfield");
+        var option = fork.Options.Single(o => o.Id == "flashpoint");
+        var talented = ToSim(C.TalentPicks.ApplyPatch(registry.Abilities[fork.AbilityId], option.Patch));
+        var perRun = new List<int>();
+        foreach (var scenario in Loaded.Value)
+        {
+            var landed = 0;
+            Measure(scenario, "cinder", talented, events =>
+                landed += events.Count(e =>
+                    e.Type == "combo"
+                    && e.Get("windowId") is JsString w && w.Value == "cinderfield"
+                    && e.Get("comboId") is JsString c && c.Value != "cinderfield-field"
+                    && e.Get("targetId") is JsInt));
+            perRun.Add(landed);
+            _output.WriteLine($"{scenario.Name}: Flashpoint's on-target Window closed for a burst Combo {landed} times");
+        }
+        Assert.True(perRun.All(n => n > 0), "Flashpoint's on-target Window must be closed for a pair burst Combo in every fork-parity run (R-FORK-RETUNE-1), measured: "
+            + string.Join(", ", perRun));
+    }
+
+    /// <summary>A fork option's talented ability, as the bots' runs carry it.</summary>
+    private static S.AbilityDef TalentedOption(string classId, string abilityId, string optionId)
+    {
+        var registry = Registry.Value;
+        var fork = registry.Classes[classId].Talents.Single(f => f.AbilityId == abilityId);
+        return ToSim(C.TalentPicks.ApplyPatch(registry.Abilities[abilityId], fork.Options.Single(o => o.Id == optionId).Patch));
+    }
+
+    /// <summary>
+    /// For every completed cast of <paramref name="abilityId"/> by the bots in <paramref name="scenario"/> (the fork's
+    /// class carrying <paramref name="talented"/>): how many living party members carry <paramref name="effectId"/> ending
+    /// exactly <paramref name="durationTicks"/> after the cast, i.e. applied by that cast and not by another source.
+    /// </summary>
+    private static IReadOnlyList<int> CarriersPerCast(Scenario scenario, string classId, S.AbilityDef talented, string abilityId, string effectId, int durationTicks)
+    {
+        var carriers = new List<int>();
+        Measure(scenario, classId, talented, afterStep: (run, events) =>
+        {
+            foreach (var e in events.Where(e => e.Type == "cast_complete" && e.Get("abilityId") is JsString a && a.Value == abilityId))
+            {
+                carriers.Add(run.State.Actors.Values.Count(p =>
+                    p.Kind == ActorKind.Player && p.Alive && p.Effects.Any(x => x.EffectId == effectId && x.EndsTick == e.Tick + durationTicks)));
+            }
+        });
+        return carriers;
+    }
+
+    /// <summary>
+    /// R-FORK-RETUNE-1 (findings f-a49de510, f-82e6a860): Fortress changes what Bulwark DOES. Mobile Ward is the personal,
+    /// instant ward; Fortress is the group play: its long cast raises the ring over the whole party, braces it and
+    /// rallies it (Anthem's haste on every ally in the ring; BIBLE s7: a Facet changes function, not numbers). It only
+    /// earns its place if the bots cast it and the haste actually lands on more than the Warden: counted per Bulwark cast
+    /// as party members carrying the haste that very cast applied.
+    /// </summary>
+    [Fact(DisplayName = "fork parity > the bots cast Fortress and the haste it applies lands on more than the Warden in every seeded run")]
+    public void Fortress_rallies_the_party_when_the_bots_cast_it()
+    {
+        var talented = TalentedOption("warden", "warden.bulwark", "fortress");
+        var haste = talented.Effects.OfType<S.ApplyEffectOp>().FirstOrDefault(e => e.EffectId == "hasted");
+        Assert.True(haste is not null, "Fortress must rally the ring with the hasted effect (R-FORK-RETUNE-1): it carries no hasted op");
+        var perRun = new List<string>();
+        var ok = true;
+        foreach (var scenario in Loaded.Value)
+        {
+            var carriers = CarriersPerCast(scenario, "warden", talented, "warden.bulwark", "hasted", haste!.DurationTicks);
+            var best = carriers.Count == 0 ? 0 : carriers.Max();
+            perRun.Add($"{scenario.Name}: {carriers.Count} casts, most hasted at once {best}");
+            ok &= carriers.Count > 0 && best >= 2;
+            _output.WriteLine(perRun[^1]);
+        }
+        Assert.True(ok, "the bots must cast Fortress in every fork-parity run and rally at least two party members (R-FORK-RETUNE-1), measured: " + string.Join("; ", perRun));
+    }
+
+    /// <summary>
+    /// R-FORK-RETUNE-1: Overwhelm changes what Reckoning DOES. Execute is the cheap single-target finisher; Overwhelm is
+    /// the full-Momentum cleave that hands Momentum back, so a chain of finishers follows (BIBLE s7 "alters the resource
+    /// loop"). Counted per Overwhelm cast by the bots on the Warden's own Momentum across the step: the refund must
+    /// show, net of the cost. Steps where a Combo also fired are skipped (Forge pays Momentum too).
+    /// </summary>
+    [Fact(DisplayName = "fork parity > the bots cast Overwhelm and its cleave hands Momentum back in every seeded run")]
+    public void Overwhelm_refunds_momentum_when_the_bots_cast_it()
+    {
+        var talented = TalentedOption("warden", "warden.reckoning", "overwhelm");
+        var refund = talented.Effects.OfType<S.ResourceOp>().Sum(r => r.Delta);
+        Assert.True(refund > 0, "Overwhelm must hand Momentum back (R-FORK-RETUNE-1): it carries no positive resource op");
+        var net = refund - talented.Cost.Amount;
+        var perRun = new List<string>();
+        var ok = true;
+        foreach (var scenario in Loaded.Value)
+        {
+            var before = new Dictionary<int, long>();
+            var clean = 0;
+            var wrong = 0;
+            Measure(scenario, "warden", talented,
+                beforeStep: run => { before = run.State.Actors.Values.Where(a => a.Kind == ActorKind.Player).ToDictionary(a => a.Id, a => a.Resource); },
+                afterStep: (run, events) =>
+                {
+                    if (events.Any(e => e.Type == "combo"))
+                    {
+                        return;
+                    }
+                    foreach (var e in events.Where(e => e.Type == "cast_complete" && e.Get("abilityId") is JsString a && a.Value == "warden.reckoning"))
+                    {
+                        var actor = (int)((JsInt)e.Get("actorId")!).Value;
+                        if (run.State.Actors[actor].Resource - before[actor] == net)
+                        {
+                            clean++;
+                        }
+                        else
+                        {
+                            wrong++;
+                        }
+                    }
+                });
+            perRun.Add($"{scenario.Name}: {clean} casts moved Momentum by {net}, {wrong} by something else");
+            ok &= clean > 0 && wrong == 0;
+            _output.WriteLine(perRun[^1]);
+        }
+        Assert.True(ok, "the bots must cast Overwhelm in every fork-parity run and every Combo-free cast must net " + net + " Momentum (R-FORK-RETUNE-1), measured: " + string.Join("; ", perRun));
+    }
+
+    /// <summary>
+    /// R-FORK-RETUNE-1: Reserve changes what Vigil DOES. Guardian is the single-ally spot shield; Reserve is the group
+    /// play: a shorter shield thrown over everyone in the ring, the Warden included. It only earns its place if the bots
+    /// cast it and the shield lands on more than the Warden, counted per Vigil cast as party members carrying the shield
+    /// that very cast applied.
+    /// </summary>
+    [Fact(DisplayName = "fork parity > the bots cast Reserve and its shield lands on more than the Warden in every seeded run")]
+    public void Reserve_shields_the_ring_when_the_bots_cast_it()
+    {
+        var talented = TalentedOption("warden", "warden.vigil", "reserve");
+        var shield = talented.Effects.OfType<S.ApplyEffectOp>().Single();
+        var perRun = new List<string>();
+        var ok = true;
+        foreach (var scenario in Loaded.Value)
+        {
+            var carriers = CarriersPerCast(scenario, "warden", talented, "warden.vigil", shield.EffectId, shield.DurationTicks);
+            var best = carriers.Count == 0 ? 0 : carriers.Max();
+            perRun.Add($"{scenario.Name}: {carriers.Count} casts, most shielded at once {best}");
+            ok &= carriers.Count > 0 && best >= 2;
+            _output.WriteLine(perRun[^1]);
+        }
+        Assert.True(ok, "the bots must cast Reserve in every fork-parity run and shield at least two party members (R-FORK-RETUNE-1), measured: " + string.Join("; ", perRun));
     }
 
     [Fact(DisplayName = "fork parity > the base kit through the converter runs identically to the setup's kit")]

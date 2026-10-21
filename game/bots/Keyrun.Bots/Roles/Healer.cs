@@ -182,14 +182,26 @@ public sealed class HealerRole : IRole
         if (dispelId is null)
         {
             var healId = Priority.PickHealTarget(actors, HealThresholdPct);
-            if (healId is { } hid && actors.TryGetValue(hid, out var healTarget))
+            if (healId is not { } hid || !actors.TryGetValue(hid, out var healTarget))
             {
-                return HealPick.HealCommands(view, self, kit, healTarget);
+                // CADENCE-SETUP (f-b31e8f34): nobody under the threshold, so open a Setup for a ready Payoff partner;
+                // BOTS-FIVE-BUTTONS (f-45e27a2d): no Setup to open, so close a Window, Refrain into Ward, or cast the
+                // damaging Payoff (HealerIdle); D-HEALER-DOWNTIME: none of those, so press a non-heal rotation button.
+                var setup = HealerSetup.SetupCommands(view, self, kit);
+                if (setup.Count > 0)
+                {
+                    return setup;
+                }
+                var idle = HealerIdle.IdleCommands(view, self, kit, MendVerseValue);
+                return idle.Count > 0 ? idle : PressCommands(view, self, kit);
             }
-            // CADENCE-SETUP (f-b31e8f34): nobody under the threshold, so open a Setup for a ready Payoff partner;
-            // D-HEALER-DOWNTIME: no Setup to open, so press a non-heal rotation button.
-            var setup = HealerSetup.SetupCommands(view, self, kit);
-            return setup.Count > 0 ? setup : PressCommands(view, self, kit);
+            // BOTS-FIVE-BUTTONS: someone needs healing while the stance sits in Ward, so Refrain back to Mend first
+            // (its Mend burst heals on the swap) before the shape-aware heal.
+            if (HealerIdle.StanceSwapReady(self, kit, tick) && self.Resource != MendVerseValue)
+            {
+                return new Command[] { new CastCommand(tick, self.Id, kit.StanceSwapAbilityId!) };
+            }
+            return HealPick.HealCommands(view, self, kit, healTarget);
         }
 
         var abilityId = kit.DispelAbilityId ?? "dispel";

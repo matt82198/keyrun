@@ -3179,6 +3179,12 @@
             "effectId": "braced",
             "op": "applyEffect",
             "stacks": 1
+          },
+          {
+            "durationTicks": 240,
+            "effectId": "hasted",
+            "op": "applyEffect",
+            "stacks": 1
           }
         ],
         "gcdTicks": 30,
@@ -3306,6 +3312,10 @@
             "op": "payoff"
           },
           {
+            "delta": 25,
+            "op": "resource"
+          },
+          {
             "durationTicks": 60,
             "onTarget": true,
             "op": "window",
@@ -3371,9 +3381,9 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 90,
+        "cooldownTicks": 120,
         "cost": {
-          "amount": 25,
+          "amount": 50,
           "resource": "momentum"
         },
         "effects": [
@@ -3390,7 +3400,8 @@
         "name": "Vigil",
         "range": 0,
         "shape": {
-          "kind": "self"
+          "kind": "circle",
+          "radius": 4000
         },
         "tags": []
       },
@@ -3900,17 +3911,16 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 260,
+        "cooldownTicks": 200,
         "cost": {
           "amount": 0,
           "resource": "none"
         },
         "effects": [
           {
-            "durationTicks": 160,
-            "onTarget": false,
+            "durationTicks": 100,
+            "onTarget": true,
             "op": "window",
-            "radiusMm": 1800,
             "setupClass": "cinder",
             "windowId": "cinderfield"
           },
@@ -3927,8 +3937,7 @@
         "name": "Cinderfield",
         "range": 25000,
         "shape": {
-          "kind": "circle",
-          "radius": 2500
+          "kind": "target"
         },
         "tags": [
           "setup:cinderfield"

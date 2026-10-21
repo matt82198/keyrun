@@ -50,6 +50,18 @@ describe("healer keeps pressing", () => {
     expect(healerDecide(makeView([tank(), healer, foe()]), healer)).toEqual([]);
   });
 
+  it("in Mend, after the Payoff on the first idle GCD, the second idle GCD presses the Refrain into Ward (R-BOTS-17)", () => {
+    // Mid-fight: Dissonance took the first idle GCD at tick 10 (cooldownTicks 60, ready again at 70) and a heal at 40
+    // holds the GCD to 70, so at the next idle GCD (tick 70) the Chanter Refrains into Ward even though Dissonance is
+    // ready again: the healer's damage is filler and never displaces the Ward (633a80cc's order pressed Dissonance
+    // here and wiped on the Choir).
+    const healer = makeActor({ targetId: 10, gcdReadyTick: 70, cooldowns: { "chanter.dissonance": 70 } });
+    const engagedFoe = { ...foe(), targetId: 1 };
+    const view = makeView([tank(), healer, engagedFoe]);
+    view.state.tick = 70;
+    expect(healerDecide(view, healer)).toEqual([{ tick: 70, actorId: 2, kind: "cast", abilityId: "chanter.refrain" }]);
+  });
+
   it("a hurt ally still wins over the press", () => {
     const healer = makeActor({});
     const cmds = healerDecide(makeView([tank({ health: 100 }), healer, foe()]), healer);

@@ -311,10 +311,27 @@
         {
           "id": "flashpoint",
           "name": "Flashpoint",
-          "text": "Instant cast; longer cooldown.",
+          "text": "Instant cast; ignites your target instead of the floor: the Window opens on the enemy, so an ally's Payoff lands the pair burst Combo, and no fire patch.",
           "patch": {
             "castTicks": 0,
-            "cooldownTicks": 260
+            "shape": {
+              "kind": "target"
+            },
+            "effects": [
+              {
+                "op": "window",
+                "windowId": "cinderfield",
+                "durationTicks": 100,
+                "onTarget": true,
+                "setupClass": "cinder"
+              },
+              {
+                "op": "applyEffect",
+                "effectId": "burning",
+                "durationTicks": 160,
+                "stacks": 1
+              }
+            ]
           }
         }
       ]

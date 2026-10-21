@@ -163,6 +163,8 @@
          (D-PINNED-FIXTURES-362: with the healer press the undisturbed Choir clears at 1580 and pull 2 starts at 1693, so
          1700 fell in pull 2); the merge-forward onto #415 keeps the pull-relative form, which serves that same intent
          (the leave stays inside the Choir), and RunFJoinerActsTests pins the leave inside pull 0 on the merged tree.
+         BOTS-FIVE-BUTTONS (#298) had likewise moved 2@1700 -> 2@1500 (its bots clear the Choir at 1552); the bots
+         integration keeps main's anchored form for the same intent.
          2@pull0+1350 -> 2@pull0.hp10+1 by f-0fd3e6fb: a fixed offset from the Choir's engage still flipped whenever the
          Choir's fight length changed (the setup lesson, #364 and #326 each moved it), so the leave now waits for the
          Choir's own progress, one tick after its standing enemies are down to a tenth of their health: on seed 1 key 2

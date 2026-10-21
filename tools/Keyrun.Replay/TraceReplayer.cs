@@ -96,7 +96,8 @@ public static class TraceReplayer
     {
         var trace = OracleTrace.Load(tracePath);
         var dir = Path.GetDirectoryName(Path.GetFullPath(tracePath)) ?? ".";
-        var setup = RunSetup.Load(Path.Combine(dir, trace.SetupFile), trace.Seed);
+        // R-BOTS-9: the trace is the frozen TS run, which has no verse rule (RunSetup.WithTsKit).
+        var setup = RunSetup.Load(Path.Combine(dir, trace.SetupFile), trace.Seed).WithTsKit();
         return Replay(trace, setup);
     }
 

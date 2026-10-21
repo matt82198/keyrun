@@ -252,7 +252,8 @@ public static class Combos
     /// BIBLE section 4 Consecrate: a heal pulse closed on an enemy carrier goes to each living ally of the Payoff actor
     /// within <see cref="HealPulseRadiusMm"/> of the carrier (the Payoff actor too, when in range), never to the enemy.
     /// Ids come from <see cref="Targeting.InCircle"/> over <c>state.Actors</c> in its own order, so the result is
-    /// deterministic. No oracle run fires Consecrate (Fixtures/oracle traces), so the oracle replays are unchanged.
+    /// deterministic. BOTS-FIVE-BUTTONS (STATE.md D28): the bot oracle runs now fire Consecrate, so the frozen TS twin
+    /// (sim/combat/combos.ts applyComboEffects, HEAL_PULSE_RADIUS_MM) records the same redirect.
     /// </summary>
     private static void ApplyHealPulseToAllies(SimState state, ActorState source, ActorState target, EffectDef def, ApplyEffectOp op)
     {

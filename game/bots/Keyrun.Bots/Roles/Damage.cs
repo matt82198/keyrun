@@ -150,7 +150,8 @@ public sealed class DamageRole : IRole
         {
             return setup;
         }
-        if (PickResourceAwareRotation(kit, self, tick) is { } abilityId)
+        var rotationKit = kit with { Rotation = Fillers.ArrangeFillers(view, self, kit, kit.Rotation, self.TargetId) };
+        if (PickResourceAwareRotation(rotationKit, self, tick) is { } abilityId)
         {
             return new Command[] { new CastCommand(tick, self.Id, abilityId, self.TargetId) };
         }
