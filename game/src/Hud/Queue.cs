@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using Keyrun.Bots.Shared;
 using Keyrun.Host;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Runs;
@@ -25,8 +26,16 @@ namespace Keyrun.Hud;
 /// </summary>
 public partial class Queue : Node
 {
+    /// <summary>How long a finished check's outcome ("Run starting." or "Back in the queue") stays on the readout.</summary>
+    private const double OutcomeHoldSeconds = 2.0;
+
     /// <summary>Builds the node and its ready-check gate (proof lines go through the driver).</summary>
-    public Queue() => Gate = new QueuedRunGate(GateLine);
+    public Queue()
+    {
+        Gate = new QueuedRunGate(GateLine);
+        Gate.Entered += _ => _outcomeLeft = OutcomeHoldSeconds;
+        Gate.Requeued += (_, _) => _outcomeLeft = OutcomeHoldSeconds;
+    }
 
     /// <summary>The scarcity line's node name (a Label added under the Screen).</summary>
     public const string ReadoutNodeName = "QueueRoles";
@@ -37,6 +46,7 @@ public partial class Queue : Node
     private SimDriver? _driver;
     private Label? _readout;
     private double _seconds;
+    private double _outcomeLeft;
     private string? _lastRolesProof;
 
     /// <summary>The screen whose Queued event feeds this list (default: the parent Screen).</summary>
@@ -109,17 +119,18 @@ public partial class Queue : Node
     {
         _seconds += delta;
         Advance(ClockTick);
+        if (_outcomeLeft > 0)
+        {
+            _outcomeLeft -= delta;
+        }
         if (_readout is null)
         {
             return;
         }
-        if (Gate.Checking && Check is { } check)
+        var wait = QueueWait.Describe(GateState());
+        if (wait.Length > 0)
         {
-            var left = (check.RemainingTicks(ClockTick) + Tick.TickHz - 1) / Tick.TickHz;
-            var answered = check.ReadySeats.Contains(Gate.HumanSeat);
-            _readout.Text = answered
-                ? FormattableString.Invariant($"Group found. Waiting on the others ({left}s)")
-                : FormattableString.Invariant($"Group found. Enter: ready   Esc: decline ({left}s)");
+            _readout.Text = wait;
             _readout.Visible = true;
             return;
         }
@@ -129,6 +140,27 @@ public partial class Queue : Node
         {
             _readout.Text = Scarcity(state.KeyLevel).Readout();
         }
+    }
+
+    /// <summary>
+    /// The gate state the wait readout is a pure function of. An open check reads while it waits; a finished check's
+    /// outcome reads only for <see cref="OutcomeHoldSeconds"/> after it ends, so a stale check never sticks on screen.
+    /// </summary>
+    private QueueGateState GateState()
+    {
+        var check = Check;
+        var phase = check?.Phase;
+        if (phase == ReadyPhase.Pending && !Gate.Checking)
+        {
+            phase = null;
+        }
+        if (phase is ReadyPhase.Enter or ReadyPhase.Requeue && _outcomeLeft <= 0)
+        {
+            phase = null;
+        }
+        var seats = phase is null || check is null ? 0 : check.Seats.Count;
+        var humanReady = check is not null && check.ReadySeats.Contains(Gate.HumanSeat);
+        return new QueueGateState(phase, seats, humanReady, Gate.RemainingTicks(ClockTick), 0, 0);
     }
 
     /// <inheritdoc />
