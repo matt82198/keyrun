@@ -37,6 +37,11 @@ export interface ComboDef {
  */
 export type ComboTable = Record<string, Record<string, ComboDef>>;
 
+/** R-ANTHEM-1: an effect whose modifiers carry positive haste (Anthem's `hasted`) is a party buff in a combo. */
+export function isPartyHaste(def: EffectDef): boolean {
+  return (def.modifiers.hasteBp ?? 0) > 0;
+}
+
 export function lookupCombo(table: ComboTable, setupClass: string, payoffClass: string): ComboDef | undefined {
   return table[setupClass]?.[payoffClass];
 }
@@ -65,10 +70,19 @@ export function applyComboEffects(
     } else if (op.op === "applyEffect") {
       const def = effectDefs[op.effectId];
       if (!def) continue;
-      // BOTS-FIVE-BUTTONS (D28 recording; mirrors Combos.cs ApplyHealPulseToAllies, BIBLE section 4 Consecrate):
-      // a heal-over-time closed on a carrier of another faction goes to the Payoff actor's living allies within
-      // HEAL_PULSE_RADIUS_MM of the carrier, never to the carrier.
-      if (def.periodic?.op.op === "heal" && target.kind !== source.kind) {
+      if (isPartyHaste(def)) {
+        // R-ANTHEM-1 (f-7d5df7f9; BIBLE Sec 5 Anthem "Party gains 15% haste"): combo haste is party haste. It goes
+        // to every living actor of the Payoff actor's faction, never the carrier (an enemy, on an enemy Window).
+        // Twin of Combos.cs ApplyComboEffects.
+        for (const member of Object.values(state.actors)) {
+          if (member.alive && member.kind === source.kind) {
+            applyEffectInstance(member, def, source.id, op.durationTicks, op.stacks, state.tick);
+          }
+        }
+      } else if (def.periodic?.op.op === "heal" && target.kind !== source.kind) {
+        // BOTS-FIVE-BUTTONS (D28 recording; mirrors Combos.cs ApplyHealPulseToAllies, BIBLE section 4 Consecrate):
+        // a heal-over-time closed on a carrier of another faction goes to the Payoff actor's living allies within
+        // HEAL_PULSE_RADIUS_MM of the carrier, never to the carrier.
         const allies = Object.values(state.actors).filter((a) => a.alive && a.kind === source.kind);
         for (const id of inCircle(target.pos, HEAL_PULSE_RADIUS_MM, allies)) {
           applyEffectInstance(state.actors[id]!, def, source.id, op.durationTicks, op.stacks, state.tick);

@@ -112,7 +112,9 @@ public sealed class EncoreEchoTests
     /// Finding f-0fb803dc: both Encore charges spent inside the 50-tick echo window. Each cast is its own delayed echo
     /// (as a WoW delayed heal echo is): two half-strength echoes land, each 50 ticks after its own cast. Before the fix
     /// the second application refreshed the first instance's end tick but kept its periodic timer, so the second echo
-    /// was lost. The second cast is one GCD (30 ticks) after the first, inside the window.
+    /// was lost. The second cast is one GCD (30 ticks) after the first, inside the window. R-ENCORE-1 took the second
+    /// charge off Encore itself, so the two charges here are the ring Facet chanter.ring.versedReserves's ("Chorus grants
+    /// an extra charge", charges 2) on top of Encore.
     /// </summary>
     [Theory]
     [InlineData("host")]
@@ -121,7 +123,7 @@ public sealed class EncoreEchoTests
     {
         const int second = CastTick + 30;
 
-        var heals = TankHeals(source, Talented("encore"), 1, CastTick, second);
+        var heals = TankHeals(source, Talented("encore") with { Charges = 2 }, 1, CastTick, second);
 
         Assert.Equal(
             new[] { (CastTick, 120L), (second, 120L), (CastTick + EchoDelay, 60L), (second + EchoDelay, 60L) },
@@ -149,12 +151,13 @@ public sealed class EncoreEchoTests
         Assert.Empty(heals);
     }
 
+    /// <summary>R-ENCORE-1: Encore trades its second charge for the floor Window; it keeps the 100-tick cooldown.</summary>
     [Fact]
-    public void Encore_keeps_its_two_charges_and_its_100_tick_cooldown()
+    public void Encore_has_one_charge_and_its_100_tick_cooldown()
     {
         var encore = Talented("encore");
 
-        Assert.Equal(2, encore.Charges);
+        Assert.Equal(1, encore.Charges);
         Assert.Equal(100, encore.CooldownTicks);
     }
 }

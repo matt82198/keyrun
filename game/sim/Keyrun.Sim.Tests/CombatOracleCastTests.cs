@@ -193,6 +193,27 @@ public sealed class CombatOracleCastTests
                                     caster.Pos = OutOfReach;
                                 }
                             }
+                            // DEATH-CANCELS-CAST inside a Payoff (R-DEADCAST-1): when this cast's own Window/Combo damage
+                            // kills a casting actor, the trace shows death then cast_stopped before the combo event. The
+                            // ledger keeps everyone at huge health, so arm the port to reproduce it: the victim holds the
+                            // stopped cast and exactly the health the trace says that hit took, and the port's own
+                            // Damage -> EndCastOnDeath emits the cast_stopped in place.
+                            for (var k = 0; k < tail.Count; k++)
+                            {
+                                if (TypeOf(tail[k]) != "death")
+                                {
+                                    continue;
+                                }
+                                var victimId = IntField(tail[k], "actorId");
+                                var stop = tail.Skip(k + 1).FirstOrDefault(e => TypeOf(e) == "cast_stopped" && IntField(e, "actorId") == victimId);
+                                var hit = tail.Take(k).LastOrDefault(e => TypeOf(e) == "damage" && IntField(e, "targetId") == victimId && IntField(e, "sourceId") == caster.Id);
+                                if (stop.ValueKind == JsonValueKind.Object && hit.ValueKind == JsonValueKind.Object)
+                                {
+                                    var victim = Ledger((int)victimId);
+                                    victim.CastId = stop.GetProperty("abilityId").GetString();
+                                    victim.Health = IntField(hit, "healthDamage");
+                                }
+                            }
                             var before = actual.Count;
                             Windows.ApplyWindowsAndCombosTo(state, caster, def!, targets, wctx, actual.Add);
                             var trackedEmitted = actual.Skip(before).Count(e => Tracked.Contains(e.Type));

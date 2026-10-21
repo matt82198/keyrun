@@ -11,8 +11,10 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// haste from every live effect shortens casts, Casting.HastedCastTicks). The replay runs no combat, so it learns the
 /// haste effects that land on an enemy from the oracle's own <c>combo</c> events: a target combo (no <c>field</c> flag)
 /// applies its combo's <c>applyEffect</c> ops to the event's <c>targetId</c> from the payoff actor, as
-/// sim/combat/combos.ts applyComboEffects and Combos.cs do (on the Hollow Vault traces, the Anthem's hasted +1500 bp on
-/// the Seed). Field combos land on the payoff actor (a player) and never on an enemy, so they are not modelled.
+/// sim/combat/combos.ts applyComboEffects and Combos.cs do. Since R-ANTHEM-1 (finding f-7d5df7f9) a combo's positive
+/// haste (Anthem's hasted) goes to the payoff actor's party and never to the carrier, so only a slow (negative haste) is
+/// modelled on an enemy; on the Hollow Vault traces that leaves no application. Field combos land on the payoff actor
+/// (a player) and never on an enemy, so they are not modelled.
 /// Instances follow applyEffectInstance: one per (effect, source), stacks capped at maxStacks, endsTick = tick + duration,
 /// live on tick t while endsTick &gt; t.
 /// </summary>
@@ -55,8 +57,10 @@ internal sealed class EncounterHasteModel
             }
             foreach (var op in ops.Items.OfType<JsObject>())
             {
+                // R-ANTHEM-1 (f-7d5df7f9): a combo's positive haste is party haste (Combos.IsPartyHaste); it lands on
+                // the payoff actor's party, never on the carrier, so only a slow can reach an enemy from a combo.
                 if (op.Get("op") is JsString { Value: "applyEffect" } && op.Get("effectId") is JsString effectId &&
-                    _hasteEffects.ContainsKey(effectId.Value))
+                    _hasteEffects.TryGetValue(effectId.Value, out var hasteDef) && hasteDef.HasteBp < 0)
                 {
                     var duration = op.Get("durationTicks") is JsInt d ? (int)d.Value : 0;
                     var stacks = op.Get("stacks") is JsInt s ? (int)s.Value : 1;
