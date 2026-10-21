@@ -27,7 +27,7 @@ public readonly record struct StrikeCue(int ActorId, int Tick, int Yaw, int Dura
 /// The Godot-free rule that turns a step's sim events into <see cref="StrikeCue"/>s (KF1, COMBAT-ANIM follow-up). Pure, no
 /// Godot types. A cue is emitted once per melee <c>cast_complete</c> whose actor has a <c>damage</c> event on the same
 /// tick (a multi-target cleave is one cue, not one per target). The melee set comes from abilities tagged
-/// <see cref="MeleeTag"/> (see <see cref="MeleeIds"/>).
+/// <see cref="MeleeTag"/> (see <see cref="MeleeIds(IEnumerable{string})"/>, fed from the melee data list).
 /// </summary>
 public static class StrikeCueRule
 {
@@ -42,6 +42,17 @@ public static class StrikeCueRule
 
     /// <summary>How long the strike arc is shown, in ms (150 to 250 so it reads from the demo camera without lingering).</summary>
     public const int DurationMs = 200;
+
+    /// <summary>
+    /// The melee set from the C#-only list (game/content/data/melee-abilities.json, loaded as
+    /// <c>ContentRegistry.MeleeAbilities</c>). This is the live source: the root abilities JSON is frozen and carries no melee tag.
+    /// </summary>
+    /// <param name="meleeAbilityIds">The melee ability ids.</param>
+    public static IReadOnlySet<string> MeleeIds(IEnumerable<string> meleeAbilityIds)
+    {
+        ArgumentNullException.ThrowIfNull(meleeAbilityIds);
+        return new HashSet<string>(meleeAbilityIds, StringComparer.Ordinal);
+    }
 
     /// <summary>The ids of the abilities whose tags contain <see cref="MeleeTag"/>.</summary>
     /// <param name="abilities">Each ability's id and tags (null tags count as none).</param>
@@ -61,7 +72,7 @@ public static class StrikeCueRule
 
     /// <summary>The strike cues for one step's events, in event order.</summary>
     /// <param name="events">The step's events (damage and cast_complete; other types are ignored).</param>
-    /// <param name="meleeAbilities">The melee ability ids (see <see cref="MeleeIds"/>).</param>
+    /// <param name="meleeAbilities">The melee ability ids (see <see cref="MeleeIds(IEnumerable{string})"/>).</param>
     /// <param name="yawOf">The actor's facing on the step, 1/1024 turn.</param>
     public static IReadOnlyList<StrikeCue> Cues(
         IEnumerable<StrikeEvent> events,

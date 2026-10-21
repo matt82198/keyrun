@@ -1,2 +1,0 @@
-- ENEMY-BODY-STABLE enemies never flash white on a hit and never fade under any camera rule (party bodies keep both): `AnimRule.FlashPermilleFor` and `CameraNearFade.AppliedPermille` are the role-aware entry points, ActorView routes through them, and the host logs `FLASH actor=N tick=T strength=S` for applied flashes, so the boss stays opaque on demo frames.
-BUILDLOG: fix/enemy-body-stable makes every enemy body's colour and alpha stable (no hit flash, no camera fade) and proves it with pure tests, mutants and a FLASH receipt line on the run log.
