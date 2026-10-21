@@ -81,6 +81,25 @@ public sealed class KitRegistry
     public ContentRegistry? Content => _registry;
 
     /// <summary>
+    /// True when <paramref name="abilityId"/> is target-shaped as the run casts it: judged by the run's own def
+    /// (<see cref="ForRun"/>: loadout- and Facet-patched) when this registry is run-aware and the run map holds the id,
+    /// else by content's; false when neither has it. A Facet that turns a target-shaped ability into a circle
+    /// (chanter.weapon.wideningCadence, "Cadence becomes a party-wide area") makes it a circle to the bot as it is to the
+    /// sim, the same rule <see cref="ResolveKit"/> applies to off-GCD ids (f-80b5cf16).
+    /// </summary>
+    /// <param name="abilityId">Ability id.</param>
+    /// <returns>Whether the run's def is target-shaped.</returns>
+    public bool IsTargetShapedForRun(string abilityId)
+    {
+        ArgumentNullException.ThrowIfNull(abilityId);
+        if (_runAbilities is not null && _runAbilities.TryGetValue(abilityId, out var run))
+        {
+            return run.Shape.Kind == Keyrun.Sim.Combat.ShapeKind.Target;
+        }
+        return _registry is not null && _registry.Abilities.TryGetValue(abilityId, out var def) && def.Shape.Kind == ShapeKind.Target;
+    }
+
+    /// <summary>
     /// kit-registry.ts getClassKit: the memoised ClassKit for <paramref name="classId"/>, or null when there is no
     /// registry or the class is not in content (a scripted actor's placeholder classId).
     /// </summary>

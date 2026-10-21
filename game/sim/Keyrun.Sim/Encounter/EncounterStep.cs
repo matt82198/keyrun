@@ -19,7 +19,15 @@ public sealed record BreakBarWiring(IReadOnlyList<BreakBarSource> Sources, IRead
 /// <param name="Encounter">The next encounter state.</param>
 /// <param name="Commands">Enemy casts and chase moves for combat this tick.</param>
 /// <param name="EffectPatches">onEmpty effects of any bar that staggered this tick, for the caller to apply.</param>
-public sealed record StepEncounterResult(SimState State, EncounterState Encounter, IReadOnlyList<Command> Commands, IReadOnlyList<BreakBarEffectPatch> EffectPatches);
+public sealed record StepEncounterResult(SimState State, EncounterState Encounter, IReadOnlyList<Command> Commands, IReadOnlyList<BreakBarEffectPatch> EffectPatches)
+{
+    /// <summary>
+    /// C#-only (f-8b3fff18): the actors of the armed boss's Twins bar when it staggered this tick, in bar-actor order.
+    /// The run root ends their in-progress casts when it applies the stun (<see cref="Runs.RunWiring.StopCasts"/>).
+    /// Empty on a run with no armed boss; any other bar's stun follows the s9.3 interruptible-only rule (ControlStops).
+    /// </summary>
+    public IReadOnlyList<int> Staggered { get; init; } = Array.Empty<int>();
+}
 
 /// <summary>
 /// Composes the encounter lane for one tick (sim/encounter/index.ts:108 stepEncounter), run on the state BEFORE
@@ -62,6 +70,12 @@ public static class EncounterStep
             scripts = boss.Scripts;
         }
 
+        IReadOnlyList<BreakBarSource> sources = breakBarWiring?.Sources ?? Array.Empty<BreakBarSource>();
+        if (boss is not null && !sources.Any(s => s.Id == boss.TwinsBar.Id))
+        {
+            sources = sources.Append(boss.TwinsBar).ToList();
+        }
+
         // PRESPAWN-AGGRO (BIBLE section 9.1): an idle group runs no script, so it casts, telegraphs and chases nothing
         // until it engages. No actor of an oracle run is idle, so this keeps every script there.
         if (scripts.Keys.Any(id => state.Actors.TryGetValue(id, out var a) && a.Idle))
@@ -84,6 +98,14 @@ public static class EncounterStep
             emit(e);
         }
 
+        // f-8b3fff18 (BIBLE s9 Twins, s9.3 "Stops as well as kicks"; C#-only, no bar on any oracle run): a bar actor still
+        // inside its stagger stun starts no cast, swing or chase move this tick. Telegraphs keep their schedule, so a cast
+        // that falls after the stun still has its lead.
+        var stunned = BreakBar.StunnedActors(sources, state.Actors, tick);
+        var enemyCommands = stunned.Count == 0
+            ? scripted.Commands
+            : scripted.Commands.Where(c => !stunned.Contains(c.ActorId)).ToList();
+
         // index.ts:129-135: Tide drift, resolve, emit hits, drop the resolved.
         var advance = Telegraphs.Advance(state, encounter.Telegraphs, scripted.TelegraphEvents, encounter.NextTelegraphId, emit,
             all => Clauses.DriftTelegraphs(all, encounter.Rules), scripted.TelegraphCastStarts);
@@ -97,11 +119,7 @@ public static class EncounterStep
 
         // index.ts:143-157: lazy creation and drain.
         var effectPatches = new List<BreakBarEffectPatch>();
-        IReadOnlyList<BreakBarSource> sources = breakBarWiring?.Sources ?? Array.Empty<BreakBarSource>();
-        if (boss is not null && !sources.Any(s => s.Id == boss.TwinsBar.Id))
-        {
-            sources = sources.Append(boss.TwinsBar).ToList();
-        }
+        var staggered = new List<int>();
         var commands = breakBarWiring?.Commands ?? Array.Empty<Command>();
         var abilityTags = breakBarWiring?.AbilityTags ?? NoTags;
         foreach (var source in sources)
@@ -119,7 +137,15 @@ public static class EncounterStep
             var inputs = BreakBar.DeriveInputs(commands, state.Actors, abilityTags, source);
             var drained = BreakBar.Drain(bar, source.Id, inputs, tick, emit);
             breakBars[source.Id] = drained;
-            effectPatches.AddRange(BreakBar.EffectPatches(source, !wasStaggered && drained.Current <= 0));
+            var justStaggered = !wasStaggered && drained.Current <= 0;
+            effectPatches.AddRange(BreakBar.EffectPatches(source, justStaggered));
+            // Only the armed boss's Twins bar (BIBLE s9 "at empty both are stunned for a burst window") ends the casts
+            // of its actors outright. Any other bar's stun follows the s9.3 pack rule (ControlStops: an interruptible
+            // cast only, StunStopsCastTests).
+            if (justStaggered && boss is not null && source.Id == boss.TwinsBar.Id)
+            {
+                staggered.AddRange(source.ActorIds);
+            }
         }
 
         // index.ts:159-160.
@@ -138,6 +164,6 @@ public static class EncounterStep
             effectPatches.AddRange(boss.EffectPatches);
         }
         next = Pulls.CheckPullAdvance(state, dungeon, next, tick, emit);
-        return new StepEncounterResult(state, next, scripted.Commands, effectPatches);
+        return new StepEncounterResult(state, next, enemyCommands, effectPatches) { Staggered = staggered };
     }
 }

@@ -149,10 +149,10 @@
         {
           "id": "encore",
           "name": "Encore",
-          "text": "Gains a second charge; longer cooldown.",
+          "text": "Gains a second charge and a shorter cooldown.",
           "patch": {
             "charges": 2,
-            "cooldownTicks": 160
+            "cooldownTicks": 100
           }
         }
       ]
@@ -230,8 +230,9 @@
         {
           "id": "roundRobin",
           "name": "Round Robin",
-          "text": "Can be placed from much farther away.",
+          "text": "Can be placed from much farther away, and casts much faster.",
           "patch": {
+            "castTicks": 4,
             "range": 20000
           }
         }
