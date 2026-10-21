@@ -6,9 +6,9 @@ using Keyrun.Sim.Runs;
 namespace Keyrun.Hud;
 
 /// <summary>
-/// The Key band's Clause pick (BIBLE s8 "the party is offered three modifiers and picks one; exactly one Clause runs"):
-/// three cards with the Clause name and what it changes, the pick outlined. Keys 1-3 (or a click) pick through the
-/// owning <see cref="Screen"/>, which holds the <see cref="ScreenState"/>; this control only draws it and maps clicks.
+/// The Key band's Clause picker (BIBLE s8 "the party is offered three modifiers and picks one"). Lane U2 (BIBLE s8
+/// "Nobody picks a Clause"): the owning <see cref="Screen"/> keeps this control hidden and shows the key's Clause as
+/// text instead, so no input reaches it. Lane U1 removes the pick rule itself in Clause.cs; this control goes with it.
 /// </summary>
 public partial class ClausePick : Control
 {

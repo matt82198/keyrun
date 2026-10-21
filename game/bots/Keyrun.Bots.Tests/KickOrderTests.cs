@@ -297,3 +297,69 @@ public sealed class KickOrderTests
         return casts.OrderBy(c => c.Start).ToList();
     }
 }
+
+/// <summary>
+/// KICK-ORDER rule (design/BIBLE.md section 3 "A suggested kick order", section 10 kick-ready readout): the pure order
+/// the party's kicks come off cooldown, one place per kick slot. Ready seats first, then soonest ready, then seat id.
+/// </summary>
+public sealed class KickOrderRuleTests
+{
+    [Fact(DisplayName = "Kick order rule: a seat already off cooldown kicks before one still cooling, whatever its seat id")]
+    public void Ready_seat_comes_before_cooling_seat()
+    {
+        var order = KickOrder.Compute(new[] { new KickSeat(1, 500), new KickSeat(2, 100) }, 200);
+        Assert.Equal(new[] { 2, 1 }, order.Select(s => s.SeatId).ToArray());
+        Assert.Equal(new[] { true, false }, order.Select(s => s.Ready).ToArray());
+    }
+
+    [Fact(DisplayName = "Kick order rule: among ready seats the soonest ready (earliest ready tick) kicks first")]
+    public void Ready_seats_soonest_ready_first()
+    {
+        var order = KickOrder.Compute(new[] { new KickSeat(1, 150), new KickSeat(2, 90), new KickSeat(3, 120) }, 200);
+        Assert.Equal(new[] { 2, 3, 1 }, order.Select(s => s.SeatId).ToArray());
+    }
+
+    [Fact(DisplayName = "Kick order rule: among cooling seats the soonest ready kicks first")]
+    public void Cooling_seats_soonest_ready_first()
+    {
+        var order = KickOrder.Compute(new[] { new KickSeat(1, 400), new KickSeat(2, 300), new KickSeat(3, 250) }, 200);
+        Assert.Equal(new[] { 3, 2, 1 }, order.Select(s => s.SeatId).ToArray());
+        Assert.All(order, s => Assert.False(s.Ready));
+    }
+
+    [Fact(DisplayName = "Kick order rule: equal ready ticks break to the lowest seat id, whatever the input order")]
+    public void Tie_breaks_to_seat_id()
+    {
+        var forward = KickOrder.Compute(new[] { new KickSeat(1, 0), new KickSeat(2, 0), new KickSeat(3, 0) }, 0);
+        var reversed = KickOrder.Compute(new[] { new KickSeat(3, 0), new KickSeat(2, 0), new KickSeat(1, 0) }, 0);
+        Assert.Equal(new[] { 1, 2, 3 }, forward.Select(s => s.SeatId).ToArray());
+        Assert.Equal(forward, reversed);
+    }
+
+    [Fact(DisplayName = "Kick order rule: a kick ready exactly at the tick is ready now")]
+    public void Ready_at_exact_tick_counts_as_ready()
+    {
+        var order = KickOrder.Compute(new[] { new KickSeat(1, 201), new KickSeat(2, 200) }, 200);
+        Assert.Equal(new[] { 2, 1 }, order.Select(s => s.SeatId).ToArray());
+        Assert.Equal(new[] { true, false }, order.Select(s => s.Ready).ToArray());
+    }
+
+    [Fact(DisplayName = "Kick order rule: places are 1..N in order, one per seat, and no seats gives no places")]
+    public void Places_are_one_to_n()
+    {
+        var order = KickOrder.Compute(new[] { new KickSeat(4, 0), new KickSeat(2, 900), new KickSeat(9, 50) }, 100);
+        Assert.Equal(new[] { 1, 2, 3 }, order.Select(s => s.Order).ToArray());
+        Assert.Equal(new[] { 4, 9, 2 }, order.Select(s => s.SeatId).ToArray());
+        Assert.Empty(KickOrder.Compute(Array.Empty<KickSeat>(), 100));
+    }
+
+    [Fact(DisplayName = "Kick order rule: casters take the kick places in the order given, and a caster past the last place gets no number")]
+    public void Casters_take_places_in_order()
+    {
+        var order = KickOrder.Compute(new[] { new KickSeat(1, 0), new KickSeat(2, 0) }, 0);
+        var numbers = KickOrder.NumberCasters(new[] { 10, 11, 12 }, order);
+        Assert.Equal(1, numbers[10]);
+        Assert.Equal(2, numbers[11]);
+        Assert.False(numbers.ContainsKey(12));
+    }
+}

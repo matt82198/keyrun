@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Keyrun.Sim.Combat;
+using Keyrun.Sim.Encounter;
 
 namespace Keyrun.Sim.Runs;
 
@@ -40,6 +42,14 @@ public sealed record QueueRequest(string DungeonId, int KeyLevel, string ClauseI
 /// <param name="Locked">True once queued.</param>
 public sealed record ScreenState(string DungeonId, IReadOnlyList<string> ClauseIds, int KeyLevel, ClauseChoice Clause, bool Locked)
 {
+    /// <summary>
+    /// The readiness line under the key stepper (BIBLE s10: "Ready" or a waiting reason; it never blocks Queue). Only
+    /// the queue lock is known to the band today: a locked band waits on the run to start, an open one is ready to queue.
+    /// </summary>
+    public string ReadinessLine => Locked
+        ? FormattableString.Invariant($"Queued at key {KeyLevel}: waiting for the run to start.")
+        : FormattableString.Invariant($"Ready: key {KeyLevel} can be queued now.");
+
     /// <summary>Lowest key (BIBLE s8: "a number, 2-20 for the POC").</summary>
     public const int MinKey = 2;
 
@@ -108,4 +118,34 @@ public sealed record ScreenState(string DungeonId, IReadOnlyList<string> ClauseI
     }
 
     private static int Clamp(long key) => (int)Math.Min(MaxKey, Math.Max(MinKey, key));
+}
+
+/// <summary>
+/// The private last-three-runs strip (BIBLE s4 "clear moves something visible"; s10 "time, result, and what the clear
+/// moved"; the screen's own scope here is key level and timed-or-not, from the saved <see cref="Progression.History"/>).
+/// Pure text, so the Godot strip only draws what this returns.
+/// </summary>
+public static class RunStripText
+{
+    /// <summary>How many of the most recent runs the strip shows.</summary>
+    public const int Shown = 3;
+
+    /// <summary>The strip lines, most recent first, at most <see cref="Shown"/>; empty when there are no runs.</summary>
+    /// <param name="history">The saved runs, oldest first (<see cref="Progression.History"/>).</param>
+    /// <returns>One line per shown run.</returns>
+    public static IReadOnlyList<string> Lines(IReadOnlyList<RunRecord> history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+        return history.Reverse().Take(Shown)
+            .Select(r => FormattableString.Invariant($"Key {r.KeyLevel}, {Word(r.Result)}"))
+            .ToList();
+    }
+
+    private static string Word(RunResult result) => result switch
+    {
+        RunResult.Timed => "timed",
+        RunResult.Depleted => "depleted",
+        RunResult.Abandoned => "abandoned",
+        _ => throw new ArgumentOutOfRangeException(nameof(result), result, "unknown run result"),
+    };
 }
