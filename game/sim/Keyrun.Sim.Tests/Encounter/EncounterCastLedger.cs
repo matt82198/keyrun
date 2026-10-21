@@ -19,6 +19,11 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// dies, first) is invisible and its caster looks free (PR #415 ruling R-415-C: bots-hv-k10-s7's hollowWarden.slam
 /// begun at 2065, run end 2074).</item>
 /// <item>An oracle <c>interrupt</c> of the caster on tick I ends the cast: it is in flight through I, not after.</item>
+/// <item>A cast the step issues while its ability is still on cooldown never starts (combat refuses it not_ready), so it
+/// is not recorded (f-df833cf3: on bots-hv-k10-s7 Tempo fires the cleave step every 135 ticks against a 160-tick
+/// cooldown; the refused cleave made the boss look busy, held the slam due after it, and the replay re-drew that slam
+/// where the oracle's boss was free; on a merged trace the same phantom cleave held a slam and lock due on one tick,
+/// which read as a tiebreak divergence but was not: both sides break that tie in script order).</item>
 /// </list>
 /// </remarks>
 internal sealed class EncounterCastLedger
@@ -26,9 +31,16 @@ internal sealed class EncounterCastLedger
     private readonly IReadOnlyDictionary<string, int> _castTicks;
     private readonly List<(int Actor, string Ability, int Start, int Ends, int Cut)> _spans = new();
 
+    private readonly IReadOnlyDictionary<string, int> _cooldownTicks;
+
     /// <summary>Creates an empty ledger.</summary>
     /// <param name="castTicks">Each ability's cast time in ticks (0 for instant casts, which are never in flight).</param>
-    public EncounterCastLedger(IReadOnlyDictionary<string, int> castTicks) => _castTicks = castTicks;
+    /// <param name="cooldownTicks">Each ability's cooldown in ticks; null = none known.</param>
+    public EncounterCastLedger(IReadOnlyDictionary<string, int> castTicks, IReadOnlyDictionary<string, int>? cooldownTicks = null)
+    {
+        _castTicks = castTicks;
+        _cooldownTicks = cooldownTicks ?? new Dictionary<string, int>();
+    }
 
     private int CastTicksOf(string ability) => _castTicks.TryGetValue(ability, out var c) ? c : 0;
 
@@ -60,10 +72,25 @@ internal sealed class EncounterCastLedger
     public void Started(int actor, string ability, int tick)
     {
         var c = CastTicksOf(ability);
-        if (c > 0)
+        if (c > 0 && OffCooldown(actor, ability, tick))
         {
             Add(actor, ability, tick, tick + c);
         }
+    }
+
+    // sim/combat/casting.ts startCast refuses a cast whose ability is not ready (cooldowns.ts chargesAvailable: every
+    // enemy ability has one charge, so ready once now >= its last start + cooldownTicks) BEFORE it consumes a charge, so
+    // a refused cast never starts, never holds its caster and never restarts the cooldown. The last start is the latest
+    // span of this ability that began before tick: an oracle completion, an interrupted start, or an accepted Started.
+    private bool OffCooldown(int actor, string ability, int tick)
+    {
+        if (!_cooldownTicks.TryGetValue(ability, out var cd) || cd <= 0)
+        {
+            return true;
+        }
+        var last = _spans.Where(s => s.Actor == actor && s.Ability == ability && s.Start < tick)
+            .Select(s => (int?)s.Start).DefaultIfEmpty(null).Max();
+        return last is not { } l || tick >= l + cd;
     }
 
     /// <summary>Records an oracle <c>interrupt</c> of <paramref name="actor"/>'s cast on <paramref name="tick"/>.</summary>
