@@ -101,10 +101,8 @@ export function applyBreakBarPatches(
  * every living damage-role player without a living-enemy target points at the current pull's first
  * living enemy. Mutates `state.actors` in place; safe to call every tick (already-resolved targets
  * are left alone) and at run creation. HOLDER-LOCK (STATE.md D30): lockHolders first (combat/holder.ts).
- * RETARGET-FIZZLE (R-RETARGET-1, f-f1ab879b; WoW): every write goes through targeting.ts setTarget, so a
- * cast whose start target died mid-cast stays pinned on that dead target and fizzles (cast_complete, no
- * effect) instead of hopping to the auto-picked next enemy; the new target is for the next press
- * (twin of RunWiring.cs FixupTargeting). */
+ * RETARGET-FIZZLE (R-RETARGET-1, f-f1ab879b; WoW): writes go through targeting.ts setTarget, so a cast whose
+ * start target died mid-cast fizzles instead of hopping (twin of RunWiring.cs FixupTargeting). */
 export function fixupTargeting(state: SimState): void {
   lockHolders(state);
   const tank = Object.values(state.actors).find((a) => a.kind === "player" && a.role === "tank");
