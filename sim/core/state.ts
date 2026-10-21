@@ -51,15 +51,34 @@ export interface ActorState {
   castId: string | null;
   castEndsTick: Tick | null;
   castStartTick: Tick | null;
+  /** CAST-KEEPS-START-TARGET (f-bd8fbbb1; twin of Keyrun.Sim ActorState.CastTargetId): the target the cast in flight
+   * started on, pinned by sim/combat/targeting.ts setTarget only when the actor retargets mid-cast; absent otherwise,
+   * so a run that never retargets mid-cast hashes exactly as before. Released when the cast completes, stops or is
+   * interrupted. Read through castTargetOf. */
+  castTargetId?: ActorId | null;
   cooldowns: Record<string, Tick>;
   gcdReadyTick: Tick;
   effects: EffectInstance[];
   threat: Record<ActorId, number>;
+  /** HOLDER-LOCK (STATE.md D30): the player an engaged enemy is locked onto; absent = not engaged, a player, or no
+   * living player. Set on engage to the nearest living player (sim/combat/holder.ts), moved only by a taunt, the
+   * holder's death (then the nearest living player) or a wipe. Not projected (game/sim/ORACLE.md section 1). */
+  holderId?: ActorId;
   /** Per-actor walk speed (mm/tick) for `move` commands; absent = RulesConfig.baseSpeedMmPerTick.
    * Set from content at spawn (sim/encounter/pulls.ts), never from a command. */
   speedMmPerTick?: number;
   /** Per-actor override of sim/encounter/chase.ts's CHASE_MARGIN_MM; absent = that constant. */
   chaseMarginMm?: number;
+  /** The one press held in the spell queue window (sim/combat/spell-queue.ts); absent when none. Players only. */
+  queuedCast?: QueuedPress;
+}
+
+/** A press held in the spell queue window: the cast command's ability, target and point, and the press tick. */
+export interface QueuedPress {
+  abilityId: string;
+  targetId?: ActorId;
+  point?: Vec3;
+  pressTick: Tick;
 }
 
 export interface SimState {

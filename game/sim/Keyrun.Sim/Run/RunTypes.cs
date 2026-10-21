@@ -19,6 +19,12 @@ public sealed record PartyMemberSpec(int Id, string ClassId, ActorRole Role, Vec
 {
     /// <summary>Spawn facing, 1/1024 turn; null = the createActor default 0 (index.ts:85).</summary>
     public int? Yaw { get; init; }
+
+    /// <summary>
+    /// The class's passive armor, bp (design/BIBLE.md section 3.1); CreateRun puts it on the actor. C#-only:
+    /// 0 (no armor) on every oracle run; a host builds it from content run.json <c>classArmorBp</c>.
+    /// </summary>
+    public long ArmorBp { get; init; }
 }
 
 /// <summary>
@@ -70,6 +76,42 @@ public sealed record RunContent
     /// </summary>
     public IReadOnlyDictionary<string, OverheatRule>? Overheat { get; init; }
 
+    /// <summary>
+    /// STUN-STOPS-CAST (BIBLE s9.3 "Stops as well as kicks"): the effect ids that stop a cast when they land on a caster
+    /// mid an interruptible cast (a stun, a freeze, a silence; a stun also stops an uninterruptible one, see
+    /// <see cref="StunEffectIds"/>), or null for none. Null on every oracle run (the frozen
+    /// TS has no stops); a host sets it.
+    /// </summary>
+    public IReadOnlyList<string>? StopEffectIds { get; init; }
+
+    /// <summary>
+    /// STUN-STOPS-EVERY-CAST (finding f-c63b43bf, ruling: defer to WoW): the members of <see cref="StopEffectIds"/> that
+    /// are stuns (a stun, a freeze). A stun that lands stops EVERY cast of a stunnable caster, the uninterruptible ones
+    /// included: "uninterruptible" means kick-immune, not stun-immune. The other stops (a silence) still stop only an
+    /// interruptible cast. Null or empty = no stop is a stun (every oracle run; a host sets it).
+    /// </summary>
+    public IReadOnlyList<string>? StunEffectIds { get; init; }
+
+    /// <summary>
+    /// STUN-STOPS-EVERY-CAST (f-c63b43bf): the actor class ids (an enemy's content id) immune to stuns, the boss's
+    /// separate flag (game/content/data/run.json <c>stunImmuneEnemies</c>). A stun that lands on one of them stops none
+    /// of its casts; a silence still stops its interruptible cast. Null or empty = every actor is stunnable.
+    /// </summary>
+    public IReadOnlyList<string>? StunImmuneClassIds { get; init; }
+
+    /// <summary>
+    /// The Pair's spread and stack mark rules (<see cref="PairMarks"/>), or null for none. Null on every oracle run; a
+    /// host builds it from content (game/content/data/run.json pairMarks).
+    /// </summary>
+    public MarkRules? Marks { get; init; }
+
+    /// <summary>
+    /// The frozen TS push-out (<see cref="RulesConfig.TsSymmetricPushOut"/>): true only on an oracle replay; false (the
+    /// default, every host run) keeps STATE.md D54, an enemy never displaces a player. Ignored when <see cref="Layout"/> is
+    /// set (<see cref="RunWiring.RulesConfigOf"/>): a layout run is never an oracle replay.
+    /// </summary>
+    public bool TsSymmetricPushOut { get; init; }
+
     /// <summary>Break-bar sources in their JS key order, or null for none (stepRun then drains none).</summary>
     public IReadOnlyList<BreakBarSource>? BreakBarSources { get; init; }
 
@@ -82,6 +124,14 @@ public sealed record RunContent
     /// run only when a host sets it (<see cref="RunRoot"/>).
     /// </summary>
     public NavLayout? Layout { get; init; }
+
+    /// <summary>
+    /// PATH-PACKS (BIBLE section 9.1; layout runs only): the layout's trash packs, each standing idle from tick 0
+    /// (<see cref="LayoutPacks.SpawnAllIdle"/>) and engaging whole by proximity or damage as one <see cref="Aggro.GroupsOf"/>
+    /// group with pull index -1. Their members' scripts ride in <see cref="EnemyScripts"/>.
+    /// Null or empty = no packs (every oracle run).
+    /// </summary>
+    public IReadOnlyList<PackGroup>? Packs { get; init; }
 
     /// <summary>
     /// This content with its movement fields taken from the host's validated <paramref name="movement"/>
@@ -145,7 +195,8 @@ public sealed record Run(SimState State, EncounterState Encounter, DungeonDef Du
 /// <param name="AbandonRequested">An explicit human quit: ends the run "abandoned" this tick.</param>
 /// <param name="OpenSeats">
 /// Actor ids of abandoned, unfilled seats (C#-only, STATE.md D27; <see cref="Backfill.Step"/> passes them): an open seat's
-/// idle actor does not hold a layout pull back. Null = none.
+/// idle actor never engages a layout group and is not in the run, so it never holds a dead party's run open
+/// (<see cref="RunWiring.IsWipe"/>, STATE.md D44). Null = none.
 /// </param>
 public sealed record StepRunOpts(bool AbandonRequested = false, IReadOnlyList<int>? OpenSeats = null);
 

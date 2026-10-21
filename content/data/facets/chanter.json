@@ -1,17 +1,5 @@
 [
   {
-    "id": "chanter.weapon.wideningCadence",
-    "slot": "weapon",
-    "abilityId": "chanter.cadence",
-    "text": "Cadence becomes a party-wide area instead of a single target.",
-    "patch": {
-      "shape": {
-        "kind": "circle",
-        "radius": 5000
-      }
-    }
-  },
-  {
     "id": "chanter.weapon.reachingRefrain",
     "slot": "weapon",
     "abilityId": "chanter.refrain",
@@ -21,6 +9,18 @@
       "tagAdd": [
         "ranged-cast"
       ]
+    }
+  },
+  {
+    "id": "chanter.weapon.wideningCadence",
+    "slot": "weapon",
+    "abilityId": "chanter.cadence",
+    "text": "Cadence becomes a party-wide area instead of a single target.",
+    "patch": {
+      "shape": {
+        "kind": "circle",
+        "radius": 5000
+      }
     }
   },
   {
@@ -224,18 +224,12 @@
     "id": "chanter.ring.overtureOfPower",
     "slot": "ring",
     "abilityId": "chanter.refrain",
-    "text": "Refrain also grants a burst of Verse.",
+    "text": "Refrain swaps verse off the GCD: the next ability follows it at once.",
     "patch": {
       "tagAdd": [
         "verse-surge"
       ],
-      "effectsAppend": [
-        {
-          "op": "resource",
-          "resource": "verse",
-          "delta": 1
-        }
-      ]
+      "gcdTicks": 0
     }
   },
   {

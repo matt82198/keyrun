@@ -57,7 +57,7 @@ public static class Chase
         foreach (var actorId in scripts.Keys.OrderBy(k => k))
         {
             var script = scripts[actorId];
-            if (!state.Actors.TryGetValue(actorId, out var actor) || script is null || !actor.Alive || actor.CastId is not null)
+            if (!state.Actors.TryGetValue(actorId, out var actor) || script is null || !actor.Alive || actor.Idle || actor.CastId is not null)
             {
                 continue;
             }
@@ -73,6 +73,13 @@ public static class Chase
             }
             if (ScriptTarget.RangeMm(actor, target) <= Math.Max(0, engage.Value - (actor.ChaseMarginMm ?? ChaseMarginMm)))
             {
+                // ENEMY-ENGAGE: in reach, the chaser still turns to face its target (a zero-direction move only
+                // turns), so a pack the tank walks into, or a target that sidesteps, is faced and not swung past.
+                var face = Fixed.YawBetween(actor.Pos, target.Pos);
+                if (face != actor.Yaw)
+                {
+                    output.Add(new MoveCommand(state.Tick, actorId, new Dir2(0, 0), face));
+                }
                 continue;
             }
             var delta = new Vec3(target.Pos.X - actor.Pos.X, 0, target.Pos.Z - actor.Pos.Z);

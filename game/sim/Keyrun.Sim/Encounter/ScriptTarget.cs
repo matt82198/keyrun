@@ -15,7 +15,9 @@ public sealed record ScriptTargetResult(int? TargetId, bool Blocked);
 /// caster's highest-threat living player, else the nearest living player. A self-shaped ability targets itself. With
 /// the ability known, candidates outside its range are excluded and a target-shaped cast with none left is blocked;
 /// a known circle/cone/line needs no target. Overrides: Self, Threat, Random (a PRNG draw derived from state without
-/// mutating it). Iteration is ascending by actor id, as JS integer-keyed objects iterate.
+/// mutating it). Iteration is ascending by actor id, as JS integer-keyed objects iterate. HOLDER-LOCK (STATE.md D30):
+/// a caster with a <see cref="ActorState.HolderId"/> skips the threat-then-nearest pick and goes at its holder
+/// (see <see cref="Keyrun.Sim.Combat.Holder"/>); threat-then-nearest remains only for a caster with no holder.
 /// </summary>
 public static class ScriptTarget
 {
@@ -36,7 +38,7 @@ public static class ScriptTarget
         state.Actors.Values.Where(a => a.Alive && a.Kind == ActorKind.Player).ToList();
 
     private static List<ActorState> LivingAllies(SimState state, int casterId) =>
-        state.Actors.Values.Where(a => a.Alive && a.Kind == ActorKind.Enemy && a.Id != casterId).ToList();
+        state.Actors.Values.Where(a => a.Alive && a.Kind == ActorKind.Enemy && !a.Idle && a.Id != casterId).ToList();
 
     // script-target.ts:77 nearestId: by range, then id (stable).
     private static int NearestId(ActorState caster, List<ActorState> candidates) =>
@@ -106,6 +108,24 @@ public static class ScriptTarget
 
         var pool = heal ? LivingAllies(state, caster.Id) : LivingPlayers(state);
         var candidates = pool.Where(a => InRange(caster, a, ability)).ToList();
+
+        // HOLDER-LOCK (STATE.md D30, Combat/Holder.cs): a hostile pick (default or Threat override; not a heal, not
+        // Random) goes at the locked holder only. A living holder out of range blocks the cast rather than switching
+        // to a player in range; a dead holder falls to the nearest living candidate, never the top threat.
+        if (!heal && targetOverride != ScriptTargetOverride.Random && caster.HolderId is { } holderId)
+        {
+            if (candidates.Any(a => a.Id == holderId))
+            {
+                return new ScriptTargetResult(holderId, false);
+            }
+            var holderLives = pool.Any(a => a.Id == holderId);
+            if (!holderLives && candidates.Count > 0)
+            {
+                return new ScriptTargetResult(NearestId(caster, candidates), false);
+            }
+            return ability is not null ? new ScriptTargetResult(null, true) : new ScriptTargetResult(null, false);
+        }
+
         if (candidates.Count > 0)
         {
             var picked = targetOverride == ScriptTargetOverride.Random

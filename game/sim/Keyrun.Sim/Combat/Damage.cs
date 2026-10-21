@@ -65,9 +65,20 @@ public static class Damage
             return new DamageResult(rawAmount, 0, 0, 0, false);
         }
         var pactAmount = weighting is null ? rawAmount : weighting(rawAmount);
-        var modifiedAmount = ApplyModifiers(pactAmount, sourceModBp, targetModBp);
+        var modifiedAmount = ApplyArmor(ApplyModifiers(pactAmount, sourceModBp, targetModBp), target.ArmorBp);
         return ResolveModified(tick, target, rawAmount, modifiedAmount, defs, emit, sourceId);
     }
+
+    /// <summary>
+    /// C#-only stage after <see cref="ApplyModifiers"/> (design/BIBLE.md section 3.1): the target keeps
+    /// <c>trunc(amount * (10000 - armorBp) / 10000)</c>. It multiplies with the summed damageTakenBp (Brace, Vigil,
+    /// Bulwark), so mitigation never stacks to immunity. 0 armor (every oracle run) returns the amount unchanged.
+    /// </summary>
+    /// <param name="amount">The amount after modifiers (non-negative).</param>
+    /// <param name="armorBp">The target's armor, bp in [0, 10000).</param>
+    /// <returns>The amount the target takes.</returns>
+    public static long ApplyArmor(long amount, long armorBp) =>
+        armorBp == 0 ? amount : Math.Max(0, IntMath.TruncDiv(amount * (Effects.BpDenom - armorBp), Effects.BpDenom));
 
     /// <summary>
     /// The post-modifier half of applyDamage, sim/combat/damage.ts:57-75, split out so oracle traces (which record
@@ -118,8 +129,26 @@ public static class Damage
         if (died)
         {
             emit(new SimEvent(tick, "death", ("actorId", JsValue.Int(target.Id)), ("sourceId", JsValue.Int(sourceId))));
+            EndCastOnDeath(target, emit, tick);
         }
         return new DamageResult(rawAmount, modifiedAmount, absorbed, healthDamage, died);
+    }
+
+    /// <summary>
+    /// DEATH-CANCELS-CAST (C#-only, finding f-42df9d4f; WoW: death cancels every cast in progress). Called on the tick an
+    /// actor's health reaches 0, by every death path (this pipeline, and the boss-death falls of Twins and Echo adds):
+    /// the dying actor's in-progress cast ends with the sim's existing <c>cast_stopped</c> event
+    /// (<see cref="Casting.Stopcast"/>), so no <c>cast_complete</c> ever fires for it and its damage or heal never lands.
+    /// A no-op when the actor is not casting. Casts a dead actor starts afterwards (the onDeath DEATH-CAST EXCEPTION) are
+    /// untouched: only the cast held at the moment of death ends.
+    /// </summary>
+    /// <param name="dead">The actor that just died (modified in place).</param>
+    /// <param name="emit">Event sink.</param>
+    /// <param name="tick">The death tick.</param>
+    public static void EndCastOnDeath(ActorState dead, Action<SimEvent> emit, int tick)
+    {
+        ArgumentNullException.ThrowIfNull(dead);
+        Casting.Stopcast(dead, emit, tick);
     }
 
     /// <summary>

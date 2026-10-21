@@ -11,6 +11,7 @@
 import type { LoopKind } from "@content/schema/class";
 import type { BotView } from "./types.js";
 import { getClassKit } from "./kits.js";
+import type { AbilityCharges } from "./kit-charges.js";
 import type { HealKit } from "./kit-heals.js";
 
 const NO_HEALS: HealKit = { selfHealAbilityId: null, groupHealAbilityId: null, groupHealRadiusMm: 0, targetHealAbilityId: null };
@@ -33,6 +34,10 @@ export interface EffectiveKit {
   resourceBuilderAbilityIds: string[];
   heals: HealKit;
   tauntAbilityId: string | null;
+  /** Slotted abilities whose own gcdTicks is 0 (off the GCD); absent or empty for a fallback kit. */
+  offGcdAbilityIds?: readonly string[];
+  /** Slotted abilities with more than one charge (BANKED-CHARGE, R-PILE-7c); absent or empty for a fallback kit. */
+  chargedAbilities?: Readonly<Record<string, AbilityCharges>>;
   loopKind: LoopKind | null;
   resource: string | null;
   resourceMax: number | null;
@@ -69,6 +74,8 @@ export function resolveKit(classId: string, fallback: BotView["classKit"]): Effe
       resourceMax: kit.resourceMax,
       heals: kit.heals,
       tauntAbilityId: kit.tauntAbilityId,
+      offGcdAbilityIds: kit.offGcdAbilityIds ?? [],
+      chargedAbilities: kit.chargedAbilities ?? {},
     };
   }
   return {

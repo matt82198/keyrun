@@ -32,4 +32,17 @@
     <ProjectReference Include="../../../tools/Keyrun.Replay/Keyrun.Replay.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      CINDER-OVERHEAT-HOST: the host's run setup is Godot-free (it only uses Keyrun.Sim, Keyrun.Content and
+      Keyrun.Bots.Shared), so it is compiled in here and tested as the game builds it (HostRunOverheatTests).
+    -->
+    <Compile Include="../../src/Host/HostRunSetup.cs" Link="Host/HostRunSetup.cs" />
+    <!--
+      f-e24b4fa4 (BIBLE s10 ready check on pop): the host's queue-pop gate is Godot-free (Keyrun.Sim's ReadyCheck only),
+      so it is compiled in here and driven as SimDriver drives it (QueuedRunGateTests).
+    -->
+    <Compile Include="../../src/Host/QueuedRunGate.cs" Link="Host/QueuedRunGate.cs" />
+  </ItemGroup>
+
 </Project>

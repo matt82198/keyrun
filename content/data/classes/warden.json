@@ -93,7 +93,7 @@
             "effects": [
               {
                 "op": "damage",
-                "amount": 160,
+                "amount": 190,
                 "school": "physical"
               },
               {
@@ -144,21 +144,28 @@
         {
           "id": "surge",
           "name": "Surge",
-          "text": "Adds a 2-second cooldown; grants far more Momentum.",
+          "text": "Adds a 1.5-second cooldown; hits harder, grants far more Momentum, and leaves Sundered on its target for an ally to close.",
           "patch": {
-            "cooldownTicks": 40,
+            "cooldownTicks": 30,
             "effects": [
               {
                 "op": "damage",
-                "amount": 100,
+                "amount": 150,
                 "school": "physical"
               },
               {
                 "op": "resource",
-                "delta": 30
+                "delta": 40
               },
               {
                 "op": "payoff"
+              },
+              {
+                "op": "window",
+                "windowId": "sundered",
+                "durationTicks": 60,
+                "onTarget": true,
+                "setupClass": "warden"
               }
             ]
           }
@@ -197,8 +204,9 @@
         {
           "id": "mobile",
           "name": "Mobile Ward",
-          "text": "Bulwark braces only you instead of every ally in the circle; the floor patch still plants.",
+          "text": "Instant cast; Bulwark braces only you instead of every ally in the circle; the floor patch still plants.",
           "patch": {
+            "castTicks": 0,
             "shape": {
               "kind": "self"
             },
@@ -287,7 +295,7 @@
               "resource": "momentum",
               "amount": 25
             },
-            "cooldownTicks": 60,
+            "cooldownTicks": 90,
             "effects": [
               {
                 "op": "applyEffect",

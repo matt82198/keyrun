@@ -15,11 +15,30 @@ namespace Keyrun.Bots;
 public sealed class KitRegistry
 {
     private readonly ContentRegistry? _registry;
-    private readonly Dictionary<string, ClassKit> _kitCache = new(StringComparer.Ordinal);
-    private readonly object _gate = new();
+    private readonly Dictionary<string, ClassKit> _kitCache;
+    private readonly object _gate;
+    private readonly KitRegistry? _root;
+    private readonly IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>? _runAbilities;
+    private readonly Dictionary<string, IReadOnlyList<string>> _runOffGcd = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyDictionary<string, AbilityCharges>> _runCharged = new(StringComparer.Ordinal);
     private IReadOnlyList<string>? _priorityInterruptIds;
+    private KitRegistry? _lastRun;
 
-    private KitRegistry(ContentRegistry? registry) => _registry = registry;
+    private KitRegistry(ContentRegistry? registry)
+    {
+        _registry = registry;
+        _kitCache = new(StringComparer.Ordinal);
+        _gate = new();
+    }
+
+    private KitRegistry(KitRegistry root, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef> runAbilities)
+    {
+        _registry = root._registry;
+        _kitCache = root._kitCache;
+        _gate = root._gate;
+        _root = root;
+        _runAbilities = runAbilities;
+    }
 
     /// <summary>No registry: every <see cref="GetClassKit"/> is null and the priority-cast list is empty.</summary>
     public static KitRegistry Empty { get; } = new(null);
@@ -33,8 +52,53 @@ public sealed class KitRegistry
         return new KitRegistry(registry);
     }
 
+    /// <summary>
+    /// This registry over a run's own ability map (RunContent.Abilities: content merged with each seat's loadout, the
+    /// Facet patches of GearLoadout included). Every kit is still content's, but its
+    /// <see cref="EffectiveKit.OffGcdAbilityIds"/> are judged by the run's defs, so a Facet that sets an ability's
+    /// gcdTicks to 0 is off the GCD for bot readiness exactly as it is for the sim (and one that raises it is not). An
+    /// id the run map lacks keeps content's answer. The last run map's registry is memoised (same reference, same
+    /// registry), and every derived registry shares this one's content kit cache.
+    /// </summary>
+    /// <param name="runAbilities">The run's abilities by id.</param>
+    /// <returns>The run-aware registry.</returns>
+    public KitRegistry ForRun(IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef> runAbilities)
+    {
+        ArgumentNullException.ThrowIfNull(runAbilities);
+        var root = _root ?? this;
+        lock (root._gate)
+        {
+            if (root._lastRun is { } last && ReferenceEquals(last._runAbilities, runAbilities))
+            {
+                return last;
+            }
+            var next = new KitRegistry(root, runAbilities);
+            root._lastRun = next;
+            return next;
+        }
+    }
+
     /// <summary>kit-registry.ts getContentRegistry: the content registry, or null for <see cref="Empty"/>.</summary>
     public ContentRegistry? Content => _registry;
+
+    /// <summary>
+    /// True when <paramref name="abilityId"/> is target-shaped as the run casts it: judged by the run's own def
+    /// (<see cref="ForRun"/>: loadout- and Facet-patched) when this registry is run-aware and the run map holds the id,
+    /// else by content's; false when neither has it. A Facet that turns a target-shaped ability into a circle
+    /// (chanter.weapon.wideningCadence, "Cadence becomes a party-wide area") makes it a circle to the bot as it is to the
+    /// sim, the same rule <see cref="ResolveKit"/> applies to off-GCD ids (f-80b5cf16).
+    /// </summary>
+    /// <param name="abilityId">Ability id.</param>
+    /// <returns>Whether the run's def is target-shaped.</returns>
+    public bool IsTargetShapedForRun(string abilityId)
+    {
+        ArgumentNullException.ThrowIfNull(abilityId);
+        if (_runAbilities is not null && _runAbilities.TryGetValue(abilityId, out var run))
+        {
+            return run.Shape.Kind == Keyrun.Sim.Combat.ShapeKind.Target;
+        }
+        return _registry is not null && _registry.Abilities.TryGetValue(abilityId, out var def) && def.Shape.Kind == ShapeKind.Target;
+    }
 
     /// <summary>
     /// kit-registry.ts getClassKit: the memoised ClassKit for <paramref name="classId"/>, or null when there is no
@@ -98,6 +162,76 @@ public sealed class KitRegistry
     {
         ArgumentNullException.ThrowIfNull(fallback);
         var kit = GetClassKit(classId);
-        return kit is not null ? EffectiveKit.FromClassKit(kit) : EffectiveKit.FromFallback(fallback);
+        if (kit is null)
+        {
+            return EffectiveKit.FromFallback(fallback);
+        }
+        var effective = EffectiveKit.FromClassKit(kit);
+        if (_runAbilities is null)
+        {
+            return effective;
+        }
+        effective = effective with { OffGcdAbilityIds = RunOffGcdIds(classId, kit), ChargedAbilities = RunChargedIds(classId, kit) };
+        return IsAllyShield(kit.SelfSustainAbilityId)
+            ? effective with { SelfSustainAbilityId = null, AllyShieldAbilityId = kit.SelfSustainAbilityId }
+            : effective;
+    }
+
+    /// <summary>The ability tag a talent puts on a self shield it turns into an ally shield (Warden's Vigil "ally").</summary>
+    public const string AllyShieldTag = "ally-shield";
+
+    /// <summary>
+    /// The run's own def of <paramref name="abilityId"/> (<see cref="ForRun"/>), or null with no run map or no such id.
+    /// </summary>
+    /// <param name="abilityId">Ability id.</param>
+    /// <returns>The run's def, or null.</returns>
+    public Keyrun.Sim.Combat.AbilityDef? RunAbility(string abilityId) =>
+        _runAbilities is not null && _runAbilities.TryGetValue(abilityId, out var def) ? def : null;
+
+    // ALLY-VIGIL: the run's def of the self-sustain spender is target-shaped and tagged ally-shield.
+    private bool IsAllyShield(string? abilityId) =>
+        abilityId is not null
+        && RunAbility(abilityId) is { } def
+        && def.Shape.Kind == Keyrun.Sim.Combat.ShapeKind.Target
+        && def.Tags is { } tags
+        && tags.Contains(AllyShieldTag, StringComparer.Ordinal);
+
+    // The kit's slotted off-GCD ids judged by the run's defs (ForRun); memoised per class.
+    private IReadOnlyList<string> RunOffGcdIds(string classId, ClassKit kit)
+    {
+        lock (_gate)
+        {
+            if (_runOffGcd.TryGetValue(classId, out var cached))
+            {
+                return cached;
+            }
+            var run = _runAbilities!;
+            var slots = _registry!.Classes[classId].Abilities;
+            var ids = Kits.OffGcdIds(slots, id =>
+                run.TryGetValue(id, out var def) ? def.GcdTicks <= 0 : kit.OffGcdAbilityIds.Contains(id, StringComparer.Ordinal));
+            _runOffGcd[classId] = ids;
+            return ids;
+        }
+    }
+
+    // BANKED-CHARGE (R-PILE-7c): the kit's slotted multi-charge abilities judged by the run's defs (ForRun), so a
+    // talent or Facet that adds a charge (Chorus "Encore", "Chorus grants an extra charge") is a second press for the
+    // bot as it is for the sim; an id the run map lacks keeps content's answer. Memoised per class.
+    private IReadOnlyDictionary<string, AbilityCharges> RunChargedIds(string classId, ClassKit kit)
+    {
+        lock (_gate)
+        {
+            if (_runCharged.TryGetValue(classId, out var cached))
+            {
+                return cached;
+            }
+            var run = _runAbilities!;
+            var slots = _registry!.Classes[classId].Abilities;
+            var map = Kits.ChargedIds(slots, id =>
+                run.TryGetValue(id, out var def) ? new AbilityCharges(def.Charges, def.CooldownTicks)
+                : kit.ChargedAbilities.TryGetValue(id, out var c) ? c : new AbilityCharges(1, 0));
+            _runCharged[classId] = map;
+            return map;
+        }
     }
 }

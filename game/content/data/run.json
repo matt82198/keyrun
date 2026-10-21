@@ -13,11 +13,23 @@
     "chillEffectId": "chill",
     "chillTicks": 60
   },
+  "pairMarks": {
+    "spreadEffectId": "spreadMarked",
+    "spreadRadiusMm": 3000,
+    "spreadDamage": 80,
+    "stackEffectId": "stackMarked",
+    "stackRadiusMm": 1500,
+    "stackDamage": 150
+  },
   "affixes": {
     "oneAffixKey": 5,
     "bothAffixKey": 10,
     "clauseStartKey": 5,
     "fortified": { "healthBp": 2000, "damageBp": 3000 },
     "tyrannical": { "healthBp": 2500, "damageBp": 1500 }
-  }
+  },
+  "classArmorBp": {
+    "warden": 3500
+  },
+  "stunImmuneEnemies": ["hollowWarden.boss"]
 }

@@ -154,6 +154,16 @@ public sealed class FloorCloud
 }
 
 /// <summary>
+/// A press held in the spell queue window (sim/core/state.ts QueuedPress): the cast command's ability, target and
+/// point, and the tick the key went down. Immutable, so an actor clone may share it.
+/// </summary>
+/// <param name="AbilityId">The pressed ability.</param>
+/// <param name="TargetId">The press's target, or null.</param>
+/// <param name="Point">The press's ground point, or null.</param>
+/// <param name="PressTick">The tick of the press.</param>
+public sealed record QueuedPress(string AbilityId, int? TargetId, Vec3? Point, int PressTick);
+
+/// <summary>
 /// One actor (sim/core/state.ts ActorState). Mutable: rules mutate the clone that <see cref="Tick.Step"/>
 /// hands them, exactly as the TS mutates its structuredClone.
 /// </summary>
@@ -210,6 +220,22 @@ public sealed class ActorState
     /// </summary>
     public bool CastIsOverheat { get; set; }
 
+    /// <summary>
+    /// CAST-KEEPS-START-TARGET (finding f-bd8fbbb1; sim/core/state.ts castTargetId): true while the cast in flight has
+    /// pinned the target it started on because the actor retargeted mid-cast (<see cref="Combat.Casting.SetTarget"/>).
+    /// Released when the cast completes (after its Windows), stops or is interrupted. Never projected into a trace.
+    /// </summary>
+    public bool CastTargetPinned { get; set; }
+
+    /// <summary>The pinned start target of the cast in flight (meaningful only while <see cref="CastTargetPinned"/>).</summary>
+    public int? CastTargetId { get; set; }
+
+    /// <summary>
+    /// The one press waiting in the spell queue window (Combat/SpellQueue.cs, sim/combat/spell-queue.ts), or null.
+    /// Players only; never projected into an oracle trace.
+    /// </summary>
+    public QueuedPress? QueuedCast { get; set; }
+
     /// <summary>Ability id to ready tick, in JS key order.</summary>
     public JsRecord<int> Cooldowns { get; set; } = new();
 
@@ -222,11 +248,25 @@ public sealed class ActorState
     /// <summary>Threat by actor id (JS integer keys iterate ascending, hence sorted).</summary>
     public SortedDictionary<int, long> Threat { get; set; } = new();
 
+    /// <summary>
+    /// HOLDER-LOCK (STATE.md D30): the player an engaged enemy is locked onto, or null (not engaged, a player, or no
+    /// living player). Set on engage to the nearest living player (Combat/Holder.cs), moved only by a taunt, the
+    /// holder's death (then the nearest living player) or a wipe. Not projected (ORACLE.md section 1).
+    /// </summary>
+    public int? HolderId { get; set; }
+
     /// <summary>Per-actor walk speed (mm/tick) for move commands; null = RulesConfig.baseSpeedMmPerTick.</summary>
     public long? SpeedMmPerTick { get; set; }
 
     /// <summary>Per-actor chase margin override; null = encounter/chase.ts CHASE_MARGIN_MM.</summary>
     public long? ChaseMarginMm { get; set; }
+
+    /// <summary>
+    /// PRESPAWN-AGGRO (C#-only; BIBLE section 9.1): true while the actor's group stands idle in formation, before it
+    /// engages. An idle enemy runs no script, casts nothing, never chases and is never auto-targeted; it can still be
+    /// hit, and taking damage engages its whole group. False for every actor of an oracle run.
+    /// </summary>
+    public bool Idle { get; set; }
 
     /// <summary>
     /// The wearer's summed gear damageDoneBp (BIBLE s7 "Tier is power"; Runs.GearPower). C#-only: 0 on every oracle run.
@@ -235,6 +275,13 @@ public sealed class ActorState
 
     /// <summary>The wearer's summed gear damageTakenBp (negative reduces damage taken). C#-only: 0 on every oracle run.</summary>
     public long GearDamageTakenBp { get; set; }
+
+    /// <summary>
+    /// The class's passive armor, bp of every incoming hit removed after all bp modifiers (design/BIBLE.md
+    /// section 3.1; Combat.Damage.ApplyArmor). Multiplicative, so it never stacks to immunity with Brace, Vigil or
+    /// Bulwark. C#-only: 0 on every oracle run.
+    /// </summary>
+    public long ArmorBp { get; set; }
 
     /// <summary>A deep copy (effects, cooldowns and threat are copied, not shared).</summary>
     public ActorState Clone()

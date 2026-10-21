@@ -66,6 +66,16 @@ public sealed class RunLog : IDisposable
         }
     }
 
+    /// <summary>Logs every group standing idle at run creation (<see cref="CombatNarrator.IdleGroupLines"/>).</summary>
+    /// <param name="run">The created run.</param>
+    public void IdleGroups(Keyrun.Sim.Runs.Run run)
+    {
+        foreach (var line in CombatNarrator.IdleGroupLines(run))
+        {
+            Line(line);
+        }
+    }
+
     /// <summary>Resets the per-run narration (chase and cast tracking) for a fresh run.</summary>
     /// <param name="initial">The run's initial state.</param>
     public void Begin(SimState initial) => _narrator.Reset(initial);
@@ -121,7 +131,7 @@ public sealed class RunLog : IDisposable
 /// <list type="bullet">
 /// <item><c>PULL spawn index=i id=p actors=id:class,...</c> when a pull spawns (pull_start, or createRun's pull 0).</item>
 /// <item><c>CHASE actor=id dist=a-&gt;b</c> the first step an enemy moves and ends nearer the Warden.</item>
-/// <item><c>CAST start actor=id ability=x name="N" ends=t</c> when an actor's cast begins (the sim carries it only as
+/// <item><c>CAST start actor=id ability=x name="N" ends=t target=id|none</c> when an actor's cast begins (the sim carries it only as
 /// state: CastId and CastEndsTick; it emits no cast_start event).</item>
 /// <item><c>CAST done actor=id ability=x name="N"</c> for each cast_complete event.</item>
 /// <item><c>CAST stopped actor=id ability=x name="N"</c> for each cast_stopped event and for a cast cleared by an
@@ -161,6 +171,43 @@ public sealed class CombatNarrator
         return FormattableString.Invariant($"PULL spawn index={pullIndex} id={pull.Id} actors={actors}");
     }
 
+    /// <summary>
+    /// PRESPAWN-AGGRO and PATH-PACKS (BIBLE section 9.1): on a layout run every group, each pull and each optional pack,
+    /// stands idle in the state from tick 0, but a pull's <c>PULL spawn</c> line comes only on its engage and a pack
+    /// has none (its <c>pack_engage</c> EVENT comes only if the party engages it). Without these lines nothing in the
+    /// log names the enemies of a group the party never engaged (a skipped pack), so a reader of the log could not
+    /// count the enemies the sim still holds. One <c>GROUP idle id=g pull=i actors=id:class,...</c> line per group not
+    /// engaged at creation (<see cref="Keyrun.Sim.Encounter.Aggro.GroupsOf"/> order; pull -1 is a pack), naming only
+    /// the actors the state holds. Empty on a non-layout run (pulls spawn on their pull_start there).
+    /// </summary>
+    /// <param name="run">The created run.</param>
+    /// <returns>The lines.</returns>
+    public static IReadOnlyList<string> IdleGroupLines(Keyrun.Sim.Runs.Run run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var lines = new List<string>();
+        if (run.Content.Layout is null)
+        {
+            return lines;
+        }
+        foreach (var g in Keyrun.Sim.Encounter.Aggro.GroupsOf(run.Dungeon, run.State.Tick, run.Content.Packs))
+        {
+            if (Keyrun.Sim.Encounter.Pulls.IsEngaged(run.Encounter, g.Id))
+            {
+                continue;
+            }
+            var present = g.ActorIds
+                .Where(id => run.State.Actors.ContainsKey(id))
+                .Select(id => FormattableString.Invariant($"{id}:{run.State.Actors[id].ClassId}"))
+                .ToList();
+            if (present.Count > 0)
+            {
+                lines.Add(FormattableString.Invariant($"GROUP idle id={g.Id} pull={g.PullIndex} actors={string.Join(",", present)}"));
+            }
+        }
+        return lines;
+    }
+
     /// <summary>The host lines for one step.</summary>
     /// <param name="before">The state before the step.</param>
     /// <param name="after">The state after the step.</param>
@@ -191,8 +238,9 @@ public sealed class CombatNarrator
                 }
                 var d0 = Casting.RangeMm(prev, w0);
                 var d1 = Casting.RangeMm(now, w1);
-                // The enemy itself moved (not only the Warden walking closer) and the gap shrank.
-                if (prev.Pos != now.Pos && d1 < d0 && Casting.RangeMm(now, w0) < d0)
+                // The enemy itself moved (not only the Warden walking closer) and the gap shrank. One rule with the
+                // --write-movie chase frame (MovieDirector.IsChase).
+                if (MovieDirector.IsChase(prev, now, w0, w1))
                 {
                     _chased.Add(id);
                     lines.Add(FormattableString.Invariant($"CHASE actor={id} class={now.ClassId} dist={d0}->{d1}"));
@@ -209,8 +257,11 @@ public sealed class CombatNarrator
             var prev = before.Actors.TryGetValue(id, out var p) ? p : null;
             if (prev?.CastId != castId || prev.CastStartTick != now.CastStartTick)
             {
+                // R-PILE-10 (HudSceneTest check 8): name the target the cast started on, so a log reader can prove no
+                // cast starts on a dead player (Casting.StartCast sets TargetId; a mid-cast retarget pins CastTargetId).
+                var target = now.CastTargetPinned ? now.CastTargetId : now.TargetId;
                 lines.Add(FormattableString.Invariant(
-                    $"CAST start actor={id} ability={castId} name=\"{Names.Ability(_registry, castId)}\" ends={now.CastEndsTick}"));
+                    $"CAST start actor={id} ability={castId} name=\"{Names.Ability(_registry, castId)}\" ends={now.CastEndsTick} target={(target is { } t ? t.ToString(System.Globalization.CultureInfo.InvariantCulture) : "none")}"));
             }
         }
 

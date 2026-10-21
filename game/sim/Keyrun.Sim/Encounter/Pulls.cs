@@ -12,6 +12,106 @@ namespace Keyrun.Sim.Encounter;
 /// </summary>
 public static class Pulls
 {
+    /// <summary>A group's aggro radius when content sets none, mm (BIBLE section 9.1: 4000).</summary>
+    public const long DefaultAggroMm = 4000;
+
+    /// <summary>
+    /// PRESPAWN-AGGRO: the centre of <paramref name="pull"/>'s aggro ring, <see cref="PullDef.AggroCenter"/> or the
+    /// integer mean (truncated toward zero) of its spawn points; the origin for a pull with no spawns.
+    /// </summary>
+    public static Vec3 RingCenter(PullDef pull)
+    {
+        ArgumentNullException.ThrowIfNull(pull);
+        return pull.AggroCenter ?? MeanOf(pull.Spawns);
+    }
+
+    /// <summary>The integer mean of <paramref name="spawns"/>' points (truncated toward zero), or the origin when empty.</summary>
+    public static Vec3 MeanOf(IReadOnlyList<PullSpawn> spawns)
+    {
+        ArgumentNullException.ThrowIfNull(spawns);
+        if (spawns.Count == 0)
+        {
+            return Vec3.Zero;
+        }
+        long x = 0, y = 0, z = 0;
+        foreach (var s in spawns)
+        {
+            x += s.Pos.X;
+            y += s.Pos.Y;
+            z += s.Pos.Z;
+        }
+        return new Vec3(x / spawns.Count, y / spawns.Count, z / spawns.Count);
+    }
+
+    /// <summary>
+    /// PRESPAWN-AGGRO (BIBLE section 9.1): every pull's actors, idle (<see cref="ActorState.Idle"/>) at their spawn
+    /// points, the boss pull included. Emits nothing: a group's <c>pull_start</c> comes on its engage tick.
+    /// <para>
+    /// A stack (k of a pull's spawns on one x and z, a content <c>count</c>) is placed as one row along x centred on that
+    /// point, neighbours <c>2 * actorRadiusMm</c> apart, so no two bodies overlap. Push-out never shoves an idle body
+    /// (Rules), so without this the stack would stand on one point until its engage and reach the party as one block.
+    /// This is placement, once, before tick 0: nothing moves, nothing is logged, and the ring centre still comes from the
+    /// content points (<see cref="RingCenter"/>). Integers in spawn order: deterministic.
+    /// </para>
+    /// </summary>
+    /// <param name="dungeon">The (layout-placed) dungeon.</param>
+    /// <param name="actorRadiusMm">The run's actor radius (<c>RunContent.ActorRadiusMm</c>); 0 or less leaves stacks as authored.</param>
+    public static IReadOnlyList<ActorState> SpawnAllIdle(DungeonDef dungeon, long actorRadiusMm)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        var actors = new List<ActorState>();
+        foreach (var pull in dungeon.Pulls)
+        {
+            foreach (var spawn in pull.Spawns)
+            {
+                var actor = SpawnActor(spawn);
+                actor.Idle = true;
+                actor.Pos = RowSlot(pull.Spawns, spawn, actorRadiusMm);
+                actors.Add(actor);
+            }
+        }
+        return actors;
+    }
+
+    // Where `spawn` stands in its stack's row: slot i of k at x + (2i - (k - 1)) * r, so neighbours stand exactly 2r
+    // apart (the push-out distance) and the row is centred on the content point. A lone body stays on its point.
+    private static Vec3 RowSlot(IReadOnlyList<PullSpawn> spawns, PullSpawn spawn, long radiusMm)
+    {
+        var k = 0;
+        var i = 0;
+        foreach (var s in spawns)
+        {
+            if (s.Pos.X != spawn.Pos.X || s.Pos.Z != spawn.Pos.Z)
+            {
+                continue;
+            }
+            if (s.ActorId == spawn.ActorId)
+            {
+                i = k;
+            }
+            k++;
+        }
+        if (k <= 1 || radiusMm <= 0)
+        {
+            return spawn.Pos;
+        }
+        return spawn.Pos with { X = spawn.Pos.X + (((2L * i) - (k - 1)) * radiusMm) };
+    }
+
+    /// <summary>True once group <paramref name="groupId"/> (a pull or pack id) has engaged.</summary>
+    public static bool IsEngaged(EncounterState encounter, string groupId)
+    {
+        ArgumentNullException.ThrowIfNull(encounter);
+        return encounter.Engaged.Contains(groupId, StringComparer.Ordinal);
+    }
+
+    /// <summary>True once pull <paramref name="pullIndex"/> has engaged; false for an out-of-range index.</summary>
+    public static bool IsEngaged(EncounterState encounter, DungeonDef dungeon, int pullIndex)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        return pullIndex >= 0 && pullIndex < dungeon.Pulls.Count && IsEngaged(encounter, dungeon.Pulls[pullIndex].Id);
+    }
+
     // pulls.ts:38 spawnActor: an untargeted enemy at full health, role none, no resource, tuning copied only when set.
     private static ActorState SpawnActor(PullSpawn spawn) => new()
     {
@@ -79,7 +179,9 @@ public static class Pulls
 
     /// <summary>
     /// True once pull <paramref name="pullIndex"/> has spawned: any of its spawn actor ids is in the state (actors are
-    /// never removed, so a spawned pull stays spawned). An out-of-range index or an empty pull is never spawned.
+    /// never removed, so a spawned pull stays spawned). An out-of-range index or an empty pull is never spawned. On a
+    /// layout run every pull is spawned, idle, from tick 0 (PRESPAWN-AGGRO): ask <see cref="IsEngaged(EncounterState, DungeonDef, int)"/>
+    /// whether its fight has started.
     /// </summary>
     public static bool IsSpawned(SimState state, DungeonDef dungeon, int pullIndex)
     {
@@ -99,12 +201,13 @@ public static class Pulls
 /// <param name="Id">Box id; a room's id is what <c>room_enter</c> names.</param>
 /// <param name="Box">The box, mm.</param>
 /// <param name="IsRoom">True for a room (entering it emits <c>room_enter</c>), false for a corridor.</param>
-/// <param name="GatePullId">The pull whose clear opens this box (forward-only), or null = always open.</param>
+/// <param name="GatePullId">The pull whose clear opens this box, or null = always open. The shipped layout gates no box
+/// (PATH-TO-BOSS, STATE.md D44: one open path to the boss); the rule stays for a layout that asks for it.</param>
 public sealed record NavBox(string Id, Combat.Bounds Box, bool IsRoom, string? GatePullId);
 
 /// <summary>
-/// A pull's room-entry trigger. Since STATE.md D27 it names the pull's room (the room box holding <paramref name="Box"/>,
-/// <see cref="NavLayout.RoomFor"/>); the pull spawns the first tick every living party member stands in that room box.
+/// A pull's trigger box. It names the pull's room (the room box holding <paramref name="Box"/>, <see cref="NavLayout.RoomFor"/>);
+/// since PRESPAWN-AGGRO the pull engages on its aggro ring, not on this box, and since STATE.md D44 no gate shuts on it.
 /// </summary>
 /// <param name="PullId">The pull id.</param>
 /// <param name="Box">The trigger box, mm.</param>
@@ -113,8 +216,8 @@ public sealed record NavTrigger(string PullId, Combat.Bounds Box);
 /// <summary>
 /// The rooms-and-corridors layout a host arms a run with (<see cref="Runs.RunContent.Layout"/>; STATE.md D18,
 /// design/ART-PLAN.md section 3). New behaviour with no TS oracle: a run without a layout (every oracle run) never reads
-/// it. Walkable space is the open boxes; a pull spawns on room entry, never on the previous clear; a gated box opens
-/// when its pull clears.
+/// it. Walkable space is the open boxes (a gated box, which the shipped layout no longer has, opens when its pull
+/// clears); every pull stands idle from tick 0 and engages on its aggro ring (PRESPAWN-AGGRO), never on the previous clear.
 /// </summary>
 public sealed record NavLayout
 {
@@ -178,25 +281,6 @@ public sealed record NavLayout
             b.Box.MinX <= t.MinX && t.MaxX <= b.Box.MaxX && b.Box.MinZ <= t.MinZ && t.MaxZ <= b.Box.MaxZ);
     }
 
-    /// <summary>
-    /// The closed entry gate of <paramref name="room"/> (STATE.md D27; integers, no randomness): an actor that stood
-    /// inside the room box before the move stays inside it (its move is clamped to the room edge), an actor that stood
-    /// outside cannot step into it (its move is refused, it stays at <paramref name="pre"/>); any other move is kept.
-    /// </summary>
-    /// <param name="room">The locked room box.</param>
-    /// <param name="pre">The actor's position before the move.</param>
-    /// <param name="post">The position the move reached (already walkable-clamped).</param>
-    /// <returns>The gated position.</returns>
-    public static Vec3 GateClamp(Combat.Bounds room, Vec3 pre, Vec3 post)
-    {
-        var wasIn = Combat.Movement.Contains(room, pre);
-        var isIn = Combat.Movement.Contains(room, post);
-        if (wasIn && !isIn)
-        {
-            return Combat.Movement.ClampPoint(post, room);
-        }
-        return !wasIn && isIn ? pre : post;
-    }
 
     /// <summary>The highest-index box holding <paramref name="p"/> (open or not), or -1 when none does.</summary>
     public int BoxIndexAt(Vec3 p)

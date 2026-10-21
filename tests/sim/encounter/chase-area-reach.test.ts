@@ -50,7 +50,10 @@ function stateWith(actors: ActorState[]): SimState {
 function movesAt(distance: number, script: EnemyScript): number {
   const enemy = createActor({ id: 7, kind: "enemy", classId: "x", role: "none", pos: { x: 0, y: 0, z: 0 }, maxHealth: 1, maxResource: 0 });
   const player = createActor({ id: 1, kind: "player", classId: "w", role: "tank", pos: { x: 0, y: 0, z: distance }, maxHealth: 1, maxResource: 0 });
-  return chaseCommands(stateWith([enemy, player]), { 7: script }, ABILITIES).length;
+  // Counts CHASE steps only (chase-tuning.test.ts's rule): since ENEMY-ENGAGE a chaser in reach still emits a
+  // zero-direction move that only turns it to face its target, and that is not a step toward it.
+  return chaseCommands(stateWith([enemy, player]), { 7: script }, ABILITIES)
+    .filter((c) => c.kind === "move" && (c.dir.x !== 0 || c.dir.z !== 0)).length;
 }
 
 describe("chase.ts: a caster-centred damage area counts toward engage range", () => {

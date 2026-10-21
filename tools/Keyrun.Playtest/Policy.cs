@@ -41,6 +41,14 @@ public sealed record Policy
     /// <summary>Class id to the health percent (1-99) at or under which that seat presses its defensive (E).</summary>
     public IReadOnlyDictionary<string, int> Defensive { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Class ids that mitigate the way the scripted party's tank does (STATE.md D48): the seat presses its defensive (E)
+    /// and its group mitigation when its role's script would (under pack pressure, or under the role's health floor),
+    /// instead of only under a <see cref="Defensive"/> threshold. Left out, a seat never presses E by its script, so the
+    /// script's pressure branch never reaches the group mitigation behind it either.
+    /// </summary>
+    public IReadOnlyList<string> Mitigate { get; init; } = Array.Empty<string>();
+
     /// <summary>Class ids allowed to press their utility (R: taunt, dispel) when their script would.</summary>
     public IReadOnlyList<string> Utility { get; init; } = Array.Empty<string>();
 
@@ -77,7 +85,7 @@ public static class PolicyReader
 {
     private static readonly HashSet<string> TopLevel = new(StringComparer.Ordinal)
     {
-        "reason", "talents", "kicks", "dodge", "defensive", "utility", "hold", "focus", "pull",
+        "reason", "talents", "kicks", "dodge", "defensive", "mitigate", "utility", "hold", "focus", "pull",
     };
 
     /// <summary>Every top-level field a policy file may hold, sorted (the guide documents each one).</summary>
@@ -128,6 +136,7 @@ public static class PolicyReader
                 Talents = root.TryGetProperty("talents", out var t) ? Talents(t, registry) : new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal),
                 Kicks = root.TryGetProperty("kicks", out var k) ? Kicks(k, registry) : Array.Empty<KickRule>(),
                 Defensive = root.TryGetProperty("defensive", out var d) ? Defensive(d, registry) : new Dictionary<string, int>(StringComparer.Ordinal),
+                Mitigate = root.TryGetProperty("mitigate", out var m) ? ClassList(m, "mitigate", registry) : Array.Empty<string>(),
                 Utility = root.TryGetProperty("utility", out var u) ? ClassList(u, "utility", registry) : Array.Empty<string>(),
                 Hold = root.TryGetProperty("hold", out var h) ? Hold(h, registry) : new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal),
                 Focus = root.TryGetProperty("focus", out var f) ? Focus(f, registry) : Array.Empty<string>(),

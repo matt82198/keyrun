@@ -25,7 +25,9 @@ public sealed class PolicyContext
 /// kick ledger is switched off.</item>
 /// <item>Dodging: telegraphs and floor patches only when <see cref="Policy.DodgeTelegraphs"/> /
 /// <see cref="Policy.DodgeFloor"/> say so, after a reaction delay.</item>
-/// <item>Defensive (E): only under the policy's health threshold. Utility (R): only for listed classes.</item>
+/// <item>Defensive (E): under the policy's health threshold, or, for a <see cref="Policy.Mitigate"/> class, whenever its
+/// script would (the scripted tank's pressure rule, which then also reaches its group mitigation). Utility (R): only for
+/// listed classes.</item>
 /// <item>Targets: damage dealers attack their target (else the tank's), or the policy's focus list first.</item>
 /// <item>Holds: an ability held for other pulls is never pressed in this one.</item>
 /// </list>
@@ -42,6 +44,7 @@ public sealed class PolicyBot : IBot
     private int _nextActionTick;
     private int? _dodgeAt;
     private int? _defensiveAt;
+    private bool _walking;
     private readonly Dictionary<(int EnemyId, int CastStart), int> _kickAt = new();
 
     /// <summary>Creates the seat.</summary>
@@ -103,7 +106,7 @@ public sealed class PolicyBot : IBot
 
         // 2. Travel between rooms, as the scripted runner does (walking the route is not a skill the plan names).
         var follow = LastDodge is null ? Follow.FollowCommand(view, self) : null;
-        var travelling = follow is not null || (LastDodge is null && Follow.ShutRoom(view, self) is not null);
+        var travelling = follow is not null;
         if (follow is not null)
         {
             commands.Add(follow);
@@ -133,11 +136,16 @@ public sealed class PolicyBot : IBot
             return new BotDecision(commands, memory, prng);
         }
 
-        // 5. The rotation, pressed with human hands.
+        // 5. The rotation, pressed with human hands. A walk the seat already decided on is held, not re-pressed.
         if (tick < _nextActionTick)
         {
+            if (_walking)
+            {
+                commands.AddRange(HeldWalk(view, self, kit, travelling));
+            }
             return new BotDecision(commands, memory, prng);
         }
+        _walking = false;
         _nextActionTick = tick + _hands.React();
         if (_hands.Roll(Hands.MissPermille))
         {
@@ -151,7 +159,7 @@ public sealed class PolicyBot : IBot
         var inFloor = Floor.FloorEscapeCommand(view, self) is not null;
         var kept = new List<Command>();
         var droppedCast = false;
-        foreach (var c in role.Decide(view, self))
+        foreach (var c in DecideOffLedger(role, view, self, kit))
         {
             switch (c)
             {
@@ -173,16 +181,68 @@ public sealed class PolicyBot : IBot
         {
             kept.Add(fallback);
         }
-        if (self.Id != _tankId && desired is { } want && self.TargetId != want && !kept.Any(c => c is TargetCommand))
+        // POLICY-HEALER-KEEPS-TARGET (R-326-B): the assist target is the damage dealers'. Turning the healer to it
+        // re-aimed a Cadence under way on the tank onto the enemy (seed 1 key 2 kick plan, every Choir-pull Cadence).
+        if (self.Id != _tankId && self.Role != ActorRole.Healer && desired is { } want && self.TargetId != want && !kept.Any(c => c is TargetCommand))
         {
             kept.Insert(0, new TargetCommand(tick, self.Id, want));
         }
+        _walking = kept.Any(c => c is MoveCommand) && !kept.Any(c => c is CastCommand);
         commands.AddRange(kept);
         return new BotDecision(commands, memory, prng);
     }
 
+    /// <summary>
+    /// POLICY-WALK-HELD (R-326-B): between reactions, the step of a walk this seat already decided on. A MoveCommand
+    /// is one tick of movement, so asking the role only on reaction ticks made a walk one step per 6-13 ticks: at seed 1
+    /// key 2 (kick plan) the healer's six-step walk into Hymn's pool took 41 ticks and the tank died waiting for the heal.
+    /// In WoW a player holds the key. The role is asked again so the walk follows the target and stops when the role
+    /// stops asking for it (in range, or a press now wanted); the press itself still waits for the next reaction.
+    /// </summary>
+    private IReadOnlyList<Command> HeldWalk(BotView view, ActorState self, Keyrun.Bots.EffectiveKit kit, bool travelling)
+    {
+        if (travelling || RoleSet.Default.For(self.Role) is not { } role)
+        {
+            _walking = false;
+            return Array.Empty<Command>();
+        }
+        var decided = DecideOffLedger(role, view, self, kit);
+        var inFloor = Floor.FloorEscapeCommand(view, self) is not null;
+        if (decided.Any(c => c is CastCommand) || (inFloor && !_policy.DodgeFloor))
+        {
+            _walking = false;
+            return Array.Empty<Command>();
+        }
+        var steps = decided.OfType<MoveCommand>().ToList();
+        _walking = steps.Count > 0;
+        return steps;
+    }
+
     private static bool IsEnemy(BotView view, int id) =>
         view.State.Actors.TryGetValue(id, out var a) && a.Kind == ActorKind.Enemy;
+
+    /// <summary>
+    /// MITIGATE-THROUGH-LEDGER: the scripted role's decision with the scripted kick ledger switched off for this seat (its
+    /// kicks come from the plan only). Every role decides the ledger's kick first and returns it alone, so dropping that
+    /// kick afterwards also dropped everything the role would have pressed instead: a mitigating tank skipped Bulwark
+    /// and the healer stood idle while the boss cast its cleave (seed 1 key 2, 5480-5515), and the cleave killed the
+    /// Chanter. In WoW a player who is not on kicks still heals and presses their defensive. When the role hands this
+    /// seat the ledger kick, it decides again on a copy of the view where the seat's interrupt is not ready, which is
+    /// exactly what makes the ledger pass it over.
+    /// </summary>
+    private static IReadOnlyList<Command> DecideOffLedger(IRole role, BotView view, ActorState self, Keyrun.Bots.EffectiveKit kit)
+    {
+        var decided = role.Decide(view, self);
+        var interrupt = kit.InterruptAbilityId;
+        if (string.IsNullOrEmpty(interrupt) || !decided.Any(c => c is CastCommand k && string.Equals(k.AbilityId, interrupt, StringComparison.Ordinal)))
+        {
+            return decided;
+        }
+        var state = view.State.Clone();
+        var copy = state.Actors[self.Id];
+        copy.Cooldowns[interrupt] = Math.Max(Readiness.CooldownReadyTick(copy, interrupt), state.Tick + 1);
+        return role.Decide(view with { State = state }, copy);
+    }
 
     // bot.ts dangerAvoidCommand, gated by the plan.
     private static MoveCommand? DangerAvoid(BotView view, ActorState self)
@@ -204,7 +264,12 @@ public sealed class PolicyBot : IBot
     private bool Allowed(CastCommand cast, ActorState self, Keyrun.Bots.EffectiveKit kit, BotView view, int? desired)
     {
         var id = cast.AbilityId;
-        if (string.Equals(id, kit.InterruptAbilityId, StringComparison.Ordinal) || string.Equals(id, kit.DefensiveAbilityId, StringComparison.Ordinal))
+        if (string.Equals(id, kit.InterruptAbilityId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+        // STATE.md D48: a mitigating seat presses E when its script would; any other seat only by its plan threshold.
+        if (string.Equals(id, kit.DefensiveAbilityId, StringComparison.Ordinal) && !_policy.Mitigate.Contains(self.ClassId, StringComparer.Ordinal))
         {
             return false;
         }
@@ -272,8 +337,9 @@ public sealed class PolicyBot : IBot
             {
                 continue;
             }
-            var interrupt = view.Kits.ResolveKit(seat.ClassId, view.ClassKit).InterruptAbilityId;
-            if (string.IsNullOrEmpty(interrupt) || !Readiness.AbilityReady(seat, interrupt, tick))
+            var seatKit = view.Kits.ResolveKit(seat.ClassId, view.ClassKit);
+            var interrupt = seatKit.InterruptAbilityId;
+            if (string.IsNullOrEmpty(interrupt) || !Readiness.AbilityReady(seat, interrupt, tick, seatKit))
             {
                 continue;
             }
@@ -334,7 +400,7 @@ public sealed class PolicyBot : IBot
     {
         var defensive = kit.DefensiveAbilityId;
         if (string.IsNullOrEmpty(defensive) || !_policy.Defensive.TryGetValue(self.ClassId, out var pct) ||
-            self.MaxHealth <= 0 || self.Health * 100 > pct * self.MaxHealth || !Readiness.AbilityReady(self, defensive, tick))
+            self.MaxHealth <= 0 || self.Health * 100 > pct * self.MaxHealth || !Readiness.AbilityReady(self, defensive, tick, kit))
         {
             _defensiveAt = null;
             return null;

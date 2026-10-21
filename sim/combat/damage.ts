@@ -25,6 +25,7 @@ import type { EffectDef } from "./effects";
 import { absorbPool, consumeAbsorb, BP_DENOM } from "./effects";
 import { applyPactDamageBp } from "../encounter/clauses";
 import { getActiveEncounterRules, isComboActive } from "./clause-hooks";
+import { stopcast } from "./casting";
 
 export function applyModifiers(base: number, sourceModBp: number, targetModBp: number): number {
   const afterSource = Math.trunc((base * (BP_DENOM + sourceModBp)) / BP_DENOM);
@@ -71,7 +72,12 @@ export function applyDamage(
     absorbed,
     healthDamage,
   });
-  if (died) emit({ tick: state.tick, type: "death", actorId: target.id, sourceId });
+  if (died) {
+    emit({ tick: state.tick, type: "death", actorId: target.id, sourceId });
+    // DEATH-CANCELS-CAST (R-DEADCAST-1, f-42df9d4f; WoW): the cast held at death ends now with cast_stopped, so it
+    // never completes. A cast started after death (rules.ts DEATH-CAST EXCEPTION) is untouched. Damage.EndCastOnDeath.
+    stopcast(target, emit, state.tick);
+  }
   return { rawAmount, modifiedAmount, absorbed, healthDamage, died };
 }
 

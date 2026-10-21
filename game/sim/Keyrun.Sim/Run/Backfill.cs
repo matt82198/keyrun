@@ -53,7 +53,7 @@ public sealed record BackfillStep(
 /// <list type="bullet">
 /// <item><see cref="Abandon"/> records the seat; the run is not touched (no death, so no Slack spend).</item>
 /// <item><see cref="Step"/> wraps <see cref="RunRoot.StepRun"/>: an open seat's commands are dropped, and at the
-/// first <c>pull_start</c> after the abandon the seat goes to the first admitted queue request, whose commands run
+/// first <c>pull_start</c> or <c>pack_engage</c> after the abandon the seat goes to the first admitted queue request, whose commands run
 /// from the pull start tick on.</item>
 /// <item><see cref="Admits"/> is the key band (BIBLE s2 "The queue matches on key level only"): exact key equality
 /// inside <see cref="ScreenState.MinKey"/>..<see cref="ScreenState.MaxKey"/>.</item>
@@ -146,8 +146,9 @@ public static class Backfill
         var stepped = RunRoot.StepRun(run, applied, stepOpts);
         var next = stepped.Run;
         // A pull starts on its pull_start event. On the flat arena that is the step the index advances; on a layout run
-        // (STATE.md D18) the index advances on the clear and the next pull starts later, on room entry.
-        var started = stepped.Events.FirstOrDefault(e => e.Type == "pull_start");
+        // (STATE.md D18) the index advances on the clear and the next pull starts later, on room entry. BIBLE s10 (BIBLE.md
+        // :361, :501-503): the next pull start is "a teaching pull or a pack engage", so a path pack's pack_engage is one.
+        var started = stepped.Events.FirstOrDefault(e => e.Type is "pull_start" or "pack_engage");
         if (state.Open.Count == 0 || started is null || next.RunEnd.Result is not null)
         {
             return new BackfillStep(stepped, state, applied, Array.Empty<SeatFill>(), Array.Empty<int>());
@@ -173,7 +174,43 @@ public static class Backfill
         }
         consumed.Sort();
         var book = new BackfillState(open, state.Filled.Concat(fills).ToList());
-        return new BackfillStep(stepped, book, applied, fills, consumed);
+        var arrived = stepped with { Run = next with { State = Arrive(next.State, state.Open, fills) } };
+        return new BackfillStep(arrived, book, applied, fills, consumed);
+    }
+
+    /// <summary>
+    /// BIBLE s9.1 and s10: "a joiner arrives at the next pull start ... inside the party's taken branch". Each filled
+    /// seat's actor is placed on the living party member who stayed (never an open or just-filled seat) nearest to where
+    /// the leaver stood (squared XZ distance, lowest id on a tie): the rear of the party on the route it took, so the
+    /// joiner starts the pull with the party instead of where the leaver idled. With nobody left standing it stays put.
+    /// </summary>
+    private static SimState Arrive(SimState state, IReadOnlyList<SeatAbandon> wasOpen, IReadOnlyList<SeatFill> fills)
+    {
+        var moved = new List<ActorState>();
+        foreach (var fill in fills)
+        {
+            var seat = state.Actors[fill.ActorId];
+            var anchor = state.Actors.Values
+                .Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != seat.Id && !wasOpen.Any(s => s.ActorId == a.Id))
+                .OrderBy(a => DistSq(a.Pos, seat.Pos))
+                .ThenBy(a => a.Id)
+                .FirstOrDefault();
+            if (anchor is null)
+            {
+                continue;
+            }
+            var placed = seat.Clone();
+            placed.Pos = anchor.Pos;
+            moved.Add(placed);
+        }
+        return RunWiring.MergeActors(state, moved);
+    }
+
+    private static long DistSq(Vec3 a, Vec3 b)
+    {
+        var dx = a.X - b.X;
+        var dz = a.Z - b.Z;
+        return (dx * dx) + (dz * dz);
     }
 
     private static int PickJoiner(int runKeyLevel, IReadOnlyList<QueueRequest> queue, IReadOnlyList<int> taken)

@@ -40,5 +40,8 @@
     "modifiers": {}, "dispellableTag": null },
   { "id": "consecrateHeal", "name": "Consecrate", "maxStacks": 1,
     "periodic": { "everyTicks": 20, "op": { "op": "heal", "amount": 40 } },
+    "modifiers": {}, "dispellableTag": null },
+  { "id": "chorusEcho", "name": "Encore (Echo)", "maxStacks": 1,
+    "periodic": { "everyTicks": 50, "op": { "op": "heal", "amount": 60 } },
     "modifiers": {}, "dispellableTag": null }
 ]

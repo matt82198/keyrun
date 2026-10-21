@@ -104,9 +104,32 @@ export function inLine(caster: ActorState, length: number, radiusMm: number, act
 }
 
 /**
+ * CAST-KEEPS-START-TARGET (f-bd8fbbb1; twin of Casting.cs SetTarget): a "target" command mid-cast first pins the cast's
+ * start target (castTargetId, written only on a real change, so state keys are unchanged otherwise); the new target is
+ * for the next press. run-wiring.ts fixupTargeting (the sim's dead-target auto-retarget) deliberately does not pin.
+ */
+export function setTarget(actor: ActorState, targetId: ActorId | null): void {
+  if (actor.castId !== null && actor.castTargetId === undefined && targetId !== actor.targetId) {
+    actor.castTargetId = actor.targetId;
+  }
+  actor.targetId = targetId;
+}
+
+/** The target the cast in flight resolves on: its pinned start target, else the current target. */
+export function castTargetOf(actor: ActorState): ActorId | null {
+  return actor.castTargetId !== undefined ? actor.castTargetId : actor.targetId;
+}
+
+/** Drops the pin once the cast is over (completed with its Windows, stopped, interrupted, or replaced). */
+export function releaseCastTarget(actor: ActorState): void {
+  delete actor.castTargetId;
+}
+
+/**
  * Resolves an ability's shape (self/target/circle/cone/line) against `state` to the concrete
  * ActorState list it applies to. "target" reads `actor.targetId` (set by startCast from its
- * explicit targetId argument, or left over from a prior cast/tab-target). Shared by casting.ts's
+ * explicit targetId argument, or left over from a prior cast/tab-target) through castTargetOf, so a
+ * mid-cast retarget never moves the cast in flight (CAST-KEEPS-START-TARGET). Shared by casting.ts's
  * completeCast (an ability's own effects) and windows.ts's applyWindowsAndCombos (Window/Payoff
  * ops on that same ability) so both resolve identical target sets for the same input.
  *
@@ -128,7 +151,8 @@ export function inLine(caster: ActorState, length: number, radiusMm: number, act
 export function resolveTargets(state: SimState, actor: ActorState, def: AbilityDef): ActorState[] {
   if (def.shape.kind === "self") return [actor];
   if (def.shape.kind === "target") {
-    const t = actor.targetId !== null ? state.actors[actor.targetId] : undefined;
+    const castTarget = castTargetOf(actor);
+    const t = castTarget !== null ? state.actors[castTarget] : undefined;
     if (!t || !t.alive) return [];
     const dx = actor.pos.x - t.pos.x;
     const dz = actor.pos.z - t.pos.z;

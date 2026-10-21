@@ -19,7 +19,8 @@ namespace Keyrun.Sim.Tests;
 /// Setup then a Payoff from another class inside the Window.
 /// <para>
 /// What is real: the hollow-vault k2 oracle setup (the shipped content's abilities, effects, combos and the
-/// Tempo-scaled boss pull and script, content/data as tuned by D14), the host's three seats (Warden 1, Chanter 2,
+/// Tempo-scaled boss pull, content/data as tuned by D14; enemy scripts and cooldowns rebuilt as HostRunSetup.Build
+/// does since TEMPO-CAST-FLOOR, see <see cref="AsHostBuildsIt"/>), the host's three seats (Warden 1, Chanter 2,
 /// Cinder 3: game/src/Host/HostRunSetup.cs Roster), the host's <c>--pull 4</c> slice
 /// (game/src/Host/SimDriver.cs StartRun: <c>Pulls.Skip(StartPull - 1)</c>), the host's boss arming
 /// (<see cref="BossRules.Arm"/> with a config built from content/data/enemies/hollow-warden.json exactly as
@@ -123,8 +124,10 @@ public sealed class LockWinnabilityTests
         Assert.Equal(new[] { "warden", "chanter", "cinder" }, party.Select(p => p.ClassId));
         var dungeon = setup.Dungeon with { Pulls = setup.Dungeon.Pulls.Skip(StartPull - 1).ToList() };
         Assert.Equal("boss", dungeon.Pulls[0].Id);
-        var created = RunRoot.CreateRun(Seed, party, dungeon, setup.Content, null);
-        var run = created with { Encounter = BossRules.Arm(created.Encounter, BossConfigFromContent(setup.Content, Key)) };
+        var boss = BossConfigFromContent(setup.Content, Key);
+        var content = AsHostBuildsIt(setup.Content, setup.Dungeon, boss, Key);
+        var created = RunRoot.CreateRun(Seed, party, dungeon, content, null);
+        var run = created with { Encounter = BossRules.Arm(created.Encounter, boss) };
 
         var events = new List<SimEvent>();
         var commands = new List<string>();
@@ -132,7 +135,7 @@ public sealed class LockWinnabilityTests
         int? resolvedTick = null;
         for (var i = 0; i < MaxTicks && run.RunEnd.Result is null; i++)
         {
-            var cmds = Policy(run, setup.Content, payoffInLock);
+            var cmds = Policy(run, content, payoffInLock);
             foreach (var c in cmds.OfType<CastCommand>())
             {
                 commands.Add(string.Create(CultureInfo.InvariantCulture, $"{c.Tick} actor={c.ActorId} cast {c.AbilityId} -> {c.TargetId?.ToString(CultureInfo.InvariantCulture) ?? "self"}"));
@@ -155,7 +158,8 @@ public sealed class LockWinnabilityTests
 
     /// <summary>
     /// The scripted player, a pure function of the visible state (deterministic). Warden: walk to melee, Strike on
-    /// cooldown (Reckoning at 100 Momentum) until the Lock opens, then one Strike inside the Window (the Setup).
+    /// cooldown (Vigil whenever it is ready at 50 Momentum, Reckoning at 100) until the Lock opens, then one Strike
+    /// inside the Window (the Setup).
     /// Cinder: Ember Bolt from range until the Lock opens; once the Warden's Setup has tagged the Lock, Cold Snap on the
     /// boss (the Payoff; <paramref name="payoffInLock"/> false withholds it, the mutation). Chanter: Cadence on the
     /// most injured ally. No floor Windows are used, so Payoff.cs:153's field self-hit never applies.
@@ -209,8 +213,12 @@ public sealed class LockWinnabilityTests
             {
                 // The Lock is one Ember Bolt away: hold the GCD so the Setup goes out the tick the Window opens.
             }
-            else if (w.Resource >= 50 && w.Health * 10 < w.MaxHealth * 6 && Ready(w, content, "warden.vigil", tick))
+            else if (w.Resource >= 50 && Ready(w, content, "warden.vigil", tick))
             {
+                // Vigil on cooldown, ahead of Strike, as the autorun Warden casts it (game/src/Host/ScriptedWarden.cs
+                // Rotation). Gated below 60% health it was reactive: under TEMPO-CAST-FLOOR the boss's Cleave lands at its
+                // written rate (every 156 at key 2, not every other fire), and the 352 Cleave hit an unbraced Warden for
+                // 220 of his 400, so the Twins' slams killed him at tick 402 before the Lock opened.
                 cmds.Add(new CastCommand(tick, Warden, "warden.vigil", null));
             }
             else if (w.Resource >= 100 && Ready(w, content, "warden.reckoning", tick))
@@ -280,7 +288,8 @@ public sealed class LockWinnabilityTests
     /// game/src/Host/HostRunSetup.cs BuildBossConfig over content/data/enemies/hollow-warden.json: the boss's one Break
     /// bar is the Twins' bar, the two enemies naming it are the Twins (ids 901, 902 in id order, Tempo-scaled health
     /// and scripts, at +/-4000 mm x), and the boss ability tagged <c>setup:lock</c> gives the Window length, the
-    /// shield effect and the suppressed cast. The 50%, 30 s and three-fail structure are the BossConfig defaults.
+    /// shield effect and the suppressed cast, which the boss casts before each Window opens (CastLock, as the host
+    /// arms it since LOCK-TELEGRAPH). The 50%, 30 s and three-fail structure are the BossConfig defaults.
     /// </summary>
     private static BossConfig BossConfigFromContent(RunContent content, int keyLevel)
     {
@@ -297,7 +306,7 @@ public sealed class LockWinnabilityTests
             StrIn(def, "id"),
             Tempo.ScaleHealth(((JsInt)def.Get("maxHealth")!).Value, keyLevel),
             new Vec3(i == 0 ? 4000 : -4000, 0, 0),
-            Tempo.ScaleScript(EncounterJson.ParseScript(def.Get("script")!), keyLevel))).ToList();
+            Tempo.ScaleScript(EncounterJson.ParseScript(def.Get("script")!), keyLevel, CastFloors(content, keyLevel)))).ToList();
         var onEmpty = ((JsArray)bar.Get("onEmpty")!).Items.Cast<JsObject>()
             .Select(op => new BreakBarOnEmptyEffect(StrIn(op, "effectId"), (int)((JsInt)op.Get("durationTicks")!).Value, ((JsInt)op.Get("stacks")!).Value))
             .ToList();
@@ -312,8 +321,55 @@ public sealed class LockWinnabilityTests
             LockWindowTicks = window.DurationTicks,
             ShieldEffectId = shield.EffectId,
             SuppressedBossCasts = new[] { lockAbility.Id },
+            CastLock = true,
         };
     }
+
+    /// <summary>HostRunSetup.CastFloors: ability id to its key-scaled cast floor, over the unscaled ability table.</summary>
+    private static Func<string, int> CastFloors(RunContent content, int keyLevel) =>
+        id => content.Abilities.TryGetValue(id, out var a) ? Tempo.ScaledCastFloorTicks(a.CooldownTicks, a.CastTicks, keyLevel) : 0;
+
+    /// <summary>
+    /// TEMPO-CAST-FLOOR, as HostRunSetup.Build does it: the oracle setup records the frozen-TS two-argument Tempo
+    /// scaling, so every scripted enemy's script is rebuilt from content/data/enemies with the floor-aware
+    /// <see cref="Tempo.ScaleScript(IReadOnlyList{ScriptStep}, int, Func{string, int})"/>, then every ability an enemy
+    /// script casts (pulls, boss, Twins) gets its key-scaled cooldown (<see cref="Tempo.ScaleEnemyCooldowns"/>).
+    /// </summary>
+    private static RunContent AsHostBuildsIt(RunContent content, DungeonDef fullDungeon, BossConfig boss, int keyLevel)
+    {
+        var enemiesDir = Path.GetDirectoryName(RepoFile("content", "data", "enemies", "hollow-warden.json"))!;
+        var raw = new Dictionary<string, IReadOnlyList<ScriptStep>>(StringComparer.Ordinal);
+        foreach (var file in Directory.GetFiles(enemiesDir, "*.json").OrderBy(f => f, StringComparer.Ordinal))
+        {
+            foreach (var e in ((JsArray)JsValue.Parse(File.ReadAllText(file))).Items.Cast<JsObject>())
+            {
+                raw.Add(StrIn(e, "id"), EncounterJson.ParseScript(e.Get("script")!));
+            }
+        }
+        var classOf = fullDungeon.Pulls.SelectMany(p => p.Spawns).ToDictionary(s => s.ActorId, s => s.ClassId);
+        var floors = CastFloors(content, keyLevel);
+        var scripts = new Dictionary<int, IReadOnlyList<ScriptStep>>();
+        foreach (var kv in content.EnemyScripts)
+        {
+            var authored = raw[classOf[kv.Key]];
+            // The id-to-class mapping is right: the two-argument rebuild is exactly what the setup recorded, once the
+            // frozen-TS replay flags are applied the way RunSetup.TsScripts applies them for TS-equal replays
+            // (SLAM-TELEGRAPH #313 spansCast, TELEGRAPH-READY TsUnchecked, CAST-FINISH TsCastReplace; JSON never sets
+            // them). The rebuilt script keeps the authored flags, as HostRunSetup does (R-PILE-1).
+            Assert.Equal(WithoutSpansCast(Tempo.ScaleScript(authored, keyLevel)), kv.Value);
+            scripts[kv.Key] = Tempo.ScaleScript(authored, keyLevel, floors);
+        }
+        var abilities = Tempo.ScaleEnemyCooldowns(content.Abilities, scripts.Values.Concat(boss.Twins.Select(t => t.Script)), keyLevel);
+        return content with { Abilities = abilities, EnemyScripts = scripts };
+    }
+
+    /// <summary>
+    /// tools/Keyrun.Replay/RunSetup.cs TsScripts, one script: every telegraph gets spansCast false and TsUnchecked,
+    /// every step gets TsCastReplace (R-PILE-1: the mirror follows TsScripts exactly).
+    /// </summary>
+    private static List<ScriptStep> WithoutSpansCast(IReadOnlyList<ScriptStep> script) =>
+        script.Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { SpansCast = false, TsUnchecked = true } } : s)
+            .Select(s => s with { TsCastReplace = true }).ToList();
 
     private static string RepoFile(params string[] parts)
     {

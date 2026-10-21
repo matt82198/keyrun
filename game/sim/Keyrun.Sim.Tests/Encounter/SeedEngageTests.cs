@@ -16,10 +16,11 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// KF3-SEED-ENGAGE (Matt acceptance finding KF3: the Seed elite "spawns on entry and gets cheesed"; keyrun STATE.md
 /// D27 room lock-in). The Seed pull of the shipped content (the hollow-vault k2 oracle setup, recorded from
 /// content/data) is placed into the real seed-chamber of game/content/data/layout.json exactly as the host places it
-/// (room origin plus the content spawn offset), and the three host seats stand still just inside the chamber's gate
-/// line, so <c>pull_start</c> and <c>gate_closed seed-chamber</c> fire. The party never moves and never casts. Within
+/// (room origin plus the content spawn offset), and the three host seats walk in from corridor-3 until the Seed engages
+/// (PRESPAWN-AGGRO, BIBLE section 9.1: the first tick one of them stands in its aggro ring), so <c>pull_start</c> fires
+/// (no gate shuts since STATE.md D44); then they stand still on the ring's edge and never cast. Within
 /// <see cref="WithinTicks"/> of <c>pull_start</c> the Seed must either close distance on a party actor or land damage
-/// on one; a Seed that only slams from its spawn point lets a party parked at the doorway kill it for free.
+/// on one; a Seed that only slams from its spawn point lets a party parked on its ring kill it for free.
 /// </summary>
 public sealed class SeedEngageTests
 {
@@ -33,7 +34,7 @@ public sealed class SeedEngageTests
     private const long Seed = 1;
     private const int SeedActorId = 108;
 
-    /// <summary>Just inside the seed-chamber gate line (layout.json seed-chamber minX 62000), 1.2 m apart in z.</summary>
+    /// <summary>Just inside the seed-chamber gate line (layout.json seed-chamber minX 62000): the reference the Seed closes on.</summary>
     private const long DoorwayX = 62600;
 
     private readonly ITestOutputHelper _out;
@@ -92,7 +93,7 @@ public sealed class SeedEngageTests
         };
         var spawn = Assert.Single(placed.Spawns);
         Assert.Equal(SeedActorId, spawn.ActorId);
-        // The three seats wait in corridor-3, 1 m short of the chamber, then walk in and stop at the doorway.
+        // The three seats wait in corridor-3, 1 m short of the chamber, then walk in and stop on the Seed's engage tick.
         var party = setup.Party.Take(3).Select((m, i) => m with { Pos = new Vec3(chamber.Box.MinX - 1000, 0, (i - 1) * 1200), Yaw = 0 }).ToList();
         Assert.All(party, m => Assert.False(Movement.Contains(chamber.Box, m.Pos), $"seat {m.Id} at {m.Pos} starts inside the chamber"));
         var dungeon = setup.Dungeon with { Pulls = new[] { placed } };
@@ -106,7 +107,7 @@ public sealed class SeedEngageTests
         {
             var tick = run.State.Tick;
             var walk = party.Select(m => run.State.Actors[m.Id])
-                .Where(a => a.Alive && a.Pos.X < DoorwayX)
+                .Where(a => a.Alive && start is null)
                 .Select(a => (Command)new MoveCommand(tick, a.Id, new Dir2(1000, 0), 0))
                 .ToList();
             var stepped = RunRoot.StepRun(run, walk);
@@ -121,22 +122,22 @@ public sealed class SeedEngageTests
                 path.Add((run.State.Tick, seed.Pos));
             }
         }
-        Assert.True(start is not null, "pull_start never fired with the party inside the seed-chamber");
+        Assert.True(start is not null, "pull_start never fired with the party walking into the Seed's aggro ring");
         return new Played(events, start!.Value, spawn.Pos, path, run);
     }
 
     private static long Dist(Vec3 a, Vec3 b) => Fixed.Isqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Z - b.Z) * (a.Z - b.Z)));
 
-    [Fact(DisplayName = "KF3 Seed engage: the gate closes on a party parked at the seed-chamber doorway")]
-    public void The_gate_closes_on_the_parked_party()
+    [Fact(DisplayName = "KF3 Seed engage: the Seed engages on the tick the party reaches its aggro ring, and no gate shuts (D44)")]
+    public void The_seed_engages_on_the_parked_party_with_no_gate()
     {
         var played = StandAtTheDoor();
-        var gate = Assert.Single(played.Events, e => e.Type == "gate_closed");
-        Assert.Equal("seed-chamber", ((JsString)gate.Get("room")!).Value);
-        Assert.Equal(played.StartTick, gate.Tick);
+        var start = Assert.Single(played.Events, e => e.Type == "pull_start" && ((JsString)e.Get("pullId")!).Value == "seed");
+        Assert.Equal(played.StartTick, start.Tick);
+        Assert.DoesNotContain(played.Events, e => e.Type is "gate_closed" or "gate_open");
     }
 
-    [Fact(DisplayName = "KF3 Seed engage: within its cast budget the Seed closes on or hits a party parked at the doorway")]
+    [Fact(DisplayName = "KF3 Seed engage: within its cast budget the Seed closes on or hits a party parked on its aggro ring")]
     public void The_Seed_engages_a_party_parked_at_the_doorway()
     {
         var played = StandAtTheDoor();

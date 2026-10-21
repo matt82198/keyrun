@@ -50,6 +50,25 @@ public sealed class TwinsDieWithBossTests
         }
     }
 
+    [Fact(DisplayName = "A Twin mid-cast when the boss dies falls holding no cast and its cast never completes (f-42df9d4f)")]
+    public void Twin_mid_cast_when_the_boss_dies_falls_with_its_cast_ended()
+    {
+        var (live, _) = BossTestKit.StepUntil(BossTestKit.BuildRun(), 3);
+        var twin = live.State.Actors[BossTestKit.TwinA];
+        twin.CastId = "twins.slam";
+        twin.CastStartTick = live.State.Tick;
+        twin.CastEndsTick = live.State.Tick + 500;
+
+        var (after, events) = KillBoss(live, 3);
+
+        Assert.Single(events, e => IsDeathOf(e, BossTestKit.TwinA));
+        var fallen = after.State.Actors[BossTestKit.TwinA];
+        Assert.False(fallen.Alive);
+        Assert.Null(fallen.CastId);
+        Assert.Null(fallen.CastEndsTick);
+        Assert.DoesNotContain(events, e => e.Type == "cast_complete" && e.Get("actorId") is JsInt id && id.Value == BossTestKit.TwinA);
+    }
+
     [Fact(DisplayName = "No Twin is alive at run_end and the boss pull clears the run timed")]
     public void No_twin_alive_at_run_end_and_the_run_clears()
     {
@@ -83,6 +102,50 @@ public sealed class TwinsDieWithBossTests
         Assert.Equal(bossDeath.Tick, Assert.Single(events, e => IsDeathOf(e, BossTestKit.TwinA)).Tick);
         Assert.False(after.State.Actors[BossTestKit.TwinA].Alive);
         Assert.Equal(RunResult.Timed, after.RunEnd.Result);
+    }
+
+    /// <summary>The shipped forces table (game/content/data/forces.json values); the Twins have no entry.</summary>
+    private static readonly IReadOnlyDictionary<string, int> ShippedForces = new Dictionary<string, int>
+    {
+        ["choir.melee"] = 40,
+        ["choir.lieutenant"] = 80,
+        ["pair.melee"] = 52,
+        ["seed.elite"] = 180,
+    };
+
+    [Fact(DisplayName = "The boss's death step ends the encounter: Twins despawn, pull_clear and run_end fire on that same step, forces unchanged")]
+    public void Boss_death_step_ends_the_encounter_and_the_run()
+    {
+        var (run, _) = BossTestKit.StepUntil(BossTestKit.BuildRun(), 3);
+        Assert.True(run.State.Actors[BossTestKit.TwinA].Alive);
+        Assert.True(run.State.Actors[BossTestKit.TwinB].Alive);
+        run.State.Actors[BossTestKit.Boss].Health = 1;
+        var forcesBefore = Forces.Points(run.State, ShippedForces);
+
+        List<SimEvent>? deathStep = null;
+        for (var i = 0; i < 60 && deathStep is null; i++)
+        {
+            var tick = run.State.Tick;
+            var stepped = RunRoot.StepRun(run, new Command[] { new CastCommand(tick, BossTestKit.Warden, "warden.strike", BossTestKit.Boss) });
+            run = stepped.Run;
+            if (stepped.Events.Any(e => IsDeathOf(e, BossTestKit.Boss)))
+            {
+                deathStep = stepped.Events.ToList();
+            }
+        }
+
+        Assert.NotNull(deathStep);
+        var bossDeath = Assert.Single(deathStep!, e => IsDeathOf(e, BossTestKit.Boss));
+        Assert.All(new[] { BossTestKit.TwinA, BossTestKit.TwinB }, twin =>
+        {
+            Assert.Equal(bossDeath.Tick, Assert.Single(deathStep!, e => IsDeathOf(e, twin)).Tick);
+            Assert.False(run.State.Actors[twin].Alive);
+        });
+        Assert.Single(deathStep!, e => e.Type == "pull_clear");
+        Assert.Single(deathStep!, e => e.Type == "run_end");
+        Assert.Equal(RunResult.Timed, run.RunEnd.Result);
+        Assert.Equal(forcesBefore, Forces.Points(run.State, ShippedForces));
+        Assert.DoesNotContain(run.State.Actors.Values, a => a.Kind == ActorKind.Enemy && a.Alive);
     }
 
     [Fact(DisplayName = "Control: while the boss lives the Twins do not die on their own")]

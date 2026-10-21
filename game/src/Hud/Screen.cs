@@ -10,7 +10,11 @@ namespace Keyrun.Hud;
 
 /// <summary>
 /// The between-runs screen (BIBLE s10 "One screen, three bands"; s1 loop "End-of-run choice of three, then Screen";
-/// ENGINE-PLAN 3D). Opened by the run-end panel when a reward is taken (<see cref="OpenFrom"/>), and at launch before
+/// ENGINE-PLAN 3D), drawn as one lobby with three tabs (lane LOBBY-TABS, Matt 2026-10-20 "just one screen with tabs
+/// should be enough before entering a game/queue"): <b>Character</b> (class pick and the five gear slots with tier),
+/// <b>Build</b> (the class's talent forks) and <b>Play</b> (key, Clause and Queue). The tab, the class, its build and the
+/// Key band are the pure <see cref="Lobby"/>; Q/E, F1-F3 or a click switch tabs, Up/Down or a click picks the class on
+/// the Character tab, and every older key works on every tab (Enter queues from anywhere). Opened by the run-end panel when a reward is taken (<see cref="OpenFrom"/>), and at launch before
 /// the first run in the interactive game (<see cref="OpenFirst"/>, lane 3D-b), and again by <see cref="OpenFirst"/> each
 /// time a run ends in the interactive game and Enter is pressed on the run-end panel (the SimDriver reopen path, lane
 /// 3D-c, wipe included), it shows:
@@ -31,8 +35,10 @@ namespace Keyrun.Hud;
 /// <see cref="TalentPicks.Resolve"/>, converted to sim AbilityDefs by the host's own content conversion
 /// (<see cref="HostRunSetup.Build"/>), and queued on the <see cref="QueueRequest"/> as the human's loadout, which
 /// <see cref="QueueRequest.ToRunOptions"/> passes to the run as RunOptions.Loadouts. The panel's <c>applied=</c> count is
-/// the number of talented abilities the next Queue hands over. The build lives only in this node (it is not saved
-/// across restarts).</para>
+/// the number of talented abilities the next Queue hands over. Every pick and respec is kept in the progression save
+/// (lane TALENT-SAVE, f-83c5e369: <see cref="Progression.Talents"/>, saved with reason=talent), and the first open after
+/// a launch restores the saved build with <see cref="Keyrun.Content.TalentPicks.Restore"/>, so the next launch's run
+/// plays it too.</para>
 /// </summary>
 public partial class Screen : Control
 {
@@ -54,6 +60,23 @@ public partial class Screen : Control
     private static readonly Color Calm = new(0.7f, 0.85f, 1f);
     private static readonly Color Good = new(0.5f, 1f, 0.6f);
 
+    // LOBBY-TABS palette (the Dark and Darker lobby read: warm near-black, bronze edges, parchment text, gold accents).
+    private static readonly Color LobbyBg = new(0.05f, 0.042f, 0.035f, 0.98f);
+    private static readonly Color BarBg = new(0.075f, 0.062f, 0.05f, 1f);
+    private static readonly Color PanelBg = new(0.085f, 0.072f, 0.06f, 0.96f);
+    private static readonly Color CardBg = new(0.12f, 0.1f, 0.08f, 1f);
+    private static readonly Color TabOff = new(0.1f, 0.085f, 0.07f, 1f);
+    private static readonly Color TabOn = new(0.2f, 0.16f, 0.1f, 1f);
+    private static readonly Color Bronze = new(0.45f, 0.35f, 0.2f, 1f);
+    private static readonly Color BronzeDim = new(0.3f, 0.24f, 0.15f, 1f);
+    private static readonly Color Parchment = new(0.88f, 0.83f, 0.72f, 1f);
+    private static readonly Color Dim = new(0.58f, 0.53f, 0.45f, 1f);
+    private static readonly Color Warn = new(1f, 0.6f, 0.5f);
+
+    // The tab bar: three tabs from this x in the title row.
+    private const float TabsLeft = 200;
+    private const float TabWidth = 150;
+
     // The autorun script: one key per frame once the run has ended (keys 1, R, R, R, Right, 2, then the talent panel
     // T, 1, Down, 2, Backspace, 1, T, then Enter).
     private static readonly Key[] AutorunKeys =
@@ -68,19 +91,28 @@ public partial class Screen : Control
     private ProgressionStore? _store;
     private Keyrun.Content.PrivateRecord _rating = Keyrun.Content.PrivateRecord.Empty;
     private PrivateRatingStore? _ratingStore;
-    private ScreenState? _state;
+    private Lobby? _lobby;
+    private int? _pendingKey;
     private string? _selected;
     private bool _banked;
     private int _autorunStep = -1;
     private int _autorunWait;
     private string _status = string.Empty;
-    private Keyrun.Content.TalentPicks? _talents;
 
     /// <summary>The human's talent build, or null before the first open (or with no content).</summary>
-    public Keyrun.Content.TalentPicks? Talents => _talents;
+    public Keyrun.Content.TalentPicks? Talents => _lobby?.Talents;
 
-    /// <summary>True while the talent panel is up (only while the screen is).</summary>
-    public bool TalentsOpen { get; private set; }
+    /// <summary>True while the talent panel is up: the Build tab of the open screen.</summary>
+    public bool TalentsOpen => IsOpen && _lobby?.Tab == LobbyTab.Build;
+
+    /// <summary>The open tab (Play before the first open).</summary>
+    public LobbyTab Tab => _lobby?.Tab ?? LobbyTab.Play;
+
+    /// <summary>The human's class for the next Queue (the Character tab's pick).</summary>
+    public string ClassId => _lobby?.ClassId ?? SimDriver.HumanClassId;
+
+    /// <summary>The lobby (tab, class, build, Key band), or null before the first open; SimDriver reads its class.</summary>
+    public Lobby? CurrentLobby => _lobby;
 
     /// <summary>The selected fork row in the talent panel (Up/Down).</summary>
     public int TalentFork { get; private set; }
@@ -103,10 +135,16 @@ public partial class Screen : Control
     public bool IsOpen { get; private set; }
 
     /// <summary>The Key band, or null before the first open.</summary>
-    public ScreenState? State => _state;
+    public ScreenState? State => _lobby?.Key;
 
     /// <summary>The character's progression.</summary>
     public Progression Progression => _progression;
+
+    /// <summary>
+    /// True once the ended run is banked into <see cref="Progression"/> (its Ash and its <see cref="RunRecord"/>), until
+    /// the next run starts. The run-end panel waits for it before reading the Ascension state, so it shows the banked one.
+    /// </summary>
+    public bool Banked => _banked;
 
     /// <summary>The last request Queue handed out, or null.</summary>
     public QueueRequest? LastRequest { get; private set; }
@@ -191,15 +229,30 @@ public partial class Screen : Control
             return;
         }
         var l = Layout();
-        if (l.Queue.HasPoint(click.Position))
+        if (l.Tabs.Select((r, i) => (r, i)).FirstOrDefault(t => t.r.HasPoint(click.Position)) is { r.Size.X: > 0 } hit)
+        {
+            SelectTab(Lobby.Tabs[hit.i]);
+        }
+        else if (Tab == LobbyTab.Character)
+        {
+            var ids = ClassIds();
+            for (var i = 0; i < ids.Count && i < l.ClassCards.Count; i++)
+            {
+                if (l.ClassCards[i].HasPoint(click.Position))
+                {
+                    PickClass(ids[i]);
+                }
+            }
+        }
+        else if (Tab == LobbyTab.Play && l.Queue.HasPoint(click.Position))
         {
             Queue();
         }
-        else if (l.KeyDown.HasPoint(click.Position))
+        else if (Tab == LobbyTab.Play && l.KeyDown.HasPoint(click.Position))
         {
             StepKey(-1);
         }
-        else if (l.KeyUp.HasPoint(click.Position))
+        else if (Tab == LobbyTab.Play && l.KeyUp.HasPoint(click.Position))
         {
             StepKey(1);
         }
@@ -210,24 +263,40 @@ public partial class Screen : Control
     /// <param name="n">The offer index.</param>
     public void PickClause(int n)
     {
-        if (_state is not { } s || n < 0 || n >= s.Clause.Offers.Count)
+        if (_lobby is not { } lobby || n < 0 || n >= lobby.Key.Clause.Offers.Count)
         {
             return;
         }
-        var next = s.PickClause(s.Clause.Offers[n]);
-        _status = ReferenceEquals(next, s) ? "The Clause is locked in." : string.Empty;
-        _state = next;
+        var next = lobby.PickClause(lobby.Key.Clause.Offers[n]);
+        _status = ReferenceEquals(next, lobby) ? "The Clause is locked in." : string.Empty;
+        _lobby = next;
         ProofKeyBand();
     }
 
-    /// <summary>Opens or closes the talent panel (T). Out of combat by construction: only while the screen is up.</summary>
-    public void ToggleTalents()
+    /// <summary>
+    /// Opens a tab. Leaving or entering the Build tab is the talent panel closing or opening, so it prints the same
+    /// "SCREEN talents open=..." line the T key always has.
+    /// </summary>
+    /// <param name="tab">The tab.</param>
+    public void SelectTab(LobbyTab tab)
     {
-        if (!IsOpen || _talents is not { } picks)
+        if (!IsOpen || _lobby is not { } lobby)
         {
             return;
         }
-        TalentsOpen = !TalentsOpen;
+        var next = lobby.SelectTab(tab);
+        if (ReferenceEquals(next, lobby))
+        {
+            return;
+        }
+        var wasBuild = lobby.Tab == LobbyTab.Build;
+        _lobby = next;
+        Proof(FormattableString.Invariant($"SCREEN tab {next.Tab.ToString().ToLowerInvariant()} class={next.ClassId}"));
+        if (wasBuild == (next.Tab == LobbyTab.Build))
+        {
+            return;
+        }
+        var picks = next.Talents;
         TalentFork = Math.Clamp(TalentFork, 0, Math.Max(0, picks.ForkCount - 1));
         Proof(FormattableString.Invariant(
             $"SCREEN talents open={(TalentsOpen ? 1 : 0)} class={picks.ClassId} forks={picks.ForkCount} picks={picks.Count} applied={AppliedCount(TalentLoadouts())}"));
@@ -237,34 +306,102 @@ public partial class Screen : Control
         }
     }
 
+    /// <summary>Opens the Build tab, or goes back to Play from it (T). Only while the screen is up.</summary>
+    public void ToggleTalents() => SelectTab(Tab == LobbyTab.Build ? LobbyTab.Play : LobbyTab.Build);
+
+    /// <summary>
+    /// Plays <paramref name="classId"/> on the next Queue (the Character tab). Refused while queued; the build becomes
+    /// that class's saved build (<see cref="Lobby.PickClass"/>).
+    /// </summary>
+    /// <param name="classId">The class.</param>
+    public void PickClass(string classId)
+    {
+        if (!IsOpen || _lobby is not { } lobby || _driver?.Registry is not { } reg)
+        {
+            return;
+        }
+        var next = lobby.PickClass(reg, _progression, classId);
+        _status = ReferenceEquals(next, lobby) && lobby.Locked ? "The class is locked in." : string.Empty;
+        if (ReferenceEquals(next, lobby))
+        {
+            return;
+        }
+        _lobby = next;
+        TalentFork = 0;
+        Proof(FormattableString.Invariant(
+            $"SCREEN class pick class={next.ClassId} name=\"{ClassName()}\" picks={next.Talents.Count} forks={next.Talents.ForkCount}"));
+        foreach (var (keyLabel, name) in Abilities())
+        {
+            Proof($"SCREEN class ability key={keyLabel} name=\"{name}\"");
+        }
+    }
+
+    // Up/Down on the Character tab: the next or previous class in roster order.
+    private void CycleClass(int delta)
+    {
+        var ids = ClassIds();
+        if (ids.Count == 0)
+        {
+            return;
+        }
+        var i = Math.Max(0, ids.ToList().IndexOf(ClassId));
+        PickClass(ids[(((i + delta) % ids.Count) + ids.Count) % ids.Count]);
+    }
+
+    private IReadOnlyList<string> ClassIds() =>
+        _driver?.Registry is { } reg ? Lobby.ClassIds(reg) : Array.Empty<string>();
+
     /// <summary>Picks side <paramref name="option"/> (0-based) of fork <paramref name="fork"/>; out-of-range input is ignored.</summary>
     /// <param name="fork">The fork index.</param>
     /// <param name="option">The option index.</param>
     public void PickTalent(int fork, int option)
     {
-        if (!TalentsOpen || _talents is not { } picks || fork < 0 || fork >= picks.ForkCount ||
+        if (!TalentsOpen || _lobby is not { } lobby || lobby.Talents is not { } picks || fork < 0 || fork >= picks.ForkCount ||
             option < 0 || option >= picks.Forks[fork].Options.Count)
         {
             return;
         }
-        _talents = picks.Pick(fork, option);
+        _lobby = lobby.WithTalents(picks.Pick(fork, option));
         TalentFork = fork;
-        var f = _talents.Forks[fork];
+        var f = _lobby.Talents.Forks[fork];
         Proof(FormattableString.Invariant(
-            $"SCREEN talent pick fork={fork + 1} ability={f.AbilityId} option={f.Options[option].Id} picks={_talents.Count}"));
+            $"SCREEN talent pick fork={fork + 1} ability={f.AbilityId} option={f.Options[option].Id} picks={_lobby.Talents.Count}"));
+        SaveTalents();
     }
 
     /// <summary>Clears every talent pick for free (BIBLE s6 "Respec is free on the screen, always"): Ash is untouched.</summary>
     public void RespecTalents()
     {
-        if (!TalentsOpen || _talents is not { } picks)
+        if (!TalentsOpen || _lobby is not { } lobby)
         {
             return;
         }
         var ash = _progression.AshTotal;
-        _talents = picks.Respec();
-        Proof(FormattableString.Invariant($"SCREEN talent respec picks={_talents.Count} ash={ash} ash_after={_progression.AshTotal}"));
+        _lobby = lobby.WithTalents(lobby.Talents.Respec());
+        Proof(FormattableString.Invariant($"SCREEN talent respec picks={_lobby.Talents.Count} ash={ash} ash_after={_progression.AshTotal}"));
+        SaveTalents();
     }
+
+    // TALENT-SAVE (f-83c5e369): the build rides the progression, so a pick or a respec is saved like a reroll is. Only
+    // this class's forks are written; the other classes' saved builds are kept (Lobby.SaveTalents).
+    private void SaveTalents()
+    {
+        if (_lobby is not { } lobby)
+        {
+            return;
+        }
+        var picks = lobby.Talents;
+        _progression = lobby.SaveTalents(_progression);
+        SaveProgression("talent");
+        if (_store is not null)
+        {
+            Proof(FormattableString.Invariant($"SCREEN talents saved picks={picks.Count} choices={ChoicesText(picks)}"));
+        }
+    }
+
+    // "warden.strike:rend,..." in fork order, or "none".
+    private static string ChoicesText(Keyrun.Content.TalentPicks picks) =>
+        picks.Count == 0 ? "none" : string.Join(",", picks.Choices.Select(kv => kv.Key + ":" + kv.Value));
 
     /// <summary>The human class's display name (the talent panel's title).</summary>
     /// <returns>The name.</returns>
@@ -284,19 +421,33 @@ public partial class Screen : Control
     /// <inheritdoc />
     public override void _Draw()
     {
-        if (!IsOpen || _state is not { } state)
+        if (!IsOpen || _lobby is not { } lobby)
         {
             return;
         }
         var l = Layout();
-        DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.05f, 0.06f, 0.08f, 0.97f));
-        HudNodes.Text(this, new Vector2(Margin, Margin + 4), "Between runs", TitleFont, Gold);
-        HudNodes.Text(this, new Vector2(Margin, Size.Y - 18),
-            "1-3 Clause    Left/Right key    Tab item    R reroll Facet    T talents    Enter queue", SmallFont, Calm);
-
-        DrawCharacter(l.Character);
-        DrawKey(l.Key, state);
-        DrawQueue(l.Queue, state);
+        DrawRect(new Rect2(Vector2.Zero, Size), LobbyBg);
+        DrawTabBar(l, lobby);
+        HudNodes.Text(this, new Vector2(Margin, Size.Y - 18), HintFor(lobby.Tab), SmallFont, Dim);
+        switch (lobby.Tab)
+        {
+            case LobbyTab.Character:
+                DrawClasses(l);
+                DrawGear(l.Gear);
+                DrawKit(l.Kit);
+                break;
+            case LobbyTab.Build:
+                break; // the TalentPanel child draws the Build tab
+            default:
+                DrawSummary(l.Summary);
+                DrawKey(l.Key, lobby.Key);
+                DrawQueue(l.Queue, lobby.Key);
+                break;
+        }
+        if (_status.Length > 0)
+        {
+            HudNodes.Text(this, new Vector2(Size.X - Margin - HudNodes.Width(_status, BodyFont), Size.Y - 18), _status, BodyFont, Warn);
+        }
     }
 
     // taken null: OpenFirst, both the launch open and the run-end reopen (no run is required); no reward to equip.
@@ -307,12 +458,26 @@ public partial class Screen : Control
             _progression = _progression.Take(taken);
             _selected = taken.Slot;
         }
-        var key = _state?.KeyLevel ?? _driver?.Options.KeyLevel ?? ScreenState.MinKey;
-        _state = ScreenState.Open(SimDriver.DungeonId, ClauseIds(), key);
+        // The key: the lobby's own (moved by the last run end, Lobby.ReturnFrom), else the key a run end before the first
+        // open moved to, else the driver's --key.
+        var key = _lobby?.Key.KeyLevel ?? _pendingKey ?? _driver?.Options.KeyLevel ?? ScreenState.MinKey;
+        _pendingKey = null;
         _status = string.Empty;
-        if (_talents is null && _driver?.Registry is { } talentReg && talentReg.Classes.TryGetValue(SimDriver.HumanClassId, out var talentClass))
+        if (_lobby is { } open)
         {
-            _talents = Keyrun.Content.TalentPicks.Start(talentClass);
+            _lobby = open.Reopen(key);
+        }
+        else if (_driver?.Registry is { } reg && reg.Classes.ContainsKey(SimDriver.HumanClassId))
+        {
+            // TALENT-SAVE: the saved build comes back; a pick the content no longer has is dropped (free respec).
+            _lobby = Lobby.Open(reg, _progression, SimDriver.DungeonId, ClauseIds(), key, SimDriver.HumanClassId);
+            var talents = _lobby.Talents;
+            Proof(FormattableString.Invariant(
+                $"SCREEN talents restore class={talents.ClassId} saved={_progression.Talents.Count} picks={talents.Count} choices={ChoicesText(talents)}"));
+        }
+        else
+        {
+            return; // no content: nothing to show or queue
         }
         IsOpen = true;
         MouseFilter = MouseFilterEnum.Stop;
@@ -329,6 +494,10 @@ public partial class Screen : Control
         Proof(_rating.LogLine()); // never the rating's value: it is drawn on this screen only (f-a3230c59)
         SetHelpVisible(false);
         Proof($"SCREEN character class={ClassName()}");
+        // f-275d47c9: the Character tab's private Ascension line, the same Ascension.Of read DrawAscension draws.
+        var ascension = Ascension.Of(_progression);
+        Proof(AscensionReadout.LogLine("SCREEN", ascension));
+        Proof($"SCREEN ascension line=\"{AscensionReadout.CharacterLine(ascension)}\"");
         foreach (var (keyLabel, name) in Abilities())
         {
             Proof($"SCREEN ability key={keyLabel} name=\"{name}\"");
@@ -342,6 +511,7 @@ public partial class Screen : Control
         Proof($"SCREEN queue caption=\"{QueueCaption}\"");
         // Measured at the design viewport (project.godot 1280x720): headless runs have a tiny dummy window.
         var design = DesignSize();
+        Proof(FormattableString.Invariant($"SCREEN tab {_lobby.Tab.ToString().ToLowerInvariant()} class={_lobby.ClassId}"));
         var queueBox = LayoutFor(design).Queue;
         var caption = CaptionLines(queueBox);
         var right = queueBox.Position.X + caption.Max(line => HudNodes.Width(line, SmallFont));
@@ -356,7 +526,6 @@ public partial class Screen : Control
     private void Close()
     {
         IsOpen = false;
-        TalentsOpen = false;
         SetHelpVisible(true);
         MouseFilter = MouseFilterEnum.Ignore;
         if (GetNodeOrNull<Control>("ClausePick") is { } pick)
@@ -368,6 +537,10 @@ public partial class Screen : Control
     // Returns true when the key was the screen's (Enter is not consumed, so the host's restart still sees it).
     private bool HandleKey(Key key)
     {
+        if (TabKey(key))
+        {
+            return true;
+        }
         if (TalentsOpen)
         {
             return HandleTalentKey(key);
@@ -376,6 +549,12 @@ public partial class Screen : Control
         {
             case Key.T:
                 ToggleTalents();
+                return true;
+            case Key.Up when Tab == LobbyTab.Character:
+                CycleClass(-1);
+                return true;
+            case Key.Down when Tab == LobbyTab.Character:
+                CycleClass(1);
                 return true;
             case Key.Key1 or Key.Kp1:
                 PickClause(0);
@@ -406,7 +585,36 @@ public partial class Screen : Control
         }
     }
 
-    // The talent panel is modal over the Character and Key bands: only its keys (and Enter, which still queues).
+    // The tab bar's keys work on every tab: Q and E step along the bar, F1-F3 jump to a tab.
+    private bool TabKey(Key key)
+    {
+        if (_lobby is not { } lobby)
+        {
+            return false;
+        }
+        switch (key)
+        {
+            case Key.Q:
+                SelectTab(lobby.CycleTab(-1).Tab);
+                return true;
+            case Key.E:
+                SelectTab(lobby.CycleTab(1).Tab);
+                return true;
+            case Key.F1:
+                SelectTab(LobbyTab.Character);
+                return true;
+            case Key.F2:
+                SelectTab(LobbyTab.Build);
+                return true;
+            case Key.F3:
+                SelectTab(LobbyTab.Play);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // The Build tab's keys (the talent panel; and Enter, which still queues).
     private bool HandleTalentKey(Key key)
     {
         switch (key)
@@ -418,7 +626,7 @@ public partial class Screen : Control
                 TalentFork = Math.Max(0, TalentFork - 1);
                 return true;
             case Key.Down:
-                TalentFork = Math.Min(Math.Max(0, (_talents?.ForkCount ?? 1) - 1), TalentFork + 1);
+                TalentFork = Math.Min(Math.Max(0, (_lobby?.Talents.ForkCount ?? 1) - 1), TalentFork + 1);
                 return true;
             case Key.Key1 or Key.Kp1:
                 PickTalent(TalentFork, 0);
@@ -442,13 +650,12 @@ public partial class Screen : Control
 
     private void StepKey(int delta)
     {
-        if (_state is not { } s)
+        if (_lobby is not { } lobby)
         {
             return;
         }
-        var next = s.StepKey(delta);
-        _status = s.Locked ? "The key is locked in." : string.Empty;
-        _state = next;
+        _status = lobby.Locked ? "The key is locked in." : string.Empty;
+        _lobby = lobby.StepKey(delta);
         ProofKeyBand();
     }
 
@@ -488,23 +695,27 @@ public partial class Screen : Control
 
     private void Queue()
     {
-        if (_state is not { } s)
+        if (_lobby is not { } lobby || _driver?.Registry is not { } reg)
         {
             return;
         }
-        var loadout = s.Locked ? null : RunLoadout(withFacets: true);
-        var (locked, request) = s.Queue(loadout?.Loadouts);
-        _state = locked;
+        // The loadout here only reports what each layer contributes. The request is QueuedKit.Queue's (through
+        // Lobby.Queue, which adds the class): the talent kit and the gear stats, never the Facets (finding f-494ea8ef:
+        // the host's RunStart.Of applies each Facet once from the progression; a Facet-patched kit on the request was
+        // patched a second time).
+        var loadout = lobby.Locked ? null : RunLoadout(withFacets: true);
+        var (locked, request) = lobby.Queue(reg, _progression);
+        _lobby = locked;
         if (request is null)
         {
             return;
         }
+        Proof(FormattableString.Invariant($"SCREEN queue class={locked.ClassId}"));
         // BIBLE s7 "Tier is power": the five slots' summed stats ride the request onto the human's actor.
-        if (_driver?.Setup is { } gearSetup && GearTotal() is { } gear)
+        foreach (var (actor, gear) in request.Gear ?? new Dictionary<int, GearStats>())
         {
-            request = request with { Gear = new Dictionary<int, GearStats> { [gearSetup.HumanActorId] = gear } };
             Proof(FormattableString.Invariant(
-                $"SCREEN queue gear actor={gearSetup.HumanActorId} damageDoneBp={gear.DamageDoneBp} damageTakenBp={gear.DamageTakenBp}"));
+                $"SCREEN queue gear actor={actor} damageDoneBp={gear.DamageDoneBp} damageTakenBp={gear.DamageTakenBp}"));
         }
         LastRequest = request;
         Proof(FormattableString.Invariant($"SCREEN queue dungeon={request.DungeonId} key={request.KeyLevel} clause={request.ClauseId}"));
@@ -541,28 +752,28 @@ public partial class Screen : Control
     /// every equipped item's Facet is applied on top with <see cref="Keyrun.Content.GearFacets.Resolve"/> in slot order.
     /// The patched content is converted to sim AbilityDefs by the same <see cref="HostRunSetup.Build"/> conversion the
     /// run itself is built with, so a talented or Facet-patched ability is exactly what the host would build if the
-    /// patch were the base definition. A Facet whose patched shape the conversion cannot play (a line width: facet
-    /// patches only, not in the sim shape) is skipped and reported, never a refused Queue.
+    /// patch were the base definition. A line width (twinStrike, infernoBolt) converts to the sim line's half-width, so
+    /// every shipped Facet applies; one the content cannot honour is still skipped and reported, never a refused Queue.
     /// </summary>
     /// <param name="withFacets">True to apply the gear layer.</param>
     /// <returns>The loadout, or null when content or the Key band is not there.</returns>
     private HumanLoadout? RunLoadout(bool withFacets)
     {
-        if (_driver?.Registry is not { } reg || _state is not { } s)
+        if (_driver?.Registry is not { } reg || _lobby is not { } lobby)
         {
             return null;
         }
-        var talented = _talents is { Count: > 0 } picks ? picks.Resolve(reg.Abilities) : new Keyrun.Content.ValueMap<Keyrun.Content.AbilityDef>();
+        var s = lobby.Key;
+        var talented = lobby.Talents is { Count: > 0 } picks ? picks.Resolve(reg.Abilities) : new Keyrun.Content.ValueMap<Keyrun.Content.AbilityDef>();
         var patched = new Dictionary<string, Keyrun.Content.AbilityDef>(talented, StringComparer.Ordinal);
         Keyrun.Content.FacetResolution? facets = null;
-        if (withFacets && reg.Classes.TryGetValue(SimDriver.HumanClassId, out var cls))
+        if (withFacets && reg.Classes.TryGetValue(lobby.ClassId, out var cls))
         {
             facets = Keyrun.Content.GearFacets.Resolve(
                 reg.Facets,
                 Merge(reg.Abilities, talented),
                 cls,
-                Rewards.GearSlots.Where(_progression.Equipped.ContainsKey).Select(slot => (slot, _progression.Equipped[slot].Facet.Id)),
-                a => a.Shape.Width is not null ? "line width is not in the sim shape" : null);
+                Rewards.GearSlots.Where(_progression.Equipped.ContainsKey).Select(slot => (slot, _progression.Equipped[slot].Facet.Id)));
             foreach (var (id, def) in facets.Abilities)
             {
                 patched[id] = def;
@@ -573,7 +784,7 @@ public partial class Screen : Control
         {
             return new HumanLoadout(null, talentIds, facets);
         }
-        var setup = HostRunSetup.Build(reg with { Abilities = Merge(reg.Abilities, patched) }, s.DungeonId, s.KeyLevel, SimDriver.HumanClassId, withBots: false);
+        var setup = HostRunSetup.Build(reg with { Abilities = Merge(reg.Abilities, patched) }, s.DungeonId, s.KeyLevel, lobby.ClassId, withBots: false);
         var kit = patched.Keys.ToDictionary(id => id, id => setup.Content.Abilities[id], StringComparer.Ordinal);
         return new HumanLoadout(new Dictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>> { [setup.HumanActorId] = kit }, talentIds, facets);
     }
@@ -609,8 +820,9 @@ public partial class Screen : Control
     }
 
     // BIBLE s7: one line for the Facets the request hands the run (and how many equipped Facets were skipped), then one
-    // per applied Facet with its ability's queued value next to the base (read from the request's RunOptions), and one
-    // per skipped Facet with the reason.
+    // per applied Facet with its ability's queued value next to the base (read from the options the host will create the
+    // run with: HostRunSetup.StartFor, the call SimDriver.StartQueuedRun makes, since the Facets are layered there and
+    // not on the request), and one per skipped Facet with the reason.
     private void ProofQueuedFacets(QueueRequest request, Keyrun.Content.FacetResolution? facets)
     {
         Proof(FormattableString.Invariant($"SCREEN queue facets applied={facets?.Applied.Count ?? 0} skipped={facets?.Skipped.Count ?? 0}"));
@@ -618,7 +830,9 @@ public partial class Screen : Control
         {
             return;
         }
-        var loadouts = request.ToRunOptions().Loadouts;
+        var loadouts = _driver?.Setup is { } setup && _driver.Registry is { } reg
+            ? setup.StartFor(request, _progression, reg, ClassId).Options?.Loadouts
+            : request.ToRunOptions().Loadouts;
         var baseKit = _driver?.Setup?.Content.Abilities;
         foreach (var f in facets.Applied)
         {
@@ -671,8 +885,12 @@ public partial class Screen : Control
         }
         _banked = true;
         RecordRating(_driver.Run, result);
-        _progression = _progression.BankRun(result);
+        // f-275d47c9: the bank records the key the run was played at (KeyMove.From, the run-end panel's own key read)
+        // and its result in Progression.History, so Ascension marks are counted from the saved data.
+        var played = KeyMove.ForRun(_driver.Run)!.From;
+        _progression = _progression.BankRun(result, played);
         Proof(FormattableString.Invariant($"SCREEN bank result={result.ToJs()} ash={Ash.ForResult(result)} total={_progression.AshTotal}"));
+        Proof(AscensionReadout.LogLine("SCREEN", Ascension.Of(_progression)));
         SaveProgression("bank");
 
         // M1 TIMER-TIERS (BIBLE s8): a timed run raises the key by its tier (+1, +2 within 80% of par, +3 within 60%);
@@ -680,9 +898,20 @@ public partial class Screen : Control
         // KeyMove is the one read of that move, shared with the run-end panel's key line, so the panel and the reopened
         // screen never disagree about the level. It uses the same tick fallback (ResultTick ?? RunTimerTicks) as main's
         // tier read, and clamps the raise to the key range.
+        // LOBBY-TABS: the lobby comes back on its Play tab at that key, class and build kept (Lobby.ReturnFrom); before the
+        // first open (an --autorun run) there is no lobby yet and the key waits for it.
         var move = KeyMove.ForRun(_driver.Run)!;
-        _state = ScreenState.Open(SimDriver.DungeonId, _state?.ClauseIds ?? ClauseIds(), move.To);
-        Proof(FormattableString.Invariant($"SCREEN key from={move.From} to={_state.KeyLevel} tier={move.Tier}"));
+        var to = ScreenState.Open(SimDriver.DungeonId, ClauseIds(), move.To).KeyLevel;
+        if (_lobby is { } lobby)
+        {
+            _lobby = lobby.ReturnFrom(_driver.Run);
+            to = _lobby.Key.KeyLevel;
+        }
+        else
+        {
+            _pendingKey = to;
+        }
+        Proof(FormattableString.Invariant($"SCREEN key from={move.From} to={to} tier={move.Tier}"));
         if (_driver.Options.Autorun)
         {
             _autorunStep = 0;
@@ -694,10 +923,10 @@ public partial class Screen : Control
     {
         _banked = false;
         Close();
-        if (_state is { } s)
+        if (_lobby is { } lobby)
         {
-            // A new run: the Key band unlocks for the next queue, keeping the key the party chose.
-            _state = ScreenState.Open(s.DungeonId, s.ClauseIds, s.KeyLevel);
+            // A new run: the Key band unlocks for the next queue, keeping the key, class and build the party chose.
+            _lobby = lobby.Reopen(lobby.Key.KeyLevel);
         }
     }
 
@@ -866,7 +1095,7 @@ public partial class Screen : Control
 
     private void ProofKeyBand()
     {
-        if (_state is not { } s)
+        if (_lobby?.Key is not { } s)
         {
             return;
         }
@@ -947,24 +1176,25 @@ public partial class Screen : Control
     private IReadOnlyList<string> ClauseIds() =>
         _driver?.Registry is { } reg ? reg.Clauses.Select(kv => kv.Key).ToList() : Array.Empty<string>();
 
-    private string ClassName() =>
-        _driver?.Registry is { } reg && reg.Classes.TryGetValue(SimDriver.HumanClassId, out var c) ? c.Name : SimDriver.HumanClassId;
+    private string ClassName() => ClassName(ClassId);
+
+    private string ClassName(string classId) =>
+        _driver?.Registry is { } reg && reg.Classes.TryGetValue(classId, out var c) ? c.Name : classId;
+
+    // The chosen class's keybind slots (all nine, 1-5 then Q E R F), from content: the class picked on the Character
+    // tab, not the last run's setup.
+    private IReadOnlyList<AbilitySlot> ClassSlots() =>
+        _driver?.Registry is { } reg && reg.Classes.TryGetValue(ClassId, out var cls)
+            ? HostRunSetup.ResolveSlots(cls)
+            : Array.Empty<AbilitySlot>();
 
     private IEnumerable<(string Key, string Name)> Abilities() =>
-        _driver?.Setup is { } setup
-            ? setup.Slots.Take(5).Select(s => (s.Key, _driver.AbilityName(s.AbilityId)))
-            : Enumerable.Empty<(string, string)>();
+        ClassSlots().Take(5).Select(s => (s.Key, _driver!.AbilityName(s.AbilityId)));
 
     // That slot's listed pool for the human's class: content Facets of the slot that patch one of the class kit's
     // abilities, ordered by id so the draw does not depend on content load order.
-    private IReadOnlyList<Facet> SlotPool(string slot)
-    {
-        if (_driver?.Registry is not { } reg || _driver.Setup is not { } setup)
-        {
-            return Array.Empty<Facet>();
-        }
-        return SlotPool(reg, new HashSet<string>(setup.Slots.Select(s => s.AbilityId), StringComparer.Ordinal), slot);
-    }
+    private IReadOnlyList<Facet> SlotPool(string slot) =>
+        _driver?.Registry is { } reg ? Lobby.SlotPool(reg, Lobby.Kit(reg, ClassId), slot) : Array.Empty<Facet>();
 
     /// <summary>
     /// One gear slot's facet pool for a class: the content Facets of <paramref name="slot"/> that patch an ability in
@@ -975,61 +1205,82 @@ public partial class Screen : Control
     /// <param name="kit">The class kit's ability ids.</param>
     /// <param name="slot">A gear slot ("weapon", "armor", ...).</param>
     /// <returns>The pool, possibly empty.</returns>
-    public static IReadOnlyList<Facet> SlotPool(Keyrun.Content.ContentRegistry reg, IReadOnlySet<string> kit, string slot)
-    {
-        ArgumentNullException.ThrowIfNull(reg);
-        ArgumentNullException.ThrowIfNull(kit);
-        return reg.Facets
-            .Select(kv => kv.Value)
-            .Where(f => f.Slot.ToString().ToLowerInvariant() == slot && kit.Contains(f.AbilityId))
-            .OrderBy(f => f.Id, StringComparer.Ordinal)
-            .Select(f => new Facet(f.Id, f.Text, f.AbilityId))
-            .ToList();
-    }
+    public static IReadOnlyList<Facet> SlotPool(Keyrun.Content.ContentRegistry reg, IReadOnlySet<string> kit, string slot) =>
+        Lobby.SlotPool(reg, kit, slot);
 
-    private (Rect2 Character, Rect2 Key, Rect2 Queue, Rect2 KeyDown, Rect2 KeyUp) Layout()
+    // The rects of every tab at a screen of `size`: the tab bar, then per tab its panels. Only the open tab's panels
+    // are drawn; the Clause cards and the talent panel are child controls placed here and shown on their own tab only.
+    private readonly record struct ScreenLayout(
+        IReadOnlyList<Rect2> Tabs,
+        Rect2 Classes,
+        IReadOnlyList<Rect2> ClassCards,
+        Rect2 Gear,
+        Rect2 Kit,
+        Rect2 Summary,
+        Rect2 Key,
+        Rect2 Queue,
+        Rect2 KeyDown,
+        Rect2 KeyUp,
+        Rect2 Pick,
+        Rect2 Talents);
+
+    private ScreenLayout Layout()
     {
         var l = LayoutFor(Size);
         if (GetNodeOrNull<Control>("ClausePick") is { } pick)
         {
             pick.Position = l.Pick.Position;
             pick.Size = l.Pick.Size;
+            pick.Visible = Tab == LobbyTab.Play;
         }
         if (GetNodeOrNull<TalentPanel>(TalentPanel.NodeName) is { } talents)
         {
-            var t = TalentsFor(Size);
-            talents.Position = t.Position;
-            talents.Size = t.Size;
+            talents.Position = l.Talents.Position;
+            talents.Size = l.Talents.Size;
         }
-        return (l.Character, l.Key, l.Queue, l.KeyDown, l.KeyUp);
+        return l;
     }
 
-    // The bands for a screen of `size` (pure): the draw uses the node's Size, the fit proof lines the design size.
-    private static (Rect2 Character, Rect2 Key, Rect2 Queue, Rect2 KeyDown, Rect2 KeyUp, Rect2 Pick) LayoutFor(Vector2 size)
+    // The layout for a screen of `size` (pure): the draw uses the node's Size, the fit proof lines the design size. The
+    // tab bar sits in the title row, so every tab's panels start at the same top as the old three bands did, and each
+    // panel is at least as wide as the band it replaced (the Clause cards, the Queue caption and the talent cards wrap
+    // into no more lines than before).
+    private static ScreenLayout LayoutFor(Vector2 size)
     {
         var top = Margin + 30;
         var height = size.Y - top - 44;
         var width = size.X - (2 * Margin);
-        var character = new Rect2(Margin, top, width * 0.46f, height);
-        var key = new Rect2(character.End.X + 16, top, width * 0.32f, height);
+        var tabs = Enumerable.Range(0, Lobby.Tabs.Count)
+            .Select(i => new Rect2(TabsLeft + (i * (TabWidth + 6)), 12, TabWidth, top - 18))
+            .ToList();
+
+        // Play: summary | key band with the Clause cards | Queue.
+        var summary = new Rect2(Margin, top, width * 0.28f, height);
+        var key = new Rect2(summary.End.X + 16, top, width * 0.40f, height);
         var queue = new Rect2(key.End.X + 16, top, size.X - Margin - key.End.X - 16, 120);
         var keyDown = new Rect2(key.Position.X + 14, key.Position.Y + 44, 40, 40);
         var keyUp = new Rect2(key.Position.X + 150, key.Position.Y + 44, 40, 40);
         var pick = new Rect2(key.Position.X + 14, key.Position.Y + 128, key.Size.X - 28, 3 * 72);
-        return (character, key, queue, keyDown, keyUp, pick);
+
+        // Character: class cards | the five gear slots | the class kit.
+        var classes = new Rect2(Margin, top, width * 0.28f, height);
+        var cards = Enumerable.Range(0, 3)
+            .Select(i => new Rect2(classes.Position.X + 12, classes.Position.Y + 40 + (i * 92), classes.Size.X - 24, 84))
+            .ToList();
+        var gear = new Rect2(classes.End.X + 16, top, width * 0.42f, height);
+        var kit = new Rect2(gear.End.X + 16, top, size.X - Margin - gear.End.X - 16, height);
+
+        // Build: the talent panel over the whole content area.
+        var talents = new Rect2(Margin, top, width, height);
+        return new ScreenLayout(tabs, classes, cards, gear, kit, summary, key, queue, keyDown, keyUp, pick, talents);
     }
 
-    // The talent panel covers the Character and Key bands and leaves the Queue box visible.
-    private static Rect2 TalentsFor(Vector2 size)
-    {
-        var l = LayoutFor(size);
-        return new Rect2(l.Character.Position, new Vector2(l.Key.End.X - l.Character.Position.X, l.Character.Size.Y));
-    }
+    private static Rect2 TalentsFor(Vector2 size) => LayoutFor(size).Talents;
 
     // One "SCREEN talent fork=..." line per fork and a fit line per option card, laid out at the design viewport.
     private void ProofTalents()
     {
-        if (_talents is not { } picks)
+        if (_lobby?.Talents is not { } picks)
         {
             return;
         }
@@ -1060,62 +1311,186 @@ public partial class Screen : Control
         ProjectSettings.GetSetting("display/window/size/viewport_width", 1280).AsInt32(),
         ProjectSettings.GetSetting("display/window/size/viewport_height", 720).AsInt32());
 
+    // A dark lobby panel: near-black fill, a thin bronze edge, a short gold rule under the small-caps title.
     private void Band(Rect2 r, string title)
     {
-        DrawRect(r, HudNodes.Back);
-        DrawRect(r, HudNodes.Edge, filled: false, width: 1f);
-        HudNodes.Text(this, r.Position + new Vector2(14, 24), title, 16, Gold);
+        DrawRect(r, PanelBg);
+        DrawRect(r, Bronze, filled: false, width: 1f);
+        HudNodes.Text(this, r.Position + new Vector2(14, 24), title.ToUpperInvariant(), 15, Gold);
+        DrawRect(new Rect2(r.Position.X + 14, r.Position.Y + 31, Math.Min(120, r.Size.X - 28), 1), BronzeDim);
     }
 
-    private void DrawCharacter(Rect2 r)
+    // The title and the three tabs in the title row (the Dark and Darker lobby shape: one bar of tabs over one screen),
+    // the active tab lit with a gold rule under it, and the character's Ash and private rating on the right.
+    private void DrawTabBar(ScreenLayout l, Lobby lobby)
+    {
+        DrawRect(new Rect2(0, 0, Size.X, l.Tabs[0].End.Y + 4), BarBg);
+        DrawRect(new Rect2(0, l.Tabs[0].End.Y + 4, Size.X, 1), Bronze);
+        HudNodes.Text(this, new Vector2(Margin, Margin + 4), "KEYRUN", TitleFont, Gold);
+        for (var i = 0; i < Lobby.Tabs.Count; i++)
+        {
+            var r = l.Tabs[i];
+            var tab = Lobby.Tabs[i];
+            var on = tab == lobby.Tab;
+            DrawRect(r, on ? TabOn : TabOff);
+            if (on)
+            {
+                DrawRect(new Rect2(r.Position.X, r.End.Y - 3, r.Size.X, 3), Gold);
+            }
+            var label = TabLabel(tab);
+            var x = r.Position.X + ((r.Size.X - HudNodes.Width(label, 16)) / 2);
+            HudNodes.Text(this, new Vector2(x, r.Position.Y + 26), label, 16, on ? Gold : Dim);
+        }
+        var ash = FormattableString.Invariant($"Ash {_progression.AshTotal}");
+        var rating = _rating.ScreenText();
+        var right = Size.X - Margin;
+        HudNodes.Text(this, new Vector2(right - HudNodes.Width(ash, BodyFont), Margin - 2), ash, BodyFont, Gold);
+        HudNodes.Text(this, new Vector2(right - HudNodes.Width(rating, SmallFont), Margin + 14), rating, SmallFont, Dim);
+    }
+
+    private static string TabLabel(LobbyTab tab) => tab switch
+    {
+        LobbyTab.Character => "CHARACTER",
+        LobbyTab.Build => "BUILD",
+        _ => "PLAY",
+    };
+
+    private static string HintFor(LobbyTab tab) => tab switch
+    {
+        LobbyTab.Character => "Q/E tabs    Up/Down class    Tab item    R reroll Facet    Enter queue",
+        LobbyTab.Build => "Q/E tabs    Up/Down fork    1-3 pick    Backspace respec    T back    Enter queue",
+        _ => "Q/E tabs    Left/Right key    1-3 Clause    T talents    Enter queue",
+    };
+
+    // Character tab, left: one card per class (name, role, resource), the chosen one framed in gold.
+    private void DrawClasses(ScreenLayout l)
+    {
+        Band(l.Classes, "Class");
+        var ids = ClassIds();
+        for (var i = 0; i < ids.Count && i < l.ClassCards.Count; i++)
+        {
+            var r = l.ClassCards[i];
+            var on = ids[i] == ClassId;
+            DrawRect(r, on ? TabOn : CardBg);
+            DrawRect(r, on ? Gold : BronzeDim, filled: false, width: on ? 2f : 1f);
+            HudNodes.Text(this, r.Position + new Vector2(12, 26), ClassName(ids[i]), 18, on ? Gold : Parchment);
+            var role = HostRunSetup.Roster.FirstOrDefault(s => s.ClassId == ids[i])?.Role.ToString() ?? string.Empty;
+            var loop = _driver?.Registry is { } reg && reg.Classes.TryGetValue(ids[i], out var cls) ? cls.Loop.Resource : string.Empty;
+            HudNodes.Text(this, r.Position + new Vector2(12, 48), Clip($"{role}  -  {loop}", r.Size.X - 24, SmallFont), SmallFont, Dim);
+            if (on)
+            {
+                HudNodes.Text(this, r.Position + new Vector2(12, 70), Locked() ? "Locked in for this queue" : "Playing", SmallFont, Good);
+            }
+        }
+        var since = _progression.LastRun?.Text() ?? "First run";
+        HudNodes.Text(this, new Vector2(l.Classes.Position.X + 14, l.Classes.End.Y - 14),
+            Clip("Since last run: " + since, l.Classes.Size.X - 28, SmallFont), SmallFont, Calm);
+        DrawAscension(l.Classes);
+    }
+
+    // Character tab, under the class cards and above "Since last run": the private Ascension line (BIBLE s7, f-275d47c9),
+    // read from this screen's own progression (the one the run banks into and the save holds), never another seat's.
+    private void DrawAscension(Rect2 classes)
+    {
+        var state = Ascension.Of(_progression);
+        var lines = Wrap(AscensionReadout.CharacterLine(state), classes.Size.X - 28, SmallFont, 3);
+        var y = classes.End.Y - 14 - 22 - ((lines.Count - 1) * 16);
+        foreach (var line in lines)
+        {
+            HudNodes.Text(this, new Vector2(classes.Position.X + 14, y), line, SmallFont, state.Ascended ? Gold : Dim);
+            y += 16;
+        }
+    }
+
+    private bool Locked() => _lobby?.Locked == true;
+
+    // Character tab, middle: the five gear slots (BIBLE s7), each with Tier, Facet and crafting charges, or empty. A Facet
+    // on an ability outside the chosen class's kit is shown dim: it does nothing for this class.
+    private void DrawGear(Rect2 r)
+    {
+        Band(r, "Gear");
+        var x = r.Position.X + 14;
+        if (GearTotal() is { } total && GearTotalText(total) is { Length: > 0 } totalText)
+        {
+            HudNodes.Text(this, new Vector2(x + 70, r.Position.Y + 24), Clip(totalText, r.Size.X - 90, SmallFont), SmallFont, Calm);
+        }
+        var kit = _driver?.Registry is { } reg ? Lobby.Kit(reg, ClassId) : new HashSet<string>();
+        var slotHeight = Math.Min(96f, (r.Size.Y - 52) / Rewards.GearSlots.Count);
+        for (var i = 0; i < Rewards.GearSlots.Count; i++)
+        {
+            var slot = Rewards.GearSlots[i];
+            var box = new Rect2(x, r.Position.Y + 44 + (i * slotHeight), r.Size.X - 28, slotHeight - 8);
+            var label = (char.ToUpperInvariant(slot[0]) + slot[1..]).ToUpperInvariant();
+            var has = _progression.Equipped.TryGetValue(slot, out var item);
+            var selected = has && slot == _selected;
+            DrawRect(box, selected ? TabOn : CardBg);
+            DrawRect(box, selected ? Good : BronzeDim, filled: false, width: selected ? 2f : 1f);
+            HudNodes.Text(this, box.Position + new Vector2(10, 20), label, SmallFont, Dim);
+            if (!has || item is null)
+            {
+                HudNodes.Text(this, box.Position + new Vector2(10, 42), "Empty", BodyFont, new Color(Parchment, 0.4f));
+                continue;
+            }
+            var tier = FormattableString.Invariant($"Tier {item.Tier}");
+            HudNodes.Text(this, box.Position + new Vector2(10, 42), tier, 18, TierColor(item.Tier));
+            var charges = item.Charges == 1 ? "1 charge left" : FormattableString.Invariant($"{item.Charges} charges left");
+            HudNodes.Text(this, box.Position + new Vector2(box.Size.X - 10 - HudNodes.Width(charges, SmallFont), 20), charges, SmallFont, Dim);
+            var active = kit.Contains(item.Facet.AbilityId);
+            var facet = active ? item.Facet.Text : item.Facet.Text + " (another class's Facet)";
+            HudNodes.Text(this, box.Position + new Vector2(10, 62), Clip(facet, box.Size.X - 20, SmallFont), SmallFont, active ? Calm : Dim);
+        }
+    }
+
+    // Tier colour: grey at 1, through green and blue, to gold at the cap of 10 (shape stays the same: the number is the text).
+    private static Color TierColor(int tier) => tier switch
+    {
+        >= 10 => Gold,
+        >= 7 => new Color(0.72f, 0.55f, 1f),
+        >= 4 => new Color(0.45f, 0.7f, 1f),
+        >= 2 => Good,
+        _ => Parchment,
+    };
+
+    // Character tab, right: the chosen class's nine keybinds (1-5, Q interrupt, E defensive, R utility, F movement).
+    private void DrawKit(Rect2 r)
+    {
+        Band(r, "Kit");
+        var x = r.Position.X + 14;
+        var y = r.Position.Y + 58;
+        foreach (var slot in ClassSlots())
+        {
+            DrawRect(new Rect2(x, y - 15, 22, 20), CardBg);
+            DrawRect(new Rect2(x, y - 15, 22, 20), BronzeDim, filled: false, width: 1f);
+            HudNodes.Text(this, new Vector2(x + 6, y), slot.Key, BodyFont, Gold);
+            HudNodes.Text(this, new Vector2(x + 32, y), Clip(_driver!.AbilityName(slot.AbilityId), r.Size.X - 60, BodyFont), BodyFont, Parchment);
+            y += 26;
+        }
+    }
+
+    // Play tab, left: who is queueing and what the last run moved.
+    private void DrawSummary(Rect2 r)
     {
         Band(r, "Character");
         var x = r.Position.X + 14;
-        var y = r.Position.Y + 50;
-        HudNodes.Text(this, new Vector2(x, y), ClassName(), 18, Colors.White);
-        HudNodes.Text(this, new Vector2(x + 140, y), FormattableString.Invariant($"Ash {_progression.AshTotal}"), BodyFont, Gold);
-        HudNodes.Text(this, new Vector2(x + 240, y), _rating.ScreenText(), BodyFont, Calm);
+        var y = r.Position.Y + 58;
+        HudNodes.Text(this, new Vector2(x, y), ClassName(), 20, Parchment);
         y += 22;
+        var picks = _lobby?.Talents;
+        HudNodes.Text(this, new Vector2(x, y), FormattableString.Invariant($"Talents {picks?.Count ?? 0}/{picks?.ForkCount ?? 0}    Gear {_progression.Equipped.Count}/{Rewards.GearSlots.Count}"), SmallFont, Dim);
+        y += 26;
         var since = _progression.LastRun?.Text() ?? "First run";
-        HudNodes.Text(this, new Vector2(x, y), "Since last run: " + since, BodyFont, Calm);
-        y += 28;
+        foreach (var line in Wrap("Since last run: " + since, r.Size.X - 28, BodyFont, 3))
+        {
+            HudNodes.Text(this, new Vector2(x, y), line, BodyFont, Calm);
+            y += 18;
+        }
+        y += 12;
         foreach (var (keyLabel, name) in Abilities())
         {
-            DrawRect(new Rect2(x, y - 15, 22, 20), new Color(0.2f, 0.22f, 0.28f));
+            DrawRect(new Rect2(x, y - 15, 22, 20), CardBg);
             HudNodes.Text(this, new Vector2(x + 6, y), keyLabel, BodyFont, Gold);
-            HudNodes.Text(this, new Vector2(x + 32, y), name, BodyFont, Colors.White);
+            HudNodes.Text(this, new Vector2(x + 32, y), Clip(name, r.Size.X - 60, BodyFont), BodyFont, Parchment);
             y += 24;
-        }
-        y += 10;
-        HudNodes.Text(this, new Vector2(x, y), "Gear", 16, Gold);
-        if (GearTotal() is { } total && GearTotalText(total) is { Length: > 0 } totalText)
-        {
-            HudNodes.Text(this, new Vector2(x + 52, y), Clip(totalText, r.Size.X - 70, SmallFont), SmallFont, Calm);
-        }
-        y += 22;
-        foreach (var slot in Rewards.GearSlots)
-        {
-            var label = char.ToUpperInvariant(slot[0]) + slot[1..];
-            if (!_progression.Equipped.TryGetValue(slot, out var item))
-            {
-                HudNodes.Text(this, new Vector2(x, y), label + ": empty", BodyFont, new Color(1, 1, 1, 0.45f));
-                y += 22;
-                continue;
-            }
-            var selected = slot == _selected;
-            if (selected)
-            {
-                DrawRect(new Rect2(x - 6, y - 16, r.Size.X - 16, 40), new Color(0.5f, 1f, 0.6f, 0.12f));
-            }
-            var charges = item.Charges == 1 ? "1 charge left" : FormattableString.Invariant($"{item.Charges} charges left");
-            HudNodes.Text(this, new Vector2(x, y), FormattableString.Invariant($"{label}  Tier {item.Tier}    {charges}"), BodyFont,
-                selected ? Good : Colors.White);
-            HudNodes.Text(this, new Vector2(x + 12, y + 18), Clip(item.Facet.Text, r.Size.X - 40, SmallFont), SmallFont, Calm);
-            y += 42;
-        }
-        if (_status.Length > 0)
-        {
-            HudNodes.Text(this, new Vector2(x, r.End.Y - 14), _status, BodyFont, new Color(1f, 0.6f, 0.5f));
         }
     }
 
@@ -1125,10 +1500,11 @@ public partial class Screen : Control
         var l = Layout();
         foreach (var (rect, glyph) in new[] { (l.KeyDown, "<"), (l.KeyUp, ">") })
         {
-            DrawRect(rect, new Color(0.18f, 0.2f, 0.26f, state.Locked ? 0.4f : 1f));
-            HudNodes.Text(this, rect.Position + new Vector2(14, 27), glyph, 20, Colors.White);
+            DrawRect(rect, new Color(CardBg, state.Locked ? 0.4f : 1f));
+            DrawRect(rect, BronzeDim, filled: false, width: 1f);
+            HudNodes.Text(this, rect.Position + new Vector2(14, 27), glyph, 20, Parchment);
         }
-        HudNodes.Text(this, new Vector2(r.Position.X + 74, r.Position.Y + 76), FormattableString.Invariant($"Key {state.KeyLevel}"), TitleFont, Colors.White);
+        HudNodes.Text(this, new Vector2(r.Position.X + 74, r.Position.Y + 76), FormattableString.Invariant($"Key {state.KeyLevel}"), TitleFont, Parchment);
         HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 98), AffixLine(state.KeyLevel), SmallFont, Calm);
         HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 116), state.Locked ? "Clause (locked)" : "Clause: pick one", BodyFont, Gold);
     }
@@ -1152,12 +1528,13 @@ public partial class Screen : Control
 
     private void DrawQueue(Rect2 r, ScreenState state)
     {
-        DrawRect(r, state.Locked ? new Color(0.2f, 0.3f, 0.22f) : new Color(0.32f, 0.26f, 0.12f));
+        DrawRect(r, state.Locked ? new Color(0.16f, 0.22f, 0.15f) : new Color(0.3f, 0.2f, 0.08f));
         DrawRect(r, Gold, filled: false, width: 2f);
-        HudNodes.Text(this, r.Position + new Vector2(18, 48), state.Locked ? "Queued" : "Queue", 28, Colors.White);
+        DrawRect(new Rect2(r.Position + new Vector2(4, 4), r.Size - new Vector2(8, 8)), BronzeDim, filled: false, width: 1f);
+        HudNodes.Text(this, r.Position + new Vector2(18, 48), state.Locked ? "QUEUED" : "QUEUE", 28, Gold);
         var (name, _) = ClauseText(state.Clause.Picked);
-        HudNodes.Text(this, r.Position + new Vector2(18, 80), FormattableString.Invariant($"Key {state.KeyLevel} with {name}"), BodyFont, Calm);
-        HudNodes.Text(this, r.Position + new Vector2(18, 102), "Enter or click", SmallFont, Colors.White);
+        HudNodes.Text(this, r.Position + new Vector2(18, 80), Clip(FormattableString.Invariant($"{ClassName()}, key {state.KeyLevel} with {name}"), r.Size.X - 36, BodyFont), BodyFont, Parchment);
+        HudNodes.Text(this, r.Position + new Vector2(18, 102), "Enter or click", SmallFont, Dim);
         var y = r.End.Y + 24;
         foreach (var line in CaptionLines(r))
         {

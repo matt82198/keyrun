@@ -42,6 +42,7 @@ import { abilityTags, buildRotationPriority, SETUP_TAG_PREFIX, PAYOFF_TAG } from
 import { resourceEffectDelta, costAmount, healsOnCast } from "./kit-resources.js";
 import type { EffectDef } from "@content/schema/effect";
 import { classifyHeals, tauntAbilityId, type HealKit } from "./kit-heals.js";
+import { chargedIds, type AbilityCharges } from "./kit-charges.js";
 
 export { resolveKit, type EffectiveKit } from "./kit-resolve.js";
 export { setContentRegistry, getContentRegistry, getClassKit, priorityInterruptAbilityIds } from "./kit-registry.js";
@@ -84,6 +85,10 @@ export interface ClassKit {
   /** Shape-aware heals (kit-heals.ts) + the threat-op utility (Warden's Taunt), or null. */
   heals: HealKit;
   tauntAbilityId: string | null;
+  /** Slotted abilities (rot1-5, interrupt, defensive, utility, movement) whose own gcdTicks is 0: off the GCD. */
+  offGcdAbilityIds?: readonly string[];
+  /** BANKED-CHARGE (R-PILE-7c): slotted multi-charge abilities to their charges and cooldown (kit-charges.ts). */
+  chargedAbilities?: Readonly<Record<string, AbilityCharges>>;
 }
 
 export function buildClassKit(
@@ -168,5 +173,18 @@ export function buildClassKit(
     stanceSwapAbilityId,
     heals: classifyHeals(rotationalDefs, effects),
     tauntAbilityId: tauntAbilityId(utilityDef),
+    offGcdAbilityIds: offGcdIds(cls, abilities),
+    chargedAbilities: chargedIds(cls, abilities),
   };
+}
+
+function offGcdIds(cls: ClassDef, abilities: ReadonlyMap<string, AbilityDef>): string[] {
+  const slots = [...ROT_SLOTS, "interrupt", "defensive", "utility", "movement"] as const;
+  const ids: string[] = [];
+  for (const slot of slots) {
+    const id = cls.abilities[slot];
+    const def = abilities.get(id);
+    if (def && def.gcdTicks === 0 && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
 }

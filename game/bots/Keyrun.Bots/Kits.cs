@@ -75,7 +75,24 @@ public sealed record ClassKit
 
     /// <summary>The threat-op utility (Warden's Taunt), or null.</summary>
     public required string? TauntAbilityId { get; init; }
+
+    /// <summary>
+    /// Every slotted ability (five rotational, then interrupt, defensive, utility, movement) whose own gcdTicks is 0:
+    /// off the GCD, so readiness never waits for it (finding f-80b5cf16, the sim's Cooldowns.IsAbilityReady).
+    /// </summary>
+    public IReadOnlyList<string> OffGcdAbilityIds { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// BANKED-CHARGE (R-PILE-7c, f-f44791bc): every slotted ability with more than one charge, to its charges and
+    /// cooldown, so readiness counts a banked charge as the sim's Cooldowns.ChargesAvailable does.
+    /// </summary>
+    public IReadOnlyDictionary<string, AbilityCharges> ChargedAbilities { get; init; } = Kits.NoCharges;
 }
+
+/// <summary>A multi-charge ability's charge count and per-charge cooldown (the sim's AbilityDef.Charges / CooldownTicks).</summary>
+/// <param name="Charges">Charge count (always more than 1 in a kit).</param>
+/// <param name="CooldownTicks">Ticks one charge takes to recharge.</param>
+public sealed record AbilityCharges(long Charges, int CooldownTicks);
 
 /// <summary>Port of bots/src/kits.ts buildClassKit and its constants.</summary>
 public static class Kits
@@ -183,6 +200,54 @@ public static class Kits
             StanceSwapAbilityId = stanceSwapAbilityId,
             Heals = KitHeals.ClassifyHeals(rotationalDefs, effects),
             TauntAbilityId = KitHeals.TauntAbilityId(utilityDef),
+            OffGcdAbilityIds = OffGcdIds(slots, abilities),
+            ChargedAbilities = ChargedIds(slots, id => abilities.TryGetValue(id, out var def) ? new AbilityCharges(def.Charges, def.CooldownTicks) : null),
         };
+    }
+
+    /// <summary>An empty charge map (no slotted ability has more than one charge).</summary>
+    public static readonly IReadOnlyDictionary<string, AbilityCharges> NoCharges = new Dictionary<string, AbilityCharges>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The slotted abilities (slot order, no duplicates) whose <paramref name="chargesOf"/> answer has more than one
+    /// charge; an id it answers null for is left out.
+    /// </summary>
+    /// <param name="slots">The class's ability slots.</param>
+    /// <param name="chargesOf">An ability id's charges and cooldown, or null when it is unknown.</param>
+    /// <returns>The multi-charge abilities.</returns>
+    internal static IReadOnlyDictionary<string, AbilityCharges> ChargedIds(ClassAbilitySlots slots, Func<string, AbilityCharges?> chargesOf)
+    {
+        var map = new Dictionary<string, AbilityCharges>(StringComparer.Ordinal);
+        foreach (var id in new[] { slots.Rot1, slots.Rot2, slots.Rot3, slots.Rot4, slots.Rot5, slots.Interrupt, slots.Defensive, slots.Utility, slots.Movement })
+        {
+            if (chargesOf(id) is { Charges: > 1 } c && !map.ContainsKey(id))
+            {
+                map[id] = c;
+            }
+        }
+        return map.Count == 0 ? NoCharges : map;
+    }
+
+    private static List<string> OffGcdIds(ClassAbilitySlots slots, IReadOnlyDictionary<string, AbilityDef> abilities) =>
+        OffGcdIds(slots, id => abilities.TryGetValue(id, out var def) ? def.GcdTicks == 0 : null);
+
+    /// <summary>
+    /// The slotted abilities (five rotational, then interrupt, defensive, utility, movement; no duplicates) that
+    /// <paramref name="isOffGcd"/> says are off the GCD; an id it answers null for is left out.
+    /// </summary>
+    /// <param name="slots">The class's ability slots.</param>
+    /// <param name="isOffGcd">Whether an ability id is off the GCD, or null when it is unknown.</param>
+    /// <returns>The off-GCD ids, slot order.</returns>
+    internal static List<string> OffGcdIds(ClassAbilitySlots slots, Func<string, bool?> isOffGcd)
+    {
+        var ids = new List<string>();
+        foreach (var id in new[] { slots.Rot1, slots.Rot2, slots.Rot3, slots.Rot4, slots.Rot5, slots.Interrupt, slots.Defensive, slots.Utility, slots.Movement })
+        {
+            if (isOffGcd(id) == true && !ids.Contains(id))
+            {
+                ids.Add(id);
+            }
+        }
+        return ids;
     }
 }

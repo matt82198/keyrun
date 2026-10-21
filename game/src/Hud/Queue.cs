@@ -15,14 +15,19 @@ namespace Keyrun.Hud;
 /// key 2-20), and <see cref="Consume"/> removes the requests a <see cref="Backfill.Step"/> reports as joined.
 /// <para>BIBLE s10 "while queued, a role-scarcity readout; ready check on pop": each request keeps its seat's role, and
 /// a line on the Screen reads the pure <see cref="RoleScarcity"/> of the requests at the screen's key (role names only,
-/// never a number: s0 test 3). <see cref="Pop"/> opens a pure <see cref="ReadyCheck"/>: bot seats answer ready at once,
-/// the human answers Enter (ready) or Esc (decline) inside the 10-second window, and the end raises
-/// <see cref="ReadyCheckEnded"/> (Enter, or the seats requeued with no penalty).</para>
+/// never a number: s0 test 3). <see cref="Pop"/> opens the host's <see cref="QueuedRunGate"/> (a pure
+/// <see cref="ReadyCheck"/>): bot seats answer ready at once, the human answers Enter (ready) or Esc (decline) inside the
+/// 10-second window while the "Group found" line shows, and the gate's <see cref="QueuedRunGate.Entered"/> (SimDriver
+/// starts the queued run) or <see cref="QueuedRunGate.Requeued"/> (SimDriver drops the request and reopens the screen)
+/// ends it (finding f-e24b4fa4: SimDriver calls <see cref="Pop"/> on every <see cref="Screen.Queued"/>).</para>
 /// The node holds no rules of its own. Under <c>--autorun</c> it prints "QUEUE add|take|consume|roles|pop|ready ..."
 /// proof lines.
 /// </summary>
 public partial class Queue : Node
 {
+    /// <summary>Builds the node and its ready-check gate (proof lines go through the driver).</summary>
+    public Queue() => Gate = new QueuedRunGate(GateLine);
+
     /// <summary>The scarcity line's node name (a Label added under the Screen).</summary>
     public const string ReadoutNodeName = "QueueRoles";
 
@@ -42,8 +47,16 @@ public partial class Queue : Node
     [Export]
     public NodePath DriverPath { get; set; } = new("../../../SimDriver");
 
-    /// <summary>Raised once when a ready check resolves (Enter, or Requeue with the seats put back).</summary>
-    public event Action<ReadyCheck>? ReadyCheckEnded;
+    /// <summary>The host's ready-check gate (BIBLE s10 ready check on pop): SimDriver listens to its Entered and
+    /// Requeued events.</summary>
+    public QueuedRunGate Gate { get; }
+
+    /// <summary>Raised when the human answers the open check with a key (Enter or Esc), so an input recording can say
+    /// its ready answers are recorded keys.</summary>
+    public event Action? KeyAnswered;
+
+    /// <summary>True while a ready check waits on answers (Enter belongs to the dialog, never to the run).</summary>
+    public bool Checking => Gate.Checking;
 
     /// <summary>The waiting requests, oldest first (the list <see cref="Backfill.Step"/> reads).</summary>
     public IReadOnlyList<QueueRequest> Requests => _requests;
@@ -52,7 +65,7 @@ public partial class Queue : Node
     public IReadOnlyList<ActorRole> Roles => _roles;
 
     /// <summary>The open or last ready check, or null before the first pop.</summary>
-    public ReadyCheck? Check { get; private set; }
+    public ReadyCheck? Check => Gate.Check;
 
     /// <summary>The node's ready-check clock in sim ticks (frame time at <see cref="Tick.TickHz"/>).</summary>
     public int ClockTick => (int)Math.Floor(_seconds * Tick.TickHz);
@@ -100,10 +113,10 @@ public partial class Queue : Node
         {
             return;
         }
-        if (Check is { Phase: ReadyPhase.Pending } check)
+        if (Gate.Checking && Check is { } check)
         {
             var left = (check.RemainingTicks(ClockTick) + Tick.TickHz - 1) / Tick.TickHz;
-            var answered = check.ReadySeats.Contains(SimDriver.WardenId);
+            var answered = check.ReadySeats.Contains(Gate.HumanSeat);
             _readout.Text = answered
                 ? FormattableString.Invariant($"Group found. Waiting on the others ({left}s)")
                 : FormattableString.Invariant($"Group found. Enter: ready   Esc: decline ({left}s)");
@@ -121,19 +134,21 @@ public partial class Queue : Node
     /// <inheritdoc />
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (Check is not { Phase: ReadyPhase.Pending } || @event is not InputEventKey { Pressed: true, Echo: false } key)
+        if (!Gate.Checking || @event is not InputEventKey { Pressed: true, Echo: false } key)
         {
             return;
         }
         switch (key.Keycode)
         {
             case Key.Enter or Key.KpEnter:
-                Answer(SimDriver.WardenId, ready: true, ClockTick);
+                KeyAnswered?.Invoke();
                 GetViewport().SetInputAsHandled();
+                Answer(Gate.HumanSeat, ready: true, ClockTick);
                 break;
             case Key.Escape:
-                Answer(SimDriver.WardenId, ready: false, ClockTick);
+                KeyAnswered?.Invoke();
                 GetViewport().SetInputAsHandled();
+                Answer(Gate.HumanSeat, ready: false, ClockTick);
                 break;
         }
     }
@@ -199,63 +214,29 @@ public partial class Queue : Node
     }
 
     /// <summary>
-    /// The queue pops a group: opens a ready check for <paramref name="seats"/> at the node clock. Every seat but the
-    /// human's (<see cref="SimDriver.WardenId"/>) is a bot and answers ready at once.
+    /// The queue pops a group for <paramref name="request"/> (SimDriver, on every <see cref="Screen.Queued"/>): opens the
+    /// gate's ready check for the human seat plus <paramref name="botSeats"/> at the node clock. The bots answer ready at
+    /// once; with <paramref name="humanReadyAtPop"/> (a scripted launch, <see cref="QueuedRunGate.HumanReadyAtPop"/>) so
+    /// does the human, and the run is entered before this returns.
     /// </summary>
-    /// <param name="seats">The popped seats.</param>
-    /// <returns>The check after the bots' answers.</returns>
-    public ReadyCheck Pop(IReadOnlyList<int> seats)
-    {
-        ArgumentNullException.ThrowIfNull(seats);
-        var tick = ClockTick;
-        var check = ReadyCheck.Pop(seats, tick);
-        Proof(FormattableString.Invariant(
-            $"QUEUE pop seats={string.Join(',', check.Seats)} tick={tick} window={ReadyCheck.TimeoutTicks}"));
-        foreach (var seat in check.Seats.Where(s => s != SimDriver.WardenId))
-        {
-            check = check.Accept(seat, tick);
-        }
-        Check = null; // a new check: its end is reported even when the last one ended the same way
-        return Set(check);
-    }
+    /// <param name="request">The queued request.</param>
+    /// <param name="humanSeat">The human's seat.</param>
+    /// <param name="botSeats">The bot seats.</param>
+    /// <param name="humanReadyAtPop">Answer ready for the human at the pop.</param>
+    /// <returns>The check after the pop's answers.</returns>
+    public ReadyCheck Pop(QueueRequest request, int humanSeat, IReadOnlyList<int> botSeats, bool humanReadyAtPop) =>
+        Gate.Queued(request, humanSeat, botSeats, ClockTick, humanReadyAtPop);
 
     /// <summary>One seat answers the open ready check.</summary>
     /// <param name="seat">The seat.</param>
     /// <param name="ready">True for ready, false for decline.</param>
     /// <param name="tick">The answer tick (the node clock in play).</param>
     /// <returns>The check after the answer, or null when none is open.</returns>
-    public ReadyCheck? Answer(int seat, bool ready, int tick)
-    {
-        if (Check is not { } check)
-        {
-            return null;
-        }
-        Proof(FormattableString.Invariant($"QUEUE ready seat={seat} answer={(ready ? "ready" : "decline")} tick={tick}"));
-        return Set(ready ? check.Accept(seat, tick) : check.Decline(seat, tick));
-    }
+    public ReadyCheck? Answer(int seat, bool ready, int tick) => Gate.Answer(seat, ready, tick);
 
     /// <summary>Advances the open ready check to <paramref name="tick"/> (the timeout).</summary>
     /// <param name="tick">The tick.</param>
-    public void Advance(int tick)
-    {
-        if (Check is { Phase: ReadyPhase.Pending } check)
-        {
-            Set(check.At(tick));
-        }
-    }
-
-    private ReadyCheck Set(ReadyCheck next)
-    {
-        var was = Check;
-        Check = next;
-        if (next.Phase != ReadyPhase.Pending && (was is null || was.Phase == ReadyPhase.Pending))
-        {
-            Proof(FormattableString.Invariant(
-                $"QUEUE ready end phase={next.Phase.ToString().ToLowerInvariant()} requeued={string.Join(',', next.Requeued)}"));
-            ReadyCheckEnded?.Invoke(next);
-        }
-        return next;
-    }
+    public void Advance(int tick) => Gate.Advance(tick);
 
     // The human seat's role in the live run (the Warden tanks in HostRunSetup's roster), else tank.
     private ActorRole HumanRole() =>
@@ -280,4 +261,8 @@ public partial class Queue : Node
             HudNodes.Proof(_driver, line);
         }
     }
+
+    // The ready check's lines go to the driver's run log in every launch (console and --log file), so an interactive
+    // proof (--press-enter, --ready-hold, --replay-input) shows the pop, each answer and the end next to RUN start.
+    private void GateLine(string line) => _driver?.HostLine(line);
 }

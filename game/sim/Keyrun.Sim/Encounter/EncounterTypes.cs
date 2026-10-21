@@ -57,6 +57,14 @@ public sealed record TelegraphSpec(string Shape, int LeadTicks)
     /// starts. C#-only; oracle replays never apply it (tools/Keyrun.Replay RunSetup clears it).
     /// </summary>
     public bool SpansCast { get; init; }
+
+    /// <summary>
+    /// TELEGRAPH-READY: true only on a frozen-TS replay (tools/Keyrun.Replay RunSetup sets it beside clearing
+    /// <see cref="SpansCast"/>). The TS drew a telegraph whenever its step was scheduled, even for a cast combat then
+    /// refused, and the oracle traces record that, so such a replay keeps the TS rule. Every other run (the host, and
+    /// content-driven tests) draws a telegraph only for a cast that will start. C#-only, never read from JSON.
+    /// </summary>
+    public bool TsUnchecked { get; init; }
 }
 
 /// <summary>
@@ -78,6 +86,15 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
 
     /// <summary>Target override; absent means the default rules of <see cref="ScriptTarget"/>.</summary>
     public ScriptTargetOverride? Target { get; init; }
+
+    /// <summary>
+    /// CAST-FINISH: true only on a frozen-TS replay (tools/Keyrun.Replay RunSetup sets it, as it sets
+    /// <see cref="TelegraphSpec.TsUnchecked"/>). The TS fired every step on its scheduled tick, and combat's StartCast
+    /// then replaced any cast the enemy was still holding, so such a replay keeps that rule and the oracle traces stay
+    /// byte-equal. Every other run (the host, and content-driven tests) holds a step that comes due mid-cast until the
+    /// cast lands (<see cref="Scripts.StepEnemyScripts"/>). C#-only, never read from JSON.
+    /// </summary>
+    public bool TsCastReplace { get; init; }
 
     /// <summary>A <c>{at:"loop", every, cast}</c> step.</summary>
     public static ScriptStep Loop(int? every, string cast) => new(StepTrigger.Loop, cast) { Every = every };
@@ -135,7 +152,20 @@ public sealed record PullSpawn(int ActorId, string ClassId, Vec3 Pos, int Yaw, l
 /// <summary>One pull (sim/encounter/pulls.ts:28 PullDef).</summary>
 /// <param name="Id">Pull id.</param>
 /// <param name="Spawns">Spawns in order.</param>
-public sealed record PullDef(string Id, IReadOnlyList<PullSpawn> Spawns);
+public sealed record PullDef(string Id, IReadOnlyList<PullSpawn> Spawns)
+{
+    /// <summary>
+    /// PRESPAWN-AGGRO (C#-only; BIBLE section 9.1): the aggro radius, mm. On a layout run the pull stands idle from
+    /// tick 0 and engages on the first tick a living party member is within this distance of <see cref="Pulls.RingCenter"/>.
+    /// </summary>
+    public long AggroMm { get; init; } = Pulls.DefaultAggroMm;
+
+    /// <summary>The aggro ring's centre, mm; null = the integer mean of the spawn points.</summary>
+    public Vec3? AggroCenter { get; init; }
+
+    /// <summary>Group ids (pulls or packs) that engage with this one, a chain pull (BIBLE section 9.1, links).</summary>
+    public IReadOnlyList<string> Links { get; init; } = System.Array.Empty<string>();
+}
 
 /// <summary>A dungeon as the encounter sees it (sim/encounter/pulls.ts:33 DungeonDef).</summary>
 /// <param name="Id">Dungeon id.</param>

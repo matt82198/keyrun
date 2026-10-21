@@ -288,7 +288,8 @@ public static class Windows
         {
             return targets;
         }
-        var primary = targets.FirstOrDefault(t => actor.TargetId is int tid && t.Id == tid) ?? targets[0];
+        var castTarget = Casting.CastTargetOf(actor);
+        var primary = targets.FirstOrDefault(t => castTarget is int tid && t.Id == tid) ?? targets[0];
         var rest = targets
             .Where(t => t.Id != primary.Id)
             .OrderBy(t => Dist2(primary, t))

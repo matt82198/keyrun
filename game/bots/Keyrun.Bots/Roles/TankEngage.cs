@@ -35,13 +35,21 @@ public static class TankEngage
         return ranges.Count > 0 ? ranges.Min() : DefaultReachMm;
     }
 
-    /// <summary>tank-engage.ts holdsThreat: <paramref name="tankId"/> has a threat entry at least as high as every other one.</summary>
+    /// <summary>
+    /// tank-engage.ts holdsThreat: an enemy with a locked holder (HOLDER-LOCK, STATE.md D30) is held exactly when the
+    /// tank is its holder, whatever the threat table says; with no holder, <paramref name="tankId"/> has a threat entry
+    /// at least as high as every other one.
+    /// </summary>
     /// <param name="enemy">Enemy.</param>
     /// <param name="tankId">Tank.</param>
     /// <returns>True when held.</returns>
     public static bool HoldsThreat(ActorState enemy, int tankId)
     {
         ArgumentNullException.ThrowIfNull(enemy);
+        if (enemy.HolderId is { } holderId)
+        {
+            return holderId == tankId;
+        }
         if (!enemy.Threat.TryGetValue(tankId, out var mine))
         {
             return false;
@@ -67,7 +75,7 @@ public static class TankEngage
         ArgumentNullException.ThrowIfNull(actors);
         ArgumentNullException.ThrowIfNull(tank);
         return actors.Values
-            .Where(a => a.Kind == ActorKind.Enemy && a.Alive && !HoldsThreat(a, tank.Id) && AimedAtOtherPlayer(actors, a, tank.Id))
+            .Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle && !HoldsThreat(a, tank.Id) && AimedAtOtherPlayer(actors, a, tank.Id))
             .OrderBy(a => RoleShared.Dist(a, tank))
             .ThenBy(a => a.Id)
             .FirstOrDefault();
@@ -113,7 +121,7 @@ public static class TankEngage
         var d = RoleShared.Dist(self, target);
 
         var tauntRange = RangeOf(view, kit.TauntAbilityId) ?? DefaultReachMm;
-        if (loose is not null && !string.IsNullOrEmpty(kit.TauntAbilityId) && d <= tauntRange && RoleShared.AbilityReady(self, kit.TauntAbilityId, tick))
+        if (loose is not null && !string.IsNullOrEmpty(kit.TauntAbilityId) && d <= tauntRange && RoleShared.AbilityReady(self, kit.TauntAbilityId, tick, kit))
         {
             output.Add(new CastCommand(tick, self.Id, kit.TauntAbilityId, target.Id));
             return output;

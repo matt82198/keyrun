@@ -64,7 +64,10 @@ public static class Casting
     }
 
     /// <summary>
-    /// sim/combat/casting.ts:54-81 startCast. Checks in order: silenced (an active Hush pulse), not_ready,
+    /// sim/combat/casting.ts:54-81 startCast. Checks in order: casting (a cast already in flight is never replaced,
+    /// BIBLE section 3; Stopcast is the only cancel), silenced (an active Hush pulse), casting again for a player
+    /// (<see cref="IsCastingPlayer"/>, so the side-effect-free <see cref="StartError"/> preview also refuses a press
+    /// mid-cast), not_ready,
     /// insufficient_resource, school_locked, then for a target shape target_required / invalid_target (missing or
     /// dead) / out_of_range. On success spends the cost, consumes a charge, starts the GCD, sets the cast fields and,
     /// when a target was given, the actor's target.
@@ -85,6 +88,14 @@ public static class Casting
         var rule = OverheatRuleOf(ctx, actor);
         // BIBLE section 5: at the threshold the next cast is the Overheat, and the Overheat is free.
         var overheat = rule is not null && actor.Resource >= rule.Threshold;
+        // BIBLE section 3 (cast bars are the enemy's language; a kick counts inside the cast): a busy caster rejects
+        // the new cast, so an in-flight cast is never silently replaced. A dead caster is exempt: its only casts are
+        // onDeath script steps (Rules' DEATH-CAST EXCEPTION), and BIBLE section 9 needs the Seed's on-death Window
+        // even when it died mid-cast.
+        if (actor.Alive && actor.CastId is not null)
+        {
+            return "casting";
+        }
         if (StartError(state, actor, def, targetId, now, hooks, overheat) is { } err)
         {
             return err;
@@ -99,6 +110,9 @@ public static class Casting
         actor.CastStartTick = now;
         actor.CastEndsTick = now + HastedCastTicks(actor, def.CastTicks, rule, ctx, now);
         actor.CastIsOverheat = overheat;
+        // CAST-KEEPS-START-TARGET: a new cast starts unpinned; it resolves on the target set here unless a mid-cast
+        // SetTarget pins it. Mirrors casting.ts startCast.
+        ReleaseCastTarget(actor);
         if (targetId is not null)
         {
             actor.TargetId = targetId;
@@ -114,6 +128,10 @@ public static class Casting
     /// The checks <see cref="StartCast"/> makes, in its order, with no side effects: null when a cast of
     /// <paramref name="def"/> on <paramref name="targetId"/> would start on tick <paramref name="now"/>, else
     /// StartCast's error code. SLAM-TELEGRAPH: a spansCast script telegraph is drawn only when this says its cast starts.
+    /// StartCast's all-caster busy check ("casting") stays out: a scripted step whose caster is busy waits for the cast
+    /// to land (CAST-FINISH, <c>EncounterState.PendingSteps</c>), not dropped, and a pre-combat busy test cannot see a
+    /// cast that completes this same tick. Only the player busy check (<see cref="IsCastingPlayer"/>, PR #370) is
+    /// here, so bot readiness and the spell queue read "casting" for a player mid-cast; enemies are exempt from it.
     /// </summary>
     /// <param name="state">Sim state.</param>
     /// <param name="actor">The caster.</param>
@@ -131,6 +149,10 @@ public static class Casting
         if (hooks is not null && hooks.IsSilenced(now))
         {
             return "silenced";
+        }
+        if (IsCastingPlayer(actor))
+        {
+            return "casting";
         }
         if (!Cooldowns.IsAbilityReady(actor, def, now))
         {
@@ -161,6 +183,17 @@ public static class Casting
         }
         return null;
     }
+
+    /// <summary>
+    /// Finding f-80b5cf16 follow-up (orchestrator decision): a player's ability is never usable while that player is
+    /// already casting. A press mid-cast (a gcdTicks-0 instant included, now that it skips the GCD) is refused and the
+    /// cast under way continues: no silent replacement, no cast_stopped. Enemies are exempt here: a busy enemy's scripted
+    /// step waits for its cast to land (CAST-FINISH, Scripts.CastHeldAt) and StartCast's all-caster guard refuses it. A cast ending on
+    /// this tick was already completed (and its CastId cleared) before commands run.
+    /// </summary>
+    /// <param name="actor">The caster.</param>
+    /// <returns>True when the press must be refused.</returns>
+    private static bool IsCastingPlayer(ActorState actor) => actor.Kind == ActorKind.Player && actor.CastId is not null;
 
     private static OverheatRule? OverheatRuleOf(CastContext? ctx, ActorState actor) =>
         ctx?.Overheat is { } rules && rules.TryGetValue(actor.ClassId, out var rule) ? rule : null;
@@ -250,6 +283,45 @@ public static class Casting
         }
         emit(new SimEvent(tick, "cast_stopped", ("actorId", JsValue.Int(actor.Id)), ("abilityId", JsValue.Str(actor.CastId))));
         ClearCast(actor);
+        ReleaseCastTarget(actor);
+    }
+
+    /// <summary>
+    /// CAST-KEEPS-START-TARGET (finding f-bd8fbbb1, the WoW rule: a cast resolves on the target it started on;
+    /// sim/combat/targeting.ts setTarget). The caster's own retarget (a TargetCommand, Rules) goes through here. A
+    /// retarget while a cast is in flight first pins the target that cast started on, so the cast still resolves there;
+    /// the new target is for the next press. The pin is taken only on a real change mid-cast. The sim's own dead-target
+    /// auto-retarget (Runs.RunWiring.FixupTargeting) deliberately does not pin.
+    /// </summary>
+    /// <param name="actor">The actor retargeting.</param>
+    /// <param name="targetId">Its new current target, or null.</param>
+    public static void SetTarget(ActorState actor, int? targetId)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.CastId is not null && !actor.CastTargetPinned && targetId != actor.TargetId)
+        {
+            actor.CastTargetPinned = true;
+            actor.CastTargetId = actor.TargetId;
+        }
+        actor.TargetId = targetId;
+    }
+
+    /// <summary>The target the cast in flight resolves on: its pinned start target, else the current target.</summary>
+    /// <param name="actor">The caster.</param>
+    /// <returns>The cast's target id, or null.</returns>
+    public static int? CastTargetOf(ActorState actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return actor.CastTargetPinned ? actor.CastTargetId : actor.TargetId;
+    }
+
+    /// <summary>Drops the pin once the cast is over (completed with its Windows, stopped, interrupted, or replaced).</summary>
+    /// <param name="actor">The caster.</param>
+    public static void ReleaseCastTarget(ActorState actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        actor.CastTargetPinned = false;
+        actor.CastTargetId = null;
     }
 
     /// <summary>
@@ -293,11 +365,16 @@ public static class Casting
         ArgumentNullException.ThrowIfNull(def);
         ArgumentNullException.ThrowIfNull(targets);
         ArgumentNullException.ThrowIfNull(ctx);
+        var taunt = Holder.IsTaunt(def);
         var landed = false;
         var isKick = false;
         foreach (var target in targets)
         {
             landed |= ApplyEffects(state, actor, target, def.Effects, ctx, emit);
+            if (taunt)
+            {
+                Holder.ApplyTaunt(actor, target); // HOLDER-LOCK (STATE.md D30): only a taunt moves a holder
+            }
         }
         foreach (var op in def.Effects)
         {
@@ -323,6 +400,11 @@ public static class Casting
     /// applyEffect (an unknown effect id is skipped), removeEffect ("*" = dispel), threat, interrupt. window, payoff,
     /// combo and resource ops do nothing per target (Windows.cs and <see cref="CompleteCastOn"/> run them).
     /// Returns true when an interrupt op landed on this target.
+    /// C# deviation in behaviour (HEAL-NEVER-HOSTILE, D28 the C# sim is the oracle): a heal op, or an applyEffect whose
+    /// effect is beneficial (<see cref="EffectsRemove.PolarityOf"/>: a HoT, a shield, a haste), lands only on the
+    /// caster's own faction. The TS "target" shape keeps whatever the caster targets when the cast completes and a
+    /// mixed area resolves hostile, so the Chanter's Cadence (Mend) HoT ticked on the Choir Acolyte and the Pair in
+    /// policy playtests. Every other op on the same ability (damage, the Attuned Window, a slow) still lands.
     /// </summary>
     private static bool ApplyEffects(SimState state, ActorState source, ActorState target, IReadOnlyList<EffectOp> ops, CastContext ctx, Action<SimEvent> emit)
     {
@@ -341,10 +423,14 @@ public static class Casting
                     Movement.PullToward(target, source, pull.DistanceMm);
                     break;
                 case HealOp h:
-                    Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
+                    if (target.Kind == source.Kind)
+                    {
+                        Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
+                    }
                     break;
                 case ApplyEffectOp a:
-                    if (ctx.Effects.TryGetValue(a.EffectId, out var effDef))
+                    if (ctx.Effects.TryGetValue(a.EffectId, out var effDef) &&
+                        (target.Kind == source.Kind || EffectsRemove.PolarityOf(effDef) != EffectPolarity.Beneficial))
                     {
                         Effects.ApplyEffectInstance(target, effDef, source.Id, a.DurationTicks, a.Stacks, state.Tick);
                     }
@@ -475,6 +561,7 @@ public static class Casting
         var school = Abilities.AbilitySchool(castDef);
         var abilityId = target.CastId;
         ClearCast(target);
+        ReleaseCastTarget(target);
         target.Effects.Add(new EffectInstance
         {
             EffectId = LockoutEffectId(school),
