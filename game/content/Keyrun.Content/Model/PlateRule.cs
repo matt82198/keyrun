@@ -15,6 +15,10 @@ public static class PlateRule
     /// <summary>The highest a boss plate anchor may sit above the feet, mm, so it stays inside the frame from the door.</summary>
     public const int BossCapMm = 5000;
 
+    /// <summary>The enemy nameplate max distance from the viewing player, mm, inclusive (f-77a68e6b).</summary>
+    // WoW hides enemy plates past 60 yd; from each room's party start the next doorway is <= 25500 mm (pair 36500 -> door 62000), the pull after >= 27000 (seed 66500 -> boss 93500).
+    public const int PlateDistanceMm = 26000;
+
     /// <summary>
     /// The scaled model's top above its feet, mm: native height x scale permille / 1000, truncated exactly like
     /// <see cref="ActorBindingRow.StandingHeightMm"/>.
@@ -55,4 +59,22 @@ public static class PlateRule
     /// <param name="bossFrameActorId">The actor the boss unit frame shows this frame (UnitFrameModel), or null.</param>
     public static bool DrawsOverhead(int actorId, bool alive, bool human, int? bossFrameActorId) =>
         alive && !human && actorId != bossFrameActorId;
+
+    /// <summary>
+    /// <see cref="DrawsOverhead(int, bool, bool, int?)"/> plus the nameplate distance (f-77a68e6b): an enemy plate also
+    /// needs its actor within <see cref="PlateDistanceMm"/> of the viewing player (<see cref="InPlateRange"/>), so the
+    /// plates of pulls far down the dungeon do not draw over the current fight. Party plates do not cull by distance.
+    /// </summary>
+    /// <param name="actorId">The actor.</param>
+    /// <param name="alive">Whether it is alive.</param>
+    /// <param name="human">True for the played character.</param>
+    /// <param name="bossFrameActorId">The actor the boss unit frame shows this frame, or null.</param>
+    /// <param name="enemy">True for an enemy actor, whose plate culls by distance.</param>
+    /// <param name="distanceMm">The actor's distance from the viewing player, mm.</param>
+    public static bool DrawsOverhead(int actorId, bool alive, bool human, int? bossFrameActorId, bool enemy, long distanceMm) =>
+        DrawsOverhead(actorId, alive, human, bossFrameActorId) && (!enemy || InPlateRange(distanceMm));
+
+    /// <summary>True when <paramref name="distanceMm"/> is within <see cref="PlateDistanceMm"/> (the boundary draws).</summary>
+    /// <param name="distanceMm">Distance from the viewing player, mm.</param>
+    public static bool InPlateRange(long distanceMm) => distanceMm <= PlateDistanceMm;
 }
