@@ -1,8 +1,23 @@
 name: Tests
 on:
+  # Docs-only changes skip this workflow; docs-only.yml defines the same required check names for them.
   push:
     branches: [main]
+    paths-ignore:
+      - 'STATE.md'
+      - 'BUILDLOG.md'
+      - 'docs/**'
+      - 'design/**'
+      - '**/*.md'
+      - '.github/CODEOWNERS'
   pull_request:
+    paths-ignore:
+      - 'STATE.md'
+      - 'BUILDLOG.md'
+      - 'docs/**'
+      - 'design/**'
+      - '**/*.md'
+      - '.github/CODEOWNERS'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
