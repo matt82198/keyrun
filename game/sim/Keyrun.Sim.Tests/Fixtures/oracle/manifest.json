@@ -20,15 +20,15 @@
     },
     "bots-hv-k10-s7.trace.jsonl": {
       "bytes": 276650,
-      "fnv": "eb586a96"
+      "fnv": "d025f32b"
     },
     "bots-hv-k2-s11.trace.jsonl": {
       "bytes": 216223,
-      "fnv": "c1802e5f"
+      "fnv": "17813cf0"
     },
     "bots-hv-k2-s7.trace.jsonl": {
       "bytes": 216220,
-      "fnv": "b0b93678"
+      "fnv": "d4434bd7"
     },
     "content-pull.setup.json": {
       "bytes": 23098,
@@ -362,7 +362,7 @@
         "fnv": "5018f7d9"
       },
       "sim/combat/casting.ts": {
-        "fnv": "b0735395"
+        "fnv": "fda94e9e"
       },
       "sim/combat/clause-hooks.ts": {
         "fnv": "43aaf28e"
@@ -385,6 +385,9 @@
       "sim/combat/floor-telegraphs.ts": {
         "fnv": "b79df7f0"
       },
+      "sim/combat/haste.ts": {
+        "fnv": "bd6850e3"
+      },
       "sim/combat/holder.ts": {
         "fnv": "ac601358"
       },
@@ -398,7 +401,7 @@
         "fnv": "b176fb7d"
       },
       "sim/combat/rules.ts": {
-        "fnv": "7567ddd8"
+        "fnv": "87b52e82"
       },
       "sim/combat/spell-queue.ts": {
         "fnv": "a385f55d"
@@ -540,7 +543,7 @@
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "46f7aef4"
+      "traceHash": "c47bc285"
     },
     {
       "finalTick": 1423,
@@ -549,7 +552,7 @@
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "46f7aef4"
+      "traceHash": "c47bc285"
     },
     {
       "finalTick": 1989,
@@ -558,7 +561,7 @@
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "eba9e2a3"
+      "traceHash": "3faf0def"
     }
   ],
   "version": 1

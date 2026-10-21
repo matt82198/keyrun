@@ -190,4 +190,39 @@ public sealed class EncounterCastLedgerTests
         Assert.Null(ledger.InFlight(Boss, 100));
         Assert.Null(ledger.InFlight(Boss, 101));
     }
+
+    // R-HASTE-1: the shape of bots-hv-k10-s7 after the haste re-record. An Anthem combo (hasted, +1500 bp) on the Seed at
+    // 1499 shortens its 20-tick slam begun at 1512 to 17 ticks (Casting.HastedTicks), so the trace completes it at 1529.
+    private static int SeedSlamTicksAt(int actor, string ability, int start)
+    {
+        _ = actor;
+        var c = CastTicks.TryGetValue(ability, out var t) ? t : 20;
+        return start >= 1499 && start < 1619 ? Keyrun.Sim.Combat.Casting.HastedTicks(c, 1500) : c;
+    }
+
+    [Fact(DisplayName = "encounter cast ledger: a hasted cast that completes at X began where its hasted cast time ends at X (R-HASTE-1)")]
+    public void A_hasted_completion_is_spanned_from_its_hasted_start()
+    {
+        var ticks = new Dictionary<string, int>(CastTicks) { ["seed.slam"] = 20 };
+        var ledger = new EncounterCastLedger(ticks, null, SeedSlamTicksAt);
+        ledger.Completed(Boss, "seed.slam", 1529);
+        // The caster is free before 1512: an unhasted (X - C, X] span would claim it from 1509 and hold the step due at 1512.
+        Assert.Null(ledger.InFlight(Boss, 1510));
+        Assert.Null(ledger.InFlight(Boss, 1512));
+        Assert.Equal(("seed.slam", 1529), ledger.InFlight(Boss, 1513));
+        Assert.Equal(("seed.slam", 1529), ledger.InFlight(Boss, 1529));
+        Assert.Null(ledger.InFlight(Boss, 1530));
+    }
+
+    [Fact(DisplayName = "encounter cast ledger: a hasted start is in flight for its hasted cast time, one span with its completion (R-HASTE-1)")]
+    public void A_hasted_start_ends_at_its_hasted_tick()
+    {
+        var ticks = new Dictionary<string, int>(CastTicks) { ["seed.slam"] = 20 };
+        var ledger = new EncounterCastLedger(ticks, null, SeedSlamTicksAt);
+        ledger.Completed(Boss, "seed.slam", 1529);
+        ledger.Started(Boss, "seed.slam", 1512);
+        Assert.Equal(("seed.slam", 1529), ledger.InFlight(Boss, 1529));
+        Assert.Null(ledger.InFlight(Boss, 1530));
+        Assert.Null(ledger.InFlight(Boss, 1532));
+    }
 }

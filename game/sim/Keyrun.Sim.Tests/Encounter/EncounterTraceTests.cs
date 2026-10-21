@@ -129,13 +129,18 @@ public sealed class EncounterTraceTests
         // ... and each enemy's cast in flight on every tick, not only on the full lines (this replay runs no combat):
         // EncounterCastLedger learns completed casts from the oracle's cast_complete, cast starts from this replay's own
         // encounter step (the trace has no cast_start) and cuts from the oracle's interrupt (R-415-C); a start its
-        // cooldown refuses is not a start (f-df833cf3), so the ledger also needs each ability's cooldownTicks.
+        // cooldown refuses is not a start (f-df833cf3), so the ledger also needs each ability's cooldownTicks. R-HASTE-1:
+        // haste from every live effect shortens a cast (Casting.HastedCastTicks), so each cast's length comes from the
+        // caster's live haste as the trace's own combo events apply it (EncounterHasteModel).
+        var castTicks = abilities.ToDictionary(kv => kv.Key, kv => kv.Value.CastTicks, StringComparer.Ordinal);
+        var haste = new EncounterHasteModel(content, records);
         var castLedger = new EncounterCastLedger(
-            abilities.ToDictionary(kv => kv.Key, kv => kv.Value.CastTicks, StringComparer.Ordinal),
+            castTicks,
             abilities.Keys.ToDictionary(
                 id => id,
                 id => abilityJson.Get(id) is JsObject ao && ao.Get("cooldownTicks") is JsInt cd ? (int)cd.Value : 0,
-                StringComparer.Ordinal));
+                StringComparer.Ordinal),
+            (actor, ability, start) => haste.CastTicksAt(actor, castTicks.TryGetValue(ability, out var c) ? c : 0, start));
         foreach (var rec in records)
         {
             foreach (var e in rec.Events.Where(e => e.Type == "cast_complete"))
