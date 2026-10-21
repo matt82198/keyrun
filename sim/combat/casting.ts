@@ -28,6 +28,7 @@ import { addThreat } from "./threat";
 import { applyTaunt, isTaunt } from "./holder";
 import { releaseCastTarget, resolveTargets } from "./targeting";
 import { isqrt } from "./movement";
+import { hastedCastTicks } from "./haste";
 import { shouldSilence } from "../encounter/clauses";
 import { getActiveEncounterRules } from "./clause-hooks";
 
@@ -59,6 +60,7 @@ export function startCast(
   targetId: ActorId | undefined,
   _point: Vec3 | undefined,
   now: Tick,
+  effects?: Record<string, EffectDef>, // R-HASTE-1: the run's effect defs (Casting.cs StartCast ctx); undefined = no haste
 ): string | null {
   // BIBLE s3: a cast in flight is never silently replaced; a busy caster rejects the new cast (stopcast cancels).
   // A dead caster is exempt: its only casts are onDeath steps, and BIBLE s9 needs the Seed's on-death Window.
@@ -83,7 +85,7 @@ export function startCast(
   startGcd(actor, now, def.gcdTicks);
   actor.castId = def.id;
   actor.castStartTick = now;
-  actor.castEndsTick = now + def.castTicks;
+  actor.castEndsTick = now + hastedCastTicks(actor, def.castTicks, effects, now);
   // CAST-KEEPS-START-TARGET: a new cast starts unpinned; it resolves on the target set here unless a mid-cast
   // setTarget pins it (targeting.ts). Mirrors Casting.cs StartCast.
   releaseCastTarget(actor);
