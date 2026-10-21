@@ -75,10 +75,11 @@ public sealed class PrivateRunLog
     /// <summary>
     /// <paramref name="seat"/>'s own causes, one row per enemy kind (lane WHAT-GOT-YOU: actors sharing a display name
     /// merge, damage and hits summed, <see cref="CauseRows.MergeByName"/>): the killing blow first, then by damage
-    /// descending, then by the kind's lowest source id.
+    /// descending, then by the kind's lowest source id. The seat's own damage to itself (a Cinderfield closer burn,
+    /// STATE.md D34) is recorded but never listed: the fold drops a row whose source is the seat (finding f-1326b59a).
     /// </summary>
     /// <param name="seat">The local player's seat.</param>
-    /// <returns>Only entries whose seat is <paramref name="seat"/>.</returns>
+    /// <returns>Only entries whose seat is <paramref name="seat"/>, none whose source is <paramref name="seat"/>.</returns>
     public IReadOnlyList<DeathCause> CausesFor(int seat) => CauseRows.MergeByName(_entries
             .Where(kv => kv.Key.Seat == seat)
             .OrderBy(kv => kv.Key.Source)
@@ -358,6 +359,7 @@ public partial class RunEndPanel : Control
     private SimDriver? _driver;
     private RunEndView? _view;
     private int? _taken;
+    private AscensionState? _ascension;
 
     /// <summary>The driver to read the run from.</summary>
     [Export]
@@ -414,7 +416,38 @@ public partial class RunEndPanel : Control
     }
 
     /// <inheritdoc />
-    public override void _Process(double delta) => QueueRedraw();
+    public override void _Process(double delta)
+    {
+        ReadAscension();
+        QueueRedraw();
+    }
+
+    // f-275d47c9: the private Ascension line, read once per run end from the screen's own progression after the screen
+    // has banked this run (Screen.Banked), so it is the banked state the save holds, whichever Stepped handler ran
+    // first. Never read for or shown to another seat (BIBLE s12 [DECIDE] open). No screen (--solo) means no line.
+    private void ReadAscension()
+    {
+        if (_view is null || _ascension is not null || _driver is null
+            || GetTree()?.GetFirstNodeInGroup(Screen.GroupName) is not Screen { Banked: true } screen)
+        {
+            return;
+        }
+        _ascension = Ascension.Of(screen.Progression);
+        HudNodes.Proof(_driver, AscensionReadout.LogLine("HUD runend", _ascension));
+        var line = AscensionReadout.RunEndLine(_ascension);
+        var placed = LayoutPanel(HeightOf(_view), out _, out _);
+        var (left, keyEnd) = AscensionPlace(_view, line, placed.X, placed.Width);
+        HudNodes.Proof(_driver, FormattableString.Invariant(
+            $"HUD runend ascension line=\"{line}\" left={(int)left} right={(int)Math.Ceiling(left + HudNodes.Width(line, CardFont))} keyEnd={(int)Math.Ceiling(keyEnd)} panelRight={placed.X + placed.Width - 20}"));
+    }
+
+    // The Ascension line sits right-aligned on the key row (y = 34 + one line), so the panel's height and every other
+    // row stay where they were; keyEnd is where the key line's text ends.
+    private static (float Left, float KeyEnd) AscensionPlace(RunEndView view, string line, float panelX, float panelWidth)
+    {
+        var keyEnd = panelX + 20 + (view.Key is { } k ? HudNodes.Width(k.Line, CardFont + 2) : 0f);
+        return (panelX + panelWidth - 20 - HudNodes.Width(line, CardFont), keyEnd);
+    }
 
     /// <inheritdoc />
     public override void _UnhandledInput(InputEvent @event)
@@ -463,6 +496,14 @@ public partial class RunEndPanel : Control
             // An upgrade reads green, a held key reads the calm body color.
             var keyColor = keyMove.To > keyMove.From ? new Color(0.5f, 1f, 0.6f) : new Color(0.85f, 0.88f, 0.95f);
             HudNodes.Text(this, panel.Position + new Vector2(20, 34 + BonusLineHeight), keyMove.Line, CardFont + 2, keyColor);
+        }
+        if (_ascension is { } ascension)
+        {
+            // f-275d47c9: private, this character only; gold when this run earned a mark.
+            var line = AscensionReadout.RunEndLine(ascension);
+            var (left, _) = AscensionPlace(view, line, panel.Position.X, panel.Size.X);
+            var color = ascension.LastRunMarked ? new Color(1f, 0.85f, 0.5f) : new Color(0.7f, 0.85f, 1f);
+            HudNodes.Text(this, new Vector2(left, panel.Position.Y + 34 + BonusLineHeight), line, CardFont, color);
         }
         if (view.BonusLabel is { } bonusLabel)
         {
@@ -580,6 +621,7 @@ public partial class RunEndPanel : Control
         _combos.Clear();
         _view = null;
         _taken = null;
+        _ascension = null;
     }
 
     private void OnStepped(int tick, IReadOnlyList<SimEvent> events)
