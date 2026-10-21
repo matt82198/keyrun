@@ -256,6 +256,33 @@ public sealed class EncounterTraceTests
                 $"{trace}: first divergence at t={r.T} (state t={r.T - 1}, exact={exact}){Environment.NewLine}" +
                 $"oracle: {string.Join(" ", expectedJson)}{Environment.NewLine}ours:   {string.Join(" ", oursJson)}");
 
+            // A telegraph drawn between projections took its origin/yaw from unknown (stale) positions, and only those two
+            // fields went uncompared above; its caster can move before it resolves (the Seed walks while it casts), so a
+            // resolution on an exact tick would hit-test our stale geometry against an exact state. Register the oracle's
+            // own origin/yaw instead (every other field already matched), so the exact-tick hit list stays a real check.
+            if (!exact)
+            {
+                var oracleGeometry = expected.Where(e => e.Type == "telegraph").ToList();
+                var firstNewId = encounter.NextTelegraphId - oracleGeometry.Count; // this step's ids, in draw order
+                encounter = encounter with
+                {
+                    Telegraphs = encounter.Telegraphs.Select(tg =>
+                    {
+                        var j = tg.Id - firstNewId;
+                        if (j < 0 || j >= oracleGeometry.Count)
+                        {
+                            return tg;
+                        }
+                        var o = (JsObject)oracleGeometry[j].Get("origin")!;
+                        return tg with
+                        {
+                            Origin = new Vec3(((JsInt)o.Get("x")!).Value, ((JsInt)o.Get("y")!).Value, ((JsInt)o.Get("z")!).Value),
+                            Yaw = (int)((JsInt)oracleGeometry[j].Get("yaw")!).Value,
+                        };
+                    }).ToList(),
+                };
+            }
+
             tally.Records++;
             tally.Telegraphs += expected.Count(e => e.Type == "telegraph");
             tally.ExactTelegraphs += exact ? expected.Count(e => e.Type == "telegraph") : 0;
@@ -319,9 +346,23 @@ public sealed class EncounterTraceTests
     // HOLDER-LOCK D30 merged with INTEGRATE-PLAYABLE CAST-DEFERRAL, re-recorded on the merged tree (ORACLE_WRITE=1) and
     // measured by this replay: k2-s7 / k2-s11 telegraphs=12 (exact 0) hits=12 (exact 1); k10-s7 telegraphs=17 (exact 0)
     // hits=15 (exact 1), records=2026.
-    [InlineData("bots-hv-k2-s7", 12, 12, 7, 0, 0, 1)] // HOLDER-LOCK merge: was 12, 12, 7, 0, 1, 1. DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k2-s11", 12, 12, 7, 0, 0, 1)] // HOLDER-LOCK merge: was 12, 12, 7, 0, 1, 1. DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 17, 15, 7, 0, 0, 1)] // HOLDER-LOCK + INTEGRATE-PLAYABLE merge: main was 19, 18, 7, 0, 0, 2, HOLDER-LOCK branch 14, 13, 7, 0, 0, 1 (measured by this replay). INTEGRATE-PLAYABLE CAST-DEFERRAL re-record: was 16, 16, 7, 0, 0, 2 (measured by this replay: telegraphs=19 (exact 0) hits=18 (exact 2); held boss casts re-draw their telegraph when issued). INTEGRATE-PLAYABLE #325 re-fold re-record: was 17, 17, 7, 0, 0, 3 (measured by this replay: telegraphs=16 (exact 0) hits=16 (exact 2); the run now ends at 2071, before the 2126 cleave). INTEGRATE-PLAYABLE re-record (integrated tree, e19bc046 traces): was 16, 15, 7, 0, 0, 2, tallied by this replay from the recorded trace; SLAM-CIRCLE-HITS re-record (slam circle + CHASE-AREA-REACH): was 16, 16, 7, 0, 0, 3 (measured by this replay against the regenerated oracle); k2 rows unchanged
+    // HOLDER-LOCK D30 (PR #307) merged with PR #370 SPELL-QUEUE + ZERO-GCD (main 7fb46645), re-recorded on the merged tree
+    // (ORACLE_WRITE=1) and measured by this replay: k2-s7 / k2-s11 records=1600 telegraphs=8 (exact 1) hits=8 (exact 1);
+    // k10-s7 records=2198 telegraphs=15 (exact 0) hits=15 (exact 3), the same rows as main's below (the HOLDER-LOCK
+    // merge 6b057907 rows were k2 12, 12, 7, 0, 0, 1 / k10 17, 15, 7, 0, 0, 1). On this trace telegraph 7 (seed.lash,
+    // drawn at 1723 by a Seed walking toward the party) resolves at 1740 on an exact tick, so the replay now registers
+    // the oracle's origin/yaw for telegraphs drawn between projections (see Replay).
+    // ZERO-GCD + NO-PRESS-MID-CAST (f-80b5cf16) merged with ENEMY-ENGAGE and re-recorded on the merged tree, measured by
+    // this replay (ZERO-GCD + NO-PRESS-MID-CAST alone: k2 10, 10, 7, 0, 0, 0; k10 15, 14, 7, 0, 0, 3; main: k2 12, 12,
+    // 7, 0, 1, 1; k10 16, 16, 7, 0, 0, 3).
+    // SPELL-QUEUE (PR #370: bots press in the last 8 ticks of their own cast; Combat/SpellQueue.cs) re-recorded, measured
+    // by this replay: k2 was 10, 10, 7, 0, 0, 0 (now 8, 8, 7, 0, 1, 1); k10 unchanged.
+    // PR #370 merged with INTEGRATE-PLAYABLE (#396) and re-recorded on the merged tree (ORACLE_WRITE=1), measured by
+    // this replay: the k2 traces are byte-identical to PR #370's own, so the k2 rows are PR #370's (main alone: k2 12,
+    // 12, 7, 0, 1, 1); k10 PR #370 alone 15, 15, 7, 0, 0, 3, main alone 19, 18, 7, 0, 0, 2.
+    [InlineData("bots-hv-k2-s7", 8, 8, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k2-s11", 8, 8, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k10-s7", 15, 15, 7, 0, 0, 3)] // MERGE-370 re-record: was 19, 18, 7, 0, 0, 2 on main (measured by this replay on the merged trace: telegraphs=15 hits=15 exact 0 / 3; the same as PR #370 alone). INTEGRATE-PLAYABLE CAST-DEFERRAL re-record: was 16, 16, 7, 0, 0, 2 (measured by this replay: telegraphs=19 (exact 0) hits=18 (exact 2); held boss casts re-draw their telegraph when issued). INTEGRATE-PLAYABLE #325 re-fold re-record: was 17, 17, 7, 0, 0, 3 (measured by this replay: telegraphs=16 (exact 0) hits=16 (exact 2); the run now ends at 2071, before the 2126 cleave). INTEGRATE-PLAYABLE re-record (integrated tree, e19bc046 traces): was 16, 15, 7, 0, 0, 2, tallied by this replay from the recorded trace; SLAM-CIRCLE-HITS re-record (slam circle + CHASE-AREA-REACH): was 16, 16, 7, 0, 0, 3 (measured by this replay against the regenerated oracle); k2 rows unchanged
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {

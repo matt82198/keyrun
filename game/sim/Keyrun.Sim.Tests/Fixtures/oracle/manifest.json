@@ -19,16 +19,16 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 304626,
-      "fnv": "066fdec7"
+      "bytes": 307952,
+      "fnv": "c4b8ad98"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 235289,
-      "fnv": "b58ba6d1"
+      "bytes": 229076,
+      "fnv": "0a2af903"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 235286,
-      "fnv": "1be3621c"
+      "bytes": 229073,
+      "fnv": "eb8a6174"
     },
     "content-pull.setup.json": {
       "bytes": 22931,
@@ -92,16 +92,16 @@
         "fnv": "ef39a42f"
       },
       "bots/src/kit-resolve.ts": {
-        "fnv": "495c7980"
+        "fnv": "21595c36"
       },
       "bots/src/kit-resources.ts": {
         "fnv": "7ef3cac7"
       },
       "bots/src/kits.ts": {
-        "fnv": "da72fc12"
+        "fnv": "696f1f2e"
       },
       "bots/src/pings-policy.ts": {
-        "fnv": "6ac0749b"
+        "fnv": "4b4e0b85"
       },
       "bots/src/roles.ts": {
         "fnv": "528e0497"
@@ -116,16 +116,16 @@
         "fnv": "b39123f5"
       },
       "bots/src/roles/shared.ts": {
-        "fnv": "374aae55"
+        "fnv": "55e41671"
       },
       "bots/src/roles/tank-engage.ts": {
-        "fnv": "0631ebc6"
+        "fnv": "309b9b89"
       },
       "bots/src/roles/tank-pressure.ts": {
         "fnv": "11a09dd6"
       },
       "bots/src/roles/tank.ts": {
-        "fnv": "6947df8d"
+        "fnv": "9313c4d5"
       },
       "bots/src/shared/command.ts": {
         "fnv": "ed89696f"
@@ -134,7 +134,7 @@
         "fnv": "91780b45"
       },
       "bots/src/shared/ledger.ts": {
-        "fnv": "244f7d0d"
+        "fnv": "3620dea8"
       },
       "bots/src/shared/pings.ts": {
         "fnv": "fa29e0ef"
@@ -272,7 +272,7 @@
         "fnv": "755d4a74"
       },
       "content/data/classes/warden.json": {
-        "fnv": "88aab7bb"
+        "fnv": "41937187"
       },
       "content/data/clauses.json": {
         "fnv": "66ee123f"
@@ -356,7 +356,7 @@
         "fnv": "5018f7d9"
       },
       "sim/combat/casting.ts": {
-        "fnv": "9fcad6d6"
+        "fnv": "e80ea686"
       },
       "sim/combat/clause-hooks.ts": {
         "fnv": "43aaf28e"
@@ -365,7 +365,7 @@
         "fnv": "623661ea"
       },
       "sim/combat/cooldowns.ts": {
-        "fnv": "39753e9c"
+        "fnv": "828c0fc8"
       },
       "sim/combat/damage.ts": {
         "fnv": "85bd63d6"
@@ -392,7 +392,10 @@
         "fnv": "b176fb7d"
       },
       "sim/combat/rules.ts": {
-        "fnv": "bee05a0b"
+        "fnv": "3ef52eb5"
+      },
+      "sim/combat/spell-queue.ts": {
+        "fnv": "a385f55d"
       },
       "sim/combat/targeting.ts": {
         "fnv": "f49c6064"
@@ -428,10 +431,10 @@
         "fnv": "46854278"
       },
       "sim/core/state.ts": {
-        "fnv": "7dacfca7"
+        "fnv": "68a87514"
       },
       "sim/core/tick.ts": {
-        "fnv": "5b820bd0"
+        "fnv": "7ce3bffc"
       },
       "sim/encounter/breakbar.ts": {
         "fnv": "f593d495"
@@ -525,31 +528,31 @@
       "traceHash": "014e427d"
     },
     {
-      "finalTick": 1723,
+      "finalTick": 1600,
       "name": "bots-hv-k2-s7",
-      "records": 1724,
+      "records": 1601,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "e8f4feaf"
+      "traceHash": "fa9bebe3"
     },
     {
-      "finalTick": 1723,
+      "finalTick": 1600,
       "name": "bots-hv-k2-s11",
-      "records": 1724,
+      "records": 1601,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "e8f4feaf"
+      "traceHash": "fa9bebe3"
     },
     {
-      "finalTick": 2026,
+      "finalTick": 2198,
       "name": "bots-hv-k10-s7",
-      "records": 2027,
+      "records": 2199,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "0df2d046"
+      "traceHash": "3fce00d0"
     }
   ],
   "version": 1

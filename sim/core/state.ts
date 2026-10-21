@@ -64,6 +64,16 @@ export interface ActorState {
   speedMmPerTick?: number;
   /** Per-actor override of sim/encounter/chase.ts's CHASE_MARGIN_MM; absent = that constant. */
   chaseMarginMm?: number;
+  /** The one press held in the spell queue window (sim/combat/spell-queue.ts); absent when none. Players only. */
+  queuedCast?: QueuedPress;
+}
+
+/** A press held in the spell queue window: the cast command's ability, target and point, and the press tick. */
+export interface QueuedPress {
+  abilityId: string;
+  targetId?: ActorId;
+  point?: Vec3;
+  pressTick: Tick;
 }
 
 export interface SimState {

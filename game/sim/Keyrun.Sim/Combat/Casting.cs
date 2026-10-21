@@ -65,7 +65,9 @@ public static class Casting
 
     /// <summary>
     /// sim/combat/casting.ts:54-81 startCast. Checks in order: casting (a cast already in flight is never replaced,
-    /// BIBLE section 3; Stopcast is the only cancel), silenced (an active Hush pulse), not_ready,
+    /// BIBLE section 3; Stopcast is the only cancel), silenced (an active Hush pulse), casting again for a player
+    /// (<see cref="IsCastingPlayer"/>, so the side-effect-free <see cref="StartError"/> preview also refuses a press
+    /// mid-cast), not_ready,
     /// insufficient_resource, school_locked, then for a target shape target_required / invalid_target (missing or
     /// dead) / out_of_range. On success spends the cost, consumes a charge, starts the GCD, sets the cast fields and,
     /// when a target was given, the actor's target.
@@ -123,9 +125,10 @@ public static class Casting
     /// The checks <see cref="StartCast"/> makes, in its order, with no side effects: null when a cast of
     /// <paramref name="def"/> on <paramref name="targetId"/> would start on tick <paramref name="now"/>, else
     /// StartCast's error code. SLAM-TELEGRAPH: a spansCast script telegraph is drawn only when this says its cast starts.
-    /// StartCast's busy check ("casting") stays out: a scripted step whose caster is busy waits for the cast to land
-    /// (CAST-FINISH, <c>EncounterState.PendingSteps</c>), not dropped, and a pre-combat busy test cannot see a cast
-    /// that completes this same tick.
+    /// StartCast's all-caster busy check ("casting") stays out: a scripted step whose caster is busy waits for the cast
+    /// to land (CAST-FINISH, <c>EncounterState.PendingSteps</c>), not dropped, and a pre-combat busy test cannot see a
+    /// cast that completes this same tick. Only the player busy check (<see cref="IsCastingPlayer"/>, PR #370) is
+    /// here, so bot readiness and the spell queue read "casting" for a player mid-cast; enemies are exempt from it.
     /// </summary>
     /// <param name="state">Sim state.</param>
     /// <param name="actor">The caster.</param>
@@ -143,6 +146,10 @@ public static class Casting
         if (hooks is not null && hooks.IsSilenced(now))
         {
             return "silenced";
+        }
+        if (IsCastingPlayer(actor))
+        {
+            return "casting";
         }
         if (!Cooldowns.IsAbilityReady(actor, def, now))
         {
@@ -173,6 +180,17 @@ public static class Casting
         }
         return null;
     }
+
+    /// <summary>
+    /// Finding f-80b5cf16 follow-up (orchestrator decision): a player's ability is never usable while that player is
+    /// already casting. A press mid-cast (a gcdTicks-0 instant included, now that it skips the GCD) is refused and the
+    /// cast under way continues: no silent replacement, no cast_stopped. Enemies are exempt here: a busy enemy's scripted
+    /// step waits for its cast to land (CAST-FINISH, Scripts.CastHeldAt) and StartCast's all-caster guard refuses it. A cast ending on
+    /// this tick was already completed (and its CastId cleared) before commands run.
+    /// </summary>
+    /// <param name="actor">The caster.</param>
+    /// <returns>True when the press must be refused.</returns>
+    private static bool IsCastingPlayer(ActorState actor) => actor.Kind == ActorKind.Player && actor.CastId is not null;
 
     private static OverheatRule? OverheatRuleOf(CastContext? ctx, ActorState actor) =>
         ctx?.Overheat is { } rules && rules.TryGetValue(actor.ClassId, out var rule) ? rule : null;

@@ -65,6 +65,10 @@ export function startCast(
   if (actor.alive && actor.castId !== null) return "casting";
   const rules = getActiveEncounterRules();
   if (rules && shouldSilence(now, rules)) return "silenced";
+  // f-80b5cf16 follow-up: a player's ability is never usable while that player is already casting; the press is
+  // refused and the cast under way continues (no replacement, no cast_stopped). Enemies are exempt: their scripts rely
+  // on a later same-tick step taking the cast over (the Hollow Warden's Lock loop). Mirrors Casting.cs IsCastingPlayer.
+  if (actor.kind === "player" && actor.castId !== null) return "casting";
   if (!isAbilityReady(actor, def, now)) return "not_ready";
   if (actor.resource < def.cost.amount) return "insufficient_resource";
   if (isSchoolLocked(actor, abilitySchool(def), now)) return "school_locked";

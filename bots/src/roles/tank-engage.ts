@@ -84,7 +84,7 @@ export function tankEngageCommands(view: BotView, self: ActorState, kit: Effecti
   const d = dist(self, target);
 
   const tauntRange = rangeOf(kit.tauntAbilityId) ?? DEFAULT_REACH_MM;
-  if (loose && kit.tauntAbilityId && d <= tauntRange && abilityReady(self, kit.tauntAbilityId, tick)) {
+  if (loose && kit.tauntAbilityId && d <= tauntRange && abilityReady(self, kit.tauntAbilityId, tick, kit)) {
     out.push({ tick, actorId: self.id, kind: "cast", abilityId: kit.tauntAbilityId, targetId: target.id });
     return out;
   }

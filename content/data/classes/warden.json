@@ -144,9 +144,9 @@
         {
           "id": "surge",
           "name": "Surge",
-          "text": "Adds a 2-second cooldown; hits harder and grants far more Momentum.",
+          "text": "Adds a 1.5-second cooldown; hits harder and grants far more Momentum.",
           "patch": {
-            "cooldownTicks": 40,
+            "cooldownTicks": 30,
             "effects": [
               {
                 "op": "damage",
@@ -288,7 +288,7 @@
               "resource": "momentum",
               "amount": 25
             },
-            "cooldownTicks": 60,
+            "cooldownTicks": 90,
             "effects": [
               {
                 "op": "applyEffect",
