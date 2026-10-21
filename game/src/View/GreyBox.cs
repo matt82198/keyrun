@@ -25,8 +25,9 @@ public partial class GreyBox : Node3D
     private const float GateHeight = 2.2f;
     private const float GateThickness = 0.4f;
 
-    private static readonly Color RoomFloor = new(0.40f, 0.41f, 0.45f);
-    private static readonly Color CorridorFloor = new(0.31f, 0.32f, 0.36f);
+    // Floor colours from game/content/data/palette.json (feat-telegraph-palette): the telegraph contrast rule is pinned against them.
+    private static readonly Color RoomFloor = ToGodot(Keyrun.Content.PaletteLoader.Load().Floors.Room);
+    private static readonly Color CorridorFloor = ToGodot(Keyrun.Content.PaletteLoader.Load().Floors.Corridor);
     private static readonly Color WallColor = new(0.55f, 0.56f, 0.60f);
     private static readonly Color GateColor = new(0.45f, 0.22f, 0.14f);
 
@@ -184,6 +185,9 @@ public partial class GreyBox : Node3D
         Size = size,
         Material = new StandardMaterial3D { AlbedoColor = color, Roughness = 0.95f },
     };
+
+    // The palette stores 0..255 channels and a 0..100 alpha percentage (ContentPurityTests keeps the content assembly integer-only).
+    private static Color ToGodot(Keyrun.Content.PaletteColor c) => new(c.R / 255f, c.G / 255f, c.B / 255f, c.A / 100f);
 
     private static float Mid(long a, long b) => (a + b) * 0.5f * MmToM;
 

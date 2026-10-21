@@ -1,0 +1,2 @@
+- FIX-FASTCHECK-PSSCRIPTROOT fastcheck resolves the repo from its own location (tooling only; no sim, content, host or view change): `tools/fastcheck.ps1` line 56 runs `git -C $PSScriptRoot rev-parse --show-toplevel` instead of reading the caller's cwd, so `powershell -File <abs>/tools/fastcheck.ps1 -All` works from any directory and lanes no longer need a cd prefix to run it.
+BUILDLOG: FIX-FASTCHECK-PSSCRIPTROOT: fastcheck.ps1 finds the repo from $PSScriptRoot, so the absolute -File shape runs from any cwd (before: "fatal: not a git repository" outside the worktree).
