@@ -33,12 +33,20 @@
       (600 since lane NAV-CORE, was 400: the Pair now spawns at the far side of its hall, 7 m off, run_end at tick 455)
       7. "HUD objective pull=2/4 id=pair name="The Pair"", and the wipe title "Party wiped on pull 2 of 4 -- key
          stays at +2" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
-      8. NO "HUD ping label=SPREAD" or "HUD ping label=STACK" line (SLAM-TELEGRAPH, wrong data shown is P0). The
-         solo Warden is down before the Pair's first mark (its telegraph is due about tick 295), so the mark cast
-         has no target and never starts; a spansCast telegraph is drawn only for a cast that will start
-         (Scripts.WillStart), so the floor and the HUD must not call SPREAD/STACK for it. Before SLAM-TELEGRAPH this
-         check asserted the opposite: a ping from the telegraph the sim drew after run_end for that dead-target cast.
-         Run C (check 11) proves the live-run call.
+      8. R-PILE-10 (dungeon loop decided as WoW Mythic+ does; BIBLE s3 cast bars and telegraphs; wrong data shown is
+         P0): a mechanic aimed at a living player is legitimate and drops when he dies. From run B's log:
+         (a) the Warden's death tick is the "tick" of the first 'EVENT {"actorId":1,...,"type":"death"}' line;
+         (b) every "HUD ping label=SPREAD|STACK" line is printed in a step (the latest "TICK n" line above it) strictly
+             before that tick, and there is at least one (a run with no call and no telegraph fails, never passes);
+         (c) on the death tick every live telegraph cancels (TELEGRAPH-CANCEL-ON-DEATH): the 'EVENT {...
+             "type":"telegraph_cancel"}' lines with that tick number exactly the telegraphs live then (the "telegraph"
+             EVENTs up to it, less the "telegraph_hit" EVENTs up to it and the cancels before it), and at least one;
+         (d) after the death EVENT no "CAST start ... target=1" line (R-DEADCAST-1: no cast starts on a dead target;
+             every CAST start line names its target) and no further "HUD ping" line.
+         Was (SLAM-TELEGRAPH): NO ping at all, on the premise that the solo Warden is down before the Pair's first
+         mark (about tick 295). PR #362's Warden armor (3500 bp) keeps him alive to tick 354, so the call at 295 is an
+         honest live-run call; the scenario is not changed to make him die sooner (R-PILE-10). Run C (check 11) also
+         proves the live-run call.
     Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:
         -- --autorun --ticks <PartyTicks> --careless-seat <CarelessSeat>
         (default 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
@@ -598,8 +606,48 @@ $b = Invoke-Arena $PingTicks @('--pull', '2', '--solo')
 if ($b.Code -ne 0) { $failures.Add("run B: godot exited $($b.Code) (expected 0)") }
 $objB = First $b.Lines '^HUD objective pull=2/4 id=pair name="The Pair"'
 if (-not $objB) { $failures.Add('run B: no "HUD objective pull=2/4 id=pair name=""The Pair""" line') }
+# Check 8, R-PILE-10 (header): a call is made only while the Warden lives, and his death drops the mechanic.
 $ping = First $b.Lines '^HUD ping label=(SPREAD|STACK) '
-if ($ping) { $failures.Add("run B: a SPREAD/STACK call for a mark cast that never starts (the solo Warden is dead, no target): '$ping'") }
+$deathB = $null
+$deathTickB = -1
+$iDeathB = -1
+$tickB = -1
+$pingsB = @()
+for ($i = 0; $i -lt $b.Lines.Count; $i++) {
+    $l = $b.Lines[$i]
+    if ($l -match '^TICK (\d+) ') { $tickB = [int]$Matches[1] }
+    elseif ($l -match '^HUD ping label=(SPREAD|STACK) ') { $pingsB += , @($tickB, $i, $l) }
+    elseif (-not $deathB -and $l -match '^EVENT \{"actorId":1,.*"type":"death"' -and $l -match '"tick":(\d+)') {
+        $deathB = $l; $deathTickB = [int]$Matches[1]; $iDeathB = $i
+    }
+}
+$check8B = $null
+if (-not $deathB) {
+    $failures.Add('run B: no EVENT death line for actor 1 (the solo Warden never died; check 8 reads his death tick from it)')
+} else {
+    if ($pingsB.Count -eq 0) { $failures.Add("run B: no 'HUD ping label=SPREAD|STACK' line before the Warden's death at $deathTickB (vacuous: the run never reached the Pair's mark while he lived)") }
+    foreach ($p in $pingsB) {
+        if ($p[0] -ge $deathTickB) { $failures.Add("run B: a SPREAD/STACK call in the step of tick $($p[0]), not before the Warden's death at ${deathTickB}: '$($p[2])'") }
+    }
+    $drawnB = 0; $hitB = 0; $cancelPriorB = 0; $cancelAtB = 0
+    foreach ($l in $b.Lines) {
+        if ($l -notmatch '^EVENT \{.*"tick":(\d+),') { continue }
+        $t = [int]$Matches[1]
+        if ($l -match '"type":"telegraph"' -and $t -le $deathTickB) { $drawnB++ }
+        elseif ($l -match '"type":"telegraph_hit"' -and $t -le $deathTickB) { $hitB++ }
+        elseif ($l -match '"type":"telegraph_cancel"') { if ($t -lt $deathTickB) { $cancelPriorB++ } elseif ($t -eq $deathTickB) { $cancelAtB++ } }
+    }
+    $liveB = $drawnB - $hitB - $cancelPriorB
+    $check8B = "check 8 (R-PILE-10): death tick=$deathTickB pings=$($pingsB.Count) telegraphs drawn=$drawnB hit=$hitB cancelled before=$cancelPriorB live=$liveB cancelled at death=$cancelAtB"
+    if ($liveB -lt 1) { $failures.Add("run B: no telegraph live on the Warden's death tick $deathTickB (drawn=$drawnB hit=$hitB cancelled before=$cancelPriorB): nothing for check 8 to cancel") }
+    elseif ($cancelAtB -ne $liveB) { $failures.Add("run B: $cancelAtB telegraph_cancel EVENT(s) on the Warden's death tick $deathTickB, but $liveB telegraph(s) were live (TELEGRAPH-CANCEL-ON-DEATH)") }
+    for ($i = 0; $i -lt $b.Lines.Count; $i++) {
+        $l = $b.Lines[$i]
+        if ($l -match '^CAST start ' -and $l -notmatch ' target=(\d+|none)$') { $failures.Add("run B: a CAST start line names no target: '$l'") }
+        elseif ($i -gt $iDeathB -and $l -match '^CAST start .* target=1$') { $failures.Add("run B: a cast starts on the dead Warden (died at $deathTickB): '$l'") }
+        elseif ($i -gt $iDeathB -and $l -match '^HUD ping ') { $failures.Add("run B: a HUD ping after the Warden's death at ${deathTickB}: '$l'") }
+    }
+}
 # Lane 3C-d: the solo Warden wipes in the Pair; --pull 2 drops pull 1 from the run's dungeon, and the title still
 # numbers the Pair 2 of 4 (ObjectiveModel numbering), never 1 of 3.
 $runEndB = First $b.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 2 of 4 -- key stays at \+2"$'
@@ -1184,7 +1232,7 @@ if ($yawTick -ge 0) {
 foreach ($p in @($walkPath, $lRecPath, $l1LogPath, $l2LogPath)) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p } }
 
 Write-Output '--- asserted HUD lines ---'
-foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping, $runEndB)) {
+foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping, $deathB, $check8B, $runEndB)) {
     if ($l) { Write-Output $l }
 }
 Write-Output "--- run-end titles, lane 3C-d (lines=$($titleLines.Count) cleared=$clearedTitles) ---"
