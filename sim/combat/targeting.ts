@@ -106,7 +106,8 @@ export function inLine(caster: ActorState, length: number, radiusMm: number, act
 /**
  * CAST-KEEPS-START-TARGET (f-bd8fbbb1; twin of Casting.cs SetTarget): a "target" command mid-cast first pins the cast's
  * start target (castTargetId, written only on a real change, so state keys are unchanged otherwise); the new target is
- * for the next press. run-wiring.ts fixupTargeting (the sim's dead-target auto-retarget) deliberately does not pin.
+ * for the next press. run-wiring.ts fixupTargeting (the sim's dead-target auto-retarget) pins through here too, so a
+ * cast whose start target died mid-cast fizzles rather than hopping (R-RETARGET-1, f-f1ab879b).
  */
 export function setTarget(actor: ActorState, targetId: ActorId | null): void {
   if (actor.castId !== null && actor.castTargetId === undefined && targetId !== actor.targetId) {

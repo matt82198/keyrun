@@ -33,6 +33,7 @@ import type { AbilityDef } from "./combat/abilities";
 import type { EffectDef } from "./combat/effects";
 import { applyEffectInstance } from "./combat/effects";
 import { lockHolders } from "./combat/holder";
+import { setTarget } from "./combat/targeting";
 import type { RulesConfig } from "./combat/rules";
 import type { BreakBarEffectPatch } from "./encounter/breakbar";
 import type { SimEvent } from "./core/events";
@@ -100,16 +101,17 @@ export function applyBreakBarPatches(
  * every living damage-role player without a living-enemy target points at the current pull's first
  * living enemy. Mutates `state.actors` in place; safe to call every tick (already-resolved targets
  * are left alone) and at run creation. HOLDER-LOCK (STATE.md D30): lockHolders first (combat/holder.ts).
- * Writes targetId directly, not through targeting.ts setTarget:
- * this auto-retarget is the sim's, not the caster's, and the recorded oracle traces have a cast whose
- * start target died mid-cast land on the auto-picked next enemy (twin of RunWiring.cs FixupTargeting). */
+ * RETARGET-FIZZLE (R-RETARGET-1, f-f1ab879b; WoW): every write goes through targeting.ts setTarget, so a
+ * cast whose start target died mid-cast stays pinned on that dead target and fizzles (cast_complete, no
+ * effect) instead of hopping to the auto-picked next enemy; the new target is for the next press
+ * (twin of RunWiring.cs FixupTargeting). */
 export function fixupTargeting(state: SimState): void {
   lockHolders(state);
   const tank = Object.values(state.actors).find((a) => a.kind === "player" && a.role === "tank");
   const enemies = Object.values(state.actors).filter((a) => a.kind === "enemy" && a.alive);
   if (tank) {
     for (const enemy of enemies) {
-      if (enemy.targetId === null) enemy.targetId = tank.id;
+      if (enemy.targetId === null) setTarget(enemy, tank.id);
     }
   }
   const firstEnemy = enemies[0];
@@ -118,7 +120,7 @@ export function fixupTargeting(state: SimState): void {
     if (actor.kind !== "player" || actor.role !== "damage" || !actor.alive) continue;
     const current = actor.targetId !== null ? state.actors[actor.targetId] : undefined;
     const currentIsLivingEnemy = current !== undefined && current.kind === "enemy" && current.alive;
-    if (!currentIsLivingEnemy) actor.targetId = firstEnemy.id;
+    if (!currentIsLivingEnemy) setTarget(actor, firstEnemy.id);
   }
 }
 

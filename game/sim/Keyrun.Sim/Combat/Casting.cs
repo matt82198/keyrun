@@ -283,7 +283,8 @@ public static class Casting
     /// sim/combat/targeting.ts setTarget). The caster's own retarget (a TargetCommand, Rules) goes through here. A
     /// retarget while a cast is in flight first pins the target that cast started on, so the cast still resolves there;
     /// the new target is for the next press. The pin is taken only on a real change mid-cast. The sim's own dead-target
-    /// auto-retarget (Runs.RunWiring.FixupTargeting) deliberately does not pin.
+    /// auto-retarget (Runs.RunWiring.FixupTargeting) pins through here too, so a cast whose start target died mid-cast
+    /// fizzles rather than hopping (RULING R-RETARGET-1, finding f-f1ab879b).
     /// </summary>
     /// <param name="actor">The actor retargeting.</param>
     /// <param name="targetId">Its new current target, or null.</param>
