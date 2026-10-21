@@ -31,13 +31,15 @@ public sealed class ContentCountTests
         var loaded = ContentLoader.Files.OrderBy(p => p, System.StringComparer.Ordinal).ToArray();
 
         // 19 TS loadContent files from content/data plus the C#-only game/content/data/run.json, layout.json, theme.json,
-        // combo-riders.json and the forces + route files forces.json, packs.json and hazards.json (FORCES-ROUTE-PLAN
-        // increment 2), gear.json (five gear slots, BIBLE section 7), and enemies/hall.json (the C#-only Mythic+ trash
-        // only a layout pack fields, PATH-PACKS: 27 -> 28, an inventory raise for a real 8th enemy, STATE.md D49).
+        // combo-riders.json and the forces + route files forces.json and hazards.json (FORCES-ROUTE-PLAN increment 2),
+        // gear.json (five gear slots, BIBLE section 7), and enemies/hall.json (the C#-only Mythic+ trash only a layout
+        // pack fields, PATH-PACKS: 27 -> 28, an inventory raise for a real 8th enemy, STATE.md D49). FOLD-U3 retired
+        // packs.json (R7: one pack layer, the packs live in layout.json), so 28 -> 27. melee-abilities.json (KF1 strike-cue
+        // melee set, ruling R9/R10) is C#-only too, so 27 -> 28.
         string[] csharpOnly =
         {
-            "run.json", "layout.json", "theme.json", "combo-riders.json", "forces.json", "packs.json", "hazards.json",
-            "gear.json", "enemies/hall.json",
+            "run.json", "layout.json", "theme.json", "combo-riders.json", "forces.json", "hazards.json",
+            "gear.json", "enemies/hall.json", "melee-abilities.json",
         };
         Assert.Equal(28, embedded.Length);
         Assert.Equal(19, embedded.Count(p => !csharpOnly.Contains(p)));
