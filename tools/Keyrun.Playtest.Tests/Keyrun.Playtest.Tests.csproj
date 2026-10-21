@@ -32,6 +32,10 @@
     <Compile Include="../../game/src/Host/CastTargeting.cs" Link="Host/CastTargeting.cs" />
     <!-- Run F's abandon-seat plan, fixed or pull-relative (R-415-D; SeatAbandonPlanTests, RunFJoinerActsTests). Godot-free. -->
     <Compile Include="../../game/src/Host/SeatAbandonPlan.cs" Link="Host/SeatAbandonPlan.cs" />
+    <!-- The write-movie proof-frame picker and the weekly rotation, driven over the real default run (f-e1ff13e3;
+         MovieFramesDefaultRunTests). Both files are Godot-free. -->
+    <Compile Include="../../game/src/Host/MovieDirector.cs" Link="Host/MovieDirector.cs" />
+    <Compile Include="../../game/src/Host/AffixWeek.cs" Link="Host/AffixWeek.cs" />
   </ItemGroup>
 
   <ItemGroup>
