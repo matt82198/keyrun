@@ -19,16 +19,16 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 270867,
-      "fnv": "6d6717c0"
+      "bytes": 275979,
+      "fnv": "ece83407"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 287443,
-      "fnv": "b1fc3851"
+      "bytes": 226881,
+      "fnv": "b45e4a40"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 287440,
-      "fnv": "2b54bb60"
+      "bytes": 226878,
+      "fnv": "cb5fcb43"
     },
     "content-pull.setup.json": {
       "bytes": 23098,
@@ -128,7 +128,7 @@
         "fnv": "718926e4"
       },
       "bots/src/roles/shared.ts": {
-        "fnv": "50c46342"
+        "fnv": "d5e391e9"
       },
       "bots/src/roles/tank-engage.ts": {
         "fnv": "73320f37"
@@ -543,31 +543,31 @@
       "traceHash": "014e427d"
     },
     {
-      "finalTick": 1709,
+      "finalTick": 1504,
       "name": "bots-hv-k2-s7",
-      "records": 1710,
+      "records": 1505,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "65b83a06"
+      "traceHash": "8b954c9c"
     },
     {
-      "finalTick": 1709,
+      "finalTick": 1504,
       "name": "bots-hv-k2-s11",
-      "records": 1710,
+      "records": 1505,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "65b83a06"
+      "traceHash": "8b954c9c"
     },
     {
-      "finalTick": 1855,
+      "finalTick": 1865,
       "name": "bots-hv-k10-s7",
-      "records": 1856,
+      "records": 1866,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "34681a6e"
+      "traceHash": "9c4709e8"
     }
   ],
   "version": 1

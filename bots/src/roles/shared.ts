@@ -14,18 +14,22 @@ import { resolveInterrupt, isCastLocked } from "../shared/ledger.js";
 import { resolveKit, priorityInterruptAbilityIds, type EffectiveKit } from "../kits.js";
 
 /**
- * A lull: at least one enemy is alive and every living enemy is aimed at another enemy (a
- * heal-only caster tending its own pack). Nothing threatens the party. Hollow Vault pull 0 ends
- * on a lone Choir healer, and pull 1's five Paired Warriors spawn the tick pull 0 clears, already
- * aimed at the tank -- so the lull is the party's last chance to prepare (the tank banks its GCD
- * and momentum, roles/tank-pressure.ts; tests/sim/integration/bots-pull1-warden.test.ts). An
- * enemy with no target (not yet engaged) is NOT a lull: the tank must still pull it.
+ * A lull: at least one enemy is alive and every living enemy is idle. Mirrors the C# rule in
+ * game/bots/Keyrun.Bots/Roles/RoleShared.cs InLull (R-SEED-1a, f-244d102b): an engaged enemy is alive and not
+ * idle, whatever it is aimed at, so a heal-only caster tending its own pack is engaged and the tank fights it.
+ * Idle is the C#-only prespawn-formation flag (game/sim/Keyrun.Sim/Core/State.cs, BIBLE 9.1). The TS sim has no
+ * idle state and never idles an enemy, so no living enemy is idle here and this returns false in every TS state.
+ * The tank-pressure lull hold (roles/tank-pressure.ts) therefore never fires on the TS side.
  */
 export function inLull(view: BotView): boolean {
-  const actors = view.state.actors;
-  const living = Object.values(actors).filter((a) => a.kind === "enemy" && a.alive);
+  const living = Object.values(view.state.actors).filter((a) => a.kind === "enemy" && a.alive);
   if (living.length === 0) return false;
-  return living.every((e) => e.targetId !== null && actors[e.targetId]?.kind === "enemy");
+  return living.every((e) => isIdleEnemy(e));
+}
+
+/** The C# Idle flag has no TS twin: the TS sim never idles an enemy. */
+function isIdleEnemy(_enemy: ActorState): boolean {
+  return false;
 }
 
 /** True when `abilityId`'s own gcdTicks is 0 per the kit (off the GCD, finding f-80b5cf16). */

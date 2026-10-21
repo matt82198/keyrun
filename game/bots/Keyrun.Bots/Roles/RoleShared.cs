@@ -86,21 +86,17 @@ public static class RoleShared
     }
 
     /// <summary>
-    /// shared.ts inLull: at least one enemy is alive and every living enemy is aimed at another enemy (a heal-only
-    /// caster tending its own pack). An enemy with no target is not a lull.
+    /// Lull: at least one enemy is alive and no living enemy is engaged (every living enemy is idle). An engaged enemy
+    /// is alive and not idle, whatever it is aimed at: a heal-only caster tending its own pack is still engaged, and the
+    /// tank fights it (R-SEED-1a, f-244d102b). Lull is therefore decided by engagement, never by what an enemy targets.
     /// </summary>
     /// <param name="view">Bot view.</param>
     /// <returns>True in a lull.</returns>
     public static bool InLull(BotView view)
     {
         ArgumentNullException.ThrowIfNull(view);
-        var actors = view.State.Actors;
-        var living = actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle).ToList();
-        if (living.Count == 0)
-        {
-            return false;
-        }
-        return living.All(e => e.TargetId is { } tid && actors.TryGetValue(tid, out var t) && t.Kind == ActorKind.Enemy);
+        var enemies = view.State.Actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive).ToList();
+        return enemies.Count > 0 && enemies.All(e => e.Idle);
     }
 
     /// <summary>shared.ts abilityReady (one definition, <see cref="Readiness.AbilityReady(ActorState, string, int, EffectiveKit)"/>).</summary>
