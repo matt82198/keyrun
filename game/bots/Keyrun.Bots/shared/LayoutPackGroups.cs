@@ -181,7 +181,9 @@ public static class LayoutPackGroups
                     {
                         throw new InvalidOperationException($"patrol \"{patrol.Id}\": actor id {actorId} is already used by the run");
                     }
-                    spawns.Add(template with { ActorId = actorId, Pos = new Vec3(group.Spawn.X, 0, group.Spawn.Z), Yaw = 0 });
+                    // R-PATROL-3: the patrol's healthBp scales each member's scaled template health (10000 = the template's own).
+                    var health = template.Health * (patrol.HealthBp ?? 10000) / 10000;
+                    spawns.Add(template with { ActorId = actorId, Pos = new Vec3(group.Spawn.X, 0, group.Spawn.Z), Yaw = 0, Health = health });
                     merged[actorId] = script;
                 }
             }

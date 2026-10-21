@@ -72,6 +72,12 @@ public sealed record LayoutPatrol
 
     /// <summary>Aggro ring radius, mm (positive), or null for the sim default (the same as an idle pack's).</summary>
     public int? AggroMm { get; init; }
+
+    /// <summary>
+    /// R-PATROL-3: the members' health as basis points of their scaled template health (1 to 10000; null = 10000, the
+    /// template's full health). It sets how long a Warden and one Cinder take to clear the patrol (BIBLE test 1).
+    /// </summary>
+    public int? HealthBp { get; init; }
 }
 
 /// <summary>A box's kind: a room (a place, possibly with a pull) or a corridor between rooms.</summary>

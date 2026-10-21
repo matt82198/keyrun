@@ -87,7 +87,8 @@
         { "enemyId": "choir.melee", "count": 1, "spawn": { "x": 0, "z": 600 } }
       ],
       "waypoints": [ { "x": 32500, "z": 0 }, { "x": 30500, "z": 0 } ],
-      "speedMmPerTick": 50
+      "speedMmPerTick": 50,
+      "healthBp": 3000
     }
   ]
 }

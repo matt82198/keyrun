@@ -149,6 +149,7 @@ public static class LayoutValidator
                 Fail(where + " reuses a pull, pack or box id");
             if (patrol.SpeedMmPerTick <= 0) Fail(where + " speedMmPerTick must be positive, got " + patrol.SpeedMmPerTick);
             if (patrol.AggroMm is { } aggro && aggro <= 0) Fail(where + " aggroMm must be positive, got " + aggro);
+            if (patrol.HealthBp is { } healthBp && (healthBp <= 0 || healthBp > 10000)) Fail(where + " healthBp must be 1 to 10000, got " + healthBp);
 
             var waypoints = patrol.Waypoints.ToList();
             if (waypoints.Count < 2) Fail(where + " needs at least two waypoints, got " + waypoints.Count);
