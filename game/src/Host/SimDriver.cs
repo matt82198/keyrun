@@ -117,7 +117,8 @@ public sealed class TickAccumulator
 /// PlayerInput raises <see cref="PlayerInput.Pinged"/> exactly as a keyboard G does. Ignored under <c>--autorun</c>.
 /// 0 = never.</param>
 /// <param name="RecordInput">Interactive input recorder (<c>--record-input PATH</c>, lane 3E-b): every key press and
-/// release the game reads is stamped with the host tick and written to PATH as <c>keyrun.input-log/1</c> (see
+/// release the game reads is stamped with the input-log clock (<see cref="ReplayClock.Stamp"/>: first-Screen frames, then
+/// those frames plus <c>TicksRun</c>; f-6b922005, R-CLOCK-1) and written to PATH as <c>keyrun.input-log/1</c> (see
 /// <see cref="InputLog"/>) at each run end and at quit, logged <c>INPUT record done events=N path=P</c>. Lane 3E-c: the
 /// CameraRig heading WASD is relative to is sampled before each step and recorded whenever it changes; a log holding a
 /// heading is written as <c>keyrun.input-log/2</c> and logged <c>INPUT record done events=N cam=M path=P</c>. Lane
@@ -133,8 +134,9 @@ public sealed class TickAccumulator
 /// <c>startHeading</c> is put on the rig before the first step, logged <c>INPUT replay heading yaw=Y</c>; a log without
 /// one keeps the legacy heading. Finding f-6a00609e: until the launch's first run exists a log's ticks are frames the
 /// first Screen has been up (0 = the frame it is hooked), so a log can drive the Screen and its talent panel on spaced
-/// frames before its Enter starts the run; from the first run on they are <c>TicksRun</c>, never reset at the run start
-/// (<see cref="ReplayClock"/>). Ignored under <c>--autorun</c>. Null = no replay.</param>
+/// frames before its Enter starts the run; from the first run on they are those frames plus <c>TicksRun</c> (ruling
+/// R-CLOCK-1, the value a recording stamps; <see cref="ReplayClock"/>). Ignored under <c>--autorun</c>. Null = no
+/// replay.</param>
 /// <param name="PressYaw">Interactive scene-test seam (<c>--press-yaw T:Y</c>, lane 3E-c): once the run reaches tick T a
 /// scripted player turns the CameraRig to Y radians through <see cref="Keyrun.View.CameraRig.Look"/>, the call the mouse
 /// handler makes, logged <c>INPUT yaw tick=T yaw=Y</c> (Y as the rig then reports it). Ignored under <c>--autorun</c>.
@@ -471,8 +473,9 @@ public partial class SimDriver : Node
     private bool _pingPressed;
     private InputRecorder? _recorder;
     private InputReplayer? _replayer;
-    // f-6a00609e: the clock a replay's ticks are read on (first-Screen frames until the first run exists, then TicksRun).
-    private ReplayClock? _replayClock;
+    // f-6a00609e / f-6b922005 (R-CLOCK-1): the one input-log clock a recording stamps and a replay reads (first-Screen
+    // frames until the first run exists, then those frames plus TicksRun). Set whenever this launch records or replays.
+    private ReplayClock? _inputClock;
     private InputLog? _replayLog;
     private int _replayTotal;
     private int _replayCameraTotal;
@@ -662,11 +665,12 @@ public partial class SimDriver : Node
         MaybeReplay();
         if (_done || Run is null)
         {
-            // f-6a00609e: a frame the first Screen was up with no run is one tick of the replay clock, so a replayed log
-            // can drive the Screen and its talent panel on spaced frames before Enter starts the run.
+            // f-6a00609e: a frame the first Screen was up with no run is one tick of the input-log clock, so a replayed
+            // log can drive the Screen and its talent panel on spaced frames before Enter starts the run, and (f-6b922005)
+            // a recording stamps first-Screen keys on the same frames.
             if (!_done)
             {
-                _replayClock?.EndFrame(Run is not null, _screen is not null);
+                _inputClock?.EndFrame(Run is not null, _screen is not null);
             }
             return;
         }
@@ -680,10 +684,15 @@ public partial class SimDriver : Node
             // recorder's poll diff runs at the same point, so both see the keys PlayerInput is about to sample. Lane
             // 3E-c: so does the camera heading, the value SampleMove reads (CameraRig.Yaw).
             MaybeReplay();
-            _recorder?.SyncPolled(TicksRun, PlayerInput.PolledKeys, Input.IsPhysicalKeyPressed);
-            if (_rig is not null)
+            if (_recorder is { } recorder && _inputClock is { } clock)
             {
-                _recorder?.SyncCamera(TicksRun, _rig.Yaw);
+                // f-6b922005 (R-CLOCK-1): stamped on the input-log clock a replay reads, never bare TicksRun.
+                var stamp = clock.Stamp(Run is not null, TicksRun);
+                recorder.SyncPolled(stamp, PlayerInput.PolledKeys, Input.IsPhysicalKeyPressed);
+                if (_rig is not null)
+                {
+                    recorder.SyncCamera(stamp, _rig.Yaw);
+                }
             }
             StepOnce();
             if (Options.Autorun && TicksRun >= Options.Ticks)
@@ -702,9 +711,11 @@ public partial class SimDriver : Node
     {
         // Lane 3E-b: _Input sees every key before the GUI and the _UnhandledInput readers (PlayerInput, the screen, the
         // run-end panel, this node), so the log holds whatever any of them reads. Echo repeats are not transitions.
-        if (_recorder is not null && @event is InputEventKey { Echo: false } key)
+        // f-6b922005 (R-CLOCK-1): the stamp is the input-log clock (first-Screen frames, then those plus TicksRun), the
+        // value a replay of the log reads, so a key on the Screen and one in the run's first ticks stay in order.
+        if (_recorder is { } recorder && _inputClock is { } clock && @event is InputEventKey { Echo: false } key)
         {
-            _recorder.OnKey(TicksRun, key.PhysicalKeycode != Key.None ? key.PhysicalKeycode : key.Keycode, key.Pressed);
+            recorder.OnKey(clock.Stamp(Run is not null, TicksRun), key.PhysicalKeycode != Key.None ? key.PhysicalKeycode : key.Keycode, key.Pressed);
         }
     }
 
@@ -763,6 +774,7 @@ public partial class SimDriver : Node
         if (Options.RecordInput is not null)
         {
             _recorder = new InputRecorder();
+            _inputClock ??= new ReplayClock();
         }
         if (Options.ReplayInput is { } path)
         {
@@ -777,7 +789,7 @@ public partial class SimDriver : Node
                 throw new ArgumentException($"--replay-input {path} holds camera headings but the scene has no CameraRig at {CameraRigPath}");
             }
             _replayer = new InputReplayer(log);
-            _replayClock = new ReplayClock();
+            _inputClock ??= new ReplayClock();
             _replayStartHeading = log.StartHeading;
             _replayTotal = log.Events.Count;
             _replayCameraTotal = log.Camera.Count;
@@ -787,16 +799,16 @@ public partial class SimDriver : Node
     // --replay-input: feeds every due event to the engine's Input singleton and flushes it at once, so the key state
     // PlayerInput polls (Input.IsPhysicalKeyPressed) and the viewport's event delivery (_Input, GUI, _UnhandledInput)
     // both see it before the next step, exactly as a keyboard press between frames. Waits for the screen to be hooked
-    // on the first screen (the run-less launch), where no tick advances. f-6a00609e: the ticks are read on
-    // ReplayClock: the first Screen's frames (counted in _Process) until the first run exists, TicksRun after, never
-    // reset at the run start.
+    // on the first screen (the run-less launch), where no tick advances. f-6a00609e / R-CLOCK-1: the ticks are read on
+    // ReplayClock: the first Screen's frames (counted in _Process) until the first run exists, those frames plus
+    // TicksRun after (the value a recording stamps, f-6b922005).
     private void MaybeReplay()
     {
-        if (_replayer is null || _replayClock is null || _done || (_screen is null && Run is null))
+        if (_replayer is null || _inputClock is null || _done || (_screen is null && Run is null))
         {
             return;
         }
-        var now = _replayClock.Now(Run is not null, TicksRun);
+        var now = _inputClock.Now(Run is not null, TicksRun);
         foreach (var e in _replayer.Due(now))
         {
             _log?.Line(FormattableString.Invariant($"INPUT replay tick={e.Tick} key={e.Key} pressed={(e.Pressed ? "true" : "false")}"));
