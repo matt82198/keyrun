@@ -158,7 +158,8 @@ public sealed class LockWinnabilityTests
 
     /// <summary>
     /// The scripted player, a pure function of the visible state (deterministic). Warden: walk to melee, Strike on
-    /// cooldown (Reckoning at 100 Momentum) until the Lock opens, then one Strike inside the Window (the Setup).
+    /// cooldown (Vigil whenever it is ready at 50 Momentum, Reckoning at 100) until the Lock opens, then one Strike
+    /// inside the Window (the Setup).
     /// Cinder: Ember Bolt from range until the Lock opens; once the Warden's Setup has tagged the Lock, Cold Snap on the
     /// boss (the Payoff; <paramref name="payoffInLock"/> false withholds it, the mutation). Chanter: Cadence on the
     /// most injured ally. No floor Windows are used, so Payoff.cs:153's field self-hit never applies.
@@ -212,8 +213,12 @@ public sealed class LockWinnabilityTests
             {
                 // The Lock is one Ember Bolt away: hold the GCD so the Setup goes out the tick the Window opens.
             }
-            else if (w.Resource >= 50 && w.Health * 10 < w.MaxHealth * 6 && Ready(w, content, "warden.vigil", tick))
+            else if (w.Resource >= 50 && Ready(w, content, "warden.vigil", tick))
             {
+                // Vigil on cooldown, ahead of Strike, as the autorun Warden casts it (game/src/Host/ScriptedWarden.cs
+                // Rotation). Gated below 60% health it was reactive: under TEMPO-CAST-FLOOR the boss's Cleave lands at its
+                // written rate (every 156 at key 2, not every other fire), and the 352 Cleave hit an unbraced Warden for
+                // 220 of his 400, so the Twins' slams killed him at tick 402 before the Lock opened.
                 cmds.Add(new CastCommand(tick, Warden, "warden.vigil", null));
             }
             else if (w.Resource >= 100 && Ready(w, content, "warden.reckoning", tick))
@@ -347,9 +352,10 @@ public sealed class LockWinnabilityTests
         foreach (var kv in content.EnemyScripts)
         {
             var authored = raw[classOf[kv.Key]];
-            // The id-to-class mapping is right: the two-argument rebuild is exactly what the setup recorded, once
-            // spansCast is cleared the way RunSetup.TsScripts clears it for TS-equal replays (SLAM-TELEGRAPH, #313).
-            // The rebuilt script keeps the authored spansCast, as HostRunSetup does.
+            // The id-to-class mapping is right: the two-argument rebuild is exactly what the setup recorded, once the
+            // frozen-TS replay flags are applied the way RunSetup.TsScripts applies them for TS-equal replays
+            // (SLAM-TELEGRAPH #313 spansCast, TELEGRAPH-READY TsUnchecked, CAST-FINISH TsCastReplace; JSON never sets
+            // them). The rebuilt script keeps the authored flags, as HostRunSetup does (R-PILE-1).
             Assert.Equal(WithoutSpansCast(Tempo.ScaleScript(authored, keyLevel)), kv.Value);
             scripts[kv.Key] = Tempo.ScaleScript(authored, keyLevel, floors);
         }
@@ -357,9 +363,13 @@ public sealed class LockWinnabilityTests
         return content with { Abilities = abilities, EnemyScripts = scripts };
     }
 
-    /// <summary>tools/Keyrun.Replay/RunSetup.cs TsScripts, one script: every spansCast telegraph cleared to false.</summary>
+    /// <summary>
+    /// tools/Keyrun.Replay/RunSetup.cs TsScripts, one script: every telegraph gets spansCast false and TsUnchecked,
+    /// every step gets TsCastReplace (R-PILE-1: the mirror follows TsScripts exactly).
+    /// </summary>
     private static List<ScriptStep> WithoutSpansCast(IReadOnlyList<ScriptStep> script) =>
-        script.Select(s => s.Telegraph is { SpansCast: true } tg ? s with { Telegraph = tg with { SpansCast = false } } : s).ToList();
+        script.Select(s => s.Telegraph is { } tg ? s with { Telegraph = tg with { SpansCast = false, TsUnchecked = true } } : s)
+            .Select(s => s with { TsCastReplace = true }).ToList();
 
     private static string RepoFile(params string[] parts)
     {
