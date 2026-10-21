@@ -210,6 +210,12 @@ describe("hud-wiring: the bar is told which payoff keys a Window has made live (
     let kindledTicks = 0;
     for (let i = 0; i < 400; i++) {
       const snap = h.tick([], i < 10);
+      // CADENCE-SETUP (f-b31e8f34): the Chanter bot now opens Attuned on enemies, which a Cinder may close
+      // (Flashfire), so the bar is checked unlit on the ticks where every open Window is the Cinder's own.
+      const otherWindow = snap.actors.some(
+        (a) => a.kind === "enemy" && a.alive && a.window && a.window.setupClass !== "cinder" && snap.tick < a.window.endsTick
+      );
+      if (otherWindow) continue;
       if (snap.actors.some((a) => a.kind === "enemy" && a.window?.setupClass === "cinder")) kindledTicks += 1;
       expect(h.payoffArgs[h.payoffArgs.length - 1]?.size ?? 0).toBe(0);
     }
