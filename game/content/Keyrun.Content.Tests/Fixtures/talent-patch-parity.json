@@ -4387,6 +4387,12 @@
             },
             {
               "op": "payoff"
+            },
+            {
+              "durationTicks": 50,
+              "effectId": "chorusEcho",
+              "op": "applyEffect",
+              "stacks": 1
             }
           ],
           "ward": [

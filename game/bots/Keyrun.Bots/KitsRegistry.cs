@@ -20,6 +20,7 @@ public sealed class KitRegistry
     private readonly KitRegistry? _root;
     private readonly IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>? _runAbilities;
     private readonly Dictionary<string, IReadOnlyList<string>> _runOffGcd = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyDictionary<string, AbilityCharges>> _runCharged = new(StringComparer.Ordinal);
     private IReadOnlyList<string>? _priorityInterruptIds;
     private KitRegistry? _lastRun;
 
@@ -170,7 +171,7 @@ public sealed class KitRegistry
         {
             return effective;
         }
-        effective = effective with { OffGcdAbilityIds = RunOffGcdIds(classId, kit) };
+        effective = effective with { OffGcdAbilityIds = RunOffGcdIds(classId, kit), ChargedAbilities = RunChargedIds(classId, kit) };
         return IsAllyShield(kit.SelfSustainAbilityId)
             ? effective with { SelfSustainAbilityId = null, AllyShieldAbilityId = kit.SelfSustainAbilityId }
             : effective;
@@ -210,6 +211,27 @@ public sealed class KitRegistry
                 run.TryGetValue(id, out var def) ? def.GcdTicks <= 0 : kit.OffGcdAbilityIds.Contains(id, StringComparer.Ordinal));
             _runOffGcd[classId] = ids;
             return ids;
+        }
+    }
+
+    // BANKED-CHARGE (R-PILE-7c): the kit's slotted multi-charge abilities judged by the run's defs (ForRun), so a
+    // talent or Facet that adds a charge (Chorus "Encore", "Chorus grants an extra charge") is a second press for the
+    // bot as it is for the sim; an id the run map lacks keeps content's answer. Memoised per class.
+    private IReadOnlyDictionary<string, AbilityCharges> RunChargedIds(string classId, ClassKit kit)
+    {
+        lock (_gate)
+        {
+            if (_runCharged.TryGetValue(classId, out var cached))
+            {
+                return cached;
+            }
+            var run = _runAbilities!;
+            var slots = _registry!.Classes[classId].Abilities;
+            var map = Kits.ChargedIds(slots, id =>
+                run.TryGetValue(id, out var def) ? new AbilityCharges(def.Charges, def.CooldownTicks)
+                : kit.ChargedAbilities.TryGetValue(id, out var c) ? c : new AbilityCharges(1, 0));
+            _runCharged[classId] = map;
+            return map;
         }
     }
 }
