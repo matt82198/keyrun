@@ -186,7 +186,10 @@ public sealed class PathPackRouteTests
         Assert.NotEmpty(required);
         Assert.Equal("timed", r.Final.RunEnd.Result?.ToJs());
         Assert.Equal(LayoutDef.BossPullId, stops[^1]);
-        Assert.Equal(new[] { "choir", "pair", "seed", LayoutDef.BossPullId }, stops.Where(s => !required.Contains(s)).ToArray());
+        // R-SEED-1 (ruling d): warrior-remnant is linked to the Seed pull (layout.json links ["seed"]), so it engages on the
+        // Seed's pull_start tick (592 in this route) and is part of that pull, not an optional side pack. Its pack_engage
+        // is therefore expected right after "seed" in the non-required stops; the link, not a tuned tick, explains it.
+        Assert.Equal(new[] { "choir", "pair", "seed", "warrior-remnant", LayoutDef.BossPullId }, stops.Where(s => !required.Contains(s)).ToArray());
         foreach (var id in required)
         {
             int at = stops.IndexOf(id);
@@ -219,7 +222,8 @@ public sealed class PathPackRouteTests
         var r = Route.Value;
         var forces = ContentLoader.Load().Forces;
         var table = forces.Values.ToDictionary(v => v.EnemyId, v => v.Points, StringComparer.Ordinal);
-        var optional = r.Layout.Packs.Where(p => p.Optional).Select(p => p.Id).ToList();
+        // A linked pack (warrior-remnant, links ["seed"]) is part of its pull and is not optional (R-SEED-1 ruling d).
+        var optional = r.Layout.Packs.Where(p => p.Optional && p.Links.Count == 0).Select(p => p.Id).ToList();
         Assert.NotEmpty(optional);
         Assert.DoesNotContain(r.Events, e => e.Type == "pack_engage" && optional.Contains(Stop(e)));
         var reading = Forces.Read(r.Final.State, table, forces.Required);

@@ -75,6 +75,27 @@ public sealed class SeedRoomLinkedPacksTests
     private static LoggedEvent? First(IEnumerable<LoggedEvent> events, string type, string key, string id) =>
         events.FirstOrDefault(e => e.Type == type && e.Json.TryGetProperty(key, out var v) && v.GetString() == id);
 
+    [Fact(DisplayName = "R-SEED-1 KF3 (f-70c82aca): the Seed elite does not exist, act, or take damage before its pull starts, so entering the room spawns nothing to cheese")]
+    public void KF3_seed_elite_is_not_on_the_field_before_its_pull()
+    {
+        var played = Played.Value;
+        var events = Events(played.Log).ToList();
+
+        var seedStart = First(events, "pull_start", "pullId", SeedPull);
+        Assert.NotNull(seedStart);
+        var seedId = seedStart!.Json.GetProperty("actorIds").EnumerateArray().Select(v => v.GetInt32()).DefaultIfEmpty(-1).First();
+        var enter = events.FirstOrDefault(e => e.Type == "room_enter" && e.Json.TryGetProperty("room", out var r) && r.GetString() == "seed-chamber");
+        Assert.NotNull(enter);
+        Assert.True(enter!.Tick < seedStart.Tick, $"the seed-chamber entry (tick {enter.Tick}) must come before the Seed's pull (tick {seedStart.Tick}), so the pull is the trigger, not the entry");
+
+        static bool Names(LoggedEvent e, int id) =>
+            (e.Json.TryGetProperty("actorId", out var a) && a.GetInt32() == id) ||
+            (e.Json.TryGetProperty("sourceId", out var s) && s.GetInt32() == id) ||
+            (e.Json.TryGetProperty("targetId", out var t) && t.GetInt32() == id);
+        var early = events.Where(e => e.Tick < seedStart.Tick && Names(e, seedId)).ToList();
+        Assert.True(early.Count == 0, $"the Seed elite (actor {seedId}) acted or was hit before its pull: {string.Join(" | ", early.Select(e => e.Json.ToString()))}");
+    }
+
     [Fact(DisplayName = "R-SEED-1 f-244d102b: the warrior-remnant pack engages with the Seed, both pack and Seed die before the boss pull, forces read above 84%, and the run is timed with no wipe")]
     public void R_SEED_1_f_244d102b_warrior_remnant_fights_the_seed_and_the_bots_close_on_its_casters()
     {

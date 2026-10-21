@@ -142,7 +142,9 @@ public static class PlaytestRunner
         {
             var tick = run.State.Tick;
             context.PullId = PullIdOf(run);
-            var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
+            // The view carries the run's ability defs (KitRegistry.ForRun), as the host's BotCommandSource does (BotCommandSource.cs:156),
+            // so the bots read the run's own warden.strike reach (3000 mm, R-SEED-1 rule (c)) and the mirror matches the host's batch.
+            var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits.ForRun(run.Content.Abilities)) with { Layout = run.Content.Layout };
             var batch = Bot.RunBots(view, bots, mem, prng);
             mem = batch.Memories;
             prng = batch.Prng;
@@ -161,23 +163,16 @@ public static class PlaytestRunner
                 }
                 else
                 {
-                    // R-SEED-1 rule (c): in a fight the leader's close-in is Follow.LeadCommand (walk to the nearest engaged
-                    // enemy until its basic-attack reach). The view carries the run's ability defs (KitRegistry.ForRun), as the
-                    // host's BotCommandSource does, so the leader reads its reach from the run's own warden.strike (3000 mm).
-                    // When that close-in exists the host returns it alone for the leader (Bot.RunBots), so the role's approach
-                    // move is dropped here too; otherwise the role's approach (TankEngage.ApproachMove, by origin, R-SEED-1a
-                    // f-244d102b: BotCommandSource.cs:162-166 passes it through) is kept.
-                    var closeIn = Follow.LeadCommand(view with { Kits = kits.ForRun(run.Content.Abilities) }, leader);
+                    // R-SEED-1 rule (c): in a fight the leader's close-in is Follow.LeadCommand (walk to the nearest engaged enemy
+                    // until its basic-attack reach). The batch above already carries it (Bot.RunBots asks LeadCommand on the same
+                    // view, which now carries the run's defs), and the host passes it through in its batch order, so it is kept
+                    // where it sits and never re-added. The role's approach move is kept by origin (TankEngage.ApproachMove,
+                    // R-SEED-1a f-244d102b: BotCommandSource.cs:162-166 passes it through), but only when no close-in took its place.
+                    var closeIn = Follow.LeadCommand(view, leader);
                     var approach = closeIn is null && leader.Role == ActorRole.Tank
                         ? TankEngage.ApproachMove(view, leader, view.Kits.ResolveKit(leader.ClassId, view.ClassKit))
                         : null;
-                    // A zero-dir MoveCommand is the leader's turn (TankEngage faces its target before it casts), not travel:
-                    // it stays, so the cone it casts lands where the leader faces.
-                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && !IsTurn(c) && !Equals(c, approach));
-                    if (closeIn is not null && !commands.Contains(closeIn))
-                    {
-                        commands.Add(closeIn);
-                    }
+                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && !Equals(c, approach) && !Equals(c, closeIn));
                 }
             }
 
