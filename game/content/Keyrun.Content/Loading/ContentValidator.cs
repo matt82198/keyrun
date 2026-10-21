@@ -48,6 +48,7 @@ public static class ContentValidator
         CheckFacets(reg);
         CheckRun(reg.Run);
         CheckHeatOverheat(reg);
+        CheckPairMarks(reg);
         CheckForces(reg);
         LayoutValidator.Check(reg);
         GearValidator.Check(reg);
@@ -142,6 +143,20 @@ public static class ContentValidator
         if (!reg.Effects.ContainsKey(h.ChillEffectId))
             Fail("run heatOverheat.chillEffectId \"" + h.ChillEffectId + "\" is not an effect");
         if (h.ChillTicks <= 0) Fail("run heatOverheat.chillTicks must be positive, got " + h.ChillTicks);
+    }
+
+    /// <summary>run.json pairMarks (BIBLE section 9.6 item 2): both marks name real effects; every number is positive.</summary>
+    private static void CheckPairMarks(ContentRegistry reg)
+    {
+        PairMarksConfig m = reg.Run.PairMarks;
+        if (!reg.Effects.ContainsKey(m.SpreadEffectId))
+            Fail("run pairMarks.spreadEffectId \"" + m.SpreadEffectId + "\" is not an effect");
+        if (!reg.Effects.ContainsKey(m.StackEffectId))
+            Fail("run pairMarks.stackEffectId \"" + m.StackEffectId + "\" is not an effect");
+        if (m.SpreadRadiusMm <= 0) Fail("run pairMarks.spreadRadiusMm must be positive, got " + m.SpreadRadiusMm);
+        if (m.SpreadDamage <= 0) Fail("run pairMarks.spreadDamage must be positive, got " + m.SpreadDamage);
+        if (m.StackRadiusMm <= 0) Fail("run pairMarks.stackRadiusMm must be positive, got " + m.StackRadiusMm);
+        if (m.StackDamage <= 0) Fail("run pairMarks.stackDamage must be positive, got " + m.StackDamage);
     }
 
     private static void CheckRun(RunConfig run)

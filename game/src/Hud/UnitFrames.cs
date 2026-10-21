@@ -32,7 +32,8 @@ public static class UnitFrameModel
         int? bossId = null;
         foreach (var (id, actor) in state.Actors)
         {
-            if (actor.Alive && actor.Kind != ActorKind.Player && actor.ClassId.EndsWith(".boss", StringComparison.Ordinal))
+            // PRESPAWN-AGGRO: the boss stands idle in its arena from tick 0; its frame appears when it engages, as in WoW.
+            if (actor.Alive && !actor.Idle && actor.Kind != ActorKind.Player && actor.ClassId.EndsWith(".boss", StringComparison.Ordinal))
             {
                 bossId = id;
                 frames.Add(new UnitFrame("boss", id));

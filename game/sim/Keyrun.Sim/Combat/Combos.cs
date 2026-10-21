@@ -283,11 +283,30 @@ public static class Combos
         Damage.ResolveModified(tick, closer, raw, modified, effectDefs, emit, closer.Id);
     }
 
+    /// <summary>
+    /// The id of a cloud <paramref name="source"/> opens now: effectId:sourceId:tick, unique among
+    /// <see cref="SimState.FloorClouds"/>. One source can open two clouds in one tick (a cast completing at the tick and
+    /// an instant Payoff in that tick's commands, Rules.Make), so the n-th repeat in a tick takes effectId:sourceId#n:tick.
+    /// The first cloud keeps the plain id (no hash or golden moves), every id still ends in ":tick", and the suffix is a
+    /// count over the state's own list, so it is deterministic: no random, no wall clock.
+    /// </summary>
+    private static string UniqueCloudId(SimState state, ActorState source, CloudOp op)
+    {
+        var head = op.EffectId + ":" + source.Id;
+        var tail = ":" + state.Tick;
+        var id = head + tail;
+        for (var n = 1; state.FloorClouds.Exists(c => c.Id == id); n++)
+        {
+            id = head + "#" + n + tail;
+        }
+        return id;
+    }
+
     private static void OpenCloud(SimState state, ActorState source, ActorState target, CloudOp op, IReadOnlyDictionary<string, EffectDef> effectDefs)
     {
         var cloud = new FloorCloud
         {
-            Id = op.EffectId + ":" + source.Id + ":" + state.Tick,
+            Id = UniqueCloudId(state, source, op),
             EffectId = op.EffectId,
             SourceId = source.Id,
             SourceKind = source.Kind,

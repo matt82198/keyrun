@@ -119,6 +119,9 @@ public static class Targeting
     /// target to be within <c>def.Range</c> NOW, so a cast that completes after its target walked out of range lands
     /// on nothing (CompleteCastOn still emits cast_complete, exactly as for a target that died mid-cast). StartCast
     /// checks the same range at start; moving out of a telegraphed cast is counterplay (design/BIBLE.md section 3).
+    /// C# deviation in behaviour (CHOIR-PACK-HEAL; no TS counterpart, an oracle run has no idle actor): a FRIENDLY
+    /// circle/cone/line skips idle actors, so the Choir Cantor's pack heal reaches its own fight and never a
+    /// PRESPAWN-AGGRO group still waiting in a later room. Hostile shapes still reach idle actors (damage engages them).
     /// </remarks>
     /// <param name="state">Sim state.</param>
     /// <param name="actor">The caster.</param>
@@ -149,7 +152,7 @@ public static class Targeting
         };
         var kept = new SortedSet<int>(ids.Where(id =>
             state.Actors.TryGetValue(id, out var candidate) &&
-            (affinity == Affinity.Hostile ? candidate.Kind != actor.Kind : candidate.Kind == actor.Kind)));
+            (affinity == Affinity.Hostile ? candidate.Kind != actor.Kind : candidate.Kind == actor.Kind && !candidate.Idle)));
         if (affinity == Affinity.Friendly && actor.Alive)
         {
             kept.Add(actor.Id);

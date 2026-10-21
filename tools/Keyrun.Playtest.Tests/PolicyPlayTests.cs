@@ -45,6 +45,19 @@ public sealed class PolicyPlayTests
         Assert.True(r.Stats.Interrupted.TryGetValue("choir.healCast", out var n) && n > 0);
     }
 
+    [Fact(DisplayName = "Policy play: a mitigate plan's tank presses Brace and Bulwark under pressure; without it neither (STATE.md D48)")]
+    public void Mitigation_only_by_plan()
+    {
+        static int Pressed(PlaytestResult r, string id) =>
+            r.Stats.CastsBySeat.TryGetValue(1, out var casts) && casts.TryGetValue(id, out var n) ? n : 0;
+        var bare = Play("{}");
+        var mitigating = Play("{\"mitigate\": [\"warden\"]}");
+        Assert.Equal(0, Pressed(bare, "warden.brace"));
+        Assert.Equal(0, Pressed(bare, "warden.bulwark"));
+        Assert.True(Pressed(mitigating, "warden.brace") > 0, "the mitigating tank never pressed Brace");
+        Assert.True(Pressed(mitigating, "warden.bulwark") > 0, "the mitigating tank never pressed Bulwark");
+    }
+
     [Fact(DisplayName = "Policy play: a dodge plan moves seats out of telegraphs; without it nobody steps out")]
     public void Dodge_only_by_plan()
     {

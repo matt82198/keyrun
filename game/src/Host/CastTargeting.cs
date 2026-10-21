@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Bots.Shared;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Runs;
@@ -8,9 +9,9 @@ using Keyrun.Sim.Runs;
 namespace Keyrun.Host;
 
 /// <summary>
-/// player-commands.ts castTargetFor (D10 first-run fix), Godot-free: a hostile single-target ability with no live enemy
-/// targeted goes at the nearest live enemy (squared XZ distance, lowest id on a tie); everything else keeps the current
-/// target, else the caster.
+/// player-commands.ts castTargetFor (D10 first-run fix), Godot-free: a hostile single-target ability with no live engaged
+/// enemy targeted goes at the nearest live engaged enemy (squared XZ distance, lowest id on a tie; an idle prespawned
+/// enemy is never picked, PRESPAWN-AGGRO); everything else keeps the current target, else the caster.
 /// </summary>
 public static class CastTargeting
 {
@@ -33,27 +34,12 @@ public static class CastTargeting
         {
             return current ?? humanId;
         }
-        if (current is { } c && actors.TryGetValue(c, out var cur) && cur.Alive && cur.Kind != player.Kind)
+        // PRESPAWN-AGGRO: the current target while it is a living ENGAGED enemy, else the nearest engaged one
+        // (EngagedTargets, Keyrun.Bots). An idle prespawned enemy is never picked, so a cast never pulls a pack.
+        if (EngagedTargets.HostileTarget(run.State, player) is { } target)
         {
-            return cur.Id;
+            return target;
         }
-        int? best = null;
-        long bestD2 = 0;
-        foreach (var a in actors.Values)
-        {
-            if (!a.Alive || a.Kind == player.Kind)
-            {
-                continue;
-            }
-            var dx = a.Pos.X - player.Pos.X;
-            var dz = a.Pos.Z - player.Pos.Z;
-            var d2 = (dx * dx) + (dz * dz);
-            if (best is null || d2 < bestD2 || (d2 == bestD2 && a.Id < best))
-            {
-                best = a.Id;
-                bestD2 = d2;
-            }
-        }
-        return best ?? current ?? humanId;
+        return current is { } c && actors.TryGetValue(c, out var cur) && cur.Alive && cur.Idle ? humanId : current ?? humanId;
     }
 }
