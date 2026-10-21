@@ -68,7 +68,7 @@ public sealed class UntimedKeyGuardTests
     [InlineData(20)]
     public void The_run_clock_bar_says_the_key_stays_at_its_level_after_a_lasting_wipe(int key)
     {
-        var reading = new SlackReading(0, 620, Depleted: true, RunTimerTicks: 2000, ParTicks: Par, KeyLevel: key, PenaltyTicks: 400, Deaths: 5);
+        var reading = new SlackReading(0, 620, Depleted: true, RunTimerTicks: 2000, ParTicks: Par, KeyLevel: key, PenaltyTicks: 400, Deaths: 5, End: RunEndCause.Wiped);
         Assert.DoesNotContain("deplet", reading.Label, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(FormattableString.Invariant($"Wiped -- key stays +{key}"), reading.Label);
     }
