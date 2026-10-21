@@ -34,6 +34,10 @@ export function consumeCharge(actor: ActorState, def: AbilityDef, now: Tick): vo
   actor.cooldowns[def.id] = base + def.cooldownTicks;
 }
 
+/**
+ * An ability whose own gcdTicks is 0 is off the GCD (finding f-80b5cf16): it never waits for it, as startGcd never
+ * starts one for it, so a gcdTicks-0 kick lands on the tick it is pressed even while a rotation press holds the GCD.
+ */
 export function isAbilityReady(actor: ActorState, def: AbilityDef, now: Tick): boolean {
-  return isGcdReady(actor, now) && chargesAvailable(actor, def, now) >= 1;
+  return (def.gcdTicks <= 0 || isGcdReady(actor, now)) && chargesAvailable(actor, def, now) >= 1;
 }

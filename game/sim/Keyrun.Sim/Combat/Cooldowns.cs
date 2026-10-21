@@ -71,11 +71,15 @@ public static class Cooldowns
         actor.Cooldowns[def.Id] = baseTick + def.CooldownTicks;
     }
 
-    /// <summary>sim/combat/cooldowns.ts:37-39 isAbilityReady: GCD ready and at least one charge.</summary>
+    /// <summary>
+    /// sim/combat/cooldowns.ts isAbilityReady: GCD ready and at least one charge. An ability whose own gcdTicks is 0 is
+    /// off the GCD (finding f-80b5cf16): it never waits for it, as <see cref="StartGcd"/> never starts one for it, so a
+    /// gcdTicks-0 kick lands on the tick it is pressed even while a rotation press holds the GCD.
+    /// </summary>
     /// <param name="actor">The actor.</param>
     /// <param name="def">The ability.</param>
     /// <param name="now">Current tick.</param>
     /// <returns>True when castable now (cooldown-wise).</returns>
     public static bool IsAbilityReady(ActorState actor, AbilityDef def, int now) =>
-        IsGcdReady(actor, now) && ChargesAvailable(actor, def, now) >= 1;
+        (def.GcdTicks <= 0 || IsGcdReady(actor, now)) && ChargesAvailable(actor, def, now) >= 1;
 }

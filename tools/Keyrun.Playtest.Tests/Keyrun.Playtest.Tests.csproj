@@ -30,6 +30,8 @@
     <!-- Run C's seat 1, the autorun Warden, unedited (RunCEngagesChoirTests). Both files are Godot-free. -->
     <Compile Include="../../game/src/Host/ScriptedWarden.cs" Link="Host/ScriptedWarden.cs" />
     <Compile Include="../../game/src/Host/CastTargeting.cs" Link="Host/CastTargeting.cs" />
+    <!-- Run F's abandon-seat plan, fixed or pull-relative (R-415-D; SeatAbandonPlanTests, RunFJoinerActsTests). Godot-free. -->
+    <Compile Include="../../game/src/Host/SeatAbandonPlan.cs" Link="Host/SeatAbandonPlan.cs" />
   </ItemGroup>
 
   <ItemGroup>

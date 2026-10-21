@@ -88,13 +88,15 @@ public static class Ledger
     /// <param name="eligibleClassmates">Candidate kickers.</param>
     /// <param name="tick">Current tick.</param>
     /// <param name="priorityAbilityIds">Priority-cast list.</param>
+    /// <param name="interruptOffGcd">True when the interrupt's own gcdTicks is 0: a kicker need not be off the GCD.</param>
     /// <returns>The assignment, or null.</returns>
     public static InterruptAssignment? ResolveInterrupt(
         SortedDictionary<int, ActorState> actors,
         string interruptAbilityId,
         IEnumerable<int> eligibleClassmates,
         int tick,
-        IReadOnlyList<string>? priorityAbilityIds = null)
+        IReadOnlyList<string>? priorityAbilityIds = null,
+        bool interruptOffGcd = false)
     {
         ArgumentNullException.ThrowIfNull(actors);
         ArgumentNullException.ThrowIfNull(eligibleClassmates);
@@ -103,12 +105,23 @@ public static class Ledger
         {
             return null;
         }
+        // Spell queue window (Readiness.IsCastLocked): a kicker in the last window ticks of its own cast counts, its
+        // kick landing when that cast ends, but only when that tick is still inside the enemy's cast. The kick that
+        // lands first wins, ties to the lowest id (BIBLE s3: intended tick, fixed tiebreak).
+        var targetEnds = actors[targetId.Value].CastEndsTick ?? int.MaxValue;
         var ready = eligibleClassmates.Where(id =>
             actors.TryGetValue(id, out var a)
             && a.Alive
+            && !Readiness.IsCastLocked(a, tick)
+            && Readiness.LandingTick(a, tick) < targetEnds
             && Readiness.CooldownReadyTick(a, interruptAbilityId) <= tick
-            && a.GcdReadyTick <= tick).ToList();
-        var kickerId = SelectKicker(ready);
+            && (interruptOffGcd || a.GcdReadyTick <= tick)).ToList();
+        if (ready.Count == 0)
+        {
+            return null;
+        }
+        var firstLanding = ready.Min(id => Readiness.LandingTick(actors[id], tick));
+        var kickerId = SelectKicker(ready.Where(id => Readiness.LandingTick(actors[id], tick) == firstLanding).ToList());
         return kickerId is null ? null : new InterruptAssignment(targetId.Value, kickerId.Value);
     }
 }

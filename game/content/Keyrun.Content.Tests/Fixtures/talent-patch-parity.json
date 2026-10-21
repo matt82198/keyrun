@@ -3109,14 +3109,14 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 40,
+        "cooldownTicks": 30,
         "cost": {
           "amount": 0,
           "resource": "none"
         },
         "effects": [
           {
-            "amount": 140,
+            "amount": 150,
             "op": "damage",
             "school": "physical"
           },
@@ -3354,7 +3354,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 60,
+        "cooldownTicks": 90,
         "cost": {
           "amount": 25,
           "resource": "momentum"
@@ -3687,7 +3687,7 @@
         },
         "effects": [
           {
-            "amount": 100,
+            "amount": 150,
             "op": "damage",
             "school": "frost"
           },
@@ -3776,7 +3776,7 @@
         },
         "effects": [
           {
-            "amount": 180,
+            "amount": 240,
             "op": "damage",
             "school": "fire"
           },
@@ -4350,7 +4350,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 2,
-        "cooldownTicks": 160,
+        "cooldownTicks": 100,
         "cost": {
           "amount": 0,
           "resource": "none"
@@ -4686,7 +4686,7 @@
     },
     {
       "ability": {
-        "castTicks": 20,
+        "castTicks": 4,
         "charges": 1,
         "cooldownTicks": 200,
         "cost": {

@@ -84,6 +84,8 @@ export interface ClassKit {
   /** Shape-aware heals (kit-heals.ts) + the threat-op utility (Warden's Taunt), or null. */
   heals: HealKit;
   tauntAbilityId: string | null;
+  /** Slotted abilities (rot1-5, interrupt, defensive, utility, movement) whose own gcdTicks is 0: off the GCD. */
+  offGcdAbilityIds?: readonly string[];
 }
 
 export function buildClassKit(
@@ -168,5 +170,17 @@ export function buildClassKit(
     stanceSwapAbilityId,
     heals: classifyHeals(rotationalDefs, effects),
     tauntAbilityId: tauntAbilityId(utilityDef),
+    offGcdAbilityIds: offGcdIds(cls, abilities),
   };
+}
+
+function offGcdIds(cls: ClassDef, abilities: ReadonlyMap<string, AbilityDef>): string[] {
+  const slots = [...ROT_SLOTS, "interrupt", "defensive", "utility", "movement"] as const;
+  const ids: string[] = [];
+  for (const slot of slots) {
+    const id = cls.abilities[slot];
+    const def = abilities.get(id);
+    if (def && def.gcdTicks === 0 && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
 }

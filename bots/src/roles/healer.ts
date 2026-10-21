@@ -23,6 +23,7 @@ import { floorEscapeCommand } from "../shared/floor.js";
 import { moveToward } from "../shared/command.js";
 import { readyAndAffordable, ledgerKickCommand } from "./shared.js";
 import { healCommands } from "./heal-pick.js";
+import { setupCommands } from "./healer-setup.js";
 
 const DISPELLABLE_PREFIX = "dispellable:";
 /** ActorState.pos is already integer millimetres (sim/CLAUDE.md), so this 30m design constant is
@@ -132,7 +133,12 @@ export function healerDecide(view: BotView, self: ActorState): Command[] {
     // only the caster (roles/heal-pick.ts).
     const healId = pickHealTarget(view.state.actors, HEAL_THRESHOLD_PCT);
     const healTarget = healId !== null ? view.state.actors[healId] : undefined;
-    return healTarget ? healCommands(view, self, kit, healTarget) : pressCommands(view, self, kit);
+    if (healTarget) return healCommands(view, self, kit, healTarget);
+    // CADENCE-SETUP (f-b31e8f34): nobody under the threshold, so open a Setup for a ready Payoff
+    // partner (roles/healer-setup.ts); D-HEALER-DOWNTIME: no Setup to open, so press a non-heal
+    // rotation button.
+    const setup = setupCommands(view, self, kit);
+    return setup.length > 0 ? setup : pressCommands(view, self, kit);
   }
   const targetId = dispelId;
   const abilityId = kit.dispelAbilityId ?? "dispel";

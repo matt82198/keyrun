@@ -203,6 +203,10 @@ public static class RunRoot
         // stagger just above) ends an interruptible cast, before the telegraph check below reads the casts.
         nextState = ControlStops.Apply(run.State, nextState, content.StopEffectIds, content.Abilities, run.State.Tick, emit);
 
+        // f-8b3fff18 (STUN-STOPS-ENEMIES): the stagger stun lands now, so a staggered bar actor's cast that the
+        // stop above left (uninterruptible, or no host stop ids) ends here, before the telegraph check reads the casts.
+        nextState = RunWiring.StopCasts(nextState, enc.Staggered, emit);
+
         // TELEGRAPH-CANCEL (BIBLE s3): a floor telegraph whose cast this tick's combat kicked, stopped or replaced is
         // cancelled on this tick and never resolves (no telegraph_hit for a hit that cannot come).
         var cancel = Telegraphs.CancelUnlanded(nextState, enc.Encounter.Telegraphs, run.State.Tick, emit, content.Abilities);
