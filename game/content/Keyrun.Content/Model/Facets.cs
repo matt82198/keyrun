@@ -112,4 +112,10 @@ public sealed record ContentRegistry
     /// Base gear items by id (gear.json; C#-only, BIBLE section 7 "Five slots"). Empty when a registry is built by hand.
     /// </summary>
     public ValueMap<GearItemDef> Gear { get; init; } = new();
+
+    /// <summary>
+    /// Ability ids that are melee-range contact (game/content/data/melee-abilities.json; C#-only, KF1 strike cue, ruling R9).
+    /// Every id names a loaded ability. Empty when a registry is built by hand.
+    /// </summary>
+    public ValueList<string> MeleeAbilities { get; init; } = new();
 }

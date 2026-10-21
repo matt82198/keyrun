@@ -63,6 +63,11 @@ public partial class ActorView : Node3D
     private SimDriver? Driver { get; set; }
 
     private bool _bound;
+    // KF1 strike cue: the melee ability set, loaded once from the C#-only melee-abilities.json (the sim RunContent carries no
+    // melee data and the view holds no ContentRegistry). Lazy so the JSON parse happens on the first strike, not per frame.
+    private static readonly System.Lazy<System.Collections.Generic.IReadOnlySet<string>> MeleeSet =
+        new(() => StrikeCueRule.MeleeIds(ContentLoader.Load().MeleeAbilities));
+
     private Node3D? _model;
     private ActorAnimator? _animator;
     private SimState? _seenState;
@@ -313,7 +318,7 @@ public partial class ActorView : Node3D
                 facts.Add(new StrikeEvent(e.Type, e.Tick, (int)actor.Value, ability.Value));
             }
         }
-        var melee = StrikeCueRule.MeleeIds(abilities.Values.Select(a => (a.Id, a.Tags)));
+        var melee = MeleeSet.Value;
         var yaw = SwingFacing.RenderYaw(Driver.State, now, abilities, _hold);
         foreach (var cue in StrikeCueRule.Cues(facts, melee, _ => yaw))
         {

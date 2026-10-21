@@ -37,9 +37,9 @@ public sealed class ContentCountTests
         string[] csharpOnly =
         {
             "run.json", "layout.json", "theme.json", "combo-riders.json", "forces.json", "packs.json", "hazards.json",
-            "gear.json", "enemies/hall.json",
+            "gear.json", "enemies/hall.json", "melee-abilities.json",
         };
-        Assert.Equal(28, embedded.Length);
+        Assert.Equal(29, embedded.Length);
         Assert.Equal(19, embedded.Count(p => !csharpOnly.Contains(p)));
         Assert.Equal(embedded, loaded);
     }
