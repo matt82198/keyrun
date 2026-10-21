@@ -11,7 +11,7 @@ Every decision in this document passes all three or it is out:
 1. **Depth and difficulty.** Classes with real decisions on five buttons; keys that are genuinely hard because
    of what enemies *do*, not how much health they have.
 2. **A high key inside a minute.** Open the screen, pick a key, press Queue, be in the dungeon. No gatekeeping,
-   no score, no lobby negotiation.
+   no score, no lobby negotiation. A single ready-check between Queue and the dungeon is not lobby negotiation (amended 2026-10-21, orchestrator ruling; Matt may overrule; QueuedRunGateTests.cs:45 A_queue_press_starts_no_run_until_the_human_answers_ready).
 3. **Strangers are chill by default.** The systems remove the reasons people are not: no shareable score to judge
    by, no run ruined by one mistake, backfill instead of abandonment, pings instead of typing.
 
@@ -43,7 +43,7 @@ pings, so secondary systems can never balloon past the core kit.
 - **Fixed tick, integer math, deterministic** (research/07; `sim/CLAUDE.md`). Interrupts resolve by intended
   tick with a fixed tiebreak, never arrival order: a race is never a coin flip.
 - **Cast bars are the enemy's language.** Every dangerous enemy action is a cast with a visible bar and a floor
-  telegraph (circle, cone, line) drawn ahead of resolution. Shape plus colour, never colour alone (research/06).
+  telegraph (circle, cone, line) drawn ahead of resolution. Shape plus colour, never colour alone (research/06). Plain auto-attacks are exempt from this rule, and every damage or window cast is telegraphed or named (amended 2026-10-21, decision: auto-attacks are the exempt list, EveryEnemyAbilityTelegraphedTests.cs:204).
 - **Soft roles, no trinity lock** (research/03). Every class has real self-sustain and some group utility. A party
   without a "healer" class is harder, never blocked from queueing. The queue matches on key level only.
 - **Damage is a pipeline of integers**: base → source modifiers → target modifiers → class armor → absorbs →
@@ -176,8 +176,7 @@ pair combo, so there is always something to close even when the enemy Window was
 
 - **Five slots**: Weapon, Armor, Charm, Ring, Keystone. Each item has a **Tier** (1–10) and one **Facet**.
 - **Tier is power and it is capped at 10.** Ten is the end. Best-in-slot is a specific Facet set at Tier 10 for
-  your build, and it is hard: the last two tiers drop only from boss mechanics done correctly on high keys
-  (Monster Hunter's transparent, target-farmable sources — research/05). No item level after 10, ever.
+  your build, and it is hard: the last two tiers (9-10) drop from key level 15 and up, for any run result, not only from boss mechanics (amended 2026-10-21, decision: key-level rule, ledger f-baeb031a, implemented in game/sim/Keyrun.Sim/Encounter/Rewards.cs:24-27 and :39; supersedes the boss-mechanics-only rule, which cited Monster Hunter's transparent, target-farmable sources, research/05). No item level after 10, ever.
 - **Facets change function** (Diablo IV's lesson — research/05): a Facet retags an ability's Window, adds a
   second Payoff to a neutral ability, changes a floor patch's shape, or alters the resource loop. Facets are the
   chase; numbers are just the tier.
