@@ -141,6 +141,10 @@ public sealed record HostRunSetup(
         var (dungeon, scripts) = ToSimDungeon(
             registry, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false), Affixes.HealthBp(affixTable, affixes, bossSide: true));
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
+        var boss = BuildBossConfig(registry, bossEnemy, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: true));
+        // TEMPO-CAST-FLOOR (BIBLE s8): every cast an enemy script makes (pulls, boss, Twins) gets the key-scaled
+        // cooldown its scaled loop was floored against, so the loop speeds up and its cast is ready on the fire tick.
+        abilities = Tempo.ScaleEnemyCooldowns(abilities, scripts.Values.Concat(boss.Twins.Select(t => t.Script)), keyLevel);
 
         // Lane NAV-CORE (STATE.md D18): the dungeon's rooms and corridors. Pulls stand in their rooms, the party in the
         // Entrance; every pull stands idle from tick 0 and engages on its aggro ring, along one open path (STATE.md D44).
@@ -182,7 +186,6 @@ public sealed record HostRunSetup(
         }.WithMovement(movement);
 
         var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
-        var boss = BuildBossConfig(registry, bossEnemy, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: true));
         var botGear = BuildBotGear(registry, party);
         return new HostRunSetup(party, dungeon, content, HumanId, ResolveSlots(classDef), boss)
         {
@@ -479,7 +482,7 @@ public sealed record HostRunSetup(
             def.Id,
             Affixes.ScaleHealth(Tempo.ScaleHealth(def.MaxHealth, keyLevel), twinHealthBp),
             new Vec3(i == 0 ? TwinOffsetMm : -TwinOffsetMm, 0, 0),
-            Tempo.ScaleScript(ToSim(def.Script), keyLevel))).ToList();
+            Tempo.ScaleScript(ToSim(def.Script), keyLevel, CastFloors(registry, keyLevel)))).ToList();
         var onEmpty = bar.OnEmpty.Select(op => op is C.ApplyEffectOp e
             ? new BreakBarOnEmptyEffect(e.EffectId, e.DurationTicks, e.Stacks)
             : throw new InvalidOperationException($"run setup: {where} bar \"{bar.Id}\" onEmpty has a {op.GetType().Name}, only applyEffect is run")).ToList();
@@ -687,7 +690,7 @@ public sealed record HostRunSetup(
                 {
                     var actorId = nextId++;
                     spawns.Add(ScaledTrashSpawn(def, actorId, new Vec3(group.Spawn.X, 0, group.Spawn.Z), keyLevel, trashHealthBp));
-                    scripts[actorId] = Tempo.ScaleScript(ToSim(def.Script), keyLevel);
+                    scripts[actorId] = Tempo.ScaleScript(ToSim(def.Script), keyLevel, CastFloors(registry, keyLevel));
                 }
             }
             pulls.Add(new PullDef(pull.Id, spawns));
@@ -700,9 +703,17 @@ public sealed record HostRunSetup(
         {
             new PullSpawn(BossActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp)),
         }));
-        scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel);
+        scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel, CastFloors(registry, keyLevel));
         return (new DungeonDef(dungeonDef.Id, pulls), scripts);
     }
+
+    /// <summary>
+    /// TEMPO-CAST-FLOOR: ability id to <see cref="Tempo.ScaledCastFloorTicks"/> (the key-scaled cooldown and the cast
+    /// time), so Tempo never schedules a cast before its ability is ready (BIBLE s3) while the cooldown itself scales
+    /// with the key (<see cref="Tempo.ScaleEnemyCooldowns"/>, BIBLE s8). An id the registry lacks gets 0 (no extra floor).
+    /// </summary>
+    private static Func<string, int> CastFloors(C.ContentRegistry registry, int keyLevel) =>
+        id => registry.Abilities.TryGetValue(id, out var a) ? Tempo.ScaledCastFloorTicks(a.CooldownTicks, a.CastTicks, keyLevel) : 0;
 
     /// <summary>
     /// One trash spawn as content/sim-adapt.ts toSimDungeon builds it (yaw 0; speed and chase margin only when the enemy
