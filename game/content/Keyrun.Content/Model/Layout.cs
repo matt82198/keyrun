@@ -170,4 +170,11 @@ public sealed record LayoutPack
 
     /// <summary>Member groups; each group's <c>spawn</c> is its offset from <see cref="Center"/>, mm.</summary>
     public required ValueList<PullEnemy> Enemies { get; init; }
+
+    /// <summary>
+    /// The room (a layout box id) whose route this pack belongs to (ruling R7: one map, packs carry forces through their
+    /// members, routes are player choice), or null = branch-neutral (it counts on every route). Must name a box in the
+    /// layout when set.
+    /// </summary>
+    public string? Branch { get; init; }
 }

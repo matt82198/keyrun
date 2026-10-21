@@ -149,18 +149,21 @@ public partial class Queue : Node
     private QueueGateState GateState()
     {
         var check = Check;
-        var phase = check?.Phase;
-        if (phase == ReadyPhase.Pending && !Gate.Checking)
-        {
-            phase = null;
-        }
-        if (phase is ReadyPhase.Enter or ReadyPhase.Requeue && _outcomeLeft <= 0)
-        {
-            phase = null;
-        }
-        var seats = phase is null || check is null ? 0 : check.Seats.Count;
+        var run = _driver?.Run;
+        var partySeats = run is null ? 0 : run.State.Actors.Values.Count(a => a.Kind == ActorKind.Player);
+        var openSeats = _driver?.OpenSeats.Count ?? 0;
         var humanReady = check is not null && check.ReadySeats.Contains(Gate.HumanSeat);
-        return new QueueGateState(phase, seats, humanReady, Gate.RemainingTicks(ClockTick), 0, 0);
+        // The fill time is not modelled (the backfill joins at the next pull start), so the open-seat line reads "at the next pull".
+        return QueueWait.StateFor(
+            check?.Phase,
+            Gate.Checking,
+            check?.Seats.Count ?? 0,
+            humanReady,
+            Gate.RemainingTicks(ClockTick),
+            _outcomeLeft > 0,
+            partySeats,
+            openSeats,
+            0);
     }
 
     /// <inheritdoc />

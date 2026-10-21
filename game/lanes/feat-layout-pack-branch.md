@@ -1,0 +1,2 @@
+- LAYOUT-PACK-BRANCH layout.json packs take an optional `branch` (a box id in the layout, validated fail-closed by LayoutValidator); LayoutPack.Branch; cantor-vigil and warrior-remnant set (ruling R7, FOLD-U1; packs.json untouched, FOLD-U3 retires it).
+BUILDLOG: FOLD-U1 adds the optional LayoutPack.Branch key, validated to name a layout room, and sets it on cantor-vigil (choir-room) and warrior-remnant (seed-chamber); packs.json and route.branches are untouched until FOLD-U3.

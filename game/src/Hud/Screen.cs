@@ -21,7 +21,8 @@ namespace Keyrun.Hud;
 /// <list type="bullet">
 /// <item><b>Character</b>: the class, the "since last run" line, banked Ash, the five abilities with their keybinds,
 /// and the equipped gear with tier, Facet and crafting charges left (Tab selects an item, R rerolls its Facet).</item>
-/// <item><b>Key</b>: the key stepper (Left/Right, 2-20) and the key's Clause, read-only (BIBLE s8, R1 2026-10-21: the key sets it).</item>
+/// <item><b>Key</b>: the key stepper (Left/Right, 2-20), the readiness line, the key's Clause as text, read-only (BIBLE s8,
+/// R1 2026-10-21: the key sets it; lane U2 shows it) and the private last-three-runs strip.</item>
 /// <item><b>Queue</b>: one button (Enter or a click), which locks the Key band and raises <see cref="Queued"/>.</item>
 /// </list>
 /// Progression (Ash, gear, the crafting PRNG) is the pure <see cref="Progression"/> and the Key band the pure
@@ -78,7 +79,7 @@ public partial class Screen : Control
     private const float TabWidth = 150;
 
     // The autorun script: one key per frame once the run has ended (keys 1, R, R, R, Right, then the talent panel
-    // T, 1, Down, 2, Backspace, 1, T, then Enter).
+    // T, 1, Down, 2, Backspace, 1, T, then Enter). The Key band does not pick a Clause (BIBLE s8, R1: the key sets it).
     private static readonly Key[] AutorunKeys =
     {
         Key.Key1, Key.R, Key.R, Key.R, Key.Right,
@@ -702,6 +703,9 @@ public partial class Screen : Control
         {
             ProofRunFacets(started, loadout?.Facets);
         }
+        // The Key band is locked in now: re-proof it so the readiness line reads the wait ("Queued at key N"), BIBLE s10.
+        // Emitted after the queue lines above, which the scene test reads by position.
+        ProofKeyBand();
         Close();
     }
 
@@ -1076,10 +1080,27 @@ public partial class Screen : Control
         }
         Proof(FormattableString.Invariant($"SCREEN key level={s.KeyLevel} locked={(s.Locked ? 1 : 0)}"));
         Proof(FormattableString.Invariant($"SCREEN affixes key={s.KeyLevel} line=\"{AffixLine(s.KeyLevel)}\""));
-        // R1 (2026-10-21, BIBLE s8): the key sets the Clause; the band shows it, read-only, one line per key.
+        Proof(FormattableString.Invariant($"SCREEN readiness line=\"{s.ReadinessLine}\""));
+        // R1 (2026-10-21, BIBLE s8): the key sets the Clause; the band shows it as text, read-only, one line per key
+        // (lane U2 shows it; no pick exists).
         var clause = s.KeyClause;
-        var name = clause is null ? string.Empty : ClauseText(clause).Name;
+        var (name, text) = clause is null ? (string.Empty, string.Empty) : ClauseText(clause);
         Proof(FormattableString.Invariant($"SCREEN clause key={s.KeyLevel} id={clause ?? "none"} name=\"{name}\" startKey={s.ClauseStartKey}"));
+        // The text as laid out at the design viewport (1280x720), with the same wrap the Key band draws.
+        var box = ClauseTextWidth(LayoutFor(DesignSize()).Key);
+        var lines = Wrap(text, box, SmallFont, 2);
+        var widest = lines.Count == 0 ? 0f : lines.Max(line => HudNodes.Width(line, SmallFont));
+        Proof(FormattableString.Invariant($"SCREEN fit clause lines={lines.Count} widest={Math.Ceiling(widest)} box={Math.Floor(box)}"));
+        // The private last-three-runs strip: the same lines the band draws, from the saved history.
+        var runs = RunStripText.Lines(_progression.History);
+        if (runs.Count == 0)
+        {
+            Proof("SCREEN runs none");
+        }
+        for (var i = 0; i < runs.Count; i++)
+        {
+            Proof(FormattableString.Invariant($"SCREEN runs n={i + 1} \"{runs[i]}\""));
+        }
     }
 
     private void SetHelpVisible(bool visible)
@@ -1198,6 +1219,9 @@ public partial class Screen : Control
         }
         return l;
     }
+
+    // The Clause row's text width on the Key band: the band less the 14px inset each side.
+    private static float ClauseTextWidth(Rect2 key) => Math.Max(0f, key.Size.X - 28);
 
     // The layout for a screen of `size` (pure): the draw uses the node's Size, the fit proof lines the design size. The
     // tab bar sits in the title row, so every tab's panels start at the same top as the old three bands did, and each
@@ -1490,11 +1514,22 @@ public partial class Screen : Control
         }
         HudNodes.Text(this, new Vector2(r.Position.X + 74, r.Position.Y + 76), FormattableString.Invariant($"Key {state.KeyLevel}"), TitleFont, Parchment);
         HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 98), AffixLine(state.KeyLevel), SmallFont, Calm);
-        // R1 (BIBLE s8): the key sets the Clause; the band shows it read-only, and says so below the start key.
-        var label = state.KeyClause is { } clause
-            ? "Clause: " + ClauseText(clause).Name
-            : FormattableString.Invariant($"Clause: none below key {state.ClauseStartKey}");
-        HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 116), Clip(label, r.Size.X - 28, BodyFont), BodyFont, Gold);
+        var inner = ClauseTextWidth(r);
+        HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 118), Clip(state.ReadinessLine, inner, BodyFont),
+            BodyFont, state.Locked ? Calm : Good);
+        // The Clause row: the one Clause the Queue hands the run, shown as text and never picked. R1 (BIBLE s8): the key
+        // sets it (ClauseRotation.ForKey, read-only), and the row says so below the start key.
+        var (label, text) = state.KeyClause is { } clause
+            ? ("Clause: " + ClauseText(clause).Name, ClauseText(clause).Text)
+            : (FormattableString.Invariant($"Clause: none below key {state.ClauseStartKey}"), string.Empty);
+        HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 144), Clip(label, inner, BodyFont), BodyFont, Gold);
+        var clauseLines = Wrap(text, inner, SmallFont, 2);
+        for (var j = 0; j < clauseLines.Count; j++)
+        {
+            HudNodes.Text(this, new Vector2(r.Position.X + 14, r.Position.Y + 164 + (j * 14)), clauseLines[j], SmallFont, Colors.White);
+        }
+        // The private last-three-runs strip under the Clause row (BIBLE s10): the saved history, nothing else.
+        RunStrip.Draw(this, new Rect2(r.Position.X + 14, r.Position.Y + 206, inner, 90), _progression.History);
     }
 
     /// <summary>
