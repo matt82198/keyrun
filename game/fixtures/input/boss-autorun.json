@@ -1,0 +1,20 @@
+{
+  "schema": "keyrun.e2e.boss-autorun/1",
+  "about": "The scripted default-length autorun that must reach the Hollow Warden (pull 4, the boss pull, pull index 3) and end on run_end. No --ticks: BOSS-AUTORUN (game/src/Host/SimDriver.cs ArenaOptions.UntilRunEnd) runs until the first run_end, capped at ceilingTicks. The Warden is driven by ScriptedWarden (game/src/Host/ScriptedWarden.cs); SimDriver reads no input file. BossAutorunSceneTest.ps1 reads 'run' and 'expect' and checks the demo.log fail-closed.",
+  "run": {
+    "fixedFps": 60,
+    "key": 2,
+    "seed": 1,
+    "args": ["--autorun", "--key", "2", "--seed", "1"],
+    "untilRunEnd": true,
+    "ceilingTicks": 12000,
+    "ticksPerSecond": 20
+  },
+  "expect": {
+    "bossPullIndex": 3,
+    "bossPullStartLine": "PULL spawn index=3 ",
+    "runEndCauses": ["boss_dead", "timer"],
+    "minTicksExclusive": 400,
+    "summaryPrefix": "AUTORUN done ticks="
+  }
+}

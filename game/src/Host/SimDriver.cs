@@ -90,7 +90,7 @@ public sealed class TickAccumulator
 /// <c>--ready-hold F</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
-/// <param name="Ticks">Ticks to run when autorunning.</param>
+/// <param name="Ticks">Ticks to run when autorunning (<c>--ticks N</c>). With <see cref="UntilRunEnd"/> it is the stall ceiling.</param>
 /// <param name="LogPath">Optional run log file (one TICK line per tick plus EVENT and host lines).</param>
 /// <param name="MovieDir">Optional directory for the three proof PNG frames (needs a rendering window).</param>
 /// <param name="KeyLevel">Key level (Tempo scaling and the Slack bank).</param>
@@ -152,6 +152,9 @@ public sealed class TickAccumulator
 /// <c>--autorun</c> or <c>--record-input</c> scene test at keys 5-9 never depends on the date. On a replay the log's
 /// recorded index wins. Null = the clock, except under <c>--write-movie</c>, which is pinned to
 /// <see cref="AffixWeek.MovieRotationIndex"/> (f-e1ff13e3).</param>
+/// <param name="UntilRunEnd">BOSS-AUTORUN: true for a plain <c>--autorun</c> with no <c>--ticks</c> and no <c>--write-movie</c>.
+/// The autorun then stops at the first <c>run_end</c> (boss kill or timer cap) instead of at <see cref="Ticks"/>, which is
+/// the stall ceiling (<see cref="RunEndCeilingTicks"/>). False keeps the fixed-length behaviour.</param>
 /// <param name="ReadyHold">Scene-test seam (<c>--ready-hold F</c>, finding f-e24b4fa4): a scripted launch (<c>--autorun</c>,
 /// <c>--press-enter</c>) normally answers the queue pop's ready check for the human at the pop
 /// (<see cref="QueuedRunGate.HumanReadyAtPop"/>); with F the "Group found" dialog stays up F frames first and the scripted
@@ -176,17 +179,27 @@ public sealed record ArenaOptions(
     bool BotsHold = false,
     CarelessSeatPlan? CarelessSeat = null,
     int? Rotation = null,
-    int ReadyHold = 0)
+    int ReadyHold = 0,
+    bool UntilRunEnd = false)
 {
     /// <summary>
-    /// Default autorun length: 20 s, set when the lieutenant's first heal began at tick 196 at key 2, leaving room for
-    /// it, the kick, and the Warden's opening rotation. Measured on main 026bca17 (f-e1ff13e3,
+    /// Default autorun length for a <c>--write-movie</c> run: 20 s, set when the lieutenant's first heal began at tick 196
+    /// at key 2, leaving room for it, the kick, and the Warden's opening rotation. Measured on main 026bca17 (f-e1ff13e3,
     /// MovieFramesDefaultRunTests, every rotation index alike): the first heal now begins at tick 272 and seat 2 kicks it
     /// at tick 274, so heal and kick still fall inside 400 ticks, but the kick lands before
     /// <see cref="MovieDirector.CastBarLeadTicks"/>, so a default-length <c>--write-movie</c> run takes no cast-bar or
-    /// after-kick frame (the next heal, 664 to the kick at 685, is past tick 400).
+    /// after-kick frame (the next heal, 664 to the kick at 685, is past tick 400). A plain <c>--autorun</c> without
+    /// <c>--ticks</c> no longer uses this: it runs until <c>run_end</c> (<see cref="UntilRunEnd"/>).
     /// </summary>
     public const int DefaultTicks = 400;
+
+    /// <summary>
+    /// Safety ceiling for a plain <c>--autorun</c> with no <c>--ticks</c> (<see cref="UntilRunEnd"/>). The run ends on the
+    /// Warden's kill of the boss (pull 4) or the run clock reaching its timer cap; a run still going at this many ticks is
+    /// a stall and the host logs <c>AUTORUN done ... run=running</c> instead of hanging. The orchestrator's key-2 capture
+    /// reaches run_end at tick 4035, so 12000 leaves room for a slower rotation or a longer timer.
+    /// </summary>
+    public const int RunEndCeilingTicks = 12000;
 
     /// <summary>Default key level: 2, the oracle bot runs' key.</summary>
     public const int DefaultKeyLevel = 2;
@@ -292,7 +305,9 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold);
+        // BOSS-AUTORUN: a plain --autorun (no --ticks, no --write-movie) runs until run_end, capped at RunEndCeilingTicks.
+        var untilRunEnd = autorun && ticks is null && movie is null;
+        return new ArenaOptions(autorun, ticks ?? (untilRunEnd ? RunEndCeilingTicks : DefaultTicks), log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, untilRunEnd);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -695,12 +710,12 @@ public partial class SimDriver : Node
                 }
             }
             StepOnce();
-            if (Options.Autorun && TicksRun >= Options.Ticks)
+            if (Options.Autorun && AutorunDone())
             {
                 break;
             }
         }
-        if (Options.Autorun && TicksRun >= Options.Ticks && _pendingCaptures == 0)
+        if (Options.Autorun && AutorunDone() && _pendingCaptures == 0)
         {
             Finish();
         }
@@ -1219,6 +1234,7 @@ public partial class SimDriver : Node
         queue?.Consume(step.ConsumedQueueIndices);
         if (run.RunEnd.Result is null && result.Run.RunEnd.Result is not null)
         {
+            _log?.Line(RunEndCauseLine(result.Run));
             SaveRecording(final: false);
         }
         Stepped?.Invoke(preTick, result.Events);
@@ -1248,6 +1264,36 @@ public partial class SimDriver : Node
         _log?.Line(FormattableString.Invariant(
             $"FRAME {path} tick={tick} event=\"{shot.Event}\" event_tick={shot.EventTick} {(err == Error.Ok ? "ok" : "error " + err)}"));
         _pendingCaptures--;
+    }
+
+    /// <summary>
+    /// BOSS-AUTORUN: an <c>--autorun</c> with no <c>--ticks</c> is done at the first <c>run_end</c> or at the stall ceiling
+    /// (<see cref="ArenaOptions.RunEndCeilingTicks"/>); an explicit <c>--ticks N</c> run is done at N ticks, as before.
+    /// </summary>
+    private bool AutorunDone() =>
+        Options.UntilRunEnd
+            ? Run?.RunEnd.Result is not null || TicksRun >= Options.Ticks
+            : TicksRun >= Options.Ticks;
+
+    /// <summary>
+    /// BOSS-AUTORUN: the <c>RUN end</c> line that names why the run ended, logged once at the step <c>run_end</c> fires.
+    /// <c>boss_dead</c> when the armed boss is down (the Warden's kill of pull 4 ends the run); <c>timer</c> when the run
+    /// clock reached its cap (<see cref="Timer.CapTicks"/>, a layout run's only end on a wipe); <c>pulls_cleared</c> when
+    /// the pull index passed the last pull with the boss still up; <c>other</c> for an abandon or a non-layout wipe.
+    /// </summary>
+    internal static string RunEndCauseLine(Run run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var boss = run.Encounter.Boss;
+        var cause = boss is not null && (!run.State.Actors.TryGetValue(boss.Config.BossActorId, out var bossActor) || !bossActor.Alive)
+            ? "boss_dead"
+            : Keyrun.Sim.Encounter.Timer.ClockTicks(run.Encounter, run.State.Tick) >= Keyrun.Sim.Encounter.Timer.CapTicks(run.Encounter)
+                ? "timer"
+                : run.Encounter.PullIndex >= run.Dungeon.Pulls.Count
+                    ? "pulls_cleared"
+                    : "other";
+        var result = run.RunEnd.Result is { } r ? r.ToJs() : "running";
+        return FormattableString.Invariant($"RUN end cause={cause} result={result} tick={run.State.Tick}");
     }
 
     private void Finish()

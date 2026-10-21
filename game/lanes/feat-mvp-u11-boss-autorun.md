@@ -1,0 +1,2 @@
+- BOSS-AUTORUN a plain `--autorun` runs until run_end (boss kill or timer cap) instead of stopping at 400 ticks (MVP-MAP U11, G8): `SimDriver.cs` `AutorunDone` and `ArenaOptions.UntilRunEnd`; scene proof `BossAutorunSceneTest.ps1`, not run by the lane.
+BUILDLOG: BOSS-AUTORUN: plain --autorun stops at run_end (cap 12000 ticks) and logs `RUN end cause=...`; BossAutorunSceneTest.ps1 asserts pull 4 started and run_end cause boss_dead or timer; not yet run (orchestrator launch).
