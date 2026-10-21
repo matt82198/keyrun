@@ -131,7 +131,7 @@ public sealed class RunLog : IDisposable
 /// <list type="bullet">
 /// <item><c>PULL spawn index=i id=p actors=id:class,...</c> when a pull spawns (pull_start, or createRun's pull 0).</item>
 /// <item><c>CHASE actor=id dist=a-&gt;b</c> the first step an enemy moves and ends nearer the Warden.</item>
-/// <item><c>CAST start actor=id ability=x name="N" ends=t</c> when an actor's cast begins (the sim carries it only as
+/// <item><c>CAST start actor=id ability=x name="N" ends=t target=id|none</c> when an actor's cast begins (the sim carries it only as
 /// state: CastId and CastEndsTick; it emits no cast_start event).</item>
 /// <item><c>CAST done actor=id ability=x name="N"</c> for each cast_complete event.</item>
 /// <item><c>CAST stopped actor=id ability=x name="N"</c> for each cast_stopped event and for a cast cleared by an
@@ -257,8 +257,11 @@ public sealed class CombatNarrator
             var prev = before.Actors.TryGetValue(id, out var p) ? p : null;
             if (prev?.CastId != castId || prev.CastStartTick != now.CastStartTick)
             {
+                // R-PILE-10 (HudSceneTest check 8): name the target the cast started on, so a log reader can prove no
+                // cast starts on a dead player (Casting.StartCast sets TargetId; a mid-cast retarget pins CastTargetId).
+                var target = now.CastTargetPinned ? now.CastTargetId : now.TargetId;
                 lines.Add(FormattableString.Invariant(
-                    $"CAST start actor={id} ability={castId} name=\"{Names.Ability(_registry, castId)}\" ends={now.CastEndsTick}"));
+                    $"CAST start actor={id} ability={castId} name=\"{Names.Ability(_registry, castId)}\" ends={now.CastEndsTick} target={(target is { } t ? t.ToString(System.Globalization.CultureInfo.InvariantCulture) : "none")}"));
             }
         }
 

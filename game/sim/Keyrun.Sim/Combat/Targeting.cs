@@ -137,7 +137,8 @@ public static class Targeting
         }
         if (shape.Kind == ShapeKind.Target)
         {
-            if (actor.TargetId is int tid && state.Actors.TryGetValue(tid, out var t) && t.Alive && Casting.RangeMm(actor, t) <= def.Range)
+            // CAST-KEEPS-START-TARGET (f-bd8fbbb1): the cast's start target, not a mid-cast retarget (Casting.SetTarget).
+            if (Casting.CastTargetOf(actor) is int tid && state.Actors.TryGetValue(tid, out var t) && t.Alive && Casting.RangeMm(actor, t) <= def.Range)
             {
                 return new List<ActorState> { t };
             }

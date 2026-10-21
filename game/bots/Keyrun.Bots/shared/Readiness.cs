@@ -40,7 +40,31 @@ public static class Readiness
     public static bool AbilityReady(ActorState self, string abilityId, int tick, EffectiveKit kit)
     {
         ArgumentNullException.ThrowIfNull(kit);
-        return AbilityReady(self, abilityId, tick, IsOffGcd(kit, abilityId));
+        ArgumentNullException.ThrowIfNull(self);
+        return kit.ChargedAbilities.TryGetValue(abilityId, out var charges)
+            ? !IsCastLocked(self, tick) && HasCharge(self, abilityId, tick, charges) && (IsOffGcd(kit, abilityId) || self.GcdReadyTick <= tick)
+            : AbilityReady(self, abilityId, tick, IsOffGcd(kit, abilityId));
+    }
+
+    /// <summary>
+    /// BANKED-CHARGE (R-PILE-7c, f-f44791bc): at least one charge ready at <paramref name="tick"/>, exactly the sim's
+    /// Cooldowns.ChargesAvailable: <c>cooldowns[id]</c> is the tick the recharging charge finishes, so
+    /// <c>charges - ceil((cooldowns[id] - tick) / cooldownTicks)</c> charges are banked before it.
+    /// </summary>
+    /// <param name="self">Actor.</param>
+    /// <param name="abilityId">Ability.</param>
+    /// <param name="tick">Current tick.</param>
+    /// <param name="charges">The ability's charges and cooldown.</param>
+    /// <returns>True when a charge is ready.</returns>
+    public static bool HasCharge(ActorState self, string abilityId, int tick, AbilityCharges charges)
+    {
+        ArgumentNullException.ThrowIfNull(charges);
+        var nextReady = CooldownReadyTick(self, abilityId);
+        if (charges.CooldownTicks <= 0 || tick >= nextReady)
+        {
+            return true;
+        }
+        return charges.Charges - IntMath.CeilDiv(nextReady - tick, charges.CooldownTicks) >= 1;
     }
 
     /// <summary>True when <paramref name="abilityId"/>'s own gcdTicks is 0 per <paramref name="kit"/>.</summary>

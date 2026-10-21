@@ -19,3 +19,8 @@ the boss.
 
 Regenerate only for a deliberate rules change: `KEYRUN_WRITE_BOSS_GOLDEN=1 dotnet test game/sim/Keyrun.Sim.Tests
 --filter BossTraceTests`, then state the reason for the diff in the PR. Never regenerate to make a red test green.
+Without a local test run: a mismatch fails with the first differing line, then the whole actual trace as gzip+base64
+in numbered `BOSSGOLDEN:<i>:<chunk>` lines of the CI log; join the chunks in order, base64-decode and gunzip.
+
+Rule changes recorded here: f-8b3fff18 (a Break-bar stagger stops the Twins): the Twins' slams at ticks 70 and 130
+fell inside the tick 45-145 stagger stun. They no longer resolve, so tank damage and every later projection hash change.

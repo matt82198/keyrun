@@ -19,6 +19,12 @@ public sealed record PartyMemberSpec(int Id, string ClassId, ActorRole Role, Vec
 {
     /// <summary>Spawn facing, 1/1024 turn; null = the createActor default 0 (index.ts:85).</summary>
     public int? Yaw { get; init; }
+
+    /// <summary>
+    /// The class's passive armor, bp (design/BIBLE.md section 3.1); CreateRun puts it on the actor. C#-only:
+    /// 0 (no armor) on every oracle run; a host builds it from content run.json <c>classArmorBp</c>.
+    /// </summary>
+    public long ArmorBp { get; init; }
 }
 
 /// <summary>
@@ -72,10 +78,26 @@ public sealed record RunContent
 
     /// <summary>
     /// STUN-STOPS-CAST (BIBLE s9.3 "Stops as well as kicks"): the effect ids that stop a cast when they land on a caster
-    /// mid an interruptible cast (a stun, a freeze, a silence), or null for none. Null on every oracle run (the frozen
+    /// mid an interruptible cast (a stun, a freeze, a silence; a stun also stops an uninterruptible one, see
+    /// <see cref="StunEffectIds"/>), or null for none. Null on every oracle run (the frozen
     /// TS has no stops); a host sets it.
     /// </summary>
     public IReadOnlyList<string>? StopEffectIds { get; init; }
+
+    /// <summary>
+    /// STUN-STOPS-EVERY-CAST (finding f-c63b43bf, ruling: defer to WoW): the members of <see cref="StopEffectIds"/> that
+    /// are stuns (a stun, a freeze). A stun that lands stops EVERY cast of a stunnable caster, the uninterruptible ones
+    /// included: "uninterruptible" means kick-immune, not stun-immune. The other stops (a silence) still stop only an
+    /// interruptible cast. Null or empty = no stop is a stun (every oracle run; a host sets it).
+    /// </summary>
+    public IReadOnlyList<string>? StunEffectIds { get; init; }
+
+    /// <summary>
+    /// STUN-STOPS-EVERY-CAST (f-c63b43bf): the actor class ids (an enemy's content id) immune to stuns, the boss's
+    /// separate flag (game/content/data/run.json <c>stunImmuneEnemies</c>). A stun that lands on one of them stops none
+    /// of its casts; a silence still stops its interruptible cast. Null or empty = every actor is stunnable.
+    /// </summary>
+    public IReadOnlyList<string>? StunImmuneClassIds { get; init; }
 
     /// <summary>
     /// The Pair's spread and stack mark rules (<see cref="PairMarks"/>), or null for none. Null on every oracle run; a
@@ -85,7 +107,8 @@ public sealed record RunContent
 
     /// <summary>
     /// The frozen TS push-out (<see cref="RulesConfig.TsSymmetricPushOut"/>): true only on an oracle replay; false (the
-    /// default, every host run) keeps STATE.md D54, an enemy never displaces a player.
+    /// default, every host run) keeps STATE.md D54, an enemy never displaces a player. Ignored when <see cref="Layout"/> is
+    /// set (<see cref="RunWiring.RulesConfigOf"/>): a layout run is never an oracle replay.
     /// </summary>
     public bool TsSymmetricPushOut { get; init; }
 

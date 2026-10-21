@@ -13,7 +13,8 @@ public static class CastFacing
     /// <summary>
     /// The yaw to draw <paramref name="actor"/> with in <paramref name="state"/>, 1/1024 turn. Mid-cast of a "target"
     /// or "circle" ability (an enemy-target nuke, an ally-target heal, a ground pulse cast at someone) the actor faces
-    /// its live cast target (<see cref="ActorState.TargetId"/>, which StartCast sets). Otherwise it keeps its
+    /// its live cast target (<see cref="Casting.CastTargetOf"/>: the target StartCast set, kept through a mid-cast
+    /// retarget). Otherwise it keeps its
     /// movement facing: idle, a "self" cast, a "cone" or "line" cast (they resolve along Yaw, so drawing any other
     /// facing would misreport where they land), a target that is itself, dead, gone or on the same spot, or no run.
     /// The sim has no channelled casts; a channel would be a cast here and follow the same rule.
@@ -28,7 +29,7 @@ public static class CastFacing
             abilities is null ||
             !abilities.TryGetValue(castId, out var def) ||
             def.Shape.Kind is not (ShapeKind.Target or ShapeKind.Circle) ||
-            actor.TargetId is not int targetId ||
+            Casting.CastTargetOf(actor) is not int targetId ||
             targetId == actor.Id ||
             !state.Actors.TryGetValue(targetId, out var target) ||
             !target.Alive ||

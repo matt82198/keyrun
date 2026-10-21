@@ -133,7 +133,7 @@
           "name": "Discipline",
           "text": "Longer cooldown; Mend's Chorus heals far more.",
           "patch": {
-            "cooldownTicks": 160,
+            "cooldownTicks": 180,
             "variants": {
               "mend": [
                 { "op": "heal", "amount": 200 },
@@ -149,10 +149,21 @@
         {
           "id": "encore",
           "name": "Encore",
-          "text": "Gains a second charge; longer cooldown.",
+          "text": "Gains a second charge and a shorter cooldown; Mend's Chorus heals again at half strength 2.5 seconds later.",
           "patch": {
             "charges": 2,
-            "cooldownTicks": 160
+            "cooldownTicks": 100,
+            "variants": {
+              "mend": [
+                { "op": "heal", "amount": 120 },
+                { "op": "payoff" },
+                { "op": "applyEffect", "effectId": "chorusEcho", "durationTicks": 50, "stacks": 1 }
+              ],
+              "ward": [
+                { "op": "applyEffect", "effectId": "wardPulse", "durationTicks": 60, "stacks": 1 },
+                { "op": "payoff" }
+              ]
+            }
           }
         }
       ]
@@ -221,17 +232,19 @@
         {
           "id": "staccato",
           "name": "Staccato",
-          "text": "Instant cast; longer cooldown.",
+          "text": "Instant and off the global cooldown, so Hymn drops between two other casts; longer cooldown.",
           "patch": {
             "castTicks": 0,
+            "gcdTicks": 0,
             "cooldownTicks": 260
           }
         },
         {
           "id": "roundRobin",
           "name": "Round Robin",
-          "text": "Can be placed from much farther away.",
+          "text": "Can be placed from much farther away, and casts much faster.",
           "patch": {
+            "castTicks": 4,
             "range": 20000
           }
         }

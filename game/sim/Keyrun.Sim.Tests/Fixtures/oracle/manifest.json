@@ -5,7 +5,7 @@
     "clauses": 4,
     "combos": 13,
     "dungeons": 1,
-    "effects": 22,
+    "effects": 23,
     "enemies": 7,
     "facets": 60
   },
@@ -19,36 +19,36 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 301095,
-      "fnv": "d8909237"
+      "bytes": 249662,
+      "fnv": "f95a3a02"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 221386,
-      "fnv": "840e6ee6"
+      "bytes": 210333,
+      "fnv": "bfad023f"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 221383,
-      "fnv": "39f7778f"
+      "bytes": 210330,
+      "fnv": "541aedf8"
     },
     "content-pull.setup.json": {
-      "bytes": 22931,
-      "fnv": "d7995b73"
+      "bytes": 23098,
+      "fnv": "784fd091"
     },
     "content-pull.trace.jsonl": {
-      "bytes": 30554,
-      "fnv": "fdf89e56"
+      "bytes": 30550,
+      "fnv": "a1d43069"
     },
     "fixed.vectors.json": {
       "bytes": 300060,
       "fnv": "766fb4de"
     },
     "hollow-vault-k10.setup.json": {
-      "bytes": 25287,
-      "fnv": "e9258a29"
+      "bytes": 25454,
+      "fnv": "c3d6fe05"
     },
     "hollow-vault-k2.setup.json": {
-      "bytes": 25285,
-      "fnv": "916861d3"
+      "bytes": 25452,
+      "fnv": "b85d13bf"
     },
     "intdiv.vectors.json": {
       "bytes": 371573,
@@ -82,6 +82,9 @@
       "bots/src/bot.ts": {
         "fnv": "c090030e"
       },
+      "bots/src/kit-charges.ts": {
+        "fnv": "f0edb1e3"
+      },
       "bots/src/kit-heals.ts": {
         "fnv": "8e15b738"
       },
@@ -92,13 +95,13 @@
         "fnv": "ef39a42f"
       },
       "bots/src/kit-resolve.ts": {
-        "fnv": "21595c36"
+        "fnv": "0f76b71a"
       },
       "bots/src/kit-resources.ts": {
         "fnv": "7ef3cac7"
       },
       "bots/src/kits.ts": {
-        "fnv": "696f1f2e"
+        "fnv": "dd29bd7c"
       },
       "bots/src/pings-policy.ts": {
         "fnv": "4b4e0b85"
@@ -107,19 +110,22 @@
         "fnv": "528e0497"
       },
       "bots/src/roles/damage.ts": {
-        "fnv": "a6573e33"
+        "fnv": "fbb3e415"
       },
       "bots/src/roles/heal-pick.ts": {
-        "fnv": "e8151c2d"
+        "fnv": "6dbe5d17"
+      },
+      "bots/src/roles/healer-setup.ts": {
+        "fnv": "90408d7b"
       },
       "bots/src/roles/healer.ts": {
-        "fnv": "b39123f5"
+        "fnv": "146c28d0"
       },
       "bots/src/roles/shared.ts": {
-        "fnv": "55e41671"
+        "fnv": "50c46342"
       },
       "bots/src/roles/tank-engage.ts": {
-        "fnv": "53248d8b"
+        "fnv": "309b9b89"
       },
       "bots/src/roles/tank-pressure.ts": {
         "fnv": "11a09dd6"
@@ -260,19 +266,19 @@
         "fnv": "b7eb7a89"
       },
       "content/data/abilities/enemies.json": {
-        "fnv": "7dc15cf8"
+        "fnv": "a62be289"
       },
       "content/data/abilities/warden.json": {
         "fnv": "36ffc9d9"
       },
       "content/data/classes/chanter.json": {
-        "fnv": "ae0e1426"
+        "fnv": "496ee0c0"
       },
       "content/data/classes/cinder.json": {
-        "fnv": "755d4a74"
+        "fnv": "e3b6e3ed"
       },
       "content/data/classes/warden.json": {
-        "fnv": "41937187"
+        "fnv": "407706b5"
       },
       "content/data/clauses.json": {
         "fnv": "66ee123f"
@@ -287,7 +293,7 @@
         "fnv": "39652453"
       },
       "content/data/effects/player.json": {
-        "fnv": "07967d26"
+        "fnv": "2257665b"
       },
       "content/data/enemies/choir.json": {
         "fnv": "11ee2178"
@@ -302,7 +308,7 @@
         "fnv": "156280f3"
       },
       "content/data/facets/chanter.json": {
-        "fnv": "e9c325c8"
+        "fnv": "8a34d62e"
       },
       "content/data/facets/cinder.json": {
         "fnv": "ddf93cb7"
@@ -356,19 +362,19 @@
         "fnv": "5018f7d9"
       },
       "sim/combat/casting.ts": {
-        "fnv": "360ed9eb"
+        "fnv": "b0735395"
       },
       "sim/combat/clause-hooks.ts": {
         "fnv": "43aaf28e"
       },
       "sim/combat/combos.ts": {
-        "fnv": "623661ea"
+        "fnv": "ed5b126c"
       },
       "sim/combat/cooldowns.ts": {
         "fnv": "828c0fc8"
       },
       "sim/combat/damage.ts": {
-        "fnv": "85bd63d6"
+        "fnv": "139f4d6f"
       },
       "sim/combat/effects-remove.ts": {
         "fnv": "6aa64e75"
@@ -379,8 +385,11 @@
       "sim/combat/floor-telegraphs.ts": {
         "fnv": "b79df7f0"
       },
+      "sim/combat/holder.ts": {
+        "fnv": "ac601358"
+      },
       "sim/combat/mitigation.ts": {
-        "fnv": "f6804874"
+        "fnv": "d29a30eb"
       },
       "sim/combat/movement.ts": {
         "fnv": "193be6de"
@@ -389,13 +398,13 @@
         "fnv": "b176fb7d"
       },
       "sim/combat/rules.ts": {
-        "fnv": "3ef52eb5"
+        "fnv": "6d928721"
       },
       "sim/combat/spell-queue.ts": {
         "fnv": "a385f55d"
       },
       "sim/combat/targeting.ts": {
-        "fnv": "f49c6064"
+        "fnv": "1a24bc9b"
       },
       "sim/combat/threat.ts": {
         "fnv": "7f76745e"
@@ -428,7 +437,7 @@
         "fnv": "46854278"
       },
       "sim/core/state.ts": {
-        "fnv": "c108df28"
+        "fnv": "c327460d"
       },
       "sim/core/tick.ts": {
         "fnv": "7ce3bffc"
@@ -458,7 +467,7 @@
         "fnv": "034dc454"
       },
       "sim/encounter/script-target.ts": {
-        "fnv": "571b37c3"
+        "fnv": "4506be1e"
       },
       "sim/encounter/scripts.ts": {
         "fnv": "bf656bcd"
@@ -485,7 +494,7 @@
         "fnv": "0432becb"
       },
       "sim/run-wiring.ts": {
-        "fnv": "6cbbbc86"
+        "fnv": "fa1b1356"
       },
       "tests/sim/golden/build-content-pull.ts": {
         "fnv": "c240b5d6"
@@ -497,7 +506,7 @@
         "fnv": "7e43222f"
       },
       "tests/sim/golden/scripted-pull.json": {
-        "fnv": "a5b31cd5"
+        "fnv": "c117c140"
       },
       "tests/sim/integration/fixtures.ts": {
         "fnv": "33253bef"
@@ -513,7 +522,7 @@
       "result": null,
       "setup": "content-pull.setup.json",
       "trace": "content-pull.trace.jsonl",
-      "traceHash": "4dc08fbd"
+      "traceHash": "45f59113"
     },
     {
       "finalTick": 600,
@@ -525,31 +534,31 @@
       "traceHash": "014e427d"
     },
     {
-      "finalTick": 1625,
+      "finalTick": 1407,
       "name": "bots-hv-k2-s7",
-      "records": 1626,
+      "records": 1408,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "00b7f106"
+      "traceHash": "36715d32"
     },
     {
-      "finalTick": 1625,
+      "finalTick": 1407,
       "name": "bots-hv-k2-s11",
-      "records": 1626,
+      "records": 1408,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "00b7f106"
+      "traceHash": "36715d32"
     },
     {
-      "finalTick": 2197,
+      "finalTick": 1855,
       "name": "bots-hv-k10-s7",
-      "records": 2198,
+      "records": 1856,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "4f1aac04"
+      "traceHash": "346e3c22"
     }
   ],
   "version": 1

@@ -140,6 +140,12 @@ public partial class Screen : Control
     /// <summary>The character's progression.</summary>
     public Progression Progression => _progression;
 
+    /// <summary>
+    /// True once the ended run is banked into <see cref="Progression"/> (its Ash and its <see cref="RunRecord"/>), until
+    /// the next run starts. The run-end panel waits for it before reading the Ascension state, so it shows the banked one.
+    /// </summary>
+    public bool Banked => _banked;
+
     /// <summary>The last request Queue handed out, or null.</summary>
     public QueueRequest? LastRequest { get; private set; }
 
@@ -488,6 +494,10 @@ public partial class Screen : Control
         Proof(_rating.LogLine()); // never the rating's value: it is drawn on this screen only (f-a3230c59)
         SetHelpVisible(false);
         Proof($"SCREEN character class={ClassName()}");
+        // f-275d47c9: the Character tab's private Ascension line, the same Ascension.Of read DrawAscension draws.
+        var ascension = Ascension.Of(_progression);
+        Proof(AscensionReadout.LogLine("SCREEN", ascension));
+        Proof($"SCREEN ascension line=\"{AscensionReadout.CharacterLine(ascension)}\"");
         foreach (var (keyLabel, name) in Abilities())
         {
             Proof($"SCREEN ability key={keyLabel} name=\"{name}\"");
@@ -875,8 +885,12 @@ public partial class Screen : Control
         }
         _banked = true;
         RecordRating(_driver.Run, result);
-        _progression = _progression.BankRun(result);
+        // f-275d47c9: the bank records the key the run was played at (KeyMove.From, the run-end panel's own key read)
+        // and its result in Progression.History, so Ascension marks are counted from the saved data.
+        var played = KeyMove.ForRun(_driver.Run)!.From;
+        _progression = _progression.BankRun(result, played);
         Proof(FormattableString.Invariant($"SCREEN bank result={result.ToJs()} ash={Ash.ForResult(result)} total={_progression.AshTotal}"));
+        Proof(AscensionReadout.LogLine("SCREEN", Ascension.Of(_progression)));
         SaveProgression("bank");
 
         // M1 TIMER-TIERS (BIBLE s8): a timed run raises the key by its tier (+1, +2 within 80% of par, +3 within 60%);
@@ -1371,6 +1385,21 @@ public partial class Screen : Control
         var since = _progression.LastRun?.Text() ?? "First run";
         HudNodes.Text(this, new Vector2(l.Classes.Position.X + 14, l.Classes.End.Y - 14),
             Clip("Since last run: " + since, l.Classes.Size.X - 28, SmallFont), SmallFont, Calm);
+        DrawAscension(l.Classes);
+    }
+
+    // Character tab, under the class cards and above "Since last run": the private Ascension line (BIBLE s7, f-275d47c9),
+    // read from this screen's own progression (the one the run banks into and the save holds), never another seat's.
+    private void DrawAscension(Rect2 classes)
+    {
+        var state = Ascension.Of(_progression);
+        var lines = Wrap(AscensionReadout.CharacterLine(state), classes.Size.X - 28, SmallFont, 3);
+        var y = classes.End.Y - 14 - 22 - ((lines.Count - 1) * 16);
+        foreach (var line in lines)
+        {
+            HudNodes.Text(this, new Vector2(classes.Position.X + 14, y), line, SmallFont, state.Ascended ? Gold : Dim);
+            y += 16;
+        }
     }
 
     private bool Locked() => _lobby?.Locked == true;

@@ -79,6 +79,21 @@ public static class Crafting
     }
 }
 
+/// <summary>
+/// One banked run as <see cref="Progression.History"/> keeps it (BIBLE s7 "Ascension marks on the character";
+/// f-275d47c9): the key it was played at, how it ended, and whether the character was already ascended
+/// (<see cref="Ascension.IsAscended"/> on the gear the run was played with). <see cref="Ascension.Marks"/> counts
+/// from these, so the marks are countable from saved data alone.
+/// </summary>
+/// <param name="KeyLevel">The key the run was played at (1 or more).</param>
+/// <param name="Result">How it ended.</param>
+/// <param name="Ascended">True when the character was ascended when the run was banked.</param>
+public sealed record RunRecord(int KeyLevel, RunResult Result, bool Ascended)
+{
+    /// <summary>True for a timed clear.</summary>
+    public bool Timed => Result == RunResult.Timed;
+}
+
 /// <summary>What the last banked run changed, for the screen's "since last run" line (BIBLE s10).</summary>
 /// <param name="Result">How it ended.</param>
 /// <param name="AshGained">Ash it banked.</param>
@@ -118,6 +133,13 @@ public sealed record Progression
 
     /// <summary>The last banked run, or null before the first.</summary>
     public RunDelta? LastRun { get; init; }
+
+    /// <summary>
+    /// Every run banked with its key (<see cref="BankRun(RunResult, int)"/>), oldest first: the saved data
+    /// <see cref="Ascension.Marks"/> counts (f-275d47c9). Empty for a save written before the field existed, so it can
+    /// hold fewer records than <see cref="Runs"/>, never more.
+    /// </summary>
+    public IReadOnlyList<RunRecord> History { get; init; } = Array.Empty<RunRecord>();
 
     /// <summary>
     /// The talent build picked on the screen (BIBLE s6; f-83c5e369): forked ability id to picked option id, in ordinal
@@ -163,6 +185,22 @@ public sealed record Progression
     {
         var ash = Ash.ForResult(result);
         return this with { AshTotal = AshTotal + ash, Runs = Runs + 1, LastRun = new RunDelta(result, ash, null, null) };
+    }
+
+    /// <summary>
+    /// Banks a run as <see cref="BankRun(RunResult)"/> does and records it in <see cref="History"/>: its key, its result,
+    /// and whether this character was ascended (<see cref="Ascension.IsAscended"/> on the gear it was played with: the
+    /// end-of-run reward is taken after the bank). The screen banks every finished run through this overload.
+    /// </summary>
+    /// <param name="result">How it ended.</param>
+    /// <param name="keyLevel">The key it was played at (the run-end panel's <see cref="KeyMove.From"/>).</param>
+    /// <returns>The progression.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="keyLevel"/> is below 1.</exception>
+    public Progression BankRun(RunResult result, int keyLevel)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(keyLevel, 1);
+        var record = new RunRecord(keyLevel, result, Ascension.IsAscended(this));
+        return BankRun(result) with { History = History.Append(record).ToList() };
     }
 
     /// <summary>

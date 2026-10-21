@@ -48,7 +48,9 @@ public static class ContentValidator
         CheckFacets(reg);
         CheckRun(reg.Run);
         CheckHeatOverheat(reg);
+        CheckClassArmor(reg);
         CheckPairMarks(reg);
+        CheckStunImmuneEnemies(reg);
         CheckForces(reg);
         LayoutValidator.Check(reg);
         GearValidator.Check(reg);
@@ -145,6 +147,16 @@ public static class ContentValidator
         if (h.ChillTicks <= 0) Fail("run heatOverheat.chillTicks must be positive, got " + h.ChillTicks);
     }
 
+    // design/BIBLE.md section 3.1: armor is a passive class trait, capped at 90% so a hit always lands.
+    private static void CheckClassArmor(ContentRegistry reg)
+    {
+        foreach (var (classId, armorBp) in reg.Run.ClassArmorBp)
+        {
+            if (!reg.Classes.ContainsKey(classId)) Fail("run classArmorBp has unknown class \"" + classId + "\"");
+            if (armorBp < 0 || armorBp > 9000) Fail("run classArmorBp." + classId + " must be in [0, 9000], got " + armorBp);
+        }
+    }
+
     /// <summary>run.json pairMarks (BIBLE section 9.6 item 2): both marks name real effects; every number is positive.</summary>
     private static void CheckPairMarks(ContentRegistry reg)
     {
@@ -157,6 +169,16 @@ public static class ContentValidator
         if (m.SpreadDamage <= 0) Fail("run pairMarks.spreadDamage must be positive, got " + m.SpreadDamage);
         if (m.StackRadiusMm <= 0) Fail("run pairMarks.stackRadiusMm must be positive, got " + m.StackRadiusMm);
         if (m.StackDamage <= 0) Fail("run pairMarks.stackDamage must be positive, got " + m.StackDamage);
+    }
+
+    /// <summary>run.json stunImmuneEnemies (finding f-c63b43bf): every id names a known enemy.</summary>
+    private static void CheckStunImmuneEnemies(ContentRegistry reg)
+    {
+        foreach (string id in reg.Run.StunImmuneEnemies)
+        {
+            if (!reg.Enemies.ContainsKey(id))
+                Fail("run stunImmuneEnemies \"" + id + "\" is not an enemy");
+        }
     }
 
     private static void CheckRun(RunConfig run)

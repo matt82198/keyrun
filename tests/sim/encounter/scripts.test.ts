@@ -228,4 +228,54 @@ describe("stepEnemyScripts", () => {
       expect(result.commands).toEqual([{ tick: 40, actorId: 1, kind: "cast", abilityId: "melee", targetId: 1 }]);
     });
   });
+
+  // BIBLE s3 "a fixed tiebreak, never arrival order" (finding f-df833cf3): two of one enemy's cast-time steps due on the
+  // same tick resolve in one fixed order -- held casts first (oldest first), then the tick's own steps in script order;
+  // the first cast-time cast claims the caster and every later one is held (deferred-casts.ts) and issued, with its
+  // telegraph re-drawn, the first tick the caster is free. C# pins the same order in SameTickCastTiebreakTests.cs.
+  describe("same-tick cast tiebreak (BIBLE s3)", () => {
+    const cast = (id: string, castTicks: number): AbilityDef => ({
+      id, castTicks, gcdTicks: 0, cooldownTicks: 0, charges: 1, cost: { resource: "none", amount: 0 }, range: 0,
+      shape: { kind: id === "boss.lock" ? "self" : "circle", radius: 3000 } as AbilityDef["shape"],
+      interruptible: false, effects: [],
+    });
+    const abilities = { "boss.slam": cast("boss.slam", 10), "boss.lock": cast("boss.lock", 20) };
+    const tg = { shape: "circle" as const, radius: 3000, leadTicks: 10 };
+    const slam = { at: "loop" as const, every: 300, cast: "boss.slam", telegraph: tg };
+    const lock = { at: "loop" as const, every: 600, cast: "boss.lock", telegraph: tg };
+    const casts = (r: ReturnType<typeof stepEnemyScripts>): string[] =>
+      r.commands.flatMap((c) => (c.kind === "cast" ? [c.abilityId] : []));
+
+    it("the first step in script order starts and the later one is held (warden order: slam, lock)", () => {
+      const r = stepEnemyScripts(stateAt(600), { 1: [slam, lock] }, {}, abilities);
+      expect(casts(r)).toEqual(["boss.slam"]);
+      expect(r.deferredCasts.map((d) => d.step.cast)).toEqual(["boss.lock"]);
+    });
+
+    it("the order is the script's, not the abilities' (reversed script, lock starts)", () => {
+      const r = stepEnemyScripts(stateAt(600), { 1: [lock, slam] }, {}, abilities);
+      expect(casts(r)).toEqual(["boss.lock"]);
+      expect(r.deferredCasts.map((d) => d.step.cast)).toEqual(["boss.slam"]);
+    });
+
+    it("the held cast starts on the tick the winner lands, ahead of a step due that tick, and re-draws its telegraph", () => {
+      const late = { at: "loop" as const, every: 610, cast: "boss.slam", telegraph: tg };
+      const script = [slam, lock, late];
+      const first = stepEnemyScripts(stateAt(600), { 1: script }, {}, abilities);
+      expect(casts(first)).toEqual(["boss.slam"]);
+
+      const busy = stateAt(605);
+      busy.actors[1] = { ...enemyActor(1), castId: "boss.slam", castEndsTick: 610 };
+      const mid = stepEnemyScripts(busy, { 1: script }, {}, abilities, first.deferredCasts);
+      expect(casts(mid)).toEqual([]);
+      expect(mid.deferredCasts.map((d) => d.step.cast)).toEqual(["boss.lock"]);
+
+      const landing = stateAt(610);
+      landing.actors[1] = { ...enemyActor(1), castId: "boss.slam", castEndsTick: 610 };
+      const free = stepEnemyScripts(landing, { 1: script }, {}, abilities, mid.deferredCasts);
+      expect(casts(free)).toEqual(["boss.lock"]);
+      expect(free.deferredCasts.map((d) => d.step.cast)).toEqual(["boss.slam"]);
+      expect(free.telegraphEvents.filter((e) => e.type === "telegraph" && e.cast === "boss.lock").map((e) => e.tick)).toEqual([610]);
+    });
+  });
 });

@@ -44,6 +44,7 @@ public sealed class PolicyBot : IBot
     private int _nextActionTick;
     private int? _dodgeAt;
     private int? _defensiveAt;
+    private bool _walking;
     private readonly Dictionary<(int EnemyId, int CastStart), int> _kickAt = new();
 
     /// <summary>Creates the seat.</summary>
@@ -135,11 +136,16 @@ public sealed class PolicyBot : IBot
             return new BotDecision(commands, memory, prng);
         }
 
-        // 5. The rotation, pressed with human hands.
+        // 5. The rotation, pressed with human hands. A walk the seat already decided on is held, not re-pressed.
         if (tick < _nextActionTick)
         {
+            if (_walking)
+            {
+                commands.AddRange(HeldWalk(view, self, kit, travelling));
+            }
             return new BotDecision(commands, memory, prng);
         }
+        _walking = false;
         _nextActionTick = tick + _hands.React();
         if (_hands.Roll(Hands.MissPermille))
         {
@@ -175,12 +181,41 @@ public sealed class PolicyBot : IBot
         {
             kept.Add(fallback);
         }
-        if (self.Id != _tankId && desired is { } want && self.TargetId != want && !kept.Any(c => c is TargetCommand))
+        // POLICY-HEALER-KEEPS-TARGET (R-326-B): the assist target is the damage dealers'. Turning the healer to it
+        // re-aimed a Cadence under way on the tank onto the enemy (seed 1 key 2 kick plan, every Choir-pull Cadence).
+        if (self.Id != _tankId && self.Role != ActorRole.Healer && desired is { } want && self.TargetId != want && !kept.Any(c => c is TargetCommand))
         {
             kept.Insert(0, new TargetCommand(tick, self.Id, want));
         }
+        _walking = kept.Any(c => c is MoveCommand) && !kept.Any(c => c is CastCommand);
         commands.AddRange(kept);
         return new BotDecision(commands, memory, prng);
+    }
+
+    /// <summary>
+    /// POLICY-WALK-HELD (R-326-B): between reactions, the step of a walk this seat already decided on. A MoveCommand
+    /// is one tick of movement, so asking the role only on reaction ticks made a walk one step per 6-13 ticks: at seed 1
+    /// key 2 (kick plan) the healer's six-step walk into Hymn's pool took 41 ticks and the tank died waiting for the heal.
+    /// In WoW a player holds the key. The role is asked again so the walk follows the target and stops when the role
+    /// stops asking for it (in range, or a press now wanted); the press itself still waits for the next reaction.
+    /// </summary>
+    private IReadOnlyList<Command> HeldWalk(BotView view, ActorState self, Keyrun.Bots.EffectiveKit kit, bool travelling)
+    {
+        if (travelling || RoleSet.Default.For(self.Role) is not { } role)
+        {
+            _walking = false;
+            return Array.Empty<Command>();
+        }
+        var decided = DecideOffLedger(role, view, self, kit);
+        var inFloor = Floor.FloorEscapeCommand(view, self) is not null;
+        if (decided.Any(c => c is CastCommand) || (inFloor && !_policy.DodgeFloor))
+        {
+            _walking = false;
+            return Array.Empty<Command>();
+        }
+        var steps = decided.OfType<MoveCommand>().ToList();
+        _walking = steps.Count > 0;
+        return steps;
     }
 
     private static bool IsEnemy(BotView view, int id) =>

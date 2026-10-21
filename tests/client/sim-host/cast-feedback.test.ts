@@ -19,13 +19,14 @@ function run() {
 }
 
 describe("cast_failed feedback", () => {
-  it("Strike far from every enemy reports Out of range (and casts nothing)", () => {
+  // HOLDER-LOCK (STATE.md D30): the pack the Warden pulled now follows the Warden, so walking away no longer
+  // leaves it out of Strike range. The out-of-range target is the pull's ranged caster (actor 102, the third
+  // enemy in tab order), which casts from 5000 mm and never closes.
+  it("Strike at a target out of reach reports Out of range (and casts nothing)", () => {
     const { host } = run();
     let snap = host.step();
-    for (let i = 0; i < 30; i++) {
-      host.applyCommand({ type: "move", dx: 0, dz: 180, tick: snap.tick }); // away from the pack (+z)
-      snap = host.step();
-    }
+    for (let i = 0; i < 3; i++) host.applyCommand({ type: "targetCycle", tick: snap.tick });
+    snap = host.step();
     host.applyCommand({ type: "cast", abilityId: "warden.strike", tick: snap.tick });
     snap = host.step();
     expect(failures(snap)).toEqual([expect.objectContaining({ abilityId: "warden.strike", reason: "Out of range", actorId: 1 })]);

@@ -19,7 +19,8 @@ namespace Keyrun.Hud;
 /// (<see cref="HudDeclutter.WorldDamageNumber"/>). Bots' hits spawn nothing, and damage the party takes reads as health
 /// leaving the party frames, never as a number over a bot. Reads the sim events only. Lane MISS-VIEW: the human's own
 /// "miss" event (a blinded hit, PR #223) floats "MISS" the same way (<see cref="CombatTextRule.HumanMiss"/>); a bot's or
-/// an enemy's miss shows nothing.
+/// an enemy's miss shows nothing. Finding f-04dba988: the human's stun refused by a stun-immune enemy (#429's "immune"
+/// event) floats "IMMUNE" over that enemy the same way (<see cref="CombatTextWords.WordFloat"/>, WoW's "Immune").
 /// <para>
 /// Lane COMBATTEXT-OVERLAP (finding f-caae8653): numbers are laid out once per process frame with
 /// <see cref="HudClearance.PlaceNumber"/> clear of every name plate (the box LabelView draws before separation,
@@ -279,12 +280,14 @@ public partial class CombatText : Control
         var human = _driver.Setup?.HumanActorId ?? SimDriver.WardenId;
         foreach (var e in events)
         {
-            if (CombatTextRule.HumanMiss(e.Type, (e.Get("sourceId") as JsInt)?.Value, (e.Get("targetId") as JsInt)?.Value, human, out var missed))
+            if (CombatTextWords.WordFloat(e, human, out var wordTarget, out var word, out var wordProof))
             {
                 // Lane MISS-VIEW: the human's blinded hit (a "miss" event, Mitigation.DealDamage) floats "MISS" over its
-                // target; a bot's or an enemy's miss shows nothing. Own proof prefix, so "HUD fct" stays damage-only.
-                _numbers.Add(new Number(missed, CombatTextRule.MissText, WorldOf(missed)));
-                HudNodes.Proof(_driver, FormattableString.Invariant($"HUD miss source={human} target={missed} text={CombatTextRule.MissText}"));
+                // target. f-04dba988: the human's stun refused by a stun-immune actor (#429's "immune" event) floats
+                // "IMMUNE" over it. A bot's or an enemy's miss or refused effect shows nothing. Each word has its own
+                // proof prefix ("HUD miss", "HUD immune"), so "HUD fct" stays damage-only.
+                _numbers.Add(new Number(wordTarget, word, WorldOf(wordTarget)));
+                HudNodes.Proof(_driver, wordProof);
                 continue;
             }
             if (!HudDeclutter.WorldDamageNumber(e, human, out var sourceId, out var targetId, out var amount))

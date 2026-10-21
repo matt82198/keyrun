@@ -91,6 +91,55 @@ public static class Scripts
         };
     }
 
+    /// <summary>
+    /// SWING-PHASE (C#-only, layout runs; ruling R-307-C item 3): is <paramref name="step"/> an auto-attack? A repeating
+    /// step (a loop, or a numeric <c>at</c> with a positive every) with no telegraph whose ability is an instant
+    /// (castTicks 0), target-shaped hit carrying a damage op: the enemy's swing, with no cast bar and no floor shape.
+    /// </summary>
+    /// <param name="step">The script step.</param>
+    /// <param name="ability">Its ability, or null when the content has none.</param>
+    /// <returns>True for an auto-attack.</returns>
+    public static bool IsAutoAttack(ScriptStep step, AbilityDef? ability)
+    {
+        System.ArgumentNullException.ThrowIfNull(step);
+        return ability is not null
+            && step.Trigger != StepTrigger.OnDeath
+            && step.Every is > 0
+            && step.Telegraph is null
+            && ability.CastTicks == 0
+            && ability.Shape.Kind == ShapeKind.Target
+            && ability.Effects.Any(op => op is DamageOp);
+    }
+
+    /// <summary>
+    /// SWING-PHASE (C#-only, layout runs; ruling R-307-C item 3, BIBLE section 3 "cast bars are the enemy's language"):
+    /// member <paramref name="member"/> (0-based, ascending actor id) of an engaged group of <paramref name="members"/>
+    /// scripted enemies swings its auto-attack (<see cref="IsAutoAttack"/>) <c>member * every / members</c> ticks after
+    /// the group's schedule, so the group's swings are spread over the swing period instead of landing as one
+    /// unannounced burst on one tick; the period is unchanged and member 0 keeps the content schedule. In WoW each
+    /// enemy's swing timer runs on its own from its own engage, so a pack's auto-attacks never land in lockstep. A step
+    /// that is not an auto-attack, a group of one, and member 0 return the step unchanged. A loop step (only on a group
+    /// engaged at tick 0, before <see cref="StartingAt"/> has moved it to a numeric <c>at</c>) becomes the numeric step
+    /// with the same firing ticks plus the phase.
+    /// </summary>
+    /// <param name="step">The step, already on its group's engage clock (<see cref="StartingAt"/>).</param>
+    /// <param name="ability">Its ability, or null.</param>
+    /// <param name="member">The member's index in its group.</param>
+    /// <param name="members">How many scripted members the group has.</param>
+    /// <returns>The phased step.</returns>
+    public static ScriptStep SwingPhased(ScriptStep step, AbilityDef? ability, int member, int members)
+    {
+        System.ArgumentNullException.ThrowIfNull(step);
+        if (member <= 0 || members <= 1 || !IsAutoAttack(step, ability))
+        {
+            return step;
+        }
+        var every = step.Every!.Value;
+        var phase = IntMath.FloorDiv((long)member * every, members);
+        var at = step.Trigger == StepTrigger.Loop ? every : step.AtTick;
+        return step with { Trigger = StepTrigger.AtTick, AtTick = (int)(at + phase) };
+    }
+
     // scripts.ts:99 telegraphEventAt: {tick, type, actorId, cast, shape, leadTicks, resolvesTick, origin, yaw,
     // radius?, angle1024?, length?, width?}.
     private static SimEvent TelegraphEventAt(int tick, int actorId, ActorState actor, string cast, TelegraphSpec tg)

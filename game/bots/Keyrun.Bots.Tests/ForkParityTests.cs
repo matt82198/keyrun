@@ -90,8 +90,6 @@ public sealed class ForkParityTests
         ["warden.strike"] = "Rend, Riposte and Warcry all equal the base run: the bots never cast warden.strike.",
         ["cinder.emberBolt"] = "Instant, Piercing and Overcharge all equal the base run: the bots never cast cinder.emberBolt.",
         ["chanter.refrain"] = "Overture and Crescendo equal the base run: the bots never cast chanter.refrain.",
-        ["chanter.dissonance"] = "Amplify and Discord equal the base run: the bots never cast chanter.dissonance.",
-        ["chanter.cadence"] = "Every option equals the base run on clear tick, deaths and combos: cast only as a heal; the Attuned window lands on an ally so no Attuned combo ever closes in bot play (finding f-b31e8f34).",
     };
 
     /// <summary>One run's measures.</summary>
@@ -150,7 +148,9 @@ public sealed class ForkParityTests
         var combos = 0;
         while (run.RunEnd.Result is null && run.State.Tick < scenario.MaxTicks)
         {
-            var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, Kits.Value);
+            // As the host builds it (game/src/Host/BotCommandSource.cs Sample): the bots read the run's own, talented
+            // ability map, so a talent that reshapes an ability (Vigil "ally") is played as the talent (ALLY-VIGIL).
+            var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, Kits.Value.ForRun(run.Content.Abilities));
             var batch = Bot.RunBots(view, bots, memories, prng);
             memories = batch.Memories;
             prng = batch.Prng;
