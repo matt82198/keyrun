@@ -56,4 +56,60 @@ public sealed class CameraNearFadeTests
             previous = alpha;
         }
     }
+
+    // CAMERA-FG occlusion (ruling): the lens at the origin, the pivot 10 m down -z (the Warden's shoulder at the boss).
+    private static readonly (int X, int Y, int Z) Lens = (0, 0, 0);
+    private static readonly (int X, int Y, int Z) Pivot = (0, 0, -10000);
+
+    [Fact]
+    public void A_body_on_the_sight_line_between_the_lens_and_the_pivot_occludes()
+    {
+        Assert.True(CameraNearFade.Occludes(FadeRole.Ally, Lens, Pivot, (0, 0, -4000)));
+    }
+
+    [Fact]
+    public void A_body_within_the_occlusion_radius_of_the_line_occludes()
+    {
+        Assert.True(CameraNearFade.Occludes(FadeRole.Ally, Lens, Pivot, (CameraNearFade.OcclusionRadiusMm - 100, 0, -4000)));
+    }
+
+    [Fact]
+    public void A_body_just_outside_the_occlusion_radius_does_not_occlude()
+    {
+        Assert.False(CameraNearFade.Occludes(FadeRole.Ally, Lens, Pivot, (CameraNearFade.OcclusionRadiusMm + 100, 0, -4000)));
+    }
+
+    [Fact]
+    public void A_body_beyond_the_pivot_or_behind_the_lens_does_not_occlude()
+    {
+        Assert.False(CameraNearFade.Occludes(FadeRole.Ally, Lens, Pivot, (0, 0, -11000)));
+        Assert.False(CameraNearFade.Occludes(FadeRole.Ally, Lens, Pivot, (0, 0, 2000)));
+    }
+
+    [Fact]
+    public void The_players_own_model_never_occludes()
+    {
+        Assert.False(CameraNearFade.Occludes(FadeRole.Self, Lens, Pivot, (0, 0, -4000)));
+    }
+
+    [Fact]
+    public void An_occluding_body_takes_the_faded_alpha_at_the_boom_distance()
+    {
+        // A bot on the line 8 m out (past the 5 m near rule) is drawn at the party fade, not opaque.
+        Assert.Equal(PartyFade.FadedPermille, CameraNearFade.AlphaPermille(8000, occludes: true));
+    }
+
+    [Fact]
+    public void A_body_beside_the_line_at_the_boom_distance_stays_opaque()
+    {
+        Assert.False(CameraNearFade.Occludes(FadeRole.Ally, Lens, Pivot, (3000, 0, -8000)));
+        Assert.Equal(Opaque, CameraNearFade.AlphaPermille(8000, occludes: false));
+    }
+
+    [Fact]
+    public void An_occluding_body_near_the_lens_keeps_the_lower_of_the_two_rules()
+    {
+        // The distance rule gives 240 at 1 m (50 + 950 * 1000 / 5000); the occlusion rule's 250 is higher, so 240 wins.
+        Assert.Equal(240, CameraNearFade.AlphaPermille(1000, occludes: true));
+    }
 }

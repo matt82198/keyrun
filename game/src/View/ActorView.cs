@@ -20,7 +20,9 @@ namespace Keyrun.View;
 /// to <see cref="PartyFade.FadedPermille"/> and eases back when it moves (<see cref="PartyFade"/>), logged as
 /// <c>FADE actor=N alpha=A tick=T</c> on each change; the player's own model and enemies never fade by that rule.
 /// CAMERA-FG: on top of it, any actor body within <see cref="CameraNearFade.FadeDistanceMm"/> of the camera fades by
-/// distance (<see cref="CameraNearFade"/>), the Warden's own model included; the lower alpha of the two rules wins.
+/// distance (<see cref="CameraNearFade"/>), the Warden's own model included; a body that occludes the pivot fades whatever its
+/// distance (<see cref="CameraNearFade.Occludes"/>, the Warden's own model excepted); the lowest alpha of the rules wins.
+/// Each 60 sim ticks in a pull, every party body logs a <c>CAMERA tick=T actor=N dist=D near=A applied=A occl=0|1</c> line.
 /// </summary>
 public partial class ActorView : Node3D
 {
@@ -71,6 +73,7 @@ public partial class ActorView : Node3D
     private float _fade = 1f;
     private int _fadeWant = PartyFade.OpaquePermille;
     private bool _fadeOn;
+    private int _cameraTick = int.MinValue;
 
     /// <summary>KF1 hit flash colour (warm white, added over the body) at full strength.</summary>
     private static readonly Color FlashColor = new(1f, 0.92f, 0.85f, 0.45f);
@@ -352,12 +355,17 @@ public partial class ActorView : Node3D
             var centre = ToMm3(GlobalPosition + new Vector3(0, PartyFade.BodyCentreMm * MmToM, 0));
             want = PartyFade.AlphaPermille(ToMm3(camera.GlobalPosition), _foci, new FadeBody(role, centre, PartyFade.BodyRadiusMm));
         }
-        // CAMERA-FG: every actor body near the lens fades by distance (CameraNearFade), the Warden's own model included.
+        // CAMERA-FG: every actor body near the lens fades by distance, and a body that occludes the pivot (the camera rig's
+        // position, the Warden's shoulder) fades at any distance (CameraNearFade). The camera is the viewport's current
+        // camera; the pivot is its rig's position. The Warden's own model never occludes.
         if (camera is not null)
         {
             var chest = GlobalPosition + new Vector3(0, PartyFade.BodyCentreMm * MmToM, 0);
             var distanceMm = Mathf.RoundToInt(camera.GlobalPosition.DistanceTo(chest) / MmToM);
-            want = Mathf.Min(want, CameraNearFade.AlphaPermille(distanceMm));
+            var pivot = camera.GetParent() is Node3D rig ? rig.GlobalPosition : camera.GlobalPosition;
+            var occludes = CameraNearFade.Occludes(role, ToMm3(camera.GlobalPosition), ToMm3(pivot), ToMm3(chest));
+            want = Mathf.Min(want, CameraNearFade.AlphaPermille(distanceMm, occludes));
+            LogCamera(now, distanceMm, CameraNearFade.AlphaPermille(distanceMm), occludes, want);
         }
         if (want != _fadeWant)
         {
@@ -371,6 +379,38 @@ public partial class ActorView : Node3D
             _fade = goal;
         }
         ApplyFade(_fade);
+    }
+
+    // CAMERA proof line on the run log (the TICK/EVENT channel, Driver.HostLine): once per 60 sim ticks while an enemy is
+    // alive (a pull), one line per living party body (Kind Player, the Warden included). dist is the lens to the body's
+    // chest, mm; near is the distance rule's alpha; applied is the alpha this view draws; occl is 1 when the body occludes
+    // the pivot. A tick is logged once per view, so frames do not repeat it.
+    private void LogCamera(ActorState now, int distanceMm, int nearPermille, bool occludes, int appliedPermille)
+    {
+        if (Driver is null)
+        {
+            return;
+        }
+        var tick = Driver.State.Tick;
+        if (tick % 60 != 0 || tick == _cameraTick || !now.Alive || now.Kind != ActorKind.Player || !PullLive())
+        {
+            return;
+        }
+        _cameraTick = tick;
+        Driver.HostLine(System.FormattableString.Invariant(
+            $"CAMERA tick={tick} actor={ActorId} dist={distanceMm} near={nearPermille} applied={appliedPermille} occl={(occludes ? 1 : 0)}"));
+    }
+
+    private bool PullLive()
+    {
+        foreach (var (_, actor) in Driver!.State.Actors)
+        {
+            if (actor.Kind == ActorKind.Enemy && actor.Alive)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     // The body's chest on the interpolated position the views draw it at, mm (a sight-line focus for PartyFade).
