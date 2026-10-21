@@ -85,10 +85,14 @@
          probe used. Since lane TUNE-BOSS (STATE.md D14) every swept key (2, 5, 8, 10 at seeds 1 and 7) clears from
          pull 1 (the D14 sweep, end ticks 6787 to 8603; re-swept on the lane NAV-CORE route, see its PR); run D keeps
          --pull 4 because it proves the armed boss at key 10 in 600 ticks, not the route.
-    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 600 --solo --requeue
+    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 700 --solo --requeue
         (--requeue: an autorun starts the queued run only when asked, so runs A-D and the other scene tests stay one
-        run each; an interactive game always starts it; 480 -> 600 by ROOM-LOCK-IN D27: the solo Warden now dies at 390
-        and the depleted run_end lands at 491, past the old 480)
+        run each; an interactive game always starts it; 480 -> 600 by ROOM-LOCK-IN D27: the solo Warden then died at 390
+        and the depleted run_end landed at 491, past the old 480; 600 -> 700 by SWING-PHASE (R-307-E): the Choir's
+        auto-attacks now swing on their own phases, so the solo Warden dies at 427 and the depleted run_end lands at
+        528; --ticks counts both runs, and the requeued run needs about 75 ticks to engage the Choir ("PULL spawn
+        index=0") plus the screen's key script, so 528 + 75 + screen is about 608, past the old 600; 700 keeps D27's
+        margin shape)
      17. the first "RUN start" says "key=2 clause=none" (no queue yet: today's run);
      18. "SCREEN queue dungeon=hollow-vault key=3 clause=<id>" (the screen's autorun script queues key 3 + Clause 2);
      19. after it, a second "RUN start ... key=3 clause=<that id>" (the key is the run content's KeyLevel and the
@@ -249,7 +253,7 @@ param(
     [int]$PartyTicks = 7000,
     [string]$CarelessSeat = '3@300:pair',
     [int]$BossTicks = 600,
-    [int]$QueueTicks = 600,
+    [int]$QueueTicks = 700,
     [int]$BackfillTicks = 3500,
     [string]$AbandonSeat = '2@1700',
     [int]$ScreenFirstFrames = 240,
