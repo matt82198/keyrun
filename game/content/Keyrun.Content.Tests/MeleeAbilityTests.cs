@@ -20,6 +20,7 @@ public sealed class MeleeAbilityTests
         Assert.Contains("choir.meleeSwing", melee);
         Assert.Contains("pair.meleeSwing", melee);
         Assert.Contains("hollowWarden.cleave", melee);
+        Assert.Contains("warden.charge", melee); // R10: Charge is a melee hit on arrival (core-loop defers to WoW)
     }
 
     [Theory]

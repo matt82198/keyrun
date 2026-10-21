@@ -106,6 +106,31 @@ public sealed class LayoutConfigTests
         Assert.Contains("aggroMm but no pull", ex.Message);
     }
 
+    private static JsonObject Pack(JsonNode root, string id) =>
+        root["packs"]!.AsArray().Select(p => p!.AsObject()).First(p => (string)p["id"]! == id);
+
+    [Fact]
+    public void A_pack_branch_naming_a_room_not_in_the_layout_is_rejected()
+    {
+        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Pack(n, "cantor-vigil")["branch"] = "no-such-room"));
+        Assert.Contains("pack \"cantor-vigil\"", ex.Message);
+        Assert.Contains("no-such-room", ex.Message);
+    }
+
+    [Fact]
+    public void A_pack_with_a_valid_branch_loads_with_it_set()
+    {
+        LayoutDef layout = ContentLoader.Load(new MutableSource().Edit(LayoutFile, n => Pack(n, "cantor-vigil")["branch"] = "choir-room").Build()).Layout;
+        Assert.Equal("choir-room", layout.Packs.Single(p => p.Id == "cantor-vigil").Branch);
+    }
+
+    [Fact]
+    public void A_pack_without_a_branch_loads_with_branch_null()
+    {
+        LayoutDef layout = ContentLoader.Load().Layout;
+        Assert.Null(layout.Packs.Single(p => p.Id == "hall-sentries").Branch);
+    }
+
     [Fact]
     public void Missing_layout_json_is_rejected()
     {
