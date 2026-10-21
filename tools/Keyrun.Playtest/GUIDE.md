@@ -44,6 +44,9 @@ at all. An empty plan `{}` is a party that knows nothing: it presses its rotatio
 - `dodge`: `{"telegraphs": true}` makes the party walk out of warning shapes on the floor before they resolve;
   `{"floor": true}` makes it walk out of lasting floor patches.
 - `defensive`: per class, a health percent (1-99) at or under which that seat presses its defensive (E).
+- `mitigate`: the classes that press their defensive (E) and their damage-reducing buttons the moment they come under
+  pressure (a whole pack on them, or low health), the way a seasoned player does, instead of only at a `defensive`
+  health percent.
 - `utility`: the classes allowed to press their utility (R), such as a taunt or a dispel.
 - `hold`: per player ability id, the pulls it may be pressed in (`choir`, `pair`, `seed`, `boss`); in every other
   pull it is saved. Use it to keep a big cooldown for the fight that needs it.

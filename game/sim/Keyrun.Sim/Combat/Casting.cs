@@ -64,7 +64,8 @@ public static class Casting
     }
 
     /// <summary>
-    /// sim/combat/casting.ts:54-81 startCast. Checks in order: silenced (an active Hush pulse), not_ready,
+    /// sim/combat/casting.ts:54-81 startCast. Checks in order: casting (a cast already in flight is never replaced,
+    /// BIBLE section 3; Stopcast is the only cancel), silenced (an active Hush pulse), not_ready,
     /// insufficient_resource, school_locked, then for a target shape target_required / invalid_target (missing or
     /// dead) / out_of_range. On success spends the cost, consumes a charge, starts the GCD, sets the cast fields and,
     /// when a target was given, the actor's target.
@@ -85,6 +86,14 @@ public static class Casting
         var rule = OverheatRuleOf(ctx, actor);
         // BIBLE section 5: at the threshold the next cast is the Overheat, and the Overheat is free.
         var overheat = rule is not null && actor.Resource >= rule.Threshold;
+        // BIBLE section 3 (cast bars are the enemy's language; a kick counts inside the cast): a busy caster rejects
+        // the new cast, so an in-flight cast is never silently replaced. A dead caster is exempt: its only casts are
+        // onDeath script steps (Rules' DEATH-CAST EXCEPTION), and BIBLE section 9 needs the Seed's on-death Window
+        // even when it died mid-cast.
+        if (actor.Alive && actor.CastId is not null)
+        {
+            return "casting";
+        }
         if (StartError(state, actor, def, targetId, now, hooks, overheat) is { } err)
         {
             return err;
@@ -114,6 +123,9 @@ public static class Casting
     /// The checks <see cref="StartCast"/> makes, in its order, with no side effects: null when a cast of
     /// <paramref name="def"/> on <paramref name="targetId"/> would start on tick <paramref name="now"/>, else
     /// StartCast's error code. SLAM-TELEGRAPH: a spansCast script telegraph is drawn only when this says its cast starts.
+    /// StartCast's busy check ("casting") stays out: a scripted step whose caster is busy waits for the cast to land
+    /// (CAST-FINISH, <c>EncounterState.PendingSteps</c>), not dropped, and a pre-combat busy test cannot see a cast
+    /// that completes this same tick.
     /// </summary>
     /// <param name="state">Sim state.</param>
     /// <param name="actor">The caster.</param>
@@ -315,6 +327,11 @@ public static class Casting
     /// applyEffect (an unknown effect id is skipped), removeEffect ("*" = dispel), threat, interrupt. window, payoff,
     /// combo and resource ops do nothing per target (Windows.cs and <see cref="CompleteCastOn"/> run them).
     /// Returns true when an interrupt op landed on this target.
+    /// C# deviation in behaviour (HEAL-NEVER-HOSTILE, D28 the C# sim is the oracle): a heal op, or an applyEffect whose
+    /// effect is beneficial (<see cref="EffectsRemove.PolarityOf"/>: a HoT, a shield, a haste), lands only on the
+    /// caster's own faction. The TS "target" shape keeps whatever the caster targets when the cast completes and a
+    /// mixed area resolves hostile, so the Chanter's Cadence (Mend) HoT ticked on the Choir Acolyte and the Pair in
+    /// policy playtests. Every other op on the same ability (damage, the Attuned Window, a slow) still lands.
     /// </summary>
     private static bool ApplyEffects(SimState state, ActorState source, ActorState target, IReadOnlyList<EffectOp> ops, CastContext ctx, Action<SimEvent> emit)
     {
@@ -327,10 +344,14 @@ public static class Casting
                     Mitigation.DealDamage(state.Tick, source, target, d.Amount, ctx.Effects, emit, source.Id, ctx.Hooks.Weighting);
                     break;
                 case HealOp h:
-                    Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
+                    if (target.Kind == source.Kind)
+                    {
+                        Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
+                    }
                     break;
                 case ApplyEffectOp a:
-                    if (ctx.Effects.TryGetValue(a.EffectId, out var effDef))
+                    if (ctx.Effects.TryGetValue(a.EffectId, out var effDef) &&
+                        (target.Kind == source.Kind || EffectsRemove.PolarityOf(effDef) != EffectPolarity.Beneficial))
                     {
                         Effects.ApplyEffectInstance(target, effDef, source.Id, a.DurationTicks, a.Stacks, state.Tick);
                     }

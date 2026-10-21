@@ -43,7 +43,7 @@ public sealed record AbilityShape
     /// <summary>Line length, mm.</summary>
     public int? Length { get; init; }
 
-    /// <summary>Line width, mm (facet patches only; not in the sim AbilityShape).</summary>
+    /// <summary>Line full width, mm (facet patches only; the host converts it to the sim line's half-width radius).</summary>
     public int? Width { get; init; }
 }
 

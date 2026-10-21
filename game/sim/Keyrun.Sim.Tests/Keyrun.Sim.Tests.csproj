@@ -28,6 +28,10 @@
   <ItemGroup>
     <!-- f-50d8099e: the Godot-free write-movie frame picker lives with the host (game/src/Host) and is tested here. -->
     <Compile Include="../../src/Host/MovieDirector.cs" Link="Host/MovieDirector.cs" />
+    <!-- The weekly affix rotation index (whole Tuesday 15:00 UTC resets since the epoch) is host-side, Godot-free, tested here. -->
+    <Compile Include="../../src/Host/AffixWeek.cs" Link="Host/AffixWeek.cs" />
+    <!-- f-7c7abdf4: the Godot-free run clock bar reading (its player-facing label) is tested here. -->
+    <Compile Include="../../src/Hud/SlackReading.cs" Link="Hud/SlackReading.cs" />
   </ItemGroup>
 
 </Project>

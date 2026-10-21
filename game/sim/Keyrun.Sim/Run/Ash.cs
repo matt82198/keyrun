@@ -19,10 +19,16 @@ public static class Ash
     /// <summary>Ash for a depleted key (progression.ts ASH_DEPLETED).</summary>
     public const int Depleted = 30;
 
-    /// <summary>Ash for an abandoned run (progression.ts ASH_ABANDONED).</summary>
-    public const int Abandoned = 10;
+    /// <summary>
+    /// Ash for an abandoned run: none (STATE.md D45 "a player who leaves mid-run gets nothing"; the frozen TS
+    /// progression.ts ASH_ABANDONED was 10, kept as <see cref="LegacyAbandoned"/> so older saves still load).
+    /// </summary>
+    public const int Abandoned = 0;
 
-    /// <summary>Ash a run with <paramref name="result"/> banks; every result banks some.</summary>
+    /// <summary>What a save written before D45 recorded for an abandoned run (progression.ts ASH_ABANDONED).</summary>
+    public const int LegacyAbandoned = 10;
+
+    /// <summary>Ash a run with <paramref name="result"/> banks: every finished run banks some, a left run none (D45).</summary>
     /// <param name="result">How the run ended.</param>
     /// <returns>The Ash.</returns>
     public static int ForResult(RunResult result) => result switch
@@ -82,7 +88,9 @@ public sealed record RunDelta(RunResult Result, int AshGained, Item? Taken, int?
 {
     /// <summary>"+30 Ash, weapon tier 3 (was 1)", "+50 Ash, weapon tier 2 (new)" or "+10 Ash".</summary>
     /// <returns>The line.</returns>
-    public string Text() => Taken is not { } t
+    public string Text() => Result == RunResult.Abandoned && AshGained == 0 && Taken is null
+        ? EndOfRun.NothingLine
+        : Taken is not { } t
         ? FormattableString.Invariant($"+{AshGained} Ash")
         : FormattableString.Invariant($"+{AshGained} Ash, {t.Slot} tier {t.Tier} ({(PreviousTier is { } p ? FormattableString.Invariant($"was {p}") : "new")})");
 }
@@ -111,6 +119,38 @@ public sealed record Progression
     /// <summary>The last banked run, or null before the first.</summary>
     public RunDelta? LastRun { get; init; }
 
+    /// <summary>
+    /// The talent build picked on the screen (BIBLE s6; f-83c5e369): forked ability id to picked option id, in ordinal
+    /// key order, empty when nothing is picked. The sim keeps only the ids; the content layer (Keyrun.Content
+    /// TalentPicks.Restore) checks them against the class's forks.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Talents { get; init; } = new SortedDictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// This progression with the screen's talent build replaced by <paramref name="choices"/> (a free respec is an
+    /// empty set). Stored in ordinal key order, so the save text does not depend on pick order.
+    /// </summary>
+    /// <param name="choices">Ability id to option id.</param>
+    /// <returns>The progression.</returns>
+    /// <exception cref="ArgumentException">An id is empty or an ability is picked twice.</exception>
+    public Progression WithTalents(IEnumerable<KeyValuePair<string, string>> choices)
+    {
+        ArgumentNullException.ThrowIfNull(choices);
+        var talents = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (ability, option) in choices)
+        {
+            if (string.IsNullOrEmpty(ability) || string.IsNullOrEmpty(option))
+            {
+                throw new ArgumentException("a talent pick needs an ability id and an option id", nameof(choices));
+            }
+            if (!talents.TryAdd(ability, option))
+            {
+                throw new ArgumentException($"ability \"{ability}\" is picked twice", nameof(choices));
+            }
+        }
+        return this with { Talents = talents };
+    }
+
     /// <summary>A fresh character whose crafting PRNG is seeded from <paramref name="seed"/>.</summary>
     /// <param name="seed">The seed.</param>
     /// <returns>The progression.</returns>
@@ -132,9 +172,14 @@ public sealed record Progression
     /// <param name="item">The reward.</param>
     /// <returns>The progression.</returns>
     /// <exception cref="ArgumentException">The item's slot is not one of the five gear slots.</exception>
+    /// <exception cref="InvalidOperationException">The last banked run was abandoned (D45: a leaver gets nothing).</exception>
     public Progression Take(Item item)
     {
         ArgumentNullException.ThrowIfNull(item);
+        if (LastRun?.Result == RunResult.Abandoned)
+        {
+            throw new InvalidOperationException("a run the player left offers no reward (STATE.md D45)");
+        }
         if (!Rewards.GearSlots.Contains(item.Slot, StringComparer.Ordinal))
         {
             throw new ArgumentException($"unknown gear slot \"{item.Slot}\"", nameof(item));
@@ -171,7 +216,7 @@ public sealed record Progression
 /// One Facet's ability patch in sim types (content/schema/facet.ts FacetPatch, applied as the frozen TS
 /// content/apply-patch.ts applyPatch): each non-null direct field replaces the ability's, then <see cref="TagAdd"/>
 /// merges into the tags (no duplicates, base order kept), <see cref="TagRemove"/> drops tags, and
-/// <see cref="EffectsAppend"/> appends after the base ops. The host converts the content patch (HostRunSetup.GearPatches);
+/// <see cref="EffectsAppend"/> appends after the base ops and after every verse variant's ops. The host converts the content patch (HostRunSetup.GearPatches);
 /// the sim never reads Keyrun.Content. No facet in content/data sets both a direct and a merged form of the same field,
 /// so the direct-then-merged order is the TS key order for every shipped facet.
 /// </summary>
@@ -250,7 +295,16 @@ public sealed record GearPatch
         }
         if (EffectsAppend is not null)
         {
-            next = next with { Effects = next.Effects.Concat(EffectsAppend).ToList() };
+            // A verse ability plays its variant, not its Effects (Abilities.ResolveVerse), so the appended ops also go
+            // on every variant; without this a Facet on a Chanter verse ability changes nothing the sim plays.
+            next = next with
+            {
+                Effects = next.Effects.Concat(EffectsAppend).ToList(),
+                Variants = next.Variants?.ToDictionary(
+                    kv => kv.Key,
+                    kv => (IReadOnlyList<EffectOp>)kv.Value.Concat(EffectsAppend).ToList(),
+                    StringComparer.Ordinal),
+            };
         }
         return next;
     }

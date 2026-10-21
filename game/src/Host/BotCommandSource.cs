@@ -51,7 +51,9 @@ public sealed class BotCommandSource : ICommandSource
     /// <param name="kits">The content-backed kits (<see cref="KitRegistry.From"/>).</param>
     /// <param name="seed">The run seed; the bot PRNG is seeded from it.</param>
     /// <param name="skillDial">Every bot's skill dial (0..100).</param>
-    public BotCommandSource(IEnumerable<int> botActorIds, KitRegistry kits, long seed, int skillDial = DefaultSkillDial)
+    /// <param name="careless">CARELESS-SEAT (<c>--careless-seat</c>): bot seats that play carelessly, each wrapped by
+    /// <see cref="Careless.Wrap"/> with its plan; null or empty = none. A plan for a seat that is not a bot seat throws.</param>
+    public BotCommandSource(IEnumerable<int> botActorIds, KitRegistry kits, long seed, int skillDial = DefaultSkillDial, IReadOnlyDictionary<int, CarelessPlan>? careless = null)
     {
         ArgumentNullException.ThrowIfNull(botActorIds);
         ArgumentNullException.ThrowIfNull(kits);
@@ -61,6 +63,14 @@ public sealed class BotCommandSource : ICommandSource
         }
         var bot = Bot.MakeBot(RoleSet.Default);
         _bots = botActorIds.Distinct().ToDictionary(id => id, _ => bot);
+        foreach (var (id, plan) in careless ?? new Dictionary<int, CarelessPlan>())
+        {
+            if (!_bots.ContainsKey(id))
+            {
+                throw new ArgumentException($"careless seat {id} is not a bot seat", nameof(careless));
+            }
+            _bots[id] = Careless.Wrap(bot, plan);
+        }
         _kits = kits;
         _skillDial = skillDial;
         _seed = seed;

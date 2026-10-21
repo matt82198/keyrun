@@ -1,21 +1,24 @@
 /**
- * sim/encounter/timer.ts — run timer vs. `parTicks`, and the Slack bank.
+ * sim/encounter/timer.ts — the run clock vs. `parTicks` (Mythic+ rules, STATE.md D46).
  *
- * Slack is a soft time bank (ticks) that starts full per key level and is spent on player deaths and
- * full-party wipes instead of a hard fail. `spendSlackOnDeath` / `spendSlackOnWipe` clamp at 0 and
- * emit "depleted" exactly once, the tick the bank first hits 0 (further spends after depletion are
- * silent — the run keeps going per the design bible, section 8). `finishRun` always emits "finish";
- * a depleted bank still allows completion, it just downgrades the result from "timed" to "depleted".
+ * Matt 2026-10-20 ("lean into m+ design heavily", "almost exact to wow"): a player death adds its
+ * death cost to the run clock and a full wipe adds the wipe cost on top. Nothing drains on its
+ * own: a key is depleted only when the clock (elapsed plus that added time) finishes past par, or
+ * when an unrecovered full wipe forces `depleted` (run-wiring.ts's checkRunEnd). The Clause's
+ * `rules.deathSlackCostTicks`/`wipeSlackCostTicks` replace the constants when set (above 0). The
+ * Slack bank constants stay as tunables but no longer decide a result. Mirrors
+ * game/sim/Keyrun.Sim/Encounter/Timer.cs (the C# sim is the source of truth, D28).
  *
- * Usage: `encounter = spendSlackOnDeath(encounter, tick, emit); finishRun(encounter, tick, true, emit);`
+ * Usage: `encounter = chargeDeath(encounter); finishRun(encounter, tick, true, emit);`
  */
 import type { SimEvent, Tick } from "./types";
 import type { EncounterState } from "./telegraphs";
+import type { EncounterRules } from "./clauses";
 
-// TUNE: 30s base slack bank at key 1, +1s per key level above 1 (20Hz ticks).
+// TUNE: 30s base slack bank at key 1, +1s per key level above 1 (20Hz ticks). No longer decides a result (D46).
 export const SLACK_BASE_TICKS = 600;
 export const SLACK_PER_KEY_TICKS = 20;
-// TUNE: a death costs 15s of bank; a full wipe costs 25s.
+// TUNE: a death adds 15s to the run clock; a full wipe adds 25s on top.
 export const DEATH_SLACK_COST_TICKS = 300;
 export const WIPE_SLACK_COST_TICKS = 500;
 
@@ -23,32 +26,33 @@ export function initialSlackTicks(keyLevel: number): number {
   return SLACK_BASE_TICKS + SLACK_PER_KEY_TICKS * Math.max(0, keyLevel - 1);
 }
 
-function spendSlack(
-  encounter: EncounterState,
-  costTicks: number,
-  tick: Tick,
-  emit: (event: SimEvent) => void
-): EncounterState {
-  const next = Math.max(0, encounter.slackTicks - costTicks);
-  const justDepleted = next === 0 && !encounter.depleted;
-  if (justDepleted) emit({ tick, type: "depleted" });
-  return { ...encounter, slackTicks: next, depleted: encounter.depleted || next === 0 };
+/** The time one death adds: the Clause's cost when set (above 0), else the constant. */
+export function deathCostTicks(rules: EncounterRules | undefined): number {
+  return rules && rules.deathSlackCostTicks > 0 ? rules.deathSlackCostTicks : DEATH_SLACK_COST_TICKS;
 }
 
-export function spendSlackOnDeath(
-  encounter: EncounterState,
-  tick: Tick,
-  emit: (event: SimEvent) => void
-): EncounterState {
-  return spendSlack(encounter, DEATH_SLACK_COST_TICKS, tick, emit);
+/** The time one full wipe adds: the Clause's cost when set (above 0), else the constant. */
+export function wipeCostTicks(rules: EncounterRules | undefined): number {
+  return rules && rules.wipeSlackCostTicks > 0 ? rules.wipeSlackCostTicks : WIPE_SLACK_COST_TICKS;
 }
 
-export function spendSlackOnWipe(
-  encounter: EncounterState,
-  tick: Tick,
-  emit: (event: SimEvent) => void
-): EncounterState {
-  return spendSlack(encounter, WIPE_SLACK_COST_TICKS, tick, emit);
+/** One more death counted, its cost added to the run clock. */
+export function chargeDeath(encounter: EncounterState): EncounterState {
+  return {
+    ...encounter,
+    deaths: (encounter.deaths ?? 0) + 1,
+    penaltyTicks: (encounter.penaltyTicks ?? 0) + deathCostTicks(encounter.rules),
+  };
+}
+
+/** The wipe cost added to the run clock, on top of the wipe's own deaths. */
+export function chargeWipe(encounter: EncounterState): EncounterState {
+  return { ...encounter, penaltyTicks: (encounter.penaltyTicks ?? 0) + wipeCostTicks(encounter.rules) };
+}
+
+/** The run clock: elapsed ticks plus every death and wipe cost so far. */
+export function clockTicks(encounter: EncounterState, elapsedTicks: Tick): number {
+  return elapsedTicks + Math.max(0, encounter.penaltyTicks ?? 0);
 }
 
 export function isOverPar(runTimerTicks: Tick, encounter: EncounterState): boolean {
@@ -57,14 +61,15 @@ export function isOverPar(runTimerTicks: Tick, encounter: EncounterState): boole
 
 export type RunResult = "timed" | "depleted" | "abandoned";
 
-/** Always emits "finish". A depleted Slack bank still allows completion — result is "depleted", not blocked. */
+/** Always emits "finish". Timed when completed, not wipe-depleted, and the clock is within par. */
 export function finishRun(
   encounter: EncounterState,
   tick: Tick,
   completed: boolean,
   emit: (event: SimEvent) => void
 ): RunResult {
-  const result: RunResult = !completed ? "abandoned" : encounter.depleted ? "depleted" : "timed";
+  const timed = !encounter.depleted && clockTicks(encounter, tick) <= encounter.parTicks;
+  const result: RunResult = !completed ? "abandoned" : timed ? "timed" : "depleted";
   emit({ tick, type: "finish", result });
   return result;
 }

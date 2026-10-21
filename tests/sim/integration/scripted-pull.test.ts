@@ -109,7 +109,7 @@ describe("scripted pull integration", () => {
     const dummy = run.state.actors[DUMMY_ID]!;
     // 5 cleave casts land (ticks 100..500 inclusive) at 20 damage each; dummy never moves or heals.
     expect(dummy.health).toBe(300 - 5 * 20);
-    expect(dummy.pos).toEqual({ x: 3000, y: 0, z: 0 });
+    expect(dummy.pos).toEqual({ x: 1000, y: 0, z: 0 }); // its spawn (fixtures.ts BASE_PARTY): it never moved
   });
 
   it("the player's looping casts and the bots' rotations both damaged the boss", () => {

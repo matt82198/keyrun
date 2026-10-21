@@ -37,6 +37,7 @@ public sealed class RouteContentTests
             { "enemyId": "choir.lieutenant", "points": 80 },
             { "enemyId": "pair.melee", "points": 52 },
             { "enemyId": "seed.elite", "points": 180 },
+            { "enemyId": "hall.sentry", "points": 48 },
             { "enemyId": "vault.hound", "points": 35 },
             { "enemyId": "vault.brute", "points": 90 },
             { "enemyId": "vault.hexer", "points": 80 },
