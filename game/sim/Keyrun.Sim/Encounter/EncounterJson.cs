@@ -45,6 +45,12 @@ public static class EncounterJson
             Angle1024 = OptInt(o, "angle1024", what),
             Length = OptLong(o, "length", what),
             Width = OptLong(o, "width", what),
+            SpansCast = o.Get("spansCast") switch
+            {
+                null => false,
+                JsBool b => b.Value,
+                _ => throw new FormatException($"{what}.spansCast must be a boolean"),
+            },
         };
     }
 
@@ -158,11 +164,17 @@ public static class EncounterJson
                 throw new FormatException(what + ".effects must be an array");
             }
             var heals = effects.Items.Any(op => op is JsObject eo && eo.Get("op") is JsString { Value: "heal" });
+            var damages = effects.Items.Any(op => op is JsObject eo && eo.Get("op") is JsString { Value: "damage" });
+            var kind = Str(Req(shape, "kind", what + ".shape"), what + ".shape.kind");
             result.Add(kv.Key, new ScriptAbility(
                 Str(Req(o, "id", what), what + ".id"),
                 Long(Req(o, "range", what), what + ".range"),
-                Str(Req(shape, "kind", what + ".shape"), what + ".shape.kind"),
-                heals));
+                kind,
+                heals)
+            {
+                // sim/encounter/chase.ts engageReachMm: a caster-centred damage area reaches its radius.
+                AreaReachMm = kind is "circle" or "cone" && damages ? OptLong(shape, "radius", what + ".shape") : null,
+            });
         }
         return result;
     }

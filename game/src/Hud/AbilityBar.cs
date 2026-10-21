@@ -13,8 +13,9 @@ namespace Keyrun.Hud;
 /// E defensive, R utility, F movement) plus the G ping, each with its key, the ability's content name, and its state:
 /// a dark sweep with seconds left while on cooldown, a light sweep during the global cooldown, dimmed when the
 /// class resource is short, its icon tinted red (WoW style, no red border) when the cast's target is out of range
-/// (<see cref="Keyrun.Content.AbilitySlotLook"/>, lane ABILITYBAR-RANGE-TINT) and, since lane RANGE-READOUT, never by
-/// colour alone: the icon dims and a distance-arrow glyph draws in the corner, and a press that fails for range shows
+/// (<see cref="Keyrun.Content.AbilitySlotLook"/>, lane ABILITYBAR-RANGE-TINT), with a "RANGE" caption in the top-right
+/// corner so the red has a stated reason (f-682aacb5, BIBLE s2 never colour alone), and, since lane RANGE-READOUT, never
+/// by colour alone: the icon dims and a distance-arrow glyph draws in the corner, and a press that fails for range shows
 /// a short "Out of range" error line (<see cref="Keyrun.Content.RangeReadout"/>). Above it: the Warden's health and
 /// Momentum. The run-over state (result, rewards, the Enter hint) is the run-end panel's (<see cref="RunEndPanel"/>).
 /// Each ability slot draws its CC0 icon (<see cref="Keyrun.Content.AbilityIcons"/>, lane ABILITY-ICONS) in place of the
@@ -34,6 +35,7 @@ public partial class AbilityBar : Control
     private const float BottomMargin = 24;
     private const int KeyFont = 18;
     private const int NameFont = 13;
+    private const int CaptionFont = 11;
 
     private static readonly Color SlotBack = new(0.1f, 0.11f, 0.14f, 0.92f);
     private static readonly Color SlotEdge = ToColor(Keyrun.Content.AbilitySlotLook.SlotEdge);
@@ -360,6 +362,14 @@ public partial class AbilityBar : Control
         // The key label has a dark drop shadow so it stays readable over the white icon glyph.
         DrawString(font, rect.Position + new Vector2(7, 21), key, HorizontalAlignment.Left, -1, KeyFont, new Color(KeyShadow, KeyShadow.A * alpha));
         DrawString(font, rect.Position + new Vector2(6, 20), key, HorizontalAlignment.Left, -1, KeyFont, new Color(1f, 0.9f, 0.55f, alpha));
+        if (Keyrun.Content.AbilitySlotLook.Caption(outOfRange) is { } caption)
+        {
+            // f-682aacb5: the red tint says why in words (BIBLE s2, never colour alone), top-right, above the icon.
+            var cw = font.GetStringSize(caption, HorizontalAlignment.Left, -1, CaptionFont).X;
+            var at = new Vector2(rect.End.X - cw - 5, rect.Position.Y + 14);
+            DrawStringOutline(font, at, caption, HorizontalAlignment.Left, -1, CaptionFont, 3, Colors.Black);
+            DrawString(font, at, caption, HorizontalAlignment.Left, -1, CaptionFont, new Color(OutOfRangeTint, alpha));
+        }
         if (icon is not null)
         {
             return; // the icon replaces the name text (reduce screen clutter); the name stays for an unmapped ability

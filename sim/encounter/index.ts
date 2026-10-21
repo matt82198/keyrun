@@ -106,7 +106,8 @@ export function stepEncounter(
 ): StepEncounterResult {
   const tick = state.tick;
 
-  const { commands, telegraphEvents, firedOnDeath } = stepEnemyScripts(state, scripts, encounter.firedOnDeath ?? {}, abilities);
+  const { commands, telegraphEvents, firedOnDeath, deferredCasts } = stepEnemyScripts(
+    state, scripts, encounter.firedOnDeath ?? {}, abilities, encounter.deferredCasts ?? []);
   telegraphEvents.forEach(emit);
   const firstTelegraphId = encounter.nextTelegraphId ?? 1;
   const registered = telegraphEvents.map((e, i) => registerTelegraph(e, firstTelegraphId + i));
@@ -146,7 +147,7 @@ export function stepEncounter(
     effectPatches.push(...breakBarEffectPatches(source, !wasStaggered && drained.current <= 0));
   }
 
-  let nextEncounter: EncounterState = { ...encounter, telegraphs, breakBars, firedOnDeath, nextTelegraphId };
+  let nextEncounter: EncounterState = { ...encounter, telegraphs, breakBars, firedOnDeath, deferredCasts, nextTelegraphId };
   nextEncounter = checkPullAdvance(state, dungeon, nextEncounter, tick, emit);
 
   return { state, encounter: nextEncounter, commands, effectPatches };

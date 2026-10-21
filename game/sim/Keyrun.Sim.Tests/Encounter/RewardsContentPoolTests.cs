@@ -109,7 +109,9 @@ public sealed class RewardsContentPoolTests
         var pool = ContentPool("warden");
         for (var seed = 0; seed < 100; seed++)
         {
-            Assert.All(Rewards.RollRewardChoices(seed, 6, RunResult.Depleted, new[] { "ring", "charm" }, pool), i => Assert.Contains(i.Slot, new[] { "ring", "charm" }));
+            var items = Rewards.RollRewardChoices(seed, 6, RunResult.Depleted, new[] { "ring", "charm" }, pool);
+            Assert.Equal(3, items.Count);
+            Assert.All(items, i => Assert.Contains(i.Slot, new[] { "ring", "charm" }));
         }
     }
 

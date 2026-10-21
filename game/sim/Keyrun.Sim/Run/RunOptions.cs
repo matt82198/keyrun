@@ -28,6 +28,12 @@ public sealed record RunOptions
     public IReadOnlyDictionary<int, IReadOnlyDictionary<string, AbilityDef>>? Loadouts { get; init; }
 
     /// <summary>
+    /// Actor id to that actor's summed gear stats (BIBLE s7, <see cref="GearPower.Sum"/>), or null. C#-only, no TS
+    /// counterpart: CreateRun puts them on the party actor; an id not in the party is refused.
+    /// </summary>
+    public IReadOnlyDictionary<int, GearStats>? Gear { get; init; }
+
+    /// <summary>
     /// The host's affix rotation index (BIBLE s8: "the rotation index comes with the key from the host (the ISO week),
     /// so the sim stays deterministic"). Its parity picks Fortified or Tyrannical on keys 5-9
     /// (<see cref="Affixes.AffixesFor"/>) and it selects the key-set Clause (<see cref="ClauseRotation.ForKey"/>).
