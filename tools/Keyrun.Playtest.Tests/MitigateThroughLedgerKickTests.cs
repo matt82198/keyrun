@@ -30,7 +30,11 @@ public sealed class MitigateThroughLedgerKickTests
     // with main 0f6a8989; a measurement, the assertions are unchanged): was 8857, past this run's end. The kick-plan run
     // (Warden mitigating) now ends Timed at 8764 with 0 deaths, boss pull 8162-8763, first boss cleave 8318-8358, so 11
     // ticks in is 8329. (Before the main merge the same run ended Timed at 8633 with its first cleave at 8145-8185.)
-    private const int Tick = 8329;
+    // KF3-SEED-SPAWN re-derivation (ruling R6, the Seed activates on room entry; a measurement on the merged tree, the
+    // assertions are unchanged): was 8329, which the merged run no longer casts at (its first cleave now ends at 8329).
+    // The kick-plan run now ends Timed at 8684 with boss cleaves 8289-8329 and 8555-8595, so 11 ticks into the first
+    // cleave is 8300; the run's own state at 8300 has the boss casting hollowWarden.cleave, start 8289, end 8329.
+    private const int Tick = 8300;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 
