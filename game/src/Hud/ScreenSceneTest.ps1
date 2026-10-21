@@ -266,6 +266,44 @@ if (-not $panelFit) {
     $failures.Add("the talent panel runs past the viewport: '$panelFit'")
 }
 
+# Finding f-0a21646d (D15, capture cap2-1312z frame cap2-001-t004s): the panel read "1/5 picked" but the pick and the
+# cursor shared one green channel. Now the cursor is the green fork row and a pick is a gold PICKED tag + thick gold
+# border, both from TalentPanelMarks over the live build. Every open, cursor move, pick and respec prints
+# "SCREEN talent mark fork=<n> cursor=<ability> picked=<option|-> marker=<cards drawn PICKED>": the open (5 lines,
+# cursor on Strike, nothing picked), Key1 (fork 1 = Rend, cursor still on Strike), Down (5 lines: the cursor is on fork
+# 2 and Rend keeps its marker), Key2 (fork 2's second side), Backspace (5 lines, no markers), Key1 (fork 2's first
+# side): 18 lines. marker=1 exactly when the fork has a pick. Before the lane none of these lines exist (RED).
+$marks = @($talentLines | Where-Object { $_ -match '^SCREEN talent mark ' })
+if ($marks.Count -ne 18) { $failures.Add("expected 18 'SCREEN talent mark' lines (open 5, pick 1, Down 5, pick 1, respec 5, pick 1), got $($marks.Count)") }
+foreach ($m in $marks) {
+    if ($m -notmatch '^SCREEN talent mark fork=[1-5] cursor=(warden\.\w+) picked=([\w-]+) marker=([01])$') {
+        $failures.Add("malformed talent mark line: '$m'")
+    } elseif (($Matches[2] -ne '-') -ne ($Matches[3] -eq '1')) {
+        $failures.Add("a talent mark line's marker does not track its pick: '$m'")
+    }
+}
+$f2re = [regex]::Escape([string]$f2ability)
+$expectMarks = @(
+    '^SCREEN talent mark fork=1 cursor=warden\.strike picked=- marker=0$',
+    '^SCREEN talent mark fork=1 cursor=warden\.strike picked=rend marker=1$',
+    "^SCREEN talent mark fork=1 cursor=$f2re picked=rend marker=1$",
+    $(if ($f2opts.Count -ge 2) { "^SCREEN talent mark fork=2 cursor=$f2re picked=$($f2opts[1]) marker=1$" } else { '^NEVER$' }),
+    "^SCREEN talent mark fork=2 cursor=$f2re picked=- marker=0$",
+    $(if ($f2opts.Count -ge 1) { "^SCREEN talent mark fork=2 cursor=$f2re picked=$($f2opts[0]) marker=1$" } else { '^NEVER$' })
+)
+$mi = 0
+foreach ($m in $marks) { if ($mi -lt $expectMarks.Count -and $m -match $expectMarks[$mi]) { $mi++ } }
+if ($mi -lt $expectMarks.Count) { $failures.Add("talent mark step $($mi + 1) never printed in order, expected /$($expectMarks[$mi])/ (got: $($marks -join ' | '))") }
+$markFits = @($talentLines | Where-Object { $_ -match '^SCREEN fit talent mark ' })
+if ($markFits.Count -ne $optionCount -or $markFits.Count -eq 0) { $failures.Add("expected one 'SCREEN fit talent mark' line per option ($optionCount), got $($markFits.Count)") }
+foreach ($f in $markFits) {
+    if ($f -notmatch '^SCREEN fit talent mark fork=\d option=\d name_right=(\d+) tag_left=(\d+) tag_bottom=(\d+) desc_top=(\d+)$') {
+        $failures.Add("malformed talent mark fit line: '$f'")
+    } elseif ([int]$Matches[1] -gt [int]$Matches[2] -or [int]$Matches[3] -gt [int]$Matches[4]) {
+        $failures.Add("a PICKED tag overlaps its card's name or description: '$f'")
+    }
+}
+
 # Lane FACET-APPLIED (BIBLE s7 "Facets retag or reshape an ability"): the equipped item's Facet reaches the run. The
 # request's own RunOptions carries the human's kit with the Facet patch applied (content/apply.ts applyLoadout order:
 # talents, then facets in slot order), the object SimDriver.StartRun passes to RunRoot.CreateRun. The Facet is the one

@@ -366,6 +366,7 @@ public partial class Screen : Control
         var f = _lobby.Talents.Forks[fork];
         Proof(FormattableString.Invariant(
             $"SCREEN talent pick fork={fork + 1} ability={f.AbilityId} option={f.Options[option].Id} picks={_lobby.Talents.Count}"));
+        ProofTalentMarks(fork);
         SaveTalents();
     }
 
@@ -379,6 +380,7 @@ public partial class Screen : Control
         var ash = _progression.AshTotal;
         _lobby = lobby.WithTalents(lobby.Talents.Respec());
         Proof(FormattableString.Invariant($"SCREEN talent respec picks={_lobby.Talents.Count} ash={ash} ash_after={_progression.AshTotal}"));
+        ProofTalentMarks();
         SaveTalents();
     }
 
@@ -624,9 +626,11 @@ public partial class Screen : Control
                 return true;
             case Key.Up:
                 TalentFork = Math.Max(0, TalentFork - 1);
+                ProofTalentMarks();
                 return true;
             case Key.Down:
                 TalentFork = Math.Min(Math.Max(0, (_lobby?.Talents.ForkCount ?? 1) - 1), TalentFork + 1);
+                ProofTalentMarks();
                 return true;
             case Key.Key1 or Key.Kp1:
                 PickTalent(TalentFork, 0);
@@ -1277,6 +1281,23 @@ public partial class Screen : Control
 
     private static Rect2 TalentsFor(Vector2 size) => LayoutFor(size).Talents;
 
+    // f-0a21646d: one "SCREEN talent mark fork=<n> cursor=<ability> picked=<option> marker=<cards drawn PICKED>" line per
+    // fork (or just `fork`), from the live build and cursor through TalentPanelMarks, the state the panel draws from.
+    private void ProofTalentMarks(int? fork = null)
+    {
+        if (!TalentsOpen || _lobby?.Talents is not { } picks)
+        {
+            return;
+        }
+        for (var f = 0; f < picks.ForkCount; f++)
+        {
+            if (fork is null || fork == f)
+            {
+                Proof(Keyrun.Content.TalentPanelMarks.ProofLine(picks, f, TalentFork));
+            }
+        }
+    }
+
     // One "SCREEN talent fork=..." line per fork and a fit line per option card, laid out at the design viewport.
     private void ProofTalents()
     {
@@ -1302,6 +1323,16 @@ public partial class Screen : Control
             Proof(FormattableString.Invariant(
                 $"SCREEN fit talent fork={card.Fork + 1} option={card.Option + 1} lines={lines.Count} widest={Math.Ceiling(widest)} box={Math.Floor(TalentPanel.TextWidthFor(card.Rect.Size.X))} clipped={clipped} text_bottom={Math.Ceiling(bottom)} card_bottom={Math.Floor(panel.Position.Y + card.Rect.End.Y)}"));
         }
+        // f-0a21646d: the PICKED tag every card can carry stays right of the option name and above the description.
+        foreach (var card in TalentPanel.Cards(panel.Size, picks))
+        {
+            var name = FormattableString.Invariant($"{card.Option + 1}  {picks.Forks[card.Fork].Options[card.Option].Name}");
+            var nameRight = card.Rect.Position.X + Keyrun.Content.TalentCardLayout.TextInset + HudNodes.Width(name, TalentPanel.NameFont);
+            var tag = TalentPanel.TagFor(card.Rect);
+            Proof(FormattableString.Invariant(
+                $"SCREEN fit talent mark fork={card.Fork + 1} option={card.Option + 1} name_right={Math.Ceiling(nameRight)} tag_left={Math.Floor(tag.Position.X)} tag_bottom={Math.Ceiling(tag.End.Y)} desc_top={Math.Floor(card.Rect.Position.Y + Keyrun.Content.TalentCardLayout.TextTop - TalentPanel.TextFont)}"));
+        }
+        ProofTalentMarks();
         Proof(FormattableString.Invariant(
             $"SCREEN fit talents right={Math.Ceiling(panel.End.X)} bottom={Math.Ceiling(panel.End.Y)} viewport={Math.Floor(design.X)}x{Math.Floor(design.Y)}"));
     }
