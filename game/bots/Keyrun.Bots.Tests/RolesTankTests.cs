@@ -76,6 +76,19 @@ public sealed class RolesTankEngageTests
         Assert.Contains(new CastCommand(10, 2, "warden.taunt", 100), Decide(tank, Ally(), Enemy(2000, 3)));
     }
 
+    [Fact(DisplayName = "Warden tank engage > a loose enemy inside taunt range but 2800 mm off: the taunt fires AND the tank walks to reach (DOOR-100 R-DOOR-1: an engaged pack is closed on, never stood off)")]
+    public void TauntsAndWalksToReachWhenTauntFires()
+    {
+        // Taunt range 3000 (warden.taunt) covers 2800 mm, so TauntFires is true; the melee reach threshold is 2500 mm, so the
+        // tank is out of reach. The taunt alone stalled the Warden at 2835 mm when the plan dropped the taunt cast.
+        var tank = Warden();
+        var cmds = Decide(tank, Ally(), Enemy(2800, 3));
+        Assert.Contains(new CastCommand(10, 2, "warden.taunt", 100), cmds);
+        var move = BotTestKit.FirstMove(cmds);
+        Assert.NotNull(move);
+        Assert.True(move!.Dir.Z > 0, $"the tank did not walk toward the loose enemy 2800 mm off: move {move}");
+    }
+
     [Fact(DisplayName = "Warden tank engage > walks toward its target when it is beyond melee reach")]
     public void WalksToTarget()
     {

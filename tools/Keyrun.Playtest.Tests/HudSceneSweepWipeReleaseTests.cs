@@ -17,8 +17,8 @@ namespace Keyrun.Playtest.Tests;
 /// Warden, pull 1) and is driven by <see cref="HudSceneWipeReleaseRunsTests.DriveRun"/>.
 /// <para>
 /// The three-seat party run (no <c>--solo</c>, RunEndBonusSceneTest run C, NameplateDeclutterTest and
-/// CombatTextOverlapTest at <c>--ticks 7000</c>) is pinned too: its budget is unchanged, so the test proves it still
-/// ends inside 7000 under the rule. HelpHintSceneTest (a 400-tick party autorun read only for the controls hint's fade
+/// CombatTextOverlapTest at <c>--ticks 9000</c>, R-DOOR-1) is pinned too: the test proves it still ends inside 9000 under
+/// the rule. HelpHintSceneTest (a 400-tick party autorun read only for the controls hint's fade
 /// by tick ~70, and an idle replay), SimDriverSceneTest (40 ticks) and CombatViewSceneTest (400 ticks) assert no run
 /// end and need no guard.
 /// </para>
@@ -35,9 +35,11 @@ public sealed class HudSceneSweepWipeReleaseTests
 
     /// <summary>
     /// The party autorun's <c>--ticks</c>: RunEndBonusSceneTest.ps1 $PartyTicks, NameplateDeclutterTest.ps1 $Ticks and
-    /// CombatTextOverlapTest.ps1 $Ticks (all 7000, unchanged).
+    /// CombatTextOverlapTest.ps1 $Ticks (all 9000). R-DOOR-1 (ruling 3): the Hollow Door at 100% Enemy Forces makes the
+    /// dungeon longer by design (the party finishes the engaged packs and pulls the optional ones), so the budget moves
+    /// from 7000 to 9000 together with the scene harness args. A Timed clear at 7847 under 9000 is the expected result.
     /// </summary>
-    internal const int PartyTicks = 7000;
+    internal const int PartyTicks = 9000;
 
     /// <summary>
     /// Ticks a solo scene keeps past the run end: the solo run's run_end was at 491 of the old 600-tick budget (the
@@ -113,7 +115,7 @@ public sealed class HudSceneSweepWipeReleaseTests
     /// opens the Seed's seedbloom Window and the run ends before 7000, so the run-end lines those scenes read ("HUD
     /// runend bonus", "HUD runend layout", "HUD numbers cleared reason=runend") still print inside the unchanged budget.
     /// </summary>
-    [Fact(DisplayName = "Party scene run (RunEndBonus C, NameplateDeclutter, CombatTextOverlap): ends inside the unchanged 7000 ticks")]
+    [Fact(DisplayName = "Party scene run (RunEndBonus C, NameplateDeclutter, CombatTextOverlap): ends inside the 9000-tick budget (R-DOOR-1)")]
     public void Party_scene_run_ends_inside_its_unchanged_budget()
     {
         var r = HudSceneWipeReleaseRunsTests.DriveRun(solo: false, startPull: 1, request: null, progression: null, abandon: null, idle: false, budget: PartyTicks);

@@ -123,6 +123,8 @@ public static class RunRoot
         }
         var state = run.State.Clone();
         var groups = Aggro.GroupsOf(run.Dungeon, state.Tick, run.Content.Packs, run.Content.Layout, run.Content.Patrols);
+        // R-DOOR-2: the Hollow Door gates only the forward route (the Triggered path below), never a fight start: a run that
+        // begins in the boss pull engages it through a shut door, as main's wipe-is-release rule (#446) has it.
         var encounter = Aggro.Engage(state, run.Encounter, groups, new[] { run.Dungeon.Pulls[index].Id }, state.Tick, static _ => { });
         RunWiring.FixupTargeting(state);
         return run with { State = state, Encounter = encounter };
@@ -375,6 +377,8 @@ public static class RunRoot
 
         // MPLUS-PATROLS: idle patrol members walk their loop to this tick before the aggro check reads their rings.
         Patrols.Walk(next, run.Content.Patrols, encounter);
+        // R-DOOR-3 / STATE.md D44 ("no gates, just path to boss with packs"): nothing gates the boss pull. The Hollow Door
+        // (BossDoor.Admit) is not applied on the forward route; the Forces bar is a run-completion condition (plan #536 S8).
         var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs, layout, run.Content.Patrols);
         var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);

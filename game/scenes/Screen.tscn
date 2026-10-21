@@ -1,7 +1,6 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://src/Hud/Screen.cs" id="1_screen"]
-[ext_resource type="Script" path="res://src/Hud/ClausePick.cs" id="2_clause"]
 [ext_resource type="Script" path="res://src/Hud/Queue.cs" id="3_queue"]
 
 [node name="Screen" type="Control"]
@@ -13,13 +12,6 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_screen")
-
-[node name="ClausePick" type="Control" parent="."]
-layout_mode = 0
-offset_right = 360.0
-offset_bottom = 216.0
-mouse_filter = 2
-script = ExtResource("2_clause")
 
 [node name="Queue" type="Node" parent="."]
 script = ExtResource("3_queue")

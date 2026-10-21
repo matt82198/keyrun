@@ -33,7 +33,7 @@
 #>
 param(
     [int]$Ticks = 9800,
-    [int]$PartyTicks = 7000
+    [int]$PartyTicks = 9000  # R-DOOR-1: the door at 100% makes the dungeon longer by design (was 7000)
 )
 $ErrorActionPreference = 'Stop'
 

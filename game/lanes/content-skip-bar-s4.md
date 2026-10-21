@@ -1,0 +1,2 @@
+- content/skip-bar-s4: ContentValidator.CheckSkipBar fails the load unless two disjoint optional pack sets each reach the forces bar (integer subset-sum); SkipBarTests prove the balance point loads and one point past it fails.
+BUILDLOG: S4 SKIP-BAR of the forces route plan (ruling R-PACKS-1, finding f-82d9390e) lands so a single-path layout must offer two disjoint ways to 1000 forces and the route choice stays real; today's layout passes with {cantor-vigil} and {warrior-remnant}.

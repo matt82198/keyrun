@@ -346,3 +346,148 @@ are guesses.
 - **QUEUE-SCREEN** (bible 10): the real wait, the readiness line, the 10-second ready-check timeout with no penalty,
   and the private last-3-runs strip. Files: `game/src/Hud/Queue.cs`, `game/src/Hud/Screen.cs`,
   `game/src/Hud/ScreenSceneTest.ps1`. Wait for #229 (Queue.cs) and #266/#268 (Screen.cs).
+
+## 2026-10-21: building the bible 9.2 packs (W1, W2, E1-E3) on today's main
+
+Finding f-82d9390e (Matt 2026-10-20: "room design is lame, 2 mobs 4 mobs 2 bosses, not following the bible"). PR #533
+(open) pinned the three teaching pulls and the boss to bible s9 and found them already matching; the gap it left
+is the pack layer. This section re-plans increments 3, 4, 6, 7, 10 and 11 above against main at b8e2d5d9, because
+two things changed under them: packs.json is retired and packs live only in layout.json (ruling R7, #513), and
+STATE.md D44 removed every gate. The sections above stay as the 2026-10-20 record. Where they conflict, this
+section is the newer plan, except where it waits on a decision listed at the end.
+
+**What already landed.** #286 (MERGED 2026-10-20, 704c6af8) wrote bible s9 and this plan. #288 (MERGED, 9cc91ec8)
+added the forces table, the route shape and the hazards schema. #302 (d2f1df73) added stops (M2) and the caster ops
+(increment 5). #349 added the Forces bar, #381 the skippable packs, #502 Hall Sentries (MVP-U8), and #511, #517 and
+#513 the pack `branch` field, the per-branch totals and the single pack layer.
+
+**D44, verbatim (STATE.md:1531-1533):** "no more gates, just path to boss with packs as you said, make the rest of the
+decisions and we will tune later" and "just build the game". D44 (2026-10-21) is newer than bible 9.1's branch seal
+and 9.5's Hollow Door (2026-10-20). This plan does not build either one. Both are open decisions 2 and 3 below.
+
+### (1) Bible 9.2 packs against main
+
+Sources: bible 9.2 table (design/BIBLE.md:417-426), the casts (:449-459), Cinders (:467-468), the W1 patrol (:346-348)
+and the hazards (:490-502). "Main" means b8e2d5d9.
+
+| Pack (room) | Members (pts each) | Casts and hazards | Pts | On main today |
+|---|---|---|---|---|
+| W1 Hound Kennel (Undercroft Steps, patrols) | 4 Hollow Hound (35), 1 Ash Hexer (80) | Searing Hex (Hexer), Cinders on Hexer death, hound melee | 220 | No enemy, ability or forces entry. Patrol: no (`Aggro.GroupsOf` discards `tick`, Aggro.cs:48) |
+| W2 Bellows Crew (Bellows Hall) | 2 Vault Brute (90), 2 Bellows Keeper (70), 1 Ash Hexer (80) | Crushing Slam, Stoke (Stoked), Searing Hex, Cinders; hazard **Vent Gout** | 400 | No enemies. Vent Gout: schema only (`HazardDef` id/name/room, Hazards.cs:7-17; hazards.json is `[]`), no sim |
+| E1 Reading Watch (Reading Gallery) | 2 Choir Acolyte (40), 1 Drowned Chorister (60) | Undertow | 140 | Acolyte yes (`choir.melee`, forces.json:4). Chorister no |
+| E2 Loft Choir (Cantor's Loft alcove) | 1 Acolyte (40), 1 Choir Cantor (80), 1 Chorister (60) | Choral Mending, Undertow | 180 | Cantor and Choral Mending yes (`choir.healCast`, content/data/abilities/enemies.json:28-29). Chorister no |
+| E3 Floodgate Watch (Sluice Gallery) | 1 Brute (90), 1 Acolyte (40), 1 Chorister (60), 1 Keeper (70) | Crushing Slam, Undertow, Stoke; hazard **Floodjet** (Drenched) | 260 | Brute, Chorister and Keeper no. Floodjet: schema only, no sim |
+
+Mechanisms that exist without content: the Searing Hex burn (`DamagePctOp`, EffectOps.cs:20-31), the Undertow pull
+(`PullOp`, :33-41), Stoked, Drenched and Purge on Stoked (sim, #302, `game/sim/Keyrun.Sim.Tests/CasterOpsTests.cs:48-149`
+on test-local defs), on-death casts (`"at": "onDeath"`, content/data/enemies/seed.json:14), cone telegraphs
+(content/data/abilities/enemies.json:283) and stops (#302). Missing on main: the Fork landing and the five branch rooms
+(layout.json:4-39 is one chain), pack links (packs get `Array.Empty<string>()`, Aggro.cs:54) and patrols.
+
+### (2) Point arithmetic
+
+Teaching pulls: Choir 160, Pair 260, Seed 180, so 600 (bible :419-421, forces.json:3-7, critical path pinned by #533).
+The bar is 1000 (forces.json:2).
+
+| Route | Sum | Clears 1000 |
+|---|---|---|
+| West: W1 / W2 / W1+W2 | 820 / 1000 / 1220 | no / yes / yes |
+| East: E1 / E2 / E3 | 740 / 780 / 860 | no |
+| East: E1+E2 / E1+E3 / E2+E3 / all three | 920 / 1000 / 1040 / 1180 | no / yes / yes / yes |
+
+These match bible :428-435: W2 is required on West, and on East E3 is required plus E1 or E2.
+
+Today's layout packs (layout.json:55-81) are cantor-vigil (3 Cantor x 80 + 4 Acolyte x 40 = 400, in the choir-room),
+hall-sentries (5 x 48 = 240, in the pair-hall, branch-neutral) and warrior-remnant (5 x 52 + 2 x 80 = 420, in the
+seed-chamber). Today's routes reach 600+400 = 1000, 600+420 = 1020 and 600+240 = 840. The branch totals are 1240 and
+1260 (RouteContentTests.cs:117-118).
+
+**With cantor-vigil and warrior-remnant removed:**
+- **Alone, with nothing else changed:** the most any route can reach is 600 + 240 = 840. LayoutValidator.cs:191-193
+  fails the load ("reach 840 of the 1000"), so the removal cannot ship by itself. It must land in the same PR that
+  adds the fork packs (slice S7).
+- **If they are kept beside the fork packs:** 600 + cantor-vigil alone fills the bar, so the fork's route choice
+  never matters. That breaks the bible :428-429 rule that every route needs a fork pack.
+- **If hall-sentries (240, not a bible enemy) is also kept:** West W1+HS reaches 1060, so W2 becomes skippable. East
+  E2+HS reaches 1020 and E3+HS 1100, so E3 is no longer required. The bible's arithmetic only holds with all three
+  packs removed.
+- **The bar decides nothing yet.** The run ends on the pull index (RunWiring.cs:368), and `Timer.IsTimed`
+  (Timer.cs:163) has no forces term. Until S8 lands, 1000 is only the HUD readout.
+
+### (3) Slice order: one lane per file domain, no file shared between lanes
+
+| # | Lane (domain) | Owns (only these files) | Red-first test | After |
+|---|---|---|---|---|
+| S1 | VAULT-KITS (content data) | `game/content/data/enemies/vault.json`, `game/content/data/abilities/vault.json`, `game/content/data/effects/vault.json` (new), `game/content/Keyrun.Content/Loading/ContentLoader.cs` (registers them), `game/content/Keyrun.Content.Tests/EnemyLineTelegraphGuardTests.cs`, `game/content/Keyrun.Content.Tests/VaultKitsTests.cs` (new) | `VaultKitsTests.Every_9_3_cast_loads_with_its_bible_cast_time_cooldown_and_telegraph` (+ `Ash_Hexer_death_leaves_Cinders_2000_mm_led_by_40_ticks`) | none |
+| S2 | VAULT-FORCES (content data) | `game/content/data/forces.json`, `game/content/Keyrun.Content.Tests/VaultForcesTests.cs` (new) | `VaultForcesTests.Every_9_2_enemy_carries_its_bible_points` (35/80/90/70/60) | S1 |
+| S3 | PACK-SCHEMA (validator) | `game/content/Keyrun.Content/Model/Layout.cs` (pack `patrol` loop, pack `links`), `game/content/Keyrun.Content/Loading/LayoutValidator.cs`, `game/content/Keyrun.Content.Tests/PackSchemaTests.cs` (new) | `PackSchemaTests.A_patrol_waypoint_outside_its_room_fails_the_load` | none |
+| S4 | SKIP-BAR (validator; restated for one path by R-PACKS-1) | `game/content/Keyrun.Content/Loading/ContentValidator.cs`, `game/content/Keyrun.Content.Tests/SkipBarTests.cs` (new) | `SkipBarTests.A_layout_without_two_disjoint_pack_sets_that_reach_the_bar_fails_the_load` (at least two disjoint minimal sets must reach 1000) | none |
+| S5 | PATROL (sim rule) | `game/sim/Keyrun.Sim/Encounter/Aggro.cs`, `game/sim/Keyrun.Sim/Encounter/LayoutPacks.cs`, `game/sim/Keyrun.Sim/Encounter/Patrol.cs` (new), `game/sim/Keyrun.Sim.Tests/Encounter/PatrolTests.cs` (new) | `PatrolTests.A_patrol_ring_walks_its_loop_and_engages_where_it_stands_that_tick` | S3 |
+| S6 | HAZARDS (sim rule) | `game/sim/Keyrun.Sim/Encounter/Hazards.cs` (new), `game/sim/Keyrun.Sim/Encounter/EncounterStep.cs`, `game/content/Keyrun.Content/Model/Hazards.cs`, `game/content/data/hazards.json`, `game/sim/Keyrun.Sim.Tests/Encounter/HazardsTests.cs` (new) | `HazardsTests.Vent_Gout_erupts_set_A_then_set_B_160_ticks_later_and_stops_when_W2_is_dead` | S7 (hazard rooms must exist, ContentValidator.cs:111-112) |
+| S7 | PATH-LAYOUT (layout; R-PACKS-1) | `game/content/data/layout.json` (five rooms on the one path between pair-hall and seed-chamber, W1-E3 in bible order with no `branch`, W1 patrol; removes cantor-vigil, warrior-remnant and hall-sentries per R-PACKS-4/5), and re-derives `PathPackTests.cs`, `OptionalBranchForcesTests.cs`, `RouteContentTests.cs`, `SkippablePackTests.cs` (content tests), `PathPackRouteTests.cs`, `SkippablePackRouteTests.cs` (bots tests), plus `game/content/Keyrun.Content.Tests/BiblePacksLayoutTests.cs` (new) | `BiblePacksLayoutTests.Each_9_2_pack_stands_in_its_bible_room_with_its_members_and_points` | S1, S2, S3 |
+| S8 | FORCES-COMPLETION (sim rule; R-PACKS-3) | `game/sim/Keyrun.Sim/Run/RunWiring.cs`, `game/sim/Keyrun.Sim/Encounter/Timer.cs`, `game/sim/Keyrun.Sim.Tests/ForcesCompletionTests.cs` (new) | `ForcesCompletionTests.A_boss_kill_at_999_points_does_not_complete_the_run_until_forces_reach_1000` | S9 |
+| S9 | BOTS-ROUTE (bots) | `game/bots/Keyrun.Bots/shared/RoutePlan.cs` (new), `game/bots/Keyrun.Bots/shared/Follow.cs`, `game/bots/Keyrun.Bots/shared/Ledger.cs`, `game/bots/Keyrun.Bots.Tests/RoutePlanTests.cs` (new) | `RoutePlanTests.The_plan_pulls_a_minimal_pack_set_that_reaches_1000_and_walks_past_the_rest` | S7, S5, S6 |
+
+**Waves (single path, per the rulings below).** Wave A runs S1, S3 and S4, then S2 once S1 lands. Wave B is S7, the
+layout under R-PACKS-1. Wave C runs S5 and S6. Wave D is S9, then S8.
+
+**Notes.**
+- S7 moves the replay digest, so it re-measures it per D28 and records the reason.
+- No lane edits `content/data/` (D12).
+- S7 is the only lane that adds or removes a layout pack. Every pack test that pins the old three packs is
+  re-derived in S7, never loosened.
+- Every lane writes its own row file under `game/lanes/`, checked by `npx vitest run tests/lanes`.
+
+### (4) Open decisions for Matt (the core loop defers to WoW Mythic+, bible :264-269)
+
+1. **Fork or one path:** build West and East as two branches off a Fork landing (bible 9.1), or put all five packs on
+   D44's one forward path. WoW default: two branches, because Mythic+ dungeons offer alternate trash routes.
+2. **Branch seal:** shut the untaken branch for the rest of the run (bible :365-372, a gate under D44), or leave both
+   branches open. WoW default: open, because Mythic+ never locks a route and skipped trash stays reachable.
+3. **Hollow Door:** add a door that opens at 100% forces (bible 9.5, a gate D44 removed), or have no door and count the
+   run complete only when the boss is dead and forces are at 1000 or more. WoW default: no door. In Mythic+ the boss
+   can always be pulled, and the run completes only with the boss dead and forces at 100%.
+4. **cantor-vigil and warrior-remnant:** remove them in S7 when the fork packs land, or keep them beside the fork
+   packs. WoW default: remove them, because the dungeon's designed trash is the route, and keeping them lets
+   600 + 400 fill the bar without a fork pack. Under R-SEED-1 (STATE.md:681, :734) cantor-vigil is a Choir-room pack
+   and the warrior-remnant link was withdrawn. D44 asks for packs on the path but does not name these two, so removing
+   them does not override D44.
+5. **hall-sentries (`hall.sentry`, not a bible enemy):** remove it in S7, or keep it as a 240-point neutral pack.
+   WoW default: remove it. Keeping it breaks bible :428-435, because W2 and E3 both stop being required.
+6. **Overflow:** a run opened at 110% raises a reward tier (bible :394-397), or forces past 100% do nothing (bible
+   :509-510; f-e8bddb37). WoW default: do nothing, because Mythic+ pays nothing for overflow.
+
+### Orchestrator rulings 2026-10-21
+
+Precedence: Matt's D44 (2026-10-21, verbatim "no more gates, just path to boss with packs", STATE.md:1532) is newer
+than his 2026-10-20 "not following the bible" verdict (f-82d9390e) and is a decision, so it governs the shape. The
+bible governs the packs' content (9.2 :417-426, 9.3 :449-459). WoW Mythic+ governs loop questions (bible :264-269).
+
+- **R-PACKS-1 (decision 1): one forward path (D44), not a Fork landing.** W1, W2, E1, E2 and E3 become prespawned
+  packs along that single path, in bible order (west, then east). Each keeps its bible enemies, casts and points.
+  Route choice survives the way Mythic+ has it: the party picks which skippable packs to pull to reach 100%, not which
+  branch to walk. **Flagged for Matt as reversible:** a fork is a later layout PR if he wants the bible 9.1 map back.
+- **R-PACKS-2 (decision 2): no branch seal** (D44: no gates).
+- **R-PACKS-3 (decision 3): no Hollow Door** (D44). The run completes only with the boss dead and forces at 100%
+  (WoW). S8 builds this only after S9, so the bots can reach 100% first. Until then, completion stays on the pull
+  count (RunWiring.cs:368).
+- **R-PACKS-4 (decision 4): cantor-vigil and warrior-remnant are removed in S7, in the same PR as the new packs.** The
+  LayoutValidator 1000 bar (LayoutValidator.cs:191-198) proves the route still reaches 1000.
+- **R-PACKS-5 (decision 5): hall-sentries is removed** (`hall.sentry` is not a bible enemy). On one path no neutral
+  pack can make W2 or E3 non-skippable, because adding a pack only adds ways to reach the bar. The numbers are below.
+- **R-PACKS-6 (decision 6): overflow past 100% does nothing** (WoW; bible :509-510). The bible :394-397 overflow tier
+  is not built.
+
+**Single-path arithmetic (R-PACKS-1, 4, 5).** Teaching pulls 600, plus W1 220, W2 400, E1 140, E2 180 and E3 260.
+Pulling every pack gives 1800 (180%). Every pack is optional, and the bar needs at least 400 from packs.
+
+- **Minimal sets that reach 1000:** W2 (1000), W1+E2 (1000), E1+E3 (1000), E2+E3 (1040) and W1+E3 (1080).
+- **Sets that fall short:** any one pack other than W2 (W1 820, E1 740, E2 780, E3 860), W1+E1 (960) and E1+E2 (920).
+- **Validator results:**
+  - The old skippable rule passes: without any single pack, 1800 - 400 = 1400 still reaches 1000 (LayoutValidator.cs:194-198).
+  - The walking-line rule passes: the line alone is 600 (:202-207).
+  - CheckBranchTotals has nothing left to check (no pack has a `branch`).
+- **What this changes from the bible:** bible :428-435's "W2 required on West, E3 required on East" cannot hold on one
+  path. Both are skippable (W1+E2 = 1000), and no neutral pack changes that.
+- **S4 SKIP-BAR** keeps the route choice honest instead. It fails the load unless at least two disjoint minimal sets
+  reach 1000. Today there are W2 and E1+E3, for example.

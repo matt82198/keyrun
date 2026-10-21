@@ -1305,3 +1305,7 @@ WHY: the 1545z block is being copied verbatim by the ckpt/1615z fold lane, so la
 - 2026-10-21 #508 MERGED feat/kf2-choir-engage: BOTS-ENGAGE-CHOIR lets the bots take the lead after 200 idle ticks in the Entrance (ruling R5), so an idle human no longer holds the party at the first door; the careless-seat control now asserts the pre-handover window.
 - 2026-10-21 #509 MERGED test/pair-spread-stack-offset: PAIR-CADENCE adds a host-run test pinning the spread-to-stack offset at 200 ticks (BIBLE s9); no content change, the sweep's 600 was the stack's tick from 0 and the spread's first cast is at 400.
 - 2026-10-21 #511 MERGED feat/layout-pack-branch: FOLD-U1 adds the optional LayoutPack.Branch key, validated to name a layout room, and sets it on cantor-vigil (choir-room) and warrior-remnant (seed-chamber); packs.json and route.branches are untouched until FOLD-U3.
+- 2026-10-21 folded fix-cast-deferral: landed via #396
+- 2026-10-21 folded fix-lock-keeps-target: landed via #396
+- 2026-10-21 folded fix-mitigate-through-ledger: landed via #396
+- 2026-10-21 folded kf1-readable-anim: landed via #324

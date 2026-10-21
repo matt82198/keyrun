@@ -30,7 +30,7 @@
 param(
     [string[]]$Lines,
     [string]$LogPath,
-    [int]$Ticks = 7000
+    [int]$Ticks = 9000  # R-DOOR-1: party autorun budget moves with the door at 100% (was 7000)
 )
 $ErrorActionPreference = 'Stop'
 
