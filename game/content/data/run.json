@@ -30,5 +30,6 @@
   },
   "classArmorBp": {
     "warden": 3500
-  }
+  },
+  "stunImmuneEnemies": ["hollowWarden.boss"]
 }

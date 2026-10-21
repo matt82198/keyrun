@@ -128,8 +128,14 @@ public sealed class EncounterTraceTests
 
         // ... and each enemy's cast in flight on every tick, not only on the full lines (this replay runs no combat):
         // EncounterCastLedger learns completed casts from the oracle's cast_complete, cast starts from this replay's own
-        // encounter step (the trace has no cast_start) and cuts from the oracle's interrupt (R-415-C).
-        var castLedger = new EncounterCastLedger(abilities.ToDictionary(kv => kv.Key, kv => kv.Value.CastTicks, StringComparer.Ordinal));
+        // encounter step (the trace has no cast_start) and cuts from the oracle's interrupt (R-415-C); a start its
+        // cooldown refuses is not a start (f-df833cf3), so the ledger also needs each ability's cooldownTicks.
+        var castLedger = new EncounterCastLedger(
+            abilities.ToDictionary(kv => kv.Key, kv => kv.Value.CastTicks, StringComparer.Ordinal),
+            abilities.Keys.ToDictionary(
+                id => id,
+                id => abilityJson.Get(id) is JsObject ao && ao.Get("cooldownTicks") is JsInt cd ? (int)cd.Value : 0,
+                StringComparer.Ordinal));
         foreach (var rec in records)
         {
             foreach (var e in rec.Events.Where(e => e.Type == "cast_complete"))

@@ -200,8 +200,11 @@ public static class RunRoot
         var nextState = RunWiring.ApplyBreakBarPatches(stepped.State, enc.EffectPatches, content.Effects);
 
         // STUN-STOPS-CAST (BIBLE s9.3): a stun, freeze or silence that landed this tick (in combat, or the Break bar's
-        // stagger just above) ends an interruptible cast, before the telegraph check below reads the casts.
-        nextState = ControlStops.Apply(run.State, nextState, content.StopEffectIds, content.Abilities, run.State.Tick, emit);
+        // stagger just above) ends an interruptible cast, before the telegraph check below reads the casts. f-c63b43bf: a
+        // stun also ends a stunnable actor's uninterruptible cast (kick-immune is not stun-immune; the boss is stun-immune).
+        nextState = ControlStops.Apply(
+            run.State, nextState, content.StopEffectIds, content.Abilities, run.State.Tick, emit,
+            new ControlStops.StunRules(content.StunEffectIds, content.StunImmuneClassIds, enc.Staggered));
 
         // f-8b3fff18 (STUN-STOPS-ENEMIES): the stagger stun lands now, so a staggered bar actor's cast that the
         // stop above left (uninterruptible, or no host stop ids) ends here, before the telegraph check reads the casts.

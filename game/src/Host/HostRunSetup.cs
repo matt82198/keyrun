@@ -39,6 +39,13 @@ public sealed record HostRunSetup(
     /// </summary>
     public static readonly IReadOnlyList<string> StopEffectIds = new[] { "stunned", "silenced" };
 
+    /// <summary>
+    /// Finding f-c63b43bf (ruling "defer to WoW"): the stops that are stuns. A stun stops every cast of a stunnable actor,
+    /// the uninterruptible ones included (uninterruptible = kick-immune only); the boss is exempt through run.json
+    /// stunImmuneEnemies. A silence stays an interruptible-only stop.
+    /// </summary>
+    public static readonly IReadOnlyList<string> StunEffectIds = new[] { "stunned" };
+
     /// <summary>content-dungeon.ts:38 PULL_ACTOR_ID_START.</summary>
     public const int PullActorIdStart = 100;
 
@@ -182,6 +189,8 @@ public sealed record HostRunSetup(
             Layout = nav,
             Packs = packs,
             StopEffectIds = StopEffectIds,
+            StunEffectIds = StunEffectIds,
+            StunImmuneClassIds = run.StunImmuneEnemies.ToList(),
             Marks = MarkRulesOf(run.PairMarks),
         }.WithMovement(movement);
 
