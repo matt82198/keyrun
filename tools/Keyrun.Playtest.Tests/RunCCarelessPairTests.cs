@@ -56,7 +56,13 @@ public sealed class RunCCarelessPairTests
         var registry = ContentLoader.Load();
         var setup = HostRunSetup.Build(registry, "hollow-vault", Key, "warden", withBots: true);
         var start = setup.StartFor(null, null, registry, "warden");
-        var created = RunRoot.CreateRun(Seed, setup.PartyFor(setup.Dungeon), setup.Dungeon, setup.Content, start.Options);
+        // As SimDriver.StartRun: the rotation index and the bot seats' default gear (HostRunSetup.WithBotLoadouts). Without
+        // the gear this replica cleared at 4623 while the host's run C never ended (game-e2e 39552418449): the gear's
+        // chanter.weapon.wideningCadence makes Cadence a circle, which the healer's Setup must not aim at an enemy.
+        var options = (start.Options ?? new RunOptions()) with { RotationIndex = setup.RotationIndex };
+        var party = setup.PartyFor(setup.Dungeon);
+        options = setup.WithBotLoadouts(options, party) ?? options;
+        var created = RunRoot.CreateRun(Seed, party, setup.Dungeon, setup.Content, options);
         var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
         var pair = setup.Dungeon.Pulls.Single(p => p.Id == "pair");
         var pairIds = pair.Spawns.Select(s => s.ActorId).ToList();

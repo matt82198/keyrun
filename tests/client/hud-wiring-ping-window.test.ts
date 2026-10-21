@@ -205,14 +205,29 @@ describe("hud-wiring: the bar is told which payoff keys a Window has made live (
     expect(unlitWithoutWindow).toBeGreaterThan(0);
   });
 
-  it("as cinder: your own class's Kindled never lights your bar (no self-combo)", async () => {
+  // CADENCE-SETUP (f-b31e8f34): the Chanter bot now opens Attuned on enemies (chanter>cinder is Flashfire). Every tick
+  // is checked, none skipped (PR #415 veto of a skip): the bar lights with exactly the Cinder's payoff keys on every
+  // tick another class's Window is open, and is unlit on every other tick, including every tick its own Kindled is
+  // open. Both halves must occur in the run. The two Windows never sit on separate enemies at once in this run (the
+  // healer opens Attuned only on a target with no open Window), so that case is pinned on openPayoff directly in
+  // tests/client/render/payoff-ready.test.ts.
+  it("as cinder: your own class's Kindled never lights your bar (no self-combo); another class's Window does", async () => {
     const h = await harness(setupFor("cinder"));
     let kindledTicks = 0;
+    let litByOther = 0;
     for (let i = 0; i < 400; i++) {
       const snap = h.tick([], i < 10);
-      if (snap.actors.some((a) => a.kind === "enemy" && a.window?.setupClass === "cinder")) kindledTicks += 1;
-      expect(h.payoffArgs[h.payoffArgs.length - 1]?.size ?? 0).toBe(0);
+      const arg = h.payoffArgs[h.payoffArgs.length - 1];
+      const open = (a: Snapshot["actors"][number]) => a.kind === "enemy" && a.alive && !!a.window && snap.tick < a.window.endsTick;
+      if (snap.actors.some((a) => open(a) && a.window!.setupClass !== "cinder")) {
+        expect([...(arg ?? [])].sort()).toEqual(["cinder.coldSnap", "cinder.detonate"]);
+        litByOther += 1;
+      } else {
+        expect(arg?.size ?? 0).toBe(0);
+        if (snap.actors.some((a) => a.kind === "enemy" && a.window?.setupClass === "cinder")) kindledTicks += 1;
+      }
     }
     expect(kindledTicks).toBeGreaterThan(0);
+    expect(litByOther).toBeGreaterThan(0);
   });
 });

@@ -106,10 +106,12 @@
         start ... inside the party's taken branch") the refilled seat is placed at the pull start on the nearest living
         staying party member and casts from its first tick there: on seed 1 key 2 the Chanter refills at 2052 on the
         Cinder and completes chanter.chorus at 2053 (headless replica RunFJoinerActsTests))
-        (--abandon-seat A@T: SimDriver calls AbandonSeat(A) at run tick T and, with --joiner-key K, adds one
+        (--abandon-seat A@T: SimDriver calls AbandonSeat(A) at run tick T, or A@pullN+O (R-415-D) O ticks after pull
+        N's pull_start, logged "SEAT abandon actor=A tick=T pull=N start=S offset=O" with T = S + O; with --joiner-key K, it adds one
         QueueRequest at key K straight to the Queue node at Hud/Screen/Queue; this is the scripted path, the screen's
         Queue button is not pressed mid-run)
-     21. "SEAT abandon actor=A tick=T" in pull 1, then "QUEUE add dungeon=hollow-vault key=2";
+     21. "SEAT abandon actor=A tick=T" (pull-relative: "... pull=N start=S offset=O", T = S + O) in pull 1, then
+         "QUEUE add dungeon=hollow-vault key=2";
      22. the party survives to "PULL spawn index=1 id=pair", and in that same step (no TICK line between them)
          "SEAT refill actor=A tick=X key=2" with X = that step's TICK tick + 1 (Backfill.Step's FillTick: the first
          tick whose commands are the joiner's), then "QUEUE consume n=1 size=0";
@@ -119,7 +121,12 @@
          Choir fight; the Warden now fights the Choir melee after the kick, so seed 1 key 2 clears the Choir at 1757 and
          pull 2 starts at tick 1840 with all three seats alive; 2@3000 from lane NAV-CORE now falls in pull 2; 2@1500 -> 2@1700
          by ROOM-LOCK-IN D27 (Choir pull_start 50, room locked): a Chanter leaving at 1500 lets the Warden die at 1794, before
-         the 1809 clear; at 1700 the Choir clears at 1749, pull 2 starts at 1844 and the seat refills at 1844). The old 1@1000 cannot work on the
+         the 1809 clear; at 1700 the Choir clears at 1749, pull 2 starts at 1844 and the seat refills at 1844; 2@1700 -> 2@pull0+1350 by
+         R-415-D, a leaver mid-pull is a scenario, not a number: on #415's gear-free pacing the Choir clears at 1532, so
+         1700 fell 55 ticks into the Pair and the party wiped with no pull start to refill at; the Choir's pull_start is 76
+         on main and on #415, so 2@pull0+1350 leaves at 1426 on both, inside the Choir: with the bot gear this host runs
+         (RunFJoinerActsTests) it clears at 1969 and the seat refills at 2082 on main and on #415; gear-free it clears at
+         1969 on main and 1549 on #415, refill 2082 and 1662). The old 1@1000 cannot work on the
          route: the next pull spawns only when a party member walks into its room, and an abandoned human leader stands
          idle, so his bots never travel; 3@1000 to 3@3000 leave the Choir uncleared without the Cinder's damage.
     Run G (lane 3J, key mismatch): as F with --joiner-key 3
@@ -255,7 +262,7 @@ param(
     [int]$BossTicks = 600,
     [int]$QueueTicks = 700,
     [int]$BackfillTicks = 3500,
-    [string]$AbandonSeat = '2@1700',
+    [string]$AbandonSeat = '2@pull0+1350',
     [int]$ScreenFirstFrames = 240,
     [int]$WipeFrames = 6600,
     [int]$PingAt = 100,
@@ -778,18 +785,25 @@ if (-not $queueE) {
 $seatParts = $AbandonSeat -split '@'
 $seatActor = $seatParts[0]
 $seatTick = $seatParts[1]
+# R-415-D: A@pullN+O leaves O ticks after pull N's pull_start; its SEAT abandon line names the anchor and T = S + O.
+$seatRel = $null
+if ($seatTick -match '^pull(\d+)\+(\d+)$') { $seatRel = [pscustomobject]@{ Pull = [int]$Matches[1]; Offset = [int]$Matches[2] } }
+$abandonPattern = if ($seatRel) { "^SEAT abandon actor=$seatActor tick=(\d+) pull=$($seatRel.Pull) start=(\d+) offset=$($seatRel.Offset)$" } else { "^SEAT abandon actor=$seatActor tick=$seatTick$" }
 function Invoke-Backfill([string]$run, [int]$joinerKey) {
     $r = Invoke-Arena $BackfillTicks @('--abandon-seat', $AbandonSeat, '--joiner-key', "$joinerKey")
     if ($r.Code -ne 0) { $failures.Add("run ${run}: godot exited $($r.Code) (expected 0)") }
     $lines = @(FirstRun $r.Lines)
     $res = [pscustomobject]@{ Lines = $lines; Abandon = $null; Add = $null; Pull = $null; IPull = -1; Refill = $null; Consume = $null }
-    $res.Abandon = First $lines "^SEAT abandon actor=$seatActor tick=$seatTick$"
+    $res.Abandon = First $lines $abandonPattern
+    if ($res.Abandon -and $seatRel -and $res.Abandon -match $abandonPattern -and [int]$Matches[1] -ne [int]$Matches[2] + $seatRel.Offset) {
+        $failures.Add("run ${run}: the abandon tick is not the pull start plus the offset: '$($res.Abandon)'")
+    }
     $res.Add = First $lines "^QUEUE add dungeon=hollow-vault key=$joinerKey "
     $res.Pull = First $lines '^PULL spawn index=1 id=pair '
     if ($res.Pull) { $res.IPull = [array]::IndexOf($lines, $res.Pull) }
     $res.Refill = First $lines '^SEAT refill '
     $res.Consume = First $lines '^QUEUE consume '
-    if (-not $res.Abandon) { $failures.Add("run ${run}: no 'SEAT abandon actor=$seatActor tick=$seatTick' line") }
+    if (-not $res.Abandon) { $failures.Add("run ${run}: no SEAT abandon line for --abandon-seat $AbandonSeat (want '$abandonPattern')") }
     if (-not $res.Add) { $failures.Add("run ${run}: no 'QUEUE add dungeon=hollow-vault key=$joinerKey' line (the scripted joiner never reached the Queue node)") }
     if (-not $res.Pull) {
         $failures.Add("run ${run}: the party did not reach 'PULL spawn index=1 id=pair' (no next pull start to refill at)")

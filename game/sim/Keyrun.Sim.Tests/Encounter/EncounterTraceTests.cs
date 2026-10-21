@@ -126,36 +126,15 @@ public sealed class EncounterTraceTests
         var records = OracleRun.Records(trace);
         var tally = new Tally();
 
-        // ... and each enemy's cast in flight on every tick, not only on the full lines (this replay runs no combat). Each
-        // enemy cast_complete the oracle recorded on tick X for an ability with castTicks C was in flight on (X - C, X].
-        var enemyCasts = new List<(int Actor, string Ability, int Start, int Ends)>();
+        // ... and each enemy's cast in flight on every tick, not only on the full lines (this replay runs no combat):
+        // EncounterCastLedger learns completed casts from the oracle's cast_complete, cast starts from this replay's own
+        // encounter step (the trace has no cast_start) and cuts from the oracle's interrupt (R-415-C).
+        var castLedger = new EncounterCastLedger(abilities.ToDictionary(kv => kv.Key, kv => kv.Value.CastTicks, StringComparer.Ordinal));
         foreach (var rec in records)
         {
             foreach (var e in rec.Events.Where(e => e.Type == "cast_complete"))
             {
-                var ab = ((JsString)e.Get("abilityId")!).Value;
-                if (abilities.TryGetValue(ab, out var sa) && sa.CastTicks > 0)
-                {
-                    enemyCasts.Add(((int)((JsInt)e.Get("actorId")!).Value, ab, e.Tick - sa.CastTicks, e.Tick));
-                }
-            }
-        }
-
-        void CastsInFlight(SimState st, int t)
-        {
-            foreach (var a in st.Actors.Values.Where(a => a.Kind == ActorKind.Enemy))
-            {
-                var c = enemyCasts.FirstOrDefault(x => x.Actor == a.Id && x.Start < t && t <= x.Ends);
-                if (c.Ability is not null)
-                {
-                    a.CastId = c.Ability;
-                    a.CastEndsTick = c.Ends;
-                }
-                else if (a.CastEndsTick is { } ends && ends < t)
-                {
-                    a.CastId = null;
-                    a.CastEndsTick = null;
-                }
+                castLedger.Completed((int)((JsInt)e.Get("actorId")!).Value, ((JsString)e.Get("abilityId")!).Value, e.Tick);
             }
         }
 
@@ -202,7 +181,7 @@ public sealed class EncounterTraceTests
             var exact = records[i - 1].P is not null;
             state.Tick = r.T - 1;
             state.RunTimerTicks = r.T - 1;
-            CastsInFlight(state, state.Tick);
+            castLedger.Apply(state, state.Tick);
 
             var ours = new List<SimEvent>();
             var step = EncounterStep.Step(state, encounter, dungeon, scripts, ours.Add,
@@ -211,6 +190,22 @@ public sealed class EncounterTraceTests
                 ? Pulls.SpawnPull(dungeon, step.Encounter.PullIndex, r.T, ours.Add)
                 : Array.Empty<ActorState>();
             encounter = step.Encounter;
+
+            // The cast starts this step issued to living enemies, then the oracle's interrupts of this step (R-415-C).
+            foreach (var cast in step.Commands.OfType<CastCommand>())
+            {
+                if (state.Actors.TryGetValue(cast.ActorId, out var caster) && caster.Kind == ActorKind.Enemy && caster.Alive)
+                {
+                    castLedger.Started(cast.ActorId, cast.AbilityId, cast.Tick);
+                }
+            }
+            foreach (var e in r.Events.Where(e => e.Type == "interrupt"))
+            {
+                if (e.Get("targetId") is JsInt victim)
+                {
+                    castLedger.Interrupted((int)victim.Value, e.Tick);
+                }
+            }
 
             // onDeath casts (castTicks 0, e.g. seed.deathBloom) complete in this same step: combat's cast_complete.
             foreach (var cast in step.Commands.OfType<CastCommand>().Where(c => !state.Actors[c.ActorId].Alive))
@@ -360,9 +355,9 @@ public sealed class EncounterTraceTests
     // PR #370 merged with INTEGRATE-PLAYABLE (#396) and re-recorded on the merged tree (ORACLE_WRITE=1), measured by
     // this replay: the k2 traces are byte-identical to PR #370's own, so the k2 rows are PR #370's (main alone: k2 12,
     // 12, 7, 0, 1, 1); k10 PR #370 alone 15, 15, 7, 0, 0, 3, main alone 19, 18, 7, 0, 0, 2.
-    [InlineData("bots-hv-k2-s7", 8, 8, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k2-s11", 8, 8, 7, 0, 1, 1)] // DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 15, 15, 7, 0, 0, 3)] // MERGE-370 re-record: was 19, 18, 7, 0, 0, 2 on main (measured by this replay on the merged trace: telegraphs=15 hits=15 exact 0 / 3; the same as PR #370 alone). INTEGRATE-PLAYABLE CAST-DEFERRAL re-record: was 16, 16, 7, 0, 0, 2 (measured by this replay: telegraphs=19 (exact 0) hits=18 (exact 2); held boss casts re-draw their telegraph when issued). INTEGRATE-PLAYABLE #325 re-fold re-record: was 17, 17, 7, 0, 0, 3 (measured by this replay: telegraphs=16 (exact 0) hits=16 (exact 2); the run now ends at 2071, before the 2126 cleave). INTEGRATE-PLAYABLE re-record (integrated tree, e19bc046 traces): was 16, 15, 7, 0, 0, 2, tallied by this replay from the recorded trace; SLAM-CIRCLE-HITS re-record (slam circle + CHASE-AREA-REACH): was 16, 16, 7, 0, 0, 3 (measured by this replay against the regenerated oracle); k2 rows unchanged
+    [InlineData("bots-hv-k2-s7", 7, 7, 7, 0, 0, 1)] // CADENCE-SETUP (f-b31e8f34) re-record: was 8, 8, 7, 0, 1, 1 (measured by this replay: telegraphs=7 (exact 0) hits=7 (exact 1)). DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k2-s11", 7, 7, 7, 0, 0, 1)] // CADENCE-SETUP (f-b31e8f34) re-record: was 8, 8, 7, 0, 1, 1 (measured by this replay: telegraphs=7 (exact 0) hits=7 (exact 1)). DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
+    [InlineData("bots-hv-k10-s7", 13, 12, 7, 0, 0, 2)] // CADENCE-SETUP (f-b31e8f34) re-record, R-415-C: was 15, 15, 7, 0, 0, 3 (measured by this replay on the aa65cde8 trace once EncounterCastLedger tracks the slam begun at 2065: telegraphs=13 (exact 0) hits=12 (exact 2); the trace holds 13 telegraph and 12 telegraph_hit events; the run ends at 2074). MERGE-370 re-record: was 19, 18, 7, 0, 0, 2 on main (measured by this replay on the merged trace: telegraphs=15 hits=15 exact 0 / 3; the same as PR #370 alone). INTEGRATE-PLAYABLE CAST-DEFERRAL re-record: was 16, 16, 7, 0, 0, 2 (measured by this replay: telegraphs=19 (exact 0) hits=18 (exact 2); held boss casts re-draw their telegraph when issued). INTEGRATE-PLAYABLE #325 re-fold re-record: was 17, 17, 7, 0, 0, 3 (measured by this replay: telegraphs=16 (exact 0) hits=16 (exact 2); the run now ends at 2071, before the 2126 cleave). INTEGRATE-PLAYABLE re-record (integrated tree, e19bc046 traces): was 16, 15, 7, 0, 0, 2, tallied by this replay from the recorded trace; SLAM-CIRCLE-HITS re-record (slam circle + CHASE-AREA-REACH): was 16, 16, 7, 0, 0, 3 (measured by this replay against the regenerated oracle); k2 rows unchanged
     public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
         string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
     {
