@@ -20,7 +20,9 @@ namespace Keyrun.Playtest.Tests;
 public sealed class MitigateThroughLedgerKickTests
 {
     private const string KickPlan = "{\"mitigate\": [\"warden\"], \"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"cinder\", \"chanter\", \"warden\"]}]}";
-    private const int Tick = 5486;
+    // 11 ticks into the kick-plan run's first boss cleave (4122-4162), as 5486 was into 5475-5515. Was 5486
+    // (D-PINNED-FIXTURES-362): with the healer press and Mending 6000 this run ends Timed at 4519 (boss pull 3966-4518).
+    private const int Tick = 4133;
     private const int Boss = 900;
 
     private sealed record Scene(Policy Policy, ContentRegistry Registry, BotView View);

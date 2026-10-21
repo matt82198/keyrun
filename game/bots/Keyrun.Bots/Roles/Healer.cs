@@ -22,7 +22,8 @@ public sealed class HealerRole : IRole
     /// <summary>healer.ts HEAL_RANGE_MM: 30 m.</summary>
     public const long HealRangeMm = 30 * 1000;
 
-    private const double HealThresholdPct = 0.7;
+    /// <summary>healer.ts HEAL_THRESHOLD_PCT: an ally under this health fraction is a heal-triage target.</summary>
+    public const double HealThresholdPct = 0.7;
     private const double PartyMendThresholdPct = 0.35;
 
     /// <summary>healer.ts MEND_VERSE_VALUE: resource 1 is Mend, 0 is Ward.</summary>
@@ -81,6 +82,64 @@ public sealed class HealerRole : IRole
         return totalMissing / totalMax;
     }
 
+    /// <summary>
+    /// healer.ts isHealButton: a heal the shape-aware picker owns (self, group, second group and targeted heal, the
+    /// first on-cast heal) or the stance verse swap. These are never pressed by <see cref="PressCommands"/>.
+    /// </summary>
+    private static bool IsHealButton(EffectiveKit kit, string abilityId)
+    {
+        var h = kit.Heals;
+        return abilityId == h.SelfHealAbilityId
+            || abilityId == h.GroupHealAbilityId
+            || abilityId == h.TargetHealAbilityId
+            || abilityId == h.SecondGroupHeal?.AbilityId
+            || abilityId == kit.HealAbilityId
+            || abilityId == kit.StanceSwapAbilityId;
+    }
+
+    /// <summary>
+    /// healer.ts partyTargetId: the party's current target, an engaged living enemy: the living tank's target, else the
+    /// healer's own, else the lowest-id engaged enemy; null when no enemy is engaged (an idle prespawned group is never
+    /// pulled by the healer).
+    /// </summary>
+    private static int? PartyTargetId(SortedDictionary<int, ActorState> actors, ActorState self)
+    {
+        bool Engaged(int? id) => id is { } v && actors.TryGetValue(v, out var a) && a.Kind == ActorKind.Enemy && a.Alive && !a.Idle;
+        var tankTarget = actors.Values.FirstOrDefault(a => a.Kind == ActorKind.Player && a.Alive && a.Role == ActorRole.Tank && Engaged(a.TargetId))?.TargetId;
+        if (tankTarget is not null)
+        {
+            return tankTarget;
+        }
+        if (Engaged(self.TargetId))
+        {
+            return self.TargetId;
+        }
+        return actors.Values.FirstOrDefault(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle)?.Id;
+    }
+
+    /// <summary>
+    /// HEALER-KEEPS-PRESSING (orchestrator ruling for PR #362, the WoW Mythic+ dungeon loop: a healer with nobody to heal
+    /// keeps contributing): in a fight with no ally under the heal threshold, the first ready, affordable rotation
+    /// ability that is not a heal button (<see cref="IsHealButton"/>; the Chanter's Dissonance) goes at the party's
+    /// current target (<see cref="PartyTargetId"/>). Nothing engaged or nothing ready = nothing to do.
+    /// </summary>
+    private static IReadOnlyList<Command> PressCommands(BotView view, ActorState self, EffectiveKit kit)
+    {
+        var tick = view.State.Tick;
+        if (PartyTargetId(view.State.Actors, self) is not { } targetId)
+        {
+            return Array.Empty<Command>();
+        }
+        var abilityId = kit.Rotation.FirstOrDefault(id => !IsHealButton(kit, id) && RoleShared.ReadyAndAffordable(self, id, tick, kit));
+        if (abilityId is null)
+        {
+            return Array.Empty<Command>();
+        }
+        return self.TargetId == targetId
+            ? new Command[] { new CastCommand(tick, self.Id, abilityId, targetId) }
+            : new Command[] { new TargetCommand(tick, self.Id, targetId), new CastCommand(tick, self.Id, abilityId, targetId) };
+    }
+
     /// <summary>healer.ts healerDecide.</summary>
     /// <param name="view">Bot view.</param>
     /// <param name="self">Deciding actor.</param>
@@ -123,10 +182,14 @@ public sealed class HealerRole : IRole
         if (dispelId is null)
         {
             var healId = Priority.PickHealTarget(actors, HealThresholdPct);
-            // CADENCE-SETUP (f-b31e8f34): nobody under the threshold, so open a Setup for a ready Payoff partner.
-            return healId is { } hid && actors.TryGetValue(hid, out var healTarget)
-                ? HealPick.HealCommands(view, self, kit, healTarget)
-                : HealerSetup.SetupCommands(view, self, kit);
+            if (healId is { } hid && actors.TryGetValue(hid, out var healTarget))
+            {
+                return HealPick.HealCommands(view, self, kit, healTarget);
+            }
+            // CADENCE-SETUP (f-b31e8f34): nobody under the threshold, so open a Setup for a ready Payoff partner;
+            // D-HEALER-DOWNTIME: no Setup to open, so press a non-heal rotation button.
+            var setup = HealerSetup.SetupCommands(view, self, kit);
+            return setup.Count > 0 ? setup : PressCommands(view, self, kit);
         }
 
         var abilityId = kit.DispelAbilityId ?? "dispel";

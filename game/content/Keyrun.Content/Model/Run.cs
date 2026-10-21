@@ -24,6 +24,13 @@ public sealed record RunConfig
     public required AffixesConfig Affixes { get; init; }
 
     /// <summary>
+    /// Class id to its passive armor, bp of every incoming hit removed after Brace/Vigil/Bulwark (design/BIBLE.md
+    /// section 3.1; each value in [0, 9000], each key a class). A class with no entry has none. Not in the
+    /// frozen content/data. A <see cref="ValueMap{TValue}"/> so two loads of the same files stay value-equal.
+    /// </summary>
+    public required ValueMap<int> ClassArmorBp { get; init; }
+
+    /// <summary>
     /// STUN-STOPS-EVERY-CAST (finding f-c63b43bf, ruling "defer to WoW"): the enemy ids immune to stuns (the boss). A
     /// stun stops every cast of every other actor, the uninterruptible ones included, since "uninterruptible" (an
     /// ability's <c>interruptible: false</c>) means kick-immune only; stun immunity is this separate flag. Kept here,

@@ -49,6 +49,7 @@ public static class RunRoot
             {
                 var actor = Actors.Create(m.Id, ActorKind.Player, m.ClassId, m.Role, m.Pos, m.MaxHealth, m.MaxResource, m.Yaw ?? 0);
                 actor.Resource = Actors.StartingResource(m.ClassId, m.MaxResource, content.Overheat);
+                actor.ArmorBp = m.ArmorBp;
                 return actor;
             })
             .ToList();
@@ -238,8 +239,8 @@ public static class RunRoot
             if (newly.Count > 0)
             {
                 // A pull or a pack (PATH-PACKS) runs its scripts on its own clock from its engage tick.
-                var ids = Aggro.GroupsOf(run.Dungeon, nextState.Tick, content.Packs).Where(g => newly.Contains(g.Id)).SelectMany(g => g.ActorIds).ToHashSet();
-                activeScripts = OnEngageClock(activeScripts ?? content.EnemyScripts, ids, nextState.Tick);
+                var groups = Aggro.GroupsOf(run.Dungeon, nextState.Tick, content.Packs).Where(g => newly.Contains(g.Id)).Select(g => g.ActorIds).ToList();
+                activeScripts = OnEngageClock(activeScripts ?? content.EnemyScripts, groups, nextState.Tick, content.Abilities);
             }
         }
         var echo = EchoSpawns.Step(nextEncounter, nextState, events, nextState.Tick, emit);
@@ -286,18 +287,32 @@ public static class RunRoot
 
     // SEED-PULL-TEACHES (STATE.md D27) and PRESPAWN-AGGRO (BIBLE section 9.1, "Scripts start at engage"): an engaged
     // group's scripts run on the group's own clock from its engage tick, so its first cast and that cast's telegraph fall
-    // inside the fight whatever tick the party arrived on. Every other actor's script is kept as it is.
+    // inside the fight whatever tick the party arrived on. SWING-PHASE (ruling R-307-C item 3): within each group the
+    // members' auto-attacks are then spread over the swing period (Scripts.SwingPhased, members in ascending id), so a
+    // pack's swings never land in lockstep. Every other actor's script is kept as it is.
     private static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> OnEngageClock(
-        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts, IReadOnlySet<int> ids, int startTick)
+        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts, IReadOnlyList<IReadOnlyList<int>> groups, int startTick,
+        IReadOnlyDictionary<string, AbilityDef> abilities)
     {
-        if (startTick == 0 || !scripts.Keys.Any(ids.Contains))
+        var place = new Dictionary<int, (int Member, int Members)>();
+        foreach (var group in groups)
+        {
+            var scripted = group.Where(scripts.ContainsKey).Distinct().OrderBy(id => id).ToList();
+            for (var k = 0; k < scripted.Count; k++)
+            {
+                place.TryAdd(scripted[k], (k, scripted.Count));
+            }
+        }
+        if (place.Count == 0)
         {
             return scripts;
         }
         var shifted = new SortedDictionary<int, IReadOnlyList<ScriptStep>>();
         foreach (var (actorId, script) in scripts)
         {
-            shifted[actorId] = ids.Contains(actorId) ? script.Select(s => Scripts.StartingAt(s, startTick)).ToList() : script;
+            shifted[actorId] = place.TryGetValue(actorId, out var at)
+                ? script.Select(s => Scripts.SwingPhased(Scripts.StartingAt(s, startTick), abilities.GetValueOrDefault(s.Cast), at.Member, at.Members)).ToList()
+                : script;
         }
         return shifted;
     }

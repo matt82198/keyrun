@@ -1743,6 +1743,62 @@
     },
     {
       "ability": {
+        "castTicks": 0,
+        "charges": 1,
+        "cooldownTicks": 40,
+        "cost": {
+          "amount": 0,
+          "resource": "none"
+        },
+        "effects": [
+          {
+            "delta": 1,
+            "op": "resource"
+          }
+        ],
+        "gcdTicks": 30,
+        "id": "chanter.refrain",
+        "interruptible": false,
+        "name": "Refrain",
+        "range": 6000,
+        "shape": {
+          "kind": "self"
+        },
+        "tags": [
+          "ranged-cast"
+        ],
+        "variants": {
+          "mend": [
+            {
+              "amount": 150,
+              "op": "heal"
+            },
+            {
+              "delta": 1,
+              "op": "resource"
+            }
+          ],
+          "ward": [
+            {
+              "durationTicks": 80,
+              "effectId": "wardShield",
+              "op": "applyEffect",
+              "stacks": 1
+            },
+            {
+              "delta": -1,
+              "op": "resource"
+            }
+          ]
+        }
+      },
+      "abilityId": "chanter.refrain",
+      "classId": "chanter",
+      "facetId": "chanter.weapon.reachingRefrain",
+      "loadout": "ok"
+    },
+    {
+      "ability": {
         "castTicks": 20,
         "charges": 1,
         "cooldownTicks": 0,
@@ -1807,62 +1863,6 @@
       "abilityId": "chanter.cadence",
       "classId": "chanter",
       "facetId": "chanter.weapon.wideningCadence",
-      "loadout": "ok"
-    },
-    {
-      "ability": {
-        "castTicks": 0,
-        "charges": 1,
-        "cooldownTicks": 40,
-        "cost": {
-          "amount": 0,
-          "resource": "none"
-        },
-        "effects": [
-          {
-            "delta": 1,
-            "op": "resource"
-          }
-        ],
-        "gcdTicks": 30,
-        "id": "chanter.refrain",
-        "interruptible": false,
-        "name": "Refrain",
-        "range": 6000,
-        "shape": {
-          "kind": "self"
-        },
-        "tags": [
-          "ranged-cast"
-        ],
-        "variants": {
-          "mend": [
-            {
-              "amount": 150,
-              "op": "heal"
-            },
-            {
-              "delta": 1,
-              "op": "resource"
-            }
-          ],
-          "ward": [
-            {
-              "durationTicks": 80,
-              "effectId": "wardShield",
-              "op": "applyEffect",
-              "stacks": 1
-            },
-            {
-              "delta": -1,
-              "op": "resource"
-            }
-          ]
-        }
-      },
-      "abilityId": "chanter.refrain",
-      "classId": "chanter",
-      "facetId": "chanter.weapon.reachingRefrain",
       "loadout": "ok"
     },
     {
@@ -3126,6 +3126,13 @@
           },
           {
             "op": "payoff"
+          },
+          {
+            "durationTicks": 60,
+            "onTarget": true,
+            "op": "window",
+            "setupClass": "warden",
+            "windowId": "sundered"
           }
         ],
         "gcdTicks": 30,
@@ -3592,7 +3599,7 @@
         },
         "effects": [
           {
-            "amount": 125,
+            "amount": 150,
             "op": "damage",
             "school": "fire"
           },
@@ -4296,7 +4303,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 160,
+        "cooldownTicks": 180,
         "cost": {
           "amount": 0,
           "resource": "none"
@@ -4380,6 +4387,12 @@
             },
             {
               "op": "payoff"
+            },
+            {
+              "durationTicks": 50,
+              "effectId": "chorusEcho",
+              "op": "applyEffect",
+              "stacks": 1
             }
           ],
           "ward": [
@@ -4632,7 +4645,7 @@
             "windowId": "hymn"
           }
         ],
-        "gcdTicks": 30,
+        "gcdTicks": 0,
         "id": "chanter.hymn",
         "interruptible": true,
         "name": "Hymn",

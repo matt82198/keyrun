@@ -1045,7 +1045,7 @@
       "targetId": 1000
     }
   ],
-  "expectedHash": "113b8042",
+  "expectedHash": "536b9b73",
   "eventCounts": {
     "damage": 25,
     "cast_complete": 25,
@@ -1083,7 +1083,7 @@
       "fnv": "8a842402"
     },
     "abilities/choir.healCast": {
-      "fnv": "429391f8"
+      "fnv": "9a1c5d45"
     },
     "abilities/choir.meleeSwing": {
       "fnv": "d129f5cb"
@@ -1176,13 +1176,13 @@
       "fnv": "1e026657"
     },
     "classes/chanter": {
-      "fnv": "1282653b"
+      "fnv": "e6e80113"
     },
     "classes/cinder": {
-      "fnv": "edb11805"
+      "fnv": "9065e9c1"
     },
     "classes/warden": {
-      "fnv": "dff1599c"
+      "fnv": "464697c3"
     },
     "clauses/echo": {
       "fnv": "13f70301"
@@ -1261,6 +1261,9 @@
     },
     "effects/chill": {
       "fnv": "bdc8fe20"
+    },
+    "effects/chorusEcho": {
+      "fnv": "2a6ed869"
     },
     "effects/consecrateHeal": {
       "fnv": "76e26e4d"

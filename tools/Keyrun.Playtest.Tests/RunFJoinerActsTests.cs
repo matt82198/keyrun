@@ -24,12 +24,17 @@ namespace Keyrun.Playtest.Tests;
 /// must take the seat at the next pull start and then act: a <c>cast_complete</c> by seat 2 after the fill, within run
 /// F's 3500 ticks.
 /// </summary>
+/// <remarks>
+/// Merge-forward of #362 onto #415: #362 had moved the leave 1700 -> 1500 (D-PINNED-FIXTURES-362, the healer press
+/// cleared the undisturbed Choir at 1580 so 1700 fell inside the Pair). The pull-relative form keeps that intent (the
+/// leave stays inside the Choir) and <see cref="The_abandon_falls_inside_the_first_pull"/> checks it on this tree.
+/// </remarks>
 public sealed class RunFJoinerActsTests
 {
     private const int Key = 2;
     private const long Seed = 1;
     private const int SeatId = 2;
-    private const string Abandon = "2@pull0+1350"; // HudSceneTest $AbandonSeat
+    private const string Abandon = "2@pull0+1350"; // HudSceneTest $AbandonSeat (R-415-D; #362's 2@1500 folded in, see remarks)
     private const int MaxTicks = 3500; // run F's --ticks (HudSceneTest $BackfillTicks)
 
     private sealed record Drive(int? AbandonTick, int? FillTick, List<SimEvent> Events, List<string> Log, Run Final);

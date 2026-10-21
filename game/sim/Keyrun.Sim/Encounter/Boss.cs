@@ -461,6 +461,7 @@ public static class BossRules
                     ("actorId", JsValue.Int(twin.ActorId)),
                     ("sourceId", JsValue.Int(cfg.BossActorId)),
                     ("reason", JsValue.Str("boss_death"))));
+                Damage.EndCastOnDeath(fallen, emit, bossDeath.Tick);
             }
         }
 

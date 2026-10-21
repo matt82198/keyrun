@@ -89,6 +89,25 @@ public sealed class AddsDieWithBossTests
         Assert.DoesNotContain(after.State.Actors.Values, a => a.Kind == ActorKind.Enemy && a.Alive);
     }
 
+    [Fact(DisplayName = "An Echo add mid-cast when the boss dies falls holding no cast (f-42df9d4f)")]
+    public void Echo_add_mid_cast_when_the_boss_dies_falls_with_its_cast_ended()
+    {
+        var run = WithEchoAdd();
+        var add = run.State.Actors[EchoAdd];
+        add.CastId = "twins.slam";
+        add.CastStartTick = run.State.Tick;
+        add.CastEndsTick = run.State.Tick + 500;
+
+        var (after, events, deathStep) = KillBoss(run, 60);
+
+        Assert.True(deathStep > 0, "the boss never died");
+        Assert.Single(events, e => IsDeathOf(e, EchoAdd));
+        var fallen = after.State.Actors[EchoAdd];
+        Assert.False(fallen.Alive);
+        Assert.Null(fallen.CastId);
+        Assert.Null(fallen.CastEndsTick);
+    }
+
     [Fact(DisplayName = "An Echo spawn due on the boss's death step never realises; the queue is dropped")]
     public void Echo_spawn_due_on_the_boss_death_step_never_realises()
     {

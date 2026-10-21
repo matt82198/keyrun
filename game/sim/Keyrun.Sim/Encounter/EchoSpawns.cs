@@ -69,6 +69,7 @@ public static class EchoSpawns
                 ("actorId", JsValue.Int(add.Id)),
                 ("sourceId", JsValue.Int(bossActorId)),
                 ("reason", JsValue.Str("boss_death"))));
+            Combat.Damage.EndCastOnDeath(dead, emit, bossDeath.Tick);
         }
         return new EchoSpawnResult(encounter with { PendingEchoSpawns = Array.Empty<EchoSpawnRequest>() }, fallen);
     }

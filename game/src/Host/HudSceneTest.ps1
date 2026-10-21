@@ -7,10 +7,11 @@
   Boots the real game (Main.tscn -> Arena.tscn) headless at --fixed-fps 60 twice and reads the HUD's own
   "HUD ..." lines from the engine output (the HUD prints what it draws when --autorun is on):
 
-    Run A (pull 1, the Choir, solo Warden):  -- --autorun --ticks 600 --solo
+    Run A (pull 1, the Choir, solo Warden):  -- --autorun --ticks 900 --solo
+      (900 since PR #362, was 600: a Warden with 3500 bp armor dies at tick 505 with run_end at 606 by measurement)
       (600 since lane NAV-CORE, was 400: the Warden first walks from the Entrance into the Choir room, so the wipe's
       run_end moved from tick 374 to 413)
-      1. exit 0 and "AUTORUN done ticks=600";
+      1. exit 0 and "AUTORUN done ticks=900";
       2. "HUD party seat=1 name=Warden hp=H/400 res=R/M" (the party frame reads the human's health and resource);
       3. "HUD party seat=1 ... DOWNED" after the sim's death event for actor 1 (the DOWNED chip);
       4. "HUD objective pull=1/4 id=choir name="The Choir"" (the current pull's content name);
@@ -28,16 +29,24 @@
          on pull <n> of <total> -- key stays at +<key>" (an untimed key keeps its level: Matt 2026-10-20, f-7c7abdf4;
          "key depleted" is banned from every title) (run C clears the dungeon since lane TUNE-BOSS, so the clear title
          is checked on it; the count of cleared runs is printed).
-    Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 600 --pull 2 --solo
+    Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 900 --pull 2 --solo
       (600 since lane NAV-CORE, was 400: the Pair now spawns at the far side of its hall, 7 m off, run_end at tick 455)
       7. "HUD objective pull=2/4 id=pair name="The Pair"", and the wipe title "Party wiped on pull 2 of 4 -- key
          stays at +2" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
-      8. NO "HUD ping label=SPREAD" or "HUD ping label=STACK" line (SLAM-TELEGRAPH, wrong data shown is P0). The
-         solo Warden is down before the Pair's first mark (its telegraph is due about tick 295), so the mark cast
-         has no target and never starts; a spansCast telegraph is drawn only for a cast that will start
-         (Scripts.WillStart), so the floor and the HUD must not call SPREAD/STACK for it. Before SLAM-TELEGRAPH this
-         check asserted the opposite: a ping from the telegraph the sim drew after run_end for that dead-target cast.
-         Run C (check 11) proves the live-run call.
+      8. R-PILE-10 (dungeon loop decided as WoW Mythic+ does; BIBLE s3 cast bars and telegraphs; wrong data shown is
+         P0): a mechanic aimed at a living player is legitimate and drops when he dies. From run B's log:
+         (a) the Warden's death tick is the "tick" of the first 'EVENT {"actorId":1,...,"type":"death"}' line;
+         (b) every "HUD ping label=SPREAD|STACK" line is printed in a step (the latest "TICK n" line above it) strictly
+             before that tick, and there is at least one (a run with no call and no telegraph fails, never passes);
+         (c) on the death tick every live telegraph cancels (TELEGRAPH-CANCEL-ON-DEATH): the 'EVENT {...
+             "type":"telegraph_cancel"}' lines with that tick number exactly the telegraphs live then (the "telegraph"
+             EVENTs up to it, less the "telegraph_hit" EVENTs up to it and the cancels before it), and at least one;
+         (d) after the death EVENT no "CAST start ... target=1" line (R-DEADCAST-1: no cast starts on a dead target;
+             every CAST start line names its target) and no further "HUD ping" line.
+         Was (SLAM-TELEGRAPH): NO ping at all, on the premise that the solo Warden is down before the Pair's first
+         mark (about tick 295). PR #362's Warden armor (3500 bp) keeps him alive to tick 354, so the call at 295 is an
+         honest live-run call; the scenario is not changed to make him die sooner (R-PILE-10). Run C (check 11) also
+         proves the live-run call.
     Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:
         -- --autorun --ticks <PartyTicks> --careless-seat <CarelessSeat>
         (default 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
@@ -85,10 +94,15 @@
          probe used. Since lane TUNE-BOSS (STATE.md D14) every swept key (2, 5, 8, 10 at seeds 1 and 7) clears from
          pull 1 (the D14 sweep, end ticks 6787 to 8603; re-swept on the lane NAV-CORE route, see its PR); run D keeps
          --pull 4 because it proves the armed boss at key 10 in 600 ticks, not the route.
-    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 600 --solo --requeue
+    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 900 --solo --requeue
         (--requeue: an autorun starts the queued run only when asked, so runs A-D and the other scene tests stay one
-        run each; an interactive game always starts it; 480 -> 600 by ROOM-LOCK-IN D27: the solo Warden now dies at 390
-        and the depleted run_end lands at 491, past the old 480)
+        run each; an interactive game always starts it; 480 -> 600 by ROOM-LOCK-IN D27: the solo Warden then died at 390
+        and the depleted run_end landed at 491, past the old 480; 600 -> 700 by SWING-PHASE (R-307-E): the Choir's
+        auto-attacks now swing on their own phases, so the solo Warden dies at 427 and the depleted run_end lands at
+        528; --ticks counts both runs, and the requeued run needs about 75 ticks to engage the Choir ("PULL spawn
+        index=0") plus the screen's key script, so 528 + 75 + screen is about 608, past the old 600; 700 keeps D27's
+        margin shape; 600 -> 900 by PR #362 on its own parent (a 3500 bp Warden dies at 505, run_end 606); the
+        integration merge keeps 900, the larger of the two raised budgets, not re-measured on the integrated tree)
      17. the first "RUN start" says "key=2 clause=none" (no queue yet: today's run);
      18. "SCREEN queue dungeon=hollow-vault key=3 clause=<id>" (the screen's autorun script queues key 3 + Clause 2);
      19. after it, a second "RUN start ... key=3 clause=<that id>" (the key is the run content's KeyLevel and the
@@ -122,7 +136,11 @@
          1700 fell 55 ticks into the Pair and the party wiped with no pull start to refill at; the Choir's pull_start is 76
          on main and on #415, so 2@pull0+1350 leaves at 1426 on both, inside the Choir: with the bot gear this host runs
          (RunFJoinerActsTests) it clears at 1969 and the seat refills at 2082 on main and on #415; gear-free it clears at
-         1969 on main and 1549 on #415, refill 2082 and 1662). The old 1@1000 cannot work on the
+         1969 on main and 1549 on #415, refill 2082 and 1662). #362 had separately moved 2@1700 -> 2@1500
+         (D-PINNED-FIXTURES-362: with the healer press the undisturbed Choir clears at 1580 and pull 2 starts at 1693, so
+         1700 fell in pull 2); the merge-forward onto #415 keeps the pull-relative form, which serves that same intent
+         (the leave stays inside the Choir), and RunFJoinerActsTests pins the leave inside pull 0 on the merged tree.
+         The old 1@1000 cannot work on the
          route: the next pull spawns only when a party member walks into its room, and an abandoned human leader stands
          idle, so his bots never travel; 3@1000 to 3@3000 leave the Choir uncleared without the Cinder's damage.
     Run G (lane 3J, key mismatch): as F with --joiner-key 3
@@ -251,12 +269,12 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$Ticks = 600,
-    [int]$PingTicks = 600,
+    [int]$Ticks = 900,
+    [int]$PingTicks = 900,
     [int]$PartyTicks = 7000,
     [string]$CarelessSeat = '3@300:pair',
     [int]$BossTicks = 600,
-    [int]$QueueTicks = 600,
+    [int]$QueueTicks = 900,
     [int]$BackfillTicks = 3500,
     [string]$AbandonSeat = '2@pull0+1350',
     [int]$ScreenFirstFrames = 240,
@@ -588,8 +606,48 @@ $b = Invoke-Arena $PingTicks @('--pull', '2', '--solo')
 if ($b.Code -ne 0) { $failures.Add("run B: godot exited $($b.Code) (expected 0)") }
 $objB = First $b.Lines '^HUD objective pull=2/4 id=pair name="The Pair"'
 if (-not $objB) { $failures.Add('run B: no "HUD objective pull=2/4 id=pair name=""The Pair""" line') }
+# Check 8, R-PILE-10 (header): a call is made only while the Warden lives, and his death drops the mechanic.
 $ping = First $b.Lines '^HUD ping label=(SPREAD|STACK) '
-if ($ping) { $failures.Add("run B: a SPREAD/STACK call for a mark cast that never starts (the solo Warden is dead, no target): '$ping'") }
+$deathB = $null
+$deathTickB = -1
+$iDeathB = -1
+$tickB = -1
+$pingsB = @()
+for ($i = 0; $i -lt $b.Lines.Count; $i++) {
+    $l = $b.Lines[$i]
+    if ($l -match '^TICK (\d+) ') { $tickB = [int]$Matches[1] }
+    elseif ($l -match '^HUD ping label=(SPREAD|STACK) ') { $pingsB += , @($tickB, $i, $l) }
+    elseif (-not $deathB -and $l -match '^EVENT \{"actorId":1,.*"type":"death"' -and $l -match '"tick":(\d+)') {
+        $deathB = $l; $deathTickB = [int]$Matches[1]; $iDeathB = $i
+    }
+}
+$check8B = $null
+if (-not $deathB) {
+    $failures.Add('run B: no EVENT death line for actor 1 (the solo Warden never died; check 8 reads his death tick from it)')
+} else {
+    if ($pingsB.Count -eq 0) { $failures.Add("run B: no 'HUD ping label=SPREAD|STACK' line before the Warden's death at $deathTickB (vacuous: the run never reached the Pair's mark while he lived)") }
+    foreach ($p in $pingsB) {
+        if ($p[0] -ge $deathTickB) { $failures.Add("run B: a SPREAD/STACK call in the step of tick $($p[0]), not before the Warden's death at ${deathTickB}: '$($p[2])'") }
+    }
+    $drawnB = 0; $hitB = 0; $cancelPriorB = 0; $cancelAtB = 0
+    foreach ($l in $b.Lines) {
+        if ($l -notmatch '^EVENT \{.*"tick":(\d+),') { continue }
+        $t = [int]$Matches[1]
+        if ($l -match '"type":"telegraph"' -and $t -le $deathTickB) { $drawnB++ }
+        elseif ($l -match '"type":"telegraph_hit"' -and $t -le $deathTickB) { $hitB++ }
+        elseif ($l -match '"type":"telegraph_cancel"') { if ($t -lt $deathTickB) { $cancelPriorB++ } elseif ($t -eq $deathTickB) { $cancelAtB++ } }
+    }
+    $liveB = $drawnB - $hitB - $cancelPriorB
+    $check8B = "check 8 (R-PILE-10): death tick=$deathTickB pings=$($pingsB.Count) telegraphs drawn=$drawnB hit=$hitB cancelled before=$cancelPriorB live=$liveB cancelled at death=$cancelAtB"
+    if ($liveB -lt 1) { $failures.Add("run B: no telegraph live on the Warden's death tick $deathTickB (drawn=$drawnB hit=$hitB cancelled before=$cancelPriorB): nothing for check 8 to cancel") }
+    elseif ($cancelAtB -ne $liveB) { $failures.Add("run B: $cancelAtB telegraph_cancel EVENT(s) on the Warden's death tick $deathTickB, but $liveB telegraph(s) were live (TELEGRAPH-CANCEL-ON-DEATH)") }
+    for ($i = 0; $i -lt $b.Lines.Count; $i++) {
+        $l = $b.Lines[$i]
+        if ($l -match '^CAST start ' -and $l -notmatch ' target=(\d+|none)$') { $failures.Add("run B: a CAST start line names no target: '$l'") }
+        elseif ($i -gt $iDeathB -and $l -match '^CAST start .* target=1$') { $failures.Add("run B: a cast starts on the dead Warden (died at $deathTickB): '$l'") }
+        elseif ($i -gt $iDeathB -and $l -match '^HUD ping ') { $failures.Add("run B: a HUD ping after the Warden's death at ${deathTickB}: '$l'") }
+    }
+}
 # Lane 3C-d: the solo Warden wipes in the Pair; --pull 2 drops pull 1 from the run's dungeon, and the title still
 # numbers the Pair 2 of 4 (ObjectiveModel numbering), never 1 of 3.
 $runEndB = First $b.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 2 of 4 -- key stays at \+2"$'
@@ -672,8 +730,15 @@ $lockC = First $c.Lines '^EVENT \{"actorId":900,"endsTick":\d+,"lockIndex":1,"ti
 if (-not $lockC -or [array]::IndexOf($c.Lines, $lockC) -gt $iRunEnd) {
     $failures.Add("run C: the Lock never opened before run_end (no 'EVENT {""actorId"":900,...,""lockIndex"":1,...,""type"":""lock_open""}' line)")
 }
-$botHit = First $c.Lines '^EVENT \{.*"healthDamage":[1-9]\d*,.*"sourceId":(1\d\d|900),"targetId":[23],.*"type":"damage"'
-if (-not $botHit) { $failures.Add('run C: no enemy damaged a bot seat, so the private-log seat filter is not exercised') }
+# HOLDER-LOCK (STATE.md D30): every engaged enemy stays on its holder, and the autorun Warden (seat 1) engages every
+# pull, so in run C no enemy damages a bot seat any more (measured on dcfb978: all six cause rows are seat 1). The old
+# "an enemy damaged a bot seat" requirement is gone; the run instead must show enemy damage landing on the holder,
+# seat 1. The private-log seat filter above is no longer exercised by run C (no foreign cause exists to filter).
+$enemyDmg = '^EVENT \{.*"healthDamage":[1-9]\d*,.*"sourceId":(1\d\d|90\d),"targetId":(\d+),.*"type":"damage"'
+$holderHits = @($c.Lines | Where-Object { $_ -match $enemyDmg -and $Matches[2] -eq '1' }).Count
+$botHits = @($c.Lines | Where-Object { $_ -match $enemyDmg -and ($Matches[2] -eq '2' -or $Matches[2] -eq '3') }).Count
+Write-Host "HOLDER-LOCK run C: enemy damage on seat 1=$holderHits, on bot seats=$botHits"
+if ($holderHits -eq 0) { $failures.Add('run C: no enemy damaged seat 1, the Warden that engages and holds every pull (HOLDER-LOCK D30)') }
 $botsC = First $c.Lines '^BOTS done commands=\d+ hash=[0-9a-f]{16}$'
 $botsC2 = First $c2.Lines '^BOTS done commands=\d+ hash=[0-9a-f]{16}$'
 if (-not $botsC) { $failures.Add('run C: no "BOTS done commands=N hash=H" line') }
@@ -1167,7 +1232,7 @@ if ($yawTick -ge 0) {
 foreach ($p in @($walkPath, $lRecPath, $l1LogPath, $l2LogPath)) { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p } }
 
 Write-Output '--- asserted HUD lines ---'
-foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping, $runEndB)) {
+foreach ($l in @($summary, $party, $death, $downed, $objective, $slackFirst, $slackLower, $runEnd) + $choices + $causes + @($objB, $ping, $deathB, $check8B, $runEndB)) {
     if ($l) { Write-Output $l }
 }
 Write-Output "--- run-end titles, lane 3C-d (lines=$($titleLines.Count) cleared=$clearedTitles) ---"

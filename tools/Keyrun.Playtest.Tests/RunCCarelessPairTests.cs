@@ -39,7 +39,14 @@ public sealed class RunCCarelessPairTests
         bool PairHitABot,
         RunResult? Result,
         int EndTick,
-        DungeonDef Dungeon);
+        DungeonDef Dungeon)
+    {
+        /// <summary>Attuned Windows a Chanter seat opened on an enemy (window_opened, setupClass chanter, onTarget, an enemy target).</summary>
+        public int ChanterSetupsOnEnemy { get; init; }
+
+        /// <summary>Combos that closed an Attuned Window (combo events with windowId attuned: Anthem or Flashfire).</summary>
+        public int AttunedCombos { get; init; }
+    }
 
     private static readonly Lazy<Drive> Driven = new(DriveRunC);
 
@@ -77,6 +84,9 @@ public sealed class RunCCarelessPairTests
         int? pairEngage = null;
         Vec3? carelessAt = null;
         var pairHitBot = false;
+        var partyIds = party.Select(p => (long)p.Id).ToHashSet();
+        var chanterSetupsOnEnemy = 0;
+        var attunedCombos = 0;
         while (run.State.Tick < MaxTicks && run.RunEnd.ResultTick is null)
         {
             var tick = run.State.Tick;
@@ -100,9 +110,40 @@ public sealed class RunCCarelessPairTests
                 {
                     pairHitBot = true;
                 }
+                else if (e.Type == "window_opened"
+                    && e.Get("windowId") is JsString { Value: "attuned" }
+                    && e.Get("setupClass") is JsString { Value: "chanter" }
+                    && e.Get("targetId") is JsInt target
+                    && !partyIds.Contains(target.Value))
+                {
+                    chanterSetupsOnEnemy++;
+                }
+                else if (e.Type == "combo" && e.Get("windowId") is JsString { Value: "attuned" })
+                {
+                    attunedCombos++;
+                }
             }
         }
-        return new Drive(choirClear, pairEngage, carelessAt, pairHitBot, run.RunEnd.Result, run.State.Tick, setup.Dungeon);
+        return new Drive(choirClear, pairEngage, carelessAt, pairHitBot, run.RunEnd.Result, run.State.Tick, setup.Dungeon)
+        {
+            ChanterSetupsOnEnemy = chanterSetupsOnEnemy,
+            AttunedCombos = attunedCombos,
+        };
+    }
+
+    [Fact(DisplayName = "Run C with the bots' default gear: the Chanter opens Attuned on an enemy and a partner closes it (BIBLE s4 Setup -> Payoff)")]
+    public void Default_bot_gear_keeps_the_chanter_setup_lesson()
+    {
+        // f-bf6264ef: SimDriver.StartRun gives the bot seats their default gear (HostRunSetup.WithBotLoadouts). Run C exists
+        // to show the design's centre (BIBLE s4: a Setup opens a Window, another class's Payoff closes it), so the
+        // Chanter's default loadout must keep Cadence target-shaped: with chanter.weapon.wideningCadence (Cadence a
+        // party-wide circle) the healer never sets up an enemy and no Attuned combo closes in the host's run.
+        var d = Driven.Value;
+        _output.WriteLine($"chanter attuned setups on enemies={d.ChanterSetupsOnEnemy} attuned combos={d.AttunedCombos} " +
+            $"result={d.Result?.ToString() ?? "none"} endTick={d.EndTick}");
+
+        Assert.True(d.ChanterSetupsOnEnemy >= 1, $"the Chanter opened no Attuned Window on an enemy in run C (result {d.Result?.ToString() ?? "none"} at tick {d.EndTick})");
+        Assert.True(d.AttunedCombos >= 1, $"no Attuned combo closed in run C ({d.ChanterSetupsOnEnemy} Chanter setups on enemies)");
     }
 
     [Fact(DisplayName = "Run C careless seat (3@300:pair): the Pair engages only after the Choir clears, on the careless seat, hits a bot seat, and the party clears the run")]

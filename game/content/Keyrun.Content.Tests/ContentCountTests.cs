@@ -15,7 +15,7 @@ public sealed class ContentCountTests
         ContentRegistry reg = ContentLoader.Load();
 
         Assert.Equal(40, reg.Abilities.Count); // 40 since SEED-LOCK-TEACHES added seed.lock (was 39)
-        Assert.Equal(22, reg.Effects.Count);
+        Assert.Equal(23, reg.Effects.Count); // 23 since R-PILE-7e added chorusEcho (Encore's echo; was 22)
         Assert.Equal(3, reg.Classes.Count);
         Assert.Equal(13, reg.Combos.Count);
         Assert.Equal(8, reg.Enemies.Count); // 8 since PATH-PACKS added hall.sentry (was 7; STATE.md D49)

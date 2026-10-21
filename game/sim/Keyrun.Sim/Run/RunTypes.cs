@@ -19,6 +19,12 @@ public sealed record PartyMemberSpec(int Id, string ClassId, ActorRole Role, Vec
 {
     /// <summary>Spawn facing, 1/1024 turn; null = the createActor default 0 (index.ts:85).</summary>
     public int? Yaw { get; init; }
+
+    /// <summary>
+    /// The class's passive armor, bp (design/BIBLE.md section 3.1); CreateRun puts it on the actor. C#-only:
+    /// 0 (no armor) on every oracle run; a host builds it from content run.json <c>classArmorBp</c>.
+    /// </summary>
+    public long ArmorBp { get; init; }
 }
 
 /// <summary>
@@ -101,7 +107,8 @@ public sealed record RunContent
 
     /// <summary>
     /// The frozen TS push-out (<see cref="RulesConfig.TsSymmetricPushOut"/>): true only on an oracle replay; false (the
-    /// default, every host run) keeps STATE.md D54, an enemy never displaces a player.
+    /// default, every host run) keeps STATE.md D54, an enemy never displaces a player. Ignored when <see cref="Layout"/> is
+    /// set (<see cref="RunWiring.RulesConfigOf"/>): a layout run is never an oracle replay.
     /// </summary>
     public bool TsSymmetricPushOut { get; init; }
 

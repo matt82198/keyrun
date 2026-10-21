@@ -248,6 +248,13 @@ public sealed class ActorState
     /// <summary>Threat by actor id (JS integer keys iterate ascending, hence sorted).</summary>
     public SortedDictionary<int, long> Threat { get; set; } = new();
 
+    /// <summary>
+    /// HOLDER-LOCK (STATE.md D30): the player an engaged enemy is locked onto, or null (not engaged, a player, or no
+    /// living player). Set on engage to the nearest living player (Combat/Holder.cs), moved only by a taunt, the
+    /// holder's death (then the nearest living player) or a wipe. Not projected (ORACLE.md section 1).
+    /// </summary>
+    public int? HolderId { get; set; }
+
     /// <summary>Per-actor walk speed (mm/tick) for move commands; null = RulesConfig.baseSpeedMmPerTick.</summary>
     public long? SpeedMmPerTick { get; set; }
 
@@ -268,6 +275,13 @@ public sealed class ActorState
 
     /// <summary>The wearer's summed gear damageTakenBp (negative reduces damage taken). C#-only: 0 on every oracle run.</summary>
     public long GearDamageTakenBp { get; set; }
+
+    /// <summary>
+    /// The class's passive armor, bp of every incoming hit removed after all bp modifiers (design/BIBLE.md
+    /// section 3.1; Combat.Damage.ApplyArmor). Multiplicative, so it never stacks to immunity with Brace, Vigil or
+    /// Bulwark. C#-only: 0 on every oracle run.
+    /// </summary>
+    public long ArmorBp { get; set; }
 
     /// <summary>A deep copy (effects, cooldowns and threat are copied, not shared).</summary>
     public ActorState Clone()

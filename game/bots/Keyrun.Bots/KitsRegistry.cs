@@ -20,6 +20,7 @@ public sealed class KitRegistry
     private readonly KitRegistry? _root;
     private readonly IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>? _runAbilities;
     private readonly Dictionary<string, IReadOnlyList<string>> _runOffGcd = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyDictionary<string, AbilityCharges>> _runCharged = new(StringComparer.Ordinal);
     private IReadOnlyList<string>? _priorityInterruptIds;
     private KitRegistry? _lastRun;
 
@@ -166,8 +167,34 @@ public sealed class KitRegistry
             return EffectiveKit.FromFallback(fallback);
         }
         var effective = EffectiveKit.FromClassKit(kit);
-        return _runAbilities is null ? effective : effective with { OffGcdAbilityIds = RunOffGcdIds(classId, kit) };
+        if (_runAbilities is null)
+        {
+            return effective;
+        }
+        effective = effective with { OffGcdAbilityIds = RunOffGcdIds(classId, kit), ChargedAbilities = RunChargedIds(classId, kit) };
+        return IsAllyShield(kit.SelfSustainAbilityId)
+            ? effective with { SelfSustainAbilityId = null, AllyShieldAbilityId = kit.SelfSustainAbilityId }
+            : effective;
     }
+
+    /// <summary>The ability tag a talent puts on a self shield it turns into an ally shield (Warden's Vigil "ally").</summary>
+    public const string AllyShieldTag = "ally-shield";
+
+    /// <summary>
+    /// The run's own def of <paramref name="abilityId"/> (<see cref="ForRun"/>), or null with no run map or no such id.
+    /// </summary>
+    /// <param name="abilityId">Ability id.</param>
+    /// <returns>The run's def, or null.</returns>
+    public Keyrun.Sim.Combat.AbilityDef? RunAbility(string abilityId) =>
+        _runAbilities is not null && _runAbilities.TryGetValue(abilityId, out var def) ? def : null;
+
+    // ALLY-VIGIL: the run's def of the self-sustain spender is target-shaped and tagged ally-shield.
+    private bool IsAllyShield(string? abilityId) =>
+        abilityId is not null
+        && RunAbility(abilityId) is { } def
+        && def.Shape.Kind == Keyrun.Sim.Combat.ShapeKind.Target
+        && def.Tags is { } tags
+        && tags.Contains(AllyShieldTag, StringComparer.Ordinal);
 
     // The kit's slotted off-GCD ids judged by the run's defs (ForRun); memoised per class.
     private IReadOnlyList<string> RunOffGcdIds(string classId, ClassKit kit)
@@ -184,6 +211,27 @@ public sealed class KitRegistry
                 run.TryGetValue(id, out var def) ? def.GcdTicks <= 0 : kit.OffGcdAbilityIds.Contains(id, StringComparer.Ordinal));
             _runOffGcd[classId] = ids;
             return ids;
+        }
+    }
+
+    // BANKED-CHARGE (R-PILE-7c): the kit's slotted multi-charge abilities judged by the run's defs (ForRun), so a
+    // talent or Facet that adds a charge (Chorus "Encore", "Chorus grants an extra charge") is a second press for the
+    // bot as it is for the sim; an id the run map lacks keeps content's answer. Memoised per class.
+    private IReadOnlyDictionary<string, AbilityCharges> RunChargedIds(string classId, ClassKit kit)
+    {
+        lock (_gate)
+        {
+            if (_runCharged.TryGetValue(classId, out var cached))
+            {
+                return cached;
+            }
+            var run = _runAbilities!;
+            var slots = _registry!.Classes[classId].Abilities;
+            var map = Kits.ChargedIds(slots, id =>
+                run.TryGetValue(id, out var def) ? new AbilityCharges(def.Charges, def.CooldownTicks)
+                : kit.ChargedAbilities.TryGetValue(id, out var c) ? c : new AbilityCharges(1, 0));
+            _runCharged[classId] = map;
+            return map;
         }
     }
 }
