@@ -112,6 +112,25 @@ public sealed class HealerKeepsPressingTests
         Assert.Equal(new Command[] { new CastCommand(10, Chanter, "chanter.refrain") }, cmds);
     }
 
+    /// <summary>
+    /// R-BOTS-17 (the WoW Mythic+ answer: a healer's damage is filler and never displaces the setup that lets the pull
+    /// end): in Mend the Payoff takes the fight's FIRST idle GCD only. Mid-fight here: Dissonance took the first idle GCD
+    /// at tick 10 (ready again at 70, cooldownTicks 60) and a heal at 40 holds the GCD to 70, so on the next idle GCD at
+    /// tick 70 the Chanter Refrains into Ward even though Dissonance is ready again. 633a80cc's order pressed Dissonance
+    /// here and starved the Ward (the headless key 2 seed 1 kick-plan run wiped on the Choir).
+    /// </summary>
+    [Fact(DisplayName = "Healer keeps pressing > in Mend, after the Payoff on the first idle GCD, the second idle GCD presses the Refrain into Ward (R-BOTS-17)")]
+    public void SecondIdleGcdInMendRefrainsIntoWard()
+    {
+        const int SecondIdleGcd = 70;
+        var healer = Actor(id: Chanter, classId: "chanter", role: ActorRole.Healer, health: 250, maxHealth: 250, resource: 1, maxResource: 1,
+            targetId: Enemy, gcdReadyTick: SecondIdleGcd, cooldowns: new[] { ("chanter.dissonance", SecondIdleGcd) });
+        var foe = Foe();
+        foe.TargetId = Tank;
+        var cmds = HealerRole.HealerDecide(ViewOf(SecondIdleGcd, RealKits, null, HealthyTank(Enemy), healer, foe), healer);
+        Assert.Equal(new Command[] { new CastCommand(SecondIdleGcd, Chanter, "chanter.refrain") }, cmds);
+    }
+
     private sealed record PullTally(int PullStart, int PullClear, int FirstEligible, int FirstPress, int Presses, int HealButtonPresses);
 
     [Fact(DisplayName = "Healer keeps pressing > Choir pull, real bots: with every ally above 70% the Chanter presses a non-heal button within one GCD")]

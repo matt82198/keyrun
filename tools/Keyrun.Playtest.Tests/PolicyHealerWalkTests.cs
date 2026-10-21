@@ -52,13 +52,35 @@ namespace Keyrun.Playtest.Tests;
 /// R-326-B walk. The pin is the walk's first tick and the window is its length, <see cref="WalkLastTick"/> -
 /// <see cref="Tick"/> + 1 = 6.
 /// </para>
+/// <para>
+/// R-BOTS-18 re-pin (one re-derivation with the R-BOTS-17 oracle re-record on #449: in Mend the Chanter presses the
+/// Payoff on the fight's first idle GCD only, then the Refrain into Ward; a measurement, the assertions are unchanged):
+/// was 545, where the tank now stands at 315/400 (the guard read "the tank is not under 70% at 545: 315/400"; the
+/// walker read <c>Expected: 1 Actual: null</c>). Measured by playing seed 1 key 2 (kick plan with the Warden mitigating,
+/// this test's plan; on #449 merged with main 0f6a8989 the run ends Timed at 8764 with 0 deaths, and the table is the
+/// same before that merge) to each tick and asking the Chanter's role (HealerRole.HealerDecide):
+/// <code>
+///   t=330-341 tank 252/400  healer (14771,-998)  decides nothing (no walk)
+///   t=342 tank 252/400  healer (14771,-998)  decides Move (946,325)   walk starts: tank under 70%, heal pick walks
+///   t=343-346 tank 252/400  healer (14771,-998)  decides Move (946,325)   (the policy seat's first step lands at 346)
+///   t=347 tank 252/400  healer (14941,-940)  decides Move (946,325)
+///   t=348 tank 252/400  healer (15111,-882)  decides Move (946,325)
+///   t=349 tank 252/400  healer (15281,-824)  decides Move (946,325)
+///   t=350 tank 207/400  healer (15451,-766)  decides Move (946,325)
+///   t=351 tank 207/400  healer (15621,-708)  decides Move (946,325)   last step
+///   t=352 tank 207/400  healer (15791,-650)  decides Cast chanter.hymn   in Hymn's pool: the walk is over
+/// </code>
+/// The scene holds on exactly ticks 342-351, so the pin is the walk's first tick and the window is its length,
+/// 351 - 342 + 1 = 10 (the healer itself takes the same six one-tick steps, 346-351, about 1.0 m). The run's other
+/// walk (boss pull, 8307-8312) is the later one.
+/// </para>
 /// </summary>
 public sealed class PolicyHealerWalkTests
 {
     private const string KickPlan = "{\"mitigate\": [\"warden\"], \"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"cinder\", \"chanter\", \"warden\"]}]}";
     private const int Chanter = 2;
-    private const int Tick = 545; // R-BOTS-11: the measured walk's first tick (was 9452, past the run's end 9313)
-    private const int WalkLastTick = 550; // R-BOTS-11: the measured walk's last step (the trace above); 551 casts Hymn
+    private const int Tick = 342; // R-BOTS-18: the measured walk's first tick (was 545, R-BOTS-11; 9452 before that)
+    private const int WalkLastTick = 351; // R-BOTS-18: the measured walk's last step (the trace above); 352 casts Hymn (was 550)
     private const int Window = WalkLastTick - Tick + 1;
 
     [Fact(DisplayName = "R-PILE-8 guard: the pinned scene exists at its tick (the tank under 70% is the triage target and the heal pick walks)")]

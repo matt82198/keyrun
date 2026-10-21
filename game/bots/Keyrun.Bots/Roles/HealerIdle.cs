@@ -14,8 +14,9 @@ namespace Keyrun.Bots.Roles;
 /// never cast. In order: close another class's open Window with a damaging Payoff (the Combo); the damaging Payoff on
 /// an engaged enemy (HEALER-KEEPS-PRESSING: with nobody to heal the first GCD goes to a non-heal button, R-BOTS-14);
 /// else, in Mend, Refrain into Ward (its Ward burst shields on the swap, and the healer pre-mitigates until someone
-/// drops, when <see cref="HealerRole"/> Refrains back to Mend). Out of combat (no living enemy aimed at a player) the
-/// healer does nothing, so it never pulls.
+/// drops, when <see cref="HealerRole"/> Refrains back to Mend). R-BOTS-17: in Mend the Payoff takes the fight's first
+/// idle GCD only; after that the Refrain into Ward comes before any further press. Out of combat (no living enemy aimed
+/// at a player) the healer does nothing, so it never pulls.
 /// </summary>
 public static class HealerIdle
 {
@@ -35,6 +36,28 @@ public static class HealerIdle
 
     private static bool Damages(AbilityDef def) =>
         def.Effects.Any(op => op is DamageOp) || (def.Variants?.Values.Any(ops => ops.Any(op => op is DamageOp)) ?? false);
+
+    /// <summary>
+    /// R-BOTS-17: true when this idle GCD is NOT the fight's first, so the Payoff has already had its turn and the
+    /// Refrain into Ward comes first. A fight's first idle GCD follows a lull: the healer's GCD has been free for more
+    /// than a whole GCD (out of combat it presses nothing), or a damaging Payoff (it has a cooldown, so
+    /// Combat/Cooldowns.cs ConsumeCharge leaves an entry) has never been pressed at all. Mid-fight the healer presses
+    /// every GCD, so its GCD came off within the last one.
+    /// </summary>
+    /// <param name="self">The healer.</param>
+    /// <param name="reg">Content registry.</param>
+    /// <param name="damagingPayoffs">The kit's damaging Payoff ids.</param>
+    /// <param name="tick">Current tick.</param>
+    /// <returns>Whether the Payoff's first idle GCD is already spent in this fight.</returns>
+    private static bool PayoffHadFirstIdleGcd(ActorState self, ContentRegistry reg, IReadOnlyList<string> damagingPayoffs, int tick)
+    {
+        if (damagingPayoffs.Count == 0 || !damagingPayoffs.Any(id => self.Cooldowns.ContainsKey(id)))
+        {
+            return false;
+        }
+        var gcd = damagingPayoffs.Max(id => reg.Abilities[id].GcdTicks);
+        return tick - self.GcdReadyTick <= gcd;
+    }
 
     /// <summary>healer-idle.ts idleCommands.</summary>
     /// <param name="view">Bot view.</param>
@@ -83,12 +106,19 @@ public static class HealerIdle
         {
             return payoff;
         }
+        // R-BOTS-17: in Mend the damaging Payoff takes the fight's FIRST idle GCD only; after that the Refrain into Ward
+        // comes before the press again (the pre-R-BOTS-14 priority resumes).
+        var refrainIntoWard = StanceSwapReady(self, kit, tick) && self.Resource == mendVerseValue;
+        if (refrainIntoWard && PayoffHadFirstIdleGcd(self, reg, damagingPayoffs, tick))
+        {
+            return new Command[] { new CastCommand(tick, self.Id, kit.StanceSwapAbilityId!) };
+        }
         var target = engaged.FirstOrDefault(e => e.Id == self.TargetId) ?? engaged[0];
         if (CastOn(target) is { } press)
         {
             return press;
         }
-        if (StanceSwapReady(self, kit, tick) && self.Resource == mendVerseValue)
+        if (refrainIntoWard)
         {
             return new Command[] { new CastCommand(tick, self.Id, kit.StanceSwapAbilityId!) };
         }

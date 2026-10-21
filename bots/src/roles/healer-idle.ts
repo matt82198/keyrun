@@ -8,7 +8,8 @@
  * the damaging Payoff on an engaged enemy (HEALER-KEEPS-PRESSING: with nobody to heal the first GCD
  * goes to a non-heal button, R-BOTS-14); else, in Mend, Refrain into Ward (its Ward burst shields on
  * the swap, and the healer pre-mitigates until someone drops, when healer.ts Refrains back to Mend).
- * Out of combat (no living enemy aimed at a player) the healer does nothing, so it never
+ * R-BOTS-17: in Mend the Payoff takes the fight's first idle GCD only; after that the Refrain into
+ * Ward comes before any further press. Out of combat (no living enemy aimed at a player) the healer does nothing, so it never
  * pulls. Mirrors game/bots/Keyrun.Bots/Roles/HealerIdle.cs.
  *
  * Usage: `if (healTarget === undefined) return idleCommands(view, self, kit, MEND_VERSE_VALUE);`
@@ -63,11 +64,31 @@ export function idleCommands(view: BotView, self: ActorState, kit: EffectiveKit,
     const payoff = castOn(windowTarget);
     if (payoff) return payoff;
   }
+  // R-BOTS-17: in Mend the damaging Payoff takes the fight's FIRST idle GCD only; after that the Refrain into Ward
+  // comes before the press again (the pre-R-BOTS-14 priority resumes).
+  const refrainIntoWard = stanceSwapReady(self, kit, tick) && self.resource === mendVerseValue;
+  if (refrainIntoWard && payoffHadFirstIdleGcd(self, damagingPayoffs, tick)) {
+    return [{ tick, actorId: self.id, kind: "cast", abilityId: kit.stanceSwapAbilityId! }];
+  }
   const target = engaged.find((e) => e.id === self.targetId) ?? engaged[0]!;
   const press = castOn(target);
   if (press) return press;
-  if (stanceSwapReady(self, kit, tick) && self.resource === mendVerseValue) {
+  if (refrainIntoWard) {
     return [{ tick, actorId: self.id, kind: "cast", abilityId: kit.stanceSwapAbilityId! }];
   }
   return [];
+}
+
+/**
+ * R-BOTS-17: true when this idle GCD is NOT the fight's first, so the Payoff has already had its turn and the
+ * Refrain into Ward comes first. A fight's first idle GCD follows a lull: the healer's GCD has been free for more
+ * than a whole GCD (out of combat it presses nothing), or a damaging Payoff (it has a cooldown, so
+ * sim/combat/cooldowns.ts consumeCharge leaves an entry) has never been pressed at all. Mid-fight the healer presses
+ * every GCD, so its GCD came off within the last one. Mirrors HealerIdle.cs PayoffHadFirstIdleGcd.
+ */
+function payoffHadFirstIdleGcd(self: ActorState, damagingPayoffs: string[], tick: Tick): boolean {
+  if (damagingPayoffs.length === 0 || !damagingPayoffs.some((id) => self.cooldowns[id] !== undefined)) return false;
+  const reg = getContentRegistry()!;
+  const gcd = Math.max(...damagingPayoffs.map((id) => reg.abilities.get(id)!.gcdTicks));
+  return tick - self.gcdReadyTick <= gcd;
 }

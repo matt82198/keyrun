@@ -26,7 +26,11 @@ public sealed class MitigateThroughLedgerKickTests
     // this run now ends Timed at 9313 (boss pull 8690-9312). Before main acac1b42 was merged it measured 9025 (first
     // cleave 9014-9054, Timed at 9588). Was 5486 before 4133 (D-PINNED-FIXTURES-362: with the healer press and Mending
     // 6000 the run ended Timed at 4519, boss pull 3966-4518).
-    private const int Tick = 8857;
+    // R-BOTS-18 re-derivation (one re-derivation with the R-BOTS-17 oracle re-record on #449, measured on #449 merged
+    // with main 0f6a8989; a measurement, the assertions are unchanged): was 8857, past this run's end. The kick-plan run
+    // (Warden mitigating) now ends Timed at 8764 with 0 deaths, boss pull 8162-8763, first boss cleave 8318-8358, so 11
+    // ticks in is 8329. (Before the main merge the same run ended Timed at 8633 with its first cleave at 8145-8185.)
+    private const int Tick = 8329;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 

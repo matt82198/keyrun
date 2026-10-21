@@ -19,16 +19,16 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 291265,
-      "fnv": "3c32f383"
+      "bytes": 270867,
+      "fnv": "6d6717c0"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 234793,
-      "fnv": "9da452ae"
+      "bytes": 287443,
+      "fnv": "b1fc3851"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 234790,
-      "fnv": "ffe37baf"
+      "bytes": 287440,
+      "fnv": "2b54bb60"
     },
     "content-pull.setup.json": {
       "bytes": 23098,
@@ -110,22 +110,28 @@
         "fnv": "528e0497"
       },
       "bots/src/roles/damage.ts": {
-        "fnv": "fbb3e415"
+        "fnv": "2baf890d"
+      },
+      "bots/src/roles/fillers.ts": {
+        "fnv": "133acbe3"
       },
       "bots/src/roles/heal-pick.ts": {
         "fnv": "6dbe5d17"
+      },
+      "bots/src/roles/healer-idle.ts": {
+        "fnv": "07089690"
       },
       "bots/src/roles/healer-setup.ts": {
         "fnv": "90408d7b"
       },
       "bots/src/roles/healer.ts": {
-        "fnv": "146c28d0"
+        "fnv": "718926e4"
       },
       "bots/src/roles/shared.ts": {
         "fnv": "50c46342"
       },
       "bots/src/roles/tank-engage.ts": {
-        "fnv": "309b9b89"
+        "fnv": "73320f37"
       },
       "bots/src/roles/tank-pressure.ts": {
         "fnv": "11a09dd6"
@@ -368,7 +374,7 @@
         "fnv": "43aaf28e"
       },
       "sim/combat/combos.ts": {
-        "fnv": "b0284c57"
+        "fnv": "a77cca66"
       },
       "sim/combat/cooldowns.ts": {
         "fnv": "828c0fc8"
@@ -537,31 +543,31 @@
       "traceHash": "014e427d"
     },
     {
-      "finalTick": 1565,
+      "finalTick": 1709,
       "name": "bots-hv-k2-s7",
-      "records": 1566,
+      "records": 1710,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "0b577722"
+      "traceHash": "65b83a06"
     },
     {
-      "finalTick": 1565,
+      "finalTick": 1709,
       "name": "bots-hv-k2-s11",
-      "records": 1566,
+      "records": 1710,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "0b577722"
+      "traceHash": "65b83a06"
     },
     {
-      "finalTick": 2045,
+      "finalTick": 1855,
       "name": "bots-hv-k10-s7",
-      "records": 2046,
+      "records": 1856,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "45af272e"
+      "traceHash": "34681a6e"
     }
   ],
   "version": 1
