@@ -253,30 +253,6 @@ WHY: the orchestrator hit its context ceiling mid-pile. Intent is unchanged (Mat
 - Refinement monitor heartbeat 697 s at checkpoint time; relaunch when > 1500 s with the churn rule "20+ commits on no remote ref".
 - Held for Matt: prune 16 stale local keyrun refs; conductor3 OUTCOMES-LEDGER restore; worktree cleanups (pr293 pr356 pr324 pr384 are merged and can go; scratch-main-f has an untracked TmpK1BisectTests.cs); .claude-wt-gamelaunch-ro and .claude-wt-scrollback are merged.
 
-## 2026-10-21T04:15Z checkpoint (healer-downtime and cadence-unmeasured rulings; pile status)
-
-# Orchestrator decisions 2026-10-21 ~04:10Z (for the next STATE.md checkpoint)
-
-## D-HEALER-DOWNTIME (dungeon loop -> WoW rule)
-Evidence: #362 fix lane afaf604623448b480 measured that with Warden armor 3500 bp the Chanter bot's Cadence casts fall 6 -> 1 and hymn-field combos 5 -> 1 on the Choir, because Healer.cs:122-127 (port of healer.ts) acts in combat only when an ally is under 70%. Run C (RunCCarelessPairTests.cs:117) then runs out of ticks. Armor sweep: any armor >= 1500 bp breaks run C, so lowering armor would be fitted green.
-Ruling (WoW Mythic+: a healer with nobody to heal keeps contributing, it never idles): in combat with no ally under the heal threshold, the healer bot presses its non-heal buttons (setups/damage) on the party's target. Cadence and Hymn stay heals. Change both game/bots/Keyrun.Bots/Roles/Healer.cs and bots/src/roles/healer.ts (parity), regenerate the oracle with its writer. Bible test served: "Depth and difficulty" (five buttons with real decisions) and s4 synergy as a timing game.
-Also ruled: HudSceneTest.ps1 solo wipe runs A, B, E get 900 ticks instead of 600 because a Warden with 3500 bp armor dies at tick 505 (run_end 606) by measurement; this is a harness budget for an intended change, not an assertion weakened to hide a defect. No other threshold moves.
-
-## D-CADENCE-UNMEASURED (#370)
-Evidence: lane ac2bceed7702f606f showed chanter.cadence IS cast on both trees on the same ticks (t305/t308/t263); its options change heal counts (81/83/101/80) but never reach clear tick, deaths or Combos, on main too, because the bot only casts Cadence as a heal (HealPick.cs:69) so the Attuned window lands on an ally while the Anthem/Flashfire payoffs (combos.json:31,:37) hit enemies. On main cadence counted as measured only through knock-on noise. Dominance, identical-siblings and identical-runs checks pass on the merged tree.
-Ruling: add chanter.cadence to UnmeasuredForks on #370 with the TRUE reason ("cast only as a heal; Attuned never closes into a Combo in bot play"), and open a finding for the real gap: Cadence's setup role (BIBLE s4/s5) is dead in bot play on main. That gap is a bot/content feature, dispatched after the pile.
-
-- WHY this checkpoint: both red pile PRs (#362, #370) trace to one bot gap, the Chanter casts its setups only as heals; the rulings keep bible s4 (synergy as a timing game) and the "five buttons" test, and avoid fitted green (no armor lowered, no false unmeasured reason).
-- origin/main 9134fad4 (#384 <- #324 <- #356 <- #293 <- #409 <- #330 <- #396).
-- #319 bots default gear: OPEN head a71d9bc3, MERGEABLE, armed SQUASH, game-e2e running at 04:00Z.
-- #410 checkpoint: OPEN head a29f849b before this commit, armed, game-e2e running.
-- #362 Warden armor: OPEN head ad429611, CI red (run C not Timed); fix lane relaunched under D-HEALER-DOWNTIME; local merge 06e30fe2 in keyrun-wt/pr362.
-- #370 gcdTicks 0: OPEN head d5fc921b CONFLICTING on origin; local merge e2d4b8b9 in keyrun-wt/pr370; lane relaunched under D-CADENCE-UNMEASURED.
-- Queue after those (scratchpad/merge-forward-brief.md order): #364 after #362 MERGED, #307 after #370 MERGED, #302 after #307, #375 last (retarget base to main, three-way). Parked: #326 #327 #295 #344; #336 DO NOT MERGE.
-- Merge queue: Matt approved 2026-10-21 ~02:15Z, enable only after this pile lands; no repo setting touched.
-- New findings: f-b31e8f34 (Cadence setup role dead in bot play), f-4071914e (no-lane-game-launch $ false positives), f-8ecea323 (no-polling test writes into live state). Closed: f-ec0adc27 via claude-config #218.
-- Lanes live at 04:15Z: #362 fix v2, #370 land, hook_removal_check P0 (f-db072e8a, f-92748791), claude-config #214 trailer, no-lane-game-launch $ text, conductor3 churn pruned-upstream, aesop sqlite busy.
-
 ## Checkpoint 2026-10-21 03:30Z (orchestrator correction; 22:30 CDT 2026-10-20)
 WHY: the 03:00Z block above holds a claim that gh did not support ("#330 armed"). This block corrects it on disk so the next session does not act on the false arm. Facts are gh-bound at ~03:30Z unless marked.
 - CORRECTION: the 03:00Z block said "#330 armed". That was false. #330 was stacked on fix/seed-teaches-core-rule; its parent #328 is MERGED (5dfaa758). #330 was retargeted to main and showed CONFLICTING. A lane merged origin/main 9f69672e into it (local merge 95e68376, not pushed), and fastcheck FAILED with 3 SEEDBLOOM-NO-STAKES tests red in Keyrun.Sim.Tests. An Opus fix lane is diagnosing against main's #328 content. #330 remains OPEN at a4b9c645, NOT armed. WHY the correction matters: the 03:00Z arm was never confirmed by gh (autoMergeRequest was null), and a PR stacked on a non-main parent is not independent of the funnel.
@@ -1150,3 +1126,33 @@ WHY: the dungeon-loop ruling (D62), the #325 oracle re-record, the #396 lane's l
 - Brain (claude-config): #215 MERGED 02:41Z (no-lane-game-launch awk/sed false positives); #216 MERGED 02:42Z (fastcheck -File shape). Live ~/.claude was 16 ahead and 27 behind origin/master with a dirty tree; the orchestrator restored 11 deleted plans/*.md from HEAD, staged the memory indexes and the settings model line; a lane is merging origin/master so the fixed hooks actually run. Secret-scan gate root cause: ENAMETOOLONG from 375 argv paths on Windows; fix PR pending Hook-Proof naming. WHY: the gate cannot take a wide staged set until fixed, so pushes rest on the staged scan result recorded in the commit, not on the hook.
 - Hook ruling tonight: lanes denied by no-lane-game-launch on a plain dollar-sign variable may continue with literal paths and no dollar sign in Bash text (the gate's purpose is launches; the false-positive class is fixed in #215 and will be re-tested after the brain sync). Never retry a denied command reworded. WHY: a denial is evidence; rewording to slip past it is a workaround, while literal paths keep the gate's purpose intact.
 - NEXT: #396 fastcheck green -> orchestrator scene run -> K1 regen -> push -> MERGED -> frames viewed (D15) -> close folded (#308 #333 #369 #335 #244 #388 #325 #344) -> merge-forward the conflicting ten -> re-evaluate parked #326 #327 #295 -> enable merge queue (Matt's yes, after the pile). WHY: this is the order the dependency chain allows; each step needs the prior step's evidence.
+
+## 2026-10-21T04:15Z checkpoint (healer-downtime and cadence-unmeasured rulings; pile status)
+
+# Orchestrator decisions 2026-10-21 ~04:10Z (for the next STATE.md checkpoint)
+
+## D-HEALER-DOWNTIME (dungeon loop -> WoW rule)
+Evidence: #362 fix lane afaf604623448b480 measured that with Warden armor 3500 bp the Chanter bot's Cadence casts fall 6 -> 1 and hymn-field combos 5 -> 1 on the Choir, because Healer.cs:122-127 (port of healer.ts) acts in combat only when an ally is under 70%. Run C (RunCCarelessPairTests.cs:117) then runs out of ticks. Armor sweep: any armor >= 1500 bp breaks run C, so lowering armor would be fitted green.
+Ruling (WoW Mythic+: a healer with nobody to heal keeps contributing, it never idles): in combat with no ally under the heal threshold, the healer bot presses its non-heal buttons (setups/damage) on the party's target. Cadence and Hymn stay heals. Change both game/bots/Keyrun.Bots/Roles/Healer.cs and bots/src/roles/healer.ts (parity), regenerate the oracle with its writer. Bible test served: "Depth and difficulty" (five buttons with real decisions) and s4 synergy as a timing game.
+Also ruled: HudSceneTest.ps1 solo wipe runs A, B, E get 900 ticks instead of 600 because a Warden with 3500 bp armor dies at tick 505 (run_end 606) by measurement; this is a harness budget for an intended change, not an assertion weakened to hide a defect. No other threshold moves.
+
+## D-CADENCE-UNMEASURED (#370)
+Evidence: lane ac2bceed7702f606f showed chanter.cadence IS cast on both trees on the same ticks (t305/t308/t263); its options change heal counts (81/83/101/80) but never reach clear tick, deaths or Combos, on main too, because the bot only casts Cadence as a heal (HealPick.cs:69) so the Attuned window lands on an ally while the Anthem/Flashfire payoffs (combos.json:31,:37) hit enemies. On main cadence counted as measured only through knock-on noise. Dominance, identical-siblings and identical-runs checks pass on the merged tree.
+Ruling: add chanter.cadence to UnmeasuredForks on #370 with the TRUE reason ("cast only as a heal; Attuned never closes into a Combo in bot play"), and open a finding for the real gap: Cadence's setup role (BIBLE s4/s5) is dead in bot play on main. That gap is a bot/content feature, dispatched after the pile.
+
+- WHY this checkpoint: both red pile PRs (#362, #370) trace to one bot gap, the Chanter casts its setups only as heals; the rulings keep bible s4 (synergy as a timing game) and the "five buttons" test, and avoid fitted green (no armor lowered, no false unmeasured reason).
+- origin/main 9134fad4 (#384 <- #324 <- #356 <- #293 <- #409 <- #330 <- #396).
+- #319 bots default gear: OPEN head a71d9bc3, MERGEABLE, armed SQUASH, game-e2e running at 04:00Z.
+- #410 checkpoint: OPEN head a29f849b before this commit, armed, game-e2e running.
+- #362 Warden armor: OPEN head ad429611, CI red (run C not Timed); fix lane relaunched under D-HEALER-DOWNTIME; local merge 06e30fe2 in keyrun-wt/pr362.
+- #370 gcdTicks 0: OPEN head d5fc921b CONFLICTING on origin; local merge e2d4b8b9 in keyrun-wt/pr370; lane relaunched under D-CADENCE-UNMEASURED.
+- Queue after those (scratchpad/merge-forward-brief.md order): #364 after #362 MERGED, #307 after #370 MERGED, #302 after #307, #375 last (retarget base to main, three-way). Parked: #326 #327 #295 #344; #336 DO NOT MERGE.
+- Merge queue: Matt approved 2026-10-21 ~02:15Z, enable only after this pile lands; no repo setting touched.
+- New findings: f-b31e8f34 (Cadence setup role dead in bot play), f-4071914e (no-lane-game-launch $ false positives), f-8ecea323 (no-polling test writes into live state). Closed: f-ec0adc27 via claude-config #218.
+- Lanes live at 04:15Z: #362 fix v2, #370 land, hook_removal_check P0 (f-db072e8a, f-92748791), claude-config #214 trailer, no-lane-game-launch $ text, conductor3 churn pruned-upstream, aesop sqlite busy.
+
+### 04:30Z addendum
+- #410 MERGED at 397e0f83 (head a29f849b), and #319 MERGED at 2cb255aa; origin/main is now 2cb255aa. WHY: the main pile moved underneath this checkpoint, so the "#410 OPEN, armed" and "#319 OPEN, armed" lines above are superseded and must not be acted on.
+- #370 has origin/main folded in at head accd4af3, armed SQUASH at 03:59:18Z, MERGEABLE, waiting on CI. chanter.cadence is added to UnmeasuredForks with the true reason (cast only as a heal, Attuned never closes into a Combo in bot play), per ruling D-CADENCE-UNMEASURED. WHY: the fork is recorded with its real cause, not a fitted reason.
+- #362 fix lane is still implementing the healer downtime rule (D-HEALER-DOWNTIME). WHY: #362 does not merge until that lane's CI is green, and the rule is not yet in code on main.
+- Findings f-9974c1a8 closed via aesop #1244 (66b67a0b); f-f710a716 closed via conductor3 #194 (5075b3e1). WHY: each close cites the PR that carries the fix, so the closure is evidenced.

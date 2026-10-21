@@ -238,3 +238,9 @@ Ruling: add chanter.cadence to UnmeasuredForks on #370 with the TRUE reason ("ca
 - Merge queue: Matt approved 2026-10-21 ~02:15Z, enable only after this pile lands; no repo setting touched.
 - New findings: f-b31e8f34 (Cadence setup role dead in bot play), f-4071914e (no-lane-game-launch $ false positives), f-8ecea323 (no-polling test writes into live state). Closed: f-ec0adc27 via claude-config #218.
 - Lanes live at 04:15Z: #362 fix v2, #370 land, hook_removal_check P0 (f-db072e8a, f-92748791), claude-config #214 trailer, no-lane-game-launch $ text, conductor3 churn pruned-upstream, aesop sqlite busy.
+
+### 04:30Z addendum
+- #410 MERGED at 397e0f83 (head a29f849b), and #319 MERGED at 2cb255aa; origin/main is now 2cb255aa. WHY: the main pile moved underneath this checkpoint, so the "#410 OPEN, armed" and "#319 OPEN, armed" lines above are superseded and must not be acted on.
+- #370 has origin/main folded in at head accd4af3, armed SQUASH at 03:59:18Z, MERGEABLE, waiting on CI. chanter.cadence is added to UnmeasuredForks with the true reason (cast only as a heal, Attuned never closes into a Combo in bot play), per ruling D-CADENCE-UNMEASURED. WHY: the fork is recorded with its real cause, not a fitted reason.
+- #362 fix lane is still implementing the healer downtime rule (D-HEALER-DOWNTIME). WHY: #362 does not merge until that lane's CI is green, and the rule is not yet in code on main.
+- Findings f-9974c1a8 closed via aesop #1244 (66b67a0b); f-f710a716 closed via conductor3 #194 (5075b3e1). WHY: each close cites the PR that carries the fix, so the closure is evidenced.
