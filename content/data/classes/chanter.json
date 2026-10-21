@@ -221,9 +221,10 @@
         {
           "id": "staccato",
           "name": "Staccato",
-          "text": "Instant cast; longer cooldown.",
+          "text": "Instant and off the global cooldown, so Hymn drops between two other casts; longer cooldown.",
           "patch": {
             "castTicks": 0,
+            "gcdTicks": 0,
             "cooldownTicks": 260
           }
         },
