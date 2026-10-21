@@ -1,23 +1,13 @@
 name: Tests
+# Owns the required checks `test` and `e2e`. No paths filter: every PR gets exactly one run of each name.
+# Each job decides docs-only in its own first step (the scope step). A code PR runs the real steps; a
+# docs-only PR runs one pass-through step under the same check name. No job-level `if:` here, because a
+# skipped required check counts as success for branch protection (the #473 fail-open this file closes).
+# Docs-only definition: STATE.md, BUILDLOG.md, docs/**, design/**, .github/CODEOWNERS, *.md (same as #473).
 on:
-  # Docs-only changes skip this workflow; docs-only.yml defines the same required check names for them.
   push:
     branches: [main]
-    paths-ignore:
-      - 'STATE.md'
-      - 'BUILDLOG.md'
-      - 'docs/**'
-      - 'design/**'
-      - '**/*.md'
-      - '.github/CODEOWNERS'
   pull_request:
-    paths-ignore:
-      - 'STATE.md'
-      - 'BUILDLOG.md'
-      - 'docs/**'
-      - 'design/**'
-      - '**/*.md'
-      - '.github/CODEOWNERS'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -26,21 +16,93 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scope (docs-only or code)
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          # Fails closed to code=true (real steps run) when the diff cannot be computed.
+          if ! files=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
+            echo "diff failed; treating as code"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$files"
+          code=false
+          while IFS= read -r f; do
+            case "$f" in
+              ""|STATE.md|BUILDLOG.md|docs/*|design/*|.github/CODEOWNERS|*.md) ;;
+              *) code=true ;;
+            esac
+          done <<< "$files"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+      - name: Docs-only pass-through
+        if: steps.scope.outputs.code == 'false' && success()
+        run: 'echo "docs-only PR: test has no code to run (pass-through)"'
       - uses: actions/setup-node@v4
+        if: steps.scope.outputs.code == 'true' && success()
         with:
           node-version: 24
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - name: npm ci
+        if: steps.scope.outputs.code == 'true' && success()
+        run: npm ci
+      - name: typecheck
+        if: steps.scope.outputs.code == 'true' && success()
+        run: npm run typecheck
+      - name: test
+        if: steps.scope.outputs.code == 'true' && success()
+        run: npm test
+      - name: build
+        if: steps.scope.outputs.code == 'true' && success()
+        run: npm run build
   e2e:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scope (docs-only or code)
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          # Fails closed to code=true (real steps run) when the diff cannot be computed.
+          if ! files=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
+            echo "diff failed; treating as code"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$files"
+          code=false
+          while IFS= read -r f; do
+            case "$f" in
+              ""|STATE.md|BUILDLOG.md|docs/*|design/*|.github/CODEOWNERS|*.md) ;;
+              *) code=true ;;
+            esac
+          done <<< "$files"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+      - name: Docs-only pass-through
+        if: steps.scope.outputs.code == 'false' && success()
+        run: 'echo "docs-only PR: e2e has no code to run (pass-through)"'
       - uses: actions/setup-node@v4
+        if: steps.scope.outputs.code == 'true' && success()
         with:
           node-version: 24
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: python tools/ci/e2e_wait_ratchet.py
-      - run: npm run test:e2e
+      - name: npm ci
+        if: steps.scope.outputs.code == 'true' && success()
+        run: npm ci
+      - name: Install Playwright chromium
+        if: steps.scope.outputs.code == 'true' && success()
+        run: npx playwright install --with-deps chromium
+      - name: e2e wait ratchet
+        if: steps.scope.outputs.code == 'true' && success()
+        run: python tools/ci/e2e_wait_ratchet.py
+      - name: test:e2e
+        if: steps.scope.outputs.code == 'true' && success()
+        run: npm run test:e2e
