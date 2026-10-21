@@ -142,6 +142,12 @@ public sealed record Progression
     public IReadOnlyList<RunRecord> History { get; init; } = Array.Empty<RunRecord>();
 
     /// <summary>
+    /// Ascension cards taken (<see cref="Take"/>): each is one Ascension mark on the character, and equips nothing.
+    /// <see cref="Ascension.Marks"/> adds these to the run marks in <see cref="History"/>.
+    /// </summary>
+    public int AscensionCardMarks { get; init; }
+
+    /// <summary>
     /// The talent build picked on the screen (BIBLE s6; f-83c5e369): forked ability id to picked option id, in ordinal
     /// key order, empty when nothing is picked. The sim keeps only the ids; the content layer (Keyrun.Content
     /// TalentPicks.Restore) checks them against the class's forks.
@@ -205,7 +211,8 @@ public sealed record Progression
 
     /// <summary>
     /// Equips the taken reward in its slot, replacing what was there, with its tier capped at <see cref="MaxTier"/>;
-    /// the last run's delta records it and the tier it replaced.
+    /// the last run's delta records it and the tier it replaced. An Ascension card (<see cref="Ascension.IsCard"/>) is
+    /// never equipped: it adds one <see cref="AscensionCardMarks"/> and the gear and the last run's delta stay as they are.
     /// </summary>
     /// <param name="item">The reward.</param>
     /// <returns>The progression.</returns>
@@ -221,6 +228,11 @@ public sealed record Progression
         if (!Rewards.GearSlots.Contains(item.Slot, StringComparer.Ordinal))
         {
             throw new ArgumentException($"unknown gear slot \"{item.Slot}\"", nameof(item));
+        }
+        if (Ascension.IsCard(item))
+        {
+            // An Ascension card changes no gear: it is one mark on the character and the held gear stays as it is.
+            return this with { AscensionCardMarks = AscensionCardMarks + 1 };
         }
         var capped = item with { Tier = Math.Min(MaxTier, Math.Max(1, item.Tier)) };
         int? previous = Equipped.TryGetValue(item.Slot, out var old) ? old.Tier : null;
