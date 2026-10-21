@@ -44,9 +44,9 @@ function tg(abilityId: string, shape: Telegraph["shape"] = "circle"): Telegraph 
 }
 
 describe("telegraph-map: render class per emitted telegraph kind", () => {
-  it("finds exactly the seven telegraphed casts the content ships today", () => {
+  it("finds exactly the eight telegraphed casts the content ships today", () => {
     expect(emittedTelegraphAbilities()).toEqual([
-      "hollowWarden.cleave", "hollowWarden.slam", "pair.spreadMark", "pair.stackCall", "seed.lash", "seed.slam", "twins.slam",
+      "hollowWarden.cleave", "hollowWarden.lock", "hollowWarden.slam", "pair.spreadMark", "pair.stackCall", "seed.lash", "seed.slam", "twins.slam",
     ]);
   });
 
@@ -61,6 +61,11 @@ describe("telegraph-map: render class per emitted telegraph kind", () => {
     expect(telegraphClassFor("seed.slam")).toBe("avoid");
     const classes = ["pair.spreadMark", "pair.stackCall", "hollowWarden.cleave", "seed.slam"].map(telegraphClassFor);
     expect(new Set(classes).size).toBe(classes.length);
+  });
+
+  it("maps the Lock's circle to the boss class, like the cleave (LOCK-TELEGRAPH)", () => {
+    expect(TELEGRAPH_CLASS_BY_ABILITY["hollowWarden.lock"]).toBe("boss");
+    expect(toTelegraphSnapshot(tg("hollowWarden.lock")).telegraphClass).toBe("boss");
   });
 
   it("maps the boss and Twins slams to avoid, the seed.slam circle's class (SLAM-TELEGRAPH)", () => {

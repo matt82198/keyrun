@@ -18,7 +18,7 @@ public sealed class ContentCountTests
         Assert.Equal(22, reg.Effects.Count);
         Assert.Equal(3, reg.Classes.Count);
         Assert.Equal(13, reg.Combos.Count);
-        Assert.Equal(7, reg.Enemies.Count);
+        Assert.Equal(8, reg.Enemies.Count); // 8 since PATH-PACKS added hall.sentry (was 7; STATE.md D49)
         Assert.Single(reg.Dungeons);
         Assert.Equal(4, reg.Clauses.Count);
         Assert.Equal(60, reg.Facets.Count);
@@ -32,13 +32,14 @@ public sealed class ContentCountTests
 
         // 19 TS loadContent files from content/data plus the C#-only game/content/data/run.json, layout.json, theme.json,
         // combo-riders.json and the forces + route files forces.json, packs.json and hazards.json (FORCES-ROUTE-PLAN
-        // increment 2), and gear.json (five gear slots, BIBLE section 7).
+        // increment 2), gear.json (five gear slots, BIBLE section 7), and enemies/hall.json (the C#-only Mythic+ trash
+        // only a layout pack fields, PATH-PACKS: 27 -> 28, an inventory raise for a real 8th enemy, STATE.md D49).
         string[] csharpOnly =
         {
             "run.json", "layout.json", "theme.json", "combo-riders.json", "forces.json", "packs.json", "hazards.json",
-            "gear.json",
+            "gear.json", "enemies/hall.json",
         };
-        Assert.Equal(27, embedded.Length);
+        Assert.Equal(28, embedded.Length);
         Assert.Equal(19, embedded.Count(p => !csharpOnly.Contains(p)));
         Assert.Equal(embedded, loaded);
     }

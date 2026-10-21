@@ -33,7 +33,8 @@
     "charges": 1,
     "range": 25000,
     "shape": {
-      "kind": "target"
+      "kind": "circle",
+      "radius": 25000
     },
     "interruptible": true,
     "tags": [
@@ -42,7 +43,7 @@
     "effects": [
       {
         "op": "heal",
-        "amount": 300
+        "amount": 3000
       }
     ],
     "cost": {
@@ -251,9 +252,10 @@
     "gcdTicks": 0,
     "cooldownTicks": 60,
     "charges": 1,
-    "range": 3000,
+    "range": 0,
     "shape": {
-      "kind": "target"
+      "kind": "circle",
+      "radius": 3000
     },
     "interruptible": false,
     "tags": [],
@@ -299,7 +301,7 @@
   {
     "id": "hollowWarden.lock",
     "name": "The Lock",
-    "castTicks": 0,
+    "castTicks": 20,
     "gcdTicks": 0,
     "cooldownTicks": 0,
     "charges": 1,
@@ -340,9 +342,10 @@
     "gcdTicks": 0,
     "cooldownTicks": 60,
     "charges": 1,
-    "range": 3000,
+    "range": 0,
     "shape": {
-      "kind": "target"
+      "kind": "circle",
+      "radius": 3000
     },
     "interruptible": false,
     "tags": [],

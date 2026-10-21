@@ -117,6 +117,13 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
 /// <param name="Heals">True when any effect op is <c>"heal"</c> (script-target.ts:61 isHealAbility).</param>
 public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals)
 {
+    /// <summary>
+    /// A caster-centred damage area's reach, mm: <c>def.shape.radius</c> when the shape is a circle or cone and an
+    /// effect op is <c>"damage"</c>, else null (sim/encounter/chase.ts engageReachMm). <see cref="Chase"/> counts it
+    /// toward the engage range as it counts a target-shaped cast's <see cref="Range"/>.
+    /// </summary>
+    public long? AreaReachMm { get; init; }
+
     /// <summary>The ability's cast time, ticks (<c>def.castTicks</c>); read only for a <see cref="TelegraphSpec.SpansCast"/> telegraph.</summary>
     public int CastTicks { get; init; }
 
@@ -145,7 +152,20 @@ public sealed record PullSpawn(int ActorId, string ClassId, Vec3 Pos, int Yaw, l
 /// <summary>One pull (sim/encounter/pulls.ts:28 PullDef).</summary>
 /// <param name="Id">Pull id.</param>
 /// <param name="Spawns">Spawns in order.</param>
-public sealed record PullDef(string Id, IReadOnlyList<PullSpawn> Spawns);
+public sealed record PullDef(string Id, IReadOnlyList<PullSpawn> Spawns)
+{
+    /// <summary>
+    /// PRESPAWN-AGGRO (C#-only; BIBLE section 9.1): the aggro radius, mm. On a layout run the pull stands idle from
+    /// tick 0 and engages on the first tick a living party member is within this distance of <see cref="Pulls.RingCenter"/>.
+    /// </summary>
+    public long AggroMm { get; init; } = Pulls.DefaultAggroMm;
+
+    /// <summary>The aggro ring's centre, mm; null = the integer mean of the spawn points.</summary>
+    public Vec3? AggroCenter { get; init; }
+
+    /// <summary>Group ids (pulls or packs) that engage with this one, a chain pull (BIBLE section 9.1, links).</summary>
+    public IReadOnlyList<string> Links { get; init; } = System.Array.Empty<string>();
+}
 
 /// <summary>A dungeon as the encounter sees it (sim/encounter/pulls.ts:33 DungeonDef).</summary>
 /// <param name="Id">Dungeon id.</param>

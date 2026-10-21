@@ -28,7 +28,8 @@ public sealed class LayoutConfigTests
             new[] { "entrance", "corridor-1", "choir-room", "corridor-2", "pair-hall", "corridor-3", "seed-chamber", "corridor-4", "warden-arena" },
             layout.Boxes.Select(b => b.Id).ToArray());
         Assert.Equal(new[] { "choir", "pair", "seed", "boss" }, layout.Boxes.Where(b => b.Pull is not null).Select(b => b.Pull!).ToArray());
-        Assert.Equal(new[] { "choir", "pair", "seed" }, layout.Boxes.Where(b => b.Gate is not null).Select(b => b.Gate!).ToArray());
+        // PATH-TO-BOSS (STATE.md D44): one open path to the boss; no corridor is walled until a pull clears.
+        Assert.DoesNotContain(layout.Boxes, b => b.Gate is not null);
         Assert.Equal(layout.Boxes.Count, layout.Route.Count);
         Assert.Contains(LayoutFile, ContentLoader.Files);
     }
@@ -81,6 +82,28 @@ public sealed class LayoutConfigTests
     {
         var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "corridor-3")["minX"] = 57000));
         Assert.Contains("does not overlap", ex.Message);
+    }
+
+    [Fact]
+    public void The_warden_arena_sets_the_boss_aggro_radius_and_no_other_room_does()
+    {
+        LayoutDef layout = ContentLoader.Load().Layout;
+        Assert.Equal(7100, layout.Boxes.Single(b => b.Id == "warden-arena").AggroMm);
+        Assert.All(layout.Boxes.Where(b => b.Id != "warden-arena"), b => Assert.Null(b.AggroMm));
+    }
+
+    [Fact]
+    public void A_non_positive_aggro_radius_is_rejected()
+    {
+        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "warden-arena")["aggroMm"] = 0));
+        Assert.Contains("aggroMm must be positive", ex.Message);
+    }
+
+    [Fact]
+    public void An_aggro_radius_on_a_box_with_no_pull_is_rejected()
+    {
+        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "corridor-4")["aggroMm"] = 7100));
+        Assert.Contains("aggroMm but no pull", ex.Message);
     }
 
     [Fact]

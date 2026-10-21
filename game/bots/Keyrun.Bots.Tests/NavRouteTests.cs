@@ -18,8 +18,10 @@ namespace Keyrun.Bots.Tests;
 /// The Hollow Vault route on the real layout (game/content/data/layout.json; STATE.md D18, design/ART-PLAN.md section 3
 /// and lane 1): the hollow-vault k2 oracle setup's dungeon placed into its rooms, the host's three seats (Warden 1,
 /// Chanter 2, Cinder 3) at the Entrance, the real bot roles plus <see cref="Follow"/> on seats 2 and 3, and seat 1
-/// driven like the autorun Warden: it walks the route while no enemy lives and fights as the tank bot otherwise. Every
-/// enemy has 1 health so the run measures travel, not tuning (HudSceneTest run C plays the real fight).
+/// driven like the autorun Warden: it walks the route while no engaged enemy lives and fights as the tank bot otherwise.
+/// Every enemy has 1 health so the run measures travel, not tuning (HudSceneTest run C plays the real fight). Under
+/// PRESPAWN-AGGRO (BIBLE section 9.1) every group stands idle in its room from tick 0 and engages when a party member
+/// reaches its aggro ring; the bots pull on purpose, the tank first.
 /// </summary>
 public sealed class NavRouteTests
 {
@@ -29,10 +31,12 @@ public sealed class NavRouteTests
 
     private static readonly string[] PullRooms = { "choir-room", "pair-hall", "seed-chamber", "warden-arena" };
 
-    private sealed record RouteRun(
-        List<SimEvent> Events,
-        List<(int Tick, Dictionary<int, Vec3> Party, IReadOnlyList<Vec3> Spawns, bool InTriggerBefore, bool InTriggerAfter)> PullStarts,
-        Run Final);
+    private sealed record PullStart(int Tick, Dictionary<int, Vec3> Party, Vec3 Center, long AggroMm, bool InRingBefore, bool InRingAfter, Vec3 LeaderPos);
+
+    private sealed record RouteRun(List<SimEvent> Events, List<PullStart> PullStarts, Run Final);
+
+    private static bool AnyInRing(SimState state, Vec3 center, long radius) =>
+        state.Actors.Values.Any(a => a.Kind == ActorKind.Player && a.Alive && Aggro.InRing(a.Pos, center, radius));
 
     private static readonly Lazy<RouteRun> Route = new(Drive);
 
@@ -62,13 +66,8 @@ public sealed class NavRouteTests
         IReadOnlyDictionary<int, BotMemory> mem = memories;
         var prng = Skill.SeedPrng(Seed);
         var events = new List<SimEvent>();
-        var starts = new List<(int, Dictionary<int, Vec3>, IReadOnlyList<Vec3>, bool, bool)>();
-        if (Pulls.IsSpawned(run.State, dungeon, 0))
-        {
-            // createRun spawned pull 0 at tick 0 (it has no pull_start): the flat-arena behaviour this lane replaces.
-            var at0 = run.State.Actors.Values.Where(a => a.Kind == ActorKind.Player).ToDictionary(a => a.Id, a => a.Pos);
-            starts.Add((0, at0, dungeon.Pulls[0].Spawns.Select(s => s.Pos).ToList(), true, true));
-        }
+        var starts = new List<PullStart>();
+        Assert.Empty(run.Encounter.Engaged);
 
         // Past run_end the sim keeps stepping (the bots still walk), so the followers can reach the arena the boss died in.
         while (run.State.Tick < MaxTicks && (run.RunEnd.ResultTick is not { } endTick || run.State.Tick < endTick + 600))
@@ -98,13 +97,13 @@ public sealed class NavRouteTests
             {
                 var index = (int)((JsInt)e.Get("pullIndex")!).Value;
                 var pull = dungeon.Pulls[index];
-                var trigger = nav.RoomFor(pull.Id)!.Box;
+                var center = Pulls.RingCenter(pull);
                 var partyNow = run.State.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive).ToDictionary(a => a.Id, a => a.Pos);
-                starts.Add((e.Tick, partyNow, pull.Spawns.Select(s => s.Pos).ToList(),
-                    NavLayout.PartyInside(before.State, trigger), NavLayout.PartyInside(run.State, trigger)));
+                starts.Add(new PullStart(e.Tick, partyNow, center, pull.AggroMm,
+                    AnyInRing(before.State, center, pull.AggroMm), AnyInRing(run.State, center, pull.AggroMm), run.State.Actors[LeaderId].Pos));
             }
         }
-        return new RouteRun(events, starts.Select(s => (s.Item1, s.Item2, s.Item3, s.Item4, s.Item5)).ToList(), run);
+        return new RouteRun(events, starts, run);
     }
 
     private static long Distance(Vec3 a, Vec3 b) => Movement.Isqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Z - b.Z) * (a.Z - b.Z)));
@@ -120,8 +119,8 @@ public sealed class NavRouteTests
         return first;
     }
 
-    [Fact(DisplayName = "Nav route: every pull spawns on room entry, never before, and the run is cleared")]
-    public void Every_pull_spawns_on_room_entry_never_before()
+    [Fact(DisplayName = "Nav route: every pull engages on its aggro ring, never before, with the tank in it, and the run is cleared")]
+    public void Every_pull_engages_on_its_aggro_ring_never_before()
     {
         var r = Route.Value;
         Assert.Equal("timed", r.Final.RunEnd.Result?.ToJs());
@@ -130,8 +129,9 @@ public sealed class NavRouteTests
         Assert.NotEqual(0, r.PullStarts[0].Tick);
         foreach (var s in r.PullStarts)
         {
-            Assert.False(s.InTriggerBefore, $"pull_start at tick {s.Tick}: a party member was already in the trigger the tick before");
-            Assert.True(s.InTriggerAfter, $"pull_start at tick {s.Tick}: no party member stands in the trigger");
+            Assert.False(s.InRingBefore, $"pull_start at tick {s.Tick}: a party member was already in the aggro ring the tick before");
+            Assert.True(s.InRingAfter, $"pull_start at tick {s.Tick}: no party member stands in the aggro ring");
+            Assert.True(Aggro.InRing(s.LeaderPos, s.Center, s.AggroMm), $"pull_start at tick {s.Tick}: the tank (leader) at {s.LeaderPos} is not in the ring; a follower pulled it");
         }
         var entries = FirstEntries(r.Events);
         for (var i = 0; i < PullRooms.Length; i++)
@@ -145,24 +145,22 @@ public sealed class NavRouteTests
         }
     }
 
-    // Every living party member, the scripted leader included (LEADER-WAITS): under STATE.md D27 a pull starts when the
-    // LAST living member enters, so the leader holds at the room's standoff point until the party is inside instead of
-    // walking on toward the spawns.
-    [Fact(DisplayName = "Nav route: no enemy spawns within 6 m of a party member at pull_start")]
-    public void No_enemy_spawns_within_6_m_of_a_party_member()
+    // PRESPAWN-AGGRO: nothing appears on the party. A group engages on the tick the first member walks into its ring, so
+    // at pull_start every living party member stands on or outside the ring's edge, less at most one tick's walk
+    // (run.json speedMmPerTick 180, so 2 x 180 mm of slack covers a member whose last step was diagonal or pushed).
+    [Fact(DisplayName = "Nav route: at every engage no party member stands deeper than one step inside the aggro ring")]
+    public void No_group_engages_with_a_party_member_deep_inside_its_ring()
     {
+        const long StepSlackMm = 2 * 180;
         var r = Route.Value;
         Assert.NotEmpty(r.PullStarts);
         foreach (var s in r.PullStarts)
         {
-            foreach (var spawn in s.Spawns)
+            foreach (var (id, pos) in s.Party)
             {
-                foreach (var (id, pos) in s.Party)
-                {
-                    var d = Distance(spawn, pos);
-                    _output.WriteLine($"tick {s.Tick}: actor {id} at {pos.X},{pos.Z} is {d} mm from the spawn at {spawn.X},{spawn.Z}");
-                    Assert.True(d >= 6000, $"tick {s.Tick}: an enemy spawned at {spawn}, {d} mm from party actor {id} at {pos}");
-                }
+                var d = Distance(s.Center, pos);
+                _output.WriteLine($"tick {s.Tick}: actor {id} at {pos.X},{pos.Z} is {d} mm from the ring centre {s.Center.X},{s.Center.Z} (radius {s.AggroMm})");
+                Assert.True(d >= s.AggroMm - StepSlackMm, $"tick {s.Tick}: party actor {id} at {pos} stands {d} mm from the ring centre {s.Center}, deep inside the {s.AggroMm} mm ring");
             }
         }
     }

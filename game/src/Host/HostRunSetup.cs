@@ -143,7 +143,7 @@ public sealed record HostRunSetup(
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
 
         // Lane NAV-CORE (STATE.md D18): the dungeon's rooms and corridors. Pulls stand in their rooms, the party in the
-        // Entrance, and the sim spawns each pull on room entry and gates each corridor on the pull before it.
+        // Entrance; every pull stands idle from tick 0 and engages on its aggro ring, along one open path (STATE.md D44).
         var layout = registry.Layout;
         if (!string.Equals(layout.Dungeon, dungeonDef.Id, StringComparison.Ordinal))
         {
@@ -151,6 +151,12 @@ public sealed record HostRunSetup(
         }
         var nav = NavLayouts.ToSim(layout);
         dungeon = NavLayouts.PlaceDungeon(layout, dungeon);
+        // PATH-PACKS (BIBLE s9.1): the layout's trash packs, required and optional, idle on the path from tick 0 and each
+        // pulled whole by proximity, like a pull.
+        // Mythic+ trash only a pack fields (hall.sentry) is scaled here exactly as a pull spawn is (ScaledTrashSpawn).
+        var (packs, packScripts) = LayoutPackGroups.Build(
+            layout, dungeon, scripts,
+            packOnly: PackOnlyTemplates(registry, layout, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false)));
 
         var run = registry.Run;
         var movement = new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm, nav.Extent);
@@ -163,14 +169,16 @@ public sealed record HostRunSetup(
             ActorRadiusMm = 0,
             Bounds = movement.Bounds,
             Overheat = OverheatRulesOf(registry),
-            EnemyScripts = scripts,
+            EnemyScripts = packScripts,
             KeyLevel = keyLevel,
             ParTicks = dungeonDef.ParTicks,
             Combos = combos,
             FieldCombos = fieldCombos,
             Clauses = clauses,
             Layout = nav,
+            Packs = packs,
             StopEffectIds = StopEffectIds,
+            Marks = MarkRulesOf(run.PairMarks),
         }.WithMovement(movement);
 
         var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
@@ -192,6 +200,15 @@ public sealed record HostRunSetup(
 
     /// <summary>The affix rotation index the setup was built with.</summary>
     public int RotationIndex { get; init; }
+
+    /// <summary>The sim's Pair mark rules from content run.json <c>pairMarks</c> (BIBLE section 9.6 item 2).</summary>
+    /// <param name="m">The content block (validated at load).</param>
+    /// <returns>The rules.</returns>
+    public static MarkRules MarkRulesOf(C.PairMarksConfig m)
+    {
+        ArgumentNullException.ThrowIfNull(m);
+        return new MarkRules(m.SpreadEffectId, m.SpreadRadiusMm, m.SpreadDamage, m.StackEffectId, m.StackRadiusMm, m.StackDamage);
+    }
 
     /// <summary>The sim affix table from content run.json <c>affixes</c> (the values are data, pending Matt).</summary>
     /// <param name="a">The content block.</param>
@@ -347,7 +364,8 @@ public sealed record HostRunSetup(
     /// Twins (ids from <see cref="TwinActorIdStart"/> in content id order, Tempo-scaled health and scripts, flanking the
     /// boss at +/-<see cref="TwinOffsetMm"/> x), and the boss ability tagged <see cref="LockTag"/> gives the Lock its
     /// Window length (its window op), shield effect (its applyEffect op) and the script cast the armed rules suppress.
-    /// The 50% gate, 30 s repeat, three-fail enrage and its Tempo spike are BIBLE s9 structure (the
+    /// The Lock is cast (<see cref="BossConfig.CastLock"/>, LOCK-TELEGRAPH): its castTicks and its script step's
+    /// telegraph give it a cast bar and a floor circle before the Window opens. The 50% gate, 30 s repeat, three-fail enrage and its Tempo spike are BIBLE s9 structure (the
     /// <see cref="BossConfig"/> defaults; content has no field for them). Fails closed on any missing or extra piece.
     /// </summary>
     /// <param name="registry">The content.</param>
@@ -407,6 +425,7 @@ public sealed record HostRunSetup(
             LockWindowTicks = window[0].DurationTicks,
             ShieldEffectId = shield[0].EffectId,
             SuppressedBossCasts = new[] { lockAbility.Id },
+            CastLock = true,
         };
     }
 
@@ -582,13 +601,7 @@ public sealed record HostRunSetup(
                 for (var i = 0; i < group.Count; i++)
                 {
                     var actorId = nextId++;
-                    var spawn = new PullSpawn(actorId, def.Id, new Vec3(group.Spawn.X, 0, group.Spawn.Z), 0, def.MaxHealth)
-                    {
-                        SpeedMmPerTick = def.SpeedMmPerTick,
-                        ChaseMarginMm = def.ChaseMarginMm,
-                    };
-                    var scaled = Tempo.ScaleSpawn(spawn, keyLevel);
-                    spawns.Add(scaled with { Health = Affixes.ScaleHealth(scaled.Health, trashHealthBp) });
+                    spawns.Add(ScaledTrashSpawn(def, actorId, new Vec3(group.Spawn.X, 0, group.Spawn.Z), keyLevel, trashHealthBp));
                     scripts[actorId] = Tempo.ScaleScript(ToSim(def.Script), keyLevel);
                 }
             }
@@ -596,13 +609,52 @@ public sealed record HostRunSetup(
         }
 
         var boss = Enemy(registry, dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss");
-        // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon stands it at the arena origin.
+        // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon (Build, after this) stands it at the
+        // arena origin and gives it the arena's aggroMm (layout.json), the same helper the bots use.
         pulls.Add(new PullDef(C.LayoutDef.BossPullId, new[]
         {
             new PullSpawn(BossActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp)),
         }));
         scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel);
         return (new DungeonDef(dungeonDef.Id, pulls), scripts);
+    }
+
+    /// <summary>
+    /// One trash spawn as content/sim-adapt.ts toSimDungeon builds it (yaw 0; speed and chase margin only when the enemy
+    /// sets them), Tempo-scaled, then Fortified (trash health affix) on top.
+    /// </summary>
+    private static PullSpawn ScaledTrashSpawn(C.EnemyDef def, int actorId, Vec3 pos, int keyLevel, int trashHealthBp)
+    {
+        var spawn = new PullSpawn(actorId, def.Id, pos, 0, def.MaxHealth)
+        {
+            SpeedMmPerTick = def.SpeedMmPerTick,
+            ChaseMarginMm = def.ChaseMarginMm,
+        };
+        var scaled = Tempo.ScaleSpawn(spawn, keyLevel);
+        return scaled with { Health = Affixes.ScaleHealth(scaled.Health, trashHealthBp) };
+    }
+
+    /// <summary>
+    /// PATH-PACKS: a scaled template (<see cref="ScaledTrashSpawn"/>, Tempo-scaled script) for every layout pack enemy no
+    /// pull of <paramref name="dungeonDef"/> fields, such as the Hall Sentry; an enemy a pull fields is copied from that
+    /// pull's spawn by <see cref="LayoutPackGroups.Build"/> instead. Fails closed on an enemy id content does not define.
+    /// </summary>
+    private static IReadOnlyDictionary<string, PackTemplate> PackOnlyTemplates(
+        C.ContentRegistry registry, C.LayoutDef layout, C.DungeonDef dungeonDef, int keyLevel, int trashHealthBp)
+    {
+        var fielded = dungeonDef.Pulls.SelectMany(p => p.Enemies).Select(e => e.EnemyId).ToHashSet(StringComparer.Ordinal);
+        var templates = new SortedDictionary<string, PackTemplate>(StringComparer.Ordinal);
+        foreach (var pack in layout.Packs)
+        {
+            foreach (var group in pack.Enemies.Where(g => !fielded.Contains(g.EnemyId) && !templates.ContainsKey(g.EnemyId)))
+            {
+                var def = Enemy(registry, group.EnemyId, $"pack \"{pack.Id}\"");
+                templates[def.Id] = new PackTemplate(
+                    ScaledTrashSpawn(def, 0, Vec3.Zero, keyLevel, trashHealthBp),
+                    Tempo.ScaleScript(ToSim(def.Script), keyLevel));
+            }
+        }
+        return templates;
     }
 
     private static C.EnemyDef Enemy(C.ContentRegistry registry, string id, string where) =>
