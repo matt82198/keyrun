@@ -221,6 +221,16 @@ public sealed class ActorState
     public bool CastIsOverheat { get; set; }
 
     /// <summary>
+    /// CAST-KEEPS-START-TARGET (finding f-bd8fbbb1; sim/core/state.ts castTargetId): true while the cast in flight has
+    /// pinned the target it started on because the actor retargeted mid-cast (<see cref="Combat.Casting.SetTarget"/>).
+    /// Released when the cast completes (after its Windows), stops or is interrupted. Never projected into a trace.
+    /// </summary>
+    public bool CastTargetPinned { get; set; }
+
+    /// <summary>The pinned start target of the cast in flight (meaningful only while <see cref="CastTargetPinned"/>).</summary>
+    public int? CastTargetId { get; set; }
+
+    /// <summary>
     /// The one press waiting in the spell queue window (Combat/SpellQueue.cs, sim/combat/spell-queue.ts), or null.
     /// Players only; never projected into an oracle trace.
     /// </summary>

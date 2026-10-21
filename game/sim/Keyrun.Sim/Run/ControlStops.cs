@@ -72,6 +72,7 @@ public static class ControlStops
             target.CastStartTick = null;
             target.CastEndsTick = null;
             target.CastIsOverheat = false;
+            Casting.ReleaseCastTarget(target);
             emit(new SimEvent(
                 tick,
                 "interrupt",

@@ -146,6 +146,8 @@ public static class Rules
                     {
                         Windows.ApplyWindowsAndCombos(state, actor, def, wctx, emit);
                     }
+                    // CAST-KEEPS-START-TARGET: the cast's effects and Windows both resolved on its start target.
+                    Casting.ReleaseCastTarget(actor);
                 }
             }
 
@@ -165,7 +167,8 @@ public static class Rules
                 switch (cmd)
                 {
                     case TargetCommand t:
-                        actor.TargetId = t.TargetId;
+                        // CAST-KEEPS-START-TARGET (f-bd8fbbb1): a mid-cast retarget is for the next press.
+                        Casting.SetTarget(actor, t.TargetId);
                         break;
                     case StopCastCommand:
                         Casting.Stopcast(actor, emit, state.Tick);

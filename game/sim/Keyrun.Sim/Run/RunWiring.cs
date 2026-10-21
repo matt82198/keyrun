@@ -203,6 +203,11 @@ public static class RunWiring
     /// player with role tank, alive or not); every living damage-role player without a living enemy target targets
     /// the first living enemy (ascending id). Safe every tick and at creation.
     /// </summary>
+    /// <remarks>
+    /// Writes TargetId directly, not through <see cref="Casting.SetTarget"/>: this auto-retarget is the sim's, not the
+    /// caster's, and the oracle traces bots-hv-k2-s7/k2-s11/k10-s7 record a Cinder flare whose start target died
+    /// mid-cast landing on the auto-picked next enemy. Pinning here too would make those casts whiff (pending a ruling).
+    /// </remarks>
     /// <param name="state">The state to fix up.</param>
     public static void FixupTargeting(SimState state)
     {
