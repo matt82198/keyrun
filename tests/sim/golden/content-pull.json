@@ -1176,7 +1176,7 @@
       "fnv": "1e026657"
     },
     "classes/chanter": {
-      "fnv": "871bb0c1"
+      "fnv": "e6e80113"
     },
     "classes/cinder": {
       "fnv": "9065e9c1"
@@ -1261,6 +1261,9 @@
     },
     "effects/chill": {
       "fnv": "bdc8fe20"
+    },
+    "effects/chorusEcho": {
+      "fnv": "2a6ed869"
     },
     "effects/consecrateHeal": {
       "fnv": "76e26e4d"

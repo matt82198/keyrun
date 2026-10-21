@@ -5,7 +5,7 @@
     "clauses": 4,
     "combos": 13,
     "dungeons": 1,
-    "effects": 22,
+    "effects": 23,
     "enemies": 7,
     "facets": 60
   },
@@ -31,8 +31,8 @@
       "fnv": "541aedf8"
     },
     "content-pull.setup.json": {
-      "bytes": 22931,
-      "fnv": "94a66522"
+      "bytes": 23098,
+      "fnv": "784fd091"
     },
     "content-pull.trace.jsonl": {
       "bytes": 30550,
@@ -43,12 +43,12 @@
       "fnv": "766fb4de"
     },
     "hollow-vault-k10.setup.json": {
-      "bytes": 25287,
-      "fnv": "957593bc"
+      "bytes": 25454,
+      "fnv": "c3d6fe05"
     },
     "hollow-vault-k2.setup.json": {
-      "bytes": 25285,
-      "fnv": "65a2beae"
+      "bytes": 25452,
+      "fnv": "b85d13bf"
     },
     "intdiv.vectors.json": {
       "bytes": 371573,
@@ -113,7 +113,7 @@
         "fnv": "fbb3e415"
       },
       "bots/src/roles/heal-pick.ts": {
-        "fnv": "e8151c2d"
+        "fnv": "6dbe5d17"
       },
       "bots/src/roles/healer-setup.ts": {
         "fnv": "90408d7b"
@@ -272,7 +272,7 @@
         "fnv": "36ffc9d9"
       },
       "content/data/classes/chanter.json": {
-        "fnv": "475798a7"
+        "fnv": "496ee0c0"
       },
       "content/data/classes/cinder.json": {
         "fnv": "e3b6e3ed"
@@ -293,7 +293,7 @@
         "fnv": "39652453"
       },
       "content/data/effects/player.json": {
-        "fnv": "07967d26"
+        "fnv": "2257665b"
       },
       "content/data/enemies/choir.json": {
         "fnv": "11ee2178"

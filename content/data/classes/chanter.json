@@ -149,10 +149,21 @@
         {
           "id": "encore",
           "name": "Encore",
-          "text": "Gains a second charge and a shorter cooldown.",
+          "text": "Gains a second charge and a shorter cooldown; Mend's Chorus heals again at half strength 2.5 seconds later.",
           "patch": {
             "charges": 2,
-            "cooldownTicks": 100
+            "cooldownTicks": 100,
+            "variants": {
+              "mend": [
+                { "op": "heal", "amount": 120 },
+                { "op": "payoff" },
+                { "op": "applyEffect", "effectId": "chorusEcho", "durationTicks": 50, "stacks": 1 }
+              ],
+              "ward": [
+                { "op": "applyEffect", "effectId": "wardPulse", "durationTicks": 60, "stacks": 1 },
+                { "op": "payoff" }
+              ]
+            }
           }
         }
       ]
