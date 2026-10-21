@@ -10,7 +10,11 @@
 
     Run A (pull 1, the Choir, solo Warden, wipes):  -- --autorun --ticks <Ticks> --solo
       1. exit 0 and "HUD runend bonus count=0 seedWindowEnds=none": the run never meets the Seed, so the panel draws
-         no "Bonus loot:" line.
+         no "Bonus loot:" line. R-446-CI (keyrun #446, f-ea16265e): under R-BACKFILL-2 (BIBLE s9.1) the wipe is a
+         release, not a run end, so the run (the same run as ScreenSceneTest) ends at the timer cap, tick 9600,
+         depleted, still without meeting the Seed; <Ticks> is 9800, the cap end plus the 109 ticks the run kept past
+         its old wipe end (491 of 600). Pinned headless by tools/Keyrun.Playtest.Tests/HudSceneSweepWipeReleaseTests.cs,
+         which also pins run C's party run ending (timed, tick 3888) inside the unchanged <PartyTicks>.
     Run C (pull 1, the three-seat bot party, clears the dungeon at seed 1 key 2):  -- --autorun --ticks <PartyTicks>
       2. exit 0 and a seedbloom "window_opened" EVENT before run_end (the Seed died and opened its Window);
       3. "HUD runend bonus count=K seedWindowEnds=E": E is that EVENT's endsTick, K is 1 when a seedbloom "combo"
@@ -28,7 +32,7 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$Ticks = 600,
+    [int]$Ticks = 9800,
     [int]$PartyTicks = 7000
 )
 $ErrorActionPreference = 'Stop'
