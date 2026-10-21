@@ -226,13 +226,30 @@ public sealed class CadenceSetupTests
 
     /// <summary>The hollow-vault key-2 bot party's run ability map as SimDriver.StartRun builds it, with or without the bot
     /// seats' default gear (<see cref="Keyrun.Host.HostRunSetup.WithBotLoadouts"/>; BotCommandSource hands the bots
-    /// <c>KitRegistry.ForRun(run.Content.Abilities)</c>).</summary>
-    private static KitRegistry RunKits(bool botGear)
+    /// <c>KitRegistry.ForRun(run.Content.Abilities)</c>). With <paramref name="wideningCadence"/> the Chanter bot seat
+    /// also wears the content Facet <c>chanter.weapon.wideningCadence</c> (through the host's own
+    /// <see cref="Keyrun.Host.HostRunSetup.GearPatches"/>), a build a player can choose: it is no longer the bots'
+    /// default (f-bf6264ef).</summary>
+    private static KitRegistry RunKits(bool botGear, bool wideningCadence = false)
     {
         var registry = Keyrun.Content.ContentLoader.Load();
         var setup = Keyrun.Host.HostRunSetup.Build(registry, "hollow-vault", 2, "warden", withBots: true);
         var party = setup.PartyFor(setup.Dungeon);
-        var options = botGear ? setup.WithBotLoadouts(new RunOptions(), party) : new RunOptions();
+        var options = (botGear ? setup.WithBotLoadouts(new RunOptions(), party) : null) ?? new RunOptions();
+        if (wideningCadence)
+        {
+            var chanterSeat = party.Single(p => p.ClassId == "chanter").Id;
+            var patch = Keyrun.Host.HostRunSetup.GearPatches(registry, "chanter")["chanter.weapon.wideningCadence"];
+            var loadouts = options.Loadouts is { } carried
+                ? new Dictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>>(carried)
+                : new Dictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>>();
+            var kit = loadouts.TryGetValue(chanterSeat, out var own)
+                ? new Dictionary<string, Keyrun.Sim.Combat.AbilityDef>(own, StringComparer.Ordinal)
+                : new Dictionary<string, Keyrun.Sim.Combat.AbilityDef>(StringComparer.Ordinal);
+            kit["chanter.cadence"] = patch.ApplyTo(kit.TryGetValue("chanter.cadence", out var cadence) ? cadence : setup.Content.Abilities["chanter.cadence"]);
+            loadouts[chanterSeat] = kit;
+            options = options with { Loadouts = loadouts };
+        }
         var run = RunRoot.CreateRun(1, party, setup.Dungeon, setup.Content, options);
         return RealKits.ForRun(run.Content.Abilities);
     }
@@ -240,17 +257,29 @@ public sealed class CadenceSetupTests
     [Fact(DisplayName = "Cadence setup > a geared healer whose Cadence is a party-wide circle (wideningCadence) never casts it at the enemy")]
     public void No_setup_when_gear_makes_cadence_a_circle()
     {
-        // Run C on the host (game-e2e 39552418449): the bot seats wear their default gear, whose chanter.weapon.wideningCadence
-        // patches Cadence to a circle that resolves onto friendlies. Judged by content's target shape, the healer cast it
-        // "at" the Cinder's enemy anyway: no Attuned reached the enemy, the Choir cleared at 1997 not 1968, and the Pair's
-        // fourth melee swing killed the careless Cinder at 2137 (the run never ended in 7000 ticks).
-        var geared = RunKits(botGear: true);
+        // Run C on the host (game-e2e 39552418449): the bot seats wore chanter.weapon.wideningCadence, which patches Cadence
+        // to a circle that resolves onto friendlies. Judged by content's target shape, the healer cast it "at" the
+        // Cinder's enemy anyway: no Attuned reached the enemy, the Choir cleared at 1997 not 1968, and the Pair's fourth
+        // melee swing killed the careless Cinder at 2137 (the run never ended in 7000 ticks). The Facet stays a build
+        // choice (BIBLE s7 "Facets change function"), so the case equips it explicitly.
+        var widened = RunKits(botGear: true, wideningCadence: true);
         var plain = RunKits(botGear: false);
         var chanter = Chanter(Mend);
         BotView ViewWith(KitRegistry kits) => ViewOf(10, kits, null, Warden(), chanter, Cinder(cooldowns: CinderSetupsDown()), Enemy());
         // Control: the run-aware registry over the ungeared run still opens Attuned on the enemy.
         Assert.Equal(new Command[] { new CastCommand(10, 2, "chanter.cadence", 50) }, HealerRole.HealerDecide(ViewWith(plain), chanter));
-        Assert.DoesNotContain(HealerRole.HealerDecide(ViewWith(geared), chanter),
+        Assert.DoesNotContain(HealerRole.HealerDecide(ViewWith(widened), chanter),
             c => c is CastCommand cc && cc.AbilityId == "chanter.cadence" && cc.TargetId == 50);
+    }
+
+    [Fact(DisplayName = "Cadence setup > the bots' default gear keeps Cadence target-shaped: the geared healer opens Attuned on the enemy")]
+    public void Default_bot_gear_keeps_the_setup()
+    {
+        // f-bf6264ef: the default bot loadout exists to show BIBLE s4's Setup -> Payoff lesson in the host's run, so the
+        // Chanter's default gear must not be the one Facet that turns its Setup into a party-wide circle.
+        var geared = RunKits(botGear: true);
+        var chanter = Chanter(Mend);
+        var cmds = HealerRole.HealerDecide(ViewOf(10, geared, null, Warden(), chanter, Cinder(cooldowns: CinderSetupsDown()), Enemy()), chanter);
+        Assert.Equal(new Command[] { new CastCommand(10, 2, "chanter.cadence", 50) }, cmds);
     }
 }
