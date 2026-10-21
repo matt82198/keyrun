@@ -112,6 +112,13 @@ public sealed record RunContent
     /// </summary>
     public bool TsSymmetricPushOut { get; init; }
 
+    /// <summary>
+    /// BOSS-DOOR (BIBLE s9.5, ruling R3; layout runs only): the Hollow Door that holds the boss pull shut until the Seed
+    /// is cleared and the Forces bar is at the requirement, or null for no door (every oracle run; a host sets it from
+    /// game/content/data/forces.json).
+    /// </summary>
+    public BossDoorGate? BossDoor { get; init; }
+
     /// <summary>Break-bar sources in their JS key order, or null for none (stepRun then drains none).</summary>
     public IReadOnlyList<BreakBarSource>? BreakBarSources { get; init; }
 
