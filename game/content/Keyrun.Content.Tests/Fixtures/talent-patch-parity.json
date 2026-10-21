@@ -2568,14 +2568,9 @@
           {
             "delta": 1,
             "op": "resource"
-          },
-          {
-            "delta": 1,
-            "op": "resource",
-            "resource": "verse"
           }
         ],
-        "gcdTicks": 30,
+        "gcdTicks": 0,
         "id": "chanter.refrain",
         "interruptible": false,
         "name": "Refrain",

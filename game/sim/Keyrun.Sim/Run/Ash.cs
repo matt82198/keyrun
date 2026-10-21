@@ -216,7 +216,7 @@ public sealed record Progression
 /// One Facet's ability patch in sim types (content/schema/facet.ts FacetPatch, applied as the frozen TS
 /// content/apply-patch.ts applyPatch): each non-null direct field replaces the ability's, then <see cref="TagAdd"/>
 /// merges into the tags (no duplicates, base order kept), <see cref="TagRemove"/> drops tags, and
-/// <see cref="EffectsAppend"/> appends after the base ops. The host converts the content patch (HostRunSetup.GearPatches);
+/// <see cref="EffectsAppend"/> appends after the base ops and after every verse variant's ops. The host converts the content patch (HostRunSetup.GearPatches);
 /// the sim never reads Keyrun.Content. No facet in content/data sets both a direct and a merged form of the same field,
 /// so the direct-then-merged order is the TS key order for every shipped facet.
 /// </summary>
@@ -295,7 +295,16 @@ public sealed record GearPatch
         }
         if (EffectsAppend is not null)
         {
-            next = next with { Effects = next.Effects.Concat(EffectsAppend).ToList() };
+            // A verse ability plays its variant, not its Effects (Abilities.ResolveVerse), so the appended ops also go
+            // on every variant; without this a Facet on a Chanter verse ability changes nothing the sim plays.
+            next = next with
+            {
+                Effects = next.Effects.Concat(EffectsAppend).ToList(),
+                Variants = next.Variants?.ToDictionary(
+                    kv => kv.Key,
+                    kv => (IReadOnlyList<EffectOp>)kv.Value.Concat(EffectsAppend).ToList(),
+                    StringComparer.Ordinal),
+            };
         }
         return next;
     }
