@@ -83,45 +83,17 @@ public sealed class BossDoorGateTests
     private static bool BossEngaged(IReadOnlyList<SimEvent> events) =>
         events.Any(e => e.Type == "pull_start" && PullIdOf(e) == "boss");
 
-    [Fact(DisplayName = "BOSS-DOOR (a): Seed dead but forces short of the requirement keeps the Warden un-engaged and the door shut")]
-    public void Seed_dead_forces_short_keeps_the_door_shut()
+    // BOSS-DOOR (a), (b), (c) were deleted (R-DOOR-3): they asserted that a shut door idles the boss pull, which
+    // STATE.md D44 forbids ("no more gates, just path to boss with packs"). The regression guards are (d), (e) and (f).
+    [Fact(DisplayName = "BOSS-DOOR (f): the forward route engages the boss with the Seed alive and the bar short (R-DOOR-3 / D44: no door gates the boss pull)")]
+    public void Forward_route_engages_the_boss_behind_no_door()
     {
-        var gate = Gate(new Dictionary<string, int>(StringComparer.Ordinal) { ["seed.elite"] = 599 });
-        var (run, events) = KillThenStep(gate, SeedActorId);
-
-        Assert.False(run.State.Actors[SeedActorId].Alive, "the Seed enemy should be dead");
-        Assert.Equal(5990, Forces.Read(run.State, gate.PointsByEnemy, Required).PercentBp);
-        Assert.False(BossDoor.IsOpen(run.State, run.Dungeon, gate), "the door should read closed at 5990 bp");
-        Assert.True(run.State.Actors[BossActorId].Idle, "the Warden should still stand idle");
-        Assert.False(Pulls.IsEngaged(run.Encounter, "boss"));
-        Assert.False(BossEngaged(events), "the boss pull engaged behind a shut door");
-    }
-
-    [Fact(DisplayName = "BOSS-DOOR (b): Seed dead and forces at the requirement opens the door and the Warden engages")]
-    public void Seed_dead_forces_at_requirement_engages_the_warden()
-    {
-        var gate = Gate(new Dictionary<string, int>(StringComparer.Ordinal) { ["seed.elite"] = 600 });
-        var (run, events) = KillThenStep(gate, SeedActorId);
-
-        Assert.False(run.State.Actors[SeedActorId].Alive, "the Seed enemy should be dead");
-        Assert.Equal(RequiredBp, Forces.Read(run.State, gate.PointsByEnemy, Required).PercentBp);
-        Assert.True(BossDoor.IsOpen(run.State, run.Dungeon, gate), "the door should read open at exactly the requirement");
-        Assert.True(Pulls.IsEngaged(run.Encounter, "boss"), "the Warden should engage once the door is open");
-        Assert.True(BossEngaged(events), "no pull_start for the boss pull");
-    }
-
-    [Fact(DisplayName = "BOSS-DOOR (c): forces at the requirement but the Seed still alive keeps the door shut")]
-    public void Forces_at_requirement_with_seed_alive_keeps_the_door_shut()
-    {
-        var gate = Gate(new Dictionary<string, int>(StringComparer.Ordinal) { ["seed.elite"] = 180, ["choir.big"] = 600 });
-        var (run, events) = KillThenStep(gate, ChoirActorId);
+        var gate = Gate(new Dictionary<string, int>(StringComparer.Ordinal) { ["seed.elite"] = 0 });
+        var (run, events) = RunTestKit.StepUntil(CreateRun(gate), Steps, Array.Empty<Command>());
 
         Assert.True(run.State.Actors[SeedActorId].Alive, "the Seed enemy should still be alive");
-        Assert.False(run.State.Actors[ChoirActorId].Alive, "the choir enemy should be dead");
-        Assert.Equal(RequiredBp, Forces.Read(run.State, gate.PointsByEnemy, Required).PercentBp);
-        Assert.False(BossDoor.IsOpen(run.State, run.Dungeon, gate), "the door should read closed with the Seed alive");
-        Assert.False(Pulls.IsEngaged(run.Encounter, "boss"));
-        Assert.False(BossEngaged(events), "the boss pull engaged with the Seed alive");
+        Assert.True(Pulls.IsEngaged(run.Encounter, "boss"), "the forward route did not engage the boss with the door's gate removed");
+        Assert.True(BossEngaged(events), "no pull_start for the boss pull");
     }
 
     // R-DOOR-2 (merge of main's #446 wipe-is-release): the Hollow Door gates only the forward route, never a run that

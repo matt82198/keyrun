@@ -372,12 +372,9 @@ public static class RunRoot
         }
 
         var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs);
-        // BOSS-DOOR (BIBLE s9.5, ruling R3): the Warden engages only through the Hollow Door, once the Seed is cleared and
-        // the Forces bar is at the requirement. A shut door holds the boss idle this tick, however close the party stands.
-        // R-DOOR-2 latch: the door applies only until the boss pull has engaged once (its engaged record is never cleared, so
-        // a wipe release and run-back cannot re-lock it).
-        var door = run.Content.BossDoor is { } gate && !Pulls.IsEngaged(encounter, gate.BossPullId) ? gate : null;
-        var triggered = BossDoor.Admit(door, run.Dungeon, next, Aggro.Triggered(run.State, next, groups, encounter, openSeats));
+        // R-DOOR-3 / STATE.md D44 ("no gates, just path to boss with packs"): nothing gates the boss pull. The Hollow Door
+        // (BossDoor.Admit) is not applied on the forward route; the Forces bar is a run-completion condition (plan #536 S8).
+        var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);
         return (next, encounter);
     }
