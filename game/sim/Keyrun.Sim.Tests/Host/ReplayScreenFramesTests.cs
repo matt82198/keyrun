@@ -108,12 +108,13 @@ public sealed class ReplayScreenFramesTests
         Assert.NotNull(dir);
         var log = InputLogDocument.Parse(File.ReadAllText(Path.Combine(dir!.FullName, EnterPingPath)), EnterPingPath);
         var fired = Play(log, 800);
+        // Golden re-recorded 2026-10-21 on 24916b4b under the sim-tick recorder (R-CLOCK-2): Enter 0 -> 9, G 2 -> 11, Enter 694 -> 703, Enter 697 -> 706 (run starts on screen frame 9, so each run tick is +9 on the frame).
         var expected = new[]
         {
-            new Fired("Enter", 0, false, 0),
-            new Fired("G", 2, true, 2),
-            new Fired("Enter", 694, true, 694),
-            new Fired("Enter", 697, true, 697),
+            new Fired("Enter", 9, false, 0),
+            new Fired("G", 11, true, 2),
+            new Fired("Enter", 703, true, 694),
+            new Fired("Enter", 706, true, 697),
         };
         Assert.Equal(expected, fired);
     }
