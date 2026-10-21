@@ -77,10 +77,15 @@ public static class PairMarks
             {
                 continue;
             }
+            var hits = new List<(int Id, long Amount)>();
             foreach (var victim in SideWithin(state, holder, rules.SpreadRadiusMm).Where(a => a.Id != holder.Id).ToList())
             {
-                Hit(state, sourceId, victim, rules.SpreadDamage, effectDefs, emit, weighting);
+                if (Hit(state, sourceId, victim, rules.SpreadDamage, effectDefs, emit, weighting) is { } dealt)
+                {
+                    hits.Add((victim.Id, dealt));
+                }
             }
+            EmitDetonated(state, "spread", holder.Id, hits, emit);
         }
 
         foreach (var (holder, sourceId) in stacks)
@@ -90,8 +95,102 @@ public static class PairMarks
                 continue;
             }
             long headcount = SideWithin(state, holder, rules.StackRadiusMm).Count;
-            Hit(state, sourceId, holder, IntMath.FloorDiv(rules.StackDamage, Math.Max(1, headcount)), effectDefs, emit, weighting);
+            var hits = new List<(int Id, long Amount)>();
+            if (Hit(state, sourceId, holder, IntMath.FloorDiv(rules.StackDamage, Math.Max(1, headcount)), effectDefs, emit, weighting) is { } dealt)
+            {
+                hits.Add((holder.Id, dealt));
+            }
+            EmitDetonated(state, "stack", holder.Id, hits, emit);
         }
+    }
+
+    /// <summary>
+    /// The mark_applied receipt (BIBLE s9 The Pair; the demo.log proof a capture reads): one event on the tick a mark cast
+    /// lands, naming the cast (<c>def.Id</c>), the kind, the caster, the actors it marked (ascending), the mark's radius
+    /// and the tick it detonates (<c>landing + duration</c>, the instance's <see cref="EffectInstance.EndsTick"/>).
+    /// Called once per completed cast by <c>Casting.CompleteCastOn</c>. A cast whose ability applies no mark, or whose
+    /// targets took none, emits nothing. Null <paramref name="rules"/> (every oracle run) emits nothing.
+    /// </summary>
+    /// <param name="state">The sim state (its tick is the landing tick).</param>
+    /// <param name="def">The ability that completed.</param>
+    /// <param name="targets">Its resolved targets.</param>
+    /// <param name="sourceId">The caster's id.</param>
+    /// <param name="rules">The run's mark rules, or null.</param>
+    /// <param name="emit">Event sink.</param>
+    public static void EmitApplied(
+        SimState state,
+        AbilityDef def,
+        IReadOnlyList<ActorState> targets,
+        int sourceId,
+        MarkRules? rules,
+        Action<SimEvent> emit)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(def);
+        ArgumentNullException.ThrowIfNull(targets);
+        if (rules is null || !MarkOf(def, rules, out var kind, out var radius, out var effectId))
+        {
+            return;
+        }
+        var marked = targets
+            .Select(t => (Actor: t, Instance: t.Effects.Find(e => e.EffectId == effectId && e.SourceId == sourceId)))
+            .Where(m => m.Instance is not null)
+            .OrderBy(m => m.Actor.Id)
+            .ToList();
+        if (marked.Count == 0)
+        {
+            return;
+        }
+        emit(new SimEvent(
+            state.Tick,
+            "mark_applied",
+            ("cast", JsValue.Str(def.Id)),
+            ("kind", JsValue.Str(kind)),
+            ("sourceId", JsValue.Int(sourceId)),
+            ("targetIds", JsValue.Arr(marked.Select(m => JsValue.Int(m.Actor.Id)))),
+            ("radius", JsValue.Int(radius)),
+            ("detonatesTick", JsValue.Int(marked[0].Instance!.EndsTick))));
+    }
+
+    // Which mark an ability applies: its applyEffect op names the spread or the stack effect.
+    private static bool MarkOf(AbilityDef def, MarkRules rules, out string kind, out long radius, out string effectId)
+    {
+        foreach (var op in def.Effects)
+        {
+            if (op is ApplyEffectOp a && a.EffectId == rules.SpreadEffectId)
+            {
+                kind = "spread";
+                radius = rules.SpreadRadiusMm;
+                effectId = a.EffectId;
+                return true;
+            }
+            if (op is ApplyEffectOp b && b.EffectId == rules.StackEffectId)
+            {
+                kind = "stack";
+                radius = rules.StackRadiusMm;
+                effectId = b.EffectId;
+                return true;
+            }
+        }
+        kind = string.Empty;
+        radius = 0;
+        effectId = string.Empty;
+        return false;
+    }
+
+    // The mark_detonated receipt: once per resolved mark, on the tick it runs out. hits lists each actor the detonation
+    // dealt damage to (in resolution order: ascending id), with the health it took; empty when nobody was hit.
+    private static void EmitDetonated(SimState state, string kind, int markedId, List<(int Id, long Amount)> hits, Action<SimEvent> emit)
+    {
+        emit(new SimEvent(
+            state.Tick,
+            "mark_detonated",
+            ("kind", JsValue.Str(kind)),
+            ("markedId", JsValue.Int(markedId)),
+            ("hitIds", JsValue.Arr(hits.Select(h => JsValue.Int(h.Id)))),
+            ("damage", JsValue.Arr(hits.Select(h => JsValue.Obj(
+                ("actorId", JsValue.Int(h.Id)),
+                ("amount", JsValue.Int(h.Amount))))))));
     }
 
     /// <summary>
@@ -193,7 +292,8 @@ public static class PairMarks
         return side.Where(a => ids.Contains(a.Id)).ToList();
     }
 
-    private static void Hit(
+    // Returns the health the hit took, or null when no hit was made (nothing to deal, or the target already dead).
+    private static long? Hit(
         SimState state,
         int sourceId,
         ActorState target,
@@ -204,10 +304,10 @@ public static class PairMarks
     {
         if (amount <= 0 || !target.Alive)
         {
-            return;
+            return null;
         }
         state.Actors.TryGetValue(sourceId, out var source);
-        Mitigation.DealDamage(state.Tick, source, target, amount, effectDefs, emit, sourceId, weighting);
+        return Mitigation.DealDamage(state.Tick, source, target, amount, effectDefs, emit, sourceId, weighting).HealthDamage;
     }
 }
 

@@ -21,6 +21,9 @@ public sealed record CastContext(
     /// Overheat is new behaviour with no TS oracle and runs only when a host sets it (<see cref="RulesConfig.Overheat"/>).
     /// </summary>
     public IReadOnlyDictionary<string, OverheatRule>? Overheat { get; init; }
+
+    /// <summary>The Pair's spread and stack mark rules (<see cref="PairMarks"/>) for the mark_applied receipt, or null for none (every oracle run).</summary>
+    public MarkRules? Marks { get; init; }
 }
 
 /// <summary>
@@ -390,6 +393,8 @@ public static class Casting
                 Holder.ApplyTaunt(actor, target); // HOLDER-LOCK (STATE.md D30): only a taunt moves a holder
             }
         }
+        // C#-only (null on every oracle run): the Pair's mark_applied receipt, once per completed mark cast.
+        PairMarks.EmitApplied(state, def, targets, actor.Id, ctx.Marks, emit);
         foreach (var op in def.Effects)
         {
             isKick |= op is InterruptOp;
