@@ -34,15 +34,16 @@ public sealed class PairMarksConfigTests
     }
 
     [Fact]
-    public void The_radii_match_the_pair_telegraphs_the_player_reads()
+    public void The_pair_marks_draw_no_caster_telegraph()
     {
         ContentRegistry reg = ContentLoader.Load();
-        PairMarksConfig cfg = reg.Run.PairMarks;
         EnemyDef pair = reg.Enemies["pair.melee"];
 
-        // The ring on the floor is the rule: what the player sees is the radius that hurts.
-        Assert.Contains(pair.Script, s => s.Cast == "pair.spreadMark" && s.Telegraph!.Radius == cfg.SpreadRadiusMm);
-        Assert.Contains(pair.Script, s => s.Cast == "pair.stackCall" && s.Telegraph!.Radius == cfg.StackRadiusMm);
+        // BIBLE s3, s9 The Pair: the floor shape of a mark is the ring on the marked player (the sim's PairMarks.Rings,
+        // radius from run.json pairMarks, the same number the detonation uses). A caster-centred circle hits nothing, so
+        // the mark casts carry no telegraph block.
+        Assert.Contains(pair.Script, s => s.Cast == "pair.spreadMark" && s.Telegraph is null);
+        Assert.Contains(pair.Script, s => s.Cast == "pair.stackCall" && s.Telegraph is null);
     }
 
     [Fact]

@@ -43,15 +43,17 @@ describe("net codec: kickable survives server -> wire -> client", () => {
 });
 
 describe("net codec: telegraphClass survives server -> wire -> client", () => {
-  it("The Pair's telegraphs (pull rotated first) arrive spread/stack, deep-equal to the server's", () => {
+  it("the Seed's telegraphs (pull rotated first) arrive classed, deep-equal to the server's", () => {
+    // The Pair draws no caster telegraph (BIBLE s3, s9: the mark ring on the marked player is its telegraph), so the
+    // classed telegraphs on the wire come from the Seed (seed.lash and seed.slam, both "avoid").
     const registry = loadServerRegistry();
     const d = registry.dungeons.get("hollow-vault")!;
-    registry.dungeons.set("hollow-vault", { ...d, pulls: [d.pulls.find((p) => p.id === "pair")!, ...d.pulls.filter((p) => p.id !== "pair")] });
+    registry.dungeons.set("hollow-vault", { ...d, pulls: [d.pulls.find((p) => p.id === "seed")!, ...d.pulls.filter((p) => p.id !== "seed")] });
     const room = new Room("codec-tg", buildServerContent(registry, "hollow-vault", 2));
     const s = firstWhere(room, (x) => x.telegraphs.length > 0, 600);
     const client = toClientSnapshot(overTheWire(s));
     expect(client.telegraphs).toEqual(s.telegraphs);
-    for (const t of client.telegraphs as ClassedTelegraphSnapshot[]) expect(["spread", "stack"]).toContain(t.telegraphClass);
+    for (const t of client.telegraphs as ClassedTelegraphSnapshot[]) expect(["avoid"]).toContain(t.telegraphClass);
   });
 });
 

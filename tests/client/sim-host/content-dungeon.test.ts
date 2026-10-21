@@ -4,7 +4,7 @@ import { buildDungeon } from "../../../client/src/sim-host/content-dungeon.js";
 import { createState } from "../../../sim/core/state.js";
 import { spawnPull } from "../../../sim/encounter/pulls.js";
 import { stepEnemyScripts } from "../../../sim/encounter/scripts.js";
-import { scaleCastEvery, scaleLeadTicks } from "../../../sim/encounter/tempo.js";
+import { scaleCastEvery } from "../../../sim/encounter/tempo.js";
 
 const registry = loadContent();
 
@@ -90,23 +90,23 @@ describe("content-dungeon: phased recurring steps keep `every`", () => {
     expect(step.at).toBe(600);
     expect(step.every).toBe(scaleCastEvery(400, KEY));
     expect(step.every).not.toBe(400); // key 2 really does scale (392), so "unscaled" is caught
-    expect(step.telegraph!.leadTicks).toBe(scaleLeadTicks(140, KEY)); // content pair.json stackCall leadTicks (140 since SLAM-TELEGRAPH spansCast)
+    expect(step.telegraph).toBeUndefined(); // BIBLE s3, s9: the stack ring on the marked player is the telegraph, no caster circle
   });
 
-  it("a scripted pull-2 run at key 2 emits >=2 STACK telegraphs during The Pair", () => {
+  it("a scripted pull-2 run at key 2 issues >=2 pair.stackCall casts during The Pair", () => {
     const { build, pairIndex } = stackStepAndScripts(KEY);
     const state = createState(1);
     state.tick = PULL2_START_TICK;
     for (const actor of spawnPull(build.dungeon, pairIndex, PULL2_START_TICK, () => {})) state.actors[actor.id] = actor;
 
-    const stackResolves = new Set<number>();
+    const stackCasts = new Set<number>();
     for (let t = PULL2_START_TICK; t < PULL2_START_TICK + WINDOW_TICKS; t++) {
       state.tick = t;
-      const { telegraphEvents } = stepEnemyScripts(state, build.enemyScripts);
-      for (const e of telegraphEvents) {
-        if (e.type === "telegraph" && e.cast === "pair.stackCall" && typeof e.resolvesTick === "number") stackResolves.add(e.resolvesTick);
+      const { commands } = stepEnemyScripts(state, build.enemyScripts);
+      for (const c of commands) {
+        if (c.kind === "cast" && c.abilityId === "pair.stackCall") stackCasts.add(c.tick);
       }
     }
-    expect(stackResolves.size).toBeGreaterThanOrEqual(2);
+    expect(stackCasts.size).toBeGreaterThanOrEqual(2);
   });
 });

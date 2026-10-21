@@ -202,18 +202,19 @@ describe("net parity: an open Window crosses the wire to the renderer (D10)", ()
 });
 
 describe("net parity: telegraphClass crosses the wire (gap 4)", () => {
-  it("The Pair's mechanic telegraphs arrive classed spread/stack (not the avoid default), danger derived from class", async () => {
-    // Real content, with Hollow Vault's pull order rotated so The Pair (spreadMark/stackCall) is
-    // pull 0 -- the default-order run never reaches it within a test's budget.
+  it("the Seed's telegraphs arrive classed avoid, danger derived from class (the Pair draws no caster telegraph to cross)", async () => {
+    // Real content, with Hollow Vault's pull order rotated so The Pair's neighbour The Seed (seed.lash, seed.slam, both
+    // "avoid") is pull 0 -- the default-order run never reaches it within a test's budget. The Pair's spread and stack
+    // marks draw no caster telegraph (BIBLE s3, s9), so no spread or stack class crosses the wire.
     const registry = loadServerRegistry();
     const d = registry.dungeons.get("hollow-vault")!;
-    registry.dungeons.set("hollow-vault", { ...d, pulls: [d.pulls.find((p) => p.id === "pair")!, ...d.pulls.filter((p) => p.id !== "pair")] });
+    registry.dungeons.set("hollow-vault", { ...d, pulls: [d.pulls.find((p) => p.id === "seed")!, ...d.pulls.filter((p) => p.id !== "seed")] });
     const s = await connect(registry);
     let tg: ClassedTelegraphSnapshot[] = [];
-    for (let i = 0; i < 40 && tg.length === 0; i++) tg = (await s.step(10)).telegraphs as ClassedTelegraphSnapshot[];
+    for (let i = 0; i < 60 && tg.length === 0; i++) tg = (await s.step(10)).telegraphs as ClassedTelegraphSnapshot[];
     expect(tg.length).toBeGreaterThan(0);
     for (const t of tg) {
-      expect(["spread", "stack"]).toContain(t.telegraphClass);
+      expect(t.telegraphClass).toBe("avoid");
       expect(t.danger).toBe(isDangerClass(t.telegraphClass));
     }
   }, 20_000);

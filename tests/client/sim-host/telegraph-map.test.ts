@@ -44,9 +44,9 @@ function tg(abilityId: string, shape: Telegraph["shape"] = "circle"): Telegraph 
 }
 
 describe("telegraph-map: render class per emitted telegraph kind", () => {
-  it("finds exactly the eight telegraphed casts the content ships today", () => {
+  it("finds exactly the six telegraphed casts the content ships today (the Pair's marks ship no caster telegraph, BIBLE s3 s9)", () => {
     expect(emittedTelegraphAbilities()).toEqual([
-      "hollowWarden.cleave", "hollowWarden.lock", "hollowWarden.slam", "pair.spreadMark", "pair.stackCall", "seed.lash", "seed.slam", "twins.slam",
+      "hollowWarden.cleave", "hollowWarden.lock", "hollowWarden.slam", "seed.lash", "seed.slam", "twins.slam",
     ]);
   });
 
