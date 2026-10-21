@@ -13,6 +13,7 @@ public sealed class RouteContentTests
 {
     private const string ForcesFile = "forces.json";
     private const string HazardsFile = "hazards.json";
+    private const string LayoutFile = "layout.json";
 
     /// <summary>One hazard in a room that layout.json names (a Room box); the room check reads layout.json.</summary>
     private const string Hazards = """
@@ -104,6 +105,25 @@ public sealed class RouteContentTests
         string message = LoadFails(new MutableSource().Add(HazardsFile, Hazards.Replace("\"seed-chamber\"", "\"sluice\"")));
 
         Assert.Contains("hazard \"floodjet\" is in unknown room \"sluice\"", message);
+    }
+
+    [Fact]
+    public void Each_branch_total_is_critical_path_plus_neutral_and_own_packs_and_a_short_branch_fails_naming_it()
+    {
+        ContentRegistry reg = ContentLoader.Load();
+        DungeonDef vault = reg.Dungeons["hollow-vault"];
+
+        // Shipped: choir = 600 teaching + 240 hall (neutral, required) + 400 cantor; seed = 600 + 240 + 420 warrior.
+        Assert.Equal(1240, RouteForces.BranchTotalPoints(reg.Forces, vault, reg.Layout.Packs, "choir-room"));
+        Assert.Equal(1260, RouteForces.BranchTotalPoints(reg.Forces, vault, reg.Layout.Packs, "seed-chamber"));
+
+        // A second optional seed-chamber pack (one pair.melee, 52) lifts every single-pack skip and the seed branch to
+        // 1312 but leaves the choir branch at 1240, 10 short of a 1250 bar. Only the branch check can catch this.
+        string message = LoadFails(new MutableSource()
+            .EditText(ForcesFile, t => t.Replace("\"required\": 1000", "\"required\": 1250"))
+            .EditText(LayoutFile, t => t.Replace("\"packs\": [", "\"packs\": [ { \"id\": \"warrior-second\", \"name\": \"Warrior Second\", \"room\": \"seed-chamber\", \"optional\": true, \"branch\": \"seed-chamber\", \"center\": { \"x\": 69000, \"z\": -5500 }, \"aggroMm\": 4000, \"enemies\": [ { \"enemyId\": \"pair.melee\", \"count\": 1, \"spawn\": { \"x\": 0, \"z\": 0 } } ] },")));
+
+        Assert.Contains("branch \"choir-room\" reaches 1240 of the 1250 forces required (short by 10)", message);
     }
 
     private static string LoadFails(MutableSource source) =>
