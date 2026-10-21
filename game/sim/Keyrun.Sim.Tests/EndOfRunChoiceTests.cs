@@ -235,14 +235,22 @@ public sealed class EndOfRunChoiceTests
     [Fact]
     public void Three_distinct_cards_even_when_the_draw_collides_twenty_times()
     {
-        // One slot, one facet, key 4 (tiers 1-3): exactly three distinct cards exist, so the random draw collides often
-        // and, on some seeds, more than the 20 re-draws allow. The cards must still be the three distinct ones.
-        var one = new Dictionary<string, IReadOnlyList<Facet>>(StringComparer.Ordinal) { ["ring"] = new[] { new Facet("ring.only", "only", "x") } };
+        // One slot, three facets: exactly three distinct (slot, facet) cards exist, so the random draw collides often
+        // and, on some seeds, more than the 20 re-draws allow. The cards must still be the three distinct facets.
+        // (Before f-0b0afff2 this was one facet at key 4, tiers 1-3: three "distinct" cards that were one facet at
+        // three tiers. BIBLE s7 "Facets change function" makes that a non-choice, so that pool now fails closed.)
+        var three = new Dictionary<string, IReadOnlyList<Facet>>(StringComparer.Ordinal)
+        {
+            ["ring"] = new[] { new Facet("ring.a", "a", "x"), new Facet("ring.b", "b", "x"), new Facet("ring.c", "c", "x") },
+        };
         for (var seed = 0L; seed < 20000; seed++)
         {
-            var offer = Rewards.RollRewardChoices(seed, 4, RunResult.Timed, new[] { "ring" }, one);
+            var offer = Rewards.RollRewardChoices(seed, 4, RunResult.Timed, new[] { "ring" }, three);
+            Assert.Equal(3, offer.Select(i => i.Facet.Id).Distinct(StringComparer.Ordinal).Count());
             Assert.Equal(3, offer.Select(Key).Distinct(StringComparer.Ordinal).Count());
         }
+        var one = new Dictionary<string, IReadOnlyList<Facet>>(StringComparer.Ordinal) { ["ring"] = new[] { new Facet("ring.only", "only", "x") } };
+        Assert.Throws<ArgumentException>(() => Rewards.RollRewardChoices(1, 4, RunResult.Timed, new[] { "ring" }, one));
     }
 
     [Fact]

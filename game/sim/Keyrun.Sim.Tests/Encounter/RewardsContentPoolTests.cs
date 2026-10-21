@@ -41,7 +41,7 @@ public sealed class RewardsContentPoolTests
     }
 
     // The class-scoped pool, as the HUD builds it (Screen.cs SlotPool): that class file's facets per slot, by id.
-    private static IReadOnlyDictionary<string, IReadOnlyList<Facet>> ContentPool(string classId)
+    internal static IReadOnlyDictionary<string, IReadOnlyList<Facet>> ContentPool(string classId)
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoRoot.Value, "content", "data", "facets", classId + ".json")));
         var facets = doc.RootElement.EnumerateArray()
