@@ -55,10 +55,13 @@ public sealed class HudSceneRunsBKTests
     /// <summary>
     /// R-PILE-10 (HudSceneTest check 8; dungeon loop decided as WoW Mythic+ does, BIBLE s3 cast bars and telegraphs): a
     /// mechanic aimed at a living player is legitimate and drops when the player dies. Pinned on run B's exact setup,
-    /// the same four facts check 8 reads from the host log: (a) the Warden's death tick (his <c>death</c> event); (b) every
+    /// the same facts check 8 reads from the host log: (a) the Warden's death tick (his <c>death</c> event); (b) every
     /// <c>HUD ping label=SPREAD|STACK</c> call (Pings.OnStepped: a new <see cref="PingCall.Key"/> after a step, logged at
-    /// that step's tick) comes strictly before it, and at least one does (a run with no call is vacuous and fails);
-    /// (c) on the death tick every live telegraph cancels (<c>telegraph_cancel</c>, TELEGRAPH-CANCEL-ON-DEATH); (d) after
+    /// that step's tick) comes strictly before it. Re-pointed 2026-10-21: run B has no caster telegraph and no Pair mark
+    /// lands before the death, so no call is required here; the live call is proven where a mark lands (the bot party
+    /// test below, and HudSceneTest check 11 / E2eAssert). (c) no Pair caster telegraph is drawn at any tick, no telegraph
+    /// is drawn after the death, and on the death tick the live telegraphs are exactly the <c>telegraph_cancel</c> EVENTs
+    /// there (TELEGRAPH-CANCEL-ON-DEATH; none are live now, so that is zero); (d) after
     /// it no cast starts on actor 1 (R-DEADCAST-1) and no further call appears while he is dead. R-BACKFILL-2 (f-47a7a6db):
     /// the solo wipe no longer ends run B after the wipe grace; the dead Warden releases and respawns at the entrance
     /// <see cref="RunWiring.ReleaseDelayTicks"/> after his death, so "after the death" is his time dead, up to and
@@ -126,10 +129,16 @@ public sealed class HudSceneRunsBKTests
         Assert.Contains(events, e => e.Type == "respawn" && Int(e, "actorId") == WardenId && e.Tick == d + 1 + RunWiring.ReleaseDelayTicks);
         // (b) the Pair draws no mark telegraph in run B (a caster circle is gone, BIBLE s3 s9; a mark ring exists only once a
         // mark lands), and every SPREAD/STACK call that does appear is made while he lives. Measured on this pull: no
-        // pair.spreadMark or pair.stackCall completes before the Warden dies (the old telegraph-era guard required a call
-        // that only a drawn-but-never-cast telegraph produced).
+        // pair.spreadMark or pair.stackCall completes before the Warden dies, so no call appears here before the death.
         Assert.DoesNotContain(events, e => e.Type == "telegraph" && Str(e, "cast").StartsWith("pair.", StringComparison.Ordinal));
         Assert.All(pings, p => Assert.True(p.Tick < d, $"'{p.Line}' at tick {p.Tick}, not strictly before the Warden's death at {d}"));
+        // (c) telegraphs: none is drawn after the death, and the cancels on the death tick are exactly the telegraphs live then
+        // (drawn up to it, less the hits up to it and the cancels before it). Zero on both sides in run B now.
+        Assert.DoesNotContain(events, e => e.Type == "telegraph" && e.Tick > d);
+        var liveAtDeath = events.Count(e => e.Type == "telegraph" && e.Tick <= d)
+            - events.Count(e => e.Type == "telegraph_hit" && e.Tick <= d)
+            - events.Count(e => e.Type == "telegraph_cancel" && e.Tick < d);
+        Assert.Equal(liveAtDeath, events.Count(e => e.Type == "telegraph_cancel" && e.Tick == d));
         // (c) the marks are a real rule in this run: the host's mark rules are loaded, and no ring is centred on him while dead.
         Assert.NotNull(setup.Content.Marks);
         Assert.True(ringsOnDeadWarden == 0, $"{ringsOnDeadWarden} Pair mark ring(s) centred on the Warden while he was dead (died at {d})");
@@ -137,6 +146,31 @@ public sealed class HudSceneRunsBKTests
         Assert.True(castStartsOnWarden.Count == 0, $"a cast started on the dead Warden (died at {d}): {string.Join(", ", castStartsOnWarden.Take(5))}");
         Assert.DoesNotContain(pings, p => p.Tick >= d);
         Assert.True(castsAfterDeath.Count == 0, $"an enemy holds a cast after its only target died at {d}: {string.Join(", ", castsAfterDeath.Take(5))}");
+    }
+
+    [Fact(DisplayName = "Pair pull with the bot party: a SPREAD/STACK mark lands on a living player and prints a live call (the live-ping proof of E2eAssert and HudSceneTest check 11)")]
+    public void Pair_marks_land_on_the_bot_party_and_print_a_live_call()
+    {
+        // Run B's pull with the bot party (no solo wipe): with the Pair's caster telegraphs removed, the only SPREAD/STACK
+        // call is the mark ring's (PingCalls mark source, emitted at the step the mark lands), so a live call proves a mark landed.
+        var registry = ContentLoader.Load();
+        var setup = HostRunSetup.Build(registry, "hollow-vault", Key, "warden", withBots: true);
+        var run = Create(setup, registry, 2, null, null);
+        var bots = new BotCommandSource(setup.BotActorIds, KitRegistry.From(registry), Seed, BotCommandSource.DefaultSkillDial, null);
+        var backfill = BackfillState.Empty;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var markCalls = new List<PingCall>();
+        while (run.State.Tick < 900 && run.RunEnd.ResultTick is null)
+        {
+            var commands = new List<Command>();
+            bots.Sample(run.State.Tick, run, commands);
+            var step = Backfill.Step(backfill, run, commands, Array.Empty<QueueRequest>());
+            backfill = step.Backfill;
+            run = step.Step.Run;
+            markCalls.AddRange(PingCalls.Calls(run).Where(c => c.Source == PingSource.Mark && seen.Add(c.Key)));
+        }
+        Assert.NotEmpty(markCalls);
+        Assert.Contains(markCalls, c => c.Label == "SPREAD" || c.Label == "STACK");
     }
 
     [Fact(DisplayName = "Run K (pull 4, key 2 echo, idle human + bots): the committed example's post-run Enters are 3 and 6 ticks after the run's run_end")]
