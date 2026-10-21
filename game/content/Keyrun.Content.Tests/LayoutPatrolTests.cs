@@ -50,6 +50,13 @@ public sealed class LayoutPatrolTests
         LoadFails(WithPatrol(outside));
     }
 
+    [Fact(DisplayName = "Patrol (R-PATROL-1): a patrol whose aggro ring meets the Choir room or any pull's engagement ring at some tick fails the load")]
+    public void A_patrol_ring_that_meets_a_pull_ring_or_the_choir_room_fails()
+    {
+        // The corridor-2 patrol as it stood before R-PATROL-1: its 4000 mm ring reaches the Choir room (x <= 26000).
+        LoadFails(WithPatrol(CorridorPatrol));
+    }
+
     [Fact(DisplayName = "Patrol (MPLUS-PATROLS): a non-positive speed fails the load")]
     public void A_zero_speed_fails()
     {

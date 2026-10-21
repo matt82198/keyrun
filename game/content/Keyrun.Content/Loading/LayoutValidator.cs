@@ -176,7 +176,105 @@ public static class LayoutValidator
                     if (corridor is not null && !Inside(corridor, at)) Fail(where + " member \"" + member.EnemyId + "\" at (" + at.X + ", " + at.Z + ") is outside its corridor");
                 }
             }
+            CheckPatrolRing(reg, layout, patrol, where, pullOrder);
         }
+    }
+
+    /// <summary>Pull aggro radius when a room sets none, mm (the sim's Pulls.DefaultAggroMm).</summary>
+    private const long DefaultPullAggroMm = 4000;
+
+    /// <summary>
+    /// R-PATROL-1 (ruling on PR #528; defer to WoW Mythic+: a patrol is a timing read between pulls, never a hidden add on
+    /// the first pull): at every tick of the loop, the patrol's aggro ring (radius <c>AggroMm</c>, default 4000, centred on
+    /// its point) is disjoint from the engagement ring of every pull room, the boss included, and from the Choir room (the
+    /// first pull's room) entirely. A pull's ring centre is the integer mean of its spawns as the host places them (the
+    /// room origin plus each enemy's offset), its radius the room's aggroMm or the pull default; the boss's ring is its
+    /// arena origin. Disjoint means no point of the patrol's disc is within the pull's disc (centre distance strictly over
+    /// the two radii), and the Choir room's rectangle is strictly beyond the patrol's radius. Integer squared distances.
+    /// </summary>
+    private static void CheckPatrolRing(ContentRegistry reg, LayoutDef layout, LayoutPatrol patrol, string where, List<string> pullOrder)
+    {
+        DungeonDef dungeon = reg.Dungeons[layout.Dungeon];
+        long ringMm = patrol.AggroMm ?? DefaultPullAggroMm;
+        var line = patrol.Waypoints.ToList();
+        long loop = 0;
+        for (int k = 0; k < line.Count; k++)
+        {
+            LayoutPoint a = line[k], b = line[(k + 1) % line.Count];
+            loop += System.Math.Abs((long)b.X - a.X) + System.Math.Abs((long)b.Z - a.Z);
+        }
+        long speed = patrol.SpeedMmPerTick;
+        // The patrol's point repeats every loop / gcd(loop, speed) ticks, so that is every tick of the loop.
+        long cycle = loop / Gcd(loop, speed);
+
+        var rings = new List<(string Pull, long Cx, long Cz, long Radius)>();
+        LayoutBox? choirRoom = null;
+        foreach (LayoutBox room in layout.Boxes.Where(b => b.Pull is not null))
+        {
+            LayoutPoint origin = room.Origin ?? throw Error("pull room \"" + room.Id + "\" has no spawn origin");
+            if (room.Pull == pullOrder[0]) choirRoom = room;
+            long cx = origin.X, cz = origin.Z;
+            if (room.Pull != LayoutDef.BossPullId)
+            {
+                PullDef pull = dungeon.Pulls.First(p => p.Id == room.Pull);
+                long sx = 0, sz = 0, n = 0;
+                foreach (PullEnemy e in pull.Enemies)
+                {
+                    sx += (long)e.Count * (origin.X + e.Spawn.X);
+                    sz += (long)e.Count * (origin.Z + e.Spawn.Z);
+                    n += e.Count;
+                }
+                if (n > 0)
+                {
+                    cx = sx / n;
+                    cz = sz / n;
+                }
+            }
+            rings.Add((room.Pull!, cx, cz, room.AggroMm ?? DefaultPullAggroMm));
+        }
+        if (choirRoom is null) throw Error(where + " needs the first pull's room (the Choir room) in the layout");
+
+        for (long t = 0; t < cycle; t++)
+        {
+            var (px, pz) = PatrolPointOn(line, (t * speed) % loop);
+            foreach (var (pull, cx, cz, radius) in rings)
+            {
+                long dx = px - cx, dz = pz - cz, reach = ringMm + radius;
+                if ((dx * dx) + (dz * dz) <= reach * reach)
+                    Fail(where + " aggro ring at tick " + t + " (" + px + ", " + pz + ", radius " + ringMm + " mm) meets the engagement ring of pull \"" + pull + "\" (centre (" + cx + ", " + cz + "), radius " + radius + " mm)");
+            }
+            long nx = System.Math.Max(System.Math.Max(choirRoom.MinX - px, 0), px - choirRoom.MaxX);
+            long nz = System.Math.Max(System.Math.Max(choirRoom.MinZ - pz, 0), pz - choirRoom.MaxZ);
+            if ((nx * nx) + (nz * nz) <= ringMm * ringMm)
+                Fail(where + " aggro ring at tick " + t + " (" + px + ", " + pz + ", radius " + ringMm + " mm) meets the Choir room \"" + choirRoom.Id + "\"");
+        }
+    }
+
+    /// <summary>The patrol's point after <paramref name="d"/> mm along the closed loop <paramref name="line"/> (the sim's Patrols.PointAt, integer).</summary>
+    private static (long X, long Z) PatrolPointOn(List<LayoutPoint> line, long d)
+    {
+        for (int k = 0; k < line.Count; k++)
+        {
+            LayoutPoint a = line[k], b = line[(k + 1) % line.Count];
+            long leg = System.Math.Abs((long)b.X - a.X) + System.Math.Abs((long)b.Z - a.Z);
+            if (d < leg)
+            {
+                return (a.X + (System.Math.Sign((long)b.X - a.X) * d), a.Z + (System.Math.Sign((long)b.Z - a.Z) * d));
+            }
+            d -= leg;
+        }
+        return (line[0].X, line[0].Z);
+    }
+
+    private static long Gcd(long a, long b)
+    {
+        a = System.Math.Abs(a);
+        b = System.Math.Abs(b);
+        while (b != 0)
+        {
+            (a, b) = (b, a % b);
+        }
+        return a;
     }
 
     /// <summary>
