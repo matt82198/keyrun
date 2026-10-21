@@ -19,24 +19,24 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 298566,
-      "fnv": "9b144822"
+      "bytes": 326619,
+      "fnv": "f70acec9"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 247305,
-      "fnv": "7906e004"
+      "bytes": 239700,
+      "fnv": "ac8cab14"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 247302,
-      "fnv": "b6cfc36d"
+      "bytes": 239697,
+      "fnv": "59656f49"
     },
     "content-pull.setup.json": {
       "bytes": 22931,
       "fnv": "d7995b73"
     },
     "content-pull.trace.jsonl": {
-      "bytes": 30554,
-      "fnv": "fdf89e56"
+      "bytes": 30550,
+      "fnv": "a1d43069"
     },
     "fixed.vectors.json": {
       "bytes": 300060,
@@ -122,7 +122,7 @@
         "fnv": "55e41671"
       },
       "bots/src/roles/tank-engage.ts": {
-        "fnv": "53248d8b"
+        "fnv": "309b9b89"
       },
       "bots/src/roles/tank-pressure.ts": {
         "fnv": "11a09dd6"
@@ -269,7 +269,7 @@
         "fnv": "36ffc9d9"
       },
       "content/data/classes/chanter.json": {
-        "fnv": "28dcbabb"
+        "fnv": "4989fb8d"
       },
       "content/data/classes/cinder.json": {
         "fnv": "707a3e01"
@@ -359,7 +359,7 @@
         "fnv": "5018f7d9"
       },
       "sim/combat/casting.ts": {
-        "fnv": "196b8572"
+        "fnv": "207c9189"
       },
       "sim/combat/clause-hooks.ts": {
         "fnv": "43aaf28e"
@@ -381,6 +381,9 @@
       },
       "sim/combat/floor-telegraphs.ts": {
         "fnv": "b79df7f0"
+      },
+      "sim/combat/holder.ts": {
+        "fnv": "ac601358"
       },
       "sim/combat/mitigation.ts": {
         "fnv": "f6804874"
@@ -431,7 +434,7 @@
         "fnv": "46854278"
       },
       "sim/core/state.ts": {
-        "fnv": "c108df28"
+        "fnv": "68a87514"
       },
       "sim/core/tick.ts": {
         "fnv": "7ce3bffc"
@@ -461,7 +464,7 @@
         "fnv": "034dc454"
       },
       "sim/encounter/script-target.ts": {
-        "fnv": "571b37c3"
+        "fnv": "4506be1e"
       },
       "sim/encounter/scripts.ts": {
         "fnv": "bf656bcd"
@@ -488,7 +491,7 @@
         "fnv": "0432becb"
       },
       "sim/run-wiring.ts": {
-        "fnv": "6cbbbc86"
+        "fnv": "a2bd154c"
       },
       "tests/sim/golden/build-content-pull.ts": {
         "fnv": "c240b5d6"
@@ -500,7 +503,7 @@
         "fnv": "7e43222f"
       },
       "tests/sim/golden/scripted-pull.json": {
-        "fnv": "a5b31cd5"
+        "fnv": "c117c140"
       },
       "tests/sim/integration/fixtures.ts": {
         "fnv": "33253bef"
@@ -516,7 +519,7 @@
       "result": null,
       "setup": "content-pull.setup.json",
       "trace": "content-pull.trace.jsonl",
-      "traceHash": "4dc08fbd"
+      "traceHash": "45f59113"
     },
     {
       "finalTick": 600,
@@ -528,31 +531,31 @@
       "traceHash": "014e427d"
     },
     {
-      "finalTick": 1730,
+      "finalTick": 1717,
       "name": "bots-hv-k2-s7",
-      "records": 1731,
+      "records": 1718,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "2c1a47df"
+      "traceHash": "d6bab866"
     },
     {
-      "finalTick": 1730,
+      "finalTick": 1717,
       "name": "bots-hv-k2-s11",
-      "records": 1731,
+      "records": 1718,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "2c1a47df"
+      "traceHash": "d6bab866"
     },
     {
-      "finalTick": 2074,
+      "finalTick": 2134,
       "name": "bots-hv-k10-s7",
-      "records": 2075,
+      "records": 2135,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "aa65cde8"
+      "traceHash": "e149a22e"
     }
   ],
   "version": 1

@@ -238,6 +238,13 @@ public sealed class ActorState
     /// <summary>Threat by actor id (JS integer keys iterate ascending, hence sorted).</summary>
     public SortedDictionary<int, long> Threat { get; set; } = new();
 
+    /// <summary>
+    /// HOLDER-LOCK (STATE.md D30): the player an engaged enemy is locked onto, or null (not engaged, a player, or no
+    /// living player). Set on engage to the nearest living player (Combat/Holder.cs), moved only by a taunt, the
+    /// holder's death (then the nearest living player) or a wipe. Not projected (ORACLE.md section 1).
+    /// </summary>
+    public int? HolderId { get; set; }
+
     /// <summary>Per-actor walk speed (mm/tick) for move commands; null = RulesConfig.baseSpeedMmPerTick.</summary>
     public long? SpeedMmPerTick { get; set; }
 

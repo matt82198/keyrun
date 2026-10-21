@@ -132,6 +132,17 @@ export function resolveScriptTarget(input: ResolveScriptTargetInput): ResolveScr
   const pool = heal ? livingAllies(state, caster.id) : livingPlayers(state);
   const candidates = pool.filter((a) => inRange(caster, a, ability));
 
+  // HOLDER-LOCK (STATE.md D30, sim/combat/holder.ts): a hostile pick (default or "threat"; not a heal,
+  // not "random") goes at the locked holder only. A living holder out of range blocks the cast; a dead
+  // holder falls to the nearest living candidate, never the top threat.
+  if (!heal && override !== "random" && caster.holderId !== undefined) {
+    const holderId = caster.holderId;
+    if (candidates.some((a) => a.id === holderId)) return { targetId: holderId, blocked: false };
+    const holderLives = pool.some((a) => a.id === holderId);
+    if (!holderLives && candidates.length > 0) return { targetId: nearestId(caster, candidates), blocked: false };
+    return ability !== undefined ? { targetId: undefined, blocked: true } : { targetId: undefined, blocked: false };
+  }
+
   let picked: ActorId | null = null;
   if (candidates.length > 0) {
     picked =

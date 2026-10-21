@@ -85,10 +85,14 @@
          probe used. Since lane TUNE-BOSS (STATE.md D14) every swept key (2, 5, 8, 10 at seeds 1 and 7) clears from
          pull 1 (the D14 sweep, end ticks 6787 to 8603; re-swept on the lane NAV-CORE route, see its PR); run D keeps
          --pull 4 because it proves the armed boss at key 10 in 600 ticks, not the route.
-    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 600 --solo --requeue
+    Run E (lane 3I, the queued run; solo Warden, as ScreenSceneTest):  -- --autorun --ticks 700 --solo --requeue
         (--requeue: an autorun starts the queued run only when asked, so runs A-D and the other scene tests stay one
-        run each; an interactive game always starts it; 480 -> 600 by ROOM-LOCK-IN D27: the solo Warden now dies at 390
-        and the depleted run_end lands at 491, past the old 480)
+        run each; an interactive game always starts it; 480 -> 600 by ROOM-LOCK-IN D27: the solo Warden then died at 390
+        and the depleted run_end landed at 491, past the old 480; 600 -> 700 by SWING-PHASE (R-307-E): the Choir's
+        auto-attacks now swing on their own phases, so the solo Warden dies at 427 and the depleted run_end lands at
+        528; --ticks counts both runs, and the requeued run needs about 75 ticks to engage the Choir ("PULL spawn
+        index=0") plus the screen's key script, so 528 + 75 + screen is about 608, past the old 600; 700 keeps D27's
+        margin shape)
      17. the first "RUN start" says "key=2 clause=none" (no queue yet: today's run);
      18. "SCREEN queue dungeon=hollow-vault key=3 clause=<id>" (the screen's autorun script queues key 3 + Clause 2);
      19. after it, a second "RUN start ... key=3 clause=<that id>" (the key is the run content's KeyLevel and the
@@ -256,7 +260,7 @@ param(
     [int]$PartyTicks = 7000,
     [string]$CarelessSeat = '3@300:pair',
     [int]$BossTicks = 600,
-    [int]$QueueTicks = 600,
+    [int]$QueueTicks = 700,
     [int]$BackfillTicks = 3500,
     [string]$AbandonSeat = '2@pull0+1350',
     [int]$ScreenFirstFrames = 240,
@@ -672,8 +676,15 @@ $lockC = First $c.Lines '^EVENT \{"actorId":900,"endsTick":\d+,"lockIndex":1,"ti
 if (-not $lockC -or [array]::IndexOf($c.Lines, $lockC) -gt $iRunEnd) {
     $failures.Add("run C: the Lock never opened before run_end (no 'EVENT {""actorId"":900,...,""lockIndex"":1,...,""type"":""lock_open""}' line)")
 }
-$botHit = First $c.Lines '^EVENT \{.*"healthDamage":[1-9]\d*,.*"sourceId":(1\d\d|900),"targetId":[23],.*"type":"damage"'
-if (-not $botHit) { $failures.Add('run C: no enemy damaged a bot seat, so the private-log seat filter is not exercised') }
+# HOLDER-LOCK (STATE.md D30): every engaged enemy stays on its holder, and the autorun Warden (seat 1) engages every
+# pull, so in run C no enemy damages a bot seat any more (measured on dcfb978: all six cause rows are seat 1). The old
+# "an enemy damaged a bot seat" requirement is gone; the run instead must show enemy damage landing on the holder,
+# seat 1. The private-log seat filter above is no longer exercised by run C (no foreign cause exists to filter).
+$enemyDmg = '^EVENT \{.*"healthDamage":[1-9]\d*,.*"sourceId":(1\d\d|90\d),"targetId":(\d+),.*"type":"damage"'
+$holderHits = @($c.Lines | Where-Object { $_ -match $enemyDmg -and $Matches[2] -eq '1' }).Count
+$botHits = @($c.Lines | Where-Object { $_ -match $enemyDmg -and ($Matches[2] -eq '2' -or $Matches[2] -eq '3') }).Count
+Write-Host "HOLDER-LOCK run C: enemy damage on seat 1=$holderHits, on bot seats=$botHits"
+if ($holderHits -eq 0) { $failures.Add('run C: no enemy damaged seat 1, the Warden that engages and holds every pull (HOLDER-LOCK D30)') }
 $botsC = First $c.Lines '^BOTS done commands=\d+ hash=[0-9a-f]{16}$'
 $botsC2 = First $c2.Lines '^BOTS done commands=\d+ hash=[0-9a-f]{16}$'
 if (-not $botsC) { $failures.Add('run C: no "BOTS done commands=N hash=H" line') }

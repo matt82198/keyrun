@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
+using Keyrun.Sim.Encounter;
+using Keyrun.Sim.Runs;
 using Xunit;
 using static Keyrun.Sim.Tests.CombatCastTestKit;
 
@@ -86,6 +88,35 @@ public sealed class EnemiesNeverDisplacePlayerTests
 
         Assert.Equal(new Vec3(0, 0, 0), state.Actors[Warden].Pos);
         Assert.Equal(new Vec3(2 * RadiusMm, 0, 0), state.Actors[10].Pos);
+    }
+
+    /// <summary>
+    /// HOLDER-LOCK x D54 (PR #307 merged with #396): a run on a nav layout is never a frozen-TS replay (RunContent.Layout is
+    /// null on every oracle run), so the TS push-out a replay setup carries must not apply to it. JoinerDoorwayTests
+    /// drives such a run from the oracle setup: with the Pair's two warriors locked on the standing Warden (D30) the rear
+    /// one shoved the front one into him and he was pushed 9 m back across pair-hall's entry wall.
+    /// </summary>
+    [Fact]
+    public void A_layout_run_keeps_D54_even_when_its_content_carries_the_TS_push_out()
+    {
+        var layout = new NavLayout(new[] { new NavBox("room", new Bounds(-20000, 20000, -20000, 20000), true, null) }, Array.Empty<NavTrigger>(), new[] { new Vec3(19000, 0, 0) });
+        var tsContent = RunTestKit.Content() with { TsSymmetricPushOut = true };
+
+        var onLayout = OverlapOnce(RunWiring.RulesConfigOf(tsContent with { Layout = layout }));
+        Assert.Equal(new Vec3(0, 0, 0), onLayout.Actors[Warden].Pos);
+        Assert.Equal(new Vec3(2 * RadiusMm, 0, 0), onLayout.Actors[10].Pos);
+
+        // Control: the flat-arena replay keeps the TS rule tick for tick (both part by half the 300 mm overlap).
+        var replay = OverlapOnce(RunWiring.RulesConfigOf(tsContent));
+        Assert.Equal(new Vec3(-150, 0, 0), replay.Actors[Warden].Pos);
+        Assert.Equal(new Vec3(650, 0, 0), replay.Actors[10].Pos);
+    }
+
+    private static SimState OverlapOnce(RulesConfig cfg)
+    {
+        var state = At(0, Make(Warden, ActorKind.Player, "warden", ActorRole.Tank, 0, 0, 400), Make(10, ActorKind.Enemy, "pair.melee", ActorRole.None, 500, 0, 1200));
+        Tick(state, Rules.Make(cfg), Cmds(), _ => { });
+        return state;
     }
 
     [Fact]

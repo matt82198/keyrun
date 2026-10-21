@@ -39,6 +39,10 @@ public sealed class TankRole : IRole
         {
             return new List<Command> { vigil };
         }
+        if (TankPressure.AllyShieldCommand(view, self, kit) is { } guardian)
+        {
+            return new List<Command> { guardian };
+        }
         if (TankPressure.PressureMitigationCommand(view, self, kit) is { } bulwark)
         {
             return new List<Command> { bulwark };

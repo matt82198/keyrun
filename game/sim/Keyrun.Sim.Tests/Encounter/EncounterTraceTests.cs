@@ -19,6 +19,10 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// events are compared byte for byte (canonical JSON); between projections positions are unknown, so a
 /// telegraph's origin/yaw and a hit's actor list are left out of the comparison and everything else
 /// (tick, caster, cast, shape, lead, resolvesTick, geometry, telegraph ids, pull events) is still exact.
+/// HOLDER-LOCK (STATE.md D30): enemy holders are not projected, so the model replays them as the run root makes them:
+/// each completed taunt in the record (its cast command's target) moves that enemy's holder, then
+/// <see cref="Keyrun.Sim.Combat.Holder.LockHolders"/> runs on the post-step state (after the projection sync when the
+/// record carries one), exactly where RunWiring.FixupTargeting runs it.
 /// </summary>
 public sealed class EncounterTraceTests
 {
@@ -58,6 +62,44 @@ public sealed class EncounterTraceTests
             _ => Array.Empty<string>(),
         };
         return new SimEvent(e.Tick, e.Type, e.Fields.Members.Where(m => !drop.Contains(m.Key))).ToCanonicalJson();
+    }
+
+    // Combat/Holder.cs IsTaunt over the setup's raw ability JSON: target shape, the "utility" tag and a threat op.
+    private static HashSet<string> TauntIds(JsObject abilities)
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (id, value) in abilities.Members)
+        {
+            var def = (JsObject)value;
+            var target = def.Get("shape") is JsObject shape && shape.Get("kind") is JsString { Value: "target" };
+            var utility = def.Get("tags") is JsArray tags && tags.Items.Any(t => t is JsString { Value: Keyrun.Sim.Combat.Holder.TauntTag });
+            var threat = def.Get("effects") is JsArray ops && ops.Items.Any(o => o is JsObject op && op.Get("op") is JsString { Value: "threat" });
+            if (target && utility && threat)
+            {
+                ids.Add(id);
+            }
+        }
+        return ids;
+    }
+
+    // The run root's holder bookkeeping for one recorded step: completed taunts (combat), then LockHolders.
+    private static void ApplyHolders(SimState state, OracleRecord r, HashSet<string> taunts)
+    {
+        foreach (var done in r.Events.Where(e => e.Type == "cast_complete"))
+        {
+            var casterId = (int)((JsInt)done.Get("actorId")!).Value;
+            var abilityId = ((JsString)done.Get("abilityId")!).Value;
+            if (!taunts.Contains(abilityId))
+            {
+                continue;
+            }
+            var cmd = r.Commands.OfType<CastCommand>().LastOrDefault(c => c.ActorId == casterId && c.AbilityId == abilityId);
+            if (cmd?.TargetId is { } tid && state.Actors.TryGetValue(tid, out var target) && state.Actors.TryGetValue(casterId, out var caster))
+            {
+                Keyrun.Sim.Combat.Holder.ApplyTaunt(caster, target);
+            }
+        }
+        Keyrun.Sim.Combat.Holder.LockHolders(state);
     }
 
     private Tally Replay(string trace)
@@ -108,6 +150,8 @@ public sealed class EncounterTraceTests
         }
         var encounter = EncounterState.Create(keyLevel, OracleRun.ParTicks(setup), Clauses.DefaultEncounterRules(keyLevel));
         var noTags = new Dictionary<string, IReadOnlyList<string>?>();
+        var taunts = TauntIds((JsObject)content.Get("abilities")!);
+        Keyrun.Sim.Combat.Holder.LockHolders(state); // createRun's fixupTargeting
 
         void Sync(OracleRecord r)
         {
@@ -207,6 +251,33 @@ public sealed class EncounterTraceTests
                 $"{trace}: first divergence at t={r.T} (state t={r.T - 1}, exact={exact}){Environment.NewLine}" +
                 $"oracle: {string.Join(" ", expectedJson)}{Environment.NewLine}ours:   {string.Join(" ", oursJson)}");
 
+            // A telegraph drawn between projections took its origin/yaw from unknown (stale) positions, and only those two
+            // fields went uncompared above; its caster can move before it resolves (the Seed walks while it casts), so a
+            // resolution on an exact tick would hit-test our stale geometry against an exact state. Register the oracle's
+            // own origin/yaw instead (every other field already matched), so the exact-tick hit list stays a real check.
+            if (!exact)
+            {
+                var oracleGeometry = expected.Where(e => e.Type == "telegraph").ToList();
+                var firstNewId = encounter.NextTelegraphId - oracleGeometry.Count; // this step's ids, in draw order
+                encounter = encounter with
+                {
+                    Telegraphs = encounter.Telegraphs.Select(tg =>
+                    {
+                        var j = tg.Id - firstNewId;
+                        if (j < 0 || j >= oracleGeometry.Count)
+                        {
+                            return tg;
+                        }
+                        var o = (JsObject)oracleGeometry[j].Get("origin")!;
+                        return tg with
+                        {
+                            Origin = new Vec3(((JsInt)o.Get("x")!).Value, ((JsInt)o.Get("y")!).Value, ((JsInt)o.Get("z")!).Value),
+                            Yaw = (int)((JsInt)oracleGeometry[j].Get("yaw")!).Value,
+                        };
+                    }).ToList(),
+                };
+            }
+
             tally.Records++;
             tally.Telegraphs += expected.Count(e => e.Type == "telegraph");
             tally.ExactTelegraphs += exact ? expected.Count(e => e.Type == "telegraph") : 0;
@@ -219,6 +290,7 @@ public sealed class EncounterTraceTests
             {
                 Sync(r);
             }
+            ApplyHolders(state, r, taunts);
         }
 
         _out.WriteLine($"{trace}: records={tally.Records} telegraphs={tally.Telegraphs} (exact {tally.ExactTelegraphs}) " +
@@ -262,6 +334,19 @@ public sealed class EncounterTraceTests
     // ENEMY-ENGAGE (in-reach chasers turn to face their target) merged with SLAM-TELEGRAPH and re-recorded on the merged
     // tree: the same tally gives the SLAM-TELEGRAPH rows unchanged (ENEMY-ENGAGE alone: k2 12, 12, 7, 0, 0, 1; k10
     // 14, 14, 7, 0, 0, 3; the tally reproduces both parents' committed rows from their own traces).
+    // HOLDER-LOCK D30 merged with SLAM-TELEGRAPH + QUENCH-REFUND, re-recorded on the merged tree and tallied the same
+    // way (that tally reproduced main's rows 12, 12, 7, 0, 1, 1 / 16, 16, 7, 0, 0, 3 and the HOLDER-LOCK PR's rows
+    // 11, 11, 7, 0, 0, 1 / 15, 15, 7, 0, 0, 3 from their own traces; the HOLDER-LOCK branch then committed
+    // k2 12, 12, 7, 0, 0, 1 / k10 14, 13, 7, 0, 0, 1).
+    // HOLDER-LOCK D30 merged with INTEGRATE-PLAYABLE CAST-DEFERRAL, re-recorded on the merged tree (ORACLE_WRITE=1) and
+    // measured by this replay: k2-s7 / k2-s11 telegraphs=12 (exact 0) hits=12 (exact 1); k10-s7 telegraphs=17 (exact 0)
+    // hits=15 (exact 1), records=2026.
+    // HOLDER-LOCK D30 (PR #307) merged with PR #370 SPELL-QUEUE + ZERO-GCD (main 7fb46645), re-recorded on the merged tree
+    // (ORACLE_WRITE=1) and measured by this replay: k2-s7 / k2-s11 records=1600 telegraphs=8 (exact 1) hits=8 (exact 1);
+    // k10-s7 records=2198 telegraphs=15 (exact 0) hits=15 (exact 3), the same rows as main's below (the HOLDER-LOCK
+    // merge 6b057907 rows were k2 12, 12, 7, 0, 0, 1 / k10 17, 15, 7, 0, 0, 1). On this trace telegraph 7 (seed.lash,
+    // drawn at 1723 by a Seed walking toward the party) resolves at 1740 on an exact tick, so the replay now registers
+    // the oracle's origin/yaw for telegraphs drawn between projections (see Replay).
     // ZERO-GCD + NO-PRESS-MID-CAST (f-80b5cf16) merged with ENEMY-ENGAGE and re-recorded on the merged tree, measured by
     // this replay (ZERO-GCD + NO-PRESS-MID-CAST alone: k2 10, 10, 7, 0, 0, 0; k10 15, 14, 7, 0, 0, 3; main: k2 12, 12,
     // 7, 0, 1, 1; k10 16, 16, 7, 0, 0, 3).

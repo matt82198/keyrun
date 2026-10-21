@@ -1045,7 +1045,7 @@
       "targetId": 1000
     }
   ],
-  "expectedHash": "113b8042",
+  "expectedHash": "536b9b73",
   "eventCounts": {
     "damage": 25,
     "cast_complete": 25,
@@ -1176,7 +1176,7 @@
       "fnv": "1e026657"
     },
     "classes/chanter": {
-      "fnv": "1282653b"
+      "fnv": "5f54ef5d"
     },
     "classes/cinder": {
       "fnv": "edb11805"

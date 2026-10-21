@@ -176,3 +176,32 @@ describe("resolveScriptTarget", () => {
     expect(result).toEqual({ targetId: undefined, blocked: false });
   });
 });
+
+// HOLDER-LOCK (STATE.md D30): an engaged enemy keeps its holder; threat and nearness never move it.
+describe("resolveScriptTarget: holder lock (D30)", () => {
+  it("a locked holder beats a higher-threat, nearer player", () => {
+    const caster = makeActor({ id: 1, kind: "enemy", holderId: 10, threat: { 11: 5000 } });
+    const holder = makeActor({ id: 10, kind: "player", pos: { x: 0, y: 0, z: 1500 } });
+    const dps = makeActor({ id: 11, kind: "player", pos: { x: 0, y: 0, z: 200 } });
+    const state = makeState([caster, holder, dps]);
+    expect(resolveScriptTarget({ state, caster, ability: TARGET_ABILITY })).toEqual({ targetId: 10, blocked: false });
+    expect(resolveScriptTarget({ state, caster, override: "threat" })).toEqual({ targetId: 10, blocked: false });
+  });
+
+  it("a living holder out of range blocks the cast instead of switching to a player in range", () => {
+    const caster = makeActor({ id: 1, kind: "enemy", holderId: 10 });
+    const holder = makeActor({ id: 10, kind: "player", pos: { x: 0, y: 0, z: 5000 } });
+    const dps = makeActor({ id: 11, kind: "player", pos: { x: 0, y: 0, z: 500 } });
+    const state = makeState([caster, holder, dps]);
+    expect(resolveScriptTarget({ state, caster, ability: TARGET_ABILITY })).toEqual({ targetId: undefined, blocked: true });
+  });
+
+  it("a dead holder falls to the nearest living player, not the top threat", () => {
+    const caster = makeActor({ id: 1, kind: "enemy", holderId: 10, threat: { 12: 5000 } });
+    const holder = makeActor({ id: 10, kind: "player", alive: false });
+    const near = makeActor({ id: 11, kind: "player", pos: { x: 0, y: 0, z: 300 } });
+    const far = makeActor({ id: 12, kind: "player", pos: { x: 0, y: 0, z: 2500 } });
+    const state = makeState([caster, holder, near, far]);
+    expect(resolveScriptTarget({ state, caster, ability: TARGET_ABILITY })).toEqual({ targetId: 11, blocked: false });
+  });
+});
