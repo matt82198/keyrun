@@ -12,8 +12,8 @@ namespace Keyrun.Host;
 /// <summary>
 /// The autorun Warden (Godot-free, deterministic): walks at the Choir Cantor (the lieutenant) until his kick is in
 /// range, kicks the Cantor's heal once it is half cast (so the cast bar is on screen for two seconds first), and spends
-/// the GCD on his rotation against whatever is in reach: Reckoning at full Momentum, Vigil at 50, Guard Break, Strike,
-/// and Brace below half health. Every command goes through the same <see cref="CastTargeting"/> rule as a key press.
+/// the GCD on his rotation against whatever is in reach: Reckoning at full Momentum, Vigil at 50, Guard Break when it
+/// closes an ally's Window, else Strike (the filler, every free global), and Brace below half health. Every command goes through the same <see cref="CastTargeting"/> rule as a key press.
 /// On a layout run (lane NAV-CORE, STATE.md D18) with no living enemy he walks the route instead
 /// (<see cref="Follow.LeadRoute"/>: each room's far doorway in turn, but in the active pull's room he holds at the
 /// standoff point until the party is inside, LEADER-WAITS), so the pull spawns once all are in; then the combat script above. With no living lieutenant but a living enemy (lane
@@ -33,6 +33,9 @@ public sealed class ScriptedWarden
     private const string Kick = "warden.shieldBash";
     private const string Defensive = "warden.brace";
     private const string Taunt = "warden.taunt";
+
+    /// <summary>Guard Break: the cooldown-free Payoff that Strike (the filler) yields to only when it closes a Window.</summary>
+    private const string PayoffBuilder = "warden.guardBreak";
 
     /// <summary>Appends the scripted commands for <paramref name="tick"/>.</summary>
     /// <param name="tick">The pre-step tick.</param>
@@ -126,6 +129,10 @@ public sealed class ScriptedWarden
                 continue;
             }
             var target = CastTargeting.For(run, me.Id, id);
+            if (id == PayoffBuilder && !PayoffCloses(run, me, def, target, tick))
+            {
+                continue;
+            }
             if (def.Shape.Kind == ShapeKind.Self || (state.Actors.TryGetValue(target, out var t) && t.Id != me.Id && Casting.RangeMm(me, t) <= def.Range))
             {
                 into.Add(new CastCommand(tick, me.Id, id, target));
@@ -153,6 +160,36 @@ public sealed class ScriptedWarden
             .OrderBy(e => Casting.RangeMm(me, e))
             .ThenBy(e => e.Id)
             .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// WARDEN-FILLER (finding f-95d23cfc; the core loop defers to WoW Mythic+: a tank's filler fires every global nothing
+    /// better is ready for): Guard Break has no cooldown and no cost, so pressed whenever ready it took every global from
+    /// Strike (2 Strikes in a 166 s KF1 run). It is a Payoff (BIBLE section 5), so it is the better button only when its
+    /// target carries an open Window the Warden may close for a Combo: another class's Window (the Warden's own Sundered is
+    /// a self_combo denial), and for a Lock Window not the class that closed the last one (Payoff.TryClosePayoff's rule).
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <param name="me">The Warden.</param>
+    /// <param name="def">Guard Break as loaded (a talent may patch its shape).</param>
+    /// <param name="targetId">Guard Break's cast target.</param>
+    /// <param name="tick">The pre-step tick.</param>
+    /// <returns>True when the Payoff would close a Window and fire a Combo.</returns>
+    internal static bool PayoffCloses(Run run, ActorState me, AbilityDef def, int targetId, int tick)
+    {
+        // The Payoff closes the Window on its primary target only: a single-target patch (Focused Break) goes at the cast
+        // target, the cone at the lowest-id hostile inside it (Targeting.ResolveTargets, Windows.ApplyWindowsAndCombosTo).
+        var target = def.Shape.Kind == ShapeKind.Target
+            ? (run.State.Actors.TryGetValue(targetId, out var t) && t.Id != me.Id && Casting.RangeMm(me, t) <= def.Range ? t : null)
+            : Targeting.ResolveTargets(run.State, me, def, Affinities.Of(def, run.Content.Effects)).FirstOrDefault();
+        if (target is null || !target.Alive
+            || WindowState.FindOpenWindow(target, tick) is not { } window
+            || WindowState.ParseWindowEffectId(window.EffectId) is not { } parsed)
+        {
+            return false;
+        }
+        var denied = parsed.Alternate ? WindowState.LastSetupClassOf(target) : parsed.SetupClass;
+        return denied != me.ClassId && run.Content.Combos?.Lookup(parsed.SetupClass, me.ClassId) is not null;
     }
 
     private static bool Ready(ActorState me, AbilityDef def, int tick) =>
