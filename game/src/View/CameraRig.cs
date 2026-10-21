@@ -24,9 +24,8 @@ namespace Keyrun.View;
 /// <see cref="CameraBoom.MarginMm"/> inside the walls of the plan (<see cref="DungeonBuilder.OccluderBoxes"/>), the same
 /// boxes in the GreyBox fallback.</item>
 /// <item>Cut-away: any wall piece or pillar still crossing the sight line to the pivot or to a living party body
-/// (<see cref="CameraBoom.Occluding"/>) is hidden for that frame by <see cref="DungeonBuilder.CutAway"/>. The same sight
-/// lines go to <see cref="RoomGateView.CutAway"/>, which hides a shut room entry gate they cross by the same rule
-/// (GATE-CUTAWAY).</item>
+/// (<see cref="CameraBoom.Occluding"/>) is hidden for that frame by <see cref="DungeonBuilder.CutAway"/>. There are no
+/// room entry gates to cut since STATE.md D44 (PATH-TO-BOSS).</item>
 /// <item>WoW framing (CAMERA-FRAMING, supersedes PARTY-FRAMING's boom and pitch fit; Matt 2026-10-20 "it should feel
 /// almost exact to wow"): the camera follows the player at the wheel zoom (<see cref="ZoomMm"/>, starting at
 /// <see cref="CameraFraming.DefaultBoomMm"/>, one <see cref="CameraFraming.ZoomStepMm"/> per wheel notch, clamped by
@@ -59,7 +58,6 @@ public partial class CameraRig : Node3D
     public const int BodyBottomMm = 0;
 
     private readonly HashSet<int> _occluded = new();
-    private readonly List<(int X, int Y, int Z)> _sightTargets = new();
     private readonly List<(int X, int Y, int Z)> _points = new();
     private readonly List<int> _pointIds = new();
     private bool _unsolvable;
@@ -87,10 +85,6 @@ public partial class CameraRig : Node3D
     /// <summary>The kit dungeon shell whose walls are cut away.</summary>
     [Export]
     public NodePath DungeonPath { get; set; } = new("../Dungeon");
-
-    /// <summary>The room entry gates (GATE-VIEW) cut away like walls.</summary>
-    [Export]
-    public NodePath GatesPath { get; set; } = new("../RoomGates");
 
     /// <summary>The wheel zoom: the boom the camera wants behind the pivot, mm (walls may shorten it).</summary>
     public int ZoomMm { get; private set; } = CameraFraming.DefaultBoomMm;
@@ -132,8 +126,6 @@ public partial class CameraRig : Node3D
 
     private DungeonBuilder? Dungeon { get; set; }
 
-    private RoomGateView? Gates { get; set; }
-
     /// <inheritdoc />
     public override void _Ready()
     {
@@ -141,7 +133,6 @@ public partial class CameraRig : Node3D
         Camera = GetNodeOrNull<Camera3D>("Camera");
         Driver = GetNodeOrNull<SimDriver>(DriverPath);
         Dungeon = GetNodeOrNull<DungeonBuilder>(DungeonPath);
-        Gates = GetNodeOrNull<RoomGateView>(GatesPath);
         if (Camera is not null)
         {
             // WoW's default lens (CameraFraming.VerticalFovDeg); the rig owns its camera's framing.
@@ -354,10 +345,8 @@ public partial class CameraRig : Node3D
     private void CutAwayOccluders(NavLayout layout)
     {
         _occluded.Clear();
-        _sightTargets.Clear();
         var from = ToMm3(Camera!.GlobalPosition);
         var pivot = ToMm3(GlobalPosition);
-        _sightTargets.Add(pivot);
         foreach (var k in CameraBoom.Occluding(from, pivot, _walls))
         {
             _occluded.Add(k);
@@ -374,14 +363,12 @@ public partial class CameraRig : Node3D
                 var before = Driver.PreviousState.Actors.TryGetValue(id, out var prev) ? prev : actor;
                 var body = ToMm3(ActorView.ToMetres(before.Pos).Lerp(ActorView.ToMetres(actor.Pos), Driver.Alpha));
                 var chest = (body.X, body.Y + BodyPointMm, body.Z);
-                _sightTargets.Add(chest);
                 foreach (var k in CameraBoom.Occluding(from, chest, _walls))
                 {
                     _occluded.Add(k);
                 }
             }
         }
-        Gates?.CutAway(from, _sightTargets);
         if (Dungeon is not null && Dungeon.CutAway(layout, _occluded))
         {
             _maxCut = Math.Max(_maxCut, _occluded.Count);

@@ -291,8 +291,16 @@ public static class Telegraphs
     /// <param name="pending">The registry after this tick's <see cref="Advance"/>.</param>
     /// <param name="tick">The tick just stepped.</param>
     /// <param name="emit">Event sink.</param>
+    /// <param name="abilities">Ability definitions, to tell a cast that needs a hostile target; null skips that check.</param>
     /// <returns>The registry with the cancelled telegraphs removed, and those telegraphs.</returns>
-    public static TelegraphCancel CancelUnlanded(SimState after, IReadOnlyList<Telegraph> pending, int tick, Action<SimEvent> emit)
+    /// <remarks>
+    /// TELEGRAPH-CANCEL-ON-DEATH (wrong data shown is P0): a telegraph drawn ahead of its cast (CastStartTick after
+    /// <paramref name="tick"/>, a lead longer than the cast, as the Pair's marks have) is cancelled the tick its cast can
+    /// no longer start: its caster is dead or gone, or the cast needs a hostile target (a target-shaped cast with no
+    /// heal) and no living player is left to take it. A cast that can still retarget another living player keeps its
+    /// telegraph, as the script would still start it.
+    /// </remarks>
+    public static TelegraphCancel CancelUnlanded(SimState after, IReadOnlyList<Telegraph> pending, int tick, Action<SimEvent> emit, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>? abilities = null)
     {
         ArgumentNullException.ThrowIfNull(after);
         ArgumentNullException.ThrowIfNull(pending);
@@ -300,15 +308,25 @@ public static class Telegraphs
         var cancelled = new List<Telegraph>();
         foreach (var tg in pending)
         {
-            if (tg.CastStartTick is not { } start || start > tick || tick >= tg.ResolvesTick)
+            if (tg.CastStartTick is not { } start || tick >= tg.ResolvesTick)
             {
                 continue;
             }
-            var underWay = after.Actors.TryGetValue(tg.SourceId, out var caster) &&
-                caster.CastId == tg.AbilityId && caster.CastEndsTick == tg.ResolvesTick;
-            if (underWay)
+            if (start > tick)
             {
-                continue;
+                if (CanStillStart(after, tg, abilities))
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                var underWay = after.Actors.TryGetValue(tg.SourceId, out var caster) &&
+                    caster.CastId == tg.AbilityId && caster.CastEndsTick == tg.ResolvesTick;
+                if (underWay)
+                {
+                    continue;
+                }
             }
             cancelled.Add(tg);
             emit(new SimEvent(tick, "telegraph_cancel",
@@ -322,5 +340,20 @@ public static class Telegraphs
         }
         var dropped = new HashSet<int>(cancelled.Select(t => t.Id));
         return new TelegraphCancel(pending.Where(t => !dropped.Contains(t.Id)).ToList(), cancelled);
+    }
+
+    // TELEGRAPH-CANCEL-ON-DEATH: can the not-yet-started cast behind tg still start? (CancelUnlanded's remarks.)
+    private static bool CanStillStart(SimState after, Telegraph tg, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>? abilities)
+    {
+        if (!after.Actors.TryGetValue(tg.SourceId, out var caster) || !caster.Alive)
+        {
+            return false;
+        }
+        if (abilities is not null && abilities.TryGetValue(tg.AbilityId, out var def) &&
+            def.Shape.Kind == Keyrun.Sim.Combat.ShapeKind.Target && !def.Effects.Any(op => op is Keyrun.Sim.Combat.HealOp))
+        {
+            return after.Actors.Values.Any(a => a.Alive && a.Kind == ActorKind.Player);
+        }
+        return true;
     }
 }

@@ -33,7 +33,9 @@ public sealed record LayoutDef
     /// SKIPPABLE-PACKS (Mythic+ route choice, BIBLE section 9.1): trash packs that stand in a room beside the walking line,
     /// each with its own forces value. An optional pack's aggro ring clears the route, so a party in formation walks past
     /// it without a pull; no gate ever names a pack, so the boss never waits on one. The forces bar decides which packs a
-    /// route needs. Empty when the key is absent.
+    /// route needs. PATH-PACKS: a required pack (<c>optional: false</c>) stands on the walking line between teaching
+    /// pulls, so the forward path is pull, pack, pull, boss. Every pack stands idle on the path from tick 0 and engages
+    /// whole when a party member comes within its ring (PRESPAWN-AGGRO). Empty when the key is absent.
     /// </summary>
     public ValueList<LayoutPack> Packs { get; init; } = new();
 
@@ -89,6 +91,13 @@ public sealed record LayoutBox
 
     /// <summary>Where the tank slot stands when a run starts at this room's pull (<c>--pull N</c>; inside the trigger). Pull rooms only.</summary>
     public LayoutPoint? Start { get; init; }
+
+    /// <summary>
+    /// A pull room's aggro radius, mm (PRESPAWN-AGGRO, BIBLE section 9.1: content may set the radius per group), or null =
+    /// the sim default (4000). NavLayouts.PlaceDungeon copies it onto the room's pull, so the host and the bots agree.
+    /// Pull rooms only, positive.
+    /// </summary>
+    public int? AggroMm { get; init; }
 }
 
 /// <summary>An XZ rectangle, mm.</summary>
@@ -148,7 +157,8 @@ public sealed record LayoutPack
 
     /// <summary>
     /// True for a pack the route can skip: its ring clears the walking line by more than the widest formation slot, and
-    /// the route still reaches the forces bar without it.
+    /// the route still reaches the forces bar without it. False for a required pack: its ring meets the walking line, so
+    /// walking forward pulls it.
     /// </summary>
     public required bool Optional { get; init; }
 

@@ -64,28 +64,58 @@ public static class RunRoot
         state = RunWiring.MergeActors(state, players);
 
         var keyLevel = content.KeyLevel ?? 1;
+        var engaged = new List<string>();
         if (content.Layout is { } layout)
         {
-            // Layout run (STATE.md D18, D27): pull 0 spawns only when the living party already stands in its room (a
-            // --pull N start placed inside the room), never on top of a party that starts in the Entrance.
+            // PRESPAWN-AGGRO (BIBLE section 9.1): on a layout run every group, the boss included, stands idle in
+            // formation from tick 0, and each engages on its own aggro radius (StepLayout), never on room entry.
             layout.RequireTriggers(dungeon);
-            if (dungeon.Pulls.Count > 0 && NavLayout.PartyInside(state, layout.RoomFor(dungeon.Pulls[0].Id)!.Box))
-            {
-                state = RunWiring.MergeActors(state, Pulls.SpawnPull(dungeon, 0, state.Tick, static _ => { }));
-            }
+            state = RunWiring.MergeActors(state, Pulls.SpawnAllIdle(dungeon, content.ActorRadiusMm));
+            // PATH-PACKS: every layout pack, required and optional, stands idle on the path from tick 0 too.
+            state = RunWiring.MergeActors(state, LayoutPacks.SpawnAllIdle(content.Packs, content.ActorRadiusMm));
         }
         else
         {
             state = RunWiring.MergeActors(state, Pulls.SpawnPull(dungeon, 0, state.Tick, static _ => { }));
+            if (dungeon.Pulls.Count > 0)
+            {
+                engaged.Add(dungeon.Pulls[0].Id);
+            }
         }
 
         var abilities = RunOptions.MergeLoadoutAbilities(content.Abilities, party, options?.Loadouts);
         var effective = ReferenceEquals(abilities, content.Abilities) ? content : content with { Abilities = abilities };
         var rules = RunOptions.ResolveEncounterRules(content, keyLevel, options?.ClauseId);
-        var encounter = EncounterState.Create(keyLevel, content.ParTicks ?? 24000, rules);
+        var encounter = EncounterState.Create(keyLevel, content.ParTicks ?? 24000, rules) with { Engaged = engaged };
 
         RunWiring.FixupTargeting(state);
         return new Run(state, encounter, dungeon, effective, RunEndState.Initial) { SeedRule = SeedRuleOf(effective) };
+    }
+
+    /// <summary>
+    /// A host start that begins in its fight (the <c>--pull N</c> test start: NavLayouts.PlaceParty "a --pull N run
+    /// starts in its fight"; STATE.md D27 spawned that pull at creation). PRESPAWN-AGGRO (BIBLE section 9.1) leaves every
+    /// layout group idle at creation, even with the party standing in the active pull's room outside its aggro ring, so a
+    /// host that asks for a fight start engages the active pull here, exactly as an aggro-ring engage would (its actors
+    /// stop being idle, <see cref="EncounterState.Engaged"/> records it, enemies target the tank). No event is emitted
+    /// (createRun has no event sink).
+    /// The input run is not modified. Unchanged for a run without a layout, a finished dungeon or an engaged pull.
+    /// </summary>
+    /// <param name="run">A freshly created run.</param>
+    /// <returns>The run with its active pull engaged.</returns>
+    public static Run EngageStartPull(Run run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var index = run.Encounter.PullIndex;
+        if (run.Content.Layout is null || index < 0 || index >= run.Dungeon.Pulls.Count || Pulls.IsEngaged(run.Encounter, run.Dungeon, index))
+        {
+            return run;
+        }
+        var state = run.State.Clone();
+        var groups = Aggro.GroupsOf(run.Dungeon, state.Tick, run.Content.Packs);
+        var encounter = Aggro.Engage(state, run.Encounter, groups, new[] { run.Dungeon.Pulls[index].Id }, state.Tick, static _ => { });
+        RunWiring.FixupTargeting(state);
+        return run with { State = state, Encounter = encounter };
     }
 
     /// <summary>
@@ -147,14 +177,20 @@ public static class RunRoot
         var enc = EncounterStep.Step(
             run.State,
             run.Encounter,
-            layout is null ? run.Dungeon : UnspawnedAsEmpty(run.State, run.Dungeon, run.Encounter.PullIndex),
+            run.Dungeon,
             run.ActiveScripts ?? content.EnemyScripts,
             emit,
             wiring,
             RunWiring.ScriptAbilitiesOf(content.Abilities));
 
         // The run's Clause rides in its rules for exactly this step (clause-hooks.ts withEncounterRules).
-        var rules = Rules.Make(RunWiring.RulesConfigOf(content, run.Encounter.Rules));
+        var rulesConfig = RunWiring.RulesConfigOf(content, run.Encounter.Rules);
+        if (run.Encounter.Boss is { } armedBoss)
+        {
+            // LOCK-TELEGRAPH: an armed boss's Lock cast is a cast bar only; the boss rules own its shield and Window.
+            rulesConfig = rulesConfig with { Abilities = BossRules.CombatAbilities(armedBoss.Config, rulesConfig.Abilities) };
+        }
+        var rules = Rules.Make(rulesConfig);
         var merged = commands.Concat(enc.Commands).ToList();
         // BIBLE.md:156 Tide: floor patches drift with the telegraphs, before combat reads them this tick.
         var stepped = Tick.Step(Clauses.DriftFloorWindows(run.State, run.Encounter.Rules), merged, rules);
@@ -168,7 +204,7 @@ public static class RunRoot
 
         // TELEGRAPH-CANCEL (BIBLE s3): a floor telegraph whose cast this tick's combat kicked, stopped or replaced is
         // cancelled on this tick and never resolves (no telegraph_hit for a hit that cannot come).
-        var cancel = Telegraphs.CancelUnlanded(nextState, enc.Encounter.Telegraphs, run.State.Tick, emit);
+        var cancel = Telegraphs.CancelUnlanded(nextState, enc.Encounter.Telegraphs, run.State.Tick, emit, content.Abilities);
         var nextEncounter = cancel.Cancelled.Count == 0 ? enc.Encounter : enc.Encounter with { Telegraphs = cancel.Telegraphs };
         var activeScripts = run.ActiveScripts;
         if (layout is null)
@@ -176,16 +212,22 @@ public static class RunRoot
             if (nextEncounter.PullIndex != run.Encounter.PullIndex)
             {
                 nextState = RunWiring.MergeActors(nextState, Pulls.SpawnPull(run.Dungeon, nextEncounter.PullIndex, nextState.Tick, emit));
+                if (nextEncounter.PullIndex < run.Dungeon.Pulls.Count)
+                {
+                    nextEncounter = nextEncounter with { Engaged = nextEncounter.Engaged.Append(run.Dungeon.Pulls[nextEncounter.PullIndex].Id).ToList() };
+                }
             }
         }
         else
         {
-            var index = nextEncounter.PullIndex;
-            var unspawned = index < run.Dungeon.Pulls.Count && !Pulls.IsSpawned(nextState, run.Dungeon, index);
-            nextState = StepLayout(layout, run, nextState, nextEncounter, emit, opts?.OpenSeats);
-            if (unspawned && Pulls.IsSpawned(nextState, run.Dungeon, index))
+            var before = nextEncounter.Engaged.Count;
+            (nextState, nextEncounter) = StepLayout(layout, run, nextState, nextEncounter, emit, opts?.OpenSeats);
+            var newly = nextEncounter.Engaged.Skip(before).ToList();
+            if (newly.Count > 0)
             {
-                activeScripts = OnPullClock(activeScripts ?? content.EnemyScripts, run.Dungeon.Pulls[index], nextState.Tick);
+                // A pull or a pack (PATH-PACKS) runs its scripts on its own clock from its engage tick.
+                var ids = Aggro.GroupsOf(run.Dungeon, nextState.Tick, content.Packs).Where(g => newly.Contains(g.Id)).SelectMany(g => g.ActorIds).ToHashSet();
+                activeScripts = OnEngageClock(activeScripts ?? content.EnemyScripts, ids, nextState.Tick);
             }
         }
         var echo = EchoSpawns.Step(nextEncounter, nextState, events, nextState.Tick, emit);
@@ -193,9 +235,11 @@ public static class RunRoot
         nextState = RunWiring.MergeActors(nextState, echo.Spawned);
 
         RunWiring.FixupTargeting(nextState);
-        nextEncounter = RunWiring.ApplyDeathsAndWipe(nextState, nextEncounter, events, nextState.Tick, emit);
+        // PATH-TO-BOSS (STATE.md D44): an open (abandoned or unfilled) seat is not in the run, so it never holds a wipe open.
+        var openSeats = opts?.OpenSeats;
+        nextEncounter = RunWiring.ApplyDeathsAndWipe(nextState, nextEncounter, events, nextState.Tick, emit, openSeats);
 
-        var runEnd = RunWiring.CheckRunEnd(run.RunEnd, nextState, nextEncounter, run.Dungeon, nextState.Tick, opts?.AbandonRequested ?? false, emit);
+        var runEnd = RunWiring.CheckRunEnd(run.RunEnd, nextState, nextEncounter, run.Dungeon, nextState.Tick, opts?.AbandonRequested ?? false, emit, openSeats);
         if (runEnd.Result is RunResult result && run.RunEnd.Result is null)
         {
             if (result == RunResult.Depleted)
@@ -217,13 +261,12 @@ public static class RunRoot
         return new RunStepResult(next, events);
     }
 
-    // SEED-PULL-TEACHES (STATE.md D27, design/BIBLE.md sections 3 and 9): a room-entry pull's scripts run on the pull's
-    // own clock from its pull_start tick, so its first cast and that cast's telegraph fall inside the fight whatever tick
-    // the party walked in on. Every other actor's script is kept as it is.
-    private static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> OnPullClock(
-        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts, PullDef pull, int startTick)
+    // SEED-PULL-TEACHES (STATE.md D27) and PRESPAWN-AGGRO (BIBLE section 9.1, "Scripts start at engage"): an engaged
+    // group's scripts run on the group's own clock from its engage tick, so its first cast and that cast's telegraph fall
+    // inside the fight whatever tick the party arrived on. Every other actor's script is kept as it is.
+    private static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> OnEngageClock(
+        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts, IReadOnlySet<int> ids, int startTick)
     {
-        var ids = pull.Spawns.Select(s => s.ActorId).ToHashSet();
         if (startTick == 0 || !scripts.Keys.Any(ids.Contains))
         {
             return scripts;
@@ -236,51 +279,27 @@ public static class RunRoot
         return shifted;
     }
 
-    // A layout run's active pull before its room is entered has no actors in the state, and pulls.ts counts a missing
-    // actor as dead: shown as it is, the encounter would clear it at once and cascade through every pull. The encounter
-    // step sees the unspawned pull with no spawns, which never advances (pulls.ts:82), so it clears only once fought.
-    private static DungeonDef UnspawnedAsEmpty(SimState state, DungeonDef dungeon, int pullIndex)
-    {
-        if (pullIndex < 0 || pullIndex >= dungeon.Pulls.Count || Pulls.IsSpawned(state, dungeon, pullIndex))
-        {
-            return dungeon;
-        }
-        var pulls = dungeon.Pulls.ToList();
-        pulls[pullIndex] = pulls[pullIndex] with { Spawns = Array.Empty<PullSpawn>() };
-        return dungeon with { Pulls = pulls };
-    }
-
     /// <summary>
     /// The layout rules after combat (STATE.md D18; no TS counterpart): (1) every actor that moved off the open boxes is
-    /// put back by <see cref="Movement.ClampToWalkable"/> against its pre-step position (a gated box opens on the tick its
-    /// pull clears) and, while the active pull is fought, by its room's closed gate (STATE.md D27,
-    /// <see cref="NavLayout.GateClamp"/>; <c>gate_open {room}</c> on the tick the pull clears); (2) <c>room_enter</c> for
-    /// each living player that stepped into a room box; (3) the active pull spawns, with its <c>pull_start</c> and
-    /// <c>gate_closed {room}</c>, on the first tick every living player stands in its room box.
+    /// put back by <see cref="Movement.ClampToWalkable"/> against its pre-step position; no room gate holds anyone in or
+    /// out of an engaged room (PATH-TO-BOSS, STATE.md D44, which removed the D27 gate: the party walks one forward path
+    /// and the packs sit along it); (2) <c>room_enter</c> for each living player that stepped into a room box;
+    /// (3) PRESPAWN-AGGRO (BIBLE section 9.1): every group whose aggro ring holds a living party member, or one of whose
+    /// members took damage, engages (<see cref="Aggro"/>).
     /// </summary>
-    private static SimState StepLayout(NavLayout layout, Run run, SimState next, EncounterState encounter, Action<SimEvent> emit, IReadOnlyList<int>? openSeats)
+    private static (SimState State, EncounterState Encounter) StepLayout(NavLayout layout, Run run, SimState next, EncounterState encounter, Action<SimEvent> emit, IReadOnlyList<int>? openSeats)
     {
-        // ROOM-LOCK-IN (STATE.md D27): the active pull's room is gated from its pull_start until its pull_clear. The gate
-        // holds this tick when the pull was already spawned before the step and did not clear during it.
-        var priorIndex = run.Encounter.PullIndex;
-        var priorFought = priorIndex < run.Dungeon.Pulls.Count && Pulls.IsSpawned(run.State, run.Dungeon, priorIndex);
-        var locked = priorFought && priorIndex == encounter.PullIndex ? layout.RoomFor(run.Dungeon.Pulls[priorIndex].Id) : null;
-
         var open = layout.OpenBoxes(run.Dungeon, encounter.PullIndex);
         foreach (var actor in next.Actors.Values)
         {
+            if (actor.Idle)
+            {
+                // PRESPAWN-AGGRO: an idle group stands in its own room, which a layout may still hold shut (not an open
+                // box). It runs no script and never chases, so it is not put back: clamping would drag it into the open boxes.
+                continue;
+            }
             var pre = run.State.Actors.TryGetValue(actor.Id, out var was) ? was.Pos : actor.Pos;
             actor.Pos = Movement.ClampToWalkable(pre, actor.Pos, open);
-            if (locked is not null)
-            {
-                actor.Pos = NavLayout.GateClamp(locked.Box, pre, actor.Pos);
-            }
-        }
-
-        if (priorFought && priorIndex != encounter.PullIndex && layout.RoomFor(run.Dungeon.Pulls[priorIndex].Id) is { } cleared)
-        {
-            // Stamped like the pull_clear it follows (the encounter step's tick).
-            emit(new SimEvent(run.State.Tick, "gate_open", ("room", JsValue.Str(cleared.Id))));
         }
 
         foreach (var actor in next.Actors.Values)
@@ -298,13 +317,9 @@ public static class RunRoot
             }
         }
 
-        var index = encounter.PullIndex;
-        if (index < run.Dungeon.Pulls.Count && !Pulls.IsSpawned(next, run.Dungeon, index) &&
-            layout.RoomFor(run.Dungeon.Pulls[index].Id) is { } room && NavLayout.PartyInside(next, room.Box, openSeats))
-        {
-            next = RunWiring.MergeActors(next, Pulls.SpawnPull(run.Dungeon, index, next.Tick, emit));
-            emit(new SimEvent(next.Tick, "gate_closed", ("room", JsValue.Str(room.Id))));
-        }
-        return next;
+        var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs);
+        var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
+        encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);
+        return (next, encounter);
     }
 }

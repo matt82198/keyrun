@@ -102,13 +102,18 @@ public sealed class SkippablePackTests
     [Fact]
     public void An_optional_pack_the_route_cannot_skip_is_rejected()
     {
-        // Strip every other pack to one acolyte: skipping this one now leaves the bar short.
+        // Strip every other pack to one member: skipping this one now leaves the bar short. The member is an acolyte,
+        // except that a pack fielding the pack-only Hall Sentry keeps one Hall Sentry (hall.sentry is in no pull, and an
+        // enemy worth forces in no pull or pack is its own rejection; STATE.md D49 fixture, not a loosening).
         var layout = ContentLoader.Load().Layout;
         string keep = layout.Packs.First(p => p.Optional).Id;
         var ex = LoadFails(new MutableSource().Edit(LayoutFile, n =>
         {
             foreach (JsonObject p in n["packs"]!.AsArray().Select(x => x!.AsObject()).Where(x => (string)x["id"]! != keep))
-                p["enemies"] = JsonNode.Parse("[{\"enemyId\":\"choir.melee\",\"count\":1,\"spawn\":{\"x\":0,\"z\":0}}]");
+            {
+                string member = p["enemies"]!.AsArray().Any(e => (string)e!["enemyId"]! == "hall.sentry") ? "hall.sentry" : "choir.melee";
+                p["enemies"] = JsonNode.Parse("[{\"enemyId\":\"" + member + "\",\"count\":1,\"spawn\":{\"x\":0,\"z\":0}}]");
+            }
         }));
         Assert.Contains("without optional pack", ex.Message);
     }

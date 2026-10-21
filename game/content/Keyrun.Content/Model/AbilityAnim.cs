@@ -44,6 +44,9 @@ public static class AbilityAnim
     private static readonly Dictionary<string, string> ActByAbility = new(StringComparer.Ordinal)
     {
         ["hollowWarden.cleave"] = "2H_Melee_Attack_Slice",
+        // LOCK-TELEGRAPH made the Lock a cast with a bar: it is the boss raising its shield, a spell, so without this
+        // the row's swing would wind up a strike for the whole Lock bar (KF1-WINDUP: no spell winds up a punch).
+        ["hollowWarden.lock"] = "Spellcast_Raise",
         ["choir.healCast"] = "Spellcast_Raise",
         // The Pair's marks are spells: a skeleton minion's row swing is a punch, so without these a mark cast would
         // wind up a punch for its whole bar.

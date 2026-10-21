@@ -13,11 +13,12 @@ namespace Keyrun.Sim.Tests.Encounter;
 /// <summary>
 /// SEED-PULL-TEACHES (Matt demo verdict KF3, 2026-10-19: "the Seed elite spawns on entry and the bots cheese it";
 /// design/BIBLE.md section 3, every mechanic readable before it lands, and section 9 item 3, the Seed teaches with no
-/// stakes). A layout pull spawns on the tick the last seat enters its room (STATE.md D27), so that tick is set by the
-/// party, not by the content. The k2 oracle Seed pull is placed into layout.json's seed-chamber as the host places it
-/// and the three seats wait <c>wait</c> ticks in corridor-3 before walking in, for every wait across one full Seed
-/// Lash period (<see cref="Waits"/>), which puts pull_start at every phase of the Seed's script. Whatever tick the party
-/// walks in on, every cast the Seed starts must come after the party was shown that cast's own telegraph inside the pull:
+/// stakes). A layout pull engages on the tick a seat reaches its aggro ring (PRESPAWN-AGGRO, BIBLE section 9.1), so that
+/// tick is set by the party, not by the content. The k2 oracle Seed pull is placed into layout.json's seed-chamber as the
+/// host places it and the three seats wait <c>wait</c> ticks in corridor-3 before walking in (and stop on the engage),
+/// for every wait across one full Seed Lash period (<see cref="Waits"/>), which puts pull_start at every phase of the
+/// run clock. Whatever tick the party walks in on, every cast the Seed starts must come after the party was shown that
+/// cast's own telegraph inside the pull:
 /// an elite whose first slam begins a few ticks after it appears, with its warning lost before it existed, opens with
 /// an unreadable hit instead of a readable setup.
 /// </summary>
@@ -31,7 +32,6 @@ public sealed class SeedOpenerTests
 
     private const long Seed = 1;
     private const int SeedActorId = 108;
-    private const long DoorwayX = 62600;
 
     private readonly ITestOutputHelper _out;
 
@@ -66,7 +66,7 @@ public sealed class SeedOpenerTests
             var walk = tick < wait
                 ? new List<Command>()
                 : party.Select(m => run.State.Actors[m.Id])
-                    .Where(a => a.Alive && a.Pos.X < DoorwayX)
+                    .Where(a => a.Alive && start is null)
                     .Select(a => (Command)new MoveCommand(tick, a.Id, new Dir2(1000, 0), 0))
                     .ToList();
             var stepped = RunRoot.StepRun(run, walk);

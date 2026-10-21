@@ -10,7 +10,7 @@ namespace Keyrun.Content;
 /// Loads every content kind from the verbatim content/data JSON into a typed, validated
 /// <see cref="ContentRegistry"/>: the C# mirror of content/index.ts <c>loadContent()</c>, reading
 /// the same 19 files in the same order, plus the C#-only run.json, layout.json, theme.json (theme.json is read by ThemeLoader), combo-riders.json
-/// and the forces + route files (forces.json, packs.json, hazards.json). Fails closed with <see cref="ContentLoadException"/> on
+/// and the forces + route files (forces.json, packs.json, hazards.json), and the trash enemies (enemies/hall.json). Fails closed with <see cref="ContentLoadException"/> on
 /// any unknown property, missing required field, null in a non-optional field, non-integer
 /// number, unknown enum or op, duplicate id, unresolved cross-reference, or unlisted/missing file.
 /// </summary>
@@ -41,7 +41,15 @@ public static class ContentLoader
         PacksFile,
         HazardsFile,
         GearFile,
+        TrashEnemiesFile,
     };
+
+    /// <summary>
+    /// C#-only trash enemies (game/content/data/enemies/hall.json, same logical root; PATH-PACKS): enemies only a layout
+    /// pack fields, never a teaching pull, so the frozen TS loadContent has no counterpart. Today the Hall Sentry
+    /// (<c>hall.sentry</c>), the Mythic+ trash the required Hall Sentries pack is built from.
+    /// </summary>
+    public const string TrashEnemiesFile = Enemies + "hall.json";
 
     /// <summary>C#-only gear table (game/content/data/gear.json; BIBLE section 7 "Five slots", "Tier is power").</summary>
     public const string GearFile = "gear.json";
@@ -131,7 +139,8 @@ public static class ContentLoader
                 ReadArray<EnemyDef>(source, Enemies + "choir.json"),
                 ReadArray<EnemyDef>(source, Enemies + "pair.json"),
                 ReadArray<EnemyDef>(source, Enemies + "seed.json"),
-                ReadArray<EnemyDef>(source, Enemies + "hollow-warden.json")),
+                ReadArray<EnemyDef>(source, Enemies + "hollow-warden.json"),
+                ReadArray<EnemyDef>(source, TrashEnemiesFile)),
             Dungeons = ById("dungeon", ReadOne<DungeonDef>(source, "dungeons/hollow-vault.json")),
             Clauses = ById("clause", ReadArray<ClauseDef>(source, "clauses.json")),
             Facets = ById("facet",

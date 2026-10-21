@@ -36,7 +36,8 @@ public sealed class ScriptedWarden
     /// <param name="tick">The pre-step tick.</param>
     /// <param name="run">The run.</param>
     /// <param name="into">The command list.</param>
-    public void Sample(int tick, Run run, List<Command> into)
+    /// <param name="openSeats">Abandoned seats not yet refilled (the leader does not wait for them), or null.</param>
+    public void Sample(int tick, Run run, List<Command> into, IReadOnlyList<int>? openSeats = null)
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(into);
@@ -47,14 +48,14 @@ public sealed class ScriptedWarden
         }
         if (run.Content.Layout is not null && !Follow.AnyLivingEnemy(state))
         {
-            if (Follow.LeadRoute(tick, me, run) is { } walk)
+            if (Follow.LeadRoute(tick, me, run, openSeats) is { } walk)
             {
                 into.Add(walk);
             }
             return;
         }
         var abilities = run.Content.Abilities;
-        var lieutenant = state.Actors.Values.FirstOrDefault(a => a.Alive && a.Kind == ActorKind.Enemy && a.ClassId == LieutenantClass);
+        var lieutenant = state.Actors.Values.FirstOrDefault(a => a.ClassId == LieutenantClass && EngagedTargets.IsEngagedHostile(me, a));
 
         if (lieutenant is { CastId: { } castId, CastStartTick: { } start } && abilities.TryGetValue(castId, out var cast) && cast.Interruptible &&
             tick >= start + (cast.CastTicks / 2) && Ready(me, abilities[Kick], tick) && Casting.RangeMm(me, lieutenant) <= abilities[Kick].Range)
@@ -118,26 +119,9 @@ public sealed class ScriptedWarden
         return new MoveCommand(tick, me.Id, dir, Atan.YawFromComponents(dir.X, dir.Z));
     }
 
-    /// <summary>The living enemy nearest <paramref name="me"/> (squared XZ distance, lowest id on a tie), or null.</summary>
-    private static ActorState? NearestEnemy(SimState state, ActorState me)
-    {
-        ActorState? best = null;
-        long bestD2 = 0;
-        foreach (var a in state.Actors.Values)
-        {
-            if (!a.Alive || a.Kind != ActorKind.Enemy)
-            {
-                continue;
-            }
-            var dx = a.Pos.X - me.Pos.X;
-            var dz = a.Pos.Z - me.Pos.Z;
-            var d2 = (dx * dx) + (dz * dz);
-            if (best is null || d2 < bestD2 || (d2 == bestD2 && a.Id < best.Id))
-            {
-                best = a;
-                bestD2 = d2;
-            }
-        }
-        return best;
-    }
+    /// <summary>
+    /// The living ENGAGED enemy nearest <paramref name="me"/> (squared XZ distance, lowest id on a tie), or null. An idle
+    /// prespawned enemy is never picked (PRESPAWN-AGGRO; <see cref="EngagedTargets.Nearest"/>).
+    /// </summary>
+    private static ActorState? NearestEnemy(SimState state, ActorState me) => EngagedTargets.Nearest(state, me);
 }

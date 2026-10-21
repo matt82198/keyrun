@@ -25,7 +25,9 @@ public sealed class PolicyContext
 /// kick ledger is switched off.</item>
 /// <item>Dodging: telegraphs and floor patches only when <see cref="Policy.DodgeTelegraphs"/> /
 /// <see cref="Policy.DodgeFloor"/> say so, after a reaction delay.</item>
-/// <item>Defensive (E): only under the policy's health threshold. Utility (R): only for listed classes.</item>
+/// <item>Defensive (E): under the policy's health threshold, or, for a <see cref="Policy.Mitigate"/> class, whenever its
+/// script would (the scripted tank's pressure rule, which then also reaches its group mitigation). Utility (R): only for
+/// listed classes.</item>
 /// <item>Targets: damage dealers attack their target (else the tank's), or the policy's focus list first.</item>
 /// <item>Holds: an ability held for other pulls is never pressed in this one.</item>
 /// </list>
@@ -103,7 +105,7 @@ public sealed class PolicyBot : IBot
 
         // 2. Travel between rooms, as the scripted runner does (walking the route is not a skill the plan names).
         var follow = LastDodge is null ? Follow.FollowCommand(view, self) : null;
-        var travelling = follow is not null || (LastDodge is null && Follow.ShutRoom(view, self) is not null);
+        var travelling = follow is not null;
         if (follow is not null)
         {
             commands.Add(follow);
@@ -151,7 +153,7 @@ public sealed class PolicyBot : IBot
         var inFloor = Floor.FloorEscapeCommand(view, self) is not null;
         var kept = new List<Command>();
         var droppedCast = false;
-        foreach (var c in role.Decide(view, self))
+        foreach (var c in DecideOffLedger(role, view, self, kit))
         {
             switch (c)
             {
@@ -184,6 +186,29 @@ public sealed class PolicyBot : IBot
     private static bool IsEnemy(BotView view, int id) =>
         view.State.Actors.TryGetValue(id, out var a) && a.Kind == ActorKind.Enemy;
 
+    /// <summary>
+    /// MITIGATE-THROUGH-LEDGER: the scripted role's decision with the scripted kick ledger switched off for this seat (its
+    /// kicks come from the plan only). Every role decides the ledger's kick first and returns it alone, so dropping that
+    /// kick afterwards also dropped everything the role would have pressed instead: a mitigating tank skipped Bulwark
+    /// and the healer stood idle while the boss cast its cleave (seed 1 key 2, 5480-5515), and the cleave killed the
+    /// Chanter. In WoW a player who is not on kicks still heals and presses their defensive. When the role hands this
+    /// seat the ledger kick, it decides again on a copy of the view where the seat's interrupt is not ready, which is
+    /// exactly what makes the ledger pass it over.
+    /// </summary>
+    private static IReadOnlyList<Command> DecideOffLedger(IRole role, BotView view, ActorState self, Keyrun.Bots.EffectiveKit kit)
+    {
+        var decided = role.Decide(view, self);
+        var interrupt = kit.InterruptAbilityId;
+        if (string.IsNullOrEmpty(interrupt) || !decided.Any(c => c is CastCommand k && string.Equals(k.AbilityId, interrupt, StringComparison.Ordinal)))
+        {
+            return decided;
+        }
+        var state = view.State.Clone();
+        var copy = state.Actors[self.Id];
+        copy.Cooldowns[interrupt] = Math.Max(Readiness.CooldownReadyTick(copy, interrupt), state.Tick + 1);
+        return role.Decide(view with { State = state }, copy);
+    }
+
     // bot.ts dangerAvoidCommand, gated by the plan.
     private static MoveCommand? DangerAvoid(BotView view, ActorState self)
     {
@@ -204,7 +229,12 @@ public sealed class PolicyBot : IBot
     private bool Allowed(CastCommand cast, ActorState self, Keyrun.Bots.EffectiveKit kit, BotView view, int? desired)
     {
         var id = cast.AbilityId;
-        if (string.Equals(id, kit.InterruptAbilityId, StringComparison.Ordinal) || string.Equals(id, kit.DefensiveAbilityId, StringComparison.Ordinal))
+        if (string.Equals(id, kit.InterruptAbilityId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+        // STATE.md D48: a mitigating seat presses E when its script would; any other seat only by its plan threshold.
+        if (string.Equals(id, kit.DefensiveAbilityId, StringComparison.Ordinal) && !_policy.Mitigate.Contains(self.ClassId, StringComparer.Ordinal))
         {
             return false;
         }

@@ -29,7 +29,8 @@ public static class EncounterWindow
 
     /// <summary>
     /// The bot's encounter-Window commands, or null when none applies. On a layout run, for the first open encounter
-    /// floor Window (JS key order): outside the ring, a move toward its centre; inside, the first ready, affordable
+    /// floor Window (JS key order): outside the ring, or inside it but also inside an earlier open patch that would take
+    /// the Payoff first (<see cref="Shadowed"/>), a move toward its centre; inside, the first ready, affordable
     /// Payoff that can resolve here (a non-target shape, or a target shape with a living enemy in range), or an empty
     /// list (hold in the ring) while none is ready yet. Null for a bot whose kit has no Payoff it could land here, so
     /// such a bot keeps its travel and role.
@@ -68,14 +69,14 @@ public static class EncounterWindow
             var dx = patch.Pos.X - self.Pos.X;
             var dz = patch.Pos.Z - self.Pos.Z;
             var inside = patch.RadiusMm * InsideBp / 10000;
-            if ((dx * dx) + (dz * dz) > inside * inside)
+            if ((dx * dx) + (dz * dz) > inside * inside || Shadowed(state, key, self))
             {
                 var move = Moves.MoveToward(tick, self.Id, selfMm, PointMm.Of(patch.Pos));
                 return move is null ? Array.Empty<Command>() : new Command[] { move };
             }
             foreach (var (id, target) in usable)
             {
-                if (RoleShared.ReadyAndAffordable(self, id, tick, kit))
+                if (RoleShared.ReadyAndAffordable(self, id, tick, kit) && !Intercepted(state, self, reg.Abilities[id], target.TargetId))
                 {
                     return new Command[] { new CastCommand(tick, self.Id, id, target.TargetId) };
                 }
@@ -87,16 +88,73 @@ public static class EncounterWindow
 
     private readonly record struct PayoffTarget(bool Usable, int? TargetId);
 
+    // True when the Payoff could resolve on an actor's Window instead of the floor. The sim tries the cast's first
+    // target's Window before any floor patch and stops there on a close or a denial (Windows.ApplyWindowsAndCombosTo), so
+    // a Chorus whose circle held the Warden carrying the Chanter's own Attuned was denied (self_combo) and the Seed's
+    // bloom stayed open. Conservative: a target Payoff checks its target; any other shape checks every actor within its
+    // radius (or length) of the bot. The bot holds in the ring and casts once nothing there carries a Window.
+    private static bool Intercepted(SimState state, ActorState self, AbilityDef def, int? targetId)
+    {
+        bool CarriesWindow(ActorState a) => a.Alive && a.Effects.Any(e =>
+            e.EffectId.StartsWith(Pings.WindowEffectPrefix, StringComparison.Ordinal) && e.EndsTick > state.Tick);
+        if (def.Shape.Kind == ShapeKind.Target)
+        {
+            return targetId is { } id && state.Actors.TryGetValue(id, out var t) && CarriesWindow(t);
+        }
+        long reach = def.Shape.Radius ?? def.Shape.Length ?? 0;
+        foreach (var a in state.Actors.Values)
+        {
+            var dx = a.Pos.X - self.Pos.X;
+            var dz = a.Pos.Z - self.Pos.Z;
+            if ((dx * dx) + (dz * dz) <= reach * reach && CarriesWindow(a))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // True when an open patch ahead of <paramref name="encounterKey"/> in JS key order also holds the bot. The sim closes
+    // the first patch that holds the Payoff caster (Payoff.TryClosePayoffOnFloor), so a Payoff cast there resolves on
+    // that patch instead: on the bot's own class's patch it is denied (self_combo) and the encounter Window never closes.
+    // Seen under PRESPAWN-AGGRO: the Chanter stood in its own Hymn patch, 1.4 m inside the Seed's bloom, and its Chorus
+    // was spent on the Hymn. The bot keeps walking toward the encounter ring's centre instead.
+    private static bool Shadowed(SimState state, string encounterKey, ActorState self)
+    {
+        foreach (var key in state.FloorWindows.Keys)
+        {
+            if (string.Equals(key, encounterKey, StringComparison.Ordinal))
+            {
+                return false;
+            }
+            var other = state.FloorWindows[key];
+            if (other.EndsTick <= state.Tick)
+            {
+                continue;
+            }
+            var dx = other.Pos.X - self.Pos.X;
+            var dz = other.Pos.Z - self.Pos.Z;
+            if ((dx * dx) + (dz * dz) <= other.RadiusMm * other.RadiusMm)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // A non-target Payoff resolves anywhere (its floor check is where its caster stands); a target one needs a living
-    // enemy in range: the bot's own target when that qualifies, else the nearest (lowest id on a tie).
+    // enemy in range: the bot's own target when that qualifies, else the nearest (lowest id on a tie). An idle
+    // (prespawned, not yet engaged) enemy never qualifies (PRESPAWN-AGGRO, BIBLE section 9.1; D30 "no pulling aggro
+    // unless they intentionally do"): a hit engages its whole group, so after the Seed dies a Cold Snap aimed at the
+    // idle boss 23 m away pulled the boss from the Seed chamber.
     private static PayoffTarget TargetFor(SimState state, ActorState self, AbilityDef def)
     {
         if (def.Shape.Kind != ShapeKind.Target)
         {
             return new PayoffTarget(true, null);
         }
-        if (self.TargetId is { } own && state.Actors.TryGetValue(own, out var cur) && cur.Alive && cur.Kind == ActorKind.Enemy &&
-            Casting.RangeMm(self, cur) <= def.Range)
+        if (self.TargetId is { } own && state.Actors.TryGetValue(own, out var cur) && cur.Kind == ActorKind.Enemy &&
+            EngagedTargets.IsEngagedHostile(self, cur) && Casting.RangeMm(self, cur) <= def.Range)
         {
             return new PayoffTarget(true, own);
         }
@@ -104,7 +162,7 @@ public static class EncounterWindow
         long bestRange = 0;
         foreach (var a in state.Actors.Values)
         {
-            if (!a.Alive || a.Kind != ActorKind.Enemy)
+            if (a.Kind != ActorKind.Enemy || !EngagedTargets.IsEngagedHostile(self, a))
             {
                 continue;
             }

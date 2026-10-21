@@ -925,6 +925,33 @@ Additional parked decisions (from the burn ledger):
   +10 both are on, a rotating Clause layers on top; ledger f-319aced5). For the build: BIBLE section 8 ("Fortified and
   Tyrannical", "The Clause"). Build: built (#304, Encounter/Affixes.cs, ClauseRotation in Run/Clause.cs and
   RunOptions.cs, values in game/content/data/run.json).
+- D43 **CARELESS-SEAT: a bot seat is hit because a careless player pulls a group, never because a test makes an enemy
+  hit it** (Matt 2026-10-20, verbatim: "no a bad player will accidentally aggro more groups, just test it naturally";
+  PR #308, PRESPAWN-AGGRO; D34-D42 are claimed by open PRs #338 and #342; reversible). Under PRESPAWN-AGGRO the Warden
+  walks into every aggro ring first and an enemy with no threat goes for the nearest living player, so no enemy ever
+  picked a bot seat and HudSceneTest run C's private-log seat filter check (a bot seat takes damage) had nothing to
+  read. Matt ruled out making enemies target bots, loosening the check, or retuning its constants. Instead a bot seat
+  can play carelessly (`Keyrun.Bots.Careless`, host flag `--careless-seat S@T:GROUP`): from tick T it strays off the
+  party toward the idle group GROUP until that group engages, and the sim's own aggro and targeting rules do the rest.
+  Run C runs with `--careless-seat 3@300:pair`. Why: the bot-damage check proves a real path (a bot pulls, the pack it
+  pulled goes for it), not a scripted one.
+- D44 **PATH-TO-BOSS: no gates; one forward path to the boss with prespawned packs; a run wipes when no living seated
+  player remains; bots follow the lowest living seat** (Matt 2026-10-21, verbatim: "no more gates, just path to boss
+  with packs as you said, make the rest of the decisions and we will tune later" and "just build the game"; earlier
+  "everything should be prespawned with an aggro distance" and "honestly just lean into m+ design heavily while in the
+  dungeon"; PR #308, folds PR #359; supersedes D27's gate and D18's gated corridors; reversible, every rule is code or
+  data and can be retuned). (1) Gates removed: no room gate shuts on an engage (no `gate_closed`/`gate_open`, no clamp,
+  no gate view or cut-away) and layout.json gates no corridor, so nothing walls the party in, out or forward. The
+  layout is one chain of rooms and corridors, so the flow is forward by layout; each pack stands idle on that path and
+  engages on its aggro ring (PRESPAWN-AGGRO), and a run completes only when every pull is cleared (the pull index), so
+  skipping is a pull you still owe, M+ style. (2) Wipe rule: a run wipes when no living player who is actually in the
+  run remains (`RunWiring.IsWipe`); an abandoned or unfilled seat (`StepRunOpts.OpenSeats`) never holds a dead party's
+  run open, in or out of combat; the wipe pays the wipe Slack on the last seated death, then 100 ticks of grace and a
+  depleted finish, as before. (3) Leader: bots follow the lowest-seat LIVING player (`Follow.Leader`), and that seat
+  leads the path when it is a bot (`Follow.LeadCommand`), so a dead leader passes the lead on; this replaces the
+  alive-or-dead rule from 53244968, which only existed to get a joiner past a shut gate. Why: Matt ruled out gates;
+  with packs prespawned on the path a gate only added stalemates (PR #308 run C: the Chanter self-healing outside a
+  shut gate, no run_end by tick 7000) and a leader rule that parked living bots on a body.
 - D45 **Orchestrator decisions 2026-10-21, tune later** (orchestrator, 2026-10-21, under Matt's verbatim: "make the rest of the
   decisions and we will tune later"; reversible, tune later). The decisions:
   - Death penalty: 15 s per death (the current 300-tick Slack cost stays), WoW Midnight-style.
@@ -945,6 +972,31 @@ Additional parked decisions (from the burn ledger):
   in WoW Mythic+ a death only costs time, it never fails the key on its own; under the bank, three deaths at +2 (900
   ticks against a 620-tick bank) depleted a key that was far ahead of par. The HUD bar now reads the run clock and
   "Deaths N (+Xs)" (TimerSlack.cs). Tune later: the 15 s / 25 s costs and whether the HUD bar keeps its shape.
+- D47 **HALL SENTRIES SWING ON THEIR OWN TIMERS** (orchestrator, 2026-10-20, under Matt's verbatim "make the rest of
+  the decisions and we will tune later"; reversible). The required Hall Sentries pack fields hall.sentry, a real
+  Mythic+ trash enemy only a layout pack fields (game/content/data/enemies/hall.json: 2000 health, choir.meleeSwing,
+  48 forces each). Pack-only members swing on staggered timers by member index, offsets i x period / n over one swing
+  period (LayoutPackGroups.StaggerSwing), so a five-sentry pack never lands five swings on one tick. WHY: in WoW each
+  mob's swing timer is its own; a pack landing every swing on the same tick is a spike no tank mitigates through.
+  Tune later: the period, the health and the count.
+- D48 **THE CHOIR LESSON COMPARES THE SAME COMPETENT PARTY WITH AND WITHOUT KICKS** (orchestrator, 2026-10-20, under
+  Matt's verbatim "make the rest of the decisions and we will tune later" and "ensure the bots can fail lol, they
+  should not clear the first dungeon on the first try unless they have played wow"; reversible). "Competent" includes
+  the tank mitigating the way the scripted party's tank does: a new playtest policy field `mitigate` (class list) lets
+  that seat press its defensive (E) when its role's script would, which also lets the script's pressure branch reach
+  Bulwark. Both ChoirLessonTests plans carry `"mitigate": ["warden"]`; they differ only in the kick rule. The claims
+  are unchanged: the kicking party times key 2, the never-kick party does not. Measured key 2 seed 1 on this branch:
+  kick plan timed +3 at 285 s, 0 deaths; never-kick plan untimed (depleted) at 830 s, 0 deaths; Choir cleared at tick
+  2500 vs 13401. WHY: without mitigation the policy Warden never pressed Brace or Bulwark, so every Hall Sentry swing
+  landed for the full 70 and the kick plan wiped, which made the lesson about tank buttons instead of the kick.
+- D49 **CONTENT INVENTORY RAISES FOR THE 8TH ENEMY ARE INVENTORY, NOT LOOSENING** (orchestrator, 2026-10-20). hall.sentry
+  is a real 8th enemy: ContentCountTests enemies 7 -> 8, embedded files 27 -> 28 (enemies/hall.json joins the C#-only
+  list), ReferenceTests refs 32 -> 34 (its ability and script step; measured on the merged tree, the brief's 30 -> 32
+  predates seed.lock). ActorBindingTests reads both enemy folders (content/data/enemies and game/content/data/enemies);
+  hall.sentry has a model row (the CC0 Skeleton_Warrior.glb with the Skeleton spawn clip, tinted bronze 0xD0A060).
+  RouteContentTests' forces fixture, SkippablePackTests' strip setup and PathPackRouteTests' oracle setup (a hall.sentry
+  template) carry the new enemy. WHY recorded: each is a fixture or count that must follow the content, and no
+  assertion, floor or behaviour was relaxed.
 - D50 **LOBBY-TABS: the between-runs screen is one lobby with three tabs, Character / Build / Play** (orchestrator,
   2026-10-20, from Matt's verbatim "anything else like progression, builds, classes, lobby stuff more like dark and
   darker... character management screen, quests, progression, score, follow the bible but you get what im saying, just

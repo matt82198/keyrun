@@ -21,6 +21,12 @@ public sealed record EncounterState
     /// <summary>Index of the active pull.</summary>
     public int PullIndex { get; init; }
 
+    /// <summary>
+    /// PRESPAWN-AGGRO (C#-only; BIBLE section 9.1): the ids of every group (pull or pack) that has engaged, in engage
+    /// order. A group engages once and stays engaged. On a run without a layout a pull engages when it spawns.
+    /// </summary>
+    public IReadOnlyList<string> Engaged { get; init; } = Array.Empty<string>();
+
     /// <summary>Slack bank, ticks.</summary>
     public int SlackTicks { get; init; }
 
@@ -58,6 +64,13 @@ public sealed record EncounterState
     /// frozen-TS replay (<see cref="ScriptStep.TsCastReplace"/>).
     /// </summary>
     public IReadOnlyDictionary<int, IReadOnlyList<int>> PendingSteps { get; init; } = new SortedDictionary<int, IReadOnlyList<int>>();
+
+    /// <summary>
+    /// STARTCAST-BUSY: frozen-TS replay steps (<see cref="ScriptStep.TsCastReplace"/>) that came due while their caster
+    /// was busy, held until it is free (<see cref="CastDeferral"/>; TS <c>deferredCasts</c>, default []). Always empty
+    /// for the CAST-FINISH steps, which wait in <see cref="PendingSteps"/> instead.
+    /// </summary>
+    public IReadOnlyList<DeferredCast> DeferredCasts { get; init; } = Array.Empty<DeferredCast>();
 
     /// <summary>Echo adds queued but not yet spawned.</summary>
     public IReadOnlyList<EchoSpawnRequest> PendingEchoSpawns { get; init; } = Array.Empty<EchoSpawnRequest>();

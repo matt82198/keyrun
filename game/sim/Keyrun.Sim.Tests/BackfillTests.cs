@@ -79,6 +79,7 @@ public sealed class BackfillTests
         List<int> SeatActedTicks,
         Dictionary<int, int> SlackAt,
         Dictionary<int, Vec3> SeatPosAt,
+        Dictionary<int, Vec3> TankPosAt,
         int? PullStart3Tick,
         List<QueueRequest> QueueLeft);
 
@@ -92,12 +93,14 @@ public sealed class BackfillTests
         var acted = new List<int>();
         var slack = new Dictionary<int, int>();
         var pos = new Dictionary<int, Vec3>();
+        var tankPos = new Dictionary<int, Vec3>();
         int? pullStart3 = null;
         while (run.State.Tick < EndTick)
         {
             var tick = run.State.Tick;
             slack[tick] = run.Encounter.SlackTicks;
             pos[tick] = run.State.Actors[Seat].Pos;
+            tankPos[tick] = run.State.Actors[Tank].Pos;
             if (tick == abandonTick)
             {
                 Assert.Equal(2, run.Encounter.PullIndex);
@@ -122,7 +125,8 @@ public sealed class BackfillTests
         }
         slack[run.State.Tick] = run.Encounter.SlackTicks;
         pos[run.State.Tick] = run.State.Actors[Seat].Pos;
-        return new Drive(run, backfill, fills, acted, slack, pos, pullStart3, waiting);
+        tankPos[run.State.Tick] = run.State.Actors[Tank].Pos;
+        return new Drive(run, backfill, fills, acted, slack, pos, tankPos, pullStart3, waiting);
     }
 
     [Fact]
@@ -156,11 +160,16 @@ public sealed class BackfillTests
         Assert.Equal(Enumerable.Range(0, AbandonTick), d.SeatActedTicks.Where(t => t < AbandonTick));
         Assert.Equal(Enumerable.Range(fillTick, EndTick - fillTick), after);
 
-        // The seat's actor stands still while open, and moves on the joiner's first command.
-        for (var t = AbandonTick; t <= fillTick; t++)
+        // The seat's actor stands still while open; at the pull start the joiner arrives with the party (BIBLE s9.1 and
+        // s10, "a joiner arrives at the next pull start ... inside the party's taken branch": on the staying member nearest
+        // the leaver, here the tank, the healer having died at 80); then it moves on the joiner's first command.
+        for (var t = AbandonTick; t < fillTick; t++)
         {
             Assert.Equal(d.SeatPosAt[AbandonTick], d.SeatPosAt[t]);
         }
+        Assert.False(d.Run.State.Actors[Healer].Alive);
+        Assert.Equal(d.TankPosAt[fillTick], d.SeatPosAt[fillTick]);
+        Assert.NotEqual(d.SeatPosAt[AbandonTick], d.SeatPosAt[fillTick]);
         Assert.NotEqual(d.SeatPosAt[fillTick], d.SeatPosAt[fillTick + 1]);
     }
 
