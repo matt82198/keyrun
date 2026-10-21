@@ -214,6 +214,37 @@
     }
   },
   {
+    "id": "seed.lock",
+    "name": "Seed Lock",
+    "castTicks": 0,
+    "gcdTicks": 0,
+    "cooldownTicks": 0,
+    "charges": 1,
+    "range": 0,
+    "shape": {
+      "kind": "self"
+    },
+    "interruptible": false,
+    "tags": [
+      "setup:seedlock"
+    ],
+    "effects": [
+      {
+        "op": "window",
+        "windowId": "seedlock",
+        "durationTicks": 60,
+        "onTarget": true,
+        "setupClass": "boss",
+        "self": true,
+        "alternate": true
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
+  },
+  {
     "id": "hollowWarden.slam",
     "name": "Warden Slam",
     "castTicks": 10,

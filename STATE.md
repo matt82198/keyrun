@@ -2,6 +2,8 @@
 
 ## INTENT (pinned; the orchestrator reads this first after every compaction)
 Why pinned: Matt 2026-10-19, verbatim: "there seems to be a misunderstaning with your responsiblity now, the workers context are small scope, your context is intent... over and over we are losing intent for context... even though its enforced with code" and "i think you've built a good start, it just does not align with the bible lmfao". Every lane is judged against design/BIBLE.md below, not against its own PR text.
+- Core dungeon loop rule (Matt 2026-10-20, verbatim): "anything you want my decision on in the core dungeon loop, defer to wow". The orchestrator answers dungeon-loop design questions with what WoW Mythic+ does and records the call.
+- Out-of-dungeon rule (Matt 2026-10-20, verbatim): "anything else like progression, builds, classes, lobby stuff more like dark and darker... character management screen, quests, progression, score, follow the bible but you get what im saying, just one screen with tabs should be enough before entering a game/queue". The orchestrator decides lobby, progression, build, class and character-management questions the way Dark and Darker does them, within design/BIBLE.md. Where the bible excludes something (it lists no quests, shop or stash in the POC, and no shareable score), the bible wins.
 - Goal, design/BIBLE.md section 1, verbatim: "Screen -> Queue -> Dungeon (timed, one boss) -> End-of-run choice of three -> Screen." "Nothing exists outside this loop in the POC: no world, no quests, no shop, no stash."
 - The three tests, section 0, verbatim headings, each with its first sentence. Every lane's deliverable is judged against these three, not against its own PR description.
   - "**Depth and difficulty.** Classes with real decisions on five buttons; keys that are genuinely hard because of what enemies *do*, not how much health they have."
@@ -11,9 +13,9 @@ Why pinned: Matt 2026-10-19, verbatim: "there seems to be a misunderstaning with
 - The design's centre, section 4, verbatim: "This is the design's centre and the answer to "more creative than Blizzard": synergy is not a buff you press, it is a *timing game between two people*."
 - POC dungeon, section 9, verbatim: "Three pulls and a boss, forward-only, no backtracking (research/02). Each pull teaches one thing." Pulls: "**The Choir**" teaches the kick ledger (must-kick 4-second heal cast); "**The Pair**" teaches reading shape (spread ring, then stack circle); "**The Seed**" teaches the boss's core rule with no stakes. Boss "the Hollow Warden": Cleave, The Sundered Twins, The Lock.
 - Gear, section 7, verbatim: "**Five slots**: Weapon, Armor, Charm, Ring, Keystone." "Tier is power and it is capped at 10." "**Facets change function**" "**End of every run: choose one of three**" "Ash buys only cosmetics and titles." "**After the cap: Ascension.** ... and Ascension marks on the character."
-- Current milestone, STATE.md D10 (verbatim): "**MVP = 3D gameplay**" ... "the MVP deliverable is one complete 3D run Matt can play end to end and judge by feel, not a test count." Phase 3 exit waits on Matt's human-played run. OPEN QUESTION FOR MATT: D10 covers the dungeon only, while section 1 includes the screen, the queue and the end-of-run choice; which is the MVP line?
+- Current milestone, STATE.md D10 (verbatim): "**MVP = 3D gameplay**" ... "the MVP deliverable is one complete 3D run Matt can play end to end and judge by feel, not a test count." Phase 3 exit waits on Matt's human-played run. MVP LINE (D10 question, RESOLVED 2026-10-20 under Matt's out-of-dungeon rule, see INTENT): the MVP is the full section 1 loop: one screen with tabs, then Queue, then the Dungeon, then the end-of-run choice of three, then back to the screen.
 - Acceptance is Matt watching (D15): frames and video viewed before a visible row closes. Demo verdict 2026-10-19 (default run C at 75da3ef): KF1 combat animation reads badly; KF2 bots idle in the first room (the Choir is meant to teach the kick); KF3 the Seed elite spawns on entry and the bots cheese it. Known section 3 gaps: boss slam and Twins slam untelegraphed.
-- Art and gear models: CC0 packs only (D17). How gear shows on the CC0 models is an open design question; a BIBLE-ALIGN recon on 2026-10-19 is mapping the bible against main.
+- Art and gear models: CC0 packs only (D17). How gear shows on the CC0 models was an open design question, RESOLVED 2026-10-20 under Matt's out-of-dungeon rule (see INTENT): as in Dark and Darker, equipped gear is visible on the character model, within the CC0 assets (D17). A BIBLE-ALIGN recon on 2026-10-19 is mapping the bible against main.
 
 **Intent (Matt, 2026-09-18):** "isolating m+ from WoW and just making it an open and queue game like Dark and Darker,
 and let people manage their characters from a simple screen... study other mmos, dungeon games, gear progression, and
@@ -157,11 +159,32 @@ Remaining rungs (post-#98), cheapest and most visible first:
   colour is time-only; setupClass never rendered; capsules have no names on the non-#98 path; SPREAD/STACK
   telegraph text labels (no text yet); 3 of 4 bots die in pull 2 (balance).
 
+## CHECKPOINT 2026-10-21 00:35Z (orchestrator, after compaction)
+WHY: #396 (integrate: playable dungeon, one PR) is the only path to Matt's end-to-end run (D10/D15), so everything else is sequenced behind it. Written from gh state (read 2026-10-21), not from lane narration.
+- #396 OPEN DRAFT, head 832819c6 (gh-bound 2026-10-21 01:00Z): CAST-DEFERRAL re-added (CastDeferral.cs + deferred-casts.ts from #325, TsCastReplace wiring, TelegraphCancelTests watched to fail with deferral removed). Lane-reported suites: vitest 1108/1108, Content 628/628, Sim 1139/1139, Playtest 92/92, Bots 218/219. ONE RED: ForkParity warden.guardBreak:focused dominated by surge on all three traces (hv-k2-s7 1733 vs 1669; hv-k2-s11-d90 1782 vs 1740; hv-k10-s7 2314 vs 2199; deaths 0; combos 29 vs 35). Opus lane retuning focused's own content (D52). Ready + arm wait on that hand-back and on orchestrator-viewed frames (D15).
+- MERGED this span: #371 1b9877d3; #397 7709e4a7; #398 6f5c282e (BIBLE s9 decisions); #399 0da27a43 (PLAYTESTERS map row); #400 95dc759d (chest tiers); #401 d3894362 (00:35Z checkpoint).
+- Recon 2026-10-21 (read-only, bound by gh): close after #396 merges, because their heads are ancestors of integrate/playable-dungeon: #308 2ae5c7a5, #333 5ff061cd, #369 918d8489, #335 2764c19e, #244 6469469b. Verify-then-close: #344 b979989c (OPEN), #325 139b0da5 (OPEN).
+- NEEDS MATT: #326 (TEMPO-CAST-FLOOR, 1724b737) was folded into the integrate branch, then reverted by 67910219, so the cast-floor logic for path packs is currently OUT of #396. Re-fold or drop is Matt's call. feat/no-push-rule 7334a6c8 (ENEMY-NO-PUSH; commit says WIP) is in neither #396 nor main. #375 42b92dfa and #370 d5fc921b are outside #396. pr250 (#250 OPEN, 817969b6, 3 test-guard files) is live and outside #396. lane/rebase-242 (#242 CLOSED) has zero net diff vs main: stale; delete needs Matt.
+
 ## NEXT STEPS (engine plan, design/ENGINE-PLAN.md; Phase 5 "Matt playing" stays the acceptance test)
+NOW (checkpoint 2026-10-21 01:35Z; gh-bound facts read by the orchestrator at ~01:35Z; this supersedes the 00:35Z block above where they differ, because #396 has moved from draft to armed):
+1. #396 "integrate: playable dungeon (one PR)" is OPEN and READY, auto-merge SQUASH armed at 01:15:54Z pinned to head 2e720e2f (a merge of origin/main de0d1c8d into f61ed34f). It waits on required checks. WHY ready: the capture at f61ed34f showed a black void and far labels, and both were classified as pre-existing or environmental, not regressions. The void is the missing game/.godot/imported cache in a fresh worktree (gitignored; GD.Load of .glb returns null). The far labels are PlateRule having no distance term (fixed by D53). Captures must come from the primary tree, never a fresh worktree.
+2. #404 "nameplate distance cull" is OPEN, auto-merge SQUASH armed at 01:27:03Z, head 60119575. WHY: the D53 core-loop call; it closes f-77a68e6b after merge and frames.
+3. After #396 is MERGED (verify with gh, never from narration): fast-forward the primary tree (it is at 83b5821d with 6 uncommitted entries, which stay untouched until Matt rules on them), re-capture with tools/godot/screens.ps1 from the primary tree, and the orchestrator views the frames (D15) before any visible row closes. WHY: D15 says Matt's acceptance is by frames and video, and a worktree capture cannot show the real game.
+4. Close the folded PRs #308, #333, #369, #335, #244 (each head is an ancestor of integrate/playable-dungeon). Verify-then-close #344 and #325 (both OPEN). WHY: their content already reached main through #396, so leaving them open invites a second merge of the same code.
+5. Close the D15 rows f-fa28e36e f-210c3939 f-70c82aca f-c89e8074 f-e880cd4c f-07f1b477 f-6b1cd469 f-f404582c f-f90892e9 f-add02b73 f-b78d1567 f-e933a2b7 only after the frames are viewed. WHY: D15 acceptance is Matt watching; a row closed on a unit test alone is the fitted-green pattern.
+6. Dispatch the deferred findings: f-ccb1cefb (host-path gear test via SimDriver.cs) and f-4501525f (CombatTextOverlapTest game.yml wiring). Revisit #370 (healer cadence parity) now that #396 is the base. WHY: f-ccb1cefb closes the gear-into-run path on the host, which the P0 closure above only proved on code; f-4501525f is a test that exists but is not wired into CI.
+7. NEEDS MATT (unchanged, not decided by the orchestrator): f-37ad66b3 Smart App Control on lane-built DLLs; f-77c8d9f9 merge throughput and branch protection; the verdicts on #326, #375, #370, #250 and lane/rebase-242 (#242 is CLOSED with zero net diff to main, so deleting it is a data-loss call for Matt). WHY: each one changes what ships or what gets deleted.
+8. Hook friction, recorded as findings for claude-config lanes (not worked around here): no-lane-game-launch false positives on awk `$0` and `$f` (f-3c816682) and on sed `\&\& (` (f-d6f386a3); git-stash-block fails closed on a nested `powershell -File tools/fastcheck.ps1` run through the PowerShell tool (f-25c70659; the Bash path works). WHY: a false positive blocks necessary work, so each one is an optimize-the-hook item, not a reason to bypass the hook.
 PURPOSE: Keyrun is a Windows desktop 3D dungeon game per design/BIBLE.md; the TypeScript browser client was first paint only (status: throwaway); the Godot build is the real thing (status: real).
 TS feature work is FROZEN at main 6e1548d (sim/ bots/ client/ server/ screen/). Former items 1-7 (Slack delta, cast-bar
 names, bot balance pull 2, Twins/Break bar, floor Windows, rewards/clause UI, Blink/F vs Space) move to the C# build
 after parity (ENGINE-PLAN phase 5) and stay listed in Decisions for Matt.
+- P0 f-f9b80112 GEAR-INTO-RUN CLOSED 2026-10-21 on code evidence: origin/main d3894362 SimDriver.cs:921 StartFor -> :924 RunRoot.CreateRun(start.Options); HostRunSetup.cs:289-290 via RunStart.Of; RunStart.cs:53-54 GearLoadout.Of; RunStartGearTests 4 cases; same on the #396 head. Follow-up f-ccb1cefb (host-path gear test) dispatches after #396 MERGED.
+- Land keyrun #396 "integrate: playable dungeon (one PR)", branch integrate/playable-dungeon, opened as a draft 2026-10-20T23:44Z at d9cb7c2b. It folds #308 #388 #333 #369 #335 #244 and reverts #325 #326 #344 (oracle/parity went red when folded; each stays open on its own branch). Still to fold: feat/no-push-rule 7334a6c8 (renumber its D50, #395 took D50) and the #326 path-pack scripts. WHY: one integrated PR is the only shape Matt can play and judge (D10, D15); folding one PR at a time with a push after each is the receipt-first rule.
+  - After #396 is MERGED (verify with gh, never from narration): fast-forward the primary tree, run tools/godot/screens.ps1 capture, orchestrator views frames (D15), then close or retarget #308 #375 #333 #369 #335 #344 #325 #326 #244.
+- #370 (healer cadence parity) is DEFERRED until #396 is MERGED. WHY: option 3 made parity green but slowed base clear about 30 percent and needed an assertion narrowing (fitted green, refused); the TS and C# sims disagree on whether a Cadence HoT can land on an enemy (frozen TS allows, C# HEAL-NEVER-HOSTILE refuses). The TS/C# divergence is its own later finding.
+- Receipt-first rule now governs every keyrun build lane (aesop LANE-CONTRACT 8d): draft PR within 20 minutes of first commit, push at least every 45 minutes, state self-reverts in the PR body.
 Phase 1 lanes (Opus per D11 unless noted; owned files in ENGINE-PLAN s5). Status as of 2026-10-18:
 1. 1A scaffold - DONE, PR #109 (59d45d1). game/ Godot 4.7.2 .NET project, Keyrun.Sim lib + purity test, tools/godot
    wrapper + export templates, .gitignore/.gitattributes, .github/workflows/game.yml.
@@ -822,6 +845,84 @@ Additional parked decisions (from the burn ledger):
   always counts. The validator requires 0 < base <= cap < 100%, so the burn alone can never kill a
   closer at full health at any key or gear Tier. Why: the closer is both source and target of a field Combo, so the
   Pact's comboDamageBp and any future gear power riding damageDoneBp scaled a raw number with no ceiling.
+- Matt's 2026-10-20 dungeon, key and reward decisions (lane docs/record-matt-decisions-1020). Numbered D35-D42 because
+  D30-D34 are claimed by open PRs #306, #311, #315, #320 and #338. The agent-playtester decisions (ledger f-4f45e954,
+  f-4e8c87b7) are recorded by D33 on PR #320 and are not repeated here. Why these are here: they were held only in the
+  aesop open-findings ledger, which is for work, so the decisions move to this file where every lane reads them.
+- D35 **Everything is prespawned with an aggro distance** (Matt, 2026-10-20, verbatim: "everything should be prespawned
+  with an aggro distance"; ledger f-6d538dd2). Every pack exists idle from the run's first tick and engages when the
+  party enters that pack's aggro radius; this replaces spawn-on-room-entry (Run.cs:255-258, Pulls.SpawnPull,
+  NavLayouts.PlaceDungeon). For the build: BIBLE section 9.1 ("Everything is prespawned with an aggro distance", patrols, aggro
+  rings, skips). Build: not yet built (PR #308 PRESPAWN-AGGRO is open).
+- D36 **Zero downtime means stakes, not spawns** (Matt, 2026-10-20, verbatim: "when i say 0 downtime, i mean the high
+  stakes m+ introduces, not literally spawning enemies on the player"; ledger f-66f25047). Spawn-on-entry and
+  density-rule readings of zero dead time are removed; the stakes come from the timer, forces, the route and pull size.
+  For the build: BIBLE section 9.1 ("Zero downtime means stakes, not spawns"). Build: not yet built (the spawn-on-entry path is
+  still on main; D35 / PR #308 removes it).
+- D37 **Lean into Mythic+ inside the dungeon** (Matt, 2026-10-20, verbatim: "honestly just lean into m+ design heavily
+  while in the dungeon"; ledger f-228202e1). Dungeon design follows Mythic+ conventions (timer and chest tiers, forces
+  percent, mixed packs with kick and stop casters, patrols, skips, a death time penalty, rotating affixes, key upgrade);
+  the screen, gear and social rules stay as the BIBLE has them. For the build: BIBLE section 9 principle, sections 9.2-9.3 and
+  section 8. Build: partly built (timer tiers and affixes merged in #304; forces/route, stops and patrols not yet built,
+  PR #302 and #308 open).
+- D38 **Almost exactly WoW, with less button clutter** (Matt, 2026-10-20, verbatim: "it should feel almost exact to wow
+  with less button clutter"; ledger f-3897cb62). WoW Mythic+ is the dungeon reference almost exactly; the only intended
+  divergence is fewer buttons (the ten-keybind budget, D4). For the build: BIBLE section 9 principle and section 2. Build: a
+  standing direction, not one build item; each Mythic+ convention ships under D37.
+- D39 **An untimed key stays at the same level** (Matt, 2026-10-20, re-asked, as relayed: an untimed key stays the same
+  level, no depletion drop; ledger f-7c7abdf4). A deliberate divergence from WoW for test 3. For the build: BIBLE section 8
+  (timer and Slack). Build: built (#304, `Timer.NextKeyLevel` never lowers the key, game/sim/Keyrun.Sim/Encounter/Timer.cs:133).
+- D40 **Private Mythic+ rating, own screen only** (Matt, 2026-10-20, as relayed: a private WoW-style M+ rating shown only
+  on the player's own screen, never to others and never used to filter groups; ledger f-a3230c59). For the build: BIBLE section 0
+  test 3 (no shareable score) and section 10 (the screen); the BIBLE has no rating line yet. Build: not yet built (PR #318
+  PRIVATE-RATING is open).
+- D41 **Loot quality comes from the key level; +2/+3 pays as key movement** (Matt, 2026-10-20, as relayed: loot quality
+  comes from key level; +2/+3 pays by jumping the key 2 or 3 levels; choose-one-of-three stays; ledger f-baeb031a). Build:
+  BIBLE section 7 ("Loot quality comes from the key level") and section 8. Build: partly built (the +2/+3 key jump is in
+  #304, `Timer.UpgradeTier` and Screen.cs:670-671; reward tiers rising with the key level are not confirmed in code, and
+  PR #317 for the end-of-run key display is open).
+- D42 **Affixes follow current WoW** (Matt, 2026-10-20, as relayed: from +5 one of Fortified or Tyrannical rotates, from
+  +10 both are on, a rotating Clause layers on top; ledger f-319aced5). For the build: BIBLE section 8 ("Fortified and
+  Tyrannical", "The Clause"). Build: built (#304, Encounter/Affixes.cs, ClauseRotation in Run/Clause.cs and
+  RunOptions.cs, values in game/content/data/run.json).
+- D45 **Orchestrator decisions 2026-10-21, tune later** (orchestrator, 2026-10-21, under Matt's verbatim: "make the rest of the
+  decisions and we will tune later"; reversible, tune later). The decisions:
+  - Death penalty: 15 s per death (the current 300-tick Slack cost stays), WoW Midnight-style.
+  - Gear tier power: keep the merged per-slot tier tables from #314; no flat +2%/tier.
+  - Rewards: every finished run, timed or depleted, offers the choice of three; a player who leaves mid-run gets nothing.
+  - Every enemy plate shows its cast bar.
+  - MVP line (D10 question): the full section 1 loop: screen, queue, dungeon, end-of-run choice.
+  - Tank: Warden passive armor 40% (PR #362), tune later.
+  - #329 (stuns stop interruptible casts) and #344 (break-bar stagger stops the Twins) both land; #344 is the boss-specific case.
+  - #325's held-cast/spansCast behaviour, #357 removing content-pull from the frozen set, and #358's dial-90 seed are accepted.
+- D46 **MPLUS CLOCK ONLY: deaths add time to the run clock; a key times or not purely on that clock** (orchestrator,
+  2026-10-20, from Matt's verbatim "honestly just lean into m+ design heavily while in the dungeon" and "it should feel
+  almost exact to wow"; reversible, tune later). Each player death adds 300 ticks (15 s) to the run clock, counted per
+  player including same-tick deaths (#373); a full wipe adds 500 ticks more. There is no Slack bank that fails the key
+  once drained: a completed run is timed when elapsed plus that added time is within par, and the +2/+3 tiers are
+  measured on the same clock (Timer.ClockTicks, KeyMove.ForRun). An unrecovered full wipe still ends the run depleted.
+  This supersedes BIBLE section 8's Slack bank for the dungeon; the bank constants stay in Timer.cs as tunables. WHY:
+  in WoW Mythic+ a death only costs time, it never fails the key on its own; under the bank, three deaths at +2 (900
+  ticks against a 620-tick bank) depleted a key that was far ahead of par. The HUD bar now reads the run clock and
+  "Deaths N (+Xs)" (TimerSlack.cs). Tune later: the 15 s / 25 s costs and whether the HUD bar keeps its shape.
+- D50 **LOBBY-TABS: the between-runs screen is one lobby with three tabs, Character / Build / Play** (orchestrator,
+  2026-10-20, from Matt's verbatim "anything else like progression, builds, classes, lobby stuff more like dark and
+  darker... character management screen, quests, progression, score, follow the bible but you get what im saying, just
+  one screen with tabs should be enough before entering a game/queue"; reversible). Character picks the class (the
+  three roster classes) and shows the five gear slots with tier; Build is the class's talent forks; Play is the key,
+  its Clause and Queue. The run end's choice of three returns to the Play tab, unlocked, class and build kept. The pure
+  state is `Lobby` (game/src/Host/Lobby.cs). The class stays on the host and never rides the queue payload
+  (`Lobby.ClassFor` reads the screen; QueueRequest is unchanged, BIBLE s3 "the queue matches on key level only"). The
+  human takes the picked class's roster seat and bots fill the other two. WHY: BIBLE s1 names the screen as the loop's
+  start and end, and s0 test 2 wants Queue inside a minute; one tabbed screen keeps every pre-run choice on it. No
+  quests, shop, stash or shareable score (BIBLE s1, s10, s11), so "quests" and "score" from the quote are out. Not yet:
+  the class pick is not saved across launches (the progression save format is unchanged); the private rating already
+  shows on the screen.
+- D51 (2026-10-21 00:50Z, orchestrator under the core-dungeon rule: defer to WoW): scripted enemy casts DEFER, never overwrite. A step due while its caster is busy waits and fires on the first free tick; #325's CastDeferral (C# CastDeferral.cs, TS sim/encounter/deferred-casts.ts) is restored for TsCastReplace steps alongside the #325 busy guard for all casters. WHY: in WoW a casting enemy never overwrites its own bar, and BIBLE s3 says the bar is drawn ahead of resolution, so a telegraph vanishing mid-bar is a broken sentence. The two TelegraphCancelTests overwrite cases are rewritten to assert deferral; a second oracle re-record was authorized with every changed number listed in the #396 body, no floors or constants changed.
+- **D52 (2026-10-21): a ForkParity dominated option is RETUNED, never allowlisted.** warden.guardBreak:focused is dominated by surge after cast deferral landed on #396. The fix edits focused's own content only; KnownDominatedForks stays empty; no test floor, timer or constant changes; surge and enemy content untouched; a third oracle re-record is authorized only if hashes move, with every number listed in the PR. WHY: WoW tunes each talent row so every choice wins somewhere; an allowlist entry hides a real balance defect behind a passing test (BIBLE s0 test 1; no fitted green).
+- **D53 (2026-10-21 01:27Z, orchestrator under the core-dungeon rule: defer to WoW): nameplates are culled by distance.** PlateRule.DrawsOverhead gains a distance term, PlateDistanceMm = 26000, inclusive; party plates and the boss frame are unchanged, and with no human actor every enemy is in range (the old behaviour). Shipped as #404 "nameplate distance cull" (head 60119575, auto-merge SQUASH armed 01:27:03Z); PlateRuleTests 20 -> 33 green, and a mutant killed 2 tests. Closes f-77a68e6b after merge and frames. WHY: WoW stops drawing nameplates past its max distance, so a plate that reaches across the arena reads as noise. The 26 m value is set from the arena table, not copied from WoW: from each room's party start the next doorway is at most 25500 mm away and the pull after that at least 27000 mm, so 26000 keeps the next doorway and drops the next pull. Caveat, recorded so the number is not mistaken for WoW's: WoW's own cull is about 60 yards (about 55 m), which is larger than this arena. If the arena grows, re-derive the constant from the table rather than from WoW.
+- D54 (2026-10-21, orchestrator under the core-dungeon rule "defer to WoW", Matt 2026-10-20): enemies never displace a player. In WoW Mythic+ a mob closing to melee stacks on its target and never pushes it; Matt also said 2026-10-20 that enemies must stack on the player they attack (f-e17638f7). WHY: #396's game-e2e run B went red because chasing Pair members shoved a stationary Warden about 18 m west once the hall gates were removed (D44), so only 4 then 1 could hit him and he lived past the mark telegraph; the shove is the defect, inherited from the TS oracle port, not run B's premise. Sim rule: enemy-vs-player separation moves the enemy only; enemy-vs-enemy separation unchanged. Oracle traces encoding the shove are marked superseded by D54 in their own file, never silently renumbered.
+- D55 (2026-10-21, P0 wrong data shown to a user, BIBLE section 3 "drawn ahead of resolution"): a floor telegraph is cancelled on the tick its caster's target dies or its caster dies, never left up until the would-be start tick. WHY: run B drew the Pair's SPREAD telegraph from tick 295 to 392 for a cast that could not start after the Warden died at 354.
 - 1D FINDING (2026-10-18, lane 1D, PR #111): content/data JSON diverges from the TS types. EffectDef.periodic is absent
   on 18 of 22 effects. Facet effectsAppend Window ops omit setupClass. Facets use `combo` with comboTable and
   `resource.resource` ops, which are not in the sim union. Facet shapes use `width`. The C# loader accepts the JSON as

@@ -3,7 +3,7 @@
  * <=190-LOC-per-file cap: building a `RulesConfig`, merging spawned actors, the `abilityTags` map
  * sim/encounter/breakbar.ts's `deriveBreakBarInputs` wants, applying a tick's break-bar effect
  * patches, and (P2, policy-inside-stepRun) the run's own host policy: enemy/damage-role
- * auto-targeting, Slack spend on death/wipe, and run-end detection.
+ * auto-targeting, death and wipe time on the run clock (D46), and run-end detection.
  *
  * POLICY-INSIDE-STEPRUN (P2, follow-up to server-policy-in-sim P1): `fixupTargeting`/
  * `applyDeathsAndWipe`/`checkRunEnd` used to be exported host-callable helpers every host
@@ -21,9 +21,8 @@
  * with no separate "bossActorId" concept needed in sim at all.
  *
  * An unrecoverable full wipe (sim has no rez mechanic) auto-ends the run after `WIPE_GRACE_TICKS`
- * with result "depleted", not "abandoned": WIPE_SLACK_COST_TICKS(500) + at least one
- * DEATH_SLACK_COST_TICKS(300) always exceeds SLACK_BASE_TICKS(600), so "depleted" is the honest
- * label for a key that ran out of bank -- "abandoned" is reserved for an explicit, still-recoverable
+ * with result "depleted", not "abandoned": a run that cannot finish is a key not timed (D46: the
+ * one way a key depletes other than its clock passing par) -- "abandoned" is reserved for an explicit, still-recoverable
  * human quit (this corrects both hosts' prior duplicated behaviour, which mislabeled an
  * auto-timed-out wipe as "abandoned").
  *
@@ -37,7 +36,7 @@ import type { RulesConfig } from "./combat/rules";
 import type { BreakBarEffectPatch } from "./encounter/breakbar";
 import type { SimEvent } from "./core/events";
 import type { DungeonDef, EncounterState } from "./encounter/index";
-import { spendSlackOnDeath, spendSlackOnWipe, finishRun, type RunResult } from "./encounter/timer";
+import { chargeDeath, chargeWipe, finishRun, type RunResult } from "./encounter/timer";
 import type { RunContent } from "./run-types";
 
 // 5s at 20Hz -- sim's own auto-end policy for a full wipe with no rez mechanic (design/BIBLE.md
@@ -118,23 +117,21 @@ export function fixupTargeting(state: SimState): void {
   }
 }
 
-/** Spends the run's Slack bank (sim/encounter/timer.ts) on this tick's player deaths/wipe. No-ops
- * (returns `encounter` unchanged) when this tick's `events` carry no player "death"; forwards
- * timer.ts's "depleted" event through `emit` (previously silently dropped by every host). */
+/** Adds this tick's player deaths and wipe to the run clock (timer.ts, STATE.md D46): every distinct
+ * player who died this tick costs its own death, and a full wipe adds the wipe cost on top. Emits
+ * nothing (nothing drains); `_tick`/`_emit` keep the call shape. Mirrors RunWiring.cs. */
 export function applyDeathsAndWipe(
   state: SimState,
   encounter: EncounterState,
   events: SimEvent[],
-  tick: Tick,
-  emit: (e: SimEvent) => void
+  _tick: Tick,
+  _emit: (e: SimEvent) => void
 ): EncounterState {
-  const anyPlayerDeath = events.some((e) => e.type === "death" && state.actors[e.actorId as ActorId]?.kind === "player");
-  if (!anyPlayerDeath) return encounter;
-  let next = spendSlackOnDeath(encounter, tick, emit);
+  const dead = new Set(events.filter((e) => e.type === "death" && state.actors[e.actorId as ActorId]?.kind === "player").map((e) => e.actorId));
+  let next = encounter;
+  for (let i = 0; i < dead.size; i++) next = chargeDeath(next);
   const players = Object.values(state.actors).filter((a) => a.kind === "player");
-  if (players.length > 0 && players.every((a) => !a.alive)) {
-    next = spendSlackOnWipe(next, tick, emit);
-  }
+  if (dead.size > 0 && players.length > 0 && players.every((a) => !a.alive)) next = chargeWipe(next);
   return next;
 }
 

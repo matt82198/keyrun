@@ -1,1 +1,550 @@
-{"contentCounts":{"abilities":39,"classes":3,"clauses":4,"combos":13,"dungeons":1,"effects":22,"enemies":7,"facets":60},"files":{"atan.vectors.json":{"bytes":201489,"fnv":"7e1d3141"},"botprng.vectors.json":{"bytes":1065212,"fnv":"1c427004"},"bots-hv-k10-s7.trace.jsonl":{"bytes":297817,"fnv":"d1016d65"},"bots-hv-k2-s11.trace.jsonl":{"bytes":238577,"fnv":"82a0bc16"},"bots-hv-k2-s7.trace.jsonl":{"bytes":238574,"fnv":"c888e0b1"},"content-pull.setup.json":{"bytes":22502,"fnv":"079f9f16"},"content-pull.trace.jsonl":{"bytes":30412,"fnv":"41721054"},"fixed.vectors.json":{"bytes":300060,"fnv":"766fb4de"},"hollow-vault-k10.setup.json":{"bytes":24781,"fnv":"0cffbf03"},"hollow-vault-k2.setup.json":{"bytes":24779,"fnv":"6f896fe1"},"intdiv.vectors.json":{"bytes":371573,"fnv":"3130bca3"},"prng.vectors.json":{"bytes":1019962,"fnv":"6d0e81de"},"scripted-pull.setup.json":{"bytes":1220,"fnv":"5de809fe"},"scripted-pull.trace.jsonl":{"bytes":25913,"fnv":"fa6905c2"}},"kind":"keyrun-oracle-manifest","source":{"frozenRoots":["sim","bots/src","content","client/src/sim-host","client/src/input","tests/sim/golden","tests/sim/integration/fixtures.ts"],"frozenSourceFiles":139,"frozenSourceHash":"3bbd15f8","sha":"6e1548d"},"traces":[{"finalTick":400,"name":"content-pull","records":401,"result":null,"setup":"content-pull.setup.json","trace":"content-pull.trace.jsonl","traceHash":"5bdadaf1"},{"finalTick":600,"name":"scripted-pull","records":601,"result":null,"setup":"scripted-pull.setup.json","trace":"scripted-pull.trace.jsonl","traceHash":"a2bf97d7"},{"finalTick":1719,"name":"bots-hv-k2-s7","records":1720,"result":"timed","setup":"hollow-vault-k2.setup.json","trace":"bots-hv-k2-s7.trace.jsonl","traceHash":"13473efa"},{"finalTick":1719,"name":"bots-hv-k2-s11","records":1720,"result":"timed","setup":"hollow-vault-k2.setup.json","trace":"bots-hv-k2-s11.trace.jsonl","traceHash":"13473efa"},{"finalTick":2172,"name":"bots-hv-k10-s7","records":2173,"result":"timed","setup":"hollow-vault-k10.setup.json","trace":"bots-hv-k10-s7.trace.jsonl","traceHash":"5791f0ff"}],"version":1}
+{
+  "contentCounts": {
+    "abilities": 40,
+    "classes": 3,
+    "clauses": 4,
+    "combos": 13,
+    "dungeons": 1,
+    "effects": 22,
+    "enemies": 7,
+    "facets": 60
+  },
+  "files": {
+    "atan.vectors.json": {
+      "bytes": 201489,
+      "fnv": "7e1d3141"
+    },
+    "botprng.vectors.json": {
+      "bytes": 1065212,
+      "fnv": "1c427004"
+    },
+    "bots-hv-k10-s7.trace.jsonl": {
+      "bytes": 299470,
+      "fnv": "92ccd51e"
+    },
+    "bots-hv-k2-s11.trace.jsonl": {
+      "bytes": 238720,
+      "fnv": "08990276"
+    },
+    "bots-hv-k2-s7.trace.jsonl": {
+      "bytes": 238717,
+      "fnv": "4903ed4f"
+    },
+    "content-pull.setup.json": {
+      "bytes": 22892,
+      "fnv": "b8af8ced"
+    },
+    "content-pull.trace.jsonl": {
+      "bytes": 30412,
+      "fnv": "e71fc2fb"
+    },
+    "fixed.vectors.json": {
+      "bytes": 300060,
+      "fnv": "766fb4de"
+    },
+    "hollow-vault-k10.setup.json": {
+      "bytes": 25171,
+      "fnv": "90a24d3c"
+    },
+    "hollow-vault-k2.setup.json": {
+      "bytes": 25169,
+      "fnv": "230d5a4e"
+    },
+    "intdiv.vectors.json": {
+      "bytes": 371573,
+      "fnv": "3130bca3"
+    },
+    "prng.vectors.json": {
+      "bytes": 1019962,
+      "fnv": "6d0e81de"
+    },
+    "scripted-pull.setup.json": {
+      "bytes": 1220,
+      "fnv": "5de809fe"
+    },
+    "scripted-pull.trace.jsonl": {
+      "bytes": 25913,
+      "fnv": "fa6905c2"
+    }
+  },
+  "kind": "keyrun-oracle-manifest",
+  "source": {
+    "frozenRoots": [
+      "sim",
+      "bots/src",
+      "content",
+      "client/src/sim-host",
+      "client/src/input",
+      "tests/sim/golden",
+      "tests/sim/integration/fixtures.ts"
+    ],
+    "frozenSources": {
+      "bots/src/bot.ts": {
+        "fnv": "c090030e"
+      },
+      "bots/src/kit-heals.ts": {
+        "fnv": "8e15b738"
+      },
+      "bots/src/kit-priority.ts": {
+        "fnv": "3a8f6699"
+      },
+      "bots/src/kit-registry.ts": {
+        "fnv": "ef39a42f"
+      },
+      "bots/src/kit-resolve.ts": {
+        "fnv": "495c7980"
+      },
+      "bots/src/kit-resources.ts": {
+        "fnv": "7ef3cac7"
+      },
+      "bots/src/kits.ts": {
+        "fnv": "da72fc12"
+      },
+      "bots/src/pings-policy.ts": {
+        "fnv": "6ac0749b"
+      },
+      "bots/src/roles.ts": {
+        "fnv": "528e0497"
+      },
+      "bots/src/roles/damage.ts": {
+        "fnv": "a6573e33"
+      },
+      "bots/src/roles/heal-pick.ts": {
+        "fnv": "e8151c2d"
+      },
+      "bots/src/roles/healer.ts": {
+        "fnv": "b39123f5"
+      },
+      "bots/src/roles/shared.ts": {
+        "fnv": "374aae55"
+      },
+      "bots/src/roles/tank-engage.ts": {
+        "fnv": "cd6ff1f4"
+      },
+      "bots/src/roles/tank-pressure.ts": {
+        "fnv": "11a09dd6"
+      },
+      "bots/src/roles/tank.ts": {
+        "fnv": "6947df8d"
+      },
+      "bots/src/shared/command.ts": {
+        "fnv": "ed89696f"
+      },
+      "bots/src/shared/floor.ts": {
+        "fnv": "91780b45"
+      },
+      "bots/src/shared/ledger.ts": {
+        "fnv": "244f7d0d"
+      },
+      "bots/src/shared/pings.ts": {
+        "fnv": "fa29e0ef"
+      },
+      "bots/src/shared/positioning.ts": {
+        "fnv": "572909a7"
+      },
+      "bots/src/shared/priority.ts": {
+        "fnv": "7ddc1c36"
+      },
+      "bots/src/shared/windows.ts": {
+        "fnv": "4702701b"
+      },
+      "bots/src/skill.ts": {
+        "fnv": "14642e99"
+      },
+      "bots/src/types.ts": {
+        "fnv": "15c17857"
+      },
+      "bots/src/view.ts": {
+        "fnv": "0774b24d"
+      },
+      "client/src/input/commands.ts": {
+        "fnv": "42930ea1"
+      },
+      "client/src/input/keyState.ts": {
+        "fnv": "11b435d6"
+      },
+      "client/src/input/keybinds.ts": {
+        "fnv": "eaf23d81"
+      },
+      "client/src/input/ping.ts": {
+        "fnv": "c9e4c55e"
+      },
+      "client/src/input/slot-abilities.ts": {
+        "fnv": "b7580923"
+      },
+      "client/src/sim-host/boot-params.ts": {
+        "fnv": "38e76586"
+      },
+      "client/src/sim-host/bot-commands.ts": {
+        "fnv": "a5e358f4"
+      },
+      "client/src/sim-host/cast-events.ts": {
+        "fnv": "95d8ccd9"
+      },
+      "client/src/sim-host/cast-feedback.ts": {
+        "fnv": "05f4113a"
+      },
+      "client/src/sim-host/content-combos.ts": {
+        "fnv": "81010920"
+      },
+      "client/src/sim-host/content-dungeon.ts": {
+        "fnv": "9404f04f"
+      },
+      "client/src/sim-host/content-party.ts": {
+        "fnv": "b721e8c7"
+      },
+      "client/src/sim-host/content-registry.ts": {
+        "fnv": "5b31a314"
+      },
+      "client/src/sim-host/display-info.ts": {
+        "fnv": "a81da710"
+      },
+      "client/src/sim-host/host-commands.ts": {
+        "fnv": "8818cf4f"
+      },
+      "client/src/sim-host/interpolate.ts": {
+        "fnv": "1004f413"
+      },
+      "client/src/sim-host/loadout-storage.ts": {
+        "fnv": "e6faefc2"
+      },
+      "client/src/sim-host/metrics.ts": {
+        "fnv": "d3978095"
+      },
+      "client/src/sim-host/player-commands.ts": {
+        "fnv": "8fe80c42"
+      },
+      "client/src/sim-host/run-setup.ts": {
+        "fnv": "d3022a91"
+      },
+      "client/src/sim-host/scheduler.ts": {
+        "fnv": "2fd5de1a"
+      },
+      "client/src/sim-host/sim-host-client.ts": {
+        "fnv": "02ff3a5a"
+      },
+      "client/src/sim-host/sim-runtime.ts": {
+        "fnv": "06a5d4dd"
+      },
+      "client/src/sim-host/snapshot-codec.ts": {
+        "fnv": "12851431"
+      },
+      "client/src/sim-host/snapshot.ts": {
+        "fnv": "7181d89e"
+      },
+      "client/src/sim-host/telegraph-map.ts": {
+        "fnv": "75210e09"
+      },
+      "client/src/sim-host/wire.ts": {
+        "fnv": "6d5c993a"
+      },
+      "client/src/sim-host/worker.ts": {
+        "fnv": "fe307730"
+      },
+      "content/apply-describe.ts": {
+        "fnv": "0e49b8b8"
+      },
+      "content/apply-patch.ts": {
+        "fnv": "9ee0c822"
+      },
+      "content/apply-types.ts": {
+        "fnv": "8532f162"
+      },
+      "content/apply.ts": {
+        "fnv": "67f11609"
+      },
+      "content/data/abilities/chanter.json": {
+        "fnv": "efab7aa0"
+      },
+      "content/data/abilities/cinder.json": {
+        "fnv": "b7eb7a89"
+      },
+      "content/data/abilities/enemies.json": {
+        "fnv": "89b3ef4d"
+      },
+      "content/data/abilities/warden.json": {
+        "fnv": "36ffc9d9"
+      },
+      "content/data/classes/chanter.json": {
+        "fnv": "ae0e1426"
+      },
+      "content/data/classes/cinder.json": {
+        "fnv": "755d4a74"
+      },
+      "content/data/classes/warden.json": {
+        "fnv": "d9042eee"
+      },
+      "content/data/clauses.json": {
+        "fnv": "66ee123f"
+      },
+      "content/data/combos.json": {
+        "fnv": "0d6dd1de"
+      },
+      "content/data/dungeons/hollow-vault.json": {
+        "fnv": "969851af"
+      },
+      "content/data/effects/enemy.json": {
+        "fnv": "39652453"
+      },
+      "content/data/effects/player.json": {
+        "fnv": "07967d26"
+      },
+      "content/data/enemies/choir.json": {
+        "fnv": "11ee2178"
+      },
+      "content/data/enemies/hollow-warden.json": {
+        "fnv": "b4c3c4d0"
+      },
+      "content/data/enemies/pair.json": {
+        "fnv": "bb7076ab"
+      },
+      "content/data/enemies/seed.json": {
+        "fnv": "156280f3"
+      },
+      "content/data/facets/chanter.json": {
+        "fnv": "e9c325c8"
+      },
+      "content/data/facets/cinder.json": {
+        "fnv": "ddf93cb7"
+      },
+      "content/data/facets/warden.json": {
+        "fnv": "2ac5c1b0"
+      },
+      "content/index.ts": {
+        "fnv": "da83f93b"
+      },
+      "content/schema/ability.ts": {
+        "fnv": "ce8809cf"
+      },
+      "content/schema/class.ts": {
+        "fnv": "b0156993"
+      },
+      "content/schema/clause.ts": {
+        "fnv": "c41776f7"
+      },
+      "content/schema/combo.ts": {
+        "fnv": "683a86a9"
+      },
+      "content/schema/dungeon.ts": {
+        "fnv": "3495388f"
+      },
+      "content/schema/effect.ts": {
+        "fnv": "1acc1e4f"
+      },
+      "content/schema/enemy.ts": {
+        "fnv": "94ae3359"
+      },
+      "content/schema/facet.ts": {
+        "fnv": "a0518406"
+      },
+      "content/schema/registry.ts": {
+        "fnv": "4673ad9f"
+      },
+      "content/sim-adapt.ts": {
+        "fnv": "ee2623af"
+      },
+      "content/validate.ts": {
+        "fnv": "cd8fbe1b"
+      },
+      "sim/combat/abilities.ts": {
+        "fnv": "fd620da3"
+      },
+      "sim/combat/actors.ts": {
+        "fnv": "5d2769fb"
+      },
+      "sim/combat/affinity.ts": {
+        "fnv": "5018f7d9"
+      },
+      "sim/combat/casting.ts": {
+        "fnv": "c70c2b48"
+      },
+      "sim/combat/clause-hooks.ts": {
+        "fnv": "43aaf28e"
+      },
+      "sim/combat/combos.ts": {
+        "fnv": "623661ea"
+      },
+      "sim/combat/cooldowns.ts": {
+        "fnv": "39753e9c"
+      },
+      "sim/combat/damage.ts": {
+        "fnv": "85bd63d6"
+      },
+      "sim/combat/effects-remove.ts": {
+        "fnv": "6aa64e75"
+      },
+      "sim/combat/effects.ts": {
+        "fnv": "7da60334"
+      },
+      "sim/combat/floor-telegraphs.ts": {
+        "fnv": "b79df7f0"
+      },
+      "sim/combat/mitigation.ts": {
+        "fnv": "f6804874"
+      },
+      "sim/combat/movement.ts": {
+        "fnv": "193be6de"
+      },
+      "sim/combat/payoff.ts": {
+        "fnv": "b176fb7d"
+      },
+      "sim/combat/rules.ts": {
+        "fnv": "bee05a0b"
+      },
+      "sim/combat/targeting.ts": {
+        "fnv": "f49c6064"
+      },
+      "sim/combat/threat.ts": {
+        "fnv": "7f76745e"
+      },
+      "sim/combat/types.ts": {
+        "fnv": "21f7bbe8"
+      },
+      "sim/combat/window-state.ts": {
+        "fnv": "f80560e9"
+      },
+      "sim/combat/windows.ts": {
+        "fnv": "14785504"
+      },
+      "sim/core/atan.ts": {
+        "fnv": "647c35c6"
+      },
+      "sim/core/commands.ts": {
+        "fnv": "66314d4a"
+      },
+      "sim/core/events.ts": {
+        "fnv": "edf530eb"
+      },
+      "sim/core/fixed.ts": {
+        "fnv": "52dc2312"
+      },
+      "sim/core/prng.ts": {
+        "fnv": "0e5a2ad4"
+      },
+      "sim/core/replay.ts": {
+        "fnv": "46854278"
+      },
+      "sim/core/state.ts": {
+        "fnv": "9b0c7736"
+      },
+      "sim/core/tick.ts": {
+        "fnv": "5b820bd0"
+      },
+      "sim/encounter/breakbar.ts": {
+        "fnv": "f593d495"
+      },
+      "sim/encounter/chase.ts": {
+        "fnv": "4685b155"
+      },
+      "sim/encounter/clauses.ts": {
+        "fnv": "122a3f67"
+      },
+      "sim/encounter/echo-spawns.ts": {
+        "fnv": "01dfd36a"
+      },
+      "sim/encounter/index.ts": {
+        "fnv": "7ce399c4"
+      },
+      "sim/encounter/pulls.ts": {
+        "fnv": "f8c4f7a5"
+      },
+      "sim/encounter/rewards.ts": {
+        "fnv": "034dc454"
+      },
+      "sim/encounter/script-target.ts": {
+        "fnv": "571b37c3"
+      },
+      "sim/encounter/scripts.ts": {
+        "fnv": "ee48e508"
+      },
+      "sim/encounter/telegraphs.ts": {
+        "fnv": "c74ea649"
+      },
+      "sim/encounter/tempo.ts": {
+        "fnv": "99a7a8ec"
+      },
+      "sim/encounter/timer.ts": {
+        "fnv": "3e440041"
+      },
+      "sim/encounter/types.ts": {
+        "fnv": "5d2286da"
+      },
+      "sim/index.ts": {
+        "fnv": "f5d790ee"
+      },
+      "sim/run-options.ts": {
+        "fnv": "1a94eb6f"
+      },
+      "sim/run-types.ts": {
+        "fnv": "0432becb"
+      },
+      "sim/run-wiring.ts": {
+        "fnv": "6cbbbc86"
+      },
+      "tests/sim/golden/build-content-pull.ts": {
+        "fnv": "c240b5d6"
+      },
+      "tests/sim/golden/golden.test.ts": {
+        "fnv": "e4747c65"
+      },
+      "tests/sim/golden/hash-map.ts": {
+        "fnv": "7e43222f"
+      },
+      "tests/sim/golden/scripted-pull.json": {
+        "fnv": "effe3419"
+      },
+      "tests/sim/integration/fixtures.ts": {
+        "fnv": "500008e2"
+      }
+    },
+    "sha": "6e1548d"
+  },
+  "traces": [
+    {
+      "finalTick": 400,
+      "name": "content-pull",
+      "records": 401,
+      "result": null,
+      "setup": "content-pull.setup.json",
+      "trace": "content-pull.trace.jsonl",
+      "traceHash": "efb93c11"
+    },
+    {
+      "finalTick": 600,
+      "name": "scripted-pull",
+      "records": 601,
+      "result": null,
+      "setup": "scripted-pull.setup.json",
+      "trace": "scripted-pull.trace.jsonl",
+      "traceHash": "a2bf97d7"
+    },
+    {
+      "finalTick": 1719,
+      "name": "bots-hv-k2-s7",
+      "records": 1720,
+      "result": "timed",
+      "setup": "hollow-vault-k2.setup.json",
+      "trace": "bots-hv-k2-s7.trace.jsonl",
+      "traceHash": "f0369dfc"
+    },
+    {
+      "finalTick": 1719,
+      "name": "bots-hv-k2-s11",
+      "records": 1720,
+      "result": "timed",
+      "setup": "hollow-vault-k2.setup.json",
+      "trace": "bots-hv-k2-s11.trace.jsonl",
+      "traceHash": "f0369dfc"
+    },
+    {
+      "finalTick": 2172,
+      "name": "bots-hv-k10-s7",
+      "records": 2173,
+      "result": "timed",
+      "setup": "hollow-vault-k10.setup.json",
+      "trace": "bots-hv-k10-s7.trace.jsonl",
+      "traceHash": "d7b7304f"
+    }
+  ],
+  "version": 1
+}

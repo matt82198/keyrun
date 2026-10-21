@@ -1,7 +1,6 @@
 {
   "seed": 24681357,
   "ticks": 400,
-  "contentHash": "9e029a65",
   "commands": [
     {
       "tick": 0,
@@ -1046,7 +1045,7 @@
       "targetId": 1000
     }
   ],
-  "expectedHash": "4808979a",
+  "expectedHash": "aacd0470",
   "eventCounts": {
     "damage": 25,
     "cast_complete": 25,
@@ -1054,5 +1053,457 @@
     "combo": 3,
     "heal": 1
   },
-  "why": "Any change to this hash is either a deliberate content/sim behaviour change (explain it in the PR body) or a regression (fix the code -- never retune this fixture to match, see sim/CLAUDE.md's 'Replays are golden tests'). eventCounts exists for the same reason: a silent behaviour change should fail with a readable diff, not just a hash mismatch. NOTE: enemy swings DO execute (targeting + chase landed): choir.meleeSwing hits the party from tick 40, guarded by tests/sim/encounter/golden-melee.test.ts."
+  "why": "Any change to expectedHash is either a deliberate content/sim behaviour change (explain it in the PR body) or a regression (fix the code -- never retune this fixture to match, see sim/CLAUDE.md's 'Replays are golden tests'). eventCounts exists for the same reason: a silent behaviour change should fail with a readable diff, not just a hash mismatch. NOTE: enemy swings DO execute (targeting + chase landed): choir.meleeSwing hits the party from tick 40, guarded by tests/sim/encounter/golden-melee.test.ts. contentHashes pins the content version per registry entry, so two content PRs touch different lines.",
+  "contentHashes": {
+    "abilities/chanter.aegis": {
+      "fnv": "0d7978aa"
+    },
+    "abilities/chanter.cadence": {
+      "fnv": "84c66a0d"
+    },
+    "abilities/chanter.chorus": {
+      "fnv": "8bdaa197"
+    },
+    "abilities/chanter.cleanse": {
+      "fnv": "d0b2d246"
+    },
+    "abilities/chanter.dissonance": {
+      "fnv": "85c41064"
+    },
+    "abilities/chanter.glide": {
+      "fnv": "3be5b7fe"
+    },
+    "abilities/chanter.hymn": {
+      "fnv": "d820383b"
+    },
+    "abilities/chanter.rebuke": {
+      "fnv": "9ad1396f"
+    },
+    "abilities/chanter.refrain": {
+      "fnv": "8a842402"
+    },
+    "abilities/choir.healCast": {
+      "fnv": "53a3ceca"
+    },
+    "abilities/choir.meleeSwing": {
+      "fnv": "d129f5cb"
+    },
+    "abilities/cinder.ashenSkin": {
+      "fnv": "fb395048"
+    },
+    "abilities/cinder.blink": {
+      "fnv": "25d9a339"
+    },
+    "abilities/cinder.cinderfield": {
+      "fnv": "24f70572"
+    },
+    "abilities/cinder.coldSnap": {
+      "fnv": "33a86479"
+    },
+    "abilities/cinder.detonate": {
+      "fnv": "107eb2ec"
+    },
+    "abilities/cinder.emberBolt": {
+      "fnv": "71398af6"
+    },
+    "abilities/cinder.flare": {
+      "fnv": "e7ce3176"
+    },
+    "abilities/cinder.purge": {
+      "fnv": "01067082"
+    },
+    "abilities/cinder.quench": {
+      "fnv": "651893d2"
+    },
+    "abilities/hollowWarden.cleave": {
+      "fnv": "9e81d4c8"
+    },
+    "abilities/hollowWarden.lock": {
+      "fnv": "a4a3d29d"
+    },
+    "abilities/hollowWarden.slam": {
+      "fnv": "e62b779c"
+    },
+    "abilities/pair.meleeSwing": {
+      "fnv": "15f6e0cd"
+    },
+    "abilities/pair.spreadMark": {
+      "fnv": "cbf9c46d"
+    },
+    "abilities/pair.stackCall": {
+      "fnv": "7ea8ae09"
+    },
+    "abilities/seed.deathBloom": {
+      "fnv": "7dda6f1e"
+    },
+    "abilities/seed.lash": {
+      "fnv": "cc8f1ac8"
+    },
+    "abilities/seed.lock": {
+      "fnv": "2db4d17e"
+    },
+    "abilities/seed.slam": {
+      "fnv": "be78290d"
+    },
+    "abilities/twins.slam": {
+      "fnv": "4096c66b"
+    },
+    "abilities/warden.brace": {
+      "fnv": "9ccdba27"
+    },
+    "abilities/warden.bulwark": {
+      "fnv": "824bf018"
+    },
+    "abilities/warden.charge": {
+      "fnv": "62e29305"
+    },
+    "abilities/warden.guardBreak": {
+      "fnv": "7e9321e1"
+    },
+    "abilities/warden.reckoning": {
+      "fnv": "1dc2916a"
+    },
+    "abilities/warden.shieldBash": {
+      "fnv": "8c9dcef8"
+    },
+    "abilities/warden.strike": {
+      "fnv": "149f61e6"
+    },
+    "abilities/warden.taunt": {
+      "fnv": "4d7fec21"
+    },
+    "abilities/warden.vigil": {
+      "fnv": "1e026657"
+    },
+    "classes/chanter": {
+      "fnv": "bc1ae778"
+    },
+    "classes/cinder": {
+      "fnv": "bde6f176"
+    },
+    "classes/warden": {
+      "fnv": "306e4e04"
+    },
+    "clauses/echo": {
+      "fnv": "13f70301"
+    },
+    "clauses/hush": {
+      "fnv": "1dbeefdf"
+    },
+    "clauses/pact": {
+      "fnv": "78e31121"
+    },
+    "clauses/tide": {
+      "fnv": "a5a372fd"
+    },
+    "combos/anthem": {
+      "fnv": "af9040dd"
+    },
+    "combos/bulwark-field": {
+      "fnv": "c1c8774c"
+    },
+    "combos/cinderfield-field": {
+      "fnv": "9f57250c"
+    },
+    "combos/consecrate": {
+      "fnv": "ec651413"
+    },
+    "combos/flashfire": {
+      "fnv": "cd772679"
+    },
+    "combos/forge": {
+      "fnv": "1c7ce66a"
+    },
+    "combos/hymn-field": {
+      "fnv": "0e19b452"
+    },
+    "combos/lock-chanter": {
+      "fnv": "232971ca"
+    },
+    "combos/lock-cinder": {
+      "fnv": "53407601"
+    },
+    "combos/lock-warden": {
+      "fnv": "f31e6d34"
+    },
+    "combos/seedbloom-field": {
+      "fnv": "4b10d02c"
+    },
+    "combos/shatter": {
+      "fnv": "4bada84c"
+    },
+    "combos/steam": {
+      "fnv": "5bc1ba8b"
+    },
+    "dungeons/hollow-vault": {
+      "fnv": "13c8a342"
+    },
+    "effects/aegisShield": {
+      "fnv": "e0d43939"
+    },
+    "effects/ashenSkin": {
+      "fnv": "cceb4e6c"
+    },
+    "effects/blinded": {
+      "fnv": "9a5cba8f"
+    },
+    "effects/braceSelf": {
+      "fnv": "5197f494"
+    },
+    "effects/braced": {
+      "fnv": "1b13abc6"
+    },
+    "effects/bracedSelf": {
+      "fnv": "17b1305c"
+    },
+    "effects/burning": {
+      "fnv": "0bc9096b"
+    },
+    "effects/chill": {
+      "fnv": "bdc8fe20"
+    },
+    "effects/consecrateHeal": {
+      "fnv": "76e26e4d"
+    },
+    "effects/gliding": {
+      "fnv": "79c27a35"
+    },
+    "effects/hasted": {
+      "fnv": "38121590"
+    },
+    "effects/hymnHeal": {
+      "fnv": "cdf6bafb"
+    },
+    "effects/hymnSpeed": {
+      "fnv": "d3999a44"
+    },
+    "effects/lockShield": {
+      "fnv": "a4f2fde9"
+    },
+    "effects/mendingHot": {
+      "fnv": "8b750ff3"
+    },
+    "effects/silenced": {
+      "fnv": "720aee33"
+    },
+    "effects/slowed": {
+      "fnv": "0ed549b1"
+    },
+    "effects/spreadMarked": {
+      "fnv": "62b0267b"
+    },
+    "effects/stackMarked": {
+      "fnv": "0a01c57f"
+    },
+    "effects/stunned": {
+      "fnv": "3cef1863"
+    },
+    "effects/wardPulse": {
+      "fnv": "48680d78"
+    },
+    "effects/wardShield": {
+      "fnv": "6b46c059"
+    },
+    "enemies/choir.lieutenant": {
+      "fnv": "9fdbf5b3"
+    },
+    "enemies/choir.melee": {
+      "fnv": "164ad8a8"
+    },
+    "enemies/hollowWarden.boss": {
+      "fnv": "0a1ee800"
+    },
+    "enemies/hollowWarden.twinA": {
+      "fnv": "87977504"
+    },
+    "enemies/hollowWarden.twinB": {
+      "fnv": "017cea96"
+    },
+    "enemies/pair.melee": {
+      "fnv": "7e7ecb56"
+    },
+    "enemies/seed.elite": {
+      "fnv": "ee27b0b9"
+    },
+    "facets/chanter.armor.cleansingChord": {
+      "fnv": "1164b4b5"
+    },
+    "facets/chanter.armor.hymnalMending": {
+      "fnv": "aed54fc5"
+    },
+    "facets/chanter.armor.rebukingChord": {
+      "fnv": "6d8358b4"
+    },
+    "facets/chanter.armor.warmingAegis": {
+      "fnv": "267a65ef"
+    },
+    "facets/chanter.charm.cleansingWindow": {
+      "fnv": "48e4f4ea"
+    },
+    "facets/chanter.charm.glidingVerse": {
+      "fnv": "66c5bb4b"
+    },
+    "facets/chanter.charm.rebukesChord": {
+      "fnv": "8485853c"
+    },
+    "facets/chanter.charm.refrainsEdge": {
+      "fnv": "71c4fd2e"
+    },
+    "facets/chanter.keystone.dissonantChoir": {
+      "fnv": "12c6233a"
+    },
+    "facets/chanter.keystone.eternalHymn": {
+      "fnv": "25ed694a"
+    },
+    "facets/chanter.keystone.grandCadence": {
+      "fnv": "b425284f"
+    },
+    "facets/chanter.keystone.lastWard": {
+      "fnv": "c18ab78f"
+    },
+    "facets/chanter.ring.cheapDissonance": {
+      "fnv": "6ef1017c"
+    },
+    "facets/chanter.ring.overtureOfPower": {
+      "fnv": "38bee143"
+    },
+    "facets/chanter.ring.swiftVerse": {
+      "fnv": "f6edec2a"
+    },
+    "facets/chanter.ring.versedReserves": {
+      "fnv": "188c95d6"
+    },
+    "facets/chanter.weapon.piercingDissonance": {
+      "fnv": "0b310c89"
+    },
+    "facets/chanter.weapon.reachingRefrain": {
+      "fnv": "657b3166"
+    },
+    "facets/chanter.weapon.wideningCadence": {
+      "fnv": "a543b5bb"
+    },
+    "facets/chanter.weapon.wideningChorus": {
+      "fnv": "6e595352"
+    },
+    "facets/cinder.armor.chillingField": {
+      "fnv": "6fa6a25a"
+    },
+    "facets/cinder.armor.cleansingFlame": {
+      "fnv": "b38e7ca5"
+    },
+    "facets/cinder.armor.emberWard": {
+      "fnv": "3250b8b6"
+    },
+    "facets/cinder.armor.frostbitten": {
+      "fnv": "3807bce9"
+    },
+    "facets/cinder.charm.blinkingEmber": {
+      "fnv": "32dfcbec"
+    },
+    "facets/cinder.charm.overloadedBolt": {
+      "fnv": "3a08fc37"
+    },
+    "facets/cinder.charm.purgingFlame": {
+      "fnv": "d371702a"
+    },
+    "facets/cinder.charm.quenchingBlow": {
+      "fnv": "1403fba9"
+    },
+    "facets/cinder.keystone.absoluteZero": {
+      "fnv": "bfc1da48"
+    },
+    "facets/cinder.keystone.detonationChain": {
+      "fnv": "c28325f3"
+    },
+    "facets/cinder.keystone.eternalFlare": {
+      "fnv": "430ee4e9"
+    },
+    "facets/cinder.keystone.infernoBolt": {
+      "fnv": "aa46c0df"
+    },
+    "facets/cinder.ring.cheapDetonation": {
+      "fnv": "46999cf5"
+    },
+    "facets/cinder.ring.heatSink": {
+      "fnv": "24922911"
+    },
+    "facets/cinder.ring.overflowValve": {
+      "fnv": "43c17fb6"
+    },
+    "facets/cinder.ring.stokedCoals": {
+      "fnv": "244dc3c1"
+    },
+    "facets/cinder.weapon.crackingIce": {
+      "fnv": "dfc600fd"
+    },
+    "facets/cinder.weapon.detonationBurst": {
+      "fnv": "f4b8e6b2"
+    },
+    "facets/cinder.weapon.sprayOfEmbers": {
+      "fnv": "c8c344f5"
+    },
+    "facets/cinder.weapon.wideningFlare": {
+      "fnv": "ff100b21"
+    },
+    "facets/warden.armor.chillingBash": {
+      "fnv": "37221b38"
+    },
+    "facets/warden.armor.layeredPlate": {
+      "fnv": "b970d928"
+    },
+    "facets/warden.armor.miredGround": {
+      "fnv": "eb92829a"
+    },
+    "facets/warden.armor.retribution": {
+      "fnv": "ddbc1b8d"
+    },
+    "facets/warden.charm.chargingBlow": {
+      "fnv": "e4bbf1b5"
+    },
+    "facets/warden.charm.opportunist": {
+      "fnv": "a2db85fa"
+    },
+    "facets/warden.charm.releaseTheGuard": {
+      "fnv": "85884a74"
+    },
+    "facets/warden.charm.vigilantsMark": {
+      "fnv": "74617903"
+    },
+    "facets/warden.keystone.eternalVigil": {
+      "fnv": "23cebed1"
+    },
+    "facets/warden.keystone.lastStand": {
+      "fnv": "1eba177a"
+    },
+    "facets/warden.keystone.sunderedStorm": {
+      "fnv": "f633acb2"
+    },
+    "facets/warden.keystone.warlordsMark": {
+      "fnv": "5735e887"
+    },
+    "facets/warden.ring.bracedReserves": {
+      "fnv": "47ab76fe"
+    },
+    "facets/warden.ring.cheapVigil": {
+      "fnv": "caa71993"
+    },
+    "facets/warden.ring.momentumEngine": {
+      "fnv": "b080022c"
+    },
+    "facets/warden.ring.momentumSurge": {
+      "fnv": "b22c3504"
+    },
+    "facets/warden.weapon.keenEdge": {
+      "fnv": "5d08aa26"
+    },
+    "facets/warden.weapon.mobileWard": {
+      "fnv": "6dfec3b6"
+    },
+    "facets/warden.weapon.twinStrike": {
+      "fnv": "4beb36da"
+    },
+    "facets/warden.weapon.wideningBreak": {
+      "fnv": "a0fcab65"
+    }
+  }
 }
