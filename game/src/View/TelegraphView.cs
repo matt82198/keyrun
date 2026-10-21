@@ -13,7 +13,8 @@ namespace Keyrun.View;
 /// as the lead time runs out. When the sim's <c>telegraph_hit</c> event for that id arrives it flashes
 /// bright and fades, then frees the instance; a <c>telegraph_cancel</c> (the cast was kicked, stopped or replaced, so
 /// nothing lands) frees it at once with no flash (<see cref="TelegraphEnd"/>). A cone draws its own angle and a circle the full turn
-/// (<see cref="TelegraphFan"/>); a line still draws as its cone stand-in until it gets its own mesh.
+/// (<see cref="TelegraphFan"/>); a line draws its rectangle from the caster, its length forward and its width across
+/// (<see cref="TelegraphDrawability.LineCorners"/>).
 /// </summary>
 public partial class TelegraphView : Node3D
 {
@@ -140,7 +141,9 @@ public partial class TelegraphView : Node3D
         root.Rotation = new Vector3(0, -tg.Yaw * Mathf.Tau / 1024f, 0); // local +x = sim facing
         var radius = (tg.Radius ?? 0) * MmToM;
         var halfAngle = TelegraphFan.Span1024(tg.Shape, tg.Angle1024) / 2f * Mathf.Tau / TelegraphFan.FullTurn;
-        var mesh = BuildCone(radius, halfAngle);
+        var mesh = tg.Shape == "line"
+            ? BuildRectangle(TelegraphDrawability.LineCorners(tg.Length ?? 0, tg.Width ?? 0))
+            : BuildCone(radius, halfAngle);
 
         var outline = root.GetNode<MeshInstance3D>("Outline");
         var fill = root.GetNode<MeshInstance3D>("Fill");
@@ -182,6 +185,25 @@ public partial class TelegraphView : Node3D
             st.AddVertex(Vector3.Zero);
             st.AddVertex(new Vector3(radius * Mathf.Cos(a0), 0, radius * Mathf.Sin(a0)));
             st.AddVertex(new Vector3(radius * Mathf.Cos(a1), 0, radius * Mathf.Sin(a1)));
+        }
+        return st.Commit();
+    }
+
+    // A flat rectangle in the local XZ plane from the corners TelegraphDrawability.LineCorners gives (mm; forward is
+    // local +x, lateral local +z, the same convention as BuildCone). Two triangles per quad, flat normal up.
+    private static ArrayMesh BuildRectangle((long Forward, long Lateral)[] corners)
+    {
+        var st = new SurfaceTool();
+        st.Begin(Mesh.PrimitiveType.Triangles);
+        st.SetNormal(Vector3.Up);
+        var p = new Vector3[corners.Length];
+        for (var i = 0; i < corners.Length; i++)
+        {
+            p[i] = new Vector3(corners[i].Forward * MmToM, 0, corners[i].Lateral * MmToM);
+        }
+        foreach (var k in new[] { 0, 1, 2, 0, 2, 3 })
+        {
+            st.AddVertex(p[k]);
         }
         return st.Commit();
     }
