@@ -226,6 +226,125 @@ public sealed class PairMarkTests
         Assert.Null(RunWiring.RulesConfigOf(RunTestKit.Content()).Marks);
     }
 
+    // mark_applied / mark_detonated: the receipt a capture reads from demo.log (BIBLE s9 The Pair). One mark_applied per
+    // completed mark cast, on the tick the mark lands; one mark_detonated per resolved mark, on the tick it runs out.
+
+    [Fact]
+    public void A_completed_spread_cast_emits_one_mark_applied_naming_the_marked_player_and_its_detonation_tick()
+    {
+        var state = Arena(Player(P1, 0, 0), Player(P2, 1000, 0), Warrior(WarriorA, 0, 5000));
+        var events = Run(state, Shipped, SpreadEnds, Cast(WarriorA, "pair.spreadMark", P1));
+
+        var applied = Assert.Single(events, e => e.Type == "mark_applied");
+        Assert.Equal(40, applied.Tick);
+        Assert.Equal("pair.spreadMark", Str(applied, "cast"));
+        Assert.Equal("spread", Str(applied, "kind"));
+        Assert.Equal(WarriorA, Int(applied, "sourceId"));
+        Assert.Equal(new long[] { P1 }, Longs(applied, "targetIds"));
+        Assert.Equal(3000, Int(applied, "radius"));
+        Assert.Equal(SpreadEnds, Int(applied, "detonatesTick"));
+    }
+
+    [Fact]
+    public void A_spread_mark_detonates_once_on_its_detonation_tick_listing_who_it_hit_and_for_how_much()
+    {
+        var state = Arena(Player(P1, 0, 0), Player(P2, 1000, 0), Warrior(WarriorA, 0, 5000));
+        var events = Run(state, Shipped, SpreadEnds, Cast(WarriorA, "pair.spreadMark", P1));
+
+        var detonated = Assert.Single(events, e => e.Type == "mark_detonated");
+        Assert.Equal(SpreadEnds, detonated.Tick);
+        Assert.Equal("spread", Str(detonated, "kind"));
+        Assert.Equal(P1, Int(detonated, "markedId"));
+        Assert.Equal(new long[] { P2 }, Longs(detonated, "hitIds"));
+        Assert.Equal(new (long, long)[] { (P2, 80) }, DamageOf(detonated));
+    }
+
+    [Fact]
+    public void A_spread_mark_that_hits_nobody_still_detonates_once_with_an_empty_hit_list()
+    {
+        var state = Arena(Player(P1, 0, 0), Player(P2, 3001, 0), Warrior(WarriorA, 0, 5000));
+        var events = Run(state, Shipped, SpreadEnds, Cast(WarriorA, "pair.spreadMark", P1));
+
+        var detonated = Assert.Single(events, e => e.Type == "mark_detonated");
+        Assert.Equal(SpreadEnds, detonated.Tick);
+        Assert.Empty(Longs(detonated, "hitIds"));
+        Assert.Empty(DamageOf(detonated));
+    }
+
+    [Fact]
+    public void A_completed_stack_call_emits_mark_applied_and_a_detonation_that_hits_the_marked_player_alone()
+    {
+        var state = Arena(Player(P1, 1000, 0), Player(P2, -6000, 0), Warrior(WarriorA, 0, 0));
+        var events = Run(state, Shipped, StackEnds, Cast(WarriorA, "pair.stackCall"));
+
+        var applied = Assert.Single(events, e => e.Type == "mark_applied");
+        Assert.Equal(40, applied.Tick);
+        Assert.Equal("pair.stackCall", Str(applied, "cast"));
+        Assert.Equal("stack", Str(applied, "kind"));
+        Assert.Equal(new long[] { P1 }, Longs(applied, "targetIds"));
+        Assert.Equal(1500, Int(applied, "radius"));
+        Assert.Equal(StackEnds, Int(applied, "detonatesTick"));
+
+        var detonated = Assert.Single(events, e => e.Type == "mark_detonated");
+        Assert.Equal(StackEnds, detonated.Tick);
+        Assert.Equal("stack", Str(detonated, "kind"));
+        Assert.Equal(P1, Int(detonated, "markedId"));
+        Assert.Equal(new long[] { P1 }, Longs(detonated, "hitIds"));
+        Assert.Equal(new (long, long)[] { (P1, 150) }, DamageOf(detonated));
+    }
+
+    [Fact]
+    public void A_mark_cast_stopped_before_it_lands_emits_no_mark_event()
+    {
+        var state = Arena(Player(P1, 0, 0), Player(P2, 1000, 0), Warrior(WarriorA, 0, 5000));
+        var rules = Rules.Make(Config(PairAbilities(), PairEffects()) with { Marks = Shipped });
+        var events = new List<SimEvent>();
+        Tick(state, rules, Cmds(Cast(WarriorA, "pair.spreadMark", P1)), events.Add);
+        while (state.Tick < 20)
+        {
+            Tick(state, rules, Cmds(), events.Add);
+        }
+        Casting.Stopcast(state.Actors[WarriorA], events.Add, state.Tick);
+        while (state.Tick <= SpreadEnds)
+        {
+            Tick(state, rules, Cmds(), events.Add);
+        }
+
+        Assert.Contains(events, e => e.Type == "cast_stopped");
+        Assert.DoesNotContain(events, e => e.Type == "mark_applied" || e.Type == "mark_detonated");
+        Assert.Equal(PlayerHealth, state.Actors[P2].Health);
+    }
+
+    [Fact]
+    public void A_mark_caster_who_dies_mid_cast_emits_no_mark_event()
+    {
+        var state = Arena(Player(P1, 0, 0), Player(P2, 1000, 0), Warrior(WarriorA, 0, 5000));
+        var rules = Rules.Make(Config(PairAbilities(), PairEffects()) with { Marks = Shipped });
+        var events = new List<SimEvent>();
+        Tick(state, rules, Cmds(Cast(WarriorA, "pair.spreadMark", P1)), events.Add);
+        while (state.Tick < 20)
+        {
+            Tick(state, rules, Cmds(), events.Add);
+        }
+        Mitigation.DealDamage(state.Tick, null, state.Actors[WarriorA], 100000, PairEffects(), events.Add, P1);
+        while (state.Tick <= SpreadEnds)
+        {
+            Tick(state, rules, Cmds(), events.Add);
+        }
+
+        Assert.Contains(events, e => e.Type == "death" && Int(e, "actorId") == WarriorA);
+        Assert.DoesNotContain(events, e => e.Type == "mark_applied" || e.Type == "mark_detonated");
+        Assert.Equal(PlayerHealth, state.Actors[P2].Health);
+    }
+
+    private static long[] Longs(SimEvent e, string key) =>
+        ((JsArray)e.Get(key)!).Items.Select(i => ((JsInt)i).Value).ToArray();
+
+    private static (long, long)[] DamageOf(SimEvent e) =>
+        ((JsArray)e.Get("damage")!).Items
+            .Select(i => (((JsInt)((JsObject)i).Get("actorId")!).Value, ((JsInt)((JsObject)i).Get("amount")!).Value))
+            .ToArray();
+
     private static ActorState Player(int id, long x, long z) => Make(id, ActorKind.Player, "warden", ActorRole.Tank, x, z, PlayerHealth);
 
     private static ActorState Warrior(int id, long x, long z) => Make(id, ActorKind.Enemy, "pair.melee", ActorRole.None, x, z, 1200);
