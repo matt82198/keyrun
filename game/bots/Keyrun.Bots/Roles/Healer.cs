@@ -21,7 +21,8 @@ public sealed class HealerRole : IRole
     /// <summary>healer.ts HEAL_RANGE_MM: 30 m.</summary>
     public const long HealRangeMm = 30 * 1000;
 
-    private const double HealThresholdPct = 0.7;
+    /// <summary>healer.ts HEAL_THRESHOLD_PCT: an ally under this health fraction is a heal-triage target.</summary>
+    public const double HealThresholdPct = 0.7;
     private const double PartyMendThresholdPct = 0.35;
 
     /// <summary>healer.ts MEND_VERSE_VALUE: resource 1 is Mend, 0 is Ward.</summary>

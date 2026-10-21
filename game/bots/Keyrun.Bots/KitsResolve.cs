@@ -74,6 +74,14 @@ public sealed record EffectiveKit
     /// <summary>Slotted abilities whose own gcdTicks is 0 (off the GCD); empty for a fallback kit.</summary>
     public IReadOnlyList<string> OffGcdAbilityIds { get; init; } = NoIds;
 
+    /// <summary>
+    /// ALLY-VIGIL (ruling R-FORKPARITY-UNPLAYED): the self-sustain spender when the run's own def of it is
+    /// target-shaped and tagged <see cref="KitRegistry.AllyShieldTag"/> (Warden's Vigil with the "ally" talent), else
+    /// null. When set, <see cref="SelfSustainAbilityId"/> is null: the sim refuses a target-shaped cast with no target,
+    /// so the spender is cast only on a pressured ally (<see cref="Roles.TankPressure.AllyShieldCommand"/>).
+    /// </summary>
+    public string? AllyShieldAbilityId { get; init; }
+
     /// <summary>The content-backed branch of kit-resolve.ts resolveKit.</summary>
     /// <param name="kit">Content kit.</param>
     /// <returns>The effective kit.</returns>
