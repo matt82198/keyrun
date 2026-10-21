@@ -529,7 +529,7 @@ example 104%) and do nothing else. The fight beyond the door is unchanged.
 3. **The Lock** — at 50%, the boss shields and opens a **Window on itself** for 3 seconds, repeating every 30 s.
    Only a **Combo** closes it (any pair; the boss's Window accepts any Payoff from a class other than whichever
    Setup last tagged it — so the party must alternate who sets and who pays). Fail three Locks and the boss enrages
-   into a Tempo spike, not an instant wipe.
+   into a Tempo spike, not an instant wipe. Each failed Lock adds one Tempo stack at once (ruled R-LOCK-1, 2026-10-21, as WoW does with stacking boss buffs); the third stack is the enrage.
 
 ## 10. The screen, the queue, and being chill (research/08, /09)
 

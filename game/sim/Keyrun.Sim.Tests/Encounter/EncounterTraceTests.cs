@@ -142,6 +142,11 @@ public sealed class EncounterTraceTests
             {
                 castLedger.Completed((int)((JsInt)e.Get("actorId")!).Value, ((JsString)e.Get("abilityId")!).Value, e.Tick);
             }
+            // f-fa598b6b: a cast combat refused out of range never started (cast_refused, enemies only).
+            foreach (var e in rec.Events.Where(e => e.Type == "cast_refused"))
+            {
+                castLedger.Refused((int)((JsInt)e.Get("actorId")!).Value, ((JsString)e.Get("abilityId")!).Value, e.Tick);
+            }
         }
 
         var state = new SimState { Tick = 0, Seed = 1, Prng = new PrngState(1, 2, 3, 4), Phase = "combat" };

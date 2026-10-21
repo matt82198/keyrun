@@ -127,6 +127,12 @@ export function makeRules(cfg: RulesConfig): StepRules {
         if (!def) continue;
         const err = startCast(state, actor, def, cmd.targetId, cmd.point, state.tick);
         afterPress(actor, def, cmd, err, queued.fired.has(cmd), state.tick);
+        // CAST-REFUSED (f-fa598b6b): an enemy cast refused out of range never starts. Its command is encounter-generated,
+        // so it is in no trace record; this event is how a replay without combat (EncounterCastLedger) learns the caster
+        // stayed free. Players' presses are in the record, and other reasons are not reported. Mirrors Rules.cs.
+        if (err === "out_of_range" && actor.kind === "enemy") {
+          emit({ tick: state.tick, type: "cast_refused", actorId: actor.id, abilityId: def.id, reason: err });
+        }
         if (!err && def.castTicks === 0) {
           completeCast(state, actor, ctx, emit);
           applyWindowsAndCombos(state, actor, def, wctx, emit);

@@ -18,9 +18,10 @@ namespace Keyrun.Playtest.Tests;
 /// abandonment"): the run SimDriver builds at key 2, seed 1 (<see cref="HostRunSetup.Build"/>, then
 /// <see cref="BossRules.Arm"/>), seat 1 the autorun <see cref="ScriptedWarden"/> and seats 2 and 3 the host's own
 /// <see cref="BotCommandSource"/>, stepped in SimDriver.StepOnce's order through <see cref="Backfill.Step"/>. Seat 2
-/// abandons during the first pull, 1350 ticks after the Choir's pull_start (<c>--abandon-seat 2@pull0+1350</c>, RULING
-/// R-415-D: the scenario is "a seat abandons during the first pull", so the leave is pinned to the pull, not to a run
-/// tick a pacing change moves into the Pair), and one key-2 request joins the queue (<c>--joiner-key 2</c>). The joiner
+/// abandons during the first pull, one tick after the Choir is down to a tenth of its health (<c>--abandon-seat
+/// 2@pull0.hp10+1</c>, finding f-0fd3e6fb on RULING R-415-D: the scenario is "a seat abandons during the first pull", so
+/// the leave is pinned to the Choir's own progress, not to a run tick or an offset a pacing change moves into the Pair),
+/// and one key-2 request joins the queue (<c>--joiner-key 2</c>). The joiner
 /// must take the seat at the next pull start and then act: a <c>cast_complete</c> by seat 2 after the fill, within run
 /// F's 3500 ticks.
 /// </summary>
@@ -28,13 +29,18 @@ namespace Keyrun.Playtest.Tests;
 /// Merge-forward of #362 onto #415: #362 had moved the leave 1700 -> 1500 (D-PINNED-FIXTURES-362, the healer press
 /// cleared the undisturbed Choir at 1580 so 1700 fell inside the Pair). The pull-relative form keeps that intent (the
 /// leave stays inside the Choir) and <see cref="The_abandon_falls_inside_the_first_pull"/> checks it on this tree.
+/// f-0fd3e6fb: 2@pull0+1350 still flipped whenever the Choir's fight length changed (the setup lesson, #364, #326);
+/// 2@pull0.hp10+1 leaves late in the Choir whatever its length (RunFAbandonPacingTests). Measured on this tree (seed 1,
+/// key 2, bot gear): the party reaches the Pair with the leave at 20% (tick 1343) and below, and wipes at 25% (1308, the
+/// Warden dies at 1649); a leave at the Choir's first death (1031) wipes too (the Warden dies at 1454), which is why the
+/// anchor is the Choir's health share and not its first death.
 /// </remarks>
 public sealed class RunFJoinerActsTests
 {
     private const int Key = 2;
     private const long Seed = 1;
     private const int SeatId = 2;
-    private const string Abandon = "2@pull0+1350"; // HudSceneTest $AbandonSeat (R-415-D; #362's 2@1500 folded in, see remarks)
+    internal const string Abandon = "2@pull0.hp10+1"; // HudSceneTest $AbandonSeat (f-0fd3e6fb; was 2@pull0+1350, see remarks)
     private const int MaxTicks = 3500; // run F's --ticks (HudSceneTest $BackfillTicks)
 
     private sealed record Drive(int? AbandonTick, int? FillTick, List<SimEvent> Events, List<string> Log, Run Final);
@@ -81,7 +87,7 @@ public sealed class RunFJoinerActsTests
                 var clause = run.Encounter.Rules.ActiveClauseId ?? registry.Clauses.Keys.OrderBy(k => k, StringComparer.Ordinal).FirstOrDefault() ?? "none";
                 queue.Add(new QueueRequest(setup.Dungeon.Id, Key, clause));
                 abandonTick = tick;
-                log.Add($"{tick} SEAT abandon actor={SeatId} pull={plan.AnchorPull} start={anchor} offset={plan.Tick}");
+                log.Add($"{tick} SEAT abandon actor={SeatId} pull={plan.AnchorPull} {plan.AnchorFields(anchor)} offset={plan.Tick}");
             }
             var commands = new List<Command>();
             warden.Sample(tick, run, commands, book.Open.Select(s => s.ActorId).ToList());
@@ -107,8 +113,9 @@ public sealed class RunFJoinerActsTests
                     nextSample = fill.FillTick;
                 }
             }
-            // SimDriver.StepOnce: the anchor is the step's pull_start for the plan's pull, kept once seen.
-            anchor ??= plan.AnchorFrom(stepped.Step.Events);
+            // SimDriver.StepOnce: the anchor is the first step that ends with the plan's pull down to its health share,
+            // kept once seen.
+            anchor ??= plan.AnchorAt(tick, stepped.Step.Events, stepped.Step.Run.Dungeon, stepped.Step.Run.State.Actors);
             run = stepped.Step.Run;
             events.AddRange(stepped.Step.Events);
         }
@@ -145,5 +152,15 @@ public sealed class RunFJoinerActsTests
         Assert.True(r.AbandonTick is not null, $"seat {SeatId} never abandoned ({Abandon})");
         Assert.True(r.AbandonTick > start && (clear is null || r.AbandonTick < clear),
             $"the abandon at {r.AbandonTick} is outside the first pull (pull_start {start}, pull_clear {clear})");
+    }
+
+    [Fact(DisplayName = "Run F: the party reaches pull 2 with no seat dead (HudSceneTest run F check 23)")]
+    public void No_party_seat_dies_before_pull_2()
+    {
+        var r = Driven.Value;
+        var pull2 = r.Events.FirstOrDefault(e => e.Type == "pull_start" && e.Get("pullIndex") is JsInt { Value: 1 })?.Tick;
+        Assert.True(pull2 is not null, $"the party never reached pull 2 after the abandon at {r.AbandonTick} (run ended {r.Final.RunEnd.Result?.ToJs() ?? "running"} at {r.Final.State.Tick})");
+        var dead = r.Events.FirstOrDefault(e => e.Type == "death" && ActorOf(e) is >= 1 and <= 3 && e.Tick <= pull2);
+        Assert.True(dead is null, $"party seat {(dead is null ? -1 : ActorOf(dead))} died at {dead?.Tick} before pull 2 at {pull2} (abandon at {r.AbandonTick})");
     }
 }

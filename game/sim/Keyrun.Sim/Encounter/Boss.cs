@@ -132,8 +132,10 @@ public sealed record BossPostStep(BossState Boss, IReadOnlyList<ActorState> Spaw
 /// <item>The Lock: the first tick boss health is at or below 50% the boss shields and opens a 3 s Window on itself,
 /// then again every 30 s while it lives. A party Setup on the boss inside the Window, then a Payoff on it from a
 /// different class (the <c>combo</c> event closing that Setup's Window), breaks it and drops the shield. A Window that
-/// ends unbroken is a failed Lock; the third failed Lock enrages the boss into a Tempo spike (its script loops fire
-/// <see cref="BossConfig.EnrageTempoBp"/> as often), never an instant wipe.</item>
+/// ends unbroken is a failed Lock. Each failed Lock adds one Tempo stack to the boss at once (LOCK-STAKES, ruling
+/// R-LOCK-1: its loops re-pace to <see cref="LockTempoBp"/>, and <c>lock_failed</c> carries the new tempo); the third
+/// failed Lock enrages the boss into the full Tempo spike (its script loops fire <see cref="BossConfig.EnrageTempoBp"/>
+/// as often), never an instant wipe.</item>
 /// <item>LOCK-TELEGRAPH (<see cref="BossConfig.CastLock"/>, BIBLE s3 "Cast bars are the enemy's language"): a due Lock
 /// begins as a cast. On the first due tick the boss is not mid-cast and has no telegraph of its own pending, it casts
 /// its Lock ability (a <c>lock_cast</c> event; a real cast bar for the ability's castTicks, its other script steps held
@@ -170,8 +172,9 @@ public static class BossRules
     }
 
     /// <summary>
-    /// The scripts the armed encounter runs: the boss's suppressed casts removed, the Twins' scripts added, and once
-    /// enraged every boss loop (and repeating step) re-paced by <see cref="BossConfig.EnrageTempoBp"/>.
+    /// The scripts the armed encounter runs: the boss's suppressed casts removed, the Twins' scripts added, and every
+    /// boss loop (and repeating step) re-paced by the failed Locks' Tempo stacks (<see cref="LockTempoBp"/>), or by
+    /// <see cref="BossConfig.EnrageTempoBp"/> once enraged.
     /// </summary>
     public static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> EffectiveScripts(BossState boss, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts)
     {
@@ -186,13 +189,35 @@ public static class BossRules
         if (result.TryGetValue(cfg.BossActorId, out var bossScript) && bossScript is not null)
         {
             var kept = bossScript.Where(s => !cfg.SuppressedBossCasts.Contains(s.Cast));
-            result[cfg.BossActorId] = (boss.Enraged ? kept.Select(s => Spike(s, cfg.EnrageTempoBp)) : kept).ToList();
+            var tempoBp = boss.Enraged ? cfg.EnrageTempoBp : LockTempoBp(cfg, boss.LockFails);
+            result[cfg.BossActorId] = (tempoBp != Tempo.BpDenom ? kept.Select(s => Spike(s, tempoBp)) : kept).ToList();
         }
         foreach (var twin in cfg.Twins)
         {
             result[twin.ActorId] = twin.Script;
         }
         return result;
+    }
+
+    /// <summary>
+    /// LOCK-STAKES (ruling R-LOCK-1, BIBLE s9 "The Lock"): the boss's loop tempo after <paramref name="fails"/> failed
+    /// Locks, basis points. Each fail is one Tempo stack, capped at <see cref="BossConfig.FailsToEnrage"/>; stack n paces
+    /// the boss at <c>10000 + trunc((EnrageTempoBp - 10000) * n / FailsToEnrage)</c>, so the last stack is exactly the
+    /// enrage spike (11666, 13333, 15000 at the defaults) and the enrage stays the ceiling. 10000 with no fails.
+    /// </summary>
+    /// <param name="config">The armed rules.</param>
+    /// <param name="fails">Locks that closed unbroken so far.</param>
+    /// <returns>The effective tempo multiplier, basis points.</returns>
+    public static int LockTempoBp(BossConfig config, int fails)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        var stacks = Math.Clamp(fails, 0, config.FailsToEnrage);
+        if (stacks == 0)
+        {
+            return Tempo.BpDenom;
+        }
+        var bonus = IntMath.TruncDiv((long)(config.EnrageTempoBp - Tempo.BpDenom) * stacks, config.FailsToEnrage);
+        return checked((int)(Tempo.BpDenom + bonus));
     }
 
     /// <summary>A step's period multiplied by <paramref name="tempoBp"/>: <c>max(20, trunc(every * 10000 / tempoBp))</c>.</summary>
@@ -248,11 +273,14 @@ public static class BossRules
 
         if (next.Active is { } open && tick >= open.EndsTick)
         {
+            // LOCK-STAKES (R-LOCK-1): the fail is one Tempo stack on the boss at once (EffectiveScripts reads LockFails);
+            // the event carries the boss's new effective tempo so the run log shows the cost.
             var fails = next.LockFails + 1;
             emit(new SimEvent(tick, "lock_failed",
                 ("actorId", JsValue.Int(cfg.BossActorId)),
                 ("lockIndex", JsValue.Int(open.Index)),
-                ("fails", JsValue.Int(fails))));
+                ("fails", JsValue.Int(fails)),
+                ("tempoBp", JsValue.Int(LockTempoBp(cfg, fails)))));
             next = next with { Active = null, LockFails = fails };
             if (!next.Enraged && fails >= cfg.FailsToEnrage)
             {

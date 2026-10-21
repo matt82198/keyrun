@@ -117,10 +117,13 @@
         staying party member and casts from its first tick there: on seed 1 key 2 the Chanter refills at 2052 on the
         Cinder and completes chanter.chorus at 2053 (headless replica RunFJoinerActsTests))
         (--abandon-seat A@T: SimDriver calls AbandonSeat(A) at run tick T, or A@pullN+O (R-415-D) O ticks after pull
-        N's pull_start, logged "SEAT abandon actor=A tick=T pull=N start=S offset=O" with T = S + O; with --joiner-key K, it adds one
+        N's pull_start, logged "SEAT abandon actor=A tick=T pull=N start=S offset=O" with T = S + O, or A@pullN.hpP+O
+        (f-0fd3e6fb) O ticks after the first step that ends with pull N's standing enemies at or below P percent of their
+        health, logged "SEAT abandon actor=A tick=T pull=N hp=P at=S offset=O" with T = S + O; with --joiner-key K, it adds one
         QueueRequest at key K straight to the Queue node at Hud/Screen/Queue; this is the scripted path, the screen's
         Queue button is not pressed mid-run)
-     21. "SEAT abandon actor=A tick=T" (pull-relative: "... pull=N start=S offset=O", T = S + O) in pull 1, then
+     21. "SEAT abandon actor=A tick=T" (pull-relative: "... pull=N start=S offset=O", health-relative: "... pull=N hp=P
+         at=S offset=O", T = S + O) in pull 1, then
          "QUEUE add dungeon=hollow-vault key=2";
      22. the party survives to "PULL spawn index=1 id=pair", and in that same step (no TICK line between them)
          "SEAT refill actor=A tick=X key=2" with X = that step's TICK tick + 1 (Backfill.Step's FillTick: the first
@@ -140,6 +143,14 @@
          (D-PINNED-FIXTURES-362: with the healer press the undisturbed Choir clears at 1580 and pull 2 starts at 1693, so
          1700 fell in pull 2); the merge-forward onto #415 keeps the pull-relative form, which serves that same intent
          (the leave stays inside the Choir), and RunFJoinerActsTests pins the leave inside pull 0 on the merged tree.
+         2@pull0+1350 -> 2@pull0.hp10+1 by f-0fd3e6fb: a fixed offset from the Choir's engage still flipped whenever the
+         Choir's fight length changed (the setup lesson, #364 and #326 each moved it), so the leave now waits for the
+         Choir's own progress, one tick after its standing enemies are down to a tenth of their health: on seed 1 key 2
+         that is 1458 (Choir clear 1609, refill 1722). Measured headless (RunFJoinerActsTests, bot gear): the party
+         reaches the Pair with the leave at 20% (1343) or below and wipes at 25% (1308, the Warden dies at 1649); a leave
+         one tick after the Choir's first death (1031) wipes as well (the Warden dies at 1454). RunFAbandonPacingTests
+         moves the Choir's engage and fight length and shows 2@pull0.hp10+1 stays inside it where 2@1500 and
+         2@pull0+1350 do not.
          The old 1@1000 cannot work on the
          route: the next pull spawns only when a party member walks into its room, and an abandoned human leader stands
          idle, so his bots never travel; 3@1000 to 3@3000 leave the Choir uncleared without the Cinder's damage.
@@ -276,7 +287,7 @@ param(
     [int]$BossTicks = 600,
     [int]$QueueTicks = 900,
     [int]$BackfillTicks = 3500,
-    [string]$AbandonSeat = '2@pull0+1350',
+    [string]$AbandonSeat = '2@pull0.hp10+1',
     [int]$ScreenFirstFrames = 240,
     [int]$WipeFrames = 6600,
     [int]$PingAt = 100,
@@ -840,9 +851,15 @@ $seatParts = $AbandonSeat -split '@'
 $seatActor = $seatParts[0]
 $seatTick = $seatParts[1]
 # R-415-D: A@pullN+O leaves O ticks after pull N's pull_start; its SEAT abandon line names the anchor and T = S + O.
+# f-0fd3e6fb: A@pullN.hpP+O leaves O ticks after pull N's standing enemies fall to P percent of their health; its line
+# names the share and the anchor ("hp=P at=S") and T = S + O likewise.
 $seatRel = $null
-if ($seatTick -match '^pull(\d+)\+(\d+)$') { $seatRel = [pscustomobject]@{ Pull = [int]$Matches[1]; Offset = [int]$Matches[2] } }
-$abandonPattern = if ($seatRel) { "^SEAT abandon actor=$seatActor tick=(\d+) pull=$($seatRel.Pull) start=(\d+) offset=$($seatRel.Offset)$" } else { "^SEAT abandon actor=$seatActor tick=$seatTick$" }
+if ($seatTick -match '^pull(\d+)\+(\d+)$') {
+    $seatRel = [pscustomobject]@{ Pull = [int]$Matches[1]; Offset = [int]$Matches[2]; Anchor = 'start=(\d+)' }
+} elseif ($seatTick -match '^pull(\d+)\.hp(\d+)\+(\d+)$') {
+    $seatRel = [pscustomobject]@{ Pull = [int]$Matches[1]; Offset = [int]$Matches[3]; Anchor = "hp=$($Matches[2]) at=(\d+)" }
+}
+$abandonPattern = if ($seatRel) { "^SEAT abandon actor=$seatActor tick=(\d+) pull=$($seatRel.Pull) $($seatRel.Anchor) offset=$($seatRel.Offset)$" } else { "^SEAT abandon actor=$seatActor tick=$seatTick$" }
 function Invoke-Backfill([string]$run, [int]$joinerKey) {
     $r = Invoke-Arena $BackfillTicks @('--abandon-seat', $AbandonSeat, '--joiner-key', "$joinerKey")
     if ($r.Code -ne 0) { $failures.Add("run ${run}: godot exited $($r.Code) (expected 0)") }

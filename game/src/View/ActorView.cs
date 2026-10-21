@@ -15,6 +15,9 @@ namespace Keyrun.View;
 /// with no row, or a row whose file is missing, keeps the capsule (with a small nose showing facing) and logs
 /// <c>ACTOR fallback capsule id=N class=C</c> once. KF1: a health drop flashes the bound model for
 /// <see cref="AnimRule.FlashTicks"/> sim ticks (<see cref="AnimRule.FlashPermille"/>), logged as <c>ANIM flash</c>.
+/// f-84d213a5: a party bot between the camera and the player or the player's target (or pressed against the lens) fades
+/// to <see cref="PartyFade.FadedPermille"/> and eases back when it moves (<see cref="PartyFade"/>), logged as
+/// <c>FADE actor=N alpha=A tick=T</c> on each change; the player's own model and enemies never fade.
 /// </summary>
 public partial class ActorView : Node3D
 {
@@ -60,8 +63,22 @@ public partial class ActorView : Node3D
     private int _hurtTick = int.MinValue / 2;
     private bool _flashOn;
 
+    private readonly System.Collections.Generic.List<(int X, int Y, int Z)> _foci = new();
+    private System.Collections.Generic.List<FadeSurface>? _fadeSurfaces;
+    private float _fade = 1f;
+    private int _fadeWant = PartyFade.OpaquePermille;
+    private bool _fadeOn;
+
     /// <summary>KF1 hit flash colour (warm white, added over the body) at full strength.</summary>
     private static readonly Color FlashColor = new(1f, 0.92f, 0.85f, 0.45f);
+
+    /// <summary>How fast a party body eases toward its <see cref="PartyFade"/> alpha, per second.</summary>
+    [Export]
+    public float FadeRate { get; set; } = 12f;
+
+    // One model surface the fade drives: the override it had before (restored when opaque again), its faded copy, and
+    // the copy's own albedo alpha at full strength.
+    private sealed record FadeSurface(MeshInstance3D Mesh, int Surface, Material? Before, BaseMaterial3D Faded, float BaseAlpha);
 
     /// <inheritdoc />
     public override void _Ready()
@@ -96,6 +113,7 @@ public partial class ActorView : Node3D
         Place();
         Animate((float)delta);
         Flash();
+        Fade((float)delta);
         if (_measureIn > 0 && --_measureIn == 0)
         {
             LogModelHeight();
@@ -278,6 +296,137 @@ public partial class ActorView : Node3D
             GD.Print(System.FormattableString.Invariant($"ANIM flash actor={ActorId} tick={Driver?.State.Tick ?? -1}"));
         }
     }
+
+    // f-84d213a5 (bible section 3): a party bot standing between the camera and the player's body or the player's target,
+    // or pressed against the lens, fades to PartyFade.FadedPermille so cast bars and floor shapes stay readable, and eases
+    // back when it moves. The rule is PartyFade's (pure, tested); this only feeds it positions and drives the materials.
+    // The player's own model (the Warden the camera follows) and enemies are rated opaque by the rule.
+    private void Fade(float delta)
+    {
+        if (Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var now))
+        {
+            return;
+        }
+        var role = ActorId == SimDriver.WardenId ? FadeRole.Self
+            : now.Kind == ActorKind.Player ? FadeRole.Ally
+            : FadeRole.Enemy;
+        var want = PartyFade.OpaquePermille;
+        var camera = GetViewport()?.GetCamera3D();
+        if (role == FadeRole.Ally && camera is not null)
+        {
+            _foci.Clear();
+            if (Driver.State.Actors.TryGetValue(SimDriver.WardenId, out var me))
+            {
+                _foci.Add(ChestMm(SimDriver.WardenId, me));
+                if (me.TargetId is int targetId && targetId != ActorId &&
+                    Driver.State.Actors.TryGetValue(targetId, out var target) && target.Alive)
+                {
+                    _foci.Add(ChestMm(targetId, target));
+                }
+            }
+            var centre = ToMm3(GlobalPosition + new Vector3(0, PartyFade.BodyCentreMm * MmToM, 0));
+            want = PartyFade.AlphaPermille(ToMm3(camera.GlobalPosition), _foci, new FadeBody(role, centre, PartyFade.BodyRadiusMm));
+        }
+        if (want != _fadeWant)
+        {
+            _fadeWant = want;
+            GD.Print(System.FormattableString.Invariant($"FADE actor={ActorId} alpha={want} tick={Driver.State.Tick}"));
+        }
+        var goal = want / 1000f;
+        _fade += (goal - _fade) * (1f - Mathf.Exp(-delta * FadeRate));
+        if (Mathf.Abs(goal - _fade) < 0.01f)
+        {
+            _fade = goal;
+        }
+        ApplyFade(_fade);
+    }
+
+    // The body's chest on the interpolated position the views draw it at, mm (a sight-line focus for PartyFade).
+    private (int X, int Y, int Z) ChestMm(int id, ActorState now)
+    {
+        var before = Driver!.PreviousState.Actors.TryGetValue(id, out var prev) ? prev : now;
+        var feet = ToMetres(before.Pos).Lerp(ToMetres(now.Pos), Driver.Alpha);
+        return ToMm3(feet + new Vector3(0, PartyFade.BodyCentreMm * MmToM, 0));
+    }
+
+    // Drives the fade on the bound CC0 model (per-view duplicates of its active materials, swapped in only while faded so
+    // an opaque body keeps its original, non-sorted materials) or, with no model, on the capsule's own materials.
+    private void ApplyFade(float alpha)
+    {
+        var faded = alpha < 0.999f;
+        if (!faded && !_fadeOn)
+        {
+            return;
+        }
+        if (_model is null)
+        {
+            FadeCapsulePart("Body", alpha, faded);
+            FadeCapsulePart("Nose", alpha, faded);
+            _fadeOn = faded;
+            return;
+        }
+        _fadeSurfaces ??= BuildFadeSurfaces(_model);
+        foreach (var s in _fadeSurfaces)
+        {
+            if (faded)
+            {
+                var c = s.Faded.AlbedoColor;
+                s.Faded.AlbedoColor = new Color(c.R, c.G, c.B, s.BaseAlpha * alpha);
+                if (!_fadeOn)
+                {
+                    s.Mesh.SetSurfaceOverrideMaterial(s.Surface, s.Faded);
+                }
+            }
+            else
+            {
+                s.Mesh.SetSurfaceOverrideMaterial(s.Surface, s.Before);
+            }
+        }
+        _fadeOn = faded;
+    }
+
+    private static System.Collections.Generic.List<FadeSurface> BuildFadeSurfaces(Node model)
+    {
+        var list = new System.Collections.Generic.List<FadeSurface>();
+        var copies = new System.Collections.Generic.Dictionary<Material, BaseMaterial3D>();
+        foreach (var node in model.FindChildren("*", "MeshInstance3D", true, false))
+        {
+            if (node is not MeshInstance3D mi || mi.Mesh is null)
+            {
+                continue;
+            }
+            for (var i = 0; i < mi.Mesh.GetSurfaceCount(); i++)
+            {
+                if (mi.GetActiveMaterial(i) is not BaseMaterial3D source)
+                {
+                    continue;
+                }
+                if (!copies.TryGetValue(source, out var copy))
+                {
+                    copy = (BaseMaterial3D)source.Duplicate();
+                    // Depth pre-pass: the faded body still sorts against itself (no inside-out limbs).
+                    copy.Transparency = BaseMaterial3D.TransparencyEnum.AlphaDepthPrePass;
+                    copies[source] = copy;
+                }
+                list.Add(new FadeSurface(mi, i, mi.GetSurfaceOverrideMaterial(i), copy, source.AlbedoColor.A));
+            }
+        }
+        return list;
+    }
+
+    private void FadeCapsulePart(string name, float alpha, bool faded)
+    {
+        if (GetNodeOrNull<MeshInstance3D>(name)?.MaterialOverride is not BaseMaterial3D m)
+        {
+            return;
+        }
+        m.Transparency = faded ? BaseMaterial3D.TransparencyEnum.AlphaDepthPrePass : BaseMaterial3D.TransparencyEnum.Disabled;
+        var c = m.AlbedoColor;
+        m.AlbedoColor = new Color(c.R, c.G, c.B, faded ? alpha : 1f);
+    }
+
+    private static (int X, int Y, int Z) ToMm3(Vector3 v) =>
+        (Mathf.RoundToInt(v.X / MmToM), Mathf.RoundToInt(v.Y / MmToM), Mathf.RoundToInt(v.Z / MmToM));
 
     private void Place()
     {

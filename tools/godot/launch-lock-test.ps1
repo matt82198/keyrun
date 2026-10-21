@@ -17,6 +17,9 @@
     D  a sequence holder (Enter-KeyrunLaunchLock) runs its launches serially in-process; another process is refused
     E  output reaches the caller's pipeline and the stub's exit code passes through
     F  godot.sh honours the same lock
+    H  godot.ps1 preflight fails closed before the lock: a project without its assembly, or a DOTNET_ROOT without
+       dotnet.exe, exits 6, never runs the stub and leaves no lock file. Every other launch names a fixture project
+       (--path <temp>/proj) with a fresh stand-in assembly, so the real game/ tree is never consulted.
     G  static routing (parse only, nothing runs): every game/src harness launches only through godot.ps1, every
        multi-launch harness holds one lock for its sequence, godot.ps1 and screens.ps1 take the lock and the cap
 
@@ -44,6 +47,18 @@ $stubText = @(
 )
 [IO.File]::WriteAllLines($stub, $stubText)
 $lockFile = Join-Path $work 'godot-launch.lock'
+
+# godot.ps1 runs the .NET preflight (tools/godot/preflight.ps1) before the lock, so every launch here names a fixture
+# project (--path <absolute>) holding a fresh stand-in assembly; the real game/ tree is never consulted.
+function New-PreflightFixture([string]$dir) {
+    $dll = Join-Path $dir '.godot\mono\temp\bin\Debug\Keyrun.dll'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $dll) -Force | Out-Null
+    [IO.File]::WriteAllLines((Join-Path $dir 'project.godot'), @('[dotnet]', '', 'project/assembly_name="Keyrun"'))
+    [IO.File]::WriteAllText($dll, 'MZ')
+    return $dir
+}
+$proj = New-PreflightFixture (Join-Path $work 'proj')
+$projSpaced = New-PreflightFixture (Join-Path $work 'a b')
 
 # Hard guard: this test must never resolve the real engine.
 $env:KEYRUN_GODOT = $stub
@@ -79,10 +94,10 @@ function Start-Launcher([string]$tag, [switch]$Sh) {
     $out = Join-Path $work "$tag.out.txt"
     $err = Join-Path $work "$tag.err.txt"
     if ($Sh) {
-        $p = Start-Process -FilePath 'bash.exe' -ArgumentList @($wrapperSh.Replace('\', '/'), '--headless', '--', '--smoke') `
+        $p = Start-Process -FilePath 'bash.exe' -ArgumentList @($wrapperSh.Replace('\', '/'), '--headless', '--path', $proj.Replace('\', '/'), '--', '--smoke') `
             -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
     } else {
-        $p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $wrapper, '--headless', '--smoke') `
+        $p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $wrapper, '--headless', '--path', $proj, '--smoke') `
             -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
     }
     $null = $p.Handle  # cache the handle so ExitCode survives the exit
@@ -190,9 +205,9 @@ try {
         $seq = Enter-KeyrunLaunchLock -Owner 'launch-lock-test sequence'
         try {
             $ErrorActionPreference = 'Continue'
-            $t1 = & $wrapper --headless '--' --one 2>&1 | Out-String
+            $t1 = & $wrapper --headless --path $proj '--' --one 2>&1 | Out-String
             $r1 = $LASTEXITCODE
-            $t2 = & $wrapper --headless '--' --two 2>&1 | Out-String
+            $t2 = & $wrapper --headless --path $proj '--' --two 2>&1 | Out-String
             $r2 = $LASTEXITCODE
             $ErrorActionPreference = 'Stop'
             Check 'D.nested-launches-run' ($r1 -eq 0 -and $r2 -eq 0 -and $t1 -match 'STUB start' -and $t2 -match 'STUB start') "r1=$r1 r2=$r2 t1=$($t1.Trim()) t2=$($t2.Trim())"
@@ -212,11 +227,39 @@ try {
     # ---- E: pipeline output and exit code pass through ------------------------------------------------------------
     Set-Stub 0 '' 7
     $ErrorActionPreference = 'Continue'
-    $e = & $wrapper --headless --path 'a b' '--' --smoke 2>&1 | Out-String
+    $e = & $wrapper --headless --path $projSpaced '--' --smoke 2>&1 | Out-String
     $eCode = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     Check 'E.exit-code-passthrough' ($eCode -eq 7) "exit=$eCode"
-    Check 'E.output-in-pipeline' ($e -match 'STUB start --headless --path "a b" -- --smoke' -and $e -match 'STUB end') "output: $($e.Trim())"
+    Check 'E.output-in-pipeline' ($e -match [regex]::Escape('STUB start --headless --path "' + $projSpaced + '" -- --smoke') -and $e -match 'STUB end') "output: $($e.Trim())"
+
+    # ---- H: preflight fails closed before the lock (exit 6, the stub never runs, no lock file) ----------------------
+    Set-Stub 0 ''
+    $noAsm = Join-Path $work 'no-assembly'
+    New-Item -ItemType Directory -Path $noAsm | Out-Null
+    [IO.File]::WriteAllLines((Join-Path $noAsm 'project.godot'), @('[dotnet]', '', 'project/assembly_name="Keyrun"'))
+    $ErrorActionPreference = 'Continue'
+    $h1 = & $wrapper --headless --path $noAsm '--' --smoke 2>&1 | Out-String
+    $h1Code = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    Check 'H1.missing-assembly-exit-6' ($h1Code -eq 6 -and $h1 -match 'PREFLIGHT missing-assembly ') "exit=$h1Code output: $($h1.Trim())"
+    Check 'H1.stub-not-run' ($h1 -notmatch 'STUB start') 'the engine ran despite a failed preflight'
+    Check 'H1.no-lock-taken' (-not (Test-Path -LiteralPath $lockFile)) 'a failed preflight left a lock file'
+    $savedRoot = $env:DOTNET_ROOT
+    $savedPath = $env:PATH
+    try {
+        $env:DOTNET_ROOT = Join-Path $work 'no-such-dotnet'
+        $ErrorActionPreference = 'Continue'
+        $h2 = & $wrapper --headless --path $proj '--' --smoke 2>&1 | Out-String
+        $h2Code = $LASTEXITCODE
+        $ErrorActionPreference = 'Stop'
+    } finally {
+        $env:DOTNET_ROOT = $savedRoot
+        if (-not $savedRoot) { Remove-Item Env:DOTNET_ROOT -ErrorAction SilentlyContinue }
+        $env:PATH = $savedPath
+    }
+    Check 'H2.missing-dotnet-exit-6' ($h2Code -eq 6 -and $h2 -match 'PREFLIGHT missing-dotnet ') "exit=$h2Code output: $($h2.Trim())"
+    Check 'H2.stub-not-run' ($h2 -notmatch 'STUB start') 'the engine ran without a .NET runtime'
 
     # ---- F: godot.sh shares the lock ------------------------------------------------------------------------------
     if (Get-Command bash.exe -ErrorAction SilentlyContinue) {
