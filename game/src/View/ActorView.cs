@@ -632,6 +632,12 @@ public partial class ActorView : Node3D
                 _gearMeshes.Add(mesh);
             }
         }
+        // The GEAR log names only the Warden (Self): the scene test requires that no enemy or bot ally is named by any GEAR
+        // line. An enemy still gets its (empty) plan above; it just does not log it.
+        if (RoleOf(now) != FadeRole.Self)
+        {
+            return;
+        }
         if (plan.Count == 0)
         {
             GearLine(System.FormattableString.Invariant($"GEAR none actor={ActorId}"));
