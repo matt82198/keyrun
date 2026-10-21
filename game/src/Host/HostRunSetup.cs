@@ -183,12 +183,17 @@ public sealed record HostRunSetup(
 
         var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
         var boss = BuildBossConfig(registry, bossEnemy, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: true));
+        var botGear = BuildBotGear(registry, party);
         return new HostRunSetup(party, dungeon, content, HumanId, ResolveSlots(classDef), boss)
         {
             Layout = layout,
             KeyAffixes = affixes,
             ClauseStartKey = registry.Run.Affixes.ClauseStartKey,
             RotationIndex = rotationIndex,
+            BotGear = botGear,
+            BotLoadouts = botGear.ToDictionary(
+                kv => kv.Key,
+                kv => (IReadOnlyDictionary<string, AbilityDef>)kv.Value.Abilities.ToDictionary(a => a.Key, a => ToSim(a.Value), StringComparer.Ordinal)),
         };
     }
 
@@ -273,6 +278,81 @@ public sealed record HostRunSetup(
 
     /// <summary>The content layout the setup was placed with (game/content/data/layout.json).</summary>
     public C.LayoutDef? Layout { get; init; }
+
+    /// <summary>
+    /// Each bot seat's gear layer (BIBLE s6 parity, D32 gap audit): bot actor id to its <see cref="C.BotGear.Resolve"/>
+    /// result, the class's default loadout through the same <see cref="C.GearFacets.Resolve"/> the human's gear uses.
+    /// Empty for a solo run.
+    /// </summary>
+    public IReadOnlyDictionary<int, C.FacetResolution> BotGear { get; init; } = new Dictionary<int, C.FacetResolution>();
+
+    /// <summary>
+    /// <see cref="BotGear"/> as <see cref="RunOptions.Loadouts"/> entries: bot actor id to its Facet-patched abilities
+    /// converted to sim AbilityDefs (the conversion the run's base abilities go through). SimDriver merges these with the
+    /// queued request's (human) loadouts for every run it creates.
+    /// </summary>
+    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, AbilityDef>> BotLoadouts { get; init; } =
+        new Dictionary<int, IReadOnlyDictionary<string, AbilityDef>>();
+
+    /// <summary>
+    /// <paramref name="options"/> (the queued request's, or null) with every bot seat's <see cref="BotLoadouts"/> entry
+    /// added for the seats in <paramref name="party"/>. A loadout the options already carry for an actor wins.
+    /// </summary>
+    /// <param name="options">The run options, or null.</param>
+    /// <param name="party">The run's party.</param>
+    /// <returns>The options to create the run with (unchanged when no bot seat has gear).</returns>
+    public RunOptions? WithBotLoadouts(RunOptions? options, IReadOnlyList<PartyMemberSpec> party)
+    {
+        ArgumentNullException.ThrowIfNull(party);
+        var seats = party.Select(p => p.Id).Where(id => BotLoadouts.TryGetValue(id, out var kit) && kit.Count > 0).ToList();
+        if (seats.Count == 0)
+        {
+            return options;
+        }
+        var merged = new Dictionary<int, IReadOnlyDictionary<string, AbilityDef>>();
+        foreach (var id in seats)
+        {
+            merged[id] = BotLoadouts[id];
+        }
+        if (options?.Loadouts is { } carried)
+        {
+            foreach (var kv in carried)
+            {
+                merged[kv.Key] = kv.Value;
+            }
+        }
+        return (options ?? new RunOptions()) with { Loadouts = merged };
+    }
+
+    // Every bot seat's default gear through C.BotGear.Resolve (GearFacets.Resolve). The refuse check is what the sim
+    // conversion cannot play (a line width, an op the sim union lacks): that Facet is skipped and reported, never a
+    // refused run, as the human's gear layer does (Screen.RunLoadout).
+    private static IReadOnlyDictionary<int, C.FacetResolution> BuildBotGear(C.ContentRegistry registry, IReadOnlyList<PartyMemberSpec> party)
+    {
+        var gear = new Dictionary<int, C.FacetResolution>();
+        foreach (var seat in party.Where(p => p.Id != HumanId).OrderBy(p => p.Id))
+        {
+            gear[seat.Id] = C.BotGear.Resolve(registry, registry.Classes[seat.ClassId], RefuseUnplayable);
+        }
+        return gear;
+    }
+
+    private static string? RefuseUnplayable(C.AbilityDef a)
+    {
+        if (a.Shape.Width is not null)
+        {
+            return "line width is not in the sim shape";
+        }
+        try
+        {
+            ToSim(a);
+            return null;
+        }
+        catch (InvalidOperationException e)
+        {
+            return e.Message;
+        }
+    }
 
     /// <summary>
     /// The options a run is created with (BIBLE s7, finding f-f9b80112): the request's Clause and talents plus the

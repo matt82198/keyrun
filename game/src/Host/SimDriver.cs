@@ -991,7 +991,10 @@ public partial class SimDriver : Node
         var start = setup.StartFor(request, _screen?.Progression, registry, classId);
         // The run's options record the weekly rotation index the setup was built with (the sim reads it as an input).
         var options = (start.Options ?? new RunOptions()) with { RotationIndex = setup.RotationIndex };
-        var created = RunRoot.CreateRun(Options.Seed, setup.PartyFor(dungeon), dungeon, setup.Content, options);
+        // Bot seats wear their default gear (HostRunSetup.BotLoadouts, BIBLE s6 parity) next to the human's loadouts.
+        var party = setup.PartyFor(dungeon);
+        options = setup.WithBotLoadouts(options, party) ?? options;
+        var created = RunRoot.CreateRun(Options.Seed, party, dungeon, setup.Content, options);
         if (Options.StartPull > 1)
         {
             // A --pull N start begins in pull N's fight (NavLayouts.PlaceParty; STATE.md D27 spawned it at creation).
@@ -1015,6 +1018,11 @@ public partial class SimDriver : Node
         {
             _log?.Line(FormattableString.Invariant(
                 $"GEAR run items={gear.Gear.Count} facets={(gear.Gear.Count == 0 ? "none" : string.Join(",", gear.Facets.Select(f => f.Id)))} patched={gear.Abilities.Count} unapplied={gear.UnappliedFacetIds.Count}"));
+        }
+        foreach (var (actor, botGear) in setup.BotGear.Where(kv => party.Any(p => p.Id == kv.Key)).OrderBy(kv => kv.Key))
+        {
+            _log?.Line(FormattableString.Invariant(
+                $"GEAR bot actor={actor} applied={botGear.Applied.Count} skipped={botGear.Skipped.Count} facets={(botGear.Applied.Count > 0 ? string.Join(',', botGear.Applied.Select(f => f.FacetId)) : "-")}"));
         }
         var boss = run.Encounter.Boss?.Config ?? throw new InvalidOperationException("SimDriver: the run's boss is not armed");
         _log?.Line(FormattableString.Invariant(
