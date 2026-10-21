@@ -169,4 +169,45 @@ public sealed class RunFAbandonPacingTests
         Assert.False(after > moved.Start && after < moved.Clear,
             $"{abandon} at {after} stayed inside the moved Choir ({moved.Start}..{moved.Clear}): this double no longer shows the fragility");
     }
+
+    // f-18509803: the double's health timeline must kill a Choir enemy on the same step the real sim does. The real run
+    // (SeatAbandonZeroOffsetTests.RunReal, seed 1, key 2, a fixed abandon past the Choir) is stepped to the first Choir
+    // death; for the step at the death event's tick and the steps either side, the double's ActorsAfter must report the
+    // dying enemy alive or dead exactly as the real sim's actors after that step do (death event tick and kill tick
+    // aligned, the double's first kill against the real sim's first).
+    [Fact(DisplayName = "the double's ActorsAfter kills a Choir enemy after the same step as the real sim")]
+    public void The_double_kills_on_the_real_sims_step()
+    {
+        int? deathActor = null;
+        int? deathStamp = null;
+        int? deathStep = null;
+        var aliveAfter = new Dictionary<int, Dictionary<int, bool>>();
+        SeatAbandonZeroOffsetTests.RunReal($"2@{MaxTicks - 1}", (preTick, events, dungeon, actors) =>
+        {
+            var choir = dungeon.Pulls[0].Spawns.Select(s => s.ActorId).ToHashSet();
+            aliveAfter[preTick] = choir.Where(actors.ContainsKey).ToDictionary(id => id, id => actors[id].Alive);
+            if (deathActor is null && events.FirstOrDefault(e => e.Type == "death" && e.Get("actorId") is JsInt a && choir.Contains((int)a.Value)) is { } d)
+            {
+                deathActor = (int)((JsInt)d.Get("actorId")!).Value;
+                deathStamp = d.Tick;
+                deathStep = preTick;
+            }
+        });
+        Assert.True(deathActor is not null, "the real sim never killed a Choir enemy");
+        var trace = Choir(0, 0);
+        var kill = trace.Kills.OrderBy(k => k.Death).First();
+        var mismatches = new List<string>();
+        for (var o = -1; o <= 1; o++)
+        {
+            var realTick = deathStamp!.Value + o;
+            var real = aliveAfter.TryGetValue(realTick, out var after) && after.TryGetValue(deathActor!.Value, out var alive) ? alive : (bool?)null;
+            var stub = ActorsAfter(trace, kill.Death + o)[kill.ActorId].Alive;
+            if (real != stub)
+            {
+                mismatches.Add($"death tick{o:+0;-0;+0} (real pre-step {realTick}: {(real is null ? "absent" : real.Value ? "alive" : "dead")}; double pre-step {kill.Death + o}: {(stub ? "alive" : "dead")})");
+            }
+        }
+        Assert.True(mismatches.Count == 0,
+            $"the real sim stamps enemy {deathActor}'s death {deathStamp} from the step at pre-step {deathStep}; the double's ActorsAfter for enemy {kill.ActorId} (death {kill.Death}) disagrees after the step at {string.Join("; ", mismatches)}");
+    }
 }
