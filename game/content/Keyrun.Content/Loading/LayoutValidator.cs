@@ -153,6 +153,8 @@ public static class LayoutValidator
             if (pullOrder.Contains(pack.Id) || boxIds.Contains(pack.Id)) Fail(where + " reuses a pull or box id");
             LayoutBox? room = layout.Boxes.FirstOrDefault(b => b.Id == pack.Room);
             if (room is null || room.Kind != LayoutBoxKind.Room) Fail(where + " stands in unknown room \"" + pack.Room + "\"");
+            if (pack.Branch is not null && !boxIds.Contains(pack.Branch))
+                Fail(where + " branch \"" + pack.Branch + "\" is not a room in the layout");
             if (pack.AggroMm <= 0) Fail(where + " aggroMm must be positive, got " + pack.AggroMm);
             if (!Inside(room!, pack.Center)) Fail(where + " centre (" + pack.Center.X + ", " + pack.Center.Z + ") is outside room \"" + pack.Room + "\"");
             if (pack.Enemies.Count == 0) Fail(where + " has no enemies");
