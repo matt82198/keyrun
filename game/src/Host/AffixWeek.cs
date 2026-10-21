@@ -81,19 +81,29 @@ public static class AffixWeek
     }
 
     /// <summary>
+    /// The index a <c>--write-movie</c> launch without <c>--rotation N</c> is built with (finding f-e1ff13e3): the proof
+    /// frames are evidence for Matt (D15) and evidence is deterministic, so they never take the week from the clock. At
+    /// a key with a rotating affix the week flips Fortified and Tyrannical and the frames' health bars with it.
+    /// </summary>
+    public const int MovieRotationIndex = 0;
+
+    /// <summary>
     /// The index a run is built with. A live run takes <paramref name="overrideIndex"/> (<c>--rotation N</c>) when given,
-    /// else this week's (<see cref="IndexFor"/>). A replay never reads the clock: the log's recorded index wins, then the
-    /// override, then 0 (a log written before the header carried an index replays at 0, the index the host used when
-    /// those logs were recorded).
+    /// else, for a <c>--write-movie</c> launch, <see cref="MovieRotationIndex"/>, else this week's
+    /// (<see cref="IndexFor"/>). A replay never reads the clock: the log's recorded index wins, then the override, then 0
+    /// (a log written before the header carried an index replays at 0, the index the host used when those logs were
+    /// recorded).
     /// </summary>
     /// <param name="replaying">True when the launch replays an input log.</param>
     /// <param name="recorded">The log's recorded index, or null when it has none.</param>
     /// <param name="overrideIndex">The <c>--rotation N</c> value, or null.</param>
-    /// <param name="utcNow">The run's start instant (UTC); read only on a live run without an override.</param>
+    /// <param name="utcNow">The run's start instant (UTC); read only on a live run without an override that does not
+    /// write the movie.</param>
     /// <param name="rotationLength">From <see cref="RotationLength"/>.</param>
+    /// <param name="writeMovie">True when the launch writes the proof frames (<c>--write-movie DIR</c>).</param>
     /// <returns>The index.</returns>
-    public static int ForRun(bool replaying, int? recorded, int? overrideIndex, DateTime utcNow, int rotationLength) =>
-        replaying ? recorded ?? overrideIndex ?? 0 : overrideIndex ?? IndexFor(utcNow, rotationLength);
+    public static int ForRun(bool replaying, int? recorded, int? overrideIndex, DateTime utcNow, int rotationLength, bool writeMovie = false) =>
+        replaying ? recorded ?? overrideIndex ?? 0 : overrideIndex ?? (writeMovie ? MovieRotationIndex : IndexFor(utcNow, rotationLength));
 
     /// <summary>The header line the input log writes (two-space indent, trailing comma, LF).</summary>
     /// <param name="index">The run's index.</param>

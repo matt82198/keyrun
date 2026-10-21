@@ -32,6 +32,10 @@
     <Compile Include="../../game/src/Host/CastTargeting.cs" Link="Host/CastTargeting.cs" />
     <!-- Run F's abandon-seat plan, fixed or pull-relative (R-415-D; SeatAbandonPlanTests, RunFJoinerActsTests). Godot-free. -->
     <Compile Include="../../game/src/Host/SeatAbandonPlan.cs" Link="Host/SeatAbandonPlan.cs" />
+    <!-- The write-movie proof-frame picker and the weekly rotation, driven over the real default run (f-e1ff13e3;
+         MovieFramesDefaultRunTests). Both files are Godot-free. -->
+    <Compile Include="../../game/src/Host/MovieDirector.cs" Link="Host/MovieDirector.cs" />
+    <Compile Include="../../game/src/Host/AffixWeek.cs" Link="Host/AffixWeek.cs" />
     <!-- f-04dba988: the HUD's Godot-free MISS/IMMUNE word path (CombatText.cs calls it per event), driven by real runs. -->
     <Compile Include="../../game/src/Hud/CombatTextWords.cs" Link="Hud/CombatTextWords.cs" />
   </ItemGroup>
