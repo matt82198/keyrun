@@ -43,6 +43,14 @@
       so it is compiled in here and driven as SimDriver drives it (QueuedRunGateTests).
     -->
     <Compile Include="../../src/Host/QueuedRunGate.cs" Link="Host/QueuedRunGate.cs" />
+    <!--
+      HOST-PATH-THREATS (bible s3): the default host run's two seat drivers, Godot-free, linked as the Keyrun.Playtest.Tests
+      project links them (MovieFramesDefaultRunTests drives the same composition): BotCommandSource drives seats 2 and 3,
+      ScriptedWarden the autorun human seat 1 (HostPathThreatTelegraphTests).
+    -->
+    <Compile Include="../../src/Host/BotCommandSource.cs" Link="Host/BotCommandSource.cs" />
+    <Compile Include="../../src/Host/ScriptedWarden.cs" Link="Host/ScriptedWarden.cs" />
+    <Compile Include="../../src/Host/CastTargeting.cs" Link="Host/CastTargeting.cs" />
   </ItemGroup>
 
 </Project>
