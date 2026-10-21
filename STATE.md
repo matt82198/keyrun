@@ -275,7 +275,28 @@ WHY: the orchestrator is compacting at the context ceiling. Every item below is 
 - aesop #1243: pushed ca8353a8 (gate test wired in ci.yml), armed, BLOCKED on checks. WHY: the verify_gates_wired red was an unwired test file, so the fix is wiring, not relaxing the gate.
 - WHY this checkpoint, restated: the orchestrator is compacting at the context ceiling, so the funnel state and each pending action are written to disk before compaction. Next session: read this block, then the 03:30Z correction block, then sync git log; do not re-derive gh state from memory.
 
+## 2026-10-21T09:55Z PR and pile status (keyrun fleet hand-back, branch ckpt/1055z)
+WHY: records the PR state the 09:55Z block reports, so the next session does not re-derive it from lane text. These are the lanes' hand-back states as written in the 09:55Z block, not re-read from gh by this checkpoint; each PR closes only on its own pr_merged_check.
+- #440 MERGED afb96bf3 on main (worktree keyrun-wt/ckpt-1035z removed after pr_merged_check).
+- #441 #442 #443 #444 #445 #446 OPEN, armed, pinned to the heads in the 09:55Z block: #441 fix/tempo-pack-cooldowns 4cbc625a; #442 fix/chorus-echo-double-charge 5867fb70; #443 fix/melee-desync 87300dac; #444 test/cast-ledger-range-refusals f650cf6c; #445 fix/retarget-fizzle c829f23e; #446 feat/wipe-is-release cfaa3167.
+- #302 head 9afcf630 after the main merge (feat/r2-caster-ops, 14 conflicts taken main's side).
+- #418 draft, not armed, deferred to Matt's bible call on the six-body Choir (f-82d9390e).
+Rulings (one line each, from the 09:55Z block):
+- R-MARK-1: a Pair spread/stack mark applied before its caster dies still detonates (80 damage, dead caster as source); in WoW an applied debuff outlives the mob that applied it; intended, no fix.
+- R-TEMPO-2: keep CastFloors in PackOnlyTemplates in #441; it is the other half of the not_ready gap and a no-op on shipped content.
+- R-302-A: main's later ruling f-c63b43bf wins the three-way choice (a stun ends an uninterruptible cast, silence stays a no-op; interrupt carries stop:"<effectId>").
+- R-FIZZLE-2: no KnownDominatedForks entry and no retune in #445; re-evaluate after the ForkParity margins PR (f-30443c01).
+- R-WIPE-RESET: packs reset at spawn after a wipe, as in WoW (f-b8d3aacd).
+- R-REFUSE-1: not_ready refusal reporting (f-9bef5d59) waits for #444 and a trace re-record slot.
+
 ## NEXT STEPS (engine plan, design/ENGINE-PLAN.md; Phase 5 "Matt playing" stays the acceptance test)
+NOW 09:55Z (ckpt/1055z; supersedes the 02:20Z and 01:35Z lists below where they differ):
+- Bind the remaining five fleet hand-backs from gh, one PR at a time.
+- D15 rows on the integrated build.
+- #375 after the bots integration.
+- Ask Matt to close #362 #364 #326 and to rule on the six-body Choir.
+- Merge queue after #302, the bots integration, #418 and #375.
+- Renew the model lever before ~11:26Z.
 NOW 02:20Z (supersedes the 01:35Z list below where they differ):
 a. #396 green, then MERGED (verified with gh, never from narration). Then the orchestrator fast-forwards the primary tree, runs tools/godot/screens.ps1, and views the frames (D15) before closing the demo-verdict rows KF1, KF2 and KF3. WHY: D15 acceptance is Matt watching frames; a unit test alone does not close a visible row.
 b. Merge-forward the conflicting set after #396 MERGED. WHY: each conflict is resolved against the real merged base, keeping both intents.
