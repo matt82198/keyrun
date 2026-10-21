@@ -4,7 +4,7 @@ using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
 
-/// <summary>What schedules a <see cref="ScriptStep"/> (sim/encounter/scripts.ts:67 <c>at</c>).</summary>
+/// <summary>What schedules a <see cref="ScriptStep"/> (sim/encounter/scripts.ts:76 <c>at</c>).</summary>
 public enum StepTrigger
 {
     /// <summary><c>at: "loop"</c>: every <c>every</c> ticks, first at tick <c>every</c> (never tick 0).</summary>
@@ -31,7 +31,7 @@ public enum ScriptTargetOverride
 }
 
 /// <summary>
-/// A telegraph a script step announces <see cref="LeadTicks"/> before its cast (sim/encounter/scripts.ts:57 TelegraphSpec).
+/// A telegraph a script step announces <see cref="LeadTicks"/> before its cast (sim/encounter/scripts.ts:66 TelegraphSpec).
 /// </summary>
 /// <param name="Shape">"circle", "cone" or "line".</param>
 /// <param name="LeadTicks">Ticks between the announcement and the cast it warns of.</param>
@@ -57,10 +57,18 @@ public sealed record TelegraphSpec(string Shape, int LeadTicks)
     /// starts. C#-only; oracle replays never apply it (tools/Keyrun.Replay RunSetup clears it).
     /// </summary>
     public bool SpansCast { get; init; }
+
+    /// <summary>
+    /// TELEGRAPH-READY: true only on a frozen-TS replay (tools/Keyrun.Replay RunSetup sets it beside clearing
+    /// <see cref="SpansCast"/>). The TS drew a telegraph whenever its step was scheduled, even for a cast combat then
+    /// refused, and the oracle traces record that, so such a replay keeps the TS rule. Every other run (the host, and
+    /// content-driven tests) draws a telegraph only for a cast that will start. C#-only, never read from JSON.
+    /// </summary>
+    public bool TsUnchecked { get; init; }
 }
 
 /// <summary>
-/// One step of an enemy script (sim/encounter/scripts.ts:66 ScriptStep). <see cref="AtTick"/> is meaningful only
+/// One step of an enemy script (sim/encounter/scripts.ts:75 ScriptStep). <see cref="AtTick"/> is meaningful only
 /// for <see cref="StepTrigger.AtTick"/>; <see cref="Every"/> is the loop period or the phase-offset period.
 /// </summary>
 /// <param name="Trigger">How the step is scheduled.</param>
@@ -78,6 +86,15 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
 
     /// <summary>Target override; absent means the default rules of <see cref="ScriptTarget"/>.</summary>
     public ScriptTargetOverride? Target { get; init; }
+
+    /// <summary>
+    /// CAST-FINISH: true only on a frozen-TS replay (tools/Keyrun.Replay RunSetup sets it, as it sets
+    /// <see cref="TelegraphSpec.TsUnchecked"/>). The TS fired every step on its scheduled tick, and combat's StartCast
+    /// then replaced any cast the enemy was still holding, so such a replay keeps that rule and the oracle traces stay
+    /// byte-equal. Every other run (the host, and content-driven tests) holds a step that comes due mid-cast until the
+    /// cast lands (<see cref="Scripts.StepEnemyScripts"/>). C#-only, never read from JSON.
+    /// </summary>
+    public bool TsCastReplace { get; init; }
 
     /// <summary>A <c>{at:"loop", every, cast}</c> step.</summary>
     public static ScriptStep Loop(int? every, string cast) => new(StepTrigger.Loop, cast) { Every = every };
@@ -98,10 +115,11 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
 /// <param name="Range">Range in mm (<c>def.range</c>).</param>
 /// <param name="ShapeKind"><c>def.shape.kind</c>: "target", "self", "circle", "cone" or "line".</param>
 /// <param name="Heals">True when any effect op is <c>"heal"</c> (script-target.ts:61 isHealAbility).</param>
-/// <param name="CastTicks"><c>def.castTicks</c>; above 0 the cast stays in flight (deferred-casts.ts leavesCastInFlight), and
-/// a <see cref="TelegraphSpec.SpansCast"/> telegraph spans it.</param>
-public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals, int CastTicks = 0)
+public sealed record ScriptAbility(string Id, long Range, string ShapeKind, bool Heals)
 {
+    /// <summary>The ability's cast time, ticks (<c>def.castTicks</c>); read only for a <see cref="TelegraphSpec.SpansCast"/> telegraph.</summary>
+    public int CastTicks { get; init; }
+
     /// <summary>
     /// The full definition, for <see cref="Casting.StartError"/>: a <see cref="TelegraphSpec.SpansCast"/> telegraph is
     /// drawn only when its cast would start. Null = unknown (the check is skipped).

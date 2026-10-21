@@ -115,7 +115,9 @@ public static class Combos
     /// no-ops: combos do not chain. C#-only: partyEffect applies to every living actor of the Payoff actor's faction,
     /// and cloud opens a <see cref="FloorCloud"/> on the carrier (BIBLE section 4 Anthem and Steam). An applyEffect
     /// whose effect is a heal-over-time, closed on an enemy carrier, goes to the Payoff actor's living allies near the
-    /// carrier instead (BIBLE section 4 Consecrate; <see cref="HealPulseRadiusMm"/>).
+    /// carrier instead (BIBLE section 4 Consecrate; <see cref="HealPulseRadiusMm"/>). C# deviation in behaviour
+    /// (HEAL-NEVER-HOSTILE, as Casting.ApplyEffects): a heal op heals the carrier only when it is the Payoff actor's own
+    /// faction, so a Hymn field heal closed on an enemy never heals it.
     /// </summary>
     /// <param name="state">Sim state.</param>
     /// <param name="source">The Payoff actor.</param>
@@ -144,7 +146,10 @@ public static class Combos
                     Mitigation.DealDamage(state.Tick, source, target, d.Amount, effectDefs, emit, source.Id, weighting);
                     break;
                 case HealOp h:
-                    Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
+                    if (target.Kind == source.Kind)
+                    {
+                        Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
+                    }
                     break;
                 case ApplyEffectOp a:
                     if (effectDefs.TryGetValue(a.EffectId, out var def))

@@ -161,7 +161,15 @@ public static class RunRoot
         events.AddRange(stepped.Events);
 
         var nextState = RunWiring.ApplyBreakBarPatches(stepped.State, enc.EffectPatches, content.Effects);
-        var nextEncounter = enc.Encounter;
+
+        // STUN-STOPS-CAST (BIBLE s9.3): a stun, freeze or silence that landed this tick (in combat, or the Break bar's
+        // stagger just above) ends an interruptible cast, before the telegraph check below reads the casts.
+        nextState = ControlStops.Apply(run.State, nextState, content.StopEffectIds, content.Abilities, run.State.Tick, emit);
+
+        // TELEGRAPH-CANCEL (BIBLE s3): a floor telegraph whose cast this tick's combat kicked, stopped or replaced is
+        // cancelled on this tick and never resolves (no telegraph_hit for a hit that cannot come).
+        var cancel = Telegraphs.CancelUnlanded(nextState, enc.Encounter.Telegraphs, run.State.Tick, emit);
+        var nextEncounter = cancel.Cancelled.Count == 0 ? enc.Encounter : enc.Encounter with { Telegraphs = cancel.Telegraphs };
         var activeScripts = run.ActiveScripts;
         if (layout is null)
         {

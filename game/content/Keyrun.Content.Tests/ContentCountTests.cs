@@ -14,7 +14,7 @@ public sealed class ContentCountTests
     {
         ContentRegistry reg = ContentLoader.Load();
 
-        Assert.Equal(39, reg.Abilities.Count);
+        Assert.Equal(40, reg.Abilities.Count); // 40 since SEED-LOCK-TEACHES added seed.lock (was 39)
         Assert.Equal(22, reg.Effects.Count);
         Assert.Equal(3, reg.Classes.Count);
         Assert.Equal(13, reg.Combos.Count);

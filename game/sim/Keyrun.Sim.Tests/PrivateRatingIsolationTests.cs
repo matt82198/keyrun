@@ -75,13 +75,17 @@ public sealed class PrivateRatingIsolationTests
         Assert.True(leaks.Count == 0, string.Join(Environment.NewLine, leaks));
     }
 
-    [Fact(DisplayName = "Private rating: the queue payload serializes to its dungeon, key and Clause only")]
+    [Fact(DisplayName = "Private rating: the queue payload serializes to its dungeon, key, Clause and build (talents, gear) only")]
     public void Queue_payload_is_key_dungeon_and_clause_only()
     {
-        var json = JsonSerializer.Serialize(new QueueRequest("hollow-vault", 7, "tide"));
+        // Loadouts (#255, talents) and Gear (#314, BIBLE s7 summed gear stats) are the queued build, never a rating.
+        // Gear is populated so its serialized members are scanned for a rating or score name as well.
+        var request = new QueueRequest("hollow-vault", 7, "tide") { Gear = new Dictionary<int, GearStats> { [1] = new GearStats(500, -300) } };
+        var json = JsonSerializer.Serialize(request);
         using var doc = JsonDocument.Parse(json);
         var names = doc.RootElement.EnumerateObject().Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray();
-        Assert.Equal(new[] { "ClauseId", "DungeonId", "KeyLevel", "Loadouts" }, names);
+        Assert.Equal(new[] { "ClauseId", "DungeonId", "Gear", "KeyLevel", "Loadouts" }, names);
+        Assert.Contains("DamageDoneBp", json);
         Assert.False(IsBanned(json));
     }
 

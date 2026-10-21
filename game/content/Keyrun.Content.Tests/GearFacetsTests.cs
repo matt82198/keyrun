@@ -30,7 +30,7 @@ public sealed class GearFacetsTests
     [Fact]
     public void A_refused_patch_is_skipped_and_the_ability_keeps_its_value_before_it()
     {
-        // twinStrike makes Reckoning a line with a width (facet patches only; the sim shape has none): refused, so
+        // twinStrike makes Reckoning a line with a width, which this test's refuse check rejects: refused, so
         // Reckoning is not patched at all. On Strike, keenEdge applies and the keystone's wider cone is refused, so
         // Strike keeps keenEdge's cone, not its base shape.
         static string? Refuse(AbilityDef a) => a.Shape.Width is not null ? "line width" : a.Shape.Radius > 3000 ? "too wide" : null;

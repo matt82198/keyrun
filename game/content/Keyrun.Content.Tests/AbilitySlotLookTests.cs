@@ -27,6 +27,17 @@ public sealed class AbilitySlotLookTests
         Assert.Equal(AbilitySlotLook.EdgeWidth(outOfRange: false), AbilitySlotLook.EdgeWidth(outOfRange: true));
     }
 
+    // f-682aacb5, BIBLE s2 "shape plus colour, never colour alone": the red tint alone gives no reason, so an
+    // out-of-range slot also carries a caption that says so, and an in-range slot carries none.
+    [Fact]
+    public void Out_of_range_slot_says_so_in_words_not_only_in_red()
+    {
+        var caption = AbilitySlotLook.Caption(outOfRange: true);
+        Assert.False(string.IsNullOrWhiteSpace(caption), "an out-of-range slot differs from an in-range one by colour alone");
+        Assert.Contains("range", caption!, System.StringComparison.OrdinalIgnoreCase);
+        Assert.Null(AbilitySlotLook.Caption(outOfRange: false));
+    }
+
     [Fact]
     public void In_range_icon_keeps_the_default_tint()
     {
