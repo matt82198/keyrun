@@ -74,7 +74,7 @@ public sealed class HudSceneWipeReleaseRunsTests
     public HudSceneWipeReleaseRunsTests(ITestOutputHelper output) => _output = output;
 
     /// <summary>One driven run: the run as it ended (null if it never did), its events, and the run at the budget.</summary>
-    private sealed record Drive(Run? AtEnd, List<SimEvent> Events, Run AtBudget);
+    internal sealed record Drive(Run? AtEnd, List<SimEvent> Events, Run AtBudget);
 
     private static readonly Lazy<Drive> RunA = new(() => DriveRun(solo: true, startPull: 1, request: null, progression: null, abandon: null, idle: false, budget: RunATicks));
 
@@ -86,9 +86,10 @@ public sealed class HudSceneWipeReleaseRunsTests
 
     /// <summary>
     /// Steps one host run as SimDriver does until it has both ended and reached <paramref name="budget"/> (the autorun keeps
-    /// stepping after the end), or <see cref="Horizon"/>.
+    /// stepping after the end), or <see cref="Horizon"/>. Shared with <see cref="ScreenSceneWipeReleaseRunTests"/>, whose
+    /// scene runs the same host run as run A.
     /// </summary>
-    private static Drive DriveRun(bool solo, int startPull, QueueRequest? request, Progression? progression, string? abandon, bool idle, int budget)
+    internal static Drive DriveRun(bool solo, int startPull, QueueRequest? request, Progression? progression, string? abandon, bool idle, int budget)
     {
         var registry = ContentLoader.Load();
         var setup = HostRunSetup.Build(registry, "hollow-vault", Key, "warden", withBots: !solo);
