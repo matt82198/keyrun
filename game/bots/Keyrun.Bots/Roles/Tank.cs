@@ -31,7 +31,7 @@ public sealed class TankRole : IRole
         var tick = view.State.Tick;
         var healthPct = (double)self.Health / self.MaxHealth;
         var pressured = healthPct < DefensiveThresholdPct || TankPressure.UnderPackPressure(view, self);
-        if (!string.IsNullOrEmpty(kit.DefensiveAbilityId) && pressured && RoleShared.AbilityReady(self, kit.DefensiveAbilityId, tick))
+        if (!string.IsNullOrEmpty(kit.DefensiveAbilityId) && pressured && RoleShared.AbilityReady(self, kit.DefensiveAbilityId, tick, kit))
         {
             return new List<Command> { new CastCommand(tick, self.Id, kit.DefensiveAbilityId) };
         }
