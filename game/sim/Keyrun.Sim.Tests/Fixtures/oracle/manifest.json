@@ -19,16 +19,16 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 249728,
-      "fnv": "d87349aa"
+      "bytes": 249662,
+      "fnv": "f95a3a02"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 210334,
-      "fnv": "4bea42e2"
+      "bytes": 210333,
+      "fnv": "bfad023f"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 210331,
-      "fnv": "a1c09f83"
+      "bytes": 210330,
+      "fnv": "541aedf8"
     },
     "content-pull.setup.json": {
       "bytes": 22931,
@@ -371,7 +371,7 @@
         "fnv": "828c0fc8"
       },
       "sim/combat/damage.ts": {
-        "fnv": "85bd63d6"
+        "fnv": "139f4d6f"
       },
       "sim/combat/effects-remove.ts": {
         "fnv": "6aa64e75"
@@ -537,7 +537,7 @@
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "c777e2f2"
+      "traceHash": "36715d32"
     },
     {
       "finalTick": 1407,
@@ -546,7 +546,7 @@
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "c777e2f2"
+      "traceHash": "36715d32"
     },
     {
       "finalTick": 1855,
@@ -555,7 +555,7 @@
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
       "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "eca7f962"
+      "traceHash": "346e3c22"
     }
   ],
   "version": 1
