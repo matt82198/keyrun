@@ -81,6 +81,66 @@ public static class TankEngage
             .FirstOrDefault();
     }
 
+    /// <summary>
+    /// The engage target: the loose enemy (<see cref="PickLooseEnemy"/>), else the tank's current enemy target, else the
+    /// priority pick. Null when there is nothing to engage.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">The tank.</param>
+    /// <returns>The target, or null.</returns>
+    public static ActorState? EngageTarget(BotView view, ActorState self)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        var actors = view.State.Actors;
+        var loose = PickLooseEnemy(actors, self);
+        if (loose is not null)
+        {
+            return loose;
+        }
+        ActorState? current = self.TargetId is { } cid && actors.TryGetValue(cid, out var c) ? c : null;
+        if (current is not null && current.Alive && current.Kind == ActorKind.Enemy)
+        {
+            return current;
+        }
+        return Priority.PickTankTarget(actors, self.Id) is { } fid && actors.TryGetValue(fid, out var f) ? f : null;
+    }
+
+    /// <summary>
+    /// The out-of-reach approach move <see cref="TankEngageCommands"/> issues: a <see cref="MoveCommand"/> toward
+    /// <see cref="EngageTarget"/>, issued only when no taunt fires, the tank is not casting, and the target is beyond
+    /// reach less the margin. Null otherwise. This is the single origin of the approach move; the playtest runner
+    /// exempts exactly this command from its leader-travel strip (R-SEED-1a, f-244d102b).
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">The tank.</param>
+    /// <param name="kit">Its kit.</param>
+    /// <returns>The approach move, or null.</returns>
+    public static MoveCommand? ApproachMove(BotView view, ActorState self, EffectiveKit kit)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        ArgumentNullException.ThrowIfNull(kit);
+        var target = EngageTarget(view, self);
+        if (target is null || self.CastId is not null)
+        {
+            return null;
+        }
+        var d = RoleShared.Dist(self, target);
+        if (TauntFires(view, self, kit, d) || d <= ReachMm(view, kit) - ReachMarginMm)
+        {
+            return null;
+        }
+        return Moves.MoveToward(view.State.Tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(target.Pos));
+    }
+
+    // The loose-enemy taunt: a loose enemy inside taunt range with the taunt ready.
+    private static bool TauntFires(BotView view, ActorState self, EffectiveKit kit, double d)
+    {
+        var tauntRange = RangeOf(view, kit.TauntAbilityId) ?? DefaultReachMm;
+        return PickLooseEnemy(view.State.Actors, self) is not null && !string.IsNullOrEmpty(kit.TauntAbilityId) && d <= tauntRange && RoleShared.AbilityReady(self, kit.TauntAbilityId, view.State.Tick, kit);
+    }
+
     /// <summary>tank-engage.ts tankEngageCommands: null when there is nothing to engage.</summary>
     /// <param name="view">Bot view.</param>
     /// <param name="self">The tank.</param>
@@ -91,27 +151,12 @@ public static class TankEngage
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(self);
         ArgumentNullException.ThrowIfNull(kit);
-        var tick = view.State.Tick;
-        var actors = view.State.Actors;
-        var loose = PickLooseEnemy(actors, self);
-        ActorState? current = self.TargetId is { } cid && actors.TryGetValue(cid, out var c) ? c : null;
-        var fallbackId = Priority.PickTankTarget(actors, self.Id);
-        ActorState? target = loose;
-        if (target is null)
-        {
-            if (current is not null && current.Alive && current.Kind == ActorKind.Enemy)
-            {
-                target = current;
-            }
-            else if (fallbackId is { } fid && actors.TryGetValue(fid, out var f))
-            {
-                target = f;
-            }
-        }
+        var target = EngageTarget(view, self);
         if (target is null)
         {
             return null;
         }
+        var tick = view.State.Tick;
 
         var output = new List<Command>();
         if (self.TargetId != target.Id)
@@ -120,10 +165,10 @@ public static class TankEngage
         }
         var d = RoleShared.Dist(self, target);
 
-        var tauntRange = RangeOf(view, kit.TauntAbilityId) ?? DefaultReachMm;
-        if (loose is not null && !string.IsNullOrEmpty(kit.TauntAbilityId) && d <= tauntRange && RoleShared.AbilityReady(self, kit.TauntAbilityId, tick, kit))
+        if (TauntFires(view, self, kit, d))
         {
-            output.Add(new CastCommand(tick, self.Id, kit.TauntAbilityId, target.Id));
+            // TauntFires is true only with a non-empty TauntAbilityId.
+            output.Add(new CastCommand(tick, self.Id, kit.TauntAbilityId!, target.Id));
             return output;
         }
 
@@ -133,7 +178,7 @@ public static class TankEngage
             {
                 return output;
             }
-            if (Moves.MoveToward(tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(target.Pos)) is { } move)
+            if (ApproachMove(view, self, kit) is { } move)
             {
                 output.Add(move);
             }

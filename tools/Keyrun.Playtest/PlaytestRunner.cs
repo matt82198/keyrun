@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Keyrun.Bots;
+using Keyrun.Bots.Roles;
 using Keyrun.Bots.Shared;
 using Keyrun.Host;
 using Keyrun.Sim.Core;
@@ -23,6 +24,12 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
 
     /// <summary>Hard stop, ticks; a run still going is "unfinished". Default: twice par.</summary>
     public int? MaxTicks { get; init; }
+
+    /// <summary>
+    /// Test seam (read-only): called once per tick with the tick, the run before the step and the commands about to be
+    /// stepped, after the leader's travel and fight strip are applied. Null in play.
+    /// </summary>
+    public Action<int, Run, IReadOnlyList<Command>>? Observe { get; init; }
 }
 
 /// <summary>A finished playtest: the final run, the event/command log and the stats the summary reads.</summary>
@@ -154,14 +161,19 @@ public static class PlaytestRunner
                 }
                 else
                 {
-                    // R-SEED-1 rule (c): in a fight the leader keeps only the close-in move Follow.LeadCommand gives it
-                    // (no living engaged enemy in melee range of the party: walk to the nearest engaged enemy).
-                    // The view carries the run's ability defs (KitRegistry.ForRun), as the host's BotCommandSource does, so the
-                    // leader reads its basic-attack reach from the run's own warden.strike (3000 mm).
+                    // R-SEED-1 rule (c): in a fight the leader's close-in is Follow.LeadCommand (walk to the nearest engaged
+                    // enemy until its basic-attack reach). The view carries the run's ability defs (KitRegistry.ForRun), as the
+                    // host's BotCommandSource does, so the leader reads its reach from the run's own warden.strike (3000 mm).
+                    // When that close-in exists the host returns it alone for the leader (Bot.RunBots), so the role's approach
+                    // move is dropped here too; otherwise the role's approach (TankEngage.ApproachMove, by origin, R-SEED-1a
+                    // f-244d102b: BotCommandSource.cs:162-166 passes it through) is kept.
                     var closeIn = Follow.LeadCommand(view with { Kits = kits.ForRun(run.Content.Abilities) }, leader);
+                    var approach = closeIn is null && leader.Role == ActorRole.Tank
+                        ? TankEngage.ApproachMove(view, leader, view.Kits.ResolveKit(leader.ClassId, view.ClassKit))
+                        : null;
                     // A zero-dir MoveCommand is the leader's turn (TankEngage faces its target before it casts), not travel:
                     // it stays, so the cone it casts lands where the leader faces.
-                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && !IsTurn(c));
+                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && !IsTurn(c) && !Equals(c, approach));
                     if (closeIn is not null && !commands.Contains(closeIn))
                     {
                         commands.Add(closeIn);
@@ -174,6 +186,7 @@ public static class PlaytestRunner
                 log.Append("C ").Append(c).Append('\n');
             }
             stats.ObserveCommands(commands);
+            options.Observe?.Invoke(tick, run, commands);
             var before = run;
             var stepped = RunRoot.StepRun(run, commands);
             run = stepped.Run;

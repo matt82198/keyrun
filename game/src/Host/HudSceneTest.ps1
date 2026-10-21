@@ -285,7 +285,12 @@
          lines, one per slot 1-5, Q, E, R, F (tex is the loaded Texture2D's size, so a missing file or an unmapped id
          reads icon=none tex=none and fails). Before ABILITY-ICONS the bar draws only text: no "HUD bar" line, 40 RED.
     Run N (lane TINT-RUNOVER, a non-clear run end with a living out-of-range target; three-seat party, key 2):
-        -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (default 1400 and 2@200, no --joiner-key)
+        -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (default 8500 and 2@300, no --joiner-key)
+        (Re-derived for the #449 bots, lane fix/run-n-wipe-scenario-449: at e87cade0 the old 2@200 let the party clear
+        all four pulls (last clear at 8231, cap end 8232, PullIndex 4/4), so the cap end was not uncleared. 2@300 wipes
+        from tick 596 on (both living seats down at 596) and ends at the timer cap uncleared at tick 7643, measured
+        headless by HudSceneWipeReleaseRunsTests. The Godot-side bar ticks below are from before #449 and are NOT
+        re-measured in game; game-e2e is the arbiter of check 41 for 2@300.)
         (the bar prints "HUD bar range tinted=N over=0|1 tick=T" under --autorun whenever the count of range-tinted
         slots or the run-over state changes. At seed 1 the Chanter leaves at 200, still at the entrance (14771,-998),
         the Warden dies at 427 where he stands (19246,-405), the Cinder at 583, and the Choir enemy the Warden
@@ -298,7 +303,7 @@
         39486265558, "HUD bar range tinted=0 over=1 tick=1308" its only range line). The assertion is unchanged; only
         the leave tick moves, so the party still wipes with the Warden's target alive and out of range.)
         (<TintTicks> 8500 since keyrun #446, was 1400: under R-BACKFILL-2 the wipe releases the party instead of ending
-        the run, so the non-clear end is the timer cap's, depleted and uncleared at tick 8186, pinned with 294 ticks past
+        the run, so the non-clear end is the timer cap's, depleted and uncleared at tick 7643 under 2@300 (8186 under the pre-#449 2@200 wipe), pinned with 294 ticks past
         it by HudSceneWipeReleaseRunsTests. Measured headless on #446 (AbilitySlotLook.ShowsOutOfRange with runOver off,
         every tick from that end to 2000 after it): no slot would tint (the human's target at the last of those ticks,
         105, alive 2166 mm off, inside reach), so the "over=1 reads tinted=0" case no longer has an out-of-range target
@@ -330,7 +335,7 @@ param(
     [int]$YawFrames = 900,
     [int]$HeadingFrames = 420,
     [int]$TintTicks = 8500,
-    [string]$TintAbandon = '2@200',
+    [string]$TintAbandon = '2@300',
     [string]$KeepK1Record = '',
     [switch]$HeadingOnly
 )
@@ -1178,6 +1183,19 @@ if (-not $recDone) {
             $failures.Add("run K1: no committed example at $examplePath")
         } elseif ($recText -cne [IO.File]::ReadAllText($examplePath)) {
             $failures.Add("run K1: the recorded log differs from the committed example $examplePath (regenerate it from run K1 with a stated reason)")
+            # Name the difference, line by line, so a CI log shows the field (R-CLOCK-2: the comparison itself is unchanged).
+            Write-Host 'K1 diff:'
+            $k1Want = @([IO.File]::ReadAllText($examplePath) -split "`n")
+            $k1Got = @($recText -split "`n")
+            $k1Max = [Math]::Max($k1Want.Count, $k1Got.Count)
+            for ($k1i = 0; $k1i -lt $k1Max; $k1i++) {
+                $w = if ($k1i -lt $k1Want.Count) { $k1Want[$k1i] } else { '<missing>' }
+                $g = if ($k1i -lt $k1Got.Count) { $k1Got[$k1i] } else { '<missing>' }
+                if ($w -cne $g) {
+                    Write-Host ("K1 diff line {0} expected: {1}" -f ($k1i + 1), ($w -replace "`r", '<CR>'))
+                    Write-Host ("K1 diff line {0} actual:   {1}" -f ($k1i + 1), ($g -replace "`r", '<CR>'))
+                }
+            }
         }
     }
 }
