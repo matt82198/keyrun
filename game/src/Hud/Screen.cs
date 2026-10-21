@@ -726,6 +726,9 @@ public partial class Screen : Control
         {
             ProofRunFacets(started, loadout?.Facets);
         }
+        // The Key band is locked in now: re-proof it so the readiness line reads the wait ("Queued at key N"), BIBLE s10.
+        // Emitted after the queue lines above, which the scene test reads by position.
+        ProofKeyBand();
         Close();
     }
 
