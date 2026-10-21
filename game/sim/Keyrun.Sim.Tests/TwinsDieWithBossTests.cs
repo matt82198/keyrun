@@ -50,6 +50,25 @@ public sealed class TwinsDieWithBossTests
         }
     }
 
+    [Fact(DisplayName = "A Twin mid-cast when the boss dies falls holding no cast and its cast never completes (f-42df9d4f)")]
+    public void Twin_mid_cast_when_the_boss_dies_falls_with_its_cast_ended()
+    {
+        var (live, _) = BossTestKit.StepUntil(BossTestKit.BuildRun(), 3);
+        var twin = live.State.Actors[BossTestKit.TwinA];
+        twin.CastId = "twins.slam";
+        twin.CastStartTick = live.State.Tick;
+        twin.CastEndsTick = live.State.Tick + 500;
+
+        var (after, events) = KillBoss(live, 3);
+
+        Assert.Single(events, e => IsDeathOf(e, BossTestKit.TwinA));
+        var fallen = after.State.Actors[BossTestKit.TwinA];
+        Assert.False(fallen.Alive);
+        Assert.Null(fallen.CastId);
+        Assert.Null(fallen.CastEndsTick);
+        Assert.DoesNotContain(events, e => e.Type == "cast_complete" && e.Get("actorId") is JsInt id && id.Value == BossTestKit.TwinA);
+    }
+
     [Fact(DisplayName = "No Twin is alive at run_end and the boss pull clears the run timed")]
     public void No_twin_alive_at_run_end_and_the_run_clears()
     {
