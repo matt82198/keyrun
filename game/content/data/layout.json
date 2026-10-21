@@ -78,5 +78,16 @@
         { "enemyId": "choir.lieutenant", "count": 2, "spawn": { "x": 0, "z": -500 } }
       ]
     }
+  ],
+  "patrols": [
+    {
+      "id": "corridor-patrol",
+      "enemies": [
+        { "enemyId": "choir.melee", "count": 1, "spawn": { "x": 0, "z": -600 } },
+        { "enemyId": "choir.melee", "count": 1, "spawn": { "x": 0, "z": 600 } }
+      ],
+      "waypoints": [ { "x": 32500, "z": 0 }, { "x": 26500, "z": 0 } ],
+      "speedMmPerTick": 50
+    }
   ]
 }

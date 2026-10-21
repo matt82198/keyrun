@@ -33,15 +33,31 @@ public sealed class PatrolTests
         new[] { new Vec3(32500, 0, 0), new Vec3(26500, 0, 0) },
         50);
 
+    /// <summary>The shipped k2 run placed into the shipped layout as the host places it (each pull at its room origin), plus the patrol.</summary>
     private static (Run Run, PatrolPack Patrol) RunWithPatrol(Func<int, Vec3> seatAt)
     {
-        var (nav, _) = SeedEngageTests.Layout();
+        var (nav, rooms) = SeedEngageTests.Layout();
         var setup = RunSetup.Load(OracleFixtures.PathOf("hollow-vault-k2.setup.json"), 1);
-        var choir = setup.Dungeon.Pulls.Single(p => p.Id == "choir");
+        var placed = setup.Dungeon with
+        {
+            Pulls = setup.Dungeon.Pulls.Select(p =>
+            {
+                var origin = rooms.Single(r => r.Pull == p.Id).Origin!.Value;
+                var boss = p.Id == "boss";
+                return p with
+                {
+                    Spawns = p.Spawns.Select(s => s with
+                    {
+                        Pos = boss ? new Vec3(origin.X, s.Pos.Y, origin.Z) : new Vec3(origin.X + s.Pos.X, s.Pos.Y, origin.Z + s.Pos.Z),
+                    }).ToList(),
+                };
+            }).ToList(),
+        };
+        var choir = placed.Pulls.Single(p => p.Id == "choir");
         var patrol = Corridor(choir.Spawns[0]);
         var party = setup.Party.Take(3).Select((m, i) => m with { Pos = seatAt(i), Yaw = 0 }).ToList();
         var content = setup.Content with { Layout = nav, Bounds = nav.Extent, Patrols = new[] { patrol } };
-        return (RunRoot.CreateRun(1, party, setup.Dungeon, content, setup.Options), patrol);
+        return (RunRoot.CreateRun(1, party, placed, content, setup.Options), patrol);
     }
 
     // The party at the layout start (the Entrance, x 4000), seats 1200 mm apart on z: far from corridor-2.
@@ -111,7 +127,7 @@ public sealed class PatrolTests
     {
         var (run, patrol) = RunWithPatrol(InCorridor);
         var stepped = RunRoot.StepRun(run, Array.Empty<Command>());
-        var engage = Assert.Single(stepped.Events.Where(e => e.Type == "pack_engage"));
+        var engage = Assert.Single(stepped.Events, e => e.Type == "pack_engage");
         Assert.Equal("corridor-patrol", ((JsString)engage.Get("packId")!).Value);
         foreach (var spawn in patrol.Spawns)
         {

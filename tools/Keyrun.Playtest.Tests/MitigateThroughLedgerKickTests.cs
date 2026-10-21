@@ -35,7 +35,10 @@ public sealed class MitigateThroughLedgerKickTests
     // Hall Sentries are now an optional pack off the walking line (layout.json), so the kick-plan run no longer fights them
     // and now ends Timed at 7889, with boss cleaves 7395-7435, 7551-7591 and 7795-7835. 11 ticks into the first cleave is
     // 7406; the run's own state at 7406 has the boss casting hollowWarden.cleave, start 7395, end 7435.
-    private const int Tick = 7406;
+    // MPLUS-PATROLS re-derivation (ruling R6, the corridor-2 patrol on feat/mplus-patrols-2; a measurement by a temporary
+    // probe on the merged tree, the assertions are unchanged): was 7406. With the patrol the kick-plan run ends Timed at
+    // 9231; its first boss cleave is telegraphed at 8724 and resolves at 8764, so 11 ticks in is 8735.
+    private const int Tick = 8735;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 

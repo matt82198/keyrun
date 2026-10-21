@@ -41,17 +41,22 @@ public static class Aggro
     /// <param name="dungeon">The dungeon.</param>
     /// <param name="tick">The tick (where a patrol's ring stands).</param>
     /// <param name="packs">The run's layout packs (<c>RunContent.Packs</c>), or null for none.</param>
-    /// <returns>Pull groups then pack groups.</returns>
-    public static IReadOnlyList<AggroGroup> GroupsOf(DungeonDef dungeon, int tick, IReadOnlyList<PackGroup>? packs = null)
+    /// <param name="patrols">The run's patrol packs (<c>RunContent.Patrols</c>), or null for none (MPLUS-PATROLS).</param>
+    /// <returns>Pull groups, then pack groups, then patrol groups; the last two with pull index -1.</returns>
+    public static IReadOnlyList<AggroGroup> GroupsOf(DungeonDef dungeon, int tick, IReadOnlyList<PackGroup>? packs = null, IReadOnlyList<PatrolPack>? patrols = null)
     {
         ArgumentNullException.ThrowIfNull(dungeon);
-        _ = tick;
         var groups = dungeon.Pulls
             .Select((p, i) => new AggroGroup(p.Id, i, p.Spawns.Select(s => s.ActorId).ToList(), Pulls.RingCenter(p), p.AggroMm, p.Links))
             .ToList();
         if (packs is not null)
         {
             groups.AddRange(packs.Select(k => new AggroGroup(k.Id, -1, k.Spawns.Select(s => s.ActorId).ToList(), k.Center, k.AggroMm, Array.Empty<string>())));
+        }
+        if (patrols is not null)
+        {
+            // MPLUS-PATROLS: a patrol's ring stands on its point at this tick (Patrols.PointAt); it never moves the pull index.
+            groups.AddRange(patrols.Select(k => new AggroGroup(k.Id, -1, k.Spawns.Select(s => s.ActorId).ToList(), Patrols.PointAt(k, tick), k.AggroMm, Array.Empty<string>())));
         }
         return groups;
     }

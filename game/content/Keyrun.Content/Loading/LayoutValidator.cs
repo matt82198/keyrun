@@ -128,6 +128,55 @@ public static class LayoutValidator
         }
 
         CheckPacks(reg, dungeon, layout, pullOrder, ids);
+        CheckPatrols(reg, layout, pullOrder, ids);
+    }
+
+    /// <summary>
+    /// MPLUS-PATROLS: every patrol has a unique id that is no pull, box or pack id, a positive speed (and a positive ring
+    /// when it sets one), at least two waypoints that all lie inside one corridor box (so the loop never enters a room),
+    /// axis-aligned legs (the sim's walk is exact along axes only) and a loop with length. Its members are known enemies
+    /// with a forces value, and every member's offset stays inside that corridor at every waypoint.
+    /// </summary>
+    private static void CheckPatrols(ContentRegistry reg, LayoutDef layout, List<string> pullOrder, HashSet<string> boxIds)
+    {
+        ForcesTable forces = reg.Forces;
+        var patrolIds = new HashSet<string>(System.StringComparer.Ordinal);
+        foreach (LayoutPatrol patrol in layout.Patrols)
+        {
+            string where = "patrol \"" + patrol.Id + "\"";
+            if (!patrolIds.Add(patrol.Id)) Fail("duplicate patrol id \"" + patrol.Id + "\"");
+            if (pullOrder.Contains(patrol.Id) || boxIds.Contains(patrol.Id) || layout.Packs.Any(p => p.Id == patrol.Id))
+                Fail(where + " reuses a pull, pack or box id");
+            if (patrol.SpeedMmPerTick <= 0) Fail(where + " speedMmPerTick must be positive, got " + patrol.SpeedMmPerTick);
+            if (patrol.AggroMm is { } aggro && aggro <= 0) Fail(where + " aggroMm must be positive, got " + aggro);
+
+            var waypoints = patrol.Waypoints.ToList();
+            if (waypoints.Count < 2) Fail(where + " needs at least two waypoints, got " + waypoints.Count);
+            LayoutBox? corridor = layout.Boxes.FirstOrDefault(b => b.Kind == LayoutBoxKind.Corridor && waypoints.All(w => Inside(b, w)));
+            if (corridor is null) Fail(where + " waypoints are not all inside one corridor");
+
+            long loop = 0;
+            for (int k = 0; k < waypoints.Count; k++)
+            {
+                LayoutPoint a = waypoints[k], b = waypoints[(k + 1) % waypoints.Count];
+                if (a.X != b.X && a.Z != b.Z) Fail(where + " leg " + k + " (" + a.X + ", " + a.Z + ") -> (" + b.X + ", " + b.Z + ") is not axis-aligned");
+                loop += System.Math.Abs(b.X - a.X) + System.Math.Abs(b.Z - a.Z);
+            }
+            if (loop <= 0) Fail(where + " loop has no length (every waypoint is the same point)");
+
+            if (!patrol.Enemies.Any()) Fail(where + " has no enemies");
+            foreach (PullEnemy member in patrol.Enemies)
+            {
+                if (!reg.Enemies.ContainsKey(member.EnemyId)) Fail(where + " references unknown enemy \"" + member.EnemyId + "\"");
+                if (member.Count <= 0) Fail(where + " enemy \"" + member.EnemyId + "\" count must be positive, got " + member.Count);
+                if (!forces.Has(member.EnemyId)) Fail(where + " enemy \"" + member.EnemyId + "\" has no forces value");
+                foreach (LayoutPoint w in waypoints)
+                {
+                    var at = new LayoutPoint { X = w.X + member.Spawn.X, Z = w.Z + member.Spawn.Z };
+                    if (corridor is not null && !Inside(corridor, at)) Fail(where + " member \"" + member.EnemyId + "\" at (" + at.X + ", " + at.Z + ") is outside its corridor");
+                }
+            }
+        }
     }
 
     /// <summary>

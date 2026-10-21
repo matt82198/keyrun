@@ -41,6 +41,37 @@ public sealed record LayoutDef
 
     /// <summary>Where each bot class stands behind the leader while the party travels.</summary>
     public required ValueList<FormationSlot> Formation { get; init; }
+
+    /// <summary>
+    /// MPLUS-PATROLS (BIBLE section 9.1 "it does not move unless it is a patrol"): packs that walk a closed loop inside one
+    /// corridor while idle. Each stands idle from tick 0 and engages whole, like a pack, when a party member comes within
+    /// its ring at the tick's point. Empty when the key is absent.
+    /// </summary>
+    public ValueList<LayoutPatrol> Patrols { get; init; } = new();
+}
+
+/// <summary>
+/// One patrol pack (MPLUS-PATROLS; layout.json <c>patrols</c>): its members walk the closed loop
+/// <see cref="Waypoints"/>[0] to [1] to ... to [0] at <see cref="SpeedMmPerTick"/> from tick 0. Every waypoint lies inside
+/// one corridor box and every leg is axis-aligned, so the loop never leaves that corridor and the walk is exact integer
+/// mm. Every member needs a forces value (a patrol banks forces like any pack).
+/// </summary>
+public sealed record LayoutPatrol
+{
+    /// <summary>Group id (unique; never a pull, pack or box id).</summary>
+    public required string Id { get; init; }
+
+    /// <summary>Members; each group's <c>spawn</c> is its offset from the patrol's point, mm.</summary>
+    public required ValueList<PullEnemy> Enemies { get; init; }
+
+    /// <summary>The loop's corners, at least two (two = out and back), mm.</summary>
+    public required ValueList<LayoutPoint> Waypoints { get; init; }
+
+    /// <summary>Walk speed while idle, mm per tick (positive).</summary>
+    public required int SpeedMmPerTick { get; init; }
+
+    /// <summary>Aggro ring radius, mm (positive), or null for the sim default (the same as an idle pack's).</summary>
+    public int? AggroMm { get; init; }
 }
 
 /// <summary>A box's kind: a room (a place, possibly with a pull) or a corridor between rooms.</summary>
