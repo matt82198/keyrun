@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://src/Hud/CombatText.cs" id="6_combattext"]
 [ext_resource type="Script" path="res://src/Hud/UnitFrames.cs" id="7_unitframes"]
 [ext_resource type="Script" path="res://src/Hud/BreakBar.cs" id="8_breakbar"]
+[ext_resource type="Script" path="res://src/Hud/ForcesBar.cs" id="9_forces"]
 
 [node name="HudRoot" type="Control"]
 layout_mode = 3
@@ -47,6 +48,16 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_slack")
+
+[node name="ForcesBar" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("9_forces")
 
 [node name="PartyFrames" type="Control" parent="."]
 layout_mode = 1

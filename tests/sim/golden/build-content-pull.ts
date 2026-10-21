@@ -21,6 +21,7 @@ import type { SimEvent } from "@sim/core/events";
 import { hashState } from "@sim/core/state";
 import type { DungeonDef as SimDungeonDef } from "@sim/encounter/index";
 import { loadContent, toComboTables, toSimDungeon, type ContentRegistry } from "@content/index";
+import { sortedHashMap, type HashMap } from "./hash-map";
 
 export const SEED = 24681357;
 export const TICKS = 400;
@@ -139,28 +140,39 @@ function canonicalStringify(value: unknown): string {
   return `{${body.join(",")}}`;
 }
 
-/** FNV-1a over a canonical rendering of the whole loaded registry (same algorithm as
- * sim/core/state.ts's hashState), so ANY content edit changes this hash. */
-export function contentHash(reg: ContentRegistry = loadContent()): string {
-  const plain = {
-    abilities: Object.fromEntries(reg.abilities),
-    effects: Object.fromEntries(reg.effects),
-    classes: Object.fromEntries(reg.classes),
-    combos: Object.fromEntries(reg.combos),
-    enemies: Object.fromEntries(reg.enemies),
-    dungeons: Object.fromEntries(reg.dungeons),
-    clauses: Object.fromEntries(reg.clauses),
-    facets: Object.fromEntries(reg.facets),
+/** FNV-1a (same algorithm as sim/core/state.ts's hashState) over a canonical rendering of EVERY
+ * loaded registry entry, keyed "<kind>/<id>", so ANY content edit changes at least one entry. One
+ * entry per line (see ./hash-map.ts) keeps two content PRs that edit different entries mergeable. */
+export function contentHashes(reg: ContentRegistry = loadContent()): HashMap {
+  const kinds: Record<string, ReadonlyMap<string, unknown>> = {
+    abilities: reg.abilities,
+    effects: reg.effects,
+    classes: reg.classes,
+    combos: reg.combos,
+    enemies: reg.enemies,
+    dungeons: reg.dungeons,
+    clauses: reg.clauses,
+    facets: reg.facets,
   };
-  return fnv1a(canonicalStringify(plain));
+  const entries: Array<[string, string]> = [];
+  for (const [kind, map] of Object.entries(kinds)) {
+    for (const [id, def] of map) entries.push([`${kind}/${id}`, fnv1a(canonicalStringify(def))]);
+  }
+  return sortedHashMap(entries);
+}
+
+/** The exact text content-pull.json is written as (2-space JSON, trailing newline). */
+export function renderContentPull(fixture: object): string {
+  return `${JSON.stringify(fixture, null, 2)}\n`;
 }
 
 const WHY =
-  "Any change to this hash is either a deliberate content/sim behaviour change (explain it in the PR body) " +
+  "Any change to expectedHash is either a deliberate content/sim behaviour change (explain it in the PR body) " +
   "or a regression (fix the code -- never retune this fixture to match, see sim/CLAUDE.md's 'Replays are " +
   "golden tests'). eventCounts exists for the same reason: a silent behaviour change should fail with a " +
   "readable diff, not just a hash mismatch. NOTE: enemy swings DO execute (targeting + chase landed): " +
-  "choir.meleeSwing hits the party from tick 40, guarded by tests/sim/encounter/golden-melee.test.ts.";
+  "choir.meleeSwing hits the party from tick 40, guarded by tests/sim/encounter/golden-melee.test.ts. " +
+  "contentHashes pins the content version per registry entry, so two content PRs touch different lines.";
 
 function main(): void {
   const { run, events } = runScenario();
@@ -168,14 +180,14 @@ function main(): void {
   const fixture = {
     seed: SEED,
     ticks: TICKS,
-    contentHash: contentHash(),
     commands: buildCommands(),
     expectedHash: hashState(run.state),
     eventCounts: counts,
     why: WHY,
+    contentHashes: contentHashes(),
   };
   const outPath = fileURLToPath(new URL("./content-pull.json", import.meta.url));
-  writeFileSync(outPath, `${JSON.stringify(fixture, null, 2)}\n`, "utf8");
+  writeFileSync(outPath, renderContentPull(fixture), "utf8");
   console.log(`wrote ${outPath}`);
   console.log(`expectedHash=${fixture.expectedHash} eventCounts=${JSON.stringify(counts)}`);
 }

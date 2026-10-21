@@ -15,5 +15,11 @@
   {
     "id": "seedbloom-field",
     "effects": []
+  },
+  {
+    "id": "cinderfield-field",
+    "effects": [
+      { "op": "closerBurn", "maxHealthBp": 1500, "capBp": 2000, "school": "fire" }
+    ]
   }
 ]

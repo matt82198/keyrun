@@ -46,8 +46,9 @@ public static class Mitigation
                 ("rawAmount", JsValue.Int(rawAmount))));
             return new DamageResult(rawAmount, 0, 0, 0, false);
         }
-        var sourceModBp = source is not null ? Effects.AggregateModifiers(source, defs).DamageDoneBp : 0;
-        var targetModBp = Effects.AggregateModifiers(target, defs).DamageTakenBp;
+        // C#-only gear stats (BIBLE s7 "Tier is power", Runs.GearPower) add to the effect bp; 0 on every oracle run.
+        var sourceModBp = source is not null ? Effects.AggregateModifiers(source, defs).DamageDoneBp + source.GearDamageDoneBp : 0;
+        var targetModBp = Effects.AggregateModifiers(target, defs).DamageTakenBp + target.GearDamageTakenBp;
         return Damage.ApplyDamage(tick, target, rawAmount, sourceModBp, targetModBp, defs, emit, sourceId, weighting);
     }
 

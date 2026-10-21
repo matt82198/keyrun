@@ -33,6 +33,12 @@ public sealed record HostRunSetup(
     /// <summary>run-setup.ts:52 INTERRUPT_LOCKOUT_TICKS (4 s at 20 Hz).</summary>
     public const int InterruptLockoutTicks = 80;
 
+    /// <summary>
+    /// BIBLE s9.3 "Stops as well as kicks": the effects that stop an interruptible cast when they land (Shatter's and Cold
+    /// Snap's freeze and the Twins' Break-bar stagger apply <c>stunned</c>; Ward Dissonance applies <c>silenced</c>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> StopEffectIds = new[] { "stunned", "silenced" };
+
     /// <summary>content-dungeon.ts:38 PULL_ACTOR_ID_START.</summary>
     public const int PullActorIdStart = 100;
 
@@ -85,6 +91,9 @@ public sealed record HostRunSetup(
         new RosterSlot("cinder", ActorRole.Damage, -700, SupportMaxHealth),
     };
 
+    /// <summary>The class of the human's seat (the screen's Character tab pick; "warden" by default).</summary>
+    public string HumanClassId => Party.First(p => p.Id == HumanActorId).ClassId;
+
     /// <summary>The bot seats: every party member but the human, ascending by actor id.</summary>
     public IReadOnlyList<int> BotActorIds => Party.Where(p => p.Id != HumanActorId).Select(p => p.Id).OrderBy(id => id).ToList();
 
@@ -128,7 +137,7 @@ public sealed record HostRunSetup(
             Affixes.DamageBp(affixTable, affixes, bossSide: false),
             Affixes.DamageBp(affixTable, affixes, bossSide: true));
         var effects = registry.Effects.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
-        var (combos, fieldCombos) = ToComboTables(registry.Combos.Values, registry.Classes.Keys.ToList(), registry.ComboRiders);
+        var (combos, fieldCombos) = ContentCombos.ToComboTables(registry.Combos.Values, registry.Classes.Keys.ToList(), registry.ComboRiders);
         var (dungeon, scripts) = ToSimDungeon(
             registry, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false), Affixes.HealthBp(affixTable, affixes, bossSide: true));
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
@@ -153,6 +162,7 @@ public sealed record HostRunSetup(
             BaseSpeedMmPerTick = 0,
             ActorRadiusMm = 0,
             Bounds = movement.Bounds,
+            Overheat = OverheatRulesOf(registry),
             EnemyScripts = scripts,
             KeyLevel = keyLevel,
             ParTicks = dungeonDef.ParTicks,
@@ -160,6 +170,7 @@ public sealed record HostRunSetup(
             FieldCombos = fieldCombos,
             Clauses = clauses,
             Layout = nav,
+            StopEffectIds = StopEffectIds,
         }.WithMovement(movement);
 
         var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
@@ -196,6 +207,22 @@ public sealed record HostRunSetup(
     }
 
     /// <summary>
+    /// The sim's Heat/Overheat rules (BIBLE section 5 Cinder): one <see cref="OverheatRule"/> per class whose loop is
+    /// heat-overheat, its threshold that loop's max, its Chill the content run.json <c>heatOverheat</c> block. A class
+    /// with a rule opens the run at 0 Heat and its cast at the threshold is the free Overheat (Combat/Casting.cs).
+    /// </summary>
+    /// <param name="registry">The loaded content (validated at load).</param>
+    /// <returns>Class id to its rule.</returns>
+    public static IReadOnlyDictionary<string, OverheatRule> OverheatRulesOf(C.ContentRegistry registry)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        var chill = registry.Run.HeatOverheat;
+        return registry.Classes.Values
+            .Where(c => c.Loop.Kind == C.LoopKind.HeatOverheat)
+            .ToDictionary(c => c.Id, c => new OverheatRule(c.Loop.Max, chill.ChillEffectId, chill.ChillTicks), StringComparer.Ordinal);
+    }
+
+    /// <summary>
     /// Plan M5: every enemy ability's damage scaled by its side's affix. The trash side is every ability a pull enemy
     /// lists or casts; the boss side is the boss's and the Twins' (Tyrannical: "the boss and its adds"). An ability on
     /// both sides fails closed, since one shared map cannot hold two scales for it.
@@ -229,6 +256,73 @@ public sealed record HostRunSetup(
 
     /// <summary>The content layout the setup was placed with (game/content/data/layout.json).</summary>
     public C.LayoutDef? Layout { get; init; }
+
+    /// <summary>
+    /// The options a run is created with (BIBLE s7, finding f-f9b80112): the request's Clause and talents plus the
+    /// human's equipped gear, every slot and the keystone included, each Facet's content patch stacked on the human's
+    /// (talented) kit (<see cref="RunStart.Of"/> over <see cref="GearPatches"/>). SimDriver.StartRun passes
+    /// <see cref="RunStart.Options"/> to <see cref="RunRoot.CreateRun"/>. With no progression (no screen yet) or nothing
+    /// equipped the options are the request's alone, so such a run is created exactly as before.
+    /// </summary>
+    /// <param name="request">The queued request, or null.</param>
+    /// <param name="progression">The screen's progression, or null.</param>
+    /// <param name="registry">The content.</param>
+    /// <param name="humanClassId">The human's class (scopes the Facets and fills an appended Window's setupClass).</param>
+    /// <returns>The run start.</returns>
+    public RunStart StartFor(QueueRequest? request, Progression? progression, C.ContentRegistry registry, string humanClassId) =>
+        RunStart.Of(
+            request,
+            progression,
+            HumanActorId,
+            Content.Abilities,
+            progression is null ? new Dictionary<string, GearPatch>(StringComparer.Ordinal) : GearPatches(registry, humanClassId));
+
+    /// <summary>
+    /// The sim patch of every content Facet on <paramref name="classId"/>'s kit (content/schema/facet.ts FacetPatch to
+    /// <see cref="GearPatch"/>, ops through the same <c>ToSim</c> the base abilities use). An appended Window op without
+    /// a setupClass is the wearer's class Window (every base Window op of a class carries that class id), so it gets
+    /// <paramref name="classId"/>. A line shape's full width becomes the sim line's half-width radius
+    /// (<see cref="Abilities.LineShape"/>), so a width Facet (twinStrike, infernoBolt) is applied, not just carried.
+    /// </summary>
+    /// <param name="registry">The content.</param>
+    /// <param name="classId">The wearer's class.</param>
+    /// <returns>Patches by Facet id.</returns>
+    /// <exception cref="InvalidOperationException">The class is unknown, or a Facet op is one the sim does not run.</exception>
+    public static IReadOnlyDictionary<string, GearPatch> GearPatches(C.ContentRegistry registry, string classId)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        if (!registry.Classes.TryGetValue(classId, out var classDef))
+        {
+            throw new InvalidOperationException($"run setup: unknown class \"{classId}\"");
+        }
+        var kit = new HashSet<string>(ResolveSlots(classDef).Select(s => s.AbilityId), StringComparer.Ordinal);
+        var patches = new Dictionary<string, GearPatch>(StringComparer.Ordinal);
+        foreach (var facet in registry.Facets.Values.Where(f => kit.Contains(f.AbilityId)).OrderBy(f => f.Id, StringComparer.Ordinal))
+        {
+            var p = facet.Patch;
+            var where = $"facet \"{facet.Id}\"";
+            IReadOnlyList<EffectOp>? Ops(IEnumerable<C.EffectOp>? ops) => ops?.Select(o => ToSim(
+                o is C.WindowOp { SetupClass: null } w ? w with { SetupClass = classId } : o, where)).ToList();
+            patches[facet.Id] = new GearPatch
+            {
+                CastTicks = p.CastTicks,
+                GcdTicks = p.GcdTicks,
+                CooldownTicks = p.CooldownTicks,
+                Charges = p.Charges,
+                Cost = p.Cost is { } c ? new AbilityCost(c.Resource, c.Amount) : null,
+                Range = p.Range,
+                Shape = p.Shape is { } s ? ToSim(s, where) : null,
+                Interruptible = p.Interruptible,
+                Tags = p.Tags?.ToList(),
+                Effects = Ops(p.Effects),
+                Variants = p.Variants?.ToDictionary(kv => kv.Key, kv => Ops(kv.Value)!, StringComparer.Ordinal),
+                TagAdd = p.TagAdd?.ToList(),
+                TagRemove = p.TagRemove?.ToList(),
+                EffectsAppend = Ops(p.EffectsAppend),
+            };
+        }
+        return patches;
+    }
 
     /// <summary>
     /// The party for a run over <paramref name="runDungeon"/> (the setup's dungeon, or a <c>--pull N</c> slice of it):
@@ -387,10 +481,6 @@ public sealed record HostRunSetup(
     // BIBLE section 5: the variants also ride along, and the sim (Abilities.ResolveVerse) plays the caster's verse.
     private static AbilityDef ToSim(C.AbilityDef a)
     {
-        if (a.Shape.Width is not null)
-        {
-            throw new InvalidOperationException($"run setup: ability \"{a.Id}\" has a shape width (facet patches only)");
-        }
         var ops = a.Variants is { } v && v.TryGetValue("mend", out var mend) ? mend : a.Effects;
         Dictionary<string, IReadOnlyList<EffectOp>>? variants = null;
         if (a.Variants is { } all)
@@ -410,12 +500,27 @@ public sealed record HostRunSetup(
             Charges = a.Charges,
             Cost = new AbilityCost(a.Cost.Resource, a.Cost.Amount),
             Range = a.Range,
-            Shape = new AbilityShape(ToSim(a.Shape.Kind), a.Shape.Radius, a.Shape.Angle1024, a.Shape.Length),
+            Shape = ToSim(a.Shape, a.Id),
             Interruptible = a.Interruptible,
             Effects = ops.Select(o => ToSim(o, a.Id)).ToList(),
             Tags = a.Tags.ToList(),
             Variants = variants,
         };
+    }
+
+    // A content shape in sim terms. A width (a Facet's line: twinStrike, infernoBolt) is the line's full width, and the
+    // sim line's radius is its half-width (Abilities.LineShape); a width on any other kind fails closed.
+    private static AbilityShape ToSim(C.AbilityShape s, string where)
+    {
+        if (s.Width is not { } width)
+        {
+            return new AbilityShape(ToSim(s.Kind), s.Radius, s.Angle1024, s.Length);
+        }
+        if (s.Kind != C.ShapeKind.Line)
+        {
+            throw new InvalidOperationException($"run setup: {where} has a width on a {s.Kind} shape (only a line has one)");
+        }
+        return Abilities.LineShape(s.Length ?? 0, width);
     }
 
     private static ShapeKind ToSim(C.ShapeKind k) => k switch
@@ -428,29 +533,8 @@ public sealed record HostRunSetup(
         _ => throw new InvalidOperationException($"run setup: unknown shape kind {k}"),
     };
 
-    private static EffectOp ToSim(C.EffectOp op, string where) => op switch
-    {
-        C.DamageOp d => new DamageOp(d.Amount, d.School),
-        C.HealOp h => new HealOp(h.Amount),
-        C.ApplyEffectOp e => new ApplyEffectOp(e.EffectId, e.DurationTicks, e.Stacks),
-        C.RemoveEffectOp r => new RemoveEffectOp(r.EffectId),
-        C.InterruptOp => new InterruptOp(),
-        C.ResourceOp r => new ResourceOp(r.Delta),
-        C.ThreatOp t => new ThreatOp(t.Amount, t.MultiplierBp),
-        C.WindowOp w => new WindowOp(
-            w.WindowId,
-            w.DurationTicks,
-            w.OnTarget,
-            w.SetupClass ?? throw new InvalidOperationException($"run setup: {where} has a window op without setupClass"),
-            w.Self,
-            w.Alternate,
-            w.RadiusMm),
-        C.PayoffOp => new PayoffOp(),
-        C.ComboOp c => new ComboOp(c.ComboTable),
-        C.PartyEffectOp p => new PartyEffectOp(p.EffectId, p.DurationTicks, p.Stacks),
-        C.CloudOp c => new CloudOp(c.EffectId, c.DurationTicks, c.RadiusMm),
-        _ => throw new InvalidOperationException($"run setup: {where} has an op the sim does not run ({op.GetType().Name})"),
-    };
+    // The content-to-sim op mapping lives in Keyrun.Bots.Shared.ContentCombos so the headless tests run it (f-89b0825e).
+    private static EffectOp ToSim(C.EffectOp op, string where) => ContentCombos.ToSimOp(op, where);
 
     private static EffectDef ToSim(C.EffectDef e)
     {
@@ -476,35 +560,6 @@ public sealed record HostRunSetup(
         },
         c.Params.ToDictionary(kv => kv.Key, kv => (long)kv.Value, StringComparer.Ordinal),
         c.Description);
-
-    /// <summary>
-    /// content/sim-adapt.ts toComboTables: exact (setupClass, payoffClass) rows go to the burst table; a
-    /// <c>payoffClass "*"</c> row goes to the field table once per other class. A combo with a C#-only rider
-    /// (combo-riders.json: Anthem's party haste, Steam's cloud; BIBLE section 4) fires the rider's effects instead.
-    /// </summary>
-    private static (ComboTable Combos, ComboTable FieldCombos) ToComboTables(
-        IEnumerable<C.ComboEntry> entries, IReadOnlyList<string> classIds, IReadOnlyDictionary<string, C.ComboRider> riders)
-    {
-        var combos = new ComboTable();
-        var field = new ComboTable();
-        foreach (var entry in entries)
-        {
-            var ops = riders.TryGetValue(entry.Id, out var rider) ? rider.Effects : entry.Effects;
-            var def = new ComboDef(entry.Id, ops.Select(o => ToSim(o, "combo " + entry.Id)).ToList());
-            if (entry.PayoffClass == "*")
-            {
-                foreach (var payoff in classIds.Where(c => c != entry.SetupClass))
-                {
-                    field.Set(entry.SetupClass, payoff, def);
-                }
-            }
-            else
-            {
-                combos.Set(entry.SetupClass, entry.PayoffClass, def);
-            }
-        }
-        return (combos, field);
-    }
 
     /// <summary>
     /// content/sim-adapt.ts toSimDungeon (ids from <see cref="PullActorIdStart"/> in pull, group, count order; yaw 0;
@@ -569,7 +624,7 @@ public sealed record HostRunSetup(
         return step with
         {
             Telegraph = s.Telegraph is { } t
-                ? new TelegraphSpec(ShapeName(t.Shape), t.LeadTicks) { Radius = t.Radius, Angle1024 = t.Angle1024, Length = t.Length, Width = t.Width }
+                ? new TelegraphSpec(ShapeName(t.Shape), t.LeadTicks) { Radius = t.Radius, Angle1024 = t.Angle1024, Length = t.Length, Width = t.Width, SpansCast = t.SpansCast ?? false }
                 : null,
             Target = s.Target switch
             {

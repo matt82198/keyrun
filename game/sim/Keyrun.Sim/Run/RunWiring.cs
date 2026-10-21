@@ -11,7 +11,7 @@ namespace Keyrun.Sim.Runs;
 /// The run root's adapters and per-tick host policy (sim/run-wiring.ts). Adapters: the 2C
 /// <see cref="EncounterRules"/> as 2B's <see cref="ICombatClause"/>, <see cref="RunContent"/> as a
 /// <see cref="RulesConfig"/>, AbilityDefs as the encounter's <see cref="ScriptAbility"/> view and break-bar tags.
-/// Policy (P2, policy-inside-stepRun): enemy and damage-role auto-targeting, Slack spend on player death and wipe, and
+/// Policy (P2, policy-inside-stepRun): enemy and damage-role auto-targeting, death and wipe time added to the run clock (D46), and
 /// run-end detection. <see cref="RunRoot"/> is the only production caller.
 /// </summary>
 public static class RunWiring
@@ -107,7 +107,11 @@ public static class RunWiring
         foreach (var kv in abilities)
         {
             var def = kv.Value;
-            views[kv.Key] = new ScriptAbility(def.Id, def.Range, ShapeKindJs(def.Shape.Kind), def.Effects.Any(op => op is HealOp));
+            views[kv.Key] = new ScriptAbility(def.Id, def.Range, ShapeKindJs(def.Shape.Kind), def.Effects.Any(op => op is HealOp))
+            {
+                CastTicks = def.CastTicks,
+                Def = def,
+            };
         }
         return views;
     }
@@ -195,31 +199,48 @@ public static class RunWiring
     }
 
     /// <summary>
-    /// run-wiring.ts:129 applyDeathsAndWipe: when this tick's events carry a player death, spends the death cost, plus
-    /// the wipe cost when every player is dead, forwarding <c>depleted</c> through <paramref name="emit"/>.
+    /// run-wiring.ts:129 applyDeathsAndWipe: each distinct player death in this tick's events adds the death cost to the
+    /// run clock (<see cref="Timer.ChargeDeath"/>), plus the wipe cost when every player is dead (D46). Emits nothing.
     /// </summary>
     /// <param name="state">The post-tick state.</param>
     /// <param name="encounter">The encounter state.</param>
     /// <param name="events">Every event of the tick so far.</param>
     /// <param name="tick">The post-step tick.</param>
     /// <param name="emit">Event sink.</param>
-    /// <returns>The encounter after Slack spend (itself when no player died).</returns>
+    /// <returns>The encounter with the deaths charged (itself when no player died).</returns>
     public static EncounterState ApplyDeathsAndWipe(SimState state, EncounterState encounter, IReadOnlyList<SimEvent> events, int tick, Action<SimEvent> emit)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(encounter);
         ArgumentNullException.ThrowIfNull(events);
-        var anyPlayerDeath = events.Any(e => e.Type == "death" && e.Get("actorId") is JsInt id
-            && id.Value >= int.MinValue && id.Value <= int.MaxValue
-            && state.Actors.TryGetValue((int)id.Value, out var a) && a.Kind == ActorKind.Player);
-        if (!anyPlayerDeath)
+        // MPLUS-DEATH-PENALTY (Matt 2026-10-20, BIBLE s8): as on a Mythic+ timer every player death costs its own
+        // death cost, so two players killed on one tick cost two deaths (the TS reference charged once per tick).
+        // Distinct actor ids, so a repeated death event for one player is still one death.
+        var playerDeaths = events
+            .Where(e => e.Type == "death")
+            .Select(e => e.Get("actorId"))
+            .OfType<JsInt>()
+            .Where(id => id.Value >= int.MinValue && id.Value <= int.MaxValue)
+            .Select(id => (int)id.Value)
+            .Where(id => state.Actors.TryGetValue(id, out var a) && a.Kind == ActorKind.Player)
+            .Distinct()
+            .Count();
+        if (playerDeaths == 0)
         {
             return encounter;
         }
-        var next = Timer.SpendSlackOnDeath(encounter, tick, emit);
+        // D46 (Matt 2026-10-20 "almost exact to wow"): deaths and wipes only add time to the run clock; nothing drains,
+        // so nothing is emitted here (the old Slack bank's "depleted" event is gone). tick and emit keep the host's call shape.
+        _ = tick;
+        _ = emit;
+        var next = encounter;
+        for (var i = 0; i < playerDeaths; i++)
+        {
+            next = Timer.ChargeDeath(next);
+        }
         if (AllPlayersDead(state))
         {
-            next = Timer.SpendSlackOnWipe(next, tick, emit);
+            next = Timer.ChargeWipe(next);
         }
         return next;
     }

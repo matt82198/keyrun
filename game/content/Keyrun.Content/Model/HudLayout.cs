@@ -122,6 +122,24 @@ public static class HudLayout
         return new TopBarLayout(objective, slack, Math.Max(0, objective.Width - (2 * PanelPad)));
     }
 
+    /// <summary>Enemy Forces bar height (HUD-FORCES).</summary>
+    public const int ForcesHeight = 16;
+
+    /// <summary>Gap between the Slack bar and the Enemy Forces bar under it.</summary>
+    public const int ForcesGap = 4;
+
+    /// <summary>
+    /// The Enemy Forces bar (HUD-FORCES, BIBLE s9.2): directly under the Slack/timer bar, same left edge and width, the
+    /// way WoW's tracker lists Enemy Forces under the key timer.
+    /// </summary>
+    /// <param name="bar">The top bar.</param>
+    /// <returns>The forces bar slot.</returns>
+    public static PixelRect ForcesBar(TopBarLayout bar)
+    {
+        ArgumentNullException.ThrowIfNull(bar);
+        return new PixelRect(bar.Slack.X, bar.Slack.Bottom + ForcesGap, bar.Slack.Width, ForcesHeight);
+    }
+
     /// <summary>The objective panel's drawn width: its widest line plus the inset, never wider than its slot.</summary>
     /// <param name="titleWidth">The fitted title's width in pixels.</param>
     /// <param name="taskWidth">The fitted task line's width in pixels.</param>
@@ -392,23 +410,44 @@ public static class HudLayout
     private static int SpanGap(int a0, int a1, int b0, int b1) => Math.Max(0, Math.Max(a0, b0) - Math.Min(a1, b1));
 
     /// <summary>
-    /// A cast bar's label: "caster: spell" clipped with <see cref="FitTitle"/> so that it plus <paramref name="suffix"/>
-    /// (the seconds left) fits <paramref name="barWidth"/>; the suffix is always kept whole.
+    /// A cast bar's label (f-b78d1567, BIBLE s3 "Cast bars are the enemy's language"): the ability is what the player must
+    /// read, so when the caster's name plate is drawn the label is the ability alone (the plate already names the caster);
+    /// with no plate it is "caster: spell" so the caster stays identifiable. Too wide for the bar, the caster's name is cut
+    /// first (<see cref="FitTitle"/>) and dropped when not one character of it fits beside the whole ability; only then is
+    /// the ability itself cut. <paramref name="suffix"/> (the seconds left) is always kept whole.
     /// </summary>
     /// <param name="caster">The caster's display name.</param>
     /// <param name="spell">The ability's display name.</param>
     /// <param name="suffix">Text kept whole after the title ("  2.5s"), or empty.</param>
     /// <param name="barWidth">The bar's width in pixels.</param>
     /// <param name="measure">The bar font's width of a string, in pixels.</param>
+    /// <param name="casterPlateShown">True when the caster's name plate is drawn this frame (LabelView.ShowsPlate).</param>
     /// <returns>The label; <paramref name="measure"/> of it is at most <paramref name="barWidth"/> when the suffix fits.</returns>
-    public static string FitCastLabel(string caster, string spell, string suffix, int barWidth, Func<string, int> measure)
+    public static string FitCastLabel(string caster, string spell, string suffix, int barWidth, Func<string, int> measure,
+        bool casterPlateShown)
     {
         ArgumentNullException.ThrowIfNull(caster);
         ArgumentNullException.ThrowIfNull(spell);
         ArgumentNullException.ThrowIfNull(suffix);
         ArgumentNullException.ThrowIfNull(measure);
-        var title = caster.Length == 0 ? spell : caster + ": " + spell;
-        return FitTitle(title, barWidth - measure(suffix), measure) + suffix;
+        var room = barWidth - measure(suffix);
+        if (casterPlateShown || caster.Length == 0)
+        {
+            return FitTitle(spell, room, measure) + suffix;
+        }
+        var whole = caster + ": " + spell;
+        if (measure(whole) <= room)
+        {
+            return whole + suffix;
+        }
+        // Cut the caster, never the ability, while at least one character of the name fits beside the whole ability.
+        var tail = ": " + spell;
+        var cut = FitTitle(caster, room - measure(tail), measure);
+        if (cut.Length > Ellipsis.Length)
+        {
+            return cut + tail + suffix;
+        }
+        return FitTitle(spell, room, measure) + suffix;
     }
 
     // Separate inside [Margin, width - Margin]: shift into a viewport Margin narrower on each side, separate, shift back.

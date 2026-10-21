@@ -14,24 +14,30 @@
       2. "HUD party seat=1 name=Warden hp=H/400 res=R/M" (the party frame reads the human's health and resource);
       3. "HUD party seat=1 ... DOWNED" after the sim's death event for actor 1 (the DOWNED chip);
       4. "HUD objective pull=1/4 id=choir name="The Choir"" (the current pull's content name);
-      5. "HUD slack ticks=620 of=620" first (Timer.InitialSlackTicks(2) = 600 + 20), then a lower value after the
-         death (the sim spends 300 on a death and 500 on the wipe);
-      6. "HUD runend result=depleted choices=3 cleared=0 ... title="Party wiped on pull 1 of 4 -- key depleted"" (the
+      5. "HUD slack ticks=620 of=620" first (Timer.InitialSlackTicks(2) = 600 + 20), then a "penalty=N" above 0
+         after the death (STATE.md D46, Mythic+: a death adds 300 to the run clock and the wipe 500 more), with the
+         bank never drained below 620 (deaths no longer spend it);
+      6. "HUD runend result=depleted choices=3 cleared=0 ... title="Party wiped on pull 1 of 4 -- key stays at +2"" (the
          sim reports a lasting wipe as "depleted"; the panel must not call it cleared, and names the pull it was lost
          on, numbered as the objective line numbers it: lane 3C-d), three "HUD runend choice n=<1..3> slot=<slot>
          tier=<t> facet=... ability=warden.<id> charges=<c> id=reward-<slot>-warden.<slot>.<facet>-t<t>-<i>" lines
          (Rewards.RollRewardChoices over the Warden's content facet pool, lane 3C-d: no placeholder "ability-<n>"
-         id), and "HUD runend cause seat=1" lines naming only seat 1's own causes; every "HUD runend result=" line of
+         id), "HUD runend key from=2 to=2 tier=0" (an untimed key holds its level, KeyMove), and "HUD runend cause
+         seat=1" lines naming only seat 1's own causes; every "HUD runend result=" line of
          every autorun (A-G) titles a cleared=1 run "Run cleared -- ..." and a cleared=0 depleted run "Party wiped
-         on pull <n> of <total> -- key depleted" (run C clears the dungeon since lane TUNE-BOSS, so the clear title
+         on pull <n> of <total> -- key stays at +<key>" (an untimed key keeps its level: Matt 2026-10-20, f-7c7abdf4;
+         "key depleted" is banned from every title) (run C clears the dungeon since lane TUNE-BOSS, so the clear title
          is checked on it; the count of cleared runs is printed).
     Run B (from pull 2, the Pair, solo Warden):  -- --autorun --ticks 600 --pull 2 --solo
       (600 since lane NAV-CORE, was 400: the Pair now spawns at the far side of its hall, 7 m off, run_end at tick 455)
       7. "HUD objective pull=2/4 id=pair name="The Pair"", and the wipe title "Party wiped on pull 2 of 4 -- key
-         depleted" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
-      8. at least one "HUD ping label=SPREAD" or "HUD ping label=STACK" line (from the Pair's mark telegraphs and
-         mark effects in the sim state). The solo Warden is down before the Pair's first mark (about tick 294), so
-         this line comes from enemy scripts the sim keeps stepping after run_end; run C proves a live-run call.
+         stays at +2" (a later --pull start still numbers the pull in the full dungeon, as the objective line does);
+      8. NO "HUD ping label=SPREAD" or "HUD ping label=STACK" line (SLAM-TELEGRAPH, wrong data shown is P0). The
+         solo Warden is down before the Pair's first mark (its telegraph is due about tick 295), so the mark cast
+         has no target and never starts; a spansCast telegraph is drawn only for a cast that will start
+         (Scripts.WillStart), so the floor and the HUD must not call SPREAD/STACK for it. Before SLAM-TELEGRAPH this
+         check asserted the opposite: a ping from the telegraph the sim drew after run_end for that dead-target cast.
+         Run C (check 11) proves the live-run call.
     Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:  -- --autorun --ticks <PartyTicks>
         (default 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
       9. "HUD party seat=1 name=Warden", "seat=2 name=Chanter", "seat=3 name=Cinder" (BotCommandSource drives 2, 3);
@@ -198,7 +204,9 @@
      Before HOST-HEADING a recording keeps the legacy heading (reason=input-log), writes no startHeading, and a replay
      ignores the field: 36-39 fail (RED). -HeadingOnly runs the source checks and run M alone.
      Run K1's byte comparison with the committed example ignores the one "startHeading" header line (the example
-     predates the field and fixtures are not regenerated); K1 asserts that line separately.
+     predates the field and fixtures are not regenerated); K1 asserts that line separately. K1's and L1's comparisons
+     also leave out the "rotationIndex" header line (the weekly affix rotation, AffixWeek.cs): K1 asserts it is there,
+     L1 that it is 0 (L1 replays a log without one, so its run is built at 0, never at today's week).
     Run A also carries the ability bar icons (lane ABILITY-ICONS; the bar prints one line per slot under --autorun):
      40. nine "HUD bar slot=<key> ability=warden.<id> icon=res://assets/kenney-board-game-icons/<file>.png tex=64x64"
          lines, one per slot 1-5, Q, E, R, F (tex is the loaded Texture2D's size, so a missing file or an unmapped id
@@ -307,6 +315,17 @@ function Get-StartHeadingText([string]$path) {
     if ($hit.Success) { return $hit.Groups[1].Value }
     return $null
 }
+
+# The weekly affix rotation (AffixWeek.cs): every recording carries a "rotationIndex" header line, the index the run was
+# built with (this reset week's, Tuesday 15:00 UTC, or --rotation N's on a live run, the replayed log's on a replay, 0 for a log that has none). The committed
+# examples predate the field, so the byte comparisons leave that one line out and assert it separately.
+function Get-RotationIndexText([string]$path) {
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
+    $hit = [regex]::Match([IO.File]::ReadAllText($path), '(?m)^  "rotationIndex": ([0-9]+),$')
+    if ($hit.Success) { return $hit.Groups[1].Value }
+    return $null
+}
+function Remove-RotationIndexLine([string]$text) { return $text -replace '(?m)^  "rotationIndex": [0-9]+,\n', '' }
 
 # One interactive launch for run M: exit code and output lines.
 function Invoke-Interactive([int]$frames, [string[]]$userArgs) {
@@ -487,12 +506,18 @@ if ($slackLines.Count -eq 0) {
     if ($slackFirst -notmatch '^HUD slack ticks=620 of=620\b') {
         $failures.Add("run A: first Slack line is not the key-2 bank 620 of 620: '$slackFirst'")
     }
-    $slackLower = $slackLines | Where-Object { $_ -match '^HUD slack ticks=(\d+) ' -and [int]$Matches[1] -lt 620 } | Select-Object -First 1
-    if (-not $slackLower) { $failures.Add('run A: Slack never dropped below 620 after the death') }
+    # D46 (Mythic+): the death adds time to the run clock (penalty=) and never drains the bank.
+    $slackLower = $slackLines | Where-Object { $_ -match '\bpenalty=(\d+)\b' -and [int]$Matches[1] -gt 0 } | Select-Object -First 1
+    if (-not $slackLower) { $failures.Add('run A: no "HUD slack ... penalty=N" line above 0 after the death (the death added no time to the run clock)') }
+    $drained = $slackLines | Where-Object { $_ -match '^HUD slack ticks=(\d+) ' -and [int]$Matches[1] -lt 620 } | Select-Object -First 1
+    if ($drained) { $failures.Add("run A: a death drained the Slack bank (D46: deaths only add time to the clock): '$drained'") }
 }
 
-$runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 1 of 4 -- key depleted"$'
-if (-not $runEnd) { $failures.Add("run A: no 'HUD runend result=depleted choices=3 cleared=0 ... title=""Party wiped on pull 1 of 4 -- key depleted""' line (got '$(First $a.Lines '^HUD runend result=')')") }
+$runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 1 of 4 -- key stays at \+2"$'
+if (-not $runEnd) { $failures.Add("run A: no 'HUD runend result=depleted choices=3 cleared=0 ... title=""Party wiped on pull 1 of 4 -- key stays at +2""' line (got '$(First $a.Lines '^HUD runend result=')')") }
+# Key progression (BIBLE s8, Matt 2026-10-20): the wiped key-2 run holds its key, no depletion drop, and the panel says so.
+$keyLine = First $a.Lines '^HUD runend key from=2 to=2 tier=0$'
+if (-not $keyLine) { $failures.Add("run A: no 'HUD runend key from=2 to=2 tier=0' line (an untimed key holds its level; got '$(First $a.Lines '^HUD runend key ')')") }
 $choices = @($a.Lines | Where-Object { $_ -match '^HUD runend choice n=[123] slot=(weapon|armor|charm|ring|keystone) tier=\d+ facet="[^"]+"' })
 if ($choices.Count -ne 3) { $failures.Add("run A: expected 3 'HUD runend choice' lines, got $($choices.Count)") }
 # Lane 3C-d: the cards roll over the Warden's content facet pool, so each names a real facet id and its kit ability.
@@ -537,11 +562,11 @@ if ($b.Code -ne 0) { $failures.Add("run B: godot exited $($b.Code) (expected 0)"
 $objB = First $b.Lines '^HUD objective pull=2/4 id=pair name="The Pair"'
 if (-not $objB) { $failures.Add('run B: no "HUD objective pull=2/4 id=pair name=""The Pair""" line') }
 $ping = First $b.Lines '^HUD ping label=(SPREAD|STACK) '
-if (-not $ping) { $failures.Add('run B: no "HUD ping label=SPREAD|STACK" line') }
+if ($ping) { $failures.Add("run B: a SPREAD/STACK call for a mark cast that never starts (the solo Warden is dead, no target): '$ping'") }
 # Lane 3C-d: the solo Warden wipes in the Pair; --pull 2 drops pull 1 from the run's dungeon, and the title still
 # numbers the Pair 2 of 4 (ObjectiveModel numbering), never 1 of 3.
-$runEndB = First $b.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 2 of 4 -- key depleted"$'
-if (-not $runEndB) { $failures.Add("run B: no 'HUD runend ... title=""Party wiped on pull 2 of 4 -- key depleted""' line (got '$(First $b.Lines '^HUD runend result=')')") }
+$runEndB = First $b.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Party wiped on pull 2 of 4 -- key stays at \+2"$'
+if (-not $runEndB) { $failures.Add("run B: no 'HUD runend ... title=""Party wiped on pull 2 of 4 -- key stays at +2""' line (got '$(First $b.Lines '^HUD runend result=')')") }
 
 # ---- Run C: the three-seat bot party (lane 3H) -------------------------------------------------------------------
 # The human Warden (seat 1) plus a Chanter (healer) and a Cinder (damage) driven by Keyrun.Bots through
@@ -786,10 +811,17 @@ $clearedTitles = 0
 foreach ($t in $titleLines) {
     if ($t -match ' cleared=1 ') {
         $clearedTitles++
-        if ($t -notmatch ' title="Run cleared -- (within par|key depleted)"$') { $failures.Add("a cleared run lost the clear title: '$t'") }
-    } elseif ($t -match '^HUD runend result=depleted ' -and $t -notmatch ' title="Party wiped on pull \d+ of \d+ -- key depleted"$') {
-        $failures.Add("a wiped run's title does not name the pull it was lost on: '$t'")
+        if ($t -notmatch ' title="Run cleared -- (within par|over par|key stays at \+\d+)"$') { $failures.Add("a cleared run lost the clear title: '$t'") }
+        # RunEndTitle.ForRun (one source with the sim): "within par"/"over par" only for a timed run, "key stays at +N"
+        # only for a depleted (untimed) one.
+        if ($t -match ' title="Run cleared -- (within par|over par)"$' -and $t -notmatch '^HUD runend result=timed ') { $failures.Add("a non-timed clear has a timed title: '$t'") }
+        if ($t -match ' title="Run cleared -- key stays at \+\d+"$' -and $t -notmatch '^HUD runend result=depleted ') { $failures.Add("a timed clear is titled as an untimed key: '$t'") }
+    } elseif ($t -match '^HUD runend result=depleted ' -and $t -notmatch ' title="Party wiped on pull \d+ of \d+ -- key stays at \+\d+"$') {
+        $failures.Add("a wiped run's title does not name the pull it was lost on and the key level it keeps: '$t'")
     }
+    # An untimed key keeps its level (Matt 2026-10-20, f-7c7abdf4): no title may say "depleted", which a WoW player
+    # reads as the key losing a level.
+    if ($t -match ' title="[^"]*depleted') { $failures.Add("a run-end title says the key is depleted: '$t'") }
 }
 if ($titleLines.Count -eq 0) { $failures.Add('no "HUD runend result=" line in any autorun (the title checks did not run)') }
 
@@ -940,7 +972,8 @@ if (-not $recDone) {
         # is asserted here and left out of the byte comparison (the fixture is not regenerated).
         $kHeading = Get-StartHeadingText $recPath
         if ($null -eq $kHeading) { $failures.Add("run K1: the input log has no `"startHeading`" header line") }
-        $recText = ([IO.File]::ReadAllText($recPath)) -replace '(?m)^  "startHeading": [^,\r\n]+,\n', ''
+        if ($null -eq (Get-RotationIndexText $recPath)) { $failures.Add("run K1: the input log has no `"rotationIndex`" header line (the weekly affix rotation is not recorded)") }
+        $recText = Remove-RotationIndexLine (([IO.File]::ReadAllText($recPath)) -replace '(?m)^  "startHeading": [^,\r\n]+,\n', '')
         if (-not (Test-Path -LiteralPath $examplePath)) {
             $failures.Add("run K1: no committed example at $examplePath")
         } elseif ($recText -cne [IO.File]::ReadAllText($examplePath)) {
@@ -1039,7 +1072,10 @@ if (-not $recDoneL) {
         if (@($lEvents | Where-Object { $_.key -eq 'W' -and $_.pressed }).Count -ne 1) { $failures.Add('run L1: the input log does not hold the replayed W press') }
         if (-not (Test-Path -LiteralPath $yawExamplePath)) {
             $failures.Add("run L1: no committed example at $yawExamplePath")
-        } elseif ([Convert]::ToBase64String([IO.File]::ReadAllBytes($lRecPath)) -ne [Convert]::ToBase64String([IO.File]::ReadAllBytes($yawExamplePath))) {
+        } elseif ((Get-RotationIndexText $lRecPath) -ne '0') {
+            # L1 replays <walk>, which has no rotationIndex, so the run is built at 0 and records 0, never this week's.
+            $failures.Add("run L1: the input log's rotationIndex is '$(Get-RotationIndexText $lRecPath)' (want 0: the replayed log's, not today's week)")
+        } elseif ((Remove-RotationIndexLine ([IO.File]::ReadAllText($lRecPath))) -cne [IO.File]::ReadAllText($yawExamplePath)) {
             $failures.Add("run L1: the recorded log differs from the committed example $yawExamplePath (regenerate it from run L1 with a stated reason)")
         }
     }
