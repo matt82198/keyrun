@@ -387,13 +387,36 @@ public sealed class NavGrid
             var center = CenterOf(sc) with { Y = start.Y };
             var cx = center.X - start.X;
             var cz = center.Z - start.Z;
-            var pastCentre = center;
-            if ((cx * cx) + (cz * cz) <= WaypointReachMm * WaypointReachMm && ahead[0] != center)
+            // f-fa9da3ca (the Bellfoundry cinder froze after boss 1): the reach test above is a distance test, but a walker
+            // moves a full step (180 mm at walk speed) per tick and overshoots the point it aims at. Once it stood 254 mm past
+            // the centre on the corner side it was outside the reach, walked back to the centre, then stepped to the point
+            // 250 mm past it, overshot to 254 mm again, and paced between the two for good (hall-5-6-1, tick 8000 onward).
+            // A walker on the corner side of the centre (non-negative projection on the centre-to-corner line) now aims at
+            // a point on that line one reach past its projection, capped at the corner: every tick moves it forward, and
+            // the line is the one the planning clearance cleared.
+            var toCorner = new Vec3(ahead[0].X - center.X, 0, ahead[0].Z - center.Z);
+            var cornerMm = Fixed.Isqrt((toCorner.X * toCorner.X) + (toCorner.Z * toCorner.Z));
+            var offset = new Vec3(start.X - center.X, 0, start.Z - center.Z);
+            var along = (offset.X * toCorner.X) + (offset.Z * toCorner.Z);
+            if (cornerMm > 0 && along >= 0)
             {
-                var along = Fixed.NormaliseTo(new Vec3(ahead[0].X - center.X, 0, ahead[0].Z - center.Z), WaypointReachMm);
-                pastCentre = new Vec3(center.X + along.X, start.Y, center.Z + along.Z);
+                var reach = Math.Min(cornerMm, (along / cornerMm) + WaypointReachMm);
+                if (reach < cornerMm)
+                {
+                    var onLine = Fixed.NormaliseTo(toCorner, reach);
+                    path.Add(new Vec3(center.X + onLine.X, start.Y, center.Z + onLine.Z));
+                }
             }
-            path.Add(pastCentre);
+            else
+            {
+                var pastCentre = center;
+                if ((cx * cx) + (cz * cz) <= WaypointReachMm * WaypointReachMm && ahead[0] != center)
+                {
+                    var onLine = Fixed.NormaliseTo(toCorner, WaypointReachMm);
+                    pastCentre = new Vec3(center.X + onLine.X, start.Y, center.Z + onLine.Z);
+                }
+                path.Add(pastCentre);
+            }
             from = 0;
         }
         for (var k = from; k < ahead.Count; k++)
