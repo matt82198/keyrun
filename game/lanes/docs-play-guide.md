@@ -1,0 +1,2 @@
+- DOCS-PLAY-GUIDE: `game/PLAY.md` tells a person how to play the Hollow Vault tutorial at key 2 as Warden, Chanter or Cinder (launch via `tools/play.ps1`, class picked on the Character tab, keybinds, the three teaching pulls and the boss, the end-of-run choice of three); one pointer line added to `game/CLAUDE.md`. Docs only, no code change; the dungeon flag for #595 is not in code and is marked as not yet landed.
+BUILDLOG: DOCS-PLAY-GUIDE: a human-facing play guide now exists at game/PLAY.md, every command and flag cited to the file that defines it, with no invented flags.
