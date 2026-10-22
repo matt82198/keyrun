@@ -14,7 +14,7 @@ public sealed class ContentCountTests
     {
         ContentRegistry reg = ContentLoader.Load();
 
-        Assert.Equal(45, reg.Abilities.Count); // 45 since VAULT-KITS (S1) added the five BIBLE 9.3 vault casts in abilities/vault.json (was 40; 40 since SEED-LOCK-TEACHES added seed.lock, was 39)
+        Assert.Equal(46, reg.Abilities.Count); // 46 since R-PATROL-3b added choir.patrolSwing to abilities/patrol.json (was 45 with VAULT-KITS (S1) and its five BIBLE 9.3 vault casts in abilities/vault.json, was 40; 40 since SEED-LOCK-TEACHES added seed.lock, was 39)
         Assert.Equal(28, reg.Effects.Count); // 28 since VAULT-KITS (S1) added searingHex, cinders, stoked, rooted and drenched in effects/vault.json (was 23; 23 since R-PILE-7e added chorusEcho, Encore's echo, was 22)
         Assert.Equal(3, reg.Classes.Count);
         Assert.Equal(13, reg.Combos.Count);
@@ -37,14 +37,15 @@ public sealed class ContentCountTests
         // packs.json (R7: one pack layer, the packs live in layout.json), so 28 -> 27. melee-abilities.json (KF1 strike-cue
         // melee set, ruling R9/R10) is C#-only too, so 27 -> 28. palette.json (the render palette for telegraph and floor
         // colours, feat-telegraph-palette) is C#-only too, so 28 -> 29. VAULT-KITS (FORCES-ROUTE-PLAN slice S1, BIBLE 9.3)
-        // adds the C#-only abilities/vault.json, effects/vault.json and enemies/vault.json, so 29 -> 32.
+        // adds the C#-only abilities/vault.json, effects/vault.json and enemies/vault.json, so 29 -> 32. R-PATROL-3b adds
+        // abilities/patrol.json, so 32 -> 33. Merged history: 33 embedded files, 19 TS-loaded.
         string[] csharpOnly =
         {
             "run.json", "layout.json", "theme.json", "combo-riders.json", "forces.json", "hazards.json",
             "gear.json", "enemies/hall.json", "melee-abilities.json", "palette.json",
-            "abilities/vault.json", "effects/vault.json", "enemies/vault.json",
+            "abilities/vault.json", "effects/vault.json", "enemies/vault.json", "abilities/patrol.json",
         };
-        Assert.Equal(32, embedded.Length);
+        Assert.Equal(33, embedded.Length);
         Assert.Equal(19, embedded.Count(p => !csharpOnly.Contains(p)));
         Assert.Equal(embedded, loaded);
     }

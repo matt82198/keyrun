@@ -8,47 +8,6 @@ using PixelRect = Keyrun.Content.PixelRect;
 
 namespace Keyrun.Hud;
 
-/// <summary>One enemy unit frame (Godot-free): which frame, and the enemy it shows.</summary>
-/// <param name="Kind">"target" (the human's current target) or "boss" (the engaged boss).</param>
-/// <param name="ActorId">The enemy's actor id.</param>
-public sealed record UnitFrame(string Kind, int ActorId);
-
-/// <summary>
-/// Which enemy unit frames show (HUD-DECLUTTER, Matt 2026-10-19: "enemy health does not need to be overhead, they can
-/// have unitframes but not just a random number"): a boss frame while a live boss (class id ending ".boss") is in the
-/// run, then a target frame for the human's current target when it is a live enemy other than that boss (the boss
-/// frame already shows it). Display only.
-/// </summary>
-public static class UnitFrameModel
-{
-    /// <summary>The frames to draw, top to bottom.</summary>
-    /// <param name="state">The sim state.</param>
-    /// <param name="humanActorId">The played character's actor id.</param>
-    /// <returns>The frames.</returns>
-    public static IReadOnlyList<UnitFrame> Build(SimState state, int humanActorId)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-        var frames = new List<UnitFrame>();
-        int? bossId = null;
-        foreach (var (id, actor) in state.Actors)
-        {
-            // PRESPAWN-AGGRO: the boss stands idle in its arena from tick 0; its frame appears when it engages, as in WoW.
-            if (actor.Alive && !actor.Idle && actor.Kind != ActorKind.Player && actor.ClassId.EndsWith(".boss", StringComparison.Ordinal))
-            {
-                bossId = id;
-                frames.Add(new UnitFrame("boss", id));
-                break;
-            }
-        }
-        if (state.Actors.TryGetValue(humanActorId, out var me) && me.TargetId is { } targetId && targetId != bossId &&
-            state.Actors.TryGetValue(targetId, out var target) && target.Alive && target.Kind != ActorKind.Player)
-        {
-            frames.Add(new UnitFrame("target", targetId));
-        }
-        return frames;
-    }
-}
-
 /// <summary>One row of a unit frame, in pixels from the frame's top edge.</summary>
 /// <param name="Top">The row's top edge.</param>
 /// <param name="Bottom">The row's bottom edge.</param>
@@ -137,7 +96,6 @@ public partial class UnitFrames : Control
     private static readonly Color LockedFrame = new(0.55f, 0.55f, 0.6f, 1f);
 
     private readonly HashSet<string> _shown = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, int> _castLogged = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _rowsLogged = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _lockLogged = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _lockRowLogged = new(StringComparer.Ordinal);
@@ -337,7 +295,6 @@ public partial class UnitFrames : Control
     private void OnRunStarted()
     {
         _shown.Clear();
-        _castLogged.Clear();
         _rowsLogged.Clear();
         _lockLogged.Clear();
         _lockRowLogged.Clear();
@@ -407,14 +364,8 @@ public partial class UnitFrames : Control
                     HudNodes.Proof(_driver, lockRowLine + FormattableString.Invariant($" tick={tick}"));
                 }
             }
-            if (actor.CastId is { } castId && actor.CastStartTick is { } start && actor.CastEndsTick is not null &&
-                (!_castLogged.TryGetValue(key, out var last) || last != start))
-            {
-                _castLogged[key] = start;
-                var interruptible = run.Content.Abilities.TryGetValue(castId, out var def) && def.Interruptible;
-                HudNodes.Proof(_driver, FormattableString.Invariant(
-                    $"HUD unitframe cast kind={f.Kind} actor={f.ActorId} ability={castId} interruptible={(interruptible ? 1 : 0)}"));
-            }
+            // The "HUD unitframe cast" line is no longer emitted here: CastBarView logs it with the castbar line from one
+            // placement decision (CastProofLog, R-DECLUTTER-1), so the two proof lines describe the same moment.
         }
     }
 }

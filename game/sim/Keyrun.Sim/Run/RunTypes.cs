@@ -134,6 +134,14 @@ public sealed record RunContent
     public IReadOnlyList<PackGroup>? Packs { get; init; }
 
     /// <summary>
+    /// MPLUS-PATROLS (BIBLE section 9.1; layout runs only): the layout's patrol packs. Each member stands idle on its
+    /// patrol's point from tick 0 (<see cref="Patrols.SpawnIdle"/>), walks the loop every tick (<see cref="Patrols.Walk"/>)
+    /// and engages whole by proximity or damage as one <see cref="Aggro.GroupsOf"/> group with pull index -1. Their
+    /// members' scripts ride in <see cref="EnemyScripts"/>. Null or empty = no patrols (every oracle run).
+    /// </summary>
+    public IReadOnlyList<PatrolPack>? Patrols { get; init; }
+
+    /// <summary>
     /// This content with its movement fields taken from the host's validated <paramref name="movement"/>
     /// (the run-root side of <see cref="RulesConfig.WithMovement"/>: the host never hard-codes speed, radius or bounds).
     /// </summary>

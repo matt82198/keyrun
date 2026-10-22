@@ -113,7 +113,7 @@ public static class Pulls
     }
 
     // pulls.ts:38 spawnActor: an untargeted enemy at full health, role none, no resource, tuning copied only when set.
-    private static ActorState SpawnActor(PullSpawn spawn) => new()
+    internal static ActorState SpawnActor(PullSpawn spawn) => new()
     {
         Id = spawn.ActorId,
         Kind = ActorKind.Enemy,

@@ -113,7 +113,9 @@ public sealed class ScriptedWarden
         {
             return;
         }
-        if (me.Health * 2 < me.MaxHealth && Ready(me, abilities[Defensive], tick))
+        // R-PATROL-3: Brace is held for the moment two living enemies are actually hitting the Warden (two trash mobs, the
+        // WoW tank's defensive window), not spent on a lone mob during the Choir and left on cooldown for the patrol.
+        if (me.Health * 2 < me.MaxHealth && Ready(me, abilities[Defensive], tick) && AttackersOn(state, me) >= 2)
         {
             into.Add(new CastCommand(tick, me.Id, Defensive, me.Id));
             return;
@@ -173,6 +175,10 @@ public sealed class ScriptedWarden
     /// prespawned enemy is never picked (PRESPAWN-AGGRO; <see cref="EngagedTargets.Nearest"/>).
     /// </summary>
     private static ActorState? NearestEnemy(SimState state, ActorState me) => EngagedTargets.Nearest(state, me);
+
+    /// <summary>R-PATROL-3: the living engaged enemies whose target is <paramref name="me"/> (an idle prespawned enemy never counts).</summary>
+    private static int AttackersOn(SimState state, ActorState me) =>
+        state.Actors.Values.Count(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle && a.TargetId == me.Id);
 
     /// <summary>
     /// R-WARDEN-KICK-1: the engaged lieutenant mid-way through an interruptible cast, inside Shield Bash range at

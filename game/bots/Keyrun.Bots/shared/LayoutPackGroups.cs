@@ -18,6 +18,12 @@ public static class LayoutPackGroups
     /// <summary>The host's first pack actor id: above the teaching pulls (from 100) and below the boss (900).</summary>
     public const int FirstActorId = 500;
 
+    /// <summary>R-PATROL-3b: the Choir melee swing a patrol member's script names in the Choir pull's data.</summary>
+    public const string PatrolSwingFrom = "choir.meleeSwing";
+
+    /// <summary>R-PATROL-3b: the patrol's own swing (game/content/data/abilities/patrol.json).</summary>
+    public const string PatrolSwingAbilityId = "choir.patrolSwing";
+
     /// <summary>
     /// The packs of <paramref name="layout"/> as sim groups. A member is a copy of the first spawn of the same enemy in
     /// <paramref name="dungeon"/> (pull order), so it carries that spawn's Tempo- and affix-scaled health, speed and chase
@@ -111,6 +117,88 @@ public static class LayoutPackGroups
             packs.Add(new PackGroup(pack.Id, spawns, new Vec3(pack.Center.X, 0, pack.Center.Z), pack.AggroMm));
         }
         return (packs, merged);
+    }
+
+    /// <summary>
+    /// MPLUS-PATROLS: the content layout's patrol packs (layout.json <c>patrols</c>, <see cref="C.LayoutPatrol"/>) as sim
+    /// <see cref="PatrolPack"/>s, with their members' scripts. A member is copied from the same template as a pack member
+    /// (<see cref="Build"/>), so it carries the same Tempo- and affix-scaled stats and runs the same script; its offset is
+    /// its group's spawn, and the sim sets its place on the loop each tick. Actor ids run from the packs' last id plus one
+    /// (or <see cref="FirstActorId"/>), in patrol, group, count order. Fails closed as <see cref="Build"/> does.
+    /// </summary>
+    /// <param name="layout">A validated content layout.</param>
+    /// <param name="dungeon">The placed sim dungeon (<see cref="NavLayouts.PlaceDungeon"/>).</param>
+    /// <param name="packs">The packs built by <see cref="Build"/>: their ids come first.</param>
+    /// <param name="scripts">The scripts <see cref="Build"/> returned (pulls, boss and pack members).</param>
+    /// <param name="packOnly">The pack-only templates, as for <see cref="Build"/>, or null.</param>
+    /// <returns>The patrols, and the scripts with every patrol member's added.</returns>
+    /// <exception cref="InvalidOperationException">A member has no template, or an id is taken.</exception>
+    public static (IReadOnlyList<PatrolPack> Patrols, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> Scripts) BuildPatrols(
+        C.LayoutDef layout, DungeonDef dungeon, IReadOnlyList<PackGroup> packs, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts,
+        IReadOnlyDictionary<string, PackTemplate>? packOnly = null)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(dungeon);
+        ArgumentNullException.ThrowIfNull(packs);
+        ArgumentNullException.ThrowIfNull(scripts);
+        var templates = new Dictionary<string, PullSpawn>(StringComparer.Ordinal);
+        foreach (var spawn in dungeon.Pulls.SelectMany(p => p.Spawns))
+        {
+            templates.TryAdd(spawn.ClassId, spawn);
+        }
+        var packIds = packs.SelectMany(p => p.Spawns).Select(s => s.ActorId).ToList();
+        var taken = dungeon.Pulls.SelectMany(p => p.Spawns).Select(s => s.ActorId).Concat(packIds).Concat(scripts.Keys).ToHashSet();
+        var nextId = Math.Max(FirstActorId - 1, packIds.DefaultIfEmpty(0).Max()) + 1;
+        var merged = new SortedDictionary<int, IReadOnlyList<ScriptStep>>(scripts.ToDictionary(kv => kv.Key, kv => kv.Value));
+        var patrols = new List<PatrolPack>();
+        foreach (var patrol in layout.Patrols)
+        {
+            var spawns = new List<PullSpawn>();
+            foreach (var group in patrol.Enemies)
+            {
+                PullSpawn template;
+                IReadOnlyList<ScriptStep> script;
+                if (templates.TryGetValue(group.EnemyId, out var pullTemplate))
+                {
+                    template = pullTemplate;
+                    if (!scripts.TryGetValue(template.ActorId, out var found))
+                    {
+                        throw new InvalidOperationException($"patrol \"{patrol.Id}\": enemy \"{group.EnemyId}\" (template actor {template.ActorId}) has no script");
+                    }
+                    script = found;
+                }
+                else if (packOnly is not null && packOnly.TryGetValue(group.EnemyId, out var direct))
+                {
+                    if (!string.Equals(direct.Spawn.ClassId, group.EnemyId, StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException($"patrol \"{patrol.Id}\": template for \"{group.EnemyId}\" spawns \"{direct.Spawn.ClassId}\"");
+                    }
+                    template = direct.Spawn;
+                    script = direct.Script;
+                }
+                else
+                {
+                    throw new InvalidOperationException($"patrol \"{patrol.Id}\": no pull fields enemy \"{group.EnemyId}\" and no pack template gives it, so it has no scaled spawn to copy");
+                }
+                for (var i = 0; i < group.Count; i++)
+                {
+                    var actorId = nextId++;
+                    if (!taken.Add(actorId))
+                    {
+                        throw new InvalidOperationException($"patrol \"{patrol.Id}\": actor id {actorId} is already used by the run");
+                    }
+                    // R-PATROL-3: the patrol's healthBp scales each member's scaled template health (10000 = the template's own).
+                    var health = template.Health * (patrol.HealthBp ?? 10000) / 10000;
+                    spawns.Add(template with { ActorId = actorId, Pos = new Vec3(group.Spawn.X, 0, group.Spawn.Z), Yaw = 0, Health = health });
+                    // R-PATROL-3b: a patrol member swings with the patrol's own ability (choir.patrolSwing, the same cadence
+                    // and its own raw damage); the Choir pull's choir.meleeSwing is untouched.
+                    merged[actorId] = script.Select(s => string.Equals(s.Cast, PatrolSwingFrom, StringComparison.Ordinal) ? s with { Cast = PatrolSwingAbilityId } : s).ToList();
+                }
+            }
+            var waypoints = patrol.Waypoints.Select(w => new Vec3(w.X, 0, w.Z)).ToList();
+            patrols.Add(new PatrolPack(patrol.Id, spawns, waypoints, patrol.SpeedMmPerTick) { AggroMm = patrol.AggroMm ?? Pulls.DefaultAggroMm });
+        }
+        return (patrols, merged);
     }
 
     /// <summary>

@@ -27,6 +27,7 @@ public static class ContentLoader
     public static IReadOnlyList<string> Files { get; } = new[]
     {
         Abilities + "warden.json", Abilities + "cinder.json", Abilities + "chanter.json", Abilities + "enemies.json",
+        Abilities + PatrolAbilitiesFile,
         Effects + "player.json", Effects + "enemy.json",
         Classes + "warden.json", Classes + "cinder.json", Classes + "chanter.json",
         "combos.json",
@@ -73,6 +74,13 @@ public static class ContentLoader
     /// The root abilities JSON is a frozen oracle and is not edited to tag melee, so the list lives here.
     /// </summary>
     public const string MeleeAbilitiesFile = "melee-abilities.json";
+
+    /// <summary>
+    /// R-PATROL-3b (C#-only, game/content/data/abilities/patrol.json): the corridor patrol's own swing, choir.patrolSwing,
+    /// a WoW-trash swing at the choir.meleeSwing cadence with the patrol's own raw damage. choir.meleeSwing (frozen in
+    /// content/data) stays as it is for the Choir pull.
+    /// </summary>
+    public const string PatrolAbilitiesFile = "patrol.json";
 
     /// <summary>
     /// C#-only trash enemies (game/content/data/enemies/hall.json, same logical root; PATH-PACKS): enemies only a layout
@@ -160,6 +168,7 @@ public static class ContentLoader
                 ReadArray<AbilityDef>(source, Abilities + "cinder.json"),
                 ReadArray<AbilityDef>(source, Abilities + "chanter.json"),
                 ReadArray<AbilityDef>(source, Abilities + "enemies.json"),
+                ReadArray<AbilityDef>(source, Abilities + PatrolAbilitiesFile),
                 ReadArray<AbilityDef>(source, VaultAbilitiesFile)),
             Effects = ById("effect",
                 ReadArray<EffectDef>(source, Effects + "player.json"),
