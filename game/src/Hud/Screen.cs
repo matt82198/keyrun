@@ -880,7 +880,10 @@ public partial class Screen : Control
         // LOBBY-TABS: the lobby comes back on its Play tab at that key, class and build kept (Lobby.ReturnFrom); before the
         // first open (an --autorun run) there is no lobby yet and the key waits for it.
         var move = KeyMove.ForRun(_driver.Run)!;
-        var to = ScreenState.Open(SimDriver.DungeonId, ClauseIds(), move.To).KeyLevel;
+        // R1: the band reads the Clause from the same rotation index and content clauseStartKey the run is built with,
+        // as the Play tab does (Screen.cs Lobby.Open), so the reopened key never shows a Clause the run does not carry.
+        var clauseStartKey = _driver.Registry is { } reg ? reg.Run.Affixes.ClauseStartKey : ScreenState.NoClauseStartKey;
+        var to = ScreenState.Open(SimDriver.DungeonId, ClauseIds(), move.To, _driver.RotationIndex, clauseStartKey).KeyLevel;
         if (_lobby is { } lobby)
         {
             _lobby = lobby.ReturnFrom(_driver.Run);

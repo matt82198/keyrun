@@ -18,14 +18,14 @@ public sealed class ScreenBandTests
     [Fact]
     public void An_open_band_reads_ready_for_its_key()
     {
-        var s = ScreenState.Open(Dungeon, Four, 5);
+        var s = ScreenState.Open(Dungeon, Four, 5, 0, ScreenState.NoClauseStartKey);
         Assert.Equal("Ready: key 5 can be queued now.", s.ReadinessLine);
     }
 
     [Fact]
     public void A_queued_band_reads_that_it_waits_for_the_run_to_start()
     {
-        var (queued, _) = ScreenState.Open(Dungeon, Four, 5).Queue();
+        var (queued, _) = ScreenState.Open(Dungeon, Four, 5, 0, ScreenState.NoClauseStartKey).Queue();
         Assert.Equal("Queued at key 5: waiting for the run to start.", queued.ReadinessLine);
     }
 
