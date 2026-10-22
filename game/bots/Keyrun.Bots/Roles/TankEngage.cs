@@ -59,7 +59,10 @@ public static class TankEngage
 
     private static bool AimedAtOtherPlayer(SortedDictionary<int, ActorState> actors, ActorState enemy, int tankId)
     {
-        if (enemy.TargetId is not { } tid || tid == tankId)
+        // CHASE-HOLDER (f-2f6982e9): a locked enemy goes at its holder (HOLDER-LOCK, ScriptTarget), so the holder is who it is
+        // aimed at. TargetId is only the sim's default (FixupTargeting parks every untargeted enemy on the tank), so a pack
+        // the human body-pulled ahead of the Warden still read TargetId == tank, was never loose, and was never taunted.
+        if ((enemy.HolderId ?? enemy.TargetId) is not { } tid || tid == tankId)
         {
             return false;
         }
