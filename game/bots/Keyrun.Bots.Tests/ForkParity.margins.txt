@@ -1,12 +1,10 @@
 # ForkParity.margins.txt: written by ForkParityTests with KEYRUN_FORKPARITY_REBASELINE=1. Never hand-edit; re-baseline instead.
 # Finding f-e3daed76 (R-PILE-7). One line per sibling pair "ability a b". Per run: a's and b's clear/deaths/combos,
 # then a's margin over b (+ = a better: clear b-a ticks, deaths b-a, combos a-b). Last field: the verdict.
-# Tolerance (NoiseTolerance.Measured): clear 715 bp of the slower clear, deaths 0, combos 3. Only a margin that exceeds it counts; only "DOMINATES ... beyond noise" gates.
-# Noise sweep (re-measured at this re-baseline):
-#   k2 base kit, dial 90, seeds 1..12: clear 2470..2906 (median 2520, sd 115.8), deaths 0..1, combos 89..101
-#   k2 paired margin sd, median over 31 sibling pairs: clear 168.4 ticks (668 bp of the median base clear), deaths 0.58, combos 6.05
-#   k10 base kit, dial 90, seeds 1..12: clear 3008..3304 (median 3198, sd 98.7), deaths 0..1, combos 108..123
-#   k10 paired margin sd, median over 31 sibling pairs: clear 188.7 ticks (590 bp of the median base clear), deaths 1.38, combos 10.19
+# Tolerance (NoiseTolerance.Measured): clear 2043 bp of the slower clear, deaths 3, combos 21. Only a margin that exceeds it counts; only "DOMINATES ... beyond noise" gates.
+# Noise (the seed-noise study, fork-parity-noise.json; the tolerance is 2 x the larger key):
+#   k2 median paired-margin sd over 31 sibling pairs (fork-parity-noise.json): clear 257.7 ticks (1022 bp of median base clear 2523), deaths 1.05, combos 7.92
+#   k10 median paired-margin sd over 31 sibling pairs (fork-parity-noise.json): clear 283.5 ticks (891 bp of median base clear 3182), deaths 1.52, combos 10.99
 warden.strike rend riposte | hv-k2-s7 2832/1/90 2942/1/77 +110/+0/+13 | hv-k2-s11-d90 2496/0/95 2448/0/97 -48/+0/-2 | hv-k10-s7 3166/0/118 3037/0/114 -129/+0/+4 | tradeoff
 warden.strike rend warcry | hv-k2-s7 2832/1/90 2594/0/91 -238/-1/-1 | hv-k2-s11-d90 2496/0/95 2476/0/90 -20/+0/+5 | hv-k10-s7 3166/0/118 3785/1/106 +619/+1/+12 | tradeoff
 warden.strike riposte warcry | hv-k2-s7 2942/1/77 2594/0/91 -348/-1/-14 | hv-k2-s11-d90 2448/0/97 2476/0/90 +28/+0/+7 | hv-k10-s7 3037/0/114 3785/1/106 +748/+1/+8 | tradeoff
