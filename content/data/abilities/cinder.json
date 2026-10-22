@@ -124,11 +124,13 @@
     },
     "range": 25000,
     "shape": {
-      "kind": "target"
+      "kind": "circle",
+      "radius": 1500
     },
     "interruptible": false,
     "tags": [
-      "payoff"
+      "payoff",
+      "aoe"
     ],
     "effects": [
       {

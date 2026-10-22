@@ -46,9 +46,8 @@
     "charges": 1,
     "range": 3000,
     "shape": {
-      "kind": "cone",
-      "radius": 3000,
-      "angle1024": 140
+      "kind": "circle",
+      "radius": 2500
     },
     "interruptible": false,
     "tags": [
@@ -62,7 +61,7 @@
       },
       {
         "op": "resource",
-        "delta": 15
+        "delta": 22
       },
       {
         "op": "threat",
@@ -119,7 +118,7 @@
     "name": "Reckoning",
     "castTicks": 0,
     "gcdTicks": 30,
-    "cooldownTicks": 0,
+    "cooldownTicks": 45,
     "charges": 1,
     "cost": {
       "resource": "momentum",

@@ -3094,9 +3094,8 @@
         "name": "Guard Break",
         "range": 3000,
         "shape": {
-          "angle1024": 140,
-          "kind": "cone",
-          "radius": 3000
+          "kind": "circle",
+          "radius": 2500
         },
         "tags": [
           "payoff",
@@ -3144,9 +3143,8 @@
         "name": "Guard Break",
         "range": 3000,
         "shape": {
-          "angle1024": 140,
-          "kind": "cone",
-          "radius": 3000
+          "kind": "circle",
+          "radius": 2500
         },
         "tags": [
           "payoff"
@@ -3252,7 +3250,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 0,
+        "cooldownTicks": 45,
         "cost": {
           "amount": 60,
           "resource": "momentum"
@@ -3293,7 +3291,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 0,
+        "cooldownTicks": 45,
         "cost": {
           "amount": 100,
           "resource": "momentum"
@@ -3785,7 +3783,8 @@
           "radius": 2000
         },
         "tags": [
-          "payoff"
+          "payoff",
+          "aoe"
         ]
       },
       "abilityId": "cinder.detonate",
@@ -3818,10 +3817,12 @@
         "name": "Detonate",
         "range": 25000,
         "shape": {
-          "kind": "target"
+          "kind": "circle",
+          "radius": 1500
         },
         "tags": [
-          "payoff"
+          "payoff",
+          "aoe"
         ]
       },
       "abilityId": "cinder.detonate",
@@ -3854,10 +3855,12 @@
         "name": "Detonate",
         "range": 25000,
         "shape": {
-          "kind": "target"
+          "kind": "circle",
+          "radius": 1500
         },
         "tags": [
-          "payoff"
+          "payoff",
+          "aoe"
         ]
       },
       "abilityId": "cinder.detonate",
@@ -4473,7 +4476,8 @@
         "name": "Dissonance",
         "range": 25000,
         "shape": {
-          "kind": "target"
+          "kind": "circle",
+          "radius": 2500
         },
         "tags": [
           "payoff",
@@ -4544,10 +4548,12 @@
         "name": "Dissonance",
         "range": 25000,
         "shape": {
-          "kind": "target"
+          "kind": "circle",
+          "radius": 2500
         },
         "tags": [
-          "payoff"
+          "payoff",
+          "aoe"
         ],
         "variants": {
           "mend": [
