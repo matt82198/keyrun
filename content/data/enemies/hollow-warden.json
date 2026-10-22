@@ -2,7 +2,7 @@
   {
     "id": "hollowWarden.boss",
     "name": "The Hollow Warden",
-    "maxHealth": 5000,
+    "maxHealth": 27000,
     "role": "boss",
     "abilities": ["hollowWarden.slam", "hollowWarden.cleave", "hollowWarden.lock"],
     "script": [
@@ -14,14 +14,14 @@
         "telegraph": { "shape": "circle", "radius": 4000, "leadTicks": 20, "spansCast": true } }
     ],
     "breakBars": [
-      { "id": "twinsBreak", "max": 100, "drainPerInterrupt": 34, "drainPerControl": 20,
+      { "id": "twinsBreak", "max": 100, "drainPerInterrupt": 50, "drainPerControl": 20,
         "onEmpty": [{ "op": "applyEffect", "effectId": "stunned", "durationTicks": 100, "stacks": 1 }] }
     ]
   },
   {
     "id": "hollowWarden.twinA",
     "name": "Sundered Twin (A)",
-    "maxHealth": 1000,
+    "maxHealth": 3000,
     "role": "elite",
     "abilities": ["twins.slam"],
     "breakBarId": "twinsBreak",
@@ -33,7 +33,7 @@
   {
     "id": "hollowWarden.twinB",
     "name": "Sundered Twin (B)",
-    "maxHealth": 1000,
+    "maxHealth": 3000,
     "role": "elite",
     "abilities": ["twins.slam"],
     "breakBarId": "twinsBreak",

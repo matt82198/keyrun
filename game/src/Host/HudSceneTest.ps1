@@ -341,7 +341,7 @@ param(
     [int]$WipeFrames = 41200,
     [int]$PingAt = 100,
     [int]$PingFrames = 900,
-    [int]$RecordFrames = 6600,
+    [int]$RecordFrames = 21000,  # BOSS-CC-IMMUNE: run K's boss fight now ends at tick 5170 (R-BOSS-1 4603, was 691); was 18000, 6600
     [int]$YawAt = 60,
     [string]$YawTo = '1.5',
     [int]$YawFrames = 900,

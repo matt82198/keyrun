@@ -1176,7 +1176,7 @@
       "fnv": "1e026657"
     },
     "classes/chanter": {
-      "fnv": "d7137260"
+      "fnv": "f6bbc407"
     },
     "classes/cinder": {
       "fnv": "8f52fe16"
@@ -1314,13 +1314,13 @@
       "fnv": "164ad8a8"
     },
     "enemies/hollowWarden.boss": {
-      "fnv": "12d42701"
+      "fnv": "eda35ebb"
     },
     "enemies/hollowWarden.twinA": {
-      "fnv": "87977504"
+      "fnv": "feb87f22"
     },
     "enemies/hollowWarden.twinB": {
-      "fnv": "017cea96"
+      "fnv": "f4fb1d38"
     },
     "enemies/pair.melee": {
       "fnv": "e07c5637"

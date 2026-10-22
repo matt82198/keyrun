@@ -4,6 +4,7 @@ using System.Linq;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
+using Keyrun.Sim.Nav;
 
 namespace Keyrun.Sim.Runs;
 
@@ -75,6 +76,8 @@ public static class RunRoot
             state = RunWiring.MergeActors(state, Pulls.SpawnAllIdle(dungeon, content.ActorRadiusMm));
             // PATH-PACKS: every layout pack, required and optional, stands idle on the path from tick 0 too.
             state = RunWiring.MergeActors(state, LayoutPacks.SpawnAllIdle(content.Packs, content.ActorRadiusMm));
+            // MPLUS-PATROLS: every patrol's members stand idle on its loop from tick 0 too.
+            state = RunWiring.MergeActors(state, Patrols.SpawnIdle(content.Patrols));
             // KF3 Seed spawn gate (BIBLE section 9.6): the Seed waits dormant in its chamber until a party member enters it.
             Aggro.MarkDormant(state, dungeon, layout);
         }
@@ -120,7 +123,7 @@ public static class RunRoot
             return run;
         }
         var state = run.State.Clone();
-        var groups = Aggro.GroupsOf(run.Dungeon, state.Tick, run.Content.Packs);
+        var groups = Aggro.GroupsOf(run.Dungeon, state.Tick, run.Content.Packs, run.Content.Layout, run.Content.Patrols);
         // R-DOOR-2: the Hollow Door gates only the forward route (the Triggered path below), never a fight start: a run that
         // begins in the boss pull engages it through a shut door, as main's wipe-is-release rule (#446) has it.
         var encounter = Aggro.Engage(state, run.Encounter, groups, new[] { run.Dungeon.Pulls[index].Id }, state.Tick, static _ => { });
@@ -201,7 +204,9 @@ public static class RunRoot
             rulesConfig = rulesConfig with { Abilities = BossRules.CombatAbilities(armedBoss.Config, rulesConfig.Abilities) };
         }
         var rules = Rules.Make(rulesConfig);
-        var merged = commands.Concat(enc.Commands).ToList();
+        // R-PATH-1: on a layout run an enemy chase walks its grid path to its target, not a straight line into a wall.
+        var enemyCommands = layout is null ? enc.Commands : NavFollow.RouteChase(run.State, enc.Commands, NavGrid.Of(layout));
+        var merged = commands.Concat(enemyCommands).ToList();
         // BIBLE.md:156 Tide: floor patches drift with the telegraphs, before combat reads them this tick.
         var stepped = Tick.Step(Clauses.DriftFloorWindows(run.State, run.Encounter.Rules), merged, rules);
         events.AddRange(stepped.Events);
@@ -210,8 +215,9 @@ public static class RunRoot
 
         // STUN-IMMUNE-REFUSES (f-94749699): a stun-immune actor (the boss) takes no stun at all; every stun that landed
         // on one this tick is refused with an "immune" event, before the stops and anything else read the state.
+        // BOSS-CC-IMMUNE: the same refusal covers every CC the boss is immune to (RunContent.ImmuneRefusedEffectIds).
         nextState = ControlStops.RefuseImmuneStuns(
-            nextState, new ControlStops.StunRules(content.StunEffectIds, content.StunImmuneClassIds, null), run.State.Tick, emit);
+            nextState, new ControlStops.StunRules(content.ImmuneRefusedEffectIds ?? content.StunEffectIds, content.StunImmuneClassIds, null), run.State.Tick, emit);
 
         // STUN-STOPS-CAST (BIBLE s9.3): a stun, freeze or silence that landed this tick (in combat, or the Break bar's
         // stagger just above) ends an interruptible cast, before the telegraph check below reads the casts. f-c63b43bf: a
@@ -248,7 +254,7 @@ public static class RunRoot
             if (newly.Count > 0)
             {
                 // A pull or a pack (PATH-PACKS) runs its scripts on its own clock from its engage tick.
-                var groups = Aggro.GroupsOf(run.Dungeon, nextState.Tick, content.Packs).Where(g => newly.Contains(g.Id)).Select(g => g.ActorIds).ToList();
+                var groups = Aggro.GroupsOf(run.Dungeon, nextState.Tick, content.Packs, content.Layout, content.Patrols).Where(g => newly.Contains(g.Id)).Select(g => g.ActorIds).ToList();
                 activeScripts = OnEngageClock(activeScripts ?? content.EnemyScripts, groups, nextState.Tick, content.Abilities);
             }
         }
@@ -355,7 +361,7 @@ public static class RunRoot
                 continue;
             }
             var pre = run.State.Actors.TryGetValue(actor.Id, out var was) ? was.Pos : actor.Pos;
-            actor.Pos = Movement.ClampToWalkable(pre, actor.Pos, open);
+            actor.Pos = NavFollow.SlideOffObstacles(pre, Movement.ClampToWalkable(pre, actor.Pos, open), layout.Obstacles);
         }
 
         foreach (var actor in next.Actors.Values)
@@ -373,9 +379,11 @@ public static class RunRoot
             }
         }
 
+        // MPLUS-PATROLS: idle patrol members walk their loop to this tick before the aggro check reads their rings.
+        Patrols.Walk(next, run.Content.Patrols, encounter);
         // R-DOOR-3 / STATE.md D44 ("no gates, just path to boss with packs"): nothing gates the boss pull. The Hollow Door
         // (BossDoor.Admit) is not applied on the forward route; the Forces bar is a run-completion condition (plan #536 S8).
-        var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs, layout);
+        var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs, layout, run.Content.Patrols);
         var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);
         return (next, encounter);

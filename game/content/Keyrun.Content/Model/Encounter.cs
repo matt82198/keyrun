@@ -56,6 +56,19 @@ public enum TelegraphShape
     [EnumMember(Value = "line")] Line,
 }
 
+/// <summary>
+/// TELEGRAPH-ANCHOR (finding f-ebb50027, BIBLE section 3 and 9.3): where a script telegraph's floor shape is drawn and
+/// resolved. C#-only; the frozen TS has no anchor.
+/// </summary>
+public enum TelegraphAnchor
+{
+    /// <summary>At the caster (the default, and the frozen TS rule).</summary>
+    [EnumMember(Value = "caster")] Caster,
+
+    /// <summary>At the caster's current target; no telegraph is drawn on a tick the caster has none.</summary>
+    [EnumMember(Value = "target")] Target,
+}
+
 /// <summary>Script target override (sim/encounter/script-target.ts ScriptTargetOverride).</summary>
 public enum ScriptTarget
 {
@@ -96,6 +109,12 @@ public sealed record TelegraphSpec
     /// false (the frozen TS rule). Only valid on a step whose ability has castTicks &gt; 0.
     /// </summary>
     public bool? SpansCast { get; init; }
+
+    /// <summary>
+    /// TELEGRAPH-ANCHOR: "caster" or "target" (<see cref="TelegraphAnchor"/>). Absent = caster. A target anchor is valid
+    /// only on a circle: a cone or line keeps the caster's facing, so drawn from the target it would mark the wrong ground.
+    /// </summary>
+    public TelegraphAnchor? Anchor { get; init; }
 }
 
 /// <summary>How a <see cref="ScriptAt"/> trigger fires.</summary>

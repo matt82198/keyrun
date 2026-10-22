@@ -113,7 +113,7 @@ public static class Pulls
     }
 
     // pulls.ts:38 spawnActor: an untargeted enemy at full health, role none, no resource, tuning copied only when set.
-    private static ActorState SpawnActor(PullSpawn spawn) => new()
+    internal static ActorState SpawnActor(PullSpawn spawn) => new()
     {
         Id = spawn.ActorId,
         Kind = ActorKind.Enemy,
@@ -256,6 +256,14 @@ public sealed record NavLayout
 
     /// <summary>One route point per box.</summary>
     public IReadOnlyList<Vec3> Route { get; }
+
+    /// <summary>
+    /// R-PATH-1: blocking boxes inside the walkable space (walls and props). Actors path around them
+    /// (<see cref="Nav.NavGrid"/>) and the layout step never lets a move end strictly inside one
+    /// (<see cref="Nav.NavFollow.SlideOffObstacles"/>). The content layout carries none today, so this is empty on every
+    /// shipped run.
+    /// </summary>
+    public IReadOnlyList<Combat.Bounds> Obstacles { get; init; } = Array.Empty<Combat.Bounds>();
 
     /// <summary>The XZ box around every box (the host's coarse arena clamp; the walkable rule does the rest).</summary>
     public Combat.Bounds Extent => new(

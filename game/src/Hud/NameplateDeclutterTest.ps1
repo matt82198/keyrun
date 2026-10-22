@@ -58,7 +58,13 @@ foreach ($l in $frameCasts) {
     $null = $l -match '^HUD unitframe cast kind=\S+ actor=(\d+) ability=(\S+) '
     $actor = $Matches[1]; $ability = [regex]::Escape($Matches[2])
     $inFrame = $all | Where-Object { $_ -match "^HUD castbar actor=$actor kind=enemy where=frame ability=$ability$" } | Select-Object -First 1
-    if (-not $inFrame) { $failures.Add("a: '$l' has no 'HUD castbar actor=$actor kind=enemy where=frame' line (the cast also draws over the head)") }
+    if (-not $inFrame) {
+        $failures.Add("a: '$l' has no 'HUD castbar actor=$actor kind=enemy where=frame' line (the cast also draws over the head)")
+        # Diagnostic only (assertions unchanged): every castbar and unit frame cast line this actor produced in the run.
+        $diag = @($all | Where-Object { $_ -match "^HUD (castbar|unitframe cast) .*actor=$actor( |$)" })
+        $failures.Add("a diagnostic: $($diag.Count) castbar/unitframe cast line(s) for actor=$actor in the run")
+        foreach ($d in $diag) { $failures.Add("a diagnostic:   $d") }
+    }
 }
 $bossOver = $all | Where-Object { $_ -match '^HUD castbar actor=900 kind=enemy where=overhead ' } | Select-Object -First 1
 if ($bossOver) { $failures.Add("a: the boss's cast is drawn over its head as well as on the boss frame: '$bossOver'") }

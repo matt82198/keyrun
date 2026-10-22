@@ -4,23 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:e2e": "node --test \"tests/client/e2e/*.e2e.ts\"",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "build": "node scripts/build.mjs",
-    "dev": "node scripts/build.mjs --watch --serve",
-    "server": "node server/src/run.mjs"
+    "test": "vitest run tests/lanes"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "@types/three": "^0.170.0",
-    "esbuild": "^0.25.0",
-    "playwright": "^1.63.0",
-    "typescript": "^5.6.0",
     "vitest": "^5.0.5"
-  },
-  "dependencies": {
-    "ws": "8.21.3"
   }
 }
