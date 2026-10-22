@@ -16,7 +16,7 @@
     "id": "warden.weapon.wideningBreak",
     "slot": "weapon",
     "abilityId": "warden.guardBreak",
-    "text": "Guard Break's cone grows much wider, but it gains a short cooldown.",
+    "text": "Guard Break becomes a broad cone, and its cooldown falls.",
     "patch": {
       "shape": {
         "kind": "cone",

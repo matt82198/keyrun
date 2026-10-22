@@ -167,7 +167,7 @@ public sealed class TextMatchesDataTests
         var dissonance = Base("chanter.dissonance");
         var strike = Base("warden.strike");
         var chorus = Base("chanter.chorus");
-        yield return new object[] { "Flare's cooldown falls sharply.", flare, flare with { CooldownTicks = 20 } };
+        yield return new object[] { "Flare's cooldown falls sharply.", flare, flare with { CooldownTicks = flare.CooldownTicks + 20 } };
         yield return new object[] { "Cold Snap dumps much less Heat.", snap, ApplyFacet(snap, new FacetPatch { EffectsAppend = new ValueList<EffectOp>(new EffectOp[] { new ResourceOp { Delta = -30, Resource = "heat" } }) }) };
         yield return new object[] { "Cheaper, smaller shield.", vigil, vigil with { Cost = new AbilityCost { Resource = "momentum", Amount = 25 } } };
         yield return new object[] { "Guard Break trades range for a cone.", guardBreak, guardBreak with { CooldownTicks = 20 } };
