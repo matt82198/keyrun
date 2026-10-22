@@ -35,6 +35,33 @@ public sealed class HolderLockBotTests
         Assert.True(TankEngage.HoldsThreat(Enemy(1, (3, 5000L)), 1));
     }
 
+    // CHASE-HOLDER (f-2f6982e9, PR #601): FixupTargeting parks every untargeted enemy's TargetId on the tank, so a body-pulled
+    // enemy is chasing its holder while TargetId still names the tank. The loose-enemy test must read the holder.
+    private static System.Collections.Generic.SortedDictionary<int, ActorState> Party(ActorState enemy)
+    {
+        var tank = Actors.Create(1, ActorKind.Player, "warden", ActorRole.Tank, new Vec3(0, 0, 0), 400, 0);
+        var dps = Actors.Create(3, ActorKind.Player, "cinder", ActorRole.Damage, new Vec3(2400, 0, 0), 250, 0);
+        return new System.Collections.Generic.SortedDictionary<int, ActorState> { [1] = tank, [3] = dps, [enemy.Id] = enemy };
+    }
+
+    [Fact]
+    public void An_enemy_locked_on_a_DPS_is_loose_even_while_its_TargetId_still_names_the_tank()
+    {
+        var enemy = Enemy(3);
+        enemy.TargetId = 1;
+        var actors = Party(enemy);
+        Assert.Same(enemy, TankEngage.PickLooseEnemy(actors, actors[1]));
+    }
+
+    [Fact]
+    public void An_enemy_the_tank_holds_is_not_loose_whoever_its_TargetId_names()
+    {
+        var enemy = Enemy(1);
+        enemy.TargetId = 3;
+        var actors = Party(enemy);
+        Assert.Null(TankEngage.PickLooseEnemy(actors, actors[1]));
+    }
+
     [Fact]
     public void With_no_holder_the_threat_table_still_decides()
     {
