@@ -11,9 +11,8 @@ namespace Keyrun.Content.Tests;
 /// </summary>
 public sealed class RouteContentTests
 {
-    private const string ForcesFile = "forces.json";
+    private const string ForcesFile = MutableSource.ForcesHead;
     private const string HazardsFile = "hazards.json";
-    private const string LayoutFile = "layout.json";
 
     /// <summary>One hazard in a room that layout.json names (a Room box); the room check reads layout.json.</summary>
     private const string Hazards = """
@@ -66,7 +65,7 @@ public sealed class RouteContentTests
     [Fact]
     public void A_teaching_pull_enemy_with_no_forces_value_fails_closed()
     {
-        string message = LoadFails(new MutableSource().EditText(ForcesFile, t => t.Replace("""{ "enemyId": "pair.melee", "points": 52 },""", "")));
+        string message = LoadFails(new MutableSource().Remove(MutableSource.ForcesValuesDir + "pair.melee.json"));
 
         Assert.Contains("pull \"pair\" enemy \"pair.melee\" has no forces value", message);
     }
@@ -75,9 +74,8 @@ public sealed class RouteContentTests
     public void Points_on_an_enemy_outside_every_pull_and_pack_fail_closed()
     {
         // BIBLE 9.2: the boss, the Twins and Echo adds are worth 0, so nothing can be farmed.
-        string message = LoadFails(new MutableSource().EditText(ForcesFile, t => t.Replace(
-            """{ "enemyId": "seed.elite", "points": 180 },""",
-            """{ "enemyId": "seed.elite", "points": 180 }, { "enemyId": "hollowWarden.twinA", "points": 5 },""")));
+        string message = LoadFails(new MutableSource().Add(
+            MutableSource.ForcesValuesDir + "hollowWarden.twinA.json", """{ "enemyId": "hollowWarden.twinA", "points": 5 }"""));
 
         Assert.Contains("\"hollowWarden.twinA\" is worth 5 forces but is in no pull or pack", message);
     }
@@ -85,16 +83,18 @@ public sealed class RouteContentTests
     [Fact]
     public void A_forces_value_for_an_unknown_or_repeated_enemy_fails_closed()
     {
-        Assert.Contains("forces value references unknown enemy \"vault.ghost\"", LoadFails(new MutableSource().EditText(ForcesFile,
-            t => t.Replace("\"enemyId\": \"choir.melee\"", "\"enemyId\": \"vault.ghost\""))));
-        Assert.Contains("duplicate forces value for enemy \"pair.melee\"", LoadFails(new MutableSource().EditText(ForcesFile,
-            t => t.Replace("\"enemyId\": \"seed.elite\"", "\"enemyId\": \"pair.melee\""))));
+        Assert.Contains("forces value references unknown enemy \"vault.ghost\"", LoadFails(new MutableSource().Add(
+            MutableSource.ForcesValuesDir + "vault.ghost.json", """{ "enemyId": "vault.ghost", "points": 10 }""")));
+        // R-LOADER-1: values are one per file, so a repeat is a second file naming the same enemy; the loader's
+        // duplicate-id rule refuses it before validation.
+        Assert.Contains("duplicate forces value id \"pair.melee\"", LoadFails(new MutableSource().Add(
+            MutableSource.ForcesValuesDir + "pair.melee-again.json", """{ "enemyId": "pair.melee", "points": 52 }""")));
     }
 
     [Fact]
     public void The_rejoin_pull_must_come_after_the_fork_pull()
     {
-        string message = LoadFails(new MutableSource().EditText(ForcesFile, t => t.Replace("\"rejoinPull\": \"seed\"", "\"rejoinPull\": \"choir\"")));
+        string message = LoadFails(new MutableSource().EditForces(n => n["route"]!["rejoinPull"] = "choir"));
 
         Assert.Contains("route rejoinPull \"choir\" must come after forkAfterPull \"pair\"", message);
     }
@@ -120,8 +120,8 @@ public sealed class RouteContentTests
         // A second optional seed-chamber pack (one pair.melee, 52) lifts every single-pack skip and the seed branch to
         // 1312 but leaves the choir branch at 1240, 10 short of a 1250 bar. Only the branch check can catch this.
         string message = LoadFails(new MutableSource()
-            .EditText(ForcesFile, t => t.Replace("\"required\": 1000", "\"required\": 1250"))
-            .EditText(LayoutFile, t => t.Replace("\"packs\": [", "\"packs\": [ { \"id\": \"warrior-second\", \"name\": \"Warrior Second\", \"room\": \"seed-chamber\", \"optional\": true, \"branch\": \"seed-chamber\", \"center\": { \"x\": 69000, \"z\": -5500 }, \"aggroMm\": 4000, \"enemies\": [ { \"enemyId\": \"pair.melee\", \"count\": 1, \"spawn\": { \"x\": 0, \"z\": 0 } } ] },")));
+            .EditForces(n => n["required"] = 1250)
+            .Add(MutableSource.LayoutDir + "packs/warrior-second.json", "{ \"id\": \"warrior-second\", \"name\": \"Warrior Second\", \"room\": \"seed-chamber\", \"optional\": true, \"branch\": \"seed-chamber\", \"center\": { \"x\": 69000, \"z\": -5500 }, \"aggroMm\": 4000, \"enemies\": [ { \"enemyId\": \"pair.melee\", \"count\": 1, \"spawn\": { \"x\": 0, \"z\": 0 } } ] }"));
 
         Assert.Contains("branch \"choir-room\" reaches 1240 of the 1250 forces required (short by 10)", message);
     }

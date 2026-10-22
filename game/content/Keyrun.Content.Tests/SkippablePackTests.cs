@@ -15,7 +15,6 @@ namespace Keyrun.Content.Tests;
 /// </summary>
 public sealed class SkippablePackTests
 {
-    private const string LayoutFile = "layout.json";
 
     private static ContentLoadException LoadFails(MutableSource source) =>
         Assert.Throws<ContentLoadException>(() => ContentLoader.Load(source.Build()));
@@ -95,7 +94,7 @@ public sealed class SkippablePackTests
     public void An_optional_pack_whose_ring_reaches_the_walking_line_is_rejected()
     {
         string id = ContentLoader.Load().Layout.Packs.First(p => p.Optional).Id;
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Pack(n, id)["center"]!["z"] = 2000));
+        var ex = LoadFails(new MutableSource().EditLayout(n => Pack(n, id)["center"]!["z"] = 2000));
         Assert.Contains("walking line", ex.Message);
     }
 
@@ -107,7 +106,7 @@ public sealed class SkippablePackTests
         // enemy worth forces in no pull or pack is its own rejection; STATE.md D49 fixture, not a loosening).
         var layout = ContentLoader.Load().Layout;
         string keep = layout.Packs.First(p => p.Optional).Id;
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n =>
+        var ex = LoadFails(new MutableSource().EditLayout(n =>
         {
             foreach (JsonObject p in n["packs"]!.AsArray().Select(x => x!.AsObject()).Where(x => (string)x["id"]! != keep))
             {
@@ -122,7 +121,7 @@ public sealed class SkippablePackTests
     public void A_gate_on_a_pack_is_rejected()
     {
         string id = ContentLoader.Load().Layout.Packs.First().Id;
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n =>
+        var ex = LoadFails(new MutableSource().EditLayout(n =>
             n["boxes"]!.AsArray().Select(b => b!.AsObject()).First(b => (string)b["id"]! == "corridor-4")["gate"] = id));
         Assert.Contains("gated on unknown pull", ex.Message);
     }
@@ -131,7 +130,7 @@ public sealed class SkippablePackTests
     public void A_pack_member_with_no_forces_value_is_rejected()
     {
         string id = ContentLoader.Load().Layout.Packs.First().Id;
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n =>
+        var ex = LoadFails(new MutableSource().EditLayout(n =>
             Pack(n, id)["enemies"]!.AsArray()[0]!["enemyId"] = "hollowWarden.boss"));
         Assert.Contains("has no forces value", ex.Message);
     }
@@ -140,7 +139,7 @@ public sealed class SkippablePackTests
     public void A_pack_outside_its_room_is_rejected()
     {
         string id = ContentLoader.Load().Layout.Packs.First().Id;
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Pack(n, id)["center"]!["x"] = -100000));
+        var ex = LoadFails(new MutableSource().EditLayout(n => Pack(n, id)["center"]!["x"] = -100000));
         Assert.Contains("outside room", ex.Message);
     }
 }
