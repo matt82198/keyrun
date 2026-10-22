@@ -71,7 +71,7 @@ public static class Aggro
     /// <summary>
     /// The run's groups on <paramref name="tick"/>: the dungeon's pulls in pull order, then every layout pack
     /// (PATH-PACKS, required and optional) in <paramref name="packs"/> order with pull index -1, its ring at the pack
-    /// centre and no links. A pack stands idle from tick 0 like a pull (<see cref="LayoutPacks.SpawnAllIdle"/>) and
+    /// centre and its <see cref="PackGroup.Links"/> (N1 PACK-LINKS). A pack stands idle from tick 0 like a pull (<see cref="LayoutPacks.SpawnAllIdle"/>) and
     /// engages, whole, by the same proximity and damage rule, emitting <c>pack_engage</c>.
     /// </summary>
     /// <param name="dungeon">The dungeon.</param>
@@ -96,7 +96,8 @@ public static class Aggro
             .ToList();
         if (packs is not null)
         {
-            groups.AddRange(packs.Select(k => new AggroGroup(k.Id, -1, k.Spawns.Select(s => s.ActorId).ToList(), k.Center, k.AggroMm, Array.Empty<string>())));
+            // N1 PACK-LINKS: a pack's links chain-pull its partners (Triggered, symmetric and transitive).
+            groups.AddRange(packs.Select(k => new AggroGroup(k.Id, -1, k.Spawns.Select(s => s.ActorId).ToList(), k.Center, k.AggroMm, k.Links)));
         }
         if (patrols is not null)
         {

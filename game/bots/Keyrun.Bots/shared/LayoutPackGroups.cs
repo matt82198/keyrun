@@ -114,7 +114,8 @@ public static class LayoutPackGroups
                     merged[actorId] = staggered ? StaggerSwing(script, packOnlyIndex++, packOnlyCount) : script;
                 }
             }
-            packs.Add(new PackGroup(pack.Id, spawns, new Vec3(pack.Center.X, 0, pack.Center.Z), pack.AggroMm));
+            // N1 PACK-LINKS: the pack's chain-pull partners reach the sim's aggro step.
+            packs.Add(new PackGroup(pack.Id, spawns, new Vec3(pack.Center.X, 0, pack.Center.Z), pack.AggroMm) { Links = pack.Links.ToList() });
         }
         return (packs, merged);
     }
