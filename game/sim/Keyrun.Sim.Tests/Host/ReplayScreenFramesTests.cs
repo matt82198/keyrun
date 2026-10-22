@@ -112,7 +112,10 @@ public sealed class ReplayScreenFramesTests
         // BOSS-TEACHES (R-BOSS-1, the Warden fight lasts 90-180 s): run K's run_end moved 691 -> 4603 (HudSceneRunsBKTests
         // measures it headlessly), so the run-end Enters moved 703/706 -> 4615/4618 (sim ticks 4606/4609). BOSS-CC-IMMUNE
         // (the boss refuses Steam's blind and lands its hits): run_end 4603 -> 5170, Enters 5182/5185 (sim 5173/5176).
-        // TEMPO-LOOP-CLAMP (f-57c04b4a, no Cleave dropped inside its cooldown): run_end 5170 -> 5299, Enters 5311/5314 (sim 5302/5305).
+        // R-LOCK-SETTER (#573, the bots' Lock setter is a damage seat whose Setup lands inside the Window, ahead of a
+        // Payoff): run K's boss fight changed, run_end 5170 -> 5200, Enters 5212/5215 (sim 5203/5206).
+        // TEMPO-LOOP-CLAMP (f-57c04b4a, no Cleave dropped inside its cooldown), measured on the tree merged with #573:
+        // run_end 5200 -> 5299, Enters 5311/5314 (sim 5302/5305).
         var expected = new[]
         {
             new Fired("Enter", 9, false, 0),

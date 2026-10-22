@@ -214,7 +214,7 @@ public sealed class HudSceneRunsBKTests
             .Select(e => (e.GetProperty("tick").GetInt32(), e.GetProperty("key").GetString(), e.GetProperty("pressed").GetBoolean()))
             .ToList();
         // Golden re-recorded 2026-10-21 on 24916b4b under the sim-tick recorder (R-CLOCK-2): Enter 0 -> 9, G 2 -> 11, Enter end+3 (694) -> end+12 (703), Enter end+6 (697) -> end+15 (706); the run starts on screen frame 9, so each run-end Enter is +9.
-        // TEMPO-LOOP-CLAMP (f-57c04b4a): the Warden no longer drops a Cleave that came due inside its cooldown, so run K ends at 5299, not 5170; the run-end Enters move with it (end+12, end+15: 5311, 5314).
+        // TEMPO-LOOP-CLAMP (f-57c04b4a): the Warden no longer drops a Cleave that came due inside its cooldown, so run K ends at 5299 (merged with #573, which had moved it to 5200); the run-end Enters move with it (end+12, end+15: 5311, 5314).
         var expected = new List<(int, string?, bool)> { (9, "Enter", true), (11, "G", true), (end + 12, "Enter", true), (end + 15, "Enter", true) };
         Assert.Equal(expected, recorded);
     }

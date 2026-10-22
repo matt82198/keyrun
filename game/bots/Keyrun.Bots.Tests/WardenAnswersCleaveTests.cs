@@ -27,7 +27,8 @@ public sealed class WardenAnswersCleaveTests
     private const string BraceEffect = "braceSelf";
     private const int BossId = 900;
     private const int WardenId = HostRunSetup.HumanId;
-    private const int MaxTicks = 12000;
+    /// <summary>Drive cap: at key 10 seed 7 the boss pull starts at 10687 once #573 (aggro chase) landed.</summary>
+    private const int MaxTicks = 20000;
 
     private readonly ITestOutputHelper _out;
 
