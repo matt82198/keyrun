@@ -32,6 +32,9 @@
     "warden": 3500
   },
   "stunImmuneEnemies": ["hollowWarden.boss"],
+  "enemyScriptAt": {
+    "pair.melee": { "pair.spreadMark": 80, "pair.stackCall": 280 }
+  },
   "cleaved": {
     "abilityId": "hollowWarden.cleave",
     "effectId": "cleaved",

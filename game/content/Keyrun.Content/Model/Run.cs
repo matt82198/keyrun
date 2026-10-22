@@ -52,6 +52,15 @@ public sealed record RunConfig
     /// than its target. Kept here, not on the boss's entry in the frozen content/data (STATE.md D12). Null = none.
     /// </summary>
     public CleavedConfig? Cleaved { get; init; }
+
+    /// <summary>
+    /// R-PAIR-1 (ruling on #573: a teaching pull's signature cast starts within 100 ticks of engage, and the pull survives
+    /// at least two of its casts at key 2): enemy id to cast id to the first tick (from engage) that cast of its script
+    /// fires on a host run; the step keeps its own <c>every</c>. Kept here, not in the frozen oracle content/data, so the
+    /// oracle setups and traces recorded from it stay as they are. Every enemy is known and its script casts each cast.
+    /// Null = none.
+    /// </summary>
+    public ValueMap<ValueMap<int>>? EnemyScriptAt { get; init; }
 }
 
 /// <summary>R-BOSS-4 Cleaved: which ability marks, the effect it lays (per-stack values on the effect), the stack duration.</summary>

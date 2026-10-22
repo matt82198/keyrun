@@ -75,15 +75,22 @@ public sealed class ScriptedWarden
         // LOOSE-PICKUP (BIBLE section 3, the bot tank's TankEngage rule): an engaged enemy aimed at another seat that the
         // Warden does not hold is taunted back (Taunt is off the GCD); with Taunt ready but the enemy out of its range he
         // walks at it first. Run C at key 2: the Choir melee chased the careless Cinder and killed it, and he never taunted.
-        var loose = TankEngage.PickLooseEnemy(state.Actors, me);
-        var tauntReady = loose is not null && abilities.TryGetValue(Taunt, out var taunt) && Ready(me, taunt, tick);
-        var tauntInRange = tauntReady && Casting.RangeMm(me, loose!) <= abilities[Taunt].Range;
-        if (tauntInRange)
+        // R-TAUNT-2 (ruling on #573, the WoW rule; it replaces the separate LOOSE-PICKUP and HOLDER-LOCK presses, which spent
+        // Taunt on the nearest held enemy, a Cantor standing back, while a melee beat the Cinder): Taunt goes to an enemy in
+        // its range that is damaging a non-tank seat now, else to the highest-threat enemy in range another seat holds, and
+        // never to one out of range (TauntTarget). With Taunt ready, no target in range and an enemy aimed at another seat
+        // out of range, he walks at that enemy.
+        var tauntDef = abilities.TryGetValue(Taunt, out var taunt) ? taunt : null;
+        var tauntReady = tauntDef is not null && Ready(me, tauntDef, tick);
+        var tauntPick = tauntReady ? TauntTarget(state, me, tauntDef!) : null;
+        if (tauntPick is not null)
         {
-            into.Add(new CastCommand(tick, me.Id, Taunt, loose!.Id));
+            into.Add(new CastCommand(tick, me.Id, Taunt, tauntPick.Id));
         }
+        var loose = TankEngage.PickLooseEnemy(state.Actors, me);
+        var walkToLoose = tauntReady && tauntPick is null && loose is not null && Casting.RangeMm(me, loose) > tauntDef!.Range;
 
-        if (tauntReady && !tauntInRange)
+        if (walkToLoose)
         {
             into.Add(Toward(tick, me, loose!));
         }
@@ -103,14 +110,6 @@ public sealed class ScriptedWarden
             into.Add(Casting.RangeMm(me, foe) > ApproachMm
                 ? Toward(tick, me, foe)
                 : new MoveCommand(tick, me.Id, new Dir2(0, 0), Fixed.YawBetween(me.Pos, foe.Pos)));
-        }
-
-        // R-307-C item 2 (HOLDER-LOCK D30): an enemy another living player holds is taunted back. PILE-INT merge: #326's
-        // LOOSE-PICKUP above taunts an enemy aimed at another seat; this holder check runs only when that one did not
-        // already queue the Taunt this tick, so the two rules never press it twice.
-        if (!tauntInRange && LooseEnemy(state, me, abilities[Taunt], tick) is { } held)
-        {
-            into.Add(new CastCommand(tick, me.Id, Taunt, held.Id));
         }
 
         if (!Cooldowns.IsGcdReady(me, tick))
@@ -155,23 +154,31 @@ public sealed class ScriptedWarden
         }
     }
 
+    /// <summary>R-TAUNT-2: an enemy this close to the seat it is aimed at is damaging that seat now (melee reach), mm.</summary>
+    internal const long OnSeatMm = 3000;
+
     /// <summary>
-    /// HOLDER-LOCK (STATE.md D30): the nearest living engaged enemy in Taunt range whose locked holder is another living
-    /// player (lowest id on a tie), when Taunt is ready; else null. Only a taunt moves a holder, so this is the one way
-    /// the Warden takes back an enemy a party member body-pulled (the bot tank's rule, TankEngage.PickLooseEnemy).
+    /// R-TAUNT-2 (ruling on #573, the WoW rule): the Warden's Taunt target, among living engaged enemies inside Taunt's
+    /// range that another living player holds (its holder, else its target): first one damaging a non-tank seat now (in
+    /// melee reach of that seat, or casting at that seat: a Cantor casting its heal on an ally is not), nearest first; else the highest-threat one (its largest threat on any player),
+    /// then nearest, then lowest id. Never an enemy out of range, never one he holds. Null when there is none.
     /// </summary>
-    internal static ActorState? LooseEnemy(SimState state, ActorState me, AbilityDef taunt, int tick)
+    /// <param name="state">The state.</param>
+    /// <param name="me">The Warden.</param>
+    /// <param name="taunt">Taunt.</param>
+    /// <returns>The target, or null.</returns>
+    internal static ActorState? TauntTarget(SimState state, ActorState me, AbilityDef taunt)
     {
-        if (!Ready(me, taunt, tick))
-        {
-            return null;
-        }
+        ActorState? AimedAt(ActorState e) =>
+            (e.HolderId ?? e.TargetId) is { } id && id != me.Id && state.Actors.TryGetValue(id, out var p) && p.Alive && p.Kind == ActorKind.Player ? p : null;
+        bool Damaging(ActorState e) =>
+            AimedAt(e) is { } seat && seat.Role != ActorRole.Tank &&
+            ((e.CastId is not null && (e.CastTargetId ?? e.TargetId) == seat.Id) || Casting.RangeMm(e, seat) <= OnSeatMm);
         return state.Actors.Values
-            .Where(e => e.Kind == ActorKind.Enemy && e.Alive && !e.Idle
-                && e.HolderId is { } h && h != me.Id
-                && state.Actors.TryGetValue(h, out var holder) && holder.Alive && holder.Kind == ActorKind.Player
-                && Casting.RangeMm(me, e) <= taunt.Range)
-            .OrderBy(e => Casting.RangeMm(me, e))
+            .Where(e => e.Kind == ActorKind.Enemy && e.Alive && !e.Idle && AimedAt(e) is not null && Casting.RangeMm(me, e) <= taunt.Range)
+            .OrderBy(e => Damaging(e) ? 0 : 1)
+            .ThenByDescending(e => Damaging(e) ? 0 : e.Threat.Values.DefaultIfEmpty(0).Max())
+            .ThenBy(e => Casting.RangeMm(me, e))
             .ThenBy(e => e.Id)
             .FirstOrDefault();
     }

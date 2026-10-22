@@ -174,6 +174,8 @@ public sealed record HostRunSetup(
         // MPLUS-PATROLS (BIBLE s9.1): the layout's patrol packs, each member copied from the same scaled template as a pack
         // member, ids after the packs. allScripts is the pull, boss and pack scripts plus every patrol member's.
         var (patrols, allScripts) = LayoutPackGroups.BuildPatrols(layout, dungeon, packs, packScripts, packOnly: packOnly);
+        // R-PAIR-1: a teaching pull's signature casts start early enough to be seen (run.json enemyScriptAt).
+        allScripts = WithScriptAt(registry.Run.EnemyScriptAt, dungeon, packs, patrols, allScripts);
         // TEMPO-CAST-FLOOR (BIBLE s8): every cast an enemy script of the run makes (pulls, boss, pack members including
         // pack-only enemies such as the Hall Sentry, and the Twins) gets the key-scaled cooldown its scaled loop was
         // floored against, so the loop speeds up and its cast is ready on the fire tick. allScripts is the pull and boss
@@ -282,6 +284,45 @@ public sealed record HostRunSetup(
             dungeon with { Pulls = dungeon.Pulls.Select(p => p with { Spawns = Tuned(p.Spawns, !authored.Contains(p.Id), leash: true) }).ToList() },
             packs.Select(k => k with { Spawns = Tuned(k.Spawns, ownRadius: false, leash: true) }).ToList(),
             patrols.Select(k => k with { Spawns = Tuned(k.Spawns, ownRadius: false, leash: false) }).ToList());
+    }
+
+    /// <summary>
+    /// R-PAIR-1 (ruling on #573): every placed enemy's script with each run.json <c>enemyScriptAt</c> cast moved to fire
+    /// first on the given tick from engage (a numeric <c>at</c>; the step keeps its own <c>every</c>, so a loop keeps its
+    /// period). The Pair's Spread Mark at 80 and Stack Call at 280 put its mechanic inside a fight the party wins in about
+    /// 400 ticks. Unchanged when the content has no block.
+    /// </summary>
+    /// <param name="scriptAt">The run.json block, or null.</param>
+    /// <param name="dungeon">The placed dungeon.</param>
+    /// <param name="packs">The layout packs.</param>
+    /// <param name="patrols">The layout patrols.</param>
+    /// <param name="scripts">Actor id to its script.</param>
+    /// <returns>The scripts with the casts moved.</returns>
+    public static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> WithScriptAt(
+        C.ValueMap<C.ValueMap<int>>? scriptAt, DungeonDef dungeon, IReadOnlyList<PackGroup> packs, IReadOnlyList<PatrolPack> patrols,
+        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        ArgumentNullException.ThrowIfNull(packs);
+        ArgumentNullException.ThrowIfNull(patrols);
+        ArgumentNullException.ThrowIfNull(scripts);
+        if (scriptAt is null || scriptAt.Count == 0)
+        {
+            return scripts;
+        }
+        var classOf = dungeon.Pulls.SelectMany(p => p.Spawns)
+            .Concat(packs.SelectMany(k => k.Spawns))
+            .Concat(patrols.SelectMany(k => k.Spawns))
+            .GroupBy(s => s.ActorId)
+            .ToDictionary(g => g.Key, g => g.First().ClassId);
+        var moved = new SortedDictionary<int, IReadOnlyList<ScriptStep>>();
+        foreach (var (actorId, script) in scripts)
+        {
+            moved[actorId] = classOf.TryGetValue(actorId, out var cls) && scriptAt.TryGetValue(cls, out var casts)
+                ? script.Select(s => s.Trigger != StepTrigger.OnDeath && casts.TryGetValue(s.Cast, out var at) ? s with { Trigger = StepTrigger.AtTick, AtTick = at } : s).ToList()
+                : script;
+        }
+        return moved;
     }
 
     /// <summary>The sim affix table from content run.json <c>affixes</c> (the values are data, pending Matt).</summary>

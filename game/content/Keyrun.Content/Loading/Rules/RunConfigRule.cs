@@ -35,6 +35,19 @@ internal sealed class RunConfigRule : IContentRule
             if (!reg.Effects.ContainsKey(cleaved.EffectId)) Fail("run cleaved.effectId \"" + cleaved.EffectId + "\" is not an effect");
             if (cleaved.DurationTicks <= 0) Fail("run cleaved.durationTicks must be positive, got " + cleaved.DurationTicks);
         }
+        if (run.EnemyScriptAt is { } scriptAt)
+        {
+            // R-PAIR-1: each entry names a known enemy, a cast its script makes, and a non-negative first tick.
+            foreach (string enemyId in scriptAt.Keys)
+            {
+                if (!reg.Enemies.TryGetValue(enemyId, out var enemy)) Fail("run enemyScriptAt \"" + enemyId + "\" is not an enemy");
+                foreach (string cast in scriptAt[enemyId].Keys)
+                {
+                    if (!enemy!.Script.Any(s => s.Cast == cast)) Fail("run enemyScriptAt " + enemyId + " \"" + cast + "\" is not a cast of its script");
+                    if (scriptAt[enemyId][cast] < 0) Fail("run enemyScriptAt " + enemyId + " " + cast + " must be non-negative, got " + scriptAt[enemyId][cast]);
+                }
+            }
+        }
     }
 
     // AGGRO-CHASE (run.json enemyAggro): non-negative values, known enemy keys, and a leash that is on is longer than the
