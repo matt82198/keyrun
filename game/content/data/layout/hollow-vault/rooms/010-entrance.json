@@ -1,0 +1,8 @@
+{
+  "id": "entrance",
+  "kind": "room",
+  "minX": -6000,
+  "maxX": 6000,
+  "minZ": -6000,
+  "maxZ": 6000
+}
