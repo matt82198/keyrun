@@ -60,6 +60,11 @@ public sealed class ChoirLessonTests
         Assert.True(ChoirClearTick(neverKick) > 2 * ChoirClearTick(kicking),
             $"never-kick plan cleared the Choir at {ChoirClearTick(neverKick)}, the kicking plan at {ChoirClearTick(kicking)}");
         Assert.NotEqual(RunResult.Timed, neverKick.Run.RunEnd.Result);
+        // FINISH-NEEDS-FORCES: on main's layout no bot party times the key (the count stays short), so the line above no
+        // longer separates the plans; the lesson is that the never-kick party does not even kill the boss inside par.
+        var bossClear = neverKick.Stats.Pulls.SingleOrDefault(p => p.Id == "boss")?.ClearTick;
+        Assert.True(bossClear is null || Timer.ClockTicks(neverKick.Run.Encounter, bossClear.Value) > neverKick.Run.Encounter.ParTicks,
+            $"the never-kick party killed the boss at clock {Timer.ClockTicks(neverKick.Run.Encounter, bossClear ?? 0)}, inside par {neverKick.Run.Encounter.ParTicks}");
     }
 
     /// <summary>
@@ -112,14 +117,23 @@ public sealed class ChoirLessonTests
         Assert.True(failures.Count == 0, string.Join("; ", failures));
     }
 
-    [Fact(DisplayName = "Choir lesson: a party that kicks Choral Mending clears the Choir and times key 2 (a kick plan and the scripted party)")]
+    [Fact(DisplayName = "Choir lesson: a party that kicks Choral Mending clears the Choir and kills the boss inside par at key 2 (a kick plan and the scripted party)")]
     public void Kicking_party_times_the_key()
     {
         foreach (var r in new[] { Play(KickPlan), Play(null) })
         {
             Assert.NotEqual(int.MaxValue, ChoirClearTick(r));
             Assert.True(r.Stats.Interrupted.TryGetValue("choir.healCast", out var kicked) && kicked > 0, "the party never stopped a Mending");
-            Assert.Equal(RunResult.Timed, r.Run.RunEnd.Result);
+            // FINISH-NEEDS-FORCES (f-8c50a787, WoW Mythic+): the key completes only at 100% forces with the boss dead. The
+            // kicking party kills the boss inside par, but on main's layout it skips every optional pack, so the count
+            // stays short and the key is not timed. The layout lane (feat/dungeon-branches) flips this back to Timed.
+            var bossClear = r.Stats.Pulls.Single(p => p.Id == "boss").ClearTick;
+            Assert.True(bossClear is not null, "the party never killed the boss");
+            Assert.True(Timer.ClockTicks(r.Run.Encounter, bossClear!.Value) <= r.Run.Encounter.ParTicks,
+                $"the boss died at clock {Timer.ClockTicks(r.Run.Encounter, bossClear.Value)}, past par {r.Run.Encounter.ParTicks}");
+            var goal = Assert.IsType<ForcesGoal>(r.Run.Dungeon.ForcesGoal);
+            Assert.False(goal.Met(r.Run.State), $"forces reached {goal.Read(r.Run.State).PercentBp} bp yet the key was not timed");
+            Assert.NotEqual(RunResult.Timed, r.Run.RunEnd.Result);
         }
     }
 }
