@@ -1,6 +1,6 @@
 # Playing Keyrun: the tutorial as any class
 
-<!-- Sources: tools/play.ps1 (launch, switches -Record and -Hours), tools/godot/godot.ps1 (Godot path, .NET root, KEYRUN_USER_ARGS), game/src/Host/ArenaOptions.cs (the flags), game/src/Host/PlayerInput.cs (keys), game/src/Hud/Screen.Input.cs and Screen.TabCharacter.cs (screen keys), game/src/Hud/Queue.cs (Group found), game/src/Hud/RunEndPanel.cs (choice of three), game/src/HostCore/Lobby.cs and HostRunSetup.cs (classes), design/BIBLE.md s9 (dungeon). Verified against main 1497ee4f (PR #592 merged) and the branch merge of it. -->
+<!-- Sources: tools/play.ps1 (launch, switches -Record and -Hours), tools/godot/godot.ps1 (Godot path, .NET root, KEYRUN_USER_ARGS), game/src/Host/ArenaOptions.cs (the flags), game/src/Host/PlayerInput.cs (keys), game/src/Hud/Screen.Input.cs and Screen.TabCharacter.cs (screen keys), game/src/Hud/Queue.cs (Group found), game/src/Hud/RunEndPanel.cs (choice of three), game/src/HostCore/Lobby.cs and HostRunSetup.cs (classes), design/BIBLE.md s9 (dungeon). Verified against main 1bbbff68. -->
 
 This page tells you how to play the tutorial dungeon, Hollow Vault at key 2, as Warden, Chanter or Cinder.
 The launch is one command for every class. The class is picked in the game.
@@ -73,7 +73,7 @@ At the end of a run, keys **1, 2, 3** take one of the three cards (RunEndPanel.c
 
 ## What the tutorial teaches
 
-The Hollow Vault has three teaching pulls, then the boss door. The pulls, in order, follow BIBLE s9.6 (design/BIBLE.md:540-547):
+The Hollow Vault has three teaching pulls, and they lead straight to the boss, the Hollow Warden, with no door or gate in between (forward-only route, D44). The pulls, in order, follow BIBLE s9.6 (design/BIBLE.md:540-547):
 
 1. **The Choir.** Two melee and a caster lieutenant. Its 4-second heal must be kicked. This teaches the **kick** (Q).
 2. **The Pair.** Five melee. Every 20 s one player is marked to **spread** (stand apart in a ring). Ten seconds later the pack calls a **stack** (stand together in a circle, damage split). This teaches **reading shape**.

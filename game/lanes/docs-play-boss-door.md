@@ -1,0 +1,2 @@
+- DOCS-PLAY-BOSS-DOOR: `game/PLAY.md` said the Hollow Vault has a boss door after its three teaching pulls; main has no door or gate (D44 forward-only route, RoomGateView.cs absent, no gate_closed/gate_open emitted, Run.cs:253 BossDoor.Admit not applied), so the sentence and the pulls-to-boss wording now say the pulls lead straight to the Hollow Warden. Docs only, no code change.
+BUILDLOG: DOCS-PLAY-BOSS-DOOR: game/PLAY.md no longer describes a boss door on the Hollow Vault route; the Verified-against sha is now 1bbbff68.
