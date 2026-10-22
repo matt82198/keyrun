@@ -108,6 +108,12 @@ public sealed record RunContent
     public IReadOnlyList<string>? ImmuneRefusedEffectIds { get; init; }
 
     /// <summary>
+    /// R-BOSS-4 Cleaved (<see cref="Encounter.CleaveMark"/>): the stacking debuff an unanswered boss Cleave lays on every
+    /// seat it hits other than its target, or null for none. Null on every oracle run.
+    /// </summary>
+    public Encounter.CleaveMarkRule? CleaveMark { get; init; }
+
+    /// <summary>
     /// The Pair's spread and stack mark rules (<see cref="PairMarks"/>), or null for none. Null on every oracle run; a
     /// host builds it from content (game/content/data/run.json pairMarks).
     /// </summary>

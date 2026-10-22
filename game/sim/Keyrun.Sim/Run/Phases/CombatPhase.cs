@@ -23,6 +23,11 @@ internal static class CombatPhase
             : c.Tables.Rules(run.Encounter.Rules);
         // R-PATH-1: on a layout run an enemy chase walks its grid path to its target, not a straight line into a wall.
         var enemyCommands = layout is null ? enc.Commands : NavFollow.RouteChase(run.State, enc.Commands, NavGrid.Of(layout));
+        if (layout is not null && Leash.EvadeMoves(run.State, NavGrid.Of(layout)) is { Count: > 0 } evades)
+        {
+            // AGGRO-CHASE leash: a pack that gave up the chase walks its grid path home.
+            enemyCommands = enemyCommands.Concat(evades).ToList();
+        }
         var merged = c.Commands.Concat(enemyCommands).ToList();
         // BIBLE.md:156 Tide: floor patches drift with the telegraphs, before combat reads them this tick.
         var stepped = Tick.Step(Clauses.DriftFloorWindows(run.State, run.Encounter.Rules), merged, rules);
