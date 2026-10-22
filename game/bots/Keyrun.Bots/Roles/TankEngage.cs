@@ -19,6 +19,9 @@ public static class TankEngage
     /// <summary>tank-engage.ts REACH_MARGIN_MM: walk this far inside reach.</summary>
     public const long ReachMarginMm = 500;
 
+    /// <summary>R-AOE-1: the tank spreads its filler only across a small pack; a big pack keeps the tank on its target.</summary>
+    public const int TankSpreadMaxCluster = 3;
+
     private static long? RangeOf(BotView view, string? abilityId)
     {
         if (abilityId is null || view.Kits.Content is not { } reg || !reg.Abilities.TryGetValue(abilityId, out var def))
@@ -197,10 +200,19 @@ public static class TankEngage
         {
             output.Add(new MoveCommand(tick, self.Id, new Dir2(0, 0), desiredYaw));
         }
-        var rotationKit = kit with { Rotation = Fillers.ArrangeFillers(view, self, kit, TankPressure.PressureRotation(view, self, kit), target.Id) };
+        var rotationKit = kit with { Rotation = AoeGate.Filter(view, self, Fillers.ArrangeFillers(view, self, kit, TankPressure.PressureRotation(view, self, kit), target.Id), target.Id) };
         if (DamageRole.PickResourceAwareRotation(rotationKit, self, tick) is { } abilityId)
         {
-            output.Add(new CastCommand(tick, self.Id, abilityId, target.Id));
+            // R-AOE-1: the filler (Strike) goes to the healthiest of the cluster; every other press stays on the tank's target.
+            if (rotationKit.Rotation.Count > 0 && view.Kits.Content is { } reg && reg.Abilities.TryGetValue(abilityId, out var pressed)
+                && AoeGate.IsFiller(pressed))
+            {
+                output.AddRange(AoeGate.PressCommands(view, self, abilityId, target.Id, TankSpreadMaxCluster));
+            }
+            else
+            {
+                output.Add(new CastCommand(tick, self.Id, abilityId, target.Id));
+            }
         }
         return output;
     }

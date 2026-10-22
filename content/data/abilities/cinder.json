@@ -33,7 +33,7 @@
     "name": "Flare",
     "castTicks": 30,
     "gcdTicks": 30,
-    "cooldownTicks": 0,
+    "cooldownTicks": 45,
     "charges": 1,
     "range": 25000,
     "shape": {
@@ -124,11 +124,13 @@
     },
     "range": 25000,
     "shape": {
-      "kind": "target"
+      "kind": "circle",
+      "radius": 1500
     },
     "interruptible": false,
     "tags": [
-      "payoff"
+      "payoff",
+      "aoe"
     ],
     "effects": [
       {

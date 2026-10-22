@@ -32,9 +32,20 @@ public static class KitPriority
     internal static string? TagWithPrefix(AbilityDef def, string prefix) =>
         AbilityTags(def).FirstOrDefault(t => t.StartsWith(prefix, StringComparison.Ordinal));
 
-    /// <summary>kit-priority.ts tier: cost-paying finishers 0, Payoffs 1, Setups 2, everything else 3.</summary>
+    /// <summary>
+    /// R-AOE-1 (always be casting, "spamming means a CD is required"): the filler is the rotational with no cooldown and
+    /// no cost. It is always ready, so it goes LAST in the priority list and fills every global no other button can.
+    /// </summary>
+    internal static bool IsFiller(AbilityDef def, string resource) =>
+        def.CooldownTicks == 0 && KitResources.CostAmount(def, resource) == 0;
+
+    /// <summary>kit-priority.ts tier: cost-paying finishers 0, Payoffs 1, Setups 2, everything else 3, the filler 4 (R-AOE-1).</summary>
     private static int Tier(AbilityDef def, string resource)
     {
+        if (IsFiller(def, resource))
+        {
+            return 4;
+        }
         if (KitResources.CostAmount(def, resource) > 0)
         {
             return 0;

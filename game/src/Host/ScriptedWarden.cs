@@ -30,7 +30,7 @@ public sealed class ScriptedWarden
     /// <summary>The lieutenant's class id.</summary>
     public const string LieutenantClass = "choir.lieutenant";
 
-    private static readonly string[] Rotation = { "warden.reckoning", "warden.vigil", "warden.guardBreak", "warden.strike" };
+    private static readonly string[] Rotation = { "warden.vigil", "warden.reckoning", "warden.guardBreak", "warden.strike" };
 
     private const string Kick = "warden.shieldBash";
     private const string Defensive = "warden.brace";
@@ -256,6 +256,15 @@ public sealed class ScriptedWarden
             into.Add(new CastCommand(tick, me.Id, Defensive, me.Id));
             return;
         }
+        // R-AOE-1 (always be casting; the fifth button): Bulwark, the group mitigation, goes up the moment two or more
+        // living enemies are hitting the Warden and its Braced is down, as the bot tank does under pack pressure
+        // (TankPressure.PressureMitigationCommand). Trash only: the boss pull keeps its own answers (Brace, Vigil, the Lock).
+        if (!InBossPull(run) && (tick - _lastStrikeTick <= BulwarkAfterStrikeTicks || me.Health * 2 < me.MaxHealth) && AttackersOn(state, me) >= 2 && HasLivingAlly(state, me) && abilities.TryGetValue(GroupMitigation, out var bulwark)
+            && Ready(me, bulwark, tick) && !me.Effects.Exists(e => e.EffectId == GroupMitigationEffect && e.EndsTick > tick))
+        {
+            into.Add(new CastCommand(tick, me.Id, GroupMitigation, me.Id));
+            return;
+        }
         // R-WARDEN-FILLER-3 (BIBLE s9 "The Lock"; LockAnswer is the bots' half): while the boss casts or holds a Lock no
         // partner Setup has tagged yet, the Warden spends no global, so his Payoff is off the GCD when the setter's Setup
         // lands; once it has, Guard Break goes first. Without the hold a Forge 8 ticks before the setter's Setup put the
@@ -266,6 +275,13 @@ public sealed class ScriptedWarden
             return;
         }
         var order = lockSetup is { } setter && setter != me.Id ? LockPayoffFirst : Rotation;
+        // R-AOE-1 (cooldowns): Guard Break has a cooldown now, so a Lock whose Setup has landed waits for it rather than
+        // spending the global on another button; the Window outlasts the cooldown (a hold, not a miss).
+        if (ReferenceEquals(order, LockPayoffFirst) && abilities.TryGetValue(PayoffBuilder, out var lockPayoff)
+            && Cooldowns.ChargesAvailable(me, lockPayoff, tick) < 1)
+        {
+            return;
+        }
         foreach (var id in order)
         {
             var def = abilities[id];
@@ -274,18 +290,57 @@ public sealed class ScriptedWarden
                 continue;
             }
             var target = CastTargeting.For(run, me.Id, id);
+            // R-AOE-1: with two or more enemies in Guard Break's shape, Strike (the Setup) goes on the last of them, never on the
+            // one Guard Break closes Windows on (the lowest id in the shape), so his own Sundered does not deny his next Guard
+            // Break ("self_combo": a Payoff he cannot close).
+            if (id == Filler && !InBossPull(run) && AoeCluster(run, me, abilities, tick) is { } cluster)
+            {
+                target = cluster;
+            }
+            // R-AOE-1 (cooldowns): Reckoning spends the Momentum Vigil (the shield) is waiting on, so while Vigil is about to
+            // come off cooldown it is held, as the bot tank holds its sustain reserve (TankPressure.PressureRotation).
+            if (id == Spender && VigilComesOffCooldownWithin(me, tick, ReckoningVigilGuardTicks))
+            {
+                continue;
+            }
             // R-WARDEN-FILLER-3: the filler gate is a trash-pull rule; in the boss pull Guard Break keeps main's priority.
-            if (id == PayoffBuilder && !InBossPull(run) && !PayoffCloses(run, me, def, target, tick))
+            // R-AOE-1 (b): Guard Break is also the correct button whenever two or more enemies stand in its shape.
+            // The cleave is the alternate global: it follows a Strike (R-WARDEN-FILLER-1: Strike is the filler, one in every two
+            // globals at least), so a cooldown that comes ready never takes two globals running from the filler.
+            if (id == PayoffBuilder && !InBossPull(run) && !PayoffCloses(run, me, def, target, tick)
+                && !(CleavesTwo(run, me, def, target) && !WouldBeDenied(run, me, def, target, tick) && tick - _lastStrikeTick < CleaveAfterStrikeTicks))
             {
                 continue;
             }
             if (def.Shape.Kind == ShapeKind.Self || (state.Actors.TryGetValue(target, out var t) && t.Id != me.Id && Casting.RangeMm(me, t) <= def.Range))
             {
+                // R-AOE-1: a cone or line lands where the Warden faces, so he turns to his target first (a zero-length move
+                // only sets the yaw) unless a walk is already queued this tick.
+                if (def.Shape.Kind is ShapeKind.Cone or ShapeKind.Line && state.Actors.TryGetValue(target, out var aim)
+                    && !into.Any(c => c is MoveCommand m && m.ActorId == me.Id && m.Tick == tick))
+                {
+                    into.Add(new MoveCommand(tick, me.Id, new Dir2(0, 0), Fixed.YawBetween(me.Pos, aim.Pos)));
+                }
                 into.Add(new CastCommand(tick, me.Id, id, target));
+                if (id == Filler)
+                {
+                    _lastStrikeTick = tick;
+                }
                 return;
             }
         }
     }
+
+    private int _lastStrikeTick = int.MinValue / 2;
+
+    /// <summary>R-AOE-1: a Guard Break that closes no Window (a plain cleave) waits for a Strike within this many ticks before it.</summary>
+    internal const int CleaveAfterStrikeTicks = 45;
+
+    /// <summary>
+    /// R-AOE-1: Bulwark (a 20-tick cast) goes up on the global right after a Strike, so its cast time sits inside the filler's
+    /// span (R-WARDEN-FILLER-1: a Strike at least every 60 ticks of filler window) and never stacks on top of a plain cleave.
+    /// </summary>
+    internal const int BulwarkAfterStrikeTicks = 35;
 
     /// <summary>R-TAUNT-2b: an enemy this close to the seat it is aimed at is damaging that seat now (melee reach), mm.</summary>
     internal const long OnSeatMm = 3000;
@@ -382,6 +437,91 @@ public sealed class ScriptedWarden
         }
         return boss.Casting is not null ? LockHold : null;
     }
+
+    /// <summary>
+    /// R-AOE-1 (b): true when <paramref name="def"/>'s shape (a circle, cone or line) would hit at least
+    /// <see cref="AoeMinEnemies"/> living engaged enemies if cast now. A single-target shape never does.
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <param name="me">The Warden.</param>
+    /// <param name="def">The ability as loaded (a talent may patch its shape).</param>
+    /// <returns>Whether the AoE is the correct button.</returns>
+    internal static bool CleavesTwo(Run run, ActorState me, AbilityDef def, int targetId)
+    {
+        if (def.Shape.Kind is not (ShapeKind.Cone or ShapeKind.Circle or ShapeKind.Line))
+        {
+            return false;
+        }
+        // The cast turns him to his target first, so the shape is read from there.
+        var aimed = me;
+        if (run.State.Actors.TryGetValue(targetId, out var aim))
+        {
+            aimed = me.Clone();
+            aimed.Yaw = Fixed.YawBetween(me.Pos, aim.Pos);
+        }
+        return Targeting.ResolveTargets(run.State, aimed, def, Affinities.Of(def, run.Content.Effects)).Count(e => e.Alive && !e.Idle) >= AoeMinEnemies;
+    }
+
+    private const string Filler = "warden.strike";
+    private const string GroupMitigation = "warden.bulwark";
+
+    private static bool HasLivingAlly(SimState state, ActorState me) =>
+        state.Actors.Values.Any(a => a.Kind == ActorKind.Player && a.Alive && a.Id != me.Id);
+
+    /// <summary>
+    /// R-AOE-1: the enemy Strike goes on while Guard Break would cleave two or more: the healthiest inside Guard Break's
+    /// shape and Strike's reach other than the lowest id (the one Guard Break closes Windows on). Null when Guard Break
+    /// would not cleave two (Strike keeps the human's target then).
+    /// </summary>
+    private static int? AoeCluster(Run run, ActorState me, IReadOnlyDictionary<string, AbilityDef> abilities, int tick)
+    {
+        if (!abilities.TryGetValue(PayoffBuilder, out var gb) || !abilities.TryGetValue(Filler, out var strike)
+            || gb.Shape.Kind != ShapeKind.Circle)
+        {
+            return null;
+        }
+        var inShape = Targeting.ResolveTargets(run.State, me, gb, Affinities.Of(gb, run.Content.Effects)).Where(e => e.Alive && !e.Idle).ToList();
+        if (inShape.Count < AoeMinEnemies)
+        {
+            return null;
+        }
+        // The healthiest of the others (the rest of the shape after the lowest id), so the cleaved enemies fall together.
+        return inShape.Skip(1).Where(e => Casting.RangeMm(me, e) <= strike.Range)
+            .OrderByDescending(e => e.Health).ThenByDescending(e => e.Id).FirstOrDefault()?.Id;
+    }
+
+    /// <summary>
+    /// R-AOE-1: true when casting <paramref name="def"/> now would be denied as a "self_combo": the lowest-id enemy in its
+    /// shape (the one it closes Windows on) carries a Window of the Warden's own class, or the Warden stands in one of his
+    /// own floor patches (his Bulwark). A press into either is a Payoff he cannot close (R-WARDEN-FILLER-1).
+    /// </summary>
+    internal static bool WouldBeDenied(Run run, ActorState me, AbilityDef def, int targetId, int tick)
+    {
+        var primary = Targeting.ResolveTargets(run.State, me, def, Affinities.Of(def, run.Content.Effects)).FirstOrDefault(e => e.Alive && !e.Idle);
+        if (primary is not null && WindowState.FindOpenWindow(primary, tick) is { } window
+            && WindowState.ParseWindowEffectId(window.EffectId) is { } parsed
+            && (parsed.Alternate ? WindowState.LastSetupClassOf(primary) : parsed.SetupClass) == me.ClassId)
+        {
+            return true;
+        }
+        var self = new[] { me };
+        return run.State.FloorWindows.Select(kv => kv.Value).Any(p => p.EndsTick > tick && p.SetupClass == me.ClassId
+            && Targeting.InCircle(p.Pos, p.RadiusMm, self).Count > 0);
+    }
+
+    private const string GroupMitigationEffect = "braced";
+    private const string Spender = "warden.reckoning";
+    private const string Sustain = "warden.vigil";
+
+    /// <summary>R-AOE-1: Reckoning waits when Vigil is ready or comes off cooldown within this many ticks.</summary>
+    internal const int ReckoningVigilGuardTicks = 60;
+
+    /// <summary>True when Vigil is ready now or comes off cooldown within <paramref name="ticks"/>.</summary>
+    private static bool VigilComesOffCooldownWithin(ActorState me, int tick, int ticks) =>
+        !me.Cooldowns.TryGetValue(Sustain, out var nextReady) || nextReady - tick < ticks;
+
+    /// <summary>R-AOE-1 (b): enemies a shaped AoE needs in its shape before it is the correct button.</summary>
+    internal const int AoeMinEnemies = 2;
 
     internal static bool PayoffCloses(Run run, ActorState me, AbilityDef def, int targetId, int tick)
     {
