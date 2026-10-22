@@ -142,7 +142,7 @@
     "abilities": ["brineMother.undertow", "brineMother.boilingSurge", "brineMother.drowningHymn"],
     "script": [
       { "at": "loop", "every": 400, "cast": "brineMother.undertow",
-        "telegraph": { "shape": "circle", "radius": 6000, "leadTicks": 50, "spansCast": true } },
+        "telegraph": { "shape": "circle", "radius": 27500, "leadTicks": 50, "spansCast": true } },
       { "at": 450, "every": 400, "cast": "brineMother.boilingSurge",
         "telegraph": { "shape": "circle", "radius": 4500, "leadTicks": 50, "spansCast": true } },
       { "at": 200, "every": 200, "cast": "brineMother.drowningHymn", "when": { "healthBelowBp": 6000 },

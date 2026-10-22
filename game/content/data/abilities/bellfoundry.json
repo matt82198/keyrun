@@ -65,8 +65,8 @@
   },
   {
     "id": "brineMother.undertow", "name": "Mother's Undertow",
-    "castTicks": 50, "gcdTicks": 0, "cooldownTicks": 400, "charges": 1, "range": 6000,
-    "shape": { "kind": "circle", "radius": 6000 },
+    "castTicks": 50, "gcdTicks": 0, "cooldownTicks": 400, "charges": 1, "range": 27500,
+    "shape": { "kind": "circle", "radius": 27500 },
     "interruptible": false, "tags": [],
     "effects": [ { "op": "damage", "amount": 10, "school": "frost" }, { "op": "pull", "distanceMm": 9000 } ],
     "cost": { "resource": "none", "amount": 0 }

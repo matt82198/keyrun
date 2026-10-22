@@ -96,7 +96,8 @@ public sealed class BellfoundryBibleTests
         var bad = new List<string>();
         foreach (var enemy in BellfoundryEnemies())
         {
-            foreach (var step in enemy.Script.Where(s => s.Telegraph is not null))
+            // R-UNDERTOW-1: Undertow is arena-wide by ruling, bounded by the 24000 mm room's diagonal instead.
+            foreach (var step in enemy.Script.Where(s => s.Telegraph is not null && s.Cast != "brineMother.undertow"))
             {
                 var t = step.Telegraph!;
                 int ring = t.Shape == TelegraphShape.Line ? t.Length ?? 0 : (t.Radius ?? 0) * 2;
@@ -104,7 +105,7 @@ public sealed class BellfoundryBibleTests
                 if (ring > ArenaWidthMm) bad.Add(enemy.Id + " -> " + step.Cast + ": telegraph spans " + ring + " mm, the arena is " + ArenaWidthMm + " wide");
             }
         }
-        foreach (var (_, ability) in Casts())
+        foreach (var (_, ability) in Casts().Where(c => c.Ability.Id != "brineMother.undertow"))
         {
             int reach = ability.Shape.Kind == ShapeKind.Line ? ability.Shape.Length ?? 0 : (ability.Shape.Radius ?? 0) * 2;
             if (reach > ArenaDepthMm) bad.Add(ability.Id + ": shape spans " + reach + " mm, the arena is " + ArenaDepthMm + " deep");
@@ -118,7 +119,13 @@ public sealed class BellfoundryBibleTests
         var undertow = Reg.Abilities["brineMother.undertow"];
         var hymn = Reg.Abilities["brineMother.drowningHymn"];
         var script = Reg.Enemies["bellfoundry.brineMother"].Script;
-        foreach (var ability in new[] { undertow, hymn })
+        // R-UNDERTOW-1 (seq 146): Undertow is arena-wide, not 6000 mm. The boss-3 room is 24000 x 24000 mm and the boss stands
+        // 11500 mm in from the west door on the door row, so the farthest standable point is at most sqrt(12500^2 + 24000^2) =
+        // 27058 mm away (17327 mm on the centre row); the radius is that rounded up to the next 500 mm.
+        Assert.Equal(27500, undertow.Shape.Radius);
+        Assert.Equal(27500, undertow.Range);
+        Assert.Equal(27500, script.Single(s => s.Cast == undertow.Id).Telegraph!.Radius);
+        foreach (var ability in new[] { hymn })
         {
             Assert.InRange(ability.Shape.Radius ?? ability.Shape.Length ?? 0, 1, 6000);
             Assert.InRange(ability.Range, 0, 6000);

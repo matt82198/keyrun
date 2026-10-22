@@ -61,8 +61,7 @@ public sealed class SunkenBellfoundryBossTests
         _output.WriteLine($"{f.Line("brineMother")} undertow={undertows} draggedIn={dragged} surge={surge.Landed} escaped={surge.Answered} hymnKicked={kicked} hymnLanded={sung}");
         AssertBand(f, "Brine Mother");
         Assert.True(undertows >= 2, $"Undertow landed {undertows} times");
-        // R-SORROW-1 item 2: Undertow is now a 6000 mm ring and the ranged seats stand 6900-11800 mm out, so it no longer drags
-        // them into the Surge's ground (was dragged >= 2 when its ring was 25000 mm); the Surge is still escaped on its own telegraph.
+        Assert.True(dragged >= 2, $"Undertow dragged a non-tank into the Surge's ground {dragged} times");
         Assert.True(surge.Answered >= 2, $"Boiling Surge escaped {surge.Answered} of {surge.Landed}");
         Assert.True(kicked >= 2, $"Drowning Hymn kicked {kicked} times ({sung} landed)");
         // Drowning Hymn is gated below 60% (SCRIPT-GATE): none is begun while she is above it.
