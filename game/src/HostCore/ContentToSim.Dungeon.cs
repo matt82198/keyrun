@@ -111,6 +111,17 @@ public sealed partial record HostRunSetup
                     Tempo.ScaleScript(ToSim(def.Script), keyLevel, CastFloors(registry, keyLevel)));
             }
         }
+        // R-PATROL-4: a patrol-only enemy (the corridor patrol's Vault Patroller) is a template too.
+        foreach (var patrol in layout.Patrols)
+        {
+            foreach (var group in patrol.Enemies.Where(g => !fielded.Contains(g.EnemyId) && !templates.ContainsKey(g.EnemyId)))
+            {
+                var def = Enemy(registry, group.EnemyId, $"patrol \"{patrol.Id}\"");
+                templates[def.Id] = new PackTemplate(
+                    ScaledTrashSpawn(def, 0, Vec3.Zero, keyLevel, trashHealthBp),
+                    Tempo.ScaleScript(ToSim(def.Script), keyLevel, CastFloors(registry, keyLevel)));
+            }
+        }
         return templates;
     }
 
