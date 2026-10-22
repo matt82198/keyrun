@@ -174,6 +174,7 @@ public sealed class MitigateThroughLedgerKickTests
         // seeds read). KICK-LEDGER-COOLDOWN-GAP (#597) later let the ledger name a seat whose interrupt is still on cooldown
         // (a late kick), which a plan seat, pressing only a ready interrupt, does not do; the property is the one this test
         // was written for, the named seat is ready at kick-open.
+        var teaching = new System.Collections.Generic.HashSet<int>();
         var named = new System.Collections.Generic.List<(int Seed, int Seat, int Caster, string Ability, int Start, int Open, int End)>();
         var casts = new System.Collections.Generic.List<(int Seed, int Tick, CastCommand Cast, int? Target)>();
         for (var seed = 1; seed <= 8 && named.Count < 3; seed++)
@@ -184,6 +185,10 @@ public sealed class MitigateThroughLedgerKickTests
                 MaxTicks = 6000,
                 Observe = (tick, run, commands) =>
                 {
+                    if (teaching.Count == 0 && PullPlan.Of(run, ForcesPlan.Of(content)) is { } pulls)
+                    {
+                        teaching.UnionWith(pulls.PullActorIds);
+                    }
                     foreach (var c in commands.OfType<CastCommand>())
                     {
                         casts.Add((s, tick, c, c.TargetId ?? (run.State.Actors.TryGetValue(c.ActorId, out var a) ? a.TargetId : null)));
@@ -192,7 +197,9 @@ public sealed class MitigateThroughLedgerKickTests
                     // One Mending in flight: with two Cantors casting together the plan names one kicker per cast in its own
                     // order, while the ledger names the priority cast's kicker (least recently kicked first), so the two
                     // legitimately differ on which seat takes which cast. The property is about the one-cast case.
-                    if (mends.Count == 0 || run.State.Actors.Values.Count(a => a.Alive && a.CastId == "choir.healCast") != 1)
+                    // R-REMNANT-2: the Warrior Remnant now holds one Cantor, so a lone Mending also occurs there, where the plan's kicker
+                    // order and the ledger's least-recently-kicked order legitimately differ; the property is about the teaching pull.
+                    if (mends.Count == 0 || run.State.Actors.Values.Count(a => a.Alive && a.CastId == "choir.healCast") != 1 || !teaching.Contains(mends[0].Id))
                     {
                         return;
                     }

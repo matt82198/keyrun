@@ -113,12 +113,12 @@ public sealed class RouteContentTests
         ContentRegistry reg = ContentLoader.Load();
         DungeonDef vault = reg.Dungeons["hollow-vault"];
 
-        // Shipped: choir = 600 teaching + 240 hall (neutral, required) + 400 cantor; seed = 600 + 240 + 420 warrior.
+        // Shipped: choir = 600 teaching + 240 hall (neutral, required) + 400 cantor; seed = 600 + 240 + 392 warrior (R-REMNANT-2: 6 Pair melee + 1 Cantor, was 5 + 2 at 420).
         Assert.Equal(1240, RouteForces.BranchTotalPoints(reg.Forces, vault, reg.Layout.Packs, "choir-room"));
-        Assert.Equal(1260, RouteForces.BranchTotalPoints(reg.Forces, vault, reg.Layout.Packs, "seed-chamber"));
+        Assert.Equal(1232, RouteForces.BranchTotalPoints(reg.Forces, vault, reg.Layout.Packs, "seed-chamber"));
 
         // A second optional seed-chamber pack (one pair.melee, 52) lifts every single-pack skip and the seed branch to
-        // 1312 but leaves the choir branch at 1240, 10 short of a 1250 bar. Only the branch check can catch this.
+        // 1284 but leaves the choir branch at 1240, 10 short of a 1250 bar. Only the branch check can catch this.
         string message = LoadFails(new MutableSource()
             .EditForces(n => n["required"] = 1250)
             .Add(MutableSource.LayoutDir + "packs/warrior-second.json", "{ \"id\": \"warrior-second\", \"name\": \"Warrior Second\", \"room\": \"seed-chamber\", \"optional\": true, \"branch\": \"seed-chamber\", \"center\": { \"x\": 69000, \"z\": -5500 }, \"aggroMm\": 4000, \"enemies\": [ { \"enemyId\": \"pair.melee\", \"count\": 1, \"spawn\": { \"x\": 0, \"z\": 0 } } ] }"));
