@@ -11,7 +11,10 @@
 
   The game opens on the pre-run screen (Character tab). Pick Warden, Chanter or Cinder there, press Enter to queue,
   Enter again at "Group found", and play the tutorial dungeon (Hollow Vault, key 2) as seat 1 while bots take the two
-  other roles. README.md "Play" lists the keys.
+  other roles. game/PLAY.md lists the keys.
+
+  -Dungeon picks the dungeon by id and passes --dungeon <id> to the game (D65): hollow-vault (the default, the
+  tutorial) or sunken-bellfoundry (three bosses). An id the content lacks stops the launch, naming the known ids.
 
   The play session is capped at -Hours (default 4) through KEYRUN_GODOT_TIMEOUT_SEC (the wrapper has no uncapped
   launch). -Record also writes the session's keys to play-<stamp>.input-log.json beside the log (--record-input), so a
@@ -19,9 +22,13 @@
 
 .EXAMPLE
   powershell -NoProfile -ExecutionPolicy Bypass -File tools/play.ps1
+
+.EXAMPLE
+  powershell -NoProfile -ExecutionPolicy Bypass -File tools/play.ps1 -Dungeon sunken-bellfoundry
 #>
 param(
     [switch]$Record,
+    [string]$Dungeon = "hollow-vault",
     [ValidateRange(1, 24)][int]$Hours = 4
 )
 $ErrorActionPreference = 'Stop'
@@ -63,11 +70,11 @@ $dir = Join-Path $base 'keyrun'
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 $stamp = (Get-Date).ToString('yyyyMMdd-HHmmss')
 $log = Join-Path $dir "play-$stamp.log"
-$userArgs = @('--camera', 'vertical', '--log', $log)
+$userArgs = @('--camera', 'vertical', '--dungeon', $Dungeon, '--log', $log)
 if ($Record) { $userArgs += @('--record-input', (Join-Path $dir "play-$stamp.input-log.json")) }
 
 if (-not $env:KEYRUN_GODOT_TIMEOUT_SEC) { $env:KEYRUN_GODOT_TIMEOUT_SEC = [string]($Hours * 3600) }
 Write-Output "play: log $log"
-Write-Output 'play: Character tab: Up/Down or click a class; Enter queues, Enter again is ready. Keys: README.md "Play".'
+Write-Output 'play: Character tab: Up/Down or click a class; Enter queues, Enter again is ready. Keys: game/PLAY.md.'
 & (Join-Path $PSScriptRoot 'godot/godot.ps1') --path game --windowed --resolution 1280x720 '--' @userArgs
 exit $LASTEXITCODE

@@ -16,6 +16,7 @@ public partial class Screen
         {
             return;
         }
+        ProofDungeon(s);
         Proof(FormattableString.Invariant($"SCREEN key level={s.KeyLevel} locked={(s.Locked ? 1 : 0)}"));
         Proof(FormattableString.Invariant($"SCREEN affixes key={s.KeyLevel} line=\"{AffixLine(s.KeyLevel)}\""));
         Proof(FormattableString.Invariant($"SCREEN readiness line=\"{s.ReadinessLine}\""));
@@ -38,6 +39,34 @@ public partial class Screen
         for (var i = 0; i < runs.Count; i++)
         {
             Proof(FormattableString.Invariant($"SCREEN runs n={i + 1} \"{runs[i]}\""));
+        }
+    }
+
+    // D65 / f-61f01ca3: the pre-run dungeon pick (Dark and Darker style: the map is picked before Queue). The Key band's
+    // last row; Up and Down on the Key tab, or a click on its left or right half, cycle the registry's dungeon ids.
+    private static Rect2 DungeonRow(Rect2 key) => new(key.Position.X + 14, key.Position.Y + 310, ClauseTextWidth(key), 36);
+
+    private void ProofDungeon(ScreenState s)
+    {
+        if (_driver?.Registry is not { } reg || !reg.Dungeons.ContainsKey(s.DungeonId))
+        {
+            return;
+        }
+        var (name, bosses) = DungeonPick.Describe(reg, s.DungeonId);
+        Proof(FormattableString.Invariant($"SCREEN dungeon id={s.DungeonId} name=\"{name}\" bosses={bosses} map={(DungeonPick.HasMap(reg, s.DungeonId) ? 1 : 0)} locked={(s.Locked ? 1 : 0)}"));
+    }
+
+    private void CycleDungeon(int delta)
+    {
+        if (_lobby is not { } lobby || _driver?.Registry is not { } reg)
+        {
+            return;
+        }
+        _status = lobby.Locked ? "The dungeon is locked in." : string.Empty;
+        _lobby = lobby.WithDungeon(DungeonPick.Cycle(reg, lobby.Key.DungeonId, delta));
+        if (_lobby.Key is { } s)
+        {
+            ProofDungeon(s);
         }
     }
 
@@ -69,6 +98,24 @@ public partial class Screen
             HudNodes.Text(this, new Vector2(x + 32, y), Clip(name, r.Size.X - 60, BodyFont), BodyFont, Parchment);
             y += 24;
         }
+    }
+
+    // D65: "< The Sunken Bellfoundry, 3 bosses >" under the run strip; "no map yet" when the content lays out none.
+    private void DrawDungeonRow(Rect2 band, ScreenState state, float inner)
+    {
+        if (_driver?.Registry is not { } reg || !reg.Dungeons.ContainsKey(state.DungeonId))
+        {
+            return;
+        }
+        var row = DungeonRow(band);
+        DrawRect(row, new Color(CardBg, state.Locked ? 0.4f : 1f));
+        DrawRect(row, BronzeDim, filled: false, width: 1f);
+        var (name, bosses) = DungeonPick.Describe(reg, state.DungeonId);
+        var tail = DungeonPick.HasMap(reg, state.DungeonId) ? string.Empty : ", no map yet";
+        HudNodes.Text(this, row.Position + new Vector2(10, 24), "<", 20, Parchment);
+        HudNodes.Text(this, row.Position + new Vector2(row.Size.X - 24, 24), ">", 20, Parchment);
+        HudNodes.Text(this, row.Position + new Vector2(34, 24), Clip(FormattableString.Invariant($"{name}, {bosses} boss{(bosses == 1 ? string.Empty : "es")}{tail}"), inner - 70, BodyFont), BodyFont, Gold);
+        HudNodes.Text(this, row.Position + new Vector2(0, row.Size.Y + 14), "Dungeon: Up and Down or click", SmallFont, Dim);
     }
 
     // Key tab, right: what Enter does at this key, so the Key tab says the next step without the Queue tab open.
@@ -115,6 +162,7 @@ public partial class Screen
         }
         // The private last-three-runs strip under the Clause row (BIBLE s10): the saved history, nothing else.
         RunStrip.Draw(this, new Rect2(r.Position.X + 14, r.Position.Y + 206, inner, 90), _progression.History);
+        DrawDungeonRow(r, state, inner);
     }
 
     /// <summary>

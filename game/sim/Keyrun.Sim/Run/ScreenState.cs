@@ -102,6 +102,15 @@ public sealed record ScreenState(
         return this with { KeyLevel = Clamp((long)KeyLevel + delta) };
     }
 
+    /// <summary>The band on dungeon <paramref name="dungeonId"/> (D65: the pre-run pick), key and Clause kept.</summary>
+    /// <param name="dungeonId">The dungeon.</param>
+    /// <returns>The new state, or this one when locked or already on that dungeon.</returns>
+    public ScreenState WithDungeon(string dungeonId)
+    {
+        ArgumentNullException.ThrowIfNull(dungeonId);
+        return Locked || string.Equals(DungeonId, dungeonId, StringComparison.Ordinal) ? this : this with { DungeonId = dungeonId };
+    }
+
     /// <summary>
     /// Queues: locks the band and returns the request, or null (and this state) when already queued. The request
     /// carries the key's Clause and <paramref name="loadouts"/> (the screen's resolved talent picks) so the run plays

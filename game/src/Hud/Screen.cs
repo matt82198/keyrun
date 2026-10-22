@@ -207,7 +207,7 @@ public partial class Screen : Control
             // TALENT-SAVE: the saved build comes back; a pick the content no longer has is dropped (free respec).
             // R1: the key's Clause is read from the same rotation index the run is built with (SimDriver.RotationIndex) and
             // content's clauseStartKey, so the band never shows a Clause the run does not carry.
-            _lobby = Lobby.Open(reg, _progression, SimDriver.DungeonId, ClauseIds(), key, _driver.RotationIndex, reg.Run.Affixes.ClauseStartKey, SimDriver.HumanClassId);
+            _lobby = Lobby.Open(reg, _progression, _driver.SelectedDungeonId, ClauseIds(), key, _driver.RotationIndex, reg.Run.Affixes.ClauseStartKey, SimDriver.HumanClassId);
             var talents = _lobby.Talents;
             Proof(FormattableString.Invariant(
                 $"SCREEN talents restore class={talents.ClassId} saved={_progression.Talents.Count} picks={talents.Count} choices={ChoicesText(talents)}"));
