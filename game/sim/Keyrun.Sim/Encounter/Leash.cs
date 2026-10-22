@@ -68,6 +68,8 @@ public static class Leash
                     a.Evading = false;
                     a.Health = a.MaxHealth;
                     a.Effects.Clear();
+                    // G2.5 (f-1c94a912): a reset member walks back onto its patrol loop (Patrols.Walk), it does not teleport.
+                    a.ResetWalk = true;
                 }
                 emit(GroupEvent(tick, "pack_reset", g.Id, evaders, LeashCause));
             }
@@ -95,6 +97,8 @@ public static class Leash
                 a.TargetId = null;
                 a.HolderId = null;
                 a.Threat.Clear();
+                // G2.5 (f-1c94a912): a DoT or debuff does not keep ticking on an evader walking home; it sheds at the start.
+                a.Effects.Clear();
                 a.Idle = true;
                 a.Evading = true;
                 // IDLE-WANDER: the pack walks home to its anchor (Home), then wanders again from where it resets.

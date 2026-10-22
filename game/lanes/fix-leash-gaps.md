@@ -1,0 +1,2 @@
+- FIX-LEASH-GAPS (G2.5, finding f-1c94a912) close the four leash follow-up gaps so evade is deterministic: evaders cannot start casts (error `evading`), DoTs clear at evade start, and reset patrol walks use `ActorState.ResetWalk` instead of teleporting; bot code and balance numbers untouched.
+BUILDLOG: FIX-LEASH-GAPS: four leash gaps closed (evader cast-start immunity, DoT cleared at evade start, reset walk without teleport) with LeashGapsTests in game/sim/Keyrun.Sim.Tests/Encounter/LeashGapsTests.cs, all three observed failing at red commit 58a50696 before the fix.

@@ -138,10 +138,34 @@ public static class Patrols
                 // AGGRO-CHASE: an evading member walks home (Leash), it is not put back on the loop mid-walk.
                 if (state.Actors.TryGetValue(spawn.ActorId, out var a) && a.Alive && a.Idle && !a.Evading)
                 {
-                    a.Pos = MemberAt(patrol, spawn, state.Tick);
+                    var at = MemberAt(patrol, spawn, state.Tick);
+                    if (!a.ResetWalk)
+                    {
+                        a.Pos = at;
+                        continue;
+                    }
+                    // G2.5 (f-1c94a912): a reset member walks back at its speed (axis-first, integer mm) and joins the loop on arrival.
+                    a.Pos = StepToward(a.Pos, at, Math.Max(1, a.SpeedMmPerTick ?? patrol.SpeedMmPerTick));
+                    if (a.Pos == at)
+                    {
+                        a.ResetWalk = false;
+                    }
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Moves <paramref name="from"/> toward <paramref name="to"/> by at most <paramref name="step"/> mm in Manhattan distance,
+    /// x first then z (integer, deterministic), so the straight-line move is never longer than <paramref name="step"/>.
+    /// </summary>
+    private static Vec3 StepToward(Vec3 from, Vec3 to, long step)
+    {
+        var dx = to.X - from.X;
+        var mx = Math.Clamp(dx, -step, step);
+        var dz = to.Z - from.Z;
+        var mz = Math.Clamp(dz, -(step - Math.Abs(mx)), step - Math.Abs(mx));
+        return new Vec3(from.X + mx, from.Y, from.Z + mz);
     }
 
     private static long LegMm(PatrolPack patrol, Vec3 from, Vec3 to)

@@ -120,6 +120,11 @@ public static partial class Casting
         {
             return "silenced";
         }
+        // G2.5 (f-1c94a912): an evader walking home casts nothing (Leash also stops its cast when it starts home).
+        if (actor.Evading)
+        {
+            return "evading";
+        }
         if (IsCastingPlayer(actor))
         {
             return "casting";
@@ -142,7 +147,8 @@ public static partial class Casting
             {
                 return "target_required";
             }
-            if (!state.Actors.TryGetValue(targetId.Value, out var target) || !target.Alive)
+            // G2.5 (f-1c94a912): an evader is immune from the moment it starts walking home, not only at target resolution.
+            if (!state.Actors.TryGetValue(targetId.Value, out var target) || !target.Alive || target.Evading)
             {
                 return "invalid_target";
             }
