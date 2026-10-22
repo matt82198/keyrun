@@ -21,13 +21,11 @@ internal sealed record NoiseTolerance(int ClearBp, int Deaths, int Combos)
     public static readonly NoiseTolerance None = new(0, 0, 0);
 
     /// <summary>
-    /// One standard deviation of seed noise per measure, measured on main a7069768 (the noise sweep in the
-    /// ForkParity.margins.txt header): the median over the 24 measured sibling pairs of the per-seed margin's standard
-    /// deviation at dial 90, seeds 1..12, the larger of keys 2 and 10, floored to the measure's grain. Clear: 132.1
-    /// ticks over a 1847-tick median clear at key 10 = 715 bp (key 2: 90.4 / 1469 = 615 bp). Deaths: 0.52, so 0
-    /// (one death is already beyond it). Combos: 3.85, so 3 (four combos is beyond it, three is not).
+    /// Two standard deviations of seed noise per measure (finding f-8ae6250a), read from the checked-in noise study
+    /// game/bots/Keyrun.Bots.Tests/fork-parity-noise.json (<see cref="ForkParityNoiseStudy"/>: the rule, the k, and why).
+    /// Throws when the study file is missing or incomplete: no study, no tolerance (fail closed).
     /// </summary>
-    public static readonly NoiseTolerance Measured = new(715, 0, 3);
+    public static NoiseTolerance Measured => ForkParityNoiseStudy.Tolerance.Value;
 }
 
 /// <summary>Dominance margins: how far one fork option is ahead of a sibling, per run and per measure.</summary>
@@ -156,7 +154,7 @@ internal static class ForkParityMargins
             string.Create(CultureInfo.InvariantCulture,
                 $"# Tolerance (NoiseTolerance.Measured): clear {tolerance.ClearBp} bp of the slower clear, deaths {tolerance.Deaths}, combos {tolerance.Combos}. Only a margin that exceeds it counts; only \"DOMINATES ... beyond noise\" gates."),
         };
-        header.Add(noise is null ? "# Noise sweep: not re-measured in this render." : "# Noise sweep (re-measured at this re-baseline):");
+        header.Add(noise is null ? "# Noise: no study summary in this render." : "# Noise (the seed-noise study, fork-parity-noise.json; the tolerance is 2 x the larger key):");
         header.AddRange((noise ?? Array.Empty<string>()).Select(n => "#   " + n));
         return string.Join("\n", header.Concat(lines)) + "\n";
     }

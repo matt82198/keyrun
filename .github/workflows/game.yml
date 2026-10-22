@@ -1,10 +1,14 @@
 name: Game
 # Godot 4.7.2 .NET desktop game (game/). Windows is the target platform.
 # Owns the required checks `game-test`, `game-e2e` and `game-gate`, plus the non-required `balance` job.
-# No paths filter: every PR gets exactly one run of each required name. Each job decides docs-only in its
-# own scope step: a code PR runs the real steps; a docs-only PR runs one pass-through step under the same
-# check name. No job-level `if:` on a required job (a skipped required check counts as success for branch
-# protection: the #473 fail-open this file closes). Docs-only definition as in tests.yml (--no-renames, and tools/game/bots/client/.github are code).
+# No paths filter: every PR gets exactly one run of each required name. The `changes` job (ubuntu) decides
+# docs-only once (tools/ci/docs_scope.py; definition as in tests.yml plus research/** and game/lanes/*.md,
+# --no-renames, and tools/game/bots/client/.github are code). A code PR runs the real steps on windows-latest;
+# a docs-only PR runs one pass-through step under the same check name on ubuntu-latest, so it never queues for
+# a Windows runner (PR #572 waited 30+ minutes for a pass-through). Required jobs carry only `if: !cancelled()`,
+# never a skip condition (a skipped required check counts as success for branch protection: the #473 fail-open),
+# and a failed `changes` job still runs them as code on windows. game-gate fails unless changes, game-test and
+# game-e2e all report success.
 on:
   push:
     branches: [main]
@@ -23,41 +27,48 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  game-test:
-    runs-on: windows-latest
-    timeout-minutes: 20
+  # Not required. One docs-only decision for the whole workflow; its output picks each job's runner.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Scope (docs-only or code)
+      - name: Scope (docs-only or code, tools/ci/docs_scope.py; fails closed to code=true)
         id: scope
-        shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.sha }}
+        run: python3 tools/ci/docs_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --output "$GITHUB_OUTPUT"
+
+  game-test:
+    needs: changes
+    # Never a skip condition (required check). A failed `changes` leaves the output empty: windows, real steps.
+    if: ${{ !cancelled() }}
+    runs-on: ${{ needs.changes.outputs.code == 'false' && 'ubuntu-latest' || 'windows-latest' }}
+    timeout-minutes: 20
+    steps:
+      - name: Scope (from the changes job; anything but false is code)
+        id: scope
+        shell: bash
+        env:
+          CHANGES_CODE: ${{ needs.changes.outputs.code }}
         run: |
-          # Fails closed to code=true (real steps run) when the diff cannot be computed.
-          # --no-renames: a rename lists BOTH paths, so a code file renamed to *.md still reads as code.
-          if ! files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
-            echo "diff failed; treating as code"
-            echo "code=true" >> "$GITHUB_OUTPUT"
-            exit 0
+          if [ "$CHANGES_CODE" = "false" ]; then code=false; else code=true; fi
+          if [ "$code" = "true" ] && [ "$RUNNER_OS" != "Windows" ]; then
+            echo "code change on a $RUNNER_OS runner: runs-on disagrees with scope (fail closed)"; exit 1
           fi
-          echo "$files"
-          code=false
-          while IFS= read -r f; do
-            case "$f" in
-              ""|STATE.md|BUILDLOG.md|docs/*|design/*) ;;
-              tools/*|game/*|bots/*|client/*|.github/*) code=true ;;
-              *.md) ;;
-              *) code=true ;;
-            esac
-          done <<< "$files"
           echo "code=$code" >> "$GITHUB_OUTPUT"
       - name: Docs-only pass-through
         if: steps.scope.outputs.code == 'false' && success()
         run: 'echo "docs-only PR: game-test has no code to run (pass-through)"'
+      - uses: actions/checkout@v4
+        if: steps.scope.outputs.code == 'true' && success()
+        with:
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         if: steps.scope.outputs.code == 'true' && success()
         with:
@@ -104,39 +115,25 @@ jobs:
           if ($out -notmatch '(?m)^screens-log-lock-test: PASS') { throw 'screens log-lock test did not print PASS' }
 
   # Reported, NOT required. The fork-parity dominance oracle has chaotic margins; a red here opens a finding
-  # and never blocks a merge. Not a required name, so it may be skipped; it still gates its steps on scope.
+  # and never blocks a merge. Not a required name, so it is skipped on a docs-only PR (no Windows runner).
   balance:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Scope (docs-only or code)
+      - name: Scope (from the changes job; anything but false is code)
         id: scope
         shell: bash
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.sha }}
+          CHANGES_CODE: ${{ needs.changes.outputs.code }}
         run: |
-          # Fails closed to code=true (real steps run) when the diff cannot be computed.
-          # --no-renames: a rename lists BOTH paths, so a code file renamed to *.md still reads as code.
-          if ! files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
-            echo "diff failed; treating as code"
-            echo "code=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "$files"
-          code=false
-          while IFS= read -r f; do
-            case "$f" in
-              ""|STATE.md|BUILDLOG.md|docs/*|design/*) ;;
-              tools/*|game/*|bots/*|client/*|.github/*) code=true ;;
-              *.md) ;;
-              *) code=true ;;
-            esac
-          done <<< "$files"
+          if [ "$CHANGES_CODE" = "false" ]; then code=false; else code=true; fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.scope.outputs.code == 'true' && success()
+        with:
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         if: steps.scope.outputs.code == 'true' && success()
         with:
@@ -155,7 +152,10 @@ jobs:
           retention-days: 14
 
   game-e2e:
-    runs-on: windows-latest
+    needs: changes
+    # Never a skip condition (required check). A failed `changes` leaves the output empty: windows, real steps.
+    if: ${{ !cancelled() }}
+    runs-on: ${{ needs.changes.outputs.code == 'false' && 'ubuntu-latest' || 'windows-latest' }}
     # 45 since S3 (PR #558), was 30, raised by measurement: a code PR's game-e2e already took 27m19s on 2026-10-22
     # (run of fix/fork-parity-main), the scene-test step alone 24m29s on PR #558's first run, and the glob adds the four
     # scene tests no step had wired plus run K's boss budget (21000 frames since #569, was 18000). Each launch stays capped by
@@ -166,37 +166,24 @@ jobs:
       # --build-solutions and export can run longer; 660s stays under the 12-minute step timeouts below.
       KEYRUN_GODOT_TIMEOUT_SEC: '660'
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Scope (docs-only or code)
+      - name: Scope (from the changes job; anything but false is code)
         id: scope
         shell: bash
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.sha }}
+          CHANGES_CODE: ${{ needs.changes.outputs.code }}
         run: |
-          # Fails closed to code=true (real steps run) when the diff cannot be computed.
-          # --no-renames: a rename lists BOTH paths, so a code file renamed to *.md still reads as code.
-          if ! files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null); then
-            echo "diff failed; treating as code"
-            echo "code=true" >> "$GITHUB_OUTPUT"
-            exit 0
+          if [ "$CHANGES_CODE" = "false" ]; then code=false; else code=true; fi
+          if [ "$code" = "true" ] && [ "$RUNNER_OS" != "Windows" ]; then
+            echo "code change on a $RUNNER_OS runner: runs-on disagrees with scope (fail closed)"; exit 1
           fi
-          echo "$files"
-          code=false
-          while IFS= read -r f; do
-            case "$f" in
-              ""|STATE.md|BUILDLOG.md|docs/*|design/*) ;;
-              tools/*|game/*|bots/*|client/*|.github/*) code=true ;;
-              *.md) ;;
-              *) code=true ;;
-            esac
-          done <<< "$files"
           echo "code=$code" >> "$GITHUB_OUTPUT"
       - name: Docs-only pass-through
         if: steps.scope.outputs.code == 'false' && success()
         run: 'echo "docs-only PR: game-e2e has no code to run (pass-through)"'
+      - uses: actions/checkout@v4
+        if: steps.scope.outputs.code == 'true' && success()
+        with:
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         if: steps.scope.outputs.code == 'true' && success()
         with:
@@ -441,10 +428,11 @@ jobs:
           retention-days: 7
 
   # Required: game-gate. It keeps `if: always()` on purpose: without it, a failed needed job would SKIP this
-  # job, and a skipped required check counts as success. The job never skips; it reads needs.game-e2e.result.
-  # Runs on every PR; passes trivially when no game path changed (tools/ci/game_gate.py).
+  # job, and a skipped required check counts as success. The job never skips; it reads every needed job's result.
+  # Runs on every PR. Fails unless changes, game-test and game-e2e all succeeded (a docs-only PR's pass-throughs
+  # succeed; a skipped, failed or cancelled one fails), and game paths also need game-e2e success (tools/ci/game_gate.py).
   game-gate:
-    needs: [game-test, game-e2e]
+    needs: [changes, game-test, game-e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -452,9 +440,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Require game-e2e success for game-path changes
+      - name: Gate self-tests (tools/ci/test_game_gate.py, tools/ci/test_docs_scope.py)
+        working-directory: tools/ci
+        run: python3 -m unittest test_game_gate test_docs_scope
+      - name: Require changes, game-test and game-e2e success (game-e2e success for game-path changes)
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.sha }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          TEST_RESULT: ${{ needs.game-test.result }}
           E2E_RESULT: ${{ needs.game-e2e.result }}
-        run: python3 tools/ci/game_gate.py --base "$BASE_SHA" --head "$HEAD_SHA" --e2e-result "$E2E_RESULT"
+        run: >-
+          python3 tools/ci/game_gate.py --base "$BASE_SHA" --head "$HEAD_SHA" --e2e-result "$E2E_RESULT"
+          --require "changes=$CHANGES_RESULT" --require "game-test=$TEST_RESULT" --require "game-e2e=$E2E_RESULT"
