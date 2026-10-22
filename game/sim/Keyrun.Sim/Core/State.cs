@@ -164,6 +164,21 @@ public sealed class FloorCloud
 public sealed record QueuedPress(string AbilityId, int? TargetId, Vec3? Point, int PressTick);
 
 /// <summary>
+/// The cast in flight on an actor (<see cref="ActorState.Cast"/>; R2 of the C# architecture review). One value, so a
+/// cast is started whole and ended whole (<c>Combat.Casting.End</c>), never half-cleared.
+/// </summary>
+/// <param name="AbilityId">The ability being cast.</param>
+/// <param name="StartTick">Tick the cast started.</param>
+/// <param name="EndsTick">Tick the cast completes.</param>
+/// <param name="IsOverheat">The cast is the Cinder's free Overheat (BIBLE section 5). False on every oracle run.</param>
+/// <param name="PinnedTargetId">The pinned start target (meaningful only while <paramref name="TargetPinned"/>).</param>
+/// <param name="TargetPinned">
+/// CAST-KEEPS-START-TARGET (f-bd8fbbb1): a mid-cast retarget pinned the target the cast started on. Separate from
+/// <paramref name="PinnedTargetId"/> because a cast begun with no target can pin "no target".
+/// </param>
+public readonly record struct CastInFlight(string AbilityId, int StartTick, int EndsTick, bool IsOverheat, int? PinnedTargetId, bool TargetPinned);
+
+/// <summary>
 /// One actor (sim/core/state.ts ActorState). Mutable: rules mutate the clone that <see cref="Tick.Step"/>
 /// hands them, exactly as the TS mutates its structuredClone.
 /// </summary>
@@ -205,30 +220,100 @@ public sealed class ActorState
     /// <summary>Current target, or null.</summary>
     public int? TargetId { get; set; }
 
-    /// <summary>Ability being cast, or null.</summary>
-    public string? CastId { get; set; }
+    private CastInFlight? _cast;
 
-    /// <summary>Tick the current cast completes, or null.</summary>
-    public int? CastEndsTick { get; set; }
+    // Only the legacy set shims below write this: a cast they leave incomplete (a test that sets CastId without its
+    // ticks, or ticks without a CastId). Production writes Cast whole (Casting.StartCast) and clears it only through
+    // Casting.End, so every production actor has an empty one.
+    private LegacyCast _partial;
 
-    /// <summary>Tick the current cast started, or null.</summary>
-    public int? CastStartTick { get; set; }
+    /// <summary>
+    /// The cast in flight, or null when idle (R2: one value, so a cast cannot be half-cleared). Written whole by
+    /// <see cref="Combat.Casting.StartCast"/>, pinned by <see cref="Combat.Casting.SetTarget"/>, and cleared only by
+    /// <see cref="Combat.Casting.End"/>, which returns the ended cast. Never projected into a trace (the projection reads
+    /// the <see cref="CastId"/> and <see cref="CastEndsTick"/> shims).
+    /// </summary>
+    public CastInFlight? Cast
+    {
+        get => _cast;
+        set
+        {
+            _cast = value;
+            _partial = default;
+        }
+    }
+
+    /// <summary>Ability being cast, or null. Forwarding shim over <see cref="Cast"/> (setter kept for one release).</summary>
+    public string? CastId
+    {
+        get => View.Id;
+        set => Write(View with { Id = value });
+    }
+
+    /// <summary>Tick the current cast completes, or null. Forwarding shim over <see cref="Cast"/> (setter kept for one release).</summary>
+    public int? CastEndsTick
+    {
+        get => View.Ends;
+        set => Write(View with { Ends = value });
+    }
+
+    /// <summary>Tick the current cast started, or null. Forwarding shim over <see cref="Cast"/> (setter kept for one release).</summary>
+    public int? CastStartTick
+    {
+        get => View.Start;
+        set => Write(View with { Start = value });
+    }
 
     /// <summary>
     /// The current cast is the Cinder's free Overheat (BIBLE section 5; Combat/Casting.cs OverheatRule). C#-only: false
-    /// on every oracle run (no Overheat rule), and cleared with the cast.
+    /// on every oracle run (no Overheat rule), and cleared with the cast. Forwarding shim over <see cref="Cast"/>.
     /// </summary>
-    public bool CastIsOverheat { get; set; }
+    public bool CastIsOverheat
+    {
+        get => View.Overheat;
+        set => Write(View with { Overheat = value });
+    }
 
     /// <summary>
     /// CAST-KEEPS-START-TARGET (finding f-bd8fbbb1; sim/core/state.ts castTargetId): true while the cast in flight has
     /// pinned the target it started on because the actor retargeted mid-cast (<see cref="Combat.Casting.SetTarget"/>).
-    /// Released when the cast completes (after its Windows), stops or is interrupted. Never projected into a trace.
+    /// Cleared with the cast by <see cref="Combat.Casting.End"/>; the ended cast carries it to its Windows. Never
+    /// projected into a trace. Forwarding shim over <see cref="Cast"/>.
     /// </summary>
-    public bool CastTargetPinned { get; set; }
+    public bool CastTargetPinned
+    {
+        get => View.Pinned;
+        set => Write(View with { Pinned = value });
+    }
 
-    /// <summary>The pinned start target of the cast in flight (meaningful only while <see cref="CastTargetPinned"/>).</summary>
-    public int? CastTargetId { get; set; }
+    /// <summary>
+    /// The pinned start target of the cast in flight (meaningful only while <see cref="CastTargetPinned"/>). Forwarding
+    /// shim over <see cref="Cast"/>.
+    /// </summary>
+    public int? CastTargetId
+    {
+        get => View.PinId;
+        set => Write(View with { PinId = value });
+    }
+
+    private LegacyCast View => _cast is { } c ? new LegacyCast(c.AbilityId, c.StartTick, c.EndsTick, c.IsOverheat, c.TargetPinned, c.PinnedTargetId) : _partial;
+
+    private void Write(LegacyCast v)
+    {
+        if (v is { Id: { } id, Start: { } start, Ends: { } ends })
+        {
+            _cast = new CastInFlight(id, start, ends, v.Overheat, v.PinId, v.Pinned);
+            _partial = default;
+        }
+        else
+        {
+            _cast = null;
+            _partial = v;
+        }
+    }
+
+    // The six legacy cast fields as the shims see them; lossless both ways for a complete cast.
+    private readonly record struct LegacyCast(string? Id, int? Start, int? Ends, bool Overheat, bool Pinned, int? PinId);
 
     /// <summary>
     /// The one press waiting in the spell queue window (Combat/SpellQueue.cs, sim/combat/spell-queue.ts), or null.

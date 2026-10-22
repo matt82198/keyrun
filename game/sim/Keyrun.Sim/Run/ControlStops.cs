@@ -86,11 +86,7 @@ public static class ControlStops
             }
             next ??= after.Clone();
             var target = next.Actors[id];
-            target.CastId = null;
-            target.CastStartTick = null;
-            target.CastEndsTick = null;
-            target.CastIsOverheat = false;
-            Casting.ReleaseCastTarget(target);
+            Casting.End(target, CastEnd.Interrupted);
             emit(new SimEvent(
                 tick,
                 "interrupt",

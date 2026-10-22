@@ -33,17 +33,17 @@ public static partial class Casting
     /// <param name="actor">The caster.</param>
     /// <param name="ctx">Abilities, effects and hooks.</param>
     /// <param name="emit">Event sink.</param>
-    public static void CompleteCast(SimState state, ActorState actor, CastContext ctx, Action<SimEvent> emit)
+    /// <returns>The ended cast (<see cref="End"/>), carrying the pin its Windows resolve on, or null when there was none.</returns>
+    public static CastInFlight? CompleteCast(SimState state, ActorState actor, CastContext ctx, Action<SimEvent> emit)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         if (actor.CastId is null || !ctx.Abilities.TryGetValue(actor.CastId, out var def))
         {
-            ClearCast(actor);
-            return;
+            return End(actor, CastEnd.Completed);
         }
         // BIBLE section 5: a verse ability plays the caster's verse variant (no variants = unchanged, every oracle def).
         def = Abilities.ResolveVerse(def, actor);
-        CompleteCastOn(state, actor, def, Targeting.ResolveTargets(state, actor, def, Affinities.Of(def, ctx.Effects)), ctx, emit);
+        return CompleteCastOn(state, actor, def, Targeting.ResolveTargets(state, actor, def, Affinities.Of(def, ctx.Effects)), ctx, emit);
     }
 
     /// <summary>
@@ -60,7 +60,11 @@ public static partial class Casting
     /// <param name="targets">Its resolved targets, in order.</param>
     /// <param name="ctx">Abilities, effects and hooks.</param>
     /// <param name="emit">Event sink.</param>
-    public static void CompleteCastOn(SimState state, ActorState actor, AbilityDef def, IReadOnlyList<ActorState> targets, CastContext ctx, Action<SimEvent> emit)
+    /// <returns>
+    /// The ended cast (<see cref="End"/>): the actor holds no cast and no pin once this returns, and the returned value
+    /// carries the pin the cast's Windows resolve on (<see cref="TargetOfEnded"/>).
+    /// </returns>
+    public static CastInFlight? CompleteCastOn(SimState state, ActorState actor, AbilityDef def, IReadOnlyList<ActorState> targets, CastContext ctx, Action<SimEvent> emit)
     {
         ArgumentNullException.ThrowIfNull(def);
         ArgumentNullException.ThrowIfNull(targets);
@@ -94,7 +98,7 @@ public static partial class Casting
             CompleteOverheat(state, actor, def, ctx, emit);
         }
         emit(new SimEvent(state.Tick, "cast_complete", ("actorId", JsValue.Int(actor.Id)), ("abilityId", JsValue.Str(def.Id))));
-        ClearCast(actor);
+        return End(actor, CastEnd.Completed);
     }
 
     /// <summary>
