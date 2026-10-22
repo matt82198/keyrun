@@ -22,6 +22,15 @@ public sealed record SeededDungeon(C.ContentRegistry Registry, int Branch, RoomG
 /// <param name="SideBoxes">The untaken branches' corridors and rooms, segment then branch then walking order.</param>
 public sealed record SegmentWalk(IReadOnlyList<int> Chain, IReadOnlyList<C.LayoutBox> Boxes, IReadOnlyList<C.LayoutBox> SideBoxes);
 
+/// <summary>A multi-segment seeded dungeon filled and walked (<see cref="SeededLayout.BuildSegmented"/>).</summary>
+/// <param name="DungeonId">The dungeon.</param>
+/// <param name="Graph">Stage 1: the room graph (one segment per boss).</param>
+/// <param name="Grid">Stage 2: the walkable grid.</param>
+/// <param name="Fill">Stage 4: the segment fill (a pack per trash room, a boss per boss room).</param>
+/// <param name="Branches">The branch the party walks in each segment.</param>
+/// <param name="Walk">The walked chain, route boxes and side boxes.</param>
+public sealed record SegmentedDungeon(string DungeonId, RoomGraph Graph, WalkGrid Grid, SegmentFillResult Fill, IReadOnlyList<int> Branches, SegmentWalk Walk);
+
 /// <summary>
 /// The seeded dungeon (STATE.md D45/D46, f-46043bc6) as the run's layout, in the pipeline's order: seed -> room graph
 /// (<see cref="RoomGraphGen"/>) -> walkable grid (<see cref="WalkGridGen"/>) -> fill (<see cref="BranchFill"/> over the
@@ -154,6 +163,29 @@ public static class SeededLayout
             rooms.Add(at);
         }
         return rooms;
+    }
+
+    /// <summary>
+    /// A multi-segment dungeon (the Sunken Bellfoundry, D65/D67) generated, filled and walked for <paramref name="seed"/>:
+    /// one segment per entry of the dungeon's segment list, every trash room filled from its pack pool, each segment's boss
+    /// in its boss room, and the walk the bots take (one seeded branch per segment, <see cref="BotBranches"/>) through the
+    /// segment 1 boss, the segment 2 boss and the final boss in order. The walk's room boxes are the plain grid rooms.
+    /// </summary>
+    /// <param name="reg">Loaded content.</param>
+    /// <param name="dungeonId">The dungeon.</param>
+    /// <param name="seed">The run seed.</param>
+    /// <returns>The dungeon.</returns>
+    /// <exception cref="InvalidOperationException">An unknown dungeon, or a pool that cannot lift every route to the forces bar.</exception>
+    public static SegmentedDungeon BuildSegmented(C.ContentRegistry reg, string dungeonId, long seed)
+    {
+        ArgumentNullException.ThrowIfNull(reg);
+        var bosses = SeededRoster.SegmentBosses(reg, dungeonId);
+        var p = Params with { Segments = bosses.Count };
+        var graph = RoomGraphGen.Generate(seed, p);
+        var grid = WalkGridGen.Emit(graph, p);
+        var fill = SegmentFill.Fill(seed, graph, bosses, SeededRoster.Pool(reg, dungeonId), reg.Forces.Required);
+        var branches = BotBranches(seed, graph.SegmentCount);
+        return new SegmentedDungeon(dungeonId, graph, grid, fill, branches, Walk(graph, grid, branches));
     }
 
     /// <summary>Generates, fills and lays out the dungeon for <paramref name="seed"/>.</summary>
