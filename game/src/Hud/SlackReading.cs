@@ -48,6 +48,28 @@ public sealed record SlackReading(int SlackTicks, int BankTicks, bool Depleted, 
     /// <summary>The timer label, on the run clock: "+2  0:57 / par 12:00".</summary>
     public string TimerLabel => FormattableString.Invariant($"+{KeyLevel}  {Clock((int)Math.Min(int.MaxValue, ClockTicks))} / par {Clock(ParTicks)}");
 
+    /// <summary>
+    /// The timer box's sizing string (f-1bf2dace): <see cref="TimerLabel"/> with the clock at least as long as par and every
+    /// digit a 0, so the box keeps one width while the clock ticks: "+0  00:00 / par 00:00".
+    /// </summary>
+    public string TimerTemplate
+    {
+        get
+        {
+            var widest = (int)Math.Min(int.MaxValue, Math.Max(ClockTicks, ParTicks));
+            var text = FormattableString.Invariant($"+{KeyLevel}  {Clock(widest)} / par {Clock(ParTicks)}");
+            var chars = text.ToCharArray();
+            for (var i = 0; i < chars.Length; i++)
+            {
+                if (char.IsAsciiDigit(chars[i]))
+                {
+                    chars[i] = '0';
+                }
+            }
+            return new string(chars);
+        }
+    }
+
     /// <summary>Fill fraction of the timer strip, [0, 1]: the run clock against par, so the strip fills at par.</summary>
     public float TimerFraction => Span <= 0 ? 0f : Math.Clamp((float)ClockTicks / Span, 0f, 1f);
 
