@@ -89,6 +89,7 @@ public static class AbilityClipTable
 
         // Enemies (KayKit Skeletons; the boss is the Knight with a two-handed sword).
         new("choir.meleeSwing", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
+        new("choir.patrolSwing", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
         new("choir.healCast", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
         new("pair.meleeSwing", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
         new("pair.spreadMark", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),

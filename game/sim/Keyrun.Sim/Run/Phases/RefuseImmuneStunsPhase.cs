@@ -11,7 +11,8 @@ internal static class RefuseImmuneStunsPhase
         var content = run.Content;
         // STUN-IMMUNE-REFUSES (f-94749699): a stun-immune actor (the boss) takes no stun at all; every stun that landed
         // on one this tick is refused with an "immune" event, before the stops and anything else read the state.
+        // BOSS-CC-IMMUNE: the same refusal covers every CC the boss is immune to (RunContent.ImmuneRefusedEffectIds).
         c.State = ControlStops.RefuseImmuneStuns(
-            c.State, new ControlStops.StunRules(content.StunEffectIds, content.StunImmuneClassIds, null), run.State.Tick, c.Emit);
+            c.State, new ControlStops.StunRules(content.ImmuneRefusedEffectIds ?? content.StunEffectIds, content.StunImmuneClassIds, null), run.State.Tick, c.Emit);
     }
 }
