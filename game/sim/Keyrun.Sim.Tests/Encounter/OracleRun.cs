@@ -35,6 +35,23 @@ internal static class OracleRun
             return new OracleRecord(r.GetProperty("t").GetInt32(), r.TryGetProperty("p", out var p) ? p.GetString() : null, cmds, evs);
         }).ToList();
 
+    /// <summary>
+    /// A C# run (<see cref="Keyrun.Tools.Replay.TraceRecorder"/>) as records, with the full projection on EVERY record, so
+    /// every tick of a replay over it is exact (state synced from the run itself, never from a TS recording).
+    /// </summary>
+    public static IReadOnlyList<OracleRecord> RecordsOf(Keyrun.Tools.Replay.RunRecording run) =>
+        run.Ticks.Select(t =>
+        {
+            static JsonElement Parse(string json)
+            {
+                using var doc = JsonDocument.Parse(json);
+                return doc.RootElement.Clone();
+            }
+            var cmds = t.Commands.Select(c => CommandJson.Parse(Parse(c)) ?? throw new InvalidOperationException("bad command " + c)).ToList();
+            var evs = t.Events.Select(e => SimEvent.FromJson(Parse(e))).ToList();
+            return new OracleRecord(t.T, t.Line, cmds, evs);
+        }).ToList();
+
     public static string SetupNameOf(string trace) =>
         OracleFixtures.LoadTrace(trace).Header.GetProperty("setup").GetString()!;
 

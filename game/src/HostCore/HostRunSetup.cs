@@ -174,12 +174,16 @@ public sealed partial record HostRunSetup(
         // MPLUS-PATROLS (BIBLE s9.1): the layout's patrol packs, each member copied from the same scaled template as a pack
         // member, ids after the packs. allScripts is the pull, boss and pack scripts plus every patrol member's.
         var (patrols, allScripts) = LayoutPackGroups.BuildPatrols(layout, dungeon, packs, packScripts, packOnly: packOnly);
+        // R-PAIR-1: a teaching pull's signature casts start early enough to be seen (run.json enemyScriptAt).
+        allScripts = WithScriptAt(registry.Run.EnemyScriptAt, dungeon, packs, patrols, allScripts);
         // TEMPO-CAST-FLOOR (BIBLE s8): every cast an enemy script of the run makes (pulls, boss, pack members including
         // pack-only enemies such as the Hall Sentry, and the Twins) gets the key-scaled cooldown its scaled loop was
         // floored against, so the loop speeds up and its cast is ready on the fire tick. allScripts is the pull and boss
         // scripts plus every pack and patrol member's, so this runs after LayoutPackGroups.BuildPatrols; ScaleEnemyCooldowns scales each
         // ability id once however many scripts cast it (finding f-c94c7cd7).
         abilities = Tempo.ScaleEnemyCooldowns(abilities, allScripts.Values.Concat(boss.Twins.Select(t => t.Script)), keyLevel);
+        // AGGRO-CHASE (f-f0c886eb): every placed enemy carries its run.json enemyAggro radius, assist and leash.
+        (dungeon, packs, patrols) = WithEnemyAggro(registry.Run.EnemyAggro, layout, dungeon, packs, patrols);
 
         var run = registry.Run;
         var movement = new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm, nav.Extent);
@@ -206,6 +210,8 @@ public sealed partial record HostRunSetup(
             StunImmuneClassIds = run.StunImmuneEnemies.ToList(),
             ImmuneRefusedEffectIds = ImmuneRefusedEffectIds,
             Marks = MarkRulesOf(run.PairMarks),
+            // R-BOSS-4: an unanswered Cleave stacks Cleaved on each seat it hits other than its target.
+            CleaveMark = run.Cleaved is { } cleaved ? new CleaveMarkRule(cleaved.AbilityId, cleaved.EffectId, cleaved.DurationTicks) : null,
         }.WithMovement(movement);
 
         var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);

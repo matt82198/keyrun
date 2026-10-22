@@ -122,7 +122,11 @@ public static class LockAnswer
     private static (int ActorId, string SetupId)? Designated(BotView view, C.ContentRegistry content, LockPhase phase)
     {
         var tick = view.State.Tick;
-        (int ActorId, string SetupId, int Lands)? best = null;
+        // R-LOCK-SETTER (#573): a Setup that lands after the Window closes cannot break it, and a damage seat sets up before
+        // the healer, whose heals outrank its Setup (a healer designated while the tank needed healing let a Lock fail with
+        // the Cinder's Flare ready and idle). The healer is still the setter when no damage seat can land one in time.
+        var closes = phase.CountsFrom + phase.Def.WindowTicks;
+        (int ActorId, string SetupId, int Lands, bool Healer)? best = null;
         foreach (var a in view.State.Actors.Values)
         {
             if (a.Kind != ActorKind.Player || !a.Alive || a.Role == ActorRole.Tank)
@@ -131,17 +135,20 @@ public static class LockAnswer
             }
             var kit = RoleShared.KitOf(view, a.ClassId);
             var dist = RoleShared.Dist(a, phase.Boss);
+            var healer = a.Role == ActorRole.Healer;
             foreach (var id in kit.SetupAbilityIds)
             {
                 var lands = tick + CastTicksOf(content, id);
-                if (!OpensTargetWindow(content, id) || lands < phase.CountsFrom || !RoleShared.ReadyAndAffordable(a, id, tick, kit) ||
+                if (!OpensTargetWindow(content, id) || lands < phase.CountsFrom || (phase.Def.WindowTicks > 0 && lands >= closes) ||
+                    !RoleShared.ReadyAndAffordable(a, id, tick, kit) ||
                     (content.Abilities.TryGetValue(id, out var def) && def.Range > 0 && dist > def.Range))
                 {
                     continue;
                 }
-                if (best is not { } b || lands < b.Lands || (lands == b.Lands && a.Id < b.ActorId))
+                if (best is not { } b || (b.Healer && !healer) ||
+                    (b.Healer == healer && (lands < b.Lands || (lands == b.Lands && a.Id < b.ActorId))))
                 {
-                    best = (a.Id, id, lands);
+                    best = (a.Id, id, lands, healer);
                 }
             }
         }

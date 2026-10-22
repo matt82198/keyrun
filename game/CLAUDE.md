@@ -8,7 +8,7 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
 - `project.godot`, `Keyrun.csproj`, `Keyrun.sln`, `export_presets.cfg` - Godot project and export preset "Windows Desktop".
 - `scenes/` - Godot scenes (text .tscn). `src/` - Godot C# (Boot, Host, View, Hud). Godot types live only here.
 - `sim/Keyrun.Sim/` - the deterministic integer rules engine, pure net8.0, no Godot reference.
-- `sim/Keyrun.Sim/Dungeon/` - the seeded dungeon generator (RoomGraphGen, WalkGridGen, PackSlots, PackFiller, DungeonPipeline); plan of record `design/ARCHITECTURE.md` (STATE.md D63); gate `sim/Keyrun.Sim.Tests/Dungeon/SeededDungeonTests.cs`. Fill: `Dungeon/BranchFill.cs` (Choir opens both branches, Pair and Seed dealt one per branch by seed, optional packs to the branch target; `BranchFillTests`). Run layout: `bots/Keyrun.Bots/shared/SeededLayout.cs` + `SeededRoster.cs` (walked branch = route boxes, other branch = `LayoutDef.SideBoxes`, bots' branch = stage-7 draw; `SeededLayoutTests`, `SeededFillContentTests`, Playtest `SeededBranchRunTests`); view: `content/.../Model/BranchDoors.cs` (shell boxes, one-way arrows) drawn by DungeonBuilder/GreyBox; launch flag `--dungeon-seed N`.
+- `sim/Keyrun.Sim/Dungeon/` - the seeded dungeon generator (RoomGraphGen, WalkGridGen, PackSlots, PackFiller, DungeonPipeline); plan of record `design/ARCHITECTURE.md` (STATE.md D63); gate `sim/Keyrun.Sim.Tests/Dungeon/SeededDungeonTests.cs`. Fill: `Dungeon/BranchFill.cs` (Choir opens both branches, Pair and Seed dealt one per branch by seed, optional packs to the branch target; `BranchFillTests`). Run layout: `bots/Keyrun.Bots/shared/SeededLayout.cs` + `SeededRoster.cs` (walked branch = route boxes, other branch = `LayoutDef.SideBoxes`, bots' branch = stage-7 draw; `SeededLayoutTests`, `SeededFillContentTests`, Playtest `SeededBranchRunTests`); view: `content/.../Model/BranchDoors.cs` (shell boxes, one-way arrows) drawn by DungeonBuilder/GreyBox; launch flag `--dungeon-seed N`. Segments (D65): `DungeonGenParams.Segments` chains fork-and-boss segments (`RoomNode.Segment`/`Branch`, `RoomGraph.BossRooms`); gate `SegmentedDungeonTests`.
 - `sim/Keyrun.Sim.Tests/` - xUnit tests, PurityTests, and `Fixtures/oracle/` (parity data from lane 1B).
 - `sim/ORACLE.md` - the parity contract: trace format, vector fixtures, which TS commit is the reference.
 - `content/Keyrun.Content/` - JSON loader, validator and sim adapter (pure net8.0). Lane 1D, PR #111.
@@ -43,13 +43,17 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
 
 - `sim/`, `bots/src/`, `content/` (TS) and `client/`, `server/` are FROZEN at main `6e1548d` (STATE.md D12). No feature
   work there until phase 4A deletes them. `content/data/*.json` stays verbatim: the C# loader embeds it.
-- The TS byte-equal oracle test (`tests/oracle/`, lane 1B, matched by vitest's `tests/**/*.test.ts` include) regenerates
-  the fixtures in memory and fails when a frozen root changes. It runs under `npm test` in the required `tests.yml`
-  gate (`test` job). A TS edit under a frozen root turns that check red. That is the intended behaviour.
-- Phase 4A rehomes the oracle tests and fixtures. Until then (STATE.md D28) the fixtures, the manifest hash and E2eAssert's
-  `$ReplayTickDigest` are recordings, not an independent parity check: a sim rule change regenerates them
-  (`ORACLE_WRITE=1 npx vitest run tests/oracle`, the digest edited to the measured value) with the reason next to the new
-  value and old/new in the PR. Never "fix during the port".
+- The TS byte-equal oracle test (`tests/oracle/`, lane 1B) and its generator were deleted with the TS tree (#553); the
+  fixtures are frozen inputs that nothing regenerates.
+- Phase 4A rehomes the oracle tests and fixtures. Until then (STATE.md D28) the fixtures and E2eAssert's
+  `$ReplayTickDigest` are recordings, not an independent parity check. The C# oracle tests (TraceReplayTests,
+  RolesOracleTraceTests, EncounterTraceTests) take each trace as INPUT (setup, seed, recorded commands) and assert the
+  named properties manifest.json lists next to it (`traces[].properties`, game/sim/ORACLE.md section 10), never a trace
+  hash or a tick-for-tick match with the TS recording, so a C# bot or sim rule change that keeps every property
+  re-records nothing. A change that breaks a property is a real regression: fix it, or change the property only with
+  the ruling that changed what the oracle protects. `traces[].properties` is the only source of what a trace protects;
+  a future re-record (a C# or tools/Keyrun.Replay job) rewrites only trace/setup bytes and their `files` entries and
+  keeps the properties, and TraceReplayTests fails any trace left without them. Never "fix during the port".
 
 ## Purity rule
 

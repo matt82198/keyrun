@@ -45,6 +45,8 @@ public sealed class ScriptedWardenTauntTests
             e.Alive = true;
             e.HolderId = holderId;
             e.Pos = new Vec3(warden.Pos.X + offsetX, warden.Pos.Y, warden.Pos.Z);
+            // AGGRO-CHASE leash: the enemy is placed as if it stood here, so it is home here (not 36 m off in the Pair hall).
+            e.Home = e.Pos;
         }
         return run with { State = state };
     }

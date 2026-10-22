@@ -39,7 +39,7 @@ internal static class PullsOrLayoutPhase
             {
                 // A pull or a pack (PATH-PACKS) runs its scripts on its own clock from its engage tick.
                 var groups = Aggro.GroupsOf(run.Dungeon, nextState.Tick, content.Packs, content.Layout, content.Patrols).Where(g => newly.Contains(g.Id)).Select(g => g.ActorIds).ToList();
-                activeScripts = RunRoot.OnEngageClock(activeScripts ?? content.EnemyScripts, groups, nextState.Tick, content.Abilities);
+                activeScripts = RunRoot.OnEngageClock(activeScripts ?? content.EnemyScripts, content.EnemyScripts, groups, nextState.Tick, content.Abilities);
             }
         }
         c.State = nextState;
