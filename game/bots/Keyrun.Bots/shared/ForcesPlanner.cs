@@ -127,6 +127,12 @@ public static class ForcesPlanner
         for (var i = 0; i < packs.Count; i++)
         {
             var pack = packs[i];
+            // A pack whose centre stands in no box of the layout is a pack of a branch the party does not walk (the seeded
+            // layout lists both branches' packs, D45/D46): the party can never reach it, so it is neither committed nor a choice.
+            if (layout.BoxIndexAt(pack.Center) < 0)
+            {
+                continue;
+            }
             if (Pending(state, pack))
             {
                 pending.Add((pack, i, pack.Spawns.Sum(s => LivePoints(state, plan, s.ActorId)), pack.Spawns.Sum(s => LiveHealth(state, s.ActorId))));
@@ -157,7 +163,7 @@ public static class ForcesPlanner
         var bestBox = int.MaxValue;
         foreach (var p in picked)
         {
-            var box = Math.Max(0, layout.BoxIndexAt(p.Pack.Center));
+            var box = layout.BoxIndexAt(p.Pack.Center);
             if ((reach < 0 || box <= reach) && box < bestBox)
             {
                 best = p.Pack;
