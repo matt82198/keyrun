@@ -38,6 +38,41 @@ public sealed record ForcesReading(int Points, int Required)
 }
 
 /// <summary>
+/// FINISH-NEEDS-FORCES (ledger f-8c50a787, WoW Mythic+): the dungeon's Enemy Forces requirement. A dungeon that carries
+/// one (<see cref="DungeonDef.ForcesGoal"/>) completes only when the last pull is cleared AND <see cref="Met"/> holds, in
+/// either order (<see cref="Runs.RunWiring.CheckRunEnd"/>). A requirement of zero or less is rejected (fail closed).
+/// </summary>
+public sealed record ForcesGoal
+{
+    /// <summary>Builds the goal.</summary>
+    /// <param name="pointsByEnemy">Enemy id to forces value (forces.json); a missing id is worth 0.</param>
+    /// <param name="required">Points that fill the bar (100%); must be positive.</param>
+    public ForcesGoal(IReadOnlyDictionary<string, int> pointsByEnemy, int required)
+    {
+        ArgumentNullException.ThrowIfNull(pointsByEnemy);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(required);
+        PointsByEnemy = pointsByEnemy;
+        Required = required;
+    }
+
+    /// <summary>Enemy id to forces value.</summary>
+    public IReadOnlyDictionary<string, int> PointsByEnemy { get; }
+
+    /// <summary>Points that fill the bar.</summary>
+    public int Required { get; }
+
+    /// <summary>The bar's reading for <paramref name="state"/>.</summary>
+    /// <param name="state">The run state.</param>
+    /// <returns>The reading.</returns>
+    public ForcesReading Read(SimState state) => Forces.Read(state, PointsByEnemy, Required);
+
+    /// <summary>True once the run's dead enemies bank the requirement.</summary>
+    /// <param name="state">The run state.</param>
+    /// <returns>True when the bar is full.</returns>
+    public bool Met(SimState state) => Read(state).Full;
+}
+
+/// <summary>
 /// The Enemy Forces tally (BIBLE s9.2, HUD-FORCES): the sum of the forces value of every enemy actor that has died in
 /// the run. It is read from the run's own state (a dead actor stays in <see cref="SimState.Actors"/> with
 /// <c>Alive = false</c> and its enemy id as <c>ClassId</c>), so it adds no sim state and never moves a trace. Players

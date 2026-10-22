@@ -31,6 +31,10 @@ public sealed class NoPolicyParityTests
         var kits = KitRegistry.From(registry);
         var source = new BotCommandSource(setup.Party.Select(p => p.Id), kits, seed);
         var log = new StringBuilder();
+        // f-3dcc702c: the host's autorun leader counts the forces bar to 100% (PlayerInput hands ScriptedWarden this plan).
+        var forces = ForcesPlan.Of(registry);
+        // The host (SimDriver) sets the forces table on its bot source, so every view carries the run's PullPlan.
+        source.Forces = forces;
         while (run.State.Tick < maxTicks && run.RunEnd.ResultTick is null)
         {
             var tick = run.State.Tick;
@@ -41,7 +45,7 @@ public sealed class NoPolicyParityTests
                 if (!Follow.AnyLivingEnemy(run.State))
                 {
                     commands.RemoveAll(c => c.ActorId == leader.Id);
-                    if (Follow.LeadRoute(tick, leader, run) is { } walk)
+                    if (Follow.LeadRoute(tick, leader, run, null, forces) is { } walk)
                     {
                         commands.Add(walk);
                     }
@@ -51,7 +55,7 @@ public sealed class NoPolicyParityTests
                     // R-SEED-1a (f-244d102b): BotCommandSource.cs:162-166 passes every batch command, the leader's TankEngage
                     // approach move included, so the reference keeps exactly that move (TankEngage.ApproachMove) and strips
                     // the rest of the leader's moves in a fight, as before.
-                    var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits.ForRun(run.Content.Abilities)) with { Layout = run.Content.Layout };
+                    var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits.ForRun(run.Content.Abilities)) with { Layout = run.Content.Layout, PullPlan = PullPlan.Of(run, forces) };
                     var approach = leader.Role == ActorRole.Tank ? TankEngage.ApproachMove(view, leader, view.Kits.ResolveKit(leader.ClassId, view.ClassKit)) : null;
                     // KICK-LEDGER-COOLDOWN-GAP (f-13b5c33a): BotCommandSource passes the leader's kick walk too (the step toward a caster
                     // its Shield Bash is named to kick but cannot reach yet, RoleShared.LedgerKickApproachCommand), so the reference keeps

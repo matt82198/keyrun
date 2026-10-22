@@ -82,7 +82,7 @@ public static class HostRunFactory
         }
         if (req.StartPull > 1)
         {
-            dungeon = dungeon with { Pulls = dungeon.Pulls.Skip(req.StartPull - 1).ToList() };
+            dungeon = HostRunSetup.FromPull(dungeon, req.StartPull);
         }
         // Lane NAV-CORE: a --pull N run starts its party in pull N's room (HostRunSetup.PartyFor), else in the Entrance.
         // Finding f-f9b80112 (BIBLE s7): the screen's equipped gear, keystone included, reaches the run on top of the

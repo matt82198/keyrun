@@ -166,7 +166,13 @@ public sealed class ScoreboardLiveTests
     public void Header_follows_pull_clear_and_deaths()
     {
         var d = Default.Value;
-        Assert.Equal("Timed", d.Result);
+        // FINISH-NEEDS-FORCES (f-8c50a787, WoW Mythic+): the key completes only at 100% forces with the boss dead. On
+        // main's layout the default party walks the line and skips every optional pack, so the boss dies short of the
+        // count and the run stays open. The layout lane (feat/dungeon-branches) routes the party into packs and flips
+        // this to "Timed".
+        Assert.Null(d.Result);
+        Assert.True(d.PullClearTick.ContainsKey("boss"), "the boss never died");
+        Assert.True(d.Readings[^1].ForcesBp < 10000, $"forces reached {d.Readings[^1].ForcesBp} bp yet the run did not finish");
         Assert.True(d.PullClearTick.ContainsKey("choir"), "the Choir never cleared");
         var order = new[] { "choir", "pair", "seed", "boss" };
         foreach (var r in d.Readings)

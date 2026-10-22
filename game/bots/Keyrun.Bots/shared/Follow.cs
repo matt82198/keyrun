@@ -275,8 +275,12 @@ public static class Follow
     /// <param name="self">The leader.</param>
     /// <param name="run">The run (its layout, dungeon and active pull).</param>
     /// <param name="openSeats">Abandoned seats' actor ids (they never come in, so they are not waited for), or null.</param>
+    /// <param name="forces">
+    /// The forces table (f-3dcc702c, <see cref="ForcesPlanner"/>): with it, the leader pulls the layout's packs while the bar
+    /// is below 100% instead of walking past them. Null (the default) leaves the walk exactly as it was.
+    /// </param>
     /// <returns>The move, or null.</returns>
-    public static MoveCommand? LeadRoute(int tick, ActorState self, Keyrun.Sim.Runs.Run run, IReadOnlyList<int>? openSeats = null)
+    public static MoveCommand? LeadRoute(int tick, ActorState self, Keyrun.Sim.Runs.Run run, IReadOnlyList<int>? openSeats = null, ForcesPlan? forces = null)
     {
         ArgumentNullException.ThrowIfNull(self);
         ArgumentNullException.ThrowIfNull(run);
@@ -291,6 +295,11 @@ public static class Follow
             return Distance2(self.Pos, hold) <= ArriveMm * ArriveMm
                 ? null
                 : PathMoves.Along(tick, self, layout, hold);
+        }
+        // f-3dcc702c: count to 100 before the boss. Walking at a pack ends in its aggro ring, which engages it.
+        if (forces is not null && ForcesPlanner.NextPackPoint(run, forces, self) is { } pack)
+        {
+            return PathMoves.Along(tick, self, layout, pack);
         }
         return WalkRoute(tick, self, layout);
     }
@@ -331,6 +340,11 @@ public static class Follow
         {
             var hold = HoldPoint(layout, high);
             return Distance2(self.Pos, hold) <= ArriveMm * ArriveMm ? null : PathMoves.Along(tick, self, layout, hold);
+        }
+        // f-7aa25aa6: count to 100 before the boss, as LeadRoute does for the scripted leader (one ForcesPlanner).
+        if (view.PullPlan is { } pulls && ForcesPlanner.NextPackPoint(view.State, layout, pulls, self) is { } pack)
+        {
+            return PathMoves.Along(tick, self, layout, pack);
         }
         return WalkRoute(tick, self, layout);
     }

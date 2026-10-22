@@ -251,7 +251,11 @@ public partial class SimDriver : Node
             _input = _player;
             // CARELESS-SEAT: --careless-seat S@T:GROUP makes bot seat S stray toward GROUP's idle pull from tick T.
             var careless = Options.CarelessSeat?.For(Setup.Dungeon);
-            _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed, BotCommandSource.DefaultSkillDial, careless);
+            _bots = new BotCommandSource(Setup.BotActorIds, KitRegistry.From(Registry), Options.Seed, BotCommandSource.DefaultSkillDial, careless)
+            {
+                // f-7aa25aa6: a bot in the lead seat counts the Enemy Forces bar to 100% before the boss, as the autorun Warden does.
+                Forces = ForcesPlan.Of(Registry),
+            };
             // Lane 3H-c: the human's G reaches the bot seats (hud-wiring.ts derivePingEvent -> simHost.applyCommand).
             _player.Pinged += RoutePing;
             // Lane 3E-b: --record-input / --replay-input, interactive only (an autorun's input is ScriptedWarden).

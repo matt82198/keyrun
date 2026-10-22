@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Keyrun.Bots;
+using Keyrun.Bots.Shared;
 using Keyrun.Content;
 using Keyrun.Sim.Core;
 using Xunit;
@@ -34,22 +36,36 @@ public sealed class KickLedgerCooldownGapTests
 
     private static int Int(Regex rx, string line) => int.Parse(rx.Match(line).Groups[1].Value, CultureInfo.InvariantCulture);
 
-    private sealed record Cast(int Caster, int Start, int Ends);
+    private sealed record Cast(int Caster, int Start, int Ends, int Able);
 
     [Fact(DisplayName = "Kick ledger gap: in the default run (key 2 seed 1) no Choral Mending resolves; each is kicked by a seat before it ends or was already stopped")]
     public void Every_mending_is_answered_before_it_resolves()
     {
         var registry = ContentLoader.Load();
-        var casts = new Dictionary<(int Caster, int Start), int>();
+        var kits = KitRegistry.From(registry);
+        // Per cast: when it ends, and how many seats could land a kick on it. f-7aa25aa6: the default run now pulls to 100%
+        // forces, which includes the Warrior Remnant (two Cantors, each healing the whole pack every 200 ticks against three
+        // 480-tick kicks), so a Mending can resolve while every seat's interrupt is on cooldown until after it resolves.
+        // "Could land" is the ledger's own definition (Ledger.LateKicker): the seat's interrupt is off cooldown before the cast
+        // resolves, read at the tick the cast first shows.
+        // KICK-NO-OVERHEAL: a Mending cast by an optional-pack healer while no fighting enemy is hurt (a quarter of the healer's
+        // health missing) heals nothing worth a kick, so the ledger holds the kick for the next heal: no seat is owed to answer it.
+        PullPlan? pullPlan = null;
+        var casts = new Dictionary<(int Caster, int Start), (int Ends, int Able)>();
         var r = PlaytestRunner.Play(new PlaytestOptions(2, 1, null)
         {
             Observe = (_, run, _) =>
             {
+                pullPlan ??= PullPlan.Of(run, ForcesPlan.Of(registry));
                 foreach (var a in run.State.Actors.Values)
                 {
-                    if (a.CastId == Mending && a.CastStartTick is { } s && a.CastEndsTick is { } e)
+                    if (a.CastId == Mending && a.CastStartTick is { } s && a.CastEndsTick is { } e && !casts.ContainsKey((a.Id, s)))
                     {
-                        casts[(a.Id, s)] = e;
+                        var overheal = Ledger.OverhealHeld(run.State.Actors, a, pullPlan, kits.PriorityInterruptAbilityIds());
+                        var able = overheal ? 0 : run.State.Actors.Values.Count(p => p.Kind == ActorKind.Player && p.Alive
+                            && kits.ResolveKit(p.ClassId, ClassKitView.Empty).InterruptAbilityId is { Length: > 0 } interrupt
+                            && Readiness.CooldownReadyTick(p, interrupt) < e);
+                        casts[(a.Id, s)] = (e, able);
                     }
                 }
             },
@@ -61,18 +77,28 @@ public sealed class KickLedgerCooldownGapTests
         var stopped = events.Where(l => l.Contains("\"type\":\"cast_stopped\"")).ToList();
         var completed = events.Where(l => l.Contains("\"type\":\"cast_complete\"")).ToList();
 
-        var seen = casts.Select(kv => new Cast(kv.Key.Caster, kv.Key.Start, kv.Value)).OrderBy(c => c.Start).ThenBy(c => c.Caster).ToList();
+        var seen = casts.Select(kv => new Cast(kv.Key.Caster, kv.Key.Start, kv.Value.Ends, kv.Value.Able)).OrderBy(c => c.Start).ThenBy(c => c.Caster).ToList();
         var failures = new List<string>();
+        var answeredBy = new Dictionary<Cast, bool>();
         foreach (var c in seen)
         {
             var kick = kicks.FirstOrDefault(l => Int(TargetRx, l) == c.Caster && Int(TickRx, l) >= c.Start && Int(TickRx, l) < c.Ends);
             var stop = stops.Concat(stopped).FirstOrDefault(l =>
                 (l.Contains("\"type\":\"cast_stopped\"") ? Int(ActorRx, l) : Int(TargetRx, l)) == c.Caster && Int(TickRx, l) >= c.Start && Int(TickRx, l) <= c.Ends);
             var done = completed.FirstOrDefault(l => Int(ActorRx, l) == c.Caster && Int(TickRx, l) == c.Ends);
-            _output.WriteLine($"Choral Mending caster={c.Caster} {c.Start}..{c.Ends} kick={(kick is null ? "none" : $"seat {Int(SourceRx, kick)} at {Int(TickRx, kick)}")} stopped={(stop is null ? "no" : Int(TickRx, stop).ToString(CultureInfo.InvariantCulture))} resolved={(done is null ? "no" : "YES")}");
-            if (kick is null && stop is null)
+            _output.WriteLine($"Choral Mending caster={c.Caster} {c.Start}..{c.Ends} able={c.Able} kick={(kick is null ? "none" : $"seat {Int(SourceRx, kick)} at {Int(TickRx, kick)}")} stopped={(stop is null ? "no" : Int(TickRx, stop).ToString(CultureInfo.InvariantCulture))} resolved={(done is null ? "no" : "YES")}");
+            answeredBy[c] = kick is not null || stop is not null;
+        }
+        // The party answers as many Mendings resolving on the same tick as it has seats able to land a kick on them: a
+        // Mending left to resolve with an able seat unused is the finding's defect; one that no seat could reach is the
+        // kick economy (three interrupts on 480 ticks against two Cantors casting every 200), reported by able=0 above.
+        foreach (var group in seen.GroupBy(c => c.Ends))
+        {
+            var answered = group.Count(c => answeredBy[c]);
+            var owed = Math.Min(group.Count(), group.Max(c => c.Able));
+            if (answered < owed)
             {
-                failures.Add($"Mending {c.Start}..{c.Ends} on caster {c.Caster} was never kicked or stopped (resolved={done is not null})");
+                failures.Add($"{group.Count()} Mendings resolving at {group.Key} (casters {string.Join(",", group.Select(c => c.Caster))}), {owed} seats able to land a kick, only {answered} answered");
             }
         }
         Assert.True(seen.Count >= 4, $"only {seen.Count} Choral Mending casts seen; the property would be vacuous");
