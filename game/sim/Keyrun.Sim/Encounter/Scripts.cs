@@ -142,8 +142,20 @@ public static class Scripts
 
     // scripts.ts:99 telegraphEventAt: {tick, type, actorId, cast, shape, leadTicks, resolvesTick, origin, yaw,
     // radius?, angle1024?, length?, width?}.
-    private static SimEvent TelegraphEventAt(int tick, int actorId, ActorState actor, string cast, TelegraphSpec tg)
+    // TELEGRAPH-ANCHOR (finding f-ebb50027, BIBLE s3 "never a lie about where"): a TelegraphSpec.AnchorTarget telegraph's
+    // origin is the caster's current target's position (integer mm), and with no living target on this tick it is not
+    // drawn (null): a shape at the caster would tell the party the wrong ground.
+    private static SimEvent? TelegraphEventAt(SimState state, int tick, int actorId, ActorState actor, string cast, TelegraphSpec tg)
     {
+        var origin = actor.Pos;
+        if (tg.AnchorTarget)
+        {
+            if (actor.TargetId is not { } targetId || !state.Actors.TryGetValue(targetId, out var target) || !target.Alive)
+            {
+                return null;
+            }
+            origin = target.Pos;
+        }
         var fields = new List<(string, JsValue)>
         {
             ("actorId", JsValue.Int(actorId)),
@@ -151,7 +163,7 @@ public static class Scripts
             ("shape", JsValue.Str(tg.Shape)),
             ("leadTicks", JsValue.Int(tg.LeadTicks)),
             ("resolvesTick", JsValue.Int(tick + tg.LeadTicks)),
-            ("origin", JsValue.Vec(actor.Pos)),
+            ("origin", JsValue.Vec(origin)),
             ("yaw", JsValue.Int(actor.Yaw)),
         };
         if (tg.Radius is { } r)
@@ -482,8 +494,11 @@ public static class Scripts
                     {
                         // A held spansCast cast starts now, so its re-drawn shape resolves on the tick it lands.
                         var spans = htg.SpansCast && hasCast;
-                        telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, spans ? htg with { LeadTicks = issued!.CastTicks } : htg));
-                        castStarts.Add(spans ? tick : null);
+                        if (TelegraphEventAt(state, tick, actorId, actor, step.Cast, spans ? htg with { LeadTicks = issued!.CastTicks } : htg) is { } hev)
+                        {
+                            telegraphEvents.Add(hev);
+                            castStarts.Add(spans ? tick : null);
+                        }
                     }
                     return true;
                 });
@@ -512,9 +527,9 @@ public static class Scripts
                     if (deathCast is not null)
                     {
                         commands.Add(deathCast);
-                        if (step.Telegraph is { } dtg)
+                        if (step.Telegraph is { } dtg && TelegraphEventAt(state, tick, actorId, actor, step.Cast, dtg) is { } dev)
                         {
-                            telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, dtg));
+                            telegraphEvents.Add(dev);
                             castStarts.Add(null);
                         }
                     }
@@ -534,9 +549,10 @@ public static class Scripts
                         var spans = SpannedCastTicks(step, abil);
                         var qlead = spans > 0 ? Math.Max(qtg.LeadTicks, spans) : qtg.LeadTicks;
                         var startTick = tick + qlead - spans;
-                        if (queuedStarts.Contains((i, startTick)))
+                        if (queuedStarts.Contains((i, startTick))
+                            && TelegraphEventAt(state, tick, actorId, actor, step.Cast, qtg with { LeadTicks = qlead }) is { } qev)
                         {
-                            telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, qtg with { LeadTicks = qlead }));
+                            telegraphEvents.Add(qev);
                             castStarts.Add(spans > 0 ? startTick : null);
                         }
                     }
@@ -558,9 +574,10 @@ public static class Scripts
                     var kept = fireTick == tick
                         ? issuedNow && CastHeldAt(state, actorId, actor, script, abil, fireTick, tick) == i
                         : CastHeldAt(state, actorId, actor, script, abil, fireTick, FreeTick(actorId, actor, tick, issuedUntil, nextHeld, abil)) == i;
-                    if (FiresAt(step, fireTick) && kept)
+                    if (FiresAt(step, fireTick) && kept
+                        && TelegraphEventAt(state, tick, actorId, actor, step.Cast, tg with { LeadTicks = lead }) is { } sev)
                     {
-                        telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, tg with { LeadTicks = lead }));
+                        telegraphEvents.Add(sev);
                         castStarts.Add(fireTick);
                     }
                 }
@@ -572,8 +589,11 @@ public static class Scripts
                     // ability's cooldown (the Seed's slam at key 2: every 98, cooldown 100), and without this every
                     // second telegraph announced a cast that combat refused not_ready. A frozen-TS replay
                     // (TelegraphSpec.TsUnchecked) keeps the TS rule its oracle trace recorded.
-                    telegraphEvents.Add(TelegraphEventAt(tick, actorId, actor, step.Cast, tg));
-                    castStarts.Add(null);
+                    if (TelegraphEventAt(state, tick, actorId, actor, step.Cast, tg) is { } tev)
+                    {
+                        telegraphEvents.Add(tev);
+                        castStarts.Add(null);
+                    }
                 }
             }
         }

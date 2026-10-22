@@ -65,6 +65,14 @@ public sealed record TelegraphSpec(string Shape, int LeadTicks)
     /// content-driven tests) draws a telegraph only for a cast that will start. C#-only, never read from JSON.
     /// </summary>
     public bool TsUnchecked { get; init; }
+
+    /// <summary>
+    /// TELEGRAPH-ANCHOR (finding f-ebb50027; BIBLE section 3, and 9.3 Searing Hex "circle under the target"): true when
+    /// the content says <c>"anchor": "target"</c>. The telegraph's origin is then the caster's current target's position
+    /// on the tick it is drawn (so it also resolves there), and on a tick the caster has no living target it is not drawn.
+    /// False (the default, and the frozen TS rule): the origin is the caster.
+    /// </summary>
+    public bool AnchorTarget { get; init; }
 }
 
 /// <summary>

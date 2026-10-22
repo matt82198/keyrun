@@ -19,7 +19,7 @@ public sealed class KeyAfterRunTests
     private static readonly IReadOnlyList<string> Four = new[] { "echo", "tide", "hush", "pact" };
 
     private static int Reopened(int keyLevel, RunResult result, int finishTick) =>
-        ScreenState.Open(Dungeon, Four, Timer.KeyAfterRun(keyLevel, result, finishTick, Par)).KeyLevel;
+        ScreenState.Open(Dungeon, Four, Timer.KeyAfterRun(keyLevel, result, finishTick, Par), 0, ScreenState.NoClauseStartKey).KeyLevel;
 
     [Fact]
     public void An_untimed_run_keeps_the_key_at_the_level_it_was_played_at_for_every_key_and_finish()
