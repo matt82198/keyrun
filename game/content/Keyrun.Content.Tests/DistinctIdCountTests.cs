@@ -66,10 +66,10 @@ public sealed class DistinctIdCountTests
     {
         ContentRegistry reg = ContentLoader.Load();
 
-        // Single-file shape today (layout.json, forces.json). The wiring step swaps these three sources for
-        // "layout/hollow-vault/rooms/", "layout/hollow-vault/packs/" and "forces/values/" with Each.
-        AssertDistinct(reg.Layout.Boxes.Count, IdsIn("layout.json", r => r["boxes"]!.AsArray()), "layout rooms");
-        AssertDistinct(reg.Layout.Packs.Count, IdsIn("layout.json", r => r["packs"]!.AsArray()), "layout packs");
-        AssertDistinct(reg.Forces.Values.Count, IdsIn("forces.json", r => r["values"]!.AsArray(), "enemyId"), "forces values");
+        // One file per room, pack, patrol and forces value (R-LOADER-1): a new file grows both sides.
+        AssertDistinct(reg.Layout.Boxes.Count, IdsIn("layout/hollow-vault/rooms/", Each), "layout rooms");
+        AssertDistinct(reg.Layout.Packs.Count, IdsIn("layout/hollow-vault/packs/", Each), "layout packs");
+        AssertDistinct(reg.Layout.Patrols.Count, IdsIn("layout/hollow-vault/patrols/", Each), "layout patrols");
+        AssertDistinct(reg.Forces.Values.Count, IdsIn("forces/values/", Each, "enemyId"), "forces values");
     }
 }
