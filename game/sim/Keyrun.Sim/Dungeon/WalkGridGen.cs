@@ -13,6 +13,10 @@ namespace Keyrun.Sim.Dungeon;
 /// uses the top half of the wall and branch 1's the bottom half (<see cref="PortRow"/>), so the shorter branch's
 /// corridor to the boss crosses the longer branch's last column band on its own row side, clear of the other
 /// branch's room. The two branches share no walkable cell outside the entrance and boss rooms (SeededDungeonTests).
+/// Segments (STATE.md D65) lie end to end along x: a mid boss room is centred like the entrance and is the next
+/// segment's fork, so the same port rule holds on its west wall (its branches in) and its east wall (the next
+/// branches out), and the grid grows one column band per layer. A segment's corridors stay inside its own column
+/// bands, so the only way between two segments is through the boss room that joins them (SegmentedDungeonTests).
 /// Pure over (graph, params).
 /// </summary>
 public static class WalkGridGen

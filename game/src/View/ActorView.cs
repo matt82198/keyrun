@@ -148,11 +148,22 @@ public partial class ActorView : Node3D
     }
 
     // Binds the body once the actor exists in the sim state (the static Warden's view is ready before any run).
+    // HUMAN-PLAY (D65/D66): a view outlives its run (the static seat-1 view, and a spawned body whose actor id the next
+    // run reuses), so when the screen's class pick moves a class to another seat (a Chanter run after a Warden run puts
+    // the Warden on seat 2) the body is rebuilt for the actor's new class instead of keeping the old model.
     private void TryBind()
     {
-        if (_bound || Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var actor))
+        if (Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var actor))
         {
             return;
+        }
+        if (_bound && string.Equals(actor.ClassId, _classId, System.StringComparison.Ordinal))
+        {
+            return;
+        }
+        if (_bound)
+        {
+            Unbind(actor.ClassId);
         }
         _bound = true;
         _classId = actor.ClassId;
@@ -196,6 +207,27 @@ public partial class ActorView : Node3D
                  (_animator is null ? "clips=static" : _animator.Matched));
         LogModelLine(path);
         _measureIn = MeasureAfterFrames;
+    }
+
+    // Drops the bound model (TryBind rebinds on the next line), back to the bare capsule the view started as.
+    private void Unbind(string newClassId)
+    {
+        GD.Print($"ACTOR rebind id={ActorId} from={_classId} to={newClassId}");
+        if (_model is not null)
+        {
+            RemoveChild(_model);
+            _model.QueueFree();
+            _model = null;
+        }
+        _animator = null;
+        _fadeSurfaces = null;
+        _fadeOn = false;
+        _flashOn = false;
+        _shadows = true;
+        _measureIn = -1;
+        GetNode<MeshInstance3D>("Body").Visible = true;
+        GetNode<MeshInstance3D>("Nose").Visible = !BoxShape;
+        _bound = false;
     }
 
     /// <summary>
