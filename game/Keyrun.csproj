@@ -14,13 +14,15 @@
     <Nullable>enable</Nullable>
     <LangVersion>12.0</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <DefaultItemExcludes>$(DefaultItemExcludes);sim/**;bots/**;content/**;tools/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);sim/**;bots/**;content/**;tools/**;src/HostCore/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="sim/Keyrun.Sim/Keyrun.Sim.csproj" />
     <ProjectReference Include="content/Keyrun.Content/Keyrun.Content.csproj" />
     <ProjectReference Include="bots/Keyrun.Bots/Keyrun.Bots.csproj" />
+    <!-- The Godot-free half of the host (namespace Keyrun.Host): its own assembly, so tests reference it, never link it. -->
+    <ProjectReference Include="src/HostCore/Keyrun.HostCore.csproj" />
   </ItemGroup>
 
 </Project>

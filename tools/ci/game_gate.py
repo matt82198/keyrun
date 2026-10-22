@@ -8,8 +8,14 @@ fails unless that result is 'success' whenever the diff touches game/** or
 tools/godot/**. The gate is also a required check on main, so a red,
 cancelled or still-running game-e2e blocks merge of such PRs.
 
+Every --require name=result (the workflow passes changes, game-test and
+game-e2e) must also be 'success': a docs-only PR runs those jobs as
+pass-throughs, so they still succeed, and a skipped, failed or cancelled one
+(for example game-test skipped on a code change) fails the gate.
+
 Exit codes: 0 = gate passes, 1 = gate fails (game paths without a green
-game-e2e), 2 = gate cannot evaluate (fails closed).
+game-e2e, or a required job not 'success'), 2 = gate cannot evaluate (fails
+closed).
 
 Stdlib only. Usage:
     python tools/ci/game_gate.py --base <sha> --head <sha> --e2e-result <result>
@@ -48,6 +54,20 @@ def evaluate(changed_paths, e2e_result):
     )
 
 
+def evaluate_required(required):
+    """Return (ok, reason) for a list of 'name=result' strings; each result must be 'success'."""
+    bad = []
+    for item in required:
+        name, sep, result = item.partition("=")
+        if not sep or not name:
+            bad.append("%r (not name=result)" % item)
+        elif result != "success":
+            bad.append("%s is %r" % (name, result))
+    if bad:
+        return False, "required job(s) not 'success': " + ", ".join(bad)
+    return True, "required job(s) success: %d" % len(required)
+
+
 def changed_paths(base, head, repo_dir):
     """List repo-relative paths in base...head. Raises GateError on any failure.
 
@@ -79,7 +99,13 @@ def main(argv=None):
     parser.add_argument("--head", default="")
     parser.add_argument("--e2e-result", default="", dest="e2e_result")
     parser.add_argument("--repo", default=".", help="git repo directory")
+    parser.add_argument("--require", action="append", default=[], metavar="NAME=RESULT",
+                        help="a needed job's result that must be 'success' (repeatable)")
     args = parser.parse_args(argv)
+    req_ok, req_reason = evaluate_required(args.require)
+    if not req_ok:
+        print("game-gate: FAIL: %s" % req_reason)
+        return 1
     try:
         paths = changed_paths(args.base, args.head, args.repo)
     except GateError as exc:

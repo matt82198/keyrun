@@ -39,15 +39,20 @@ $ErrorActionPreference = 'Stop'
 $Sim     = 'game/sim/Keyrun.Sim.Tests/Keyrun.Sim.Tests.csproj'
 $Content = 'game/content/Keyrun.Content.Tests/Keyrun.Content.Tests.csproj'
 $Bots    = 'game/bots/Keyrun.Bots.Tests/Keyrun.Bots.Tests.csproj'
-$AllProjects = @($Content, $Sim, $Bots)
+# f-0cede7a5: Keyrun.Playtest.Tests is in game/Keyrun.sln, so CI game-test runs it; -All must too.
+# It references Keyrun.Sim, Keyrun.Content and Keyrun.Bots, so their source also selects it.
+$Playtest = 'tools/Keyrun.Playtest.Tests/Keyrun.Playtest.Tests.csproj'
+$AllProjects = @($Content, $Sim, $Bots, $Playtest)
 $Map = @(
     @{ Prefix = 'game/sim/Keyrun.Sim.Tests/';         Projects = @($Sim) },
-    @{ Prefix = 'game/sim/Keyrun.Sim/';               Projects = @($Sim, $Bots) },
+    @{ Prefix = 'game/sim/Keyrun.Sim/';               Projects = @($Sim, $Bots, $Playtest) },
     @{ Prefix = 'tools/Keyrun.Replay/';               Projects = @($Sim) },
     @{ Prefix = 'game/content/Keyrun.Content.Tests/'; Projects = @($Content) },
-    @{ Prefix = 'game/content/Keyrun.Content/';       Projects = @($Content, $Bots) },
+    @{ Prefix = 'game/content/Keyrun.Content/';       Projects = @($Content, $Bots, $Playtest) },
     @{ Prefix = 'game/bots/Keyrun.Bots.Tests/';       Projects = @($Bots) },
-    @{ Prefix = 'game/bots/Keyrun.Bots/';             Projects = @($Bots) },
+    @{ Prefix = 'game/bots/Keyrun.Bots/';             Projects = @($Bots, $Playtest) },
+    @{ Prefix = 'tools/Keyrun.Playtest.Tests/';       Projects = @($Playtest) },
+    @{ Prefix = 'tools/Keyrun.Playtest/';             Projects = @($Playtest) },
     @{ Prefix = 'game/lanes/';                        Projects = @() },
     @{ Prefix = 'tools/fastcheck.ps1';                Projects = @() }
 )
@@ -125,11 +130,19 @@ Write-Output "fastcheck: build ok at $([int]$sw.Elapsed.TotalSeconds)s"
 
 # --- Tests. ---
 $failed = @()
+$counts = @()
 foreach ($proj in $selected) {
     # Category=Balance facts (fork parity) are reported below, not gated; every other assertion gates.
-    & $dotnet test $proj --no-build --nologo -v q --filter 'Category!=Balance'
-    if ($LASTEXITCODE -ne 0) { $failed += $proj }
+    $testOut = @()
+    & $dotnet test $proj --no-build --nologo -v q --filter 'Category!=Balance' | Tee-Object -Variable testOut
+    $code = $LASTEXITCODE
+    # Short suite name for the summary line: Keyrun.<Name>.Tests -> <Name>. A missing count prints "?".
+    $short = [IO.Path]::GetFileNameWithoutExtension($proj) -replace '^Keyrun\.', '' -replace '\.Tests$', ''
+    $m = [regex]::Match(($testOut -join "`n"), 'Passed:\s*(\d+)')
+    $counts += "$short $(if ($m.Success) { $m.Groups[1].Value } else { '?' })"
+    if ($code -ne 0) { $failed += $proj }
 }
+$suites = if ($counts.Count) { " ($($counts -join ', '))" } else { ' (build only)' }
 # balance: reported, never part of the exit code (CI runs it in the non-required `balance` job).
 $balanceRed = $false
 if ($selected.Contains($Bots)) {
@@ -140,8 +153,8 @@ if ($selected.Contains($Bots)) {
 }
 $secs = [int]$sw.Elapsed.TotalSeconds
 if ($failed.Count) {
-    Write-Output "fastcheck: FAIL tests in $($failed -join ', ') after ${secs}s"
+    Write-Output "fastcheck: FAIL tests in $($failed -join ', ') after ${secs}s$suites"
     exit 1
 }
-Write-Output "fastcheck: PASS in ${secs}s$(if ($balanceRed) { ' (balance red, reported)' })"
+Write-Output "fastcheck: PASS in ${secs}s$suites$(if ($balanceRed) { ' (balance red, reported)' })"
 exit 0
