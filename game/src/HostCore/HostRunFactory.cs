@@ -74,12 +74,14 @@ public static class HostRunFactory
         ArgumentNullException.ThrowIfNull(setup);
         ArgumentNullException.ThrowIfNull(req);
         var dungeon = setup.Dungeon;
+        // --pull N counts the dungeon's pulls in route order, segment boss pulls included (setup.Dungeon.Pulls is that order).
+        if (req.StartPull < 1 || req.StartPull > dungeon.Pulls.Count)
+        {
+            throw new ArgumentException(
+                $"--pull {req.StartPull} is out of range: the dungeon's pulls are numbered 1..{dungeon.Pulls.Count} in route order (segment boss pulls included)");
+        }
         if (req.StartPull > 1)
         {
-            if (req.StartPull > dungeon.Pulls.Count)
-            {
-                throw new ArgumentException($"--pull {req.StartPull} is past the dungeon's {dungeon.Pulls.Count} pulls");
-            }
             dungeon = dungeon with { Pulls = dungeon.Pulls.Skip(req.StartPull - 1).ToList() };
         }
         // Lane NAV-CORE: a --pull N run starts its party in pull N's room (HostRunSetup.PartyFor), else in the Entrance.

@@ -56,4 +56,30 @@ public sealed class PullHeaderTests
 
     [Fact]
     public void Header_UnknownPull_IsNull() => Assert.Null(PullHeader.Of(Registry, Vault, "nope"));
+
+    /// <summary>R-MULTIBOSS-1: the Sunken Bellfoundry has three segment bosses and no trash pulls in its content.</summary>
+    private static readonly DungeonDef Bellfoundry = Registry.Dungeons["sunken-bellfoundry"];
+
+    [Fact]
+    public void Segment_boss_pulls_are_headed_by_their_boss_in_route_order()
+    {
+        var titles = LayoutDef.BossPullIds(Bellfoundry)
+            .Select(id => PullHeader.Of(Registry, Bellfoundry, id)?.Title ?? "<no header for " + id + ">")
+            .ToArray();
+        Assert.Equal(
+            new[]
+            {
+                "Pull 1/3  " + Registry.Enemies["bellfoundry.ommet"].Name,
+                "Pull 2/3  " + Registry.Enemies["bellfoundry.brineMother"].Name,
+                "Pull 3/3  " + Registry.Enemies["bellfoundry.greatBell"].Name,
+            },
+            titles);
+    }
+
+    [Fact]
+    public void Route_order_lists_trash_pulls_then_every_boss_pull()
+    {
+        Assert.Equal(new[] { "choir", "pair", "seed", "boss" }, PullHeader.RouteOrder(Vault));
+        Assert.Equal(new[] { "boss-s1", "boss-s2", "boss" }, PullHeader.RouteOrder(Bellfoundry));
+    }
 }
