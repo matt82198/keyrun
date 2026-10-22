@@ -452,7 +452,7 @@ public static class Scripts
                     {
                         // A held spansCast cast starts now, so its re-drawn shape resolves on the tick it lands.
                         var spans = htg.SpansCast && hasCast;
-                        if (TelegraphDraw.At(state, tick, actorId, actor, step.Cast, spans ? htg with { LeadTicks = issued!.CastTicks } : htg, spans ? tick : null) is { } hd)
+                        if (TelegraphDraw.At(state, tick, actorId, actor, step, spans ? htg with { LeadTicks = issued!.CastTicks } : htg, abil, spans ? tick : null) is { } hd)
                         {
                             draws.Add(hd);
                         }
@@ -484,7 +484,7 @@ public static class Scripts
                     if (deathCast is not null)
                     {
                         commands.Add(deathCast);
-                        if (step.Telegraph is { } dtg && TelegraphDraw.At(state, tick, actorId, actor, step.Cast, dtg, null) is { } dd)
+                        if (step.Telegraph is { } dtg && TelegraphDraw.At(state, tick, actorId, actor, step, dtg, abil, null) is { } dd)
                         {
                             draws.Add(dd);
                         }
@@ -506,7 +506,7 @@ public static class Scripts
                         var qlead = spans > 0 ? Math.Max(qtg.LeadTicks, spans) : qtg.LeadTicks;
                         var startTick = tick + qlead - spans;
                         if (queuedStarts.Contains((i, startTick))
-                            && TelegraphDraw.At(state, tick, actorId, actor, step.Cast, qtg with { LeadTicks = qlead }, spans > 0 ? startTick : null) is { } qd)
+                            && TelegraphDraw.At(state, tick, actorId, actor, step, qtg with { LeadTicks = qlead }, abil, spans > 0 ? startTick : null) is { } qd)
                         {
                             draws.Add(qd);
                         }
@@ -530,7 +530,7 @@ public static class Scripts
                         ? issuedNow && CastHeldAt(state, actorId, actor, script, abil, fireTick, tick) == i
                         : CastHeldAt(state, actorId, actor, script, abil, fireTick, FreeTick(actorId, actor, tick, issuedUntil, nextHeld, abil)) == i;
                     if (FiresAt(step, fireTick) && kept
-                        && TelegraphDraw.At(state, tick, actorId, actor, step.Cast, tg with { LeadTicks = lead }, fireTick) is { } sd)
+                        && TelegraphDraw.At(state, tick, actorId, actor, step, tg with { LeadTicks = lead }, abil, fireTick) is { } sd)
                     {
                         draws.Add(sd);
                     }
@@ -543,7 +543,7 @@ public static class Scripts
                     // ability's cooldown (the Seed's slam at key 2: every 98, cooldown 100), and without this every
                     // second telegraph announced a cast that combat refused not_ready. A frozen-TS replay
                     // (TelegraphSpec.TsUnchecked) keeps the TS rule its oracle trace recorded.
-                    if (TelegraphDraw.At(state, tick, actorId, actor, step.Cast, tg, null) is { } td)
+                    if (TelegraphDraw.At(state, tick, actorId, actor, step, tg, abil, null) is { } td)
                     {
                         draws.Add(td);
                     }

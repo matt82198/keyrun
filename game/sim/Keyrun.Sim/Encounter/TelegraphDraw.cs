@@ -60,23 +60,24 @@ public readonly record struct TelegraphDraw(int ActorId, string Cast, TelegraphS
     }
 
     /// <summary>
-    /// The draw for <paramref name="spec"/> by <paramref name="caster"/> on <paramref name="tick"/>, or null when it is
-    /// not drawn (<see cref="TelegraphOrigin.TryResolve"/> found no origin).
+    /// The draw of <paramref name="step"/>'s telegraph, as <paramref name="spec"/>, by <paramref name="caster"/> on
+    /// <paramref name="tick"/>, or null when it is not drawn (<see cref="TelegraphOrigin.TryResolve"/> found no origin).
     /// </summary>
     /// <param name="state">The tick's state.</param>
     /// <param name="tick">The draw tick.</param>
     /// <param name="actorId">The caster's id.</param>
     /// <param name="caster">The caster.</param>
-    /// <param name="cast">The ability.</param>
-    /// <param name="spec">The spec as drawn.</param>
+    /// <param name="step">The script step whose cast the telegraph warns of.</param>
+    /// <param name="spec">The spec as drawn (the step's, lead adjusted).</param>
+    /// <param name="abilities">Ability views, for the anchor's target pick.</param>
     /// <param name="castStartTick">The spanned cast's start tick, else null.</param>
     /// <returns>The draw, or null.</returns>
-    public static TelegraphDraw? At(SimState state, int tick, int actorId, ActorState caster, string cast, TelegraphSpec spec, int? castStartTick)
+    public static TelegraphDraw? At(SimState state, int tick, int actorId, ActorState caster, ScriptStep step, TelegraphSpec spec, IReadOnlyDictionary<string, ScriptAbility> abilities, int? castStartTick)
     {
         ArgumentNullException.ThrowIfNull(caster);
-        ArgumentNullException.ThrowIfNull(spec);
-        return TelegraphOrigin.TryResolve(state, caster, spec, out var origin)
-            ? new TelegraphDraw(actorId, cast, spec, tick, origin, caster.Yaw, castStartTick)
+        ArgumentNullException.ThrowIfNull(step);
+        return TelegraphOrigin.TryResolve(state, caster, step, spec, abilities, out var origin)
+            ? new TelegraphDraw(actorId, step.Cast, spec, tick, origin, caster.Yaw, castStartTick)
             : null;
     }
 }
@@ -86,26 +87,35 @@ public static class TelegraphOrigin
 {
     /// <summary>
     /// TELEGRAPH-ANCHOR (finding f-ebb50027, BIBLE s3 "never a lie about where"): a telegraph's origin is its caster's
-    /// position, or, for a <see cref="TelegraphSpec.AnchorTarget"/> spec, the caster's current target's position
-    /// (integer mm). With no living target on this tick it has no origin and is not drawn: a shape at the caster would
-    /// tell the party the wrong ground.
+    /// position, or, for a <see cref="TelegraphSpec.AnchorTarget"/> spec, the position (integer mm) of the player the
+    /// step's cast takes on this tick: <see cref="ScriptTarget.Resolve"/>, the same pick the cast command makes, so a
+    /// caster whose target died draws under the player its cast retargets to. A cast that needs no target falls back to
+    /// the caster's current target. With no living target (the pick is blocked or finds none) it has no origin and is
+    /// not drawn: a shape at the caster would tell the party the wrong ground.
     /// </summary>
     /// <param name="state">The tick's state.</param>
     /// <param name="caster">The caster.</param>
-    /// <param name="spec">The spec.</param>
+    /// <param name="step">The script step whose cast the telegraph warns of.</param>
+    /// <param name="spec">The spec as drawn.</param>
+    /// <param name="abilities">Ability views, for the target pick (range, shape, heal).</param>
     /// <param name="origin">The origin, when true.</param>
-    /// <returns>False when the spec anchors on a target that is missing or dead.</returns>
-    public static bool TryResolve(SimState state, ActorState caster, TelegraphSpec spec, out Vec3 origin)
+    /// <returns>False when the spec anchors on a target and none is living.</returns>
+    public static bool TryResolve(SimState state, ActorState caster, ScriptStep step, TelegraphSpec spec, IReadOnlyDictionary<string, ScriptAbility> abilities, out Vec3 origin)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(caster);
+        ArgumentNullException.ThrowIfNull(step);
         ArgumentNullException.ThrowIfNull(spec);
+        ArgumentNullException.ThrowIfNull(abilities);
         origin = caster.Pos;
         if (!spec.AnchorTarget)
         {
             return true;
         }
-        if (caster.TargetId is not { } targetId || !state.Actors.TryGetValue(targetId, out var target) || !target.Alive)
+        abilities.TryGetValue(step.Cast, out var ability);
+        var (picked, blocked) = ScriptTarget.Resolve(state, caster, step.Target, ability);
+        var targetId = blocked ? null : picked ?? caster.TargetId;
+        if (targetId is not { } id || !state.Actors.TryGetValue(id, out var target) || !target.Alive)
         {
             origin = default;
             return false;
