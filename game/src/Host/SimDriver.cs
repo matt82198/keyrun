@@ -387,16 +387,6 @@ public sealed record YawPlan(int Tick, float Yaw)
     }
 }
 
-/// <summary>Supplies this tick's commands (keyboard or scripted).</summary>
-public interface ICommandSource
-{
-    /// <summary>Appends the commands for <paramref name="tick"/> (the pre-step run tick) to <paramref name="into"/>.</summary>
-    /// <param name="tick">The tick the commands are addressed to.</param>
-    /// <param name="run">The run before the step.</param>
-    /// <param name="into">The command list.</param>
-    void Sample(int tick, Run run, List<Command> into);
-}
-
 /// <summary>
 /// Runs the real C# run root (<see cref="RunRoot.CreateRun"/> / <see cref="RunRoot.StepRun"/>, lane 2D) at 20 Hz from
 /// Godot's frame loop with a fixed accumulator (D9), on Hollow Vault with the human Warden plus a Chanter and a Cinder
