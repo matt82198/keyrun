@@ -18,21 +18,24 @@ namespace Keyrun.Bots.Shared;
 /// <param name="Ability">The ability id of a cast; empty otherwise.</param>
 /// <param name="Target">The target actor id, or null.</param>
 /// <param name="Reason">The K1 reason phrase for the command's rule id, or empty when the command was never tagged.</param>
+/// <param name="Mode">The run's playtester mode, "guided" or "blind" (design/PLAYTESTER-GUIDE.md section 1; G2.4, K3a).</param>
 public sealed record BotReceipt(
     [property: JsonPropertyName("tick")] int Tick,
     [property: JsonPropertyName("seat")] int Seat,
     [property: JsonPropertyName("class")] string Class,
     [property: JsonPropertyName("ability")] string Ability,
     [property: JsonPropertyName("target")] int? Target,
-    [property: JsonPropertyName("reason")] string Reason)
+    [property: JsonPropertyName("reason")] string Reason,
+    [property: JsonPropertyName("mode")] string Mode)
 {
     /// <summary>Builds the receipt of one issued command.</summary>
     /// <param name="tick">The pre-step run tick.</param>
     /// <param name="classId">The seat's class id.</param>
     /// <param name="command">The command the bot issued.</param>
     /// <param name="reason">The K1 reason phrase of the command.</param>
+    /// <param name="mode">The run's playtester mode; every receipt states it.</param>
     /// <returns>The receipt.</returns>
-    public static BotReceipt Of(int tick, string classId, Command command, string reason)
+    public static BotReceipt Of(int tick, string classId, Command command, string reason, PlaytesterMode mode)
     {
         ArgumentNullException.ThrowIfNull(command);
         var (ability, target) = command switch
@@ -41,7 +44,7 @@ public sealed record BotReceipt(
             TargetCommand targeted => (string.Empty, targeted.TargetId),
             _ => (string.Empty, (int?)null),
         };
-        return new BotReceipt(tick, command.ActorId, classId ?? string.Empty, ability, target, reason ?? string.Empty);
+        return new BotReceipt(tick, command.ActorId, classId ?? string.Empty, ability, target, reason ?? string.Empty, mode.Wire());
     }
 
     /// <summary>The receipt as one compact JSON object, without a line break.</summary>

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Keyrun.Bots.Shared;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Runs;
@@ -69,6 +70,7 @@ public static class Summary
             w.WriteString("dungeon", options.DungeonId);
             w.WriteString("policy", header.PolicyPath);
             w.WriteString("policyReason", options.Policy?.Reason);
+            w.WriteString("mode", (options.Policy?.Mode ?? PlaytesterMode.Guided).Wire());
             w.WriteString("result", outcome.Label);
             w.WriteBoolean("timed", outcome.Timed);
             w.WriteNumber("tier", outcome.Tier);

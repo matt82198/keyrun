@@ -1,0 +1,2 @@
+- G2.4 K3a (feat/bot-mode-field): playtester mode guided|blind on the plan, the run Summary and every K2 bot receipt; BalanceGuard refuses a blind row for a balance line; a plan with no mode is guided. design/PLAYTESTER-GUIDE.md section 1.
+BUILDLOG: 2026-10-22 feat/bot-mode-field: playtester mode field plumbed plan -> Summary -> bot-receipts.jsonl (default guided), balance refuses blind rows (G2.4, K3a); no selector changed.

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using Keyrun.Bots.Shared;
 using C = Keyrun.Content;
 
 namespace Keyrun.Playtest;
@@ -24,6 +25,12 @@ public sealed record Policy
 
     /// <summary>The one-line reason the playtester gave for this plan (copied into the summary).</summary>
     public string Reason { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The playtester mode (design/PLAYTESTER-GUIDE.md section 1; G2.4, K3a): "guided" or "blind". Left out, the plan is
+    /// guided: every plan written before the field existed is a guide plan, so it keeps its balance meaning.
+    /// </summary>
+    public PlaytesterMode Mode { get; init; } = PlaytesterMode.Guided;
 
     /// <summary>Class id to (fork ability id to option id). Unpicked forks keep the base ability.</summary>
     public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Talents { get; init; } =
@@ -85,7 +92,7 @@ public static class PolicyReader
 {
     private static readonly HashSet<string> TopLevel = new(StringComparer.Ordinal)
     {
-        "reason", "talents", "kicks", "dodge", "defensive", "mitigate", "utility", "hold", "focus", "pull",
+        "reason", "mode", "talents", "kicks", "dodge", "defensive", "mitigate", "utility", "hold", "focus", "pull",
     };
 
     /// <summary>Every top-level field a policy file may hold, sorted (the guide documents each one).</summary>
@@ -140,6 +147,7 @@ public static class PolicyReader
                 Utility = root.TryGetProperty("utility", out var u) ? ClassList(u, "utility", registry) : Array.Empty<string>(),
                 Hold = root.TryGetProperty("hold", out var h) ? Hold(h, registry) : new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal),
                 Focus = root.TryGetProperty("focus", out var f) ? Focus(f, registry) : Array.Empty<string>(),
+                Mode = root.TryGetProperty("mode", out var mode) ? ModeOf(mode) : PlaytesterMode.Guided,
             };
             if (root.TryGetProperty("dodge", out var dodge))
             {
@@ -152,6 +160,16 @@ public static class PolicyReader
             }
             return policy;
         }
+    }
+
+    // K3a: the mode is exactly "guided" or "blind". Anything else (a case change, a number, null) is a plan error, refused.
+    private static PlaytesterMode ModeOf(JsonElement e)
+    {
+        if (e.ValueKind == JsonValueKind.String && PlaytesterModeWire.TryParse(e.GetString(), out var mode))
+        {
+            return mode;
+        }
+        throw new PolicyException($"policy: mode must be \"guided\" or \"blind\" (got {e.GetRawText()})");
     }
 
     private static string Str(JsonElement e, string where) =>
