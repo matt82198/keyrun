@@ -80,6 +80,7 @@ public static class ContentCombos
         C.CloserBurnOp b => new CloserBurnOp(b.MaxHealthBp, b.CapBp, b.School),
         C.DamagePctOp d => new DamagePctOp(d.MaxHealthBp, d.School),
         C.PullOp p => new PullOp(p.DistanceMm),
+        C.DisplaceOp d => new DisplaceOp(d.DistanceMm, d.FreesBinds, d.TowardTarget),
         _ => throw new InvalidOperationException($"run setup: {where} has an op the sim does not run ({op.GetType().Name})"),
     };
 }
