@@ -272,6 +272,24 @@ public sealed partial record HostRunSetup(
     /// </summary>
     public IReadOnlyList<BossConfig> NextBosses { get; init; } = Array.Empty<BossConfig>();
 
+    /// <summary>
+    /// f-8e3e199d (2): the bosses a run that starts at <paramref name="startPull"/> (1-based, route order over the whole
+    /// dungeon, a segment boss counting as its own pull) arms, in fight order. A boss whose pull the run skips never
+    /// engages, so arming it would hold every later boss behind a death that cannot happen: the list starts at the first
+    /// boss the run still fights. A start before the first boss arms them all, as the factory always did.
+    /// </summary>
+    /// <param name="startPull">The run's first pull, 1-based.</param>
+    /// <returns>The bosses to arm, first fight first.</returns>
+    /// <exception cref="InvalidOperationException">No boss is fought from that pull (the dungeon's last pull is not a boss).</exception>
+    public IReadOnlyList<BossConfig> ArmedFrom(int startPull)
+    {
+        var skippedBosses = Dungeon.Pulls.Take(Math.Max(0, startPull - 1)).Count(p => C.LayoutDef.IsBossPull(p.Id));
+        var armed = new[] { Boss }.Concat(NextBosses).Skip(skippedBosses).ToList();
+        return armed.Count > 0
+            ? armed
+            : throw new InvalidOperationException($"run setup: no boss is fought from pull {startPull} of \"{Dungeon.Id}\"");
+    }
+
     /// <summary>The key's Fortified/Tyrannical affixes this setup was scaled with (plan M5; the screen shows them).</summary>
     public KeyAffixes KeyAffixes { get; init; } = KeyAffixes.None;
 
