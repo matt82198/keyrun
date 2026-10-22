@@ -18,7 +18,6 @@ namespace Keyrun.Content.Tests;
 /// </summary>
 public sealed class PathPackTests
 {
-    private const string LayoutFile = "layout.json";
 
     /// <summary>A required pack on the walking line: the old Hall Sentries shape (pair-hall, 240 forces on the line).</summary>
     private const string RequiredLinePack = """
@@ -35,7 +34,7 @@ public sealed class PathPackTests
         Assert.Throws<ContentLoadException>(() => ContentLoader.Load(source.Build()));
 
     private static MutableSource WithRequiredLinePack() =>
-        new MutableSource().Edit(LayoutFile, n => n["packs"]!.AsArray().Add(JsonNode.Parse(RequiredLinePack)));
+        new MutableSource().EditLayout(n => n["packs"]!.AsArray().Add(JsonNode.Parse(RequiredLinePack)));
 
     private static ContentRegistry LoadWithRequiredLinePack() => ContentLoader.Load(WithRequiredLinePack().Build());
 
@@ -136,7 +135,7 @@ public sealed class PathPackTests
     [Fact]
     public void A_required_pack_off_the_walking_line_is_rejected()
     {
-        var ex = LoadFails(WithRequiredLinePack().Edit(LayoutFile, n => Pack(n, "line-sentries")["center"]!["z"] = 4500));
+        var ex = LoadFails(WithRequiredLinePack().EditLayout(n => Pack(n, "line-sentries")["center"]!["z"] = 4500));
         Assert.Contains("required pack", ex.Message);
         Assert.Contains("walking line", ex.Message);
     }
@@ -144,7 +143,7 @@ public sealed class PathPackTests
     [Fact]
     public void A_walking_line_that_fills_the_bar_by_itself_is_rejected()
     {
-        var ex = LoadFails(WithRequiredLinePack().Edit(LayoutFile, n =>
+        var ex = LoadFails(WithRequiredLinePack().EditLayout(n =>
             Pack(n, "line-sentries")["enemies"]!.AsArray()[0]!["count"] = 40));
         Assert.Contains("without an optional pack", ex.Message);
     }
