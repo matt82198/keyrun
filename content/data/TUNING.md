@@ -85,7 +85,7 @@ dmg 80, hymn-field heal 60.
 
 ## Dungeon
 
-`parTicks` 14400 (12 min at 20 Hz, per BIBLE.md Sec 1). Choir trash 6000 hp; Pair 1200 hp; Seed 3000 hp;
+`parTicks` 13100 (10.9 min at 20 Hz; was 14400, 12 min, per BIBLE.md Sec 1; re-derived by R-PAR-1/R-PAR-2 after the pathing fix). Choir trash 6000 hp; Pair 1200 hp; Seed 3000 hp;
 Hollow Warden boss 27000 hp; Sundered Twins 3000 hp each (BOSS-TEACHES, ruling R-BOSS-1, 2026-10-21: at key 2 the
 default bot party's Warden fight lasts 90-180 s with the Cleave, two Twins staggers and two Locks each answered at
 least twice, measured 2644 ticks / 132 s by tools/Keyrun.Playtest.Tests/BossTeachesTests.cs; was boss 5000, Twins
