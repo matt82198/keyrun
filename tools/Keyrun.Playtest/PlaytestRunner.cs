@@ -134,7 +134,7 @@ public static class PlaytestRunner
         }).Run;
         var kits = KitRegistry.From(registry);
         var context = new PolicyContext();
-        var forces = (options.PullToForces ?? (policy is null)) ? ForcesPlan.Of(registry) : null;
+        var forces = (options.PullToForces ?? true) ? ForcesPlan.Of(registry) : null;
 
         var bots = new SortedDictionary<int, IBot>();
         var memories = new SortedDictionary<int, BotMemory>();

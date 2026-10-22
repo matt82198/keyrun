@@ -45,6 +45,7 @@ public sealed class PolicyBot : IBot
     private int? _dodgeAt;
     private int? _defensiveAt;
     private bool _walking;
+    private int? _assist;
     private readonly Dictionary<(int EnemyId, int CastStart), int> _kickAt = new();
 
     /// <summary>Creates the seat.</summary>
@@ -313,13 +314,22 @@ public sealed class PolicyBot : IBot
                 return hit.Id;
             }
         }
-        if (self.TargetId is { } own && actors.TryGetValue(own, out var t) && t.Alive && t.Kind == ActorKind.Enemy)
+        // A player holds the focus they chose until it dies: a kick press retargets the seat (the press names its caster), so
+        // reading the seat's own target made every dealer drift to whichever Cantor it last kicked and split the damage
+        // between two healers that heal each other (f-7aa25aa6, the Warrior Remnant's two Cantors).
+        if (_assist is { } held && actors.TryGetValue(held, out var heldEnemy) && heldEnemy.Alive && heldEnemy.Kind == ActorKind.Enemy && !heldEnemy.Idle)
         {
-            return own;
+            return held;
         }
         if (actors.TryGetValue(_tankId, out var tank) && tank.TargetId is { } tt && actors.TryGetValue(tt, out var tankTarget) && tankTarget.Alive && tankTarget.Kind == ActorKind.Enemy)
         {
+            _assist = tt;
             return tt;
+        }
+        if (self.TargetId is { } own && actors.TryGetValue(own, out var t) && t.Alive && t.Kind == ActorKind.Enemy)
+        {
+            _assist = own;
+            return own;
         }
         return null;
     }
