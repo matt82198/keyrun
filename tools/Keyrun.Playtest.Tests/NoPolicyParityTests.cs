@@ -61,7 +61,14 @@ public sealed class NoPolicyParityTests
                     // its Shield Bash is named to kick but cannot reach yet, RoleShared.LedgerKickApproachCommand), so the reference keeps
                     // exactly that move beside the TankEngage approach; the byte-identical assertion below is unchanged.
                     var kickWalk = RoleShared.LedgerKickApproachCommand(view, leader, view.Kits.ResolveKit(leader.ClassId, view.ClassKit));
-                    commands.RemoveAll(c => c.ActorId == leader.Id && c is MoveCommand or DashCommand && !Equals(c, approach) && !Equals(c, kickWalk));
+                    // R-AOE-1 (c), f-c8ed3a62: the lead-seat bot also passes ChainPull.Move (Bot.cs); while it holds it replaces the
+                    // leader's other moves, exactly as PlaytestRunner does, so the byte-identical assertion below is unchanged.
+                    var chain = view.PullPlan is { } chainPlan && view.Layout is { } chainLayout ? ChainPull.Move(tick, run.State, chainLayout, chainPlan, leader) : null;
+                    commands.RemoveAll(c => c.ActorId == leader.Id && c is MoveCommand or DashCommand && (chain is not null || (!Equals(c, approach) && !Equals(c, kickWalk))));
+                    if (chain is not null)
+                    {
+                        commands.Add(chain);
+                    }
                 }
             }
             foreach (var c in commands)
