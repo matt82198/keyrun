@@ -27,6 +27,9 @@ public sealed record EncounterState
     /// </summary>
     public IReadOnlyList<string> Engaged { get; init; } = Array.Empty<string>();
 
+    /// <summary>R-SYNERGY-1 / G2.5 lane L4: the skip record (<see cref="Skips"/>). Empty until the party passes a pack's post.</summary>
+    public SkipLedger Skips { get; init; } = SkipLedger.Empty;
+
     /// <summary>Slack bank, ticks.</summary>
     public int SlackTicks { get; init; }
 
