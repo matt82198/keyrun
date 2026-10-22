@@ -35,6 +35,7 @@ public sealed class TalentPatchParityTests
     private static readonly IReadOnlyDictionary<string, string> KnownTalentMismatches = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["amplify@chanter.dissonance:variants"] = VerseReason,
+        ["discord@chanter.dissonance:variants"] = VerseReason,
         ["grandHymn@chanter.hymn:variants"] = VerseReason,
         ["crescendo@chanter.refrain:variants"] = VerseReason,
     };
