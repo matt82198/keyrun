@@ -28,7 +28,11 @@ public sealed record BotDecision(IReadOnlyList<Command> Commands, BotMemory Memo
 /// <param name="Commands">All commands.</param>
 /// <param name="Memories">Memories by actorId (ascending).</param>
 /// <param name="Prng">PRNG after the last bot.</param>
-public sealed record BotBatch(IReadOnlyList<Command> Commands, SortedDictionary<int, BotMemory> Memories, BotPrngState Prng);
+public sealed record BotBatch(IReadOnlyList<Command> Commands, SortedDictionary<int, BotMemory> Memories, BotPrngState Prng)
+{
+    /// <summary>One <see cref="Reason"/> per command, index-aligned with <see cref="Commands"/> (G2.4). Receipt data only: it never feeds a decision or the fingerprint.</summary>
+    public IReadOnlyList<Reason> Reasons { get; init; } = Array.Empty<Reason>();
+}
 
 /// <summary>bots/src/bot.ts Bot: a pure function <c>(view, memory, actorId, prng, pings) =&gt; {commands, memory, prng}</c>.</summary>
 public interface IBot
@@ -104,10 +108,10 @@ public static class Bot
         var avoid = DangerAvoidCommand(view, self);
         if (avoid is not null)
         {
-            commands.Add(avoid);
+            commands.Add(Reasons.Tag(avoid, "bot:danger-dodge"));
         }
 
-        var pingCommands = PingsPolicy.PingReactionCommands(view, self, pings);
+        var pingCommands = Reasons.TagAll(PingsPolicy.PingReactionCommands(view, self, pings), "bot:ping-reaction");
         commands.AddRange(pingCommands);
         var pingCast = pingCommands.Any(c => c is CastCommand);
 
@@ -123,7 +127,7 @@ public static class Bot
         // travel. Inert in the oracle runner (no layout), like the travel it outranks. See EncounterWindow.
         if (avoid is null && !pingCommands.Any() && EncounterWindow.Decide(view, self) is { } bloom)
         {
-            commands.AddRange(bloom);
+            commands.AddRange(Reasons.TagAll(bloom, "bot:seed-bloom"));
             return new BotDecision(commands, memory, prng);
         }
 
@@ -133,14 +137,14 @@ public static class Bot
         // ledger's landing estimate is at full speed). Inert in the oracle runner (no layout).
         if (avoid is null && !pingCommands.Any() && Roles.RoleShared.LedgerKickApproachCommand(view, self, Roles.RoleShared.KitOf(view, self.ClassId)) is { } kickWalk)
         {
-            commands.Add(kickWalk);
+            commands.Add(Reasons.Tag(kickWalk, "bot:kick-approach"));
             return new BotDecision(commands, memory, prng);
         }
 
         var lead = avoid is null && !pingCommands.Any() ? Follow.LeadCommand(view, self) : null;
         if (lead is not null)
         {
-            commands.Add(lead);
+            commands.Add(Reasons.Tag(lead, "bot:lead-route"));
             return new BotDecision(commands, memory, prng);
         }
 
@@ -153,7 +157,7 @@ public static class Bot
             : null;
         if (chain is not null)
         {
-            commands.Add(chain);
+            commands.Add(Reasons.Tag(chain, "bot:chain-pull"));
         }
 
         var travelling = follow is not null || chain is not null;
@@ -163,7 +167,7 @@ public static class Bot
         var topOff = travelling && self.Role == ActorRole.Healer && !Follow.AnyLivingEnemy(view.State) && Roles.HealerRole.NeedsTopOff(view.State.Actors);
         if (follow is not null)
         {
-            commands.Add(follow);
+            commands.Add(Reasons.Tag(follow, "bot:follow-route"));
             if (!Follow.AnyLivingEnemy(view.State) && !topOff)
             {
                 return new BotDecision(commands, memory, prng);
@@ -183,7 +187,7 @@ public static class Bot
         {
             if (approach is not null)
             {
-                commands.Add(approach);
+                commands.Add(Reasons.Tag(approach, "bot:tank-approach"));
             }
             return new BotDecision(commands, memory, prng);
         }
@@ -194,14 +198,14 @@ public static class Bot
         {
             if (approach is not null)
             {
-                commands.Add(approach);
+                commands.Add(Reasons.Tag(approach, "bot:tank-approach"));
             }
             return new BotDecision(commands, nextMemory, roll.Next);
         }
 
         if (!pingCast && roles.For(self.Role) is { } role)
         {
-            var decided = topOff ? Roles.HealerRole.TopOffCommands(view, self) : role.Decide(view, self);
+            var decided = topOff ? Reasons.TagAll(Roles.HealerRole.TopOffCommands(view, self), "bot:healer-top-off") : role.Decide(view, self);
             commands.AddRange(!travelling ? decided : decided.Where(c => c is not MoveCommand and not DashCommand));
         }
 
@@ -249,6 +253,6 @@ public static class Bot
             nextMemories[id] = result.Memory;
             nextPrng = result.Prng;
         }
-        return new BotBatch(commands, nextMemories, nextPrng);
+        return new BotBatch(commands, nextMemories, nextPrng) { Reasons = Keyrun.Bots.Reasons.OfAll(commands) };
     }
 }
