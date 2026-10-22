@@ -57,8 +57,12 @@ public sealed class EnemyCastsFinishTests
     public void Every_started_cast_lands_and_every_step_fires(string file, string enemyId, int key)
     {
         var enemyDef = Enemies(file).Single(e => ((JsString)e.Get("id")!).Value == enemyId);
-        var script = Tempo.ScaleScript(EncounterJson.ParseScript(enemyDef.Get("script")!), key);
         var setup = RunSetup.Load(OracleFixtures.PathOf("hollow-vault-k2.setup.json"), BossTestKit.Seed);
+        // As HostRunSetup.Build scales them (TEMPO-CAST-FLOOR): each loop floored against its cast's key-scaled
+        // cooldown, and every cast the script makes given that key-scaled cooldown.
+        var table = setup.Content.Abilities;
+        var script = Tempo.ScaleScript(EncounterJson.ParseScript(enemyDef.Get("script")!), key,
+            id => table.TryGetValue(id, out var a) ? Tempo.ScaledCastFloorTicks(a.CooldownTicks, a.CastTicks, key) : 0);
         var dungeon = new DungeonDef("hollow-vault", new[]
         {
             new PullDef("solo", new[] { new PullSpawn(ActorId, enemyId, new Vec3(0, 0, 0), 512, 100_000_000) }),
@@ -66,6 +70,7 @@ public sealed class EnemyCastsFinishTests
         var content = setup.Content with
         {
             Bounds = new Bounds(-20000, 20000, -20000, 20000),
+            Abilities = Tempo.ScaleEnemyCooldowns(table, new[] { script }, key),
             EnemyScripts = new Dictionary<int, IReadOnlyList<ScriptStep>> { [ActorId] = script },
             BreakBarSources = null,
             KeyLevel = null,

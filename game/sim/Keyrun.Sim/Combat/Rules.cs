@@ -62,6 +62,13 @@ public sealed record RulesConfig
     /// </summary>
     public bool TsSymmetricPushOut { get; init; }
 
+    /// <summary>
+    /// TEMPO-LOOP-CLAMP (f-57c04b4a): an enemy cast refused <c>not_ready</c> emits <c>cast_refused</c> (reason
+    /// not_ready), as an out-of-range one always does. False (the default) on a frozen-TS replay, whose recorded traces
+    /// hold the TS's not_ready refusals unreported; true on every run whose enemy scripts run the C# scheduler.
+    /// </summary>
+    public bool ReportsEnemyNotReady { get; init; }
+
     /// <summary>This config with its movement fields taken from <paramref name="movement"/>.</summary>
     /// <param name="movement">The host's validated movement rules.</param>
     /// <returns>A new config.</returns>
@@ -195,7 +202,10 @@ public static class Rules
                         // encounter-generated, so it is in no trace record; this event is how a replay without combat
                         // (EncounterCastLedger) learns the caster stayed free. Players' presses are in the record, and
                         // other reasons are not reported. Mirrors sim/combat/rules.ts.
-                        if (err == "out_of_range" && actor.Kind == ActorKind.Enemy)
+                        // TEMPO-LOOP-CLAMP (f-57c04b4a): off a frozen-TS replay (ReportsEnemyNotReady), an enemy cast
+                        // refused not_ready is reported too. The script scheduler never fires a cast before its cooldown,
+                        // so such a refusal is a scheduling bug, and tests assert shipped content has none.
+                        if (actor.Kind == ActorKind.Enemy && (err == "out_of_range" || (err == "not_ready" && cfg.ReportsEnemyNotReady)))
                         {
                             emit(new SimEvent(state.Tick, "cast_refused", ("actorId", JsValue.Int(actor.Id)), ("abilityId", JsValue.Str(def.Id)), ("reason", JsValue.Str(err))));
                         }

@@ -34,6 +34,8 @@
   <ItemGroup>
     <!-- f-7c7abdf4: the Godot-free run clock bar reading (its player-facing label) is tested here. -->
     <Compile Include="../../src/Hud/SlackReading.cs" Link="Hud/SlackReading.cs" />
+    <!-- CLEAVE-ANSWER (f-57c04b4a): LockWinnabilityTests' Warden answers the boss's frontal with the autorun Warden's rule. -->
+    <Compile Include="../../src/Host/ScriptedWarden.cs" Link="Host/ScriptedWarden.cs" />
     <!-- f-275d47c9: the Godot-free private Ascension readout (the Character tab and run-end panel lines) is tested here. -->
     <Compile Include="../../src/Hud/AscensionReadout.cs" Link="Hud/AscensionReadout.cs" />
     <!-- U10: the run-end panel's per-card lines (an Ascension card is an Ascension mark, not a tier bonus line) are tested here. -->
