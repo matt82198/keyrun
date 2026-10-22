@@ -214,6 +214,15 @@ public partial class SimDriver : Node
         {
             Options = ArenaOptions.Parse(OS.GetCmdlineUserArgs());
             Registry = ContentLoader.Load();
+            // D45/D46 (f-46043bc6): --dungeon-seed N plays the seeded two-branch dungeon (SeededLayout: graph, grid, fill,
+            // layout); the bots walk the branch the seed picks. Without it the run plays the hand-built Hollow Vault.
+            if (Options.DungeonSeed is { } dungeonSeed)
+            {
+                var seeded = SeededLayout.Build(Registry, dungeonSeed);
+                Registry = seeded.Registry;
+                GD.Print(FormattableString.Invariant(
+                    $"DUNGEON seeded seed={dungeonSeed} branch={seeded.Branch} walked={string.Join(",", seeded.Fill.Branches[seeded.Branch].Rooms.Select(SeededLayout.RoomBoxId))} side={string.Join(",", seeded.Fill.Branches[1 - seeded.Branch].Rooms.Select(SeededLayout.RoomBoxId))} pulls={string.Join(",", seeded.Registry.Dungeons[DungeonId].Pulls.Select(p => p.Id))} forces={seeded.Fill.Branches[seeded.Branch].Points}/{seeded.Fill.TotalPoints}"));
+            }
             // The weekly affix rotation (AffixWeek, Matt 2026-10-20 "lean into m+ design"): a live run takes the index
             // of the week since the last US reset (Tuesday 15:00 UTC), read from the UTC clock here in the host, never in
             // the sim, unless --rotation N pins it; a --replay-input run takes the index its log recorded, never the

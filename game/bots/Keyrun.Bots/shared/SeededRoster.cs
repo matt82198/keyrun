@@ -32,11 +32,17 @@ public static class SeededRoster
         return reg.Layout.Packs.Where(p => p.Optional).Select(p => new RosterPack(p.Id, C.RouteForces.LayoutPackPoints(reg.Forces, p))).ToList();
     }
 
-    /// <summary>The fill params with the forces table's bar.</summary>
+    /// <summary>
+    /// The fill params with the forces table's bar, and a branch target of the bar plus the biggest optional pack, so any
+    /// one optional pack of a branch is skippable (LayoutValidator's SKIPPABLE-PACKS rule: the route still reaches the
+    /// bar without it) while the party still pulls most of its branch (1000 of at least 1420 with today's roster).
+    /// </summary>
     /// <param name="reg">Loaded content.</param>
     public static BranchFillParams Params(C.ContentRegistry reg)
     {
         ArgumentNullException.ThrowIfNull(reg);
-        return BranchFillParams.Default with { ForcesRequired = reg.Forces.Required };
+        var required = reg.Forces.Required;
+        var target = (long)required + Optional(reg).Max(o => o.Points);
+        return BranchFillParams.Default with { ForcesRequired = required, BranchTargetBp = (int)((target * 10000) + required - 1) / required };
     }
 }
