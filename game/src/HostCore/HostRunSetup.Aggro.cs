@@ -14,8 +14,8 @@ public sealed partial record HostRunSetup
     /// layout authors keeps that ring as its whole aggro rule, so its members carry no radius of their own: every pack and
     /// patrol (layout.json <c>aggroMm</c>, the ring LayoutValidator proves skippable or disjoint from the pulls) and a pull
     /// whose room sets <c>aggroMm</c> (the boss arena). The other pulls (the Choir, the Pair, the Seed behind its room gate)
-    /// aggro on each member's own radius beside the default ring. Patrol members never leash (a patrol's home is its moving
-    /// loop). Unchanged when the content has no block.
+    /// aggro on each member's own radius beside the default ring. Patrol members leash too (L1): their home follows the moving
+    /// loop until the pull, so the leash is measured from the node they were pulled at. Unchanged when the content has no block.
     /// </summary>
     /// <param name="aggro">The run.json block, or null.</param>
     /// <param name="layout">The content layout (which rooms author a ring).</param>
@@ -44,7 +44,7 @@ public sealed partial record HostRunSetup
         return (
             dungeon with { Pulls = dungeon.Pulls.Select(p => p with { Spawns = Tuned(p.Spawns, !authored.Contains(p.Id), leash: true) }).ToList() },
             packs.Select(k => k with { Spawns = Tuned(k.Spawns, ownRadius: false, leash: true) }).ToList(),
-            patrols.Select(k => k with { Spawns = Tuned(k.Spawns, ownRadius: false, leash: false) }).ToList());
+            patrols.Select(k => k with { Spawns = Tuned(k.Spawns, ownRadius: false, leash: true) }).ToList());
     }
 
     /// <summary>
