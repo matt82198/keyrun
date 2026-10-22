@@ -214,6 +214,15 @@ public partial class SimDriver : Node
         {
             Options = ArenaOptions.Parse(OS.GetCmdlineUserArgs());
             Registry = ContentLoader.Load();
+            // D45/D46 (f-46043bc6): --dungeon-seed N plays the seeded two-branch dungeon (SeededLayout: graph, grid, fill,
+            // layout); the bots walk the branch the seed picks. Without it the run plays the hand-built Hollow Vault.
+            if (Options.DungeonSeed is { } dungeonSeed)
+            {
+                var seeded = SeededLayout.Build(Registry, dungeonSeed);
+                Registry = seeded.Registry;
+                GD.Print(FormattableString.Invariant(
+                    $"DUNGEON seeded seed={dungeonSeed} branch={seeded.Branch} walked={string.Join(",", seeded.Fill.Branches[seeded.Branch].Rooms.Select(SeededLayout.RoomBoxId))} side={string.Join(",", seeded.Fill.Branches[1 - seeded.Branch].Rooms.Select(SeededLayout.RoomBoxId))} pulls={string.Join(",", seeded.Registry.Dungeons[DungeonId].Pulls.Select(p => p.Id))} forces={seeded.Fill.Branches[seeded.Branch].Points}/{seeded.Fill.TotalPoints}"));
+            }
             // The weekly affix rotation (AffixWeek, Matt 2026-10-20 "lean into m+ design"): a live run takes the index
             // of the week since the last US reset (Tuesday 15:00 UTC), read from the UTC clock here in the host, never in
             // the sim, unless --rotation N pins it; a --replay-input run takes the index its log recorded, never the
@@ -447,6 +456,9 @@ public partial class SimDriver : Node
         _bots?.Reset();
         _log?.Line(FormattableString.Invariant(
             $"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} dungeon={setup.Dungeon.Id} key={setup.Content.KeyLevel} clause={run.Encounter.Rules.ActiveClauseId ?? "none"} seed={Options.Seed} actors={run.State.Actors.Count}"));
+        // HUMAN-PLAY (D65/D66): who sits where, so a replay or a capture can tie seat 1 to the class the screen picked.
+        _log?.Line(FormattableString.Invariant(
+            $"RUN seats human={setup.HumanClassId} bots={(setup.BotActorIds.Count == 0 ? "none" : string.Join(",", setup.BotActorIds.Select(id => FormattableString.Invariant($"{id}:{party.First(p => p.Id == id).ClassId}"))))}"));
         if (run.Content.Layout is { } navLayout)
         {
             // R-PATH-1: one PATH line per path the sim's grid computes (a straight line that was blocked), so the capture
