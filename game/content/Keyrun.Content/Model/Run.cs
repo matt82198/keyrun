@@ -46,6 +46,25 @@ public sealed record RunConfig
     /// D12), like the other C#-only rules in this file.
     /// </summary>
     public EnemyAggroConfig? EnemyAggro { get; init; }
+
+    /// <summary>
+    /// R-BOSS-4 (ruling on #573): the stacking debuff an unanswered Hollow Warden Cleave lays on each seat it hits other
+    /// than its target. Kept here, not on the boss's entry in the frozen content/data (STATE.md D12). Null = none.
+    /// </summary>
+    public CleavedConfig? Cleaved { get; init; }
+}
+
+/// <summary>R-BOSS-4 Cleaved: which ability marks, the effect it lays (per-stack values on the effect), the stack duration.</summary>
+public sealed record CleavedConfig
+{
+    /// <summary>The boss ability whose unanswered hits mark (a known ability).</summary>
+    public required string AbilityId { get; init; }
+
+    /// <summary>The stacking effect (a known effect; its damageTakenBp is per stack, its maxStacks the cap).</summary>
+    public required string EffectId { get; init; }
+
+    /// <summary>How long a mark lasts after the latest hit, ticks (positive; refreshed on each hit).</summary>
+    public required int DurationTicks { get; init; }
 }
 
 /// <summary>

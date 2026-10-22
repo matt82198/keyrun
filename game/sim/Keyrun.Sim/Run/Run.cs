@@ -217,6 +217,12 @@ public static class RunRoot
         events.AddRange(stepped.Events);
 
         var nextState = RunWiring.ApplyBreakBarPatches(stepped.State, enc.EffectPatches, content.Effects);
+        if (content.CleaveMark is { } cleaveMark)
+        {
+            // R-BOSS-4: an unanswered Cleave marks every seat it hit other than its target (a stacking Cleaved). In place:
+            // this freshly stepped state is the run root's own.
+            CleaveMark.Apply(run.State, nextState, stepped.Events, cleaveMark, content.Effects, emit);
+        }
 
         // STUN-IMMUNE-REFUSES (f-94749699): a stun-immune actor (the boss) takes no stun at all; every stun that landed
         // on one this tick is refused with an "immune" event, before the stops and anything else read the state.

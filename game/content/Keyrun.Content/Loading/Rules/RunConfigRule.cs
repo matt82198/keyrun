@@ -28,6 +28,13 @@ internal sealed class RunConfigRule : IContentRule
         {
             CheckEnemyAggro(reg, aggro);
         }
+        if (run.Cleaved is { } cleaved)
+        {
+            // R-BOSS-4: the marking ability and the stacking effect exist, and a mark lasts a positive time.
+            if (!reg.Abilities.ContainsKey(cleaved.AbilityId)) Fail("run cleaved.abilityId \"" + cleaved.AbilityId + "\" is not an ability");
+            if (!reg.Effects.ContainsKey(cleaved.EffectId)) Fail("run cleaved.effectId \"" + cleaved.EffectId + "\" is not an effect");
+            if (cleaved.DurationTicks <= 0) Fail("run cleaved.durationTicks must be positive, got " + cleaved.DurationTicks);
+        }
     }
 
     // AGGRO-CHASE (run.json enemyAggro): non-negative values, known enemy keys, and a leash that is on is longer than the

@@ -137,47 +137,52 @@ public sealed class MitigateThroughLedgerKickTests
         Assert.DoesNotContain(kit.InterruptAbilityId, casts);
     }
 
-    // R-DOOR-3 re-anchor (content fact: hollowWarden.cleave is interruptible=false, so the Warden never kicks a boss cleave
-    // and the earlier synthetic "Warden kicked the previous cleave" premise is stale). The real kick in the trajectory is the
-    // Chanter's chanter.rebuke on the second Choral Mending (cast 4780-4860, ledger kick-open 4820, Warden at 245/400).
-    private const int MendKickOpenTick = 4820;
-    private const int MendCastStart = 4780;
-    private const int MendCastEnd = 4860;
-
-    [Fact(DisplayName = "A healer kicks the Choral Mending and heals the hurt tank in the same pull (R-DOOR-3: the real ledger kick, not a boss cleave)")]
-    public void Healer_kicks_the_mending_and_heals_the_hurt_tank()
+    // R-PINS-1 (R-ORACLE-1 applied, ruling on #573), replacing the R-DOOR-3 pin on one Choral Mending (cast 4780-4860,
+    // kick-open 4820 on main): that scene was the one Mending of the run whose kick came after kick-open, so any trajectory
+    // change (aggro-chase moved the Choir fight) removed it. The property it guards, on whichever Mending occurs: at a
+    // Mending's kick-open tick, every seat the scripted ledger names to kick (RoleShared.LedgerKickCommand) is the seat
+    // that kicks that cast in the real run, inside the cast (start to end: a seat reacting a tick before the hold opens
+    // still kicks it). At least one such named kick must occur (non-vacuity).
+    [Fact(DisplayName = "R-PINS-1: on every Choral Mending of the kick-plan run, the seat the ledger names at kick-open is the seat that kicks it")]
+    public void The_seat_the_ledger_names_at_kick_open_kicks_the_mending()
     {
-        const int Chanter = 2;
         var content = ContentLoader.Load();
         var policy = PolicyReader.Parse(KickPlan, content);
         var registry = PlaytestRunner.WithTalents(content, policy);
-        var run = PlaytestRunner.Play(new PlaytestOptions(2, 1, policy) { MaxTicks = MendKickOpenTick }, content).Run;
-        Assert.Equal(MendKickOpenTick, run.State.Tick);
-
         var kits = KitRegistry.From(registry);
-        var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
-        var healer = view.State.Actors[Chanter];
-        var kit = view.Kits.ResolveKit(healer.ClassId, view.ClassKit);
-        Assert.Equal(ActorRole.Healer, healer.Role);
-        Assert.Equal("chanter.rebuke", kit.InterruptAbilityId);
-        Assert.Equal(kit.InterruptAbilityId, RoleShared.LedgerKickCommand(view, healer, kit)?.AbilityId);
+        var named = new System.Collections.Generic.List<(int Seat, int Caster, string Ability, int Start, int Open, int End)>();
+        var casts = new System.Collections.Generic.List<(int Tick, CastCommand Cast, int? Target)>();
+        PlaytestRunner.Play(new PlaytestOptions(2, 1, policy)
+        {
+            Observe = (tick, run, commands) =>
+            {
+                foreach (var c in commands.OfType<CastCommand>())
+                {
+                    casts.Add((tick, c, c.TargetId ?? (run.State.Actors.TryGetValue(c.ActorId, out var a) ? a.TargetId : null)));
+                }
+                var mends = run.State.Actors.Values.Where(a => a.Alive && a.CastId == "choir.healCast" && a.CastEndsTick is not null && Ledger.KickOpensTick(a) == tick).ToList();
+                if (mends.Count == 0)
+                {
+                    return;
+                }
+                var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
+                foreach (var seat in run.State.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive))
+                {
+                    var kit = view.Kits.ResolveKit(seat.ClassId, view.ClassKit);
+                    if (RoleShared.LedgerKickCommand(view, seat, kit) is { } kick && mends.FirstOrDefault(m => m.Id == kick.TargetId) is { } mend)
+                    {
+                        named.Add((seat.Id, mend.Id, kick.AbilityId, mend.CastStartTick ?? tick, tick, mend.CastEndsTick!.Value));
+                    }
+                }
+            },
+        }, content);
 
-        // The plan kicks choir.healCast with the Chanter, so the seat takes the kick the ledger names. A kick waits the
-        // human reaction (PolicyBot), so the real run's command stream is the check: the Chanter's rebuke lands in the window.
-        var log = PlaytestRunner.Play(new PlaytestOptions(2, 1, policy), content).Log;
-        var kicks = log.Split('\n')
-            .Where(l => l.StartsWith("C ", System.StringComparison.Ordinal) &&l.Contains($"ActorId = {Chanter}, Kind = cast, AbilityId = {kit.InterruptAbilityId},"))
-            .Select(l => int.Parse(System.Text.RegularExpressions.Regex.Match(l, "Tick = (\\d+)").Groups[1].Value))
-            .Where(t => t >= MendCastStart && t <= MendCastEnd)
-            .ToList();
-        Assert.NotEmpty(kicks);
-
-        // The Chanter heals the hurt Warden inside the same Mending window of the real run.
-        var heals = log.Split('\n')
-            .Where(l => l.Contains("\"type\":\"heal\"") && l.Contains($"\"sourceId\":{Chanter},") && l.Contains($"\"targetId\":{PlaytestRunner.TankId},"))
-            .Select(l => int.Parse(System.Text.RegularExpressions.Regex.Match(l, "\"tick\":(\\d+)").Groups[1].Value))
-            .Where(t => t >= MendCastStart && t <= MendCastEnd)
-            .ToList();
-        Assert.NotEmpty(heals);
+        Assert.NotEmpty(named);
+        foreach (var n in named)
+        {
+            var kicked = casts.Any(c => c.Cast.ActorId == n.Seat && c.Cast.AbilityId == n.Ability && c.Target == n.Caster && c.Tick >= n.Start && c.Tick <= n.End);
+            var seen = string.Join(",", casts.Where(c => c.Target == n.Caster && c.Tick >= n.Start && c.Tick <= n.End).Select(c => $"{c.Tick}:{c.Cast.ActorId}:{c.Cast.AbilityId}"));
+            Assert.True(kicked, $"the ledger named seat {n.Seat} ({n.Ability}) at kick-open {n.Open} of the Mending by {n.Caster} (cast {n.Start}-{n.End}), and it never kicked it; casts on it [{seen}]; named {named.Count}: {string.Join(" ", named.Select(x => $"{x.Open}:{x.Seat}"))}");
+        }
     }
 }

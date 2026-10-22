@@ -32,6 +32,11 @@
     "warden": 3500
   },
   "stunImmuneEnemies": ["hollowWarden.boss"],
+  "cleaved": {
+    "abilityId": "hollowWarden.cleave",
+    "effectId": "cleaved",
+    "durationTicks": 400
+  },
   "enemyAggro": {
     "aggroMm": 8000,
     "assistMm": 3000,

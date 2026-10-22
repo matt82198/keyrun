@@ -33,15 +33,17 @@ public sealed class PatrolSurvivalTests
         var lastPatrolDeath = patrolDeaths.Max(d => d.Tick);
         var wardenDeath = deaths.Where(d => d.Actor == WardenId).Select(d => (int?)d.Tick).FirstOrDefault();
         Assert.True(wardenDeath is null || wardenDeath > lastPatrolDeath,
+            // (a death on the last patrol death's own tick counts as not finishing it: strictly after)
             $"the Warden died at tick {wardenDeath} before the patrol was dead (last patrol death {lastPatrolDeath})");
 
-        // R-PATROL-3b: the Warden finishes the patrol with at least 10% of its max health (40 of 400) left.
+        // R-PINS-1 (R-ORACLE-1 applied, ruling on #573), replacing R-PATROL-3b's single-seed floor of 40 HP (main stood at 42,
+        // the aggro-chase trajectory at 22): the property this test is for, the Warden finishes the patrol alive. No death
+        // event for him up to the last patrol death, and health above 0 at it.
         var hp = WardenHealthAt(run, lastPatrolDeath);
-        Assert.True(hp >= MinHealthLeft, $"the Warden had {hp} of {WardenMaxHealth} health at the last patrol death (tick {lastPatrolDeath}); want at least {MinHealthLeft}");
+        Assert.True(hp > 0, $"the Warden had {hp} of {WardenMaxHealth} health at the last patrol death (tick {lastPatrolDeath}); want him alive");
     }
 
     private const long WardenMaxHealth = 400;
-    private const long MinHealthLeft = 40;
 
     /// <summary>R-PATROL-3c: the three-seat guard floor, 20% of the Warden's max health (was a quarter, 100).</summary>
     private const long GuardMinHealthDamage = 80;

@@ -208,6 +208,8 @@ public sealed record HostRunSetup(
             StunImmuneClassIds = run.StunImmuneEnemies.ToList(),
             ImmuneRefusedEffectIds = ImmuneRefusedEffectIds,
             Marks = MarkRulesOf(run.PairMarks),
+            // R-BOSS-4: an unanswered Cleave stacks Cleaved on each seat it hits other than its target.
+            CleaveMark = run.Cleaved is { } cleaved ? new CleaveMarkRule(cleaved.AbilityId, cleaved.EffectId, cleaved.DurationTicks) : null,
         }.WithMovement(movement);
 
         var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
