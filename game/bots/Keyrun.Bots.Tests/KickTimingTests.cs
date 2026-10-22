@@ -103,12 +103,12 @@ public sealed class KickTimingTests
     /// One Choir heal cast as the run saw it. <paramref name="CasterDied"/> marks a cast that ended in cast_stopped on its
     /// caster's death tick (R-DEADCAST-1): it never resolves, so no kick is owed (R-BOTS-2). Any other end stays owed.
     /// </summary>
-    private sealed record CastSeen(int Start, int Ends, int? KickTick, int? KickerId, int? LedgerKickerId, bool Completed, bool CasterDied = false);
+    internal sealed record CastSeen(int Start, int Ends, int? KickTick, int? KickerId, int? LedgerKickerId, bool Completed, bool CasterDied = false);
 
     [Fact(DisplayName = "Kick timing: run C's Choir pull on the real layout, every heal cast is kicked 40+ ticks in, before it resolves, by the ledger's kicker")]
     public void Choir_pull_every_heal_is_kicked_late_but_in_time()
     {
-        var casts = DriveChoirPull();
+        var casts = DriveChoirPull(Seed);
         foreach (var c in casts)
         {
             _output.WriteLine($"healCast start={c.Start} ends={c.Ends} kick={c.KickTick?.ToString() ?? "none"} kicker={c.KickerId?.ToString() ?? "none"} ledger={c.LedgerKickerId?.ToString() ?? "none"} completed={c.Completed} casterDied={c.CasterDied}");
@@ -144,16 +144,18 @@ public sealed class KickTimingTests
     /// (Warden 1, Chanter 2, Cinder 3), all real bot roles at skill 80 (the host's dial), the leader walking the route
     /// while no enemy lives and holding where he stands in a fight. Stops at the Choir's pull_clear.
     /// </summary>
-    private static List<CastSeen> DriveChoirPull()
+    /// <param name="seed">The run seed (setup, run and bot PRNG).</param>
+    /// <returns>Every Choir heal cast seen, in start order.</returns>
+    internal static List<CastSeen> DriveChoirPull(long seed)
     {
         var registry = ContentLoader.Load();
         var layoutDef = registry.Layout;
         var nav = NavLayouts.ToSim(layoutDef);
-        var setup = RunSetup.Load(Path.Combine(RolesOracleTraceTests.OracleDir(), "hollow-vault-k2.setup.json"), Seed);
+        var setup = RunSetup.Load(Path.Combine(RolesOracleTraceTests.OracleDir(), "hollow-vault-k2.setup.json"), seed);
         SimDungeon dungeon = NavLayouts.PlaceDungeon(layoutDef, setup.Dungeon);
         var party = NavLayouts.PlaceParty(layoutDef, setup.Party.Take(3).ToList(), dungeon.Pulls[0].Id);
         var content = setup.Content with { Layout = nav, Bounds = nav.Extent };
-        var run = RunRoot.CreateRun(Seed, party, dungeon, content, setup.Options);
+        var run = RunRoot.CreateRun(seed, party, dungeon, content, setup.Options);
 
         var kits = KitRegistry.From(registry);
         var bots = new SortedDictionary<int, IBot>();
@@ -164,7 +166,7 @@ public sealed class KickTimingTests
             memories[p.Id] = BotMemory.Default(80);
         }
         IReadOnlyDictionary<int, BotMemory> mem = memories;
-        var prng = Skill.SeedPrng(Seed);
+        var prng = Skill.SeedPrng(seed);
         var casts = new List<CastSeen>();
         var open = new Dictionary<int, CastSeen>();
 
