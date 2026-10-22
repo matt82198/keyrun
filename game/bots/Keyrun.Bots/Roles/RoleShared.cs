@@ -232,7 +232,7 @@ public static class RoleShared
                 .Where(s => !string.IsNullOrEmpty(s.Kit.InterruptAbilityId))
                 .Select(s => (s.Id, s.Kit.InterruptAbilityId!, InterruptRangeMm(view, s.Kit.InterruptAbilityId!), Readiness.IsOffGcd(s.Kit, s.Kit.InterruptAbilityId!)))
                 .ToList();
-            assignment = Ledger.ResolvePartyInterrupt(view.State.Actors, seats, tick, view.Kits.PriorityInterruptAbilityIds());
+            assignment = Ledger.ResolvePartyInterrupt(view.State.Actors, seats, tick, view.Kits.PriorityInterruptAbilityIds(), view.PullPlan);
         }
         else
         {

@@ -48,16 +48,21 @@ public sealed class KickLedgerCooldownGapTests
         // 480-tick kicks), so a Mending can resolve while every seat's interrupt is on cooldown until after it resolves.
         // "Could land" is the ledger's own definition (Ledger.LateKicker): the seat's interrupt is off cooldown before the cast
         // resolves, read at the tick the cast first shows.
+        // KICK-NO-OVERHEAL: a Mending cast by an optional-pack healer while no fighting enemy is hurt (a quarter of the healer's
+        // health missing) heals nothing worth a kick, so the ledger holds the kick for the next heal: no seat is owed to answer it.
+        PullPlan? pullPlan = null;
         var casts = new Dictionary<(int Caster, int Start), (int Ends, int Able)>();
         var r = PlaytestRunner.Play(new PlaytestOptions(2, 1, null)
         {
             Observe = (_, run, _) =>
             {
+                pullPlan ??= PullPlan.Of(run, ForcesPlan.Of(registry));
                 foreach (var a in run.State.Actors.Values)
                 {
                     if (a.CastId == Mending && a.CastStartTick is { } s && a.CastEndsTick is { } e && !casts.ContainsKey((a.Id, s)))
                     {
-                        var able = run.State.Actors.Values.Count(p => p.Kind == ActorKind.Player && p.Alive
+                        var overheal = Ledger.OverhealHeld(run.State.Actors, a, pullPlan, kits.PriorityInterruptAbilityIds());
+                        var able = overheal ? 0 : run.State.Actors.Values.Count(p => p.Kind == ActorKind.Player && p.Alive
                             && kits.ResolveKit(p.ClassId, ClassKitView.Empty).InterruptAbilityId is { Length: > 0 } interrupt
                             && Readiness.CooldownReadyTick(p, interrupt) < e);
                         casts[(a.Id, s)] = (e, able);
