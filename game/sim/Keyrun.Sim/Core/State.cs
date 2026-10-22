@@ -277,6 +277,36 @@ public sealed class ActorState
     public bool Dormant { get; set; }
 
     /// <summary>
+    /// AGGRO-CHASE (C#-only, layout runs; f-f0c886eb, WoW Mythic+): this enemy's own aggro radius, mm. An idle enemy
+    /// engages its whole group on the first tick a living seated player stands within this distance of the enemy itself
+    /// (inclusive, XZ). Null = only the group's ring (<c>Encounter.Aggro</c>). Null on every oracle run.
+    /// </summary>
+    public long? AggroMm { get; set; }
+
+    /// <summary>
+    /// AGGRO-CHASE: this enemy's assist radius, mm. An idle enemy engages its whole group on the first tick an engaged,
+    /// living, non-evading enemy stands within this distance of it (a pack that a chase or a fight comes near joins it,
+    /// the WoW body pull). Null = never assists. Null on every oracle run.
+    /// </summary>
+    public long? AssistMm { get; set; }
+
+    /// <summary>
+    /// AGGRO-CHASE: the leash distance, mm. An engaged enemy pulled farther than this from <see cref="Home"/> makes its
+    /// group evade: every living member walks home, then resets at full health, idle again. Null = never leashes (the boss,
+    /// patrols). Null on every oracle run.
+    /// </summary>
+    public long? LeashMm { get; set; }
+
+    /// <summary>AGGRO-CHASE: where an idle enemy stands (kept current while it is idle), the point it leashes back to.</summary>
+    public Vec3? Home { get; set; }
+
+    /// <summary>
+    /// AGGRO-CHASE: true while the actor walks back to <see cref="Home"/> after its group leashed. An evading enemy is idle
+    /// (no script, no chase), and nothing engages its group (no ring, damage or assist) until every member is home.
+    /// </summary>
+    public bool Evading { get; set; }
+
+    /// <summary>
     /// The wearer's summed gear damageDoneBp (BIBLE s7 "Tier is power"; Runs.GearPower). C#-only: 0 on every oracle run.
     /// </summary>
     public long GearDamageDoneBp { get; set; }

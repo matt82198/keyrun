@@ -133,6 +133,9 @@ public static class Pulls
         GcdReadyTick = 0,
         SpeedMmPerTick = spawn.SpeedMmPerTick,
         ChaseMarginMm = spawn.ChaseMarginMm,
+        AggroMm = spawn.AggroMm,
+        AssistMm = spawn.AssistMm,
+        LeashMm = spawn.LeashMm,
     };
 
     /// <summary>
