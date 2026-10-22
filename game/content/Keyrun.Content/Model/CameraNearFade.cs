@@ -5,7 +5,7 @@ namespace Keyrun.Content;
 /// <summary>
 /// CAMERA-FG (receipt demo-5e34e26b: two untextured party bodies, Chanter and Cinder, stood between the camera and the
 /// Hollow Warden and were drawn solid over the floor and the HUD's lower edge). The WoW rule for an actor body near the
-/// lens: a body whose distance to the camera is under <see cref="FadeDistanceMm"/> is drawn with alpha that falls linearly
+/// lens: a body whose distance to the camera is under <see cref="FadeDistanceMm"/> is rated with alpha that falls linearly
 /// from opaque at the fade distance to <see cref="FloorPermille"/> at the lens, and eases back to opaque as it leaves.
 /// The rule applies to every actor body, the player's own model included. World geometry is not faded: it is cut
 /// away or pulled in front of by the camera rule (CameraBoom). No Godot types and integers only (the Keyrun.Content
@@ -14,6 +14,8 @@ namespace Keyrun.Content;
 /// CAMERA-FG occlusion (ruling, receipt demo-0e560876: the bots Chanter and Cinder stand beside the Warden between the
 /// lens and the boss, off the PartyFade sight line, and were drawn solid; their distances were not measured): a body that occludes the pivot
 /// (<see cref="Occludes"/>) is also held to <see cref="PartyFade.FadedPermille"/>, whatever its distance.
+/// PARTY-SOLID (Matt 2026-10-21, overrides the two rulings above for drawing): these rules only rate a body for the view's
+/// CAMERA log line; the drawn alpha is <see cref="AppliedPermille"/>, opaque for every party body and every enemy.
 /// </summary>
 public static class CameraNearFade
 {
@@ -136,20 +138,20 @@ public static class CameraNearFade
         role == FadeRole.Ally && screenHeightPermille > ScreenHeightLimitPermille ? PartyFade.FadedPermille : OpaquePermille;
 
     /// <summary>
-    /// ENEMY-BODY-STABLE: the single alpha entry point the actor view draws a body with, from every near-camera rule.
-    /// An enemy (<see cref="FadeRole.Enemy"/>) is always opaque, whatever its distance, occlusion or screen height. A party
-    /// body (<see cref="FadeRole.Self"/>, <see cref="FadeRole.Ally"/>) is the lowest of the distance rule
-    /// (<see cref="AlphaPermille(int, bool)"/>) and the screen-height cap (<see cref="ScreenHeightCapPermille"/>).
+    /// The single alpha entry point the actor view draws a body with. ENEMY-BODY-STABLE: an enemy
+    /// (<see cref="FadeRole.Enemy"/>) is always opaque. PARTY-SOLID (Matt 2026-10-21, capture
+    /// kf2-kick-1f8fed7f/kf2-011-t012s, "i want to be able to see my party"): a party body, the seated player's own model
+    /// (<see cref="FadeRole.Self"/>) and every bot (<see cref="FadeRole.Ally"/>), is always opaque too. The distance rule
+    /// (<see cref="AlphaPermille(int, bool)"/>), the occlusion rule and the screen-height cap
+    /// (<see cref="ScreenHeightCapPermille"/>) still rate the body for the view's CAMERA log line, but none of them lowers
+    /// the drawn alpha. No actor state is drawn translucent (a dead body plays its death clip and is hidden, never ghosted).
     /// </summary>
     /// <param name="role">Who the body is.</param>
-    /// <param name="distanceMm">The distance from the lens to the body's centre, mm.</param>
-    /// <param name="occludes">Whether the body occludes the pivot (<see cref="Occludes"/>).</param>
-    /// <param name="screenHeightPermille">The body's projected height, permille of the viewport height.</param>
-    /// <returns>An alpha in permille: <see cref="OpaquePermille"/> for every enemy.</returns>
-    public static int AppliedPermille(FadeRole role, int distanceMm, bool occludes, int screenHeightPermille) =>
-        role == FadeRole.Enemy
-            ? OpaquePermille
-            : Math.Min(AlphaPermille(distanceMm, occludes), ScreenHeightCapPermille(role, screenHeightPermille));
+    /// <param name="distanceMm">The distance from the lens to the body's centre, mm (rated, not applied).</param>
+    /// <param name="occludes">Whether the body occludes the pivot (rated, not applied).</param>
+    /// <param name="screenHeightPermille">The body's projected height, permille of the viewport height (rated, not applied).</param>
+    /// <returns><see cref="OpaquePermille"/> for every body.</returns>
+    public static int AppliedPermille(FadeRole role, int distanceMm, bool occludes, int screenHeightPermille) => OpaquePermille;
 
     private static (long X, long Y, long Z) Sub((int X, int Y, int Z) a, (int X, int Y, int Z) b) =>
         ((long)a.X - b.X, (long)a.Y - b.Y, (long)a.Z - b.Z);
