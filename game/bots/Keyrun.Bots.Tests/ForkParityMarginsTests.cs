@@ -54,23 +54,41 @@ public sealed class ForkParityMarginsTests
     [Fact(DisplayName = "fork parity margins > a dominance beyond the measured noise gates; a trade-off never does")]
     public void Beyond_noise_dominance_gates()
     {
-        var fourCombos = With(1, Base[1] with { Combos = 46 });
+        // Beyond the noise in two scenarios (f-bee3bf93: one scenario alone does not gate, see the next case).
+        var fourCombos = new[] { Base[0], Base[1] with { Combos = 46 }, Base[2] with { Combos = 63 } };
         Assert.True(ForkParityMargins.DominatesBeyondNoise(fourCombos, Base, Fixed));
 
         // 715 bp of 1407 is 100 ticks: 101 ticks faster is beyond the noise, 100 is not.
-        Assert.True(ForkParityMargins.DominatesBeyondNoise(With(0, Base[0] with { ClearTick = 1407 - 101 }), Base, Fixed));
-        Assert.False(ForkParityMargins.DominatesBeyondNoise(With(0, Base[0] with { ClearTick = 1407 - 100 }), Base, Fixed));
+        Assert.True(ForkParityMargins.DominatesBeyondNoise(Faster(101), Base, Fixed));
+        Assert.False(ForkParityMargins.DominatesBeyondNoise(Faster(100), Base, Fixed));
 
-        var oneDeathFewer = With(2, Base[2] with { Deaths = 0 });
+        var oneDeathFewer = new[] { Base[0], Base[1] with { Combos = 46 }, Base[2] with { Deaths = 0 } };
         Assert.True(ForkParityMargins.DominatesBeyondNoise(oneDeathFewer, Base, Fixed));
-        Assert.Equal(new[] { "hv-k10-s7 deaths 1 > 0" }, ForkParityMargins.Excess(oneDeathFewer, Base, Fixed, RunNames));
+        Assert.Equal(new[] { "hv-k2-s11-d90 combos 4 > 3", "hv-k10-s7 deaths 1 > 0" }, ForkParityMargins.Excess(oneDeathFewer, Base, Fixed, RunNames));
 
         var tradeOff = new[] { Base[0] with { ClearTick = 1200 }, Base[1] with { Combos = 41 }, Base[2] };
         Assert.False(ForkParityMargins.DominatesBeyondNoise(tradeOff, Base, Fixed));
         Assert.Empty(ForkParityMargins.Excess(tradeOff, Base, Fixed, RunNames));
 
-        // Zero tolerance is the bible's literal rule.
-        Assert.True(ForkParityMargins.DominatesBeyondNoise(With(0, Base[0] with { Combos = 44 }), Base, NoiseTolerance.None));
+        // Zero tolerance is the bible's literal rule, per scenario: two scenarios with any strict margin.
+        Assert.True(ForkParityMargins.DominatesBeyondNoise(new[] { Base[0] with { Combos = 44 }, Base[1] with { Combos = 43 }, Base[2] }, Base, NoiseTolerance.None));
+    }
+
+    private static IReadOnlyList<RunMeasures> Faster(int ticks) =>
+        new[] { Base[0] with { ClearTick = 1407 - ticks }, Base[1] with { Combos = 46 }, Base[2] };
+
+    [Fact(DisplayName = "fork parity margins > a margin beyond the noise in a single scenario does not gate, in two it does (f-bee3bf93)")]
+    public void Single_scenario_beyond_noise_does_not_gate()
+    {
+        var oneDeathFewer = With(2, Base[2] with { Deaths = 0 });
+        Assert.True(ForkParityTests.Dominates(oneDeathFewer, Base));
+        Assert.False(ForkParityMargins.DominatesBeyondNoise(oneDeathFewer, Base, Fixed));
+        Assert.Empty(ForkParityMargins.Excess(oneDeathFewer, Base, Fixed, RunNames));
+        Assert.False(ForkParityMargins.DominatesBeyondNoise(With(1, Base[1] with { Combos = 46 }), Base, Fixed));
+
+        // Two measures beyond the noise inside ONE scenario are still one scenario.
+        Assert.False(ForkParityMargins.DominatesBeyondNoise(With(0, Base[0] with { ClearTick = 1000, Combos = 50 }), Base, Fixed));
+        Assert.Equal(2, ForkParityMargins.MinScenariosBeyondNoise);
     }
 
     [Fact(DisplayName = "fork parity margins > a deliberately dominated fork (test double) is red through the parity failure path; a noise-level one is not")]
@@ -78,7 +96,7 @@ public sealed class ForkParityMarginsTests
     {
         var dull = Base.Select(r => r with { ClearTick = r.ClearTick + 200, Combos = r.Combos - 6 }).ToList();
         var dominatedFork = Double("double.dominated", ("sharp", Base), ("dull", dull));
-        var noiseFork = Double("double.noise", ("plain", Base), ("lucky", With(0, Base[0] with { Combos = 45 })));
+        var noiseFork = Double("double.noise", ("plain", Base), ("lucky", new[] { Base[0] with { Combos = 45 }, Base[1] with { Combos = 44 }, Base[2] }));
         var known = new Dictionary<string, string>();
 
         var red = ForkParityTests.DominanceFailures(new[] { dominatedFork, noiseFork }, known, Fixed);

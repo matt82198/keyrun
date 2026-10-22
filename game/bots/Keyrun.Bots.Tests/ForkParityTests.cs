@@ -33,9 +33,14 @@ namespace Keyrun.Bots.Tests;
 /// "combo" events (higher is better).</para>
 /// <para>Dominance: option A dominates sibling B when A is at least as good as B on every measure and strictly better
 /// on at least one. Every ordered pair of options of every fork is checked.</para>
-/// <para>NOISE TOLERANCE (findings f-e3daed76, f-8ae6250a): a dominance gates only when at least one of A's margins over B
-/// EXCEEDS <see cref="NoiseTolerance.Measured"/> (clear in bp of the slower clear tick in that run, deaths, combos). A
-/// dominance whose every margin is inside the tolerance is printed ("DOMINATED WITHIN NOISE") and recorded, never red:
+/// <para>NOISE TOLERANCE (findings f-e3daed76, f-8ae6250a, f-bee3bf93): a dominance gates only when A's margins over B
+/// EXCEED <see cref="NoiseTolerance.Measured"/> (clear in bp of the slower clear tick in that run, deaths, combos) in at
+/// least <see cref="ForkParityMargins.MinScenariosBeyondNoise"/> (two) distinct scenarios. WHY TWO: with all-runs dominance
+/// plus one beyond-tolerance margin, within-tolerance drift in the other scenarios flipped the verdict while the
+/// beyond-tolerance margin did not move (chanter.dissonance amplify vs discord, #601: only hv-k10-s7 combos 26 > 21 was
+/// beyond, identical on main and #601; the 32-seed study has every pair mean inside one sd of zero). A real dominance
+/// shows beyond the noise in more than one scenario; a strictly worse fork still does, and the tolerances are unchanged.
+/// A dominance whose margins are inside the tolerance, or beyond it in one scenario only, is printed ("DOMINATED WITHIN NOISE") and recorded, never red:
 /// the runs are chaotic, so any behaviour change moves every option's measures, and a balance oracle pinned to main's
 /// exact dynamics went red on every behaviour PR (#307: hymn staccato dominated by 2 combos on equal clears; #362: surge
 /// and discord). The tolerance is not a constant: it is 2 x the measured seed noise, read from the checked-in study
