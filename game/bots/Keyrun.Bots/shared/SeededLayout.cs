@@ -280,14 +280,6 @@ public static class SeededLayout
             };
             (needed ? walkedPacks : sidePacks).Add(pack);
         }
-        // R-PACKDENSITY-2: pack density is enforced here, at placement (clusters of two or three, linked).
-        var requiredIds = walkedPacks.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
-        var dense = PackDensity.Place(
-            walkedPacks.Concat(sidePacks).ToList(), rooms.Values.ToDictionary(b => b.Id, StringComparer.Ordinal),
-            new C.LayoutPoint { X = rooms[graph.EntranceId].MinX + StartDepthMm, Z = Mid(rooms[graph.EntranceId].MinZ, rooms[graph.EntranceId].MaxZ) },
-            route, WidestSlot(hand));
-        walkedPacks = dense.Where(p => requiredIds.Contains(p.Id)).ToList();
-        sidePacks = dense.Where(p => !requiredIds.Contains(p.Id)).ToList();
 
         var entrance = rooms[graph.EntranceId];
         var layout = new C.LayoutDef
@@ -302,18 +294,8 @@ public static class SeededLayout
         };
         var armed = reg with { Layout = layout };
         // Fail closed: the walked chain obeys every layout invariant (the side branches are drawn, never walked or validated).
-        C.LayoutValidator.Check(armed with { Layout = layout with { Packs = new C.ValueList<C.LayoutPack>(WithinSet(walkedPacks)), SideBoxes = new() } });
+        C.LayoutValidator.Check(armed with { Layout = layout with { Packs = new C.ValueList<C.LayoutPack>(walkedPacks), SideBoxes = new() } });
         return armed;
-    }
-
-    // The widest formation slot, mm (an optional pack's ring plus this clears the walking line, LayoutValidator SKIPPABLE-PACKS).
-    private static int WidestSlot(C.LayoutDef hand) => hand.Formation.Select(s => Math.Abs(s.SideMm)).DefaultIfEmpty(0).Max();
-
-    // The packs as a validation set: a link to a pack outside the set is dropped (the validator checks the walked chain alone).
-    private static List<C.LayoutPack> WithinSet(IReadOnlyList<C.LayoutPack> packs)
-    {
-        var ids = packs.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
-        return packs.Select(p => p with { Links = new C.ValueList<string>(p.Links.Where(ids.Contains)) }).ToList();
     }
 
     /// <summary>Generates, fills and lays out the dungeon for <paramref name="seed"/>.</summary>
@@ -367,14 +349,6 @@ public static class SeededLayout
         var sidePacks = fill.Packs.Where(p => p.Branch != branch).Select(p => p.PullIndex >= 0
             ? PullAsPack(pullById[p.PackId], p, rooms[p.RoomId], side.Rooms[0])
             : Pack(reg, p, rooms[p.RoomId], side.Rooms[0])).ToList();
-        // R-PACKDENSITY-2: pack density is enforced here, at placement (clusters of two or three, linked).
-        var walkedIds = walkedPacks.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
-        var dense = PackDensity.Place(
-            walkedPacks.Concat(sidePacks).ToList(), rooms.Values.ToDictionary(b => b.Id, StringComparer.Ordinal),
-            new C.LayoutPoint { X = rooms[graph.EntranceId].MinX + StartDepthMm, Z = Mid(rooms[graph.EntranceId].MinZ, rooms[graph.EntranceId].MaxZ) },
-            route, WidestSlot(hand));
-        walkedPacks = dense.Where(p => walkedIds.Contains(p.Id)).ToList();
-        sidePacks = dense.Where(p => !walkedIds.Contains(p.Id)).ToList();
         var entrance = rooms[graph.EntranceId];
         var layout = new C.LayoutDef
         {
@@ -394,7 +368,7 @@ public static class SeededLayout
             Dungeons = new C.ValueMap<C.DungeonDef>(reg.Dungeons.Select(kv => kv.Key == dungeonId ? new KeyValuePair<string, C.DungeonDef>(kv.Key, dungeon) : kv)),
         };
         // Fail closed: the walked chain obeys every layout invariant (the side branch is drawn, never walked or validated).
-        C.LayoutValidator.Check(armed with { Layout = layout with { Packs = new C.ValueList<C.LayoutPack>(WithinSet(walkedPacks)), SideBoxes = new() } });
+        C.LayoutValidator.Check(armed with { Layout = layout with { Packs = new C.ValueList<C.LayoutPack>(walkedPacks), SideBoxes = new() } });
         return new SeededDungeon(armed, branch, graph, grid, fill);
     }
 
