@@ -208,7 +208,8 @@ public sealed partial record HostRunSetup(
             Marks = MarkRulesOf(run.PairMarks),
         }.WithMovement(movement);
 
-        var party = NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id);
+        // HUMAN-PLAY (D65/D66): a party whose human is not the tank starts in its travel formation behind the human.
+        var party = InFormation(layout, NavLayouts.PlaceParty(layout, BuildParty(registry, classDef.Id, withBots), dungeon.Pulls[0].Id));
         var botGear = BuildBotGear(registry, party);
         return new HostRunSetup(party, dungeon, content, HumanId, ResolveSlots(classDef), boss)
         {

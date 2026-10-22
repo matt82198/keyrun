@@ -47,8 +47,8 @@ cosmetics and titles (section 7).
 
 ## Where it stands (2026-10-22)
 
-- Built: the full loop from screen to queue, dungeon, choice of three and back. You play the Warden with a Chanter
-  and a Cinder bot party. Bots and enemies path with integer A* inside the sim, each ability plays its own animation
+- Built: the full loop from screen to queue, dungeon, choice of three and back. You play any of the three classes
+  and bots take the other two roles. Bots and enemies path with integer A* inside the sim, each ability plays its own animation
   clip, and the boss fight is tuned to run 90 to 180 seconds at key 2.
 - Planned: branching rooms and seeded dungeons (decisions D45 and D46; the route is one path today) and a wider pack
   roster. The plans are in open PRs.
@@ -85,6 +85,15 @@ Each gap the game exposed in Aesop became a written rule or a gate there:
 
 Aesop is a small package, and each domain it runs in pushes it toward determinism there: judgment calls that went
 wrong once become gates and receipts.
+
+## Play
+
+From the repo root: `powershell -NoProfile -ExecutionPolicy Bypass -File tools/play.ps1` (builds, opens a 1280x720
+window, vertical camera, log in `%LOCALAPPDATA%/keyrun/`). Screen tabs (F1-F5 or Q/E): Character, Gear, Build, Key,
+Queue. On Character pick Warden, Chanter or Cinder (Up/Down or click); you are seat 1, bots take the other two roles.
+Enter queues, Enter again at "Group found". Dungeon: WASD move, hold right mouse to turn, Tab or left click target,
+1-5 rotation, Q kick (the enemy under the cursor first), E defensive, R utility, F movement, G ping, V camera. A death
+respawns you at the entrance; the run ends on the boss kill or the timer cap: take a reward (1-3), Enter to go back.
 
 ## Build, run, test
 

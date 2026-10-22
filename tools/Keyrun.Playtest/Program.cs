@@ -30,8 +30,8 @@ public static class Program
         "  playtest kit                                     every class button, from the game's data\n" +
         "  playtest run --player ID --policy FILE [--seed S] --out DIR [--ledger FILE] [--memory DIR] [--max-ticks T]\n" +
         "        plays the key the ledger holds for ID, records the ledger and ID's memory\n" +
-        "  playtest run [--key N] [--seed S] [--policy FILE] --out DIR [--max-ticks T]\n" +
-        "        an off-ledger run (no --player): nothing is recorded\n" +
+        "  playtest run [--key N] [--seed S] [--policy FILE] [--class ID] --out DIR [--max-ticks T]\n" +
+        "        an off-ledger run (no --player): nothing is recorded; --class is seat 1's class (default warden)\n" +
         "  playtest memory --player ID [--memory DIR]       what ID played, saw and learned\n" +
         "  playtest learn --player ID --lesson TEXT [--run N] [--memory DIR]\n" +
         "  playtest verify --player ID [--memory DIR]       re-check every receipt in ID's memory\n" +
@@ -124,7 +124,7 @@ public static class Program
 
     private static int Run(Dictionary<string, string> o)
     {
-        Only(o, "player", "key", "seed", "policy", "out", "ledger", "memory", "max-ticks");
+        Only(o, "player", "key", "seed", "policy", "out", "ledger", "memory", "max-ticks", "class");
         if (!o.TryGetValue("out", out var outDir))
         {
             throw new ArgumentException("--out DIR is required");
@@ -153,9 +153,14 @@ public static class Program
         {
             throw new ArgumentException("--ledger and --memory need --player");
         }
-        var key = Int(o, "key", Keyrun.Sim.Runs.ScreenState.MinKey);
+        var classIds = Keyrun.Host.Lobby.ClassIds(registry);
+        if (o.TryGetValue("class", out var classOpt) && !classIds.Contains(classOpt, StringComparer.Ordinal))
+        {
+            throw new ArgumentException($"--class {classOpt} is not a class (one of {string.Join(", ", classIds)})");
+        }
+        var key =Int(o, "key", Keyrun.Sim.Runs.ScreenState.MinKey);
         var policy = policyPath is null ? null : PolicyReader.Load(policyPath, registry);
-        var options = new PlaytestOptions(key, seed, policy) { MaxTicks = maxTicks };
+        var options = new PlaytestOptions(key, seed, policy) { MaxTicks = maxTicks, HumanClassId = classOpt ?? Keyrun.Host.Lobby.DefaultClassId };
         var result = PlaytestRunner.Play(options, registry);
         Directory.CreateDirectory(outDir);
         var logPath = Path.Combine(outDir, "run.log").Replace('\\', '/');
