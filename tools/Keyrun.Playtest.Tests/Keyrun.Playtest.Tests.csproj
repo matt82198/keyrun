@@ -45,6 +45,9 @@
     <Compile Include="../../game/src/Hud/CastProof.cs" Link="Hud/CastProof.cs" />
     <Compile Include="../../game/src/Hud/UnitFrameModel.cs" Link="Hud/UnitFrameModel.cs" />
     <Compile Include="../../game/src/Hud/HudDeclutter.cs" Link="Hud/HudDeclutter.cs" />
+    <!-- f-454a45a6: the party frames' Godot-free chip model (the Godot-free half of PartyFrames.cs), driven over the run C
+         party with and without an Encore Chanter (StatusChipsEchoTests). -->
+    <Compile Include="../../game/src/Hud/StatusChips.cs" Link="Hud/StatusChips.cs" />
   </ItemGroup>
 
   <ItemGroup>
