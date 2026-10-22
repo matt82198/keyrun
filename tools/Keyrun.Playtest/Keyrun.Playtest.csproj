@@ -27,6 +27,8 @@
     <Compile Include="../../game/src/Host/HostRunFactory.cs" Link="Host/HostRunFactory.cs" />
     <Compile Include="../../game/src/Host/QueuedKit.cs" Link="Host/QueuedKit.cs" />
     <Compile Include="../../game/src/Host/Lobby.cs" Link="Host/Lobby.cs" />
+    <!-- f-08279d82: the pre-run screen's Godot-free Character sheet and Queue seats (CharacterSheetTests). -->
+    <Compile Include="../../game/src/Host/CharacterSheet.cs" Link="Host/CharacterSheet.cs" />
     <EmbeddedResource Include="GUIDE.md" LogicalName="Keyrun.Playtest.GUIDE.md" />
   </ItemGroup>
 
