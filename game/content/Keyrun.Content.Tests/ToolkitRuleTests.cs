@@ -136,9 +136,11 @@ public sealed class ToolkitRuleTests
             File.WriteAllText(encounterPath, encounterText);
         }
 
-        Assert.Equal(classText, File.ReadAllText(classPath));
-        Assert.Equal(encounterText, File.ReadAllText(encounterPath));
+        Assert.Equal(classText, Lf(File.ReadAllText(classPath)));
+        Assert.Equal(encounterText, Lf(File.ReadAllText(encounterPath)));
     }
+
+    private static string Lf(string s) => s.Replace("\r\n", "\n");
 
     private static string ClassFile(string classId) => "content/data/classes/" + classId + ".json";
 
