@@ -83,9 +83,18 @@ public sealed class ScriptedWarden
             into.Add(new CastCommand(tick, me.Id, Taunt, loose!.Id));
         }
 
+        // R-TAUNT-2b (ruling on #573): while Taunt is cooling down, he walks toward an enemy damaging a non-tank seat outside
+        // Taunt's range, so the Taunt has that enemy in reach when it comes ready (an aggro-range pull lets a Choir melee chase
+        // the Cinder away from him; he kept hitting his own target and the Cinder died before the Taunt reached it).
+        var tauntCooling = abilities.TryGetValue(Taunt, out var tauntDef) && !Ready(me, tauntDef, tick);
+        var chaser = tauntCooling ? DamagingSeatOutOfReach(state, me, tauntDef!) : null;
         if (tauntReady && !tauntInRange)
         {
             into.Add(Toward(tick, me, loose!));
+        }
+        else if (chaser is not null)
+        {
+            into.Add(Toward(tick, me, chaser));
         }
         else if (lieutenant is not null && Casting.RangeMm(me, lieutenant) > ApproachMm)
         {
@@ -153,6 +162,30 @@ public sealed class ScriptedWarden
                 return;
             }
         }
+    }
+
+    /// <summary>R-TAUNT-2b: an enemy this close to the seat it is aimed at is damaging that seat now (melee reach), mm.</summary>
+    internal const long OnSeatMm = 3000;
+
+    /// <summary>
+    /// R-TAUNT-2b (ruling on #573): the nearest living engaged enemy outside Taunt's range that is damaging a non-tank seat
+    /// now: aimed at it (its holder, else its target) and in melee reach of it, or casting at it. Null when there is none.
+    /// </summary>
+    /// <param name="state">The state.</param>
+    /// <param name="me">The Warden.</param>
+    /// <param name="taunt">Taunt.</param>
+    /// <returns>The enemy to walk toward, or null.</returns>
+    internal static ActorState? DamagingSeatOutOfReach(SimState state, ActorState me, AbilityDef taunt)
+    {
+        bool Damaging(ActorState e) =>
+            (e.HolderId ?? e.TargetId) is { } id && id != me.Id && state.Actors.TryGetValue(id, out var seat) && seat.Alive &&
+            seat.Kind == ActorKind.Player && seat.Role != ActorRole.Tank &&
+            ((e.CastId is not null && (e.CastTargetId ?? e.TargetId) == seat.Id) || Casting.RangeMm(e, seat) <= OnSeatMm);
+        return state.Actors.Values
+            .Where(e => e.Kind == ActorKind.Enemy && e.Alive && !e.Idle && Casting.RangeMm(me, e) > taunt.Range && Damaging(e))
+            .OrderBy(e => Casting.RangeMm(me, e))
+            .ThenBy(e => e.Id)
+            .FirstOrDefault();
     }
 
     /// <summary>

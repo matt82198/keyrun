@@ -144,17 +144,18 @@ public sealed class DamageRole : IRole
         {
             return new Command[] { barKick };
         }
-        var payoff = PayoffOnWindowCommand(view, self, kit);
-        if (payoff.Count > 0)
-        {
-            return payoff;
-        }
         // BOSS-TEACHES (R-BOSS-1): the designated setter's Setup into the boss's Lock first; every other Setup on the
-        // boss is held while the Lock is under way (LockAnswer).
+        // boss is held while the Lock is under way (LockAnswer). R-LOCK-SETTER (#573): ahead of a Payoff, which spends the
+        // setter's global on some other Window while the Lock waits for its Setup (a Lock failed that way).
         var lockSetup = LockAnswer.SetupCommand(view, self, kit);
         if (lockSetup.Count > 0)
         {
             return lockSetup;
+        }
+        var payoff = PayoffOnWindowCommand(view, self, kit);
+        if (payoff.Count > 0)
+        {
+            return payoff;
         }
         var setup = SetupForAllyCommand(view, self, kit);
         if (setup.Count > 0 && !LockAnswer.Holds(view, self, setup))
