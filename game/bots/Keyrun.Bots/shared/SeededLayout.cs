@@ -16,6 +16,12 @@ namespace Keyrun.Bots.Shared;
 /// <param name="Fill">Stage 4: the branch fill.</param>
 public sealed record SeededDungeon(C.ContentRegistry Registry, int Branch, RoomGraph Graph, WalkGrid Grid, BranchFillResult Fill);
 
+/// <summary>A walked chain through one branch per segment (<see cref="SeededLayout.Walk"/>).</summary>
+/// <param name="Chain">Room ids in walking order: the entrance, each segment's walked branch rooms and boss.</param>
+/// <param name="Boxes">The route boxes: rooms and corridors in walking order, each overlapping the next at its doorway.</param>
+/// <param name="SideBoxes">The untaken branches' corridors and rooms, segment then branch then walking order.</param>
+public sealed record SegmentWalk(IReadOnlyList<int> Chain, IReadOnlyList<C.LayoutBox> Boxes, IReadOnlyList<C.LayoutBox> SideBoxes);
+
 /// <summary>
 /// The seeded dungeon (STATE.md D45/D46, f-46043bc6) as the run's layout, in the pipeline's order: seed -> room graph
 /// (<see cref="RoomGraphGen"/>) -> walkable grid (<see cref="WalkGridGen"/>) -> fill (<see cref="BranchFill"/> over the
@@ -59,10 +65,95 @@ public static class SeededLayout
     public static string RoomBoxId(int roomId) => string.Create(CultureInfo.InvariantCulture, $"room-{roomId}");
 
     /// <summary>The branch the autorun party walks for <paramref name="seed"/> (0 or 1): one seeded draw on its own stage.</summary>
-    public static int BotBranch(long seed)
+    public static int BotBranch(long seed) => BotBranches(seed, 1)[0];
+
+    /// <summary>
+    /// The branch the autorun party walks in each of <paramref name="segments"/> segments (STATE.md D65): consecutive
+    /// draws on the route stage, so segment 0's pick is <see cref="BotBranch"/>.
+    /// </summary>
+    public static IReadOnlyList<int> BotBranches(long seed, int segments)
     {
-        var (value, _) = Prng.NextInt(DungeonPipeline.StageRng(seed, RouteStage), RoomGraphGen.BranchCount);
-        return (int)value;
+        var rng = DungeonPipeline.StageRng(seed, RouteStage);
+        var picks = new int[segments];
+        for (var s = 0; s < segments; s++)
+        {
+            var (value, next) = Prng.NextInt(rng, RoomGraphGen.BranchCount);
+            picks[s] = (int)value;
+            rng = next;
+        }
+        return picks;
+    }
+
+    /// <summary>
+    /// The walked chain of a (multi-segment) graph through one branch per segment, as layout boxes (STATE.md D65):
+    /// <see cref="SegmentWalk.Boxes"/> is the entrance, then per segment the corridors and rooms of the walked branch up
+    /// to and including that segment's boss room; <see cref="SegmentWalk.SideBoxes"/> is every untaken branch's
+    /// corridors and rooms (the fork and boss rooms they share are on the route). Room boxes come from
+    /// <paramref name="roomBox"/>, or are the plain grid rooms when it is null.
+    /// </summary>
+    /// <param name="graph">The room graph.</param>
+    /// <param name="grid">Its walk grid.</param>
+    /// <param name="branches">The walked branch per segment (0 or 1), one entry per segment.</param>
+    /// <param name="roomBox">The layout box of a room, or null for its grid rectangle in mm.</param>
+    /// <returns>The walk.</returns>
+    /// <exception cref="ArgumentException">A branch list that is not one 0-or-1 per segment.</exception>
+    public static SegmentWalk Walk(RoomGraph graph, WalkGrid grid, IReadOnlyList<int> branches, Func<RoomNode, C.LayoutBox>? roomBox = null)
+    {
+        ArgumentNullException.ThrowIfNull(graph);
+        ArgumentNullException.ThrowIfNull(grid);
+        ArgumentNullException.ThrowIfNull(branches);
+        if (branches.Count != graph.SegmentCount || branches.Any(b => b < 0 || b >= RoomGraphGen.BranchCount))
+        {
+            throw new ArgumentException($"seeded layout: need one branch (0 or 1) per segment, {graph.SegmentCount} segments", nameof(branches));
+        }
+        roomBox ??= n => RoomBox(grid, n, null, 0);
+        var corridors = Corridors(graph, grid);
+        var chain = new List<int> { graph.EntranceId };
+        var boxes = new List<C.LayoutBox> { roomBox(graph.Nodes[graph.EntranceId]) };
+        var sideBoxes = new List<C.LayoutBox>();
+        for (var s = 0; s < graph.SegmentCount; s++)
+        {
+            var fork = graph.SegmentEntry(s);
+            var boss = graph.BossRooms[s];
+            var roots = graph.Successors(fork);
+            for (var b = 0; b < roots.Count; b++)
+            {
+                var rooms = BranchRooms(graph, roots[b], boss);
+                var hops = new List<int> { fork };
+                hops.AddRange(rooms);
+                hops.Add(boss);
+                for (var k = 0; k + 1 < hops.Count; k++)
+                {
+                    var legs = corridors[(hops[k], hops[k + 1])];
+                    if (b == branches[s])
+                    {
+                        boxes.AddRange(legs);
+                        boxes.Add(roomBox(graph.Nodes[hops[k + 1]]));
+                        chain.Add(hops[k + 1]);
+                    }
+                    else
+                    {
+                        sideBoxes.AddRange(legs);
+                        if (k + 2 < hops.Count)
+                        {
+                            sideBoxes.Add(roomBox(graph.Nodes[hops[k + 1]]));
+                        }
+                    }
+                }
+            }
+        }
+        return new SegmentWalk(chain, boxes, sideBoxes);
+    }
+
+    // The trash rooms from a fork's successor up to (not including) its segment's boss.
+    private static List<int> BranchRooms(RoomGraph graph, int root, int boss)
+    {
+        var rooms = new List<int>();
+        for (var at = root; at != boss; at = graph.Successors(at).Single())
+        {
+            rooms.Add(at);
+        }
+        return rooms;
     }
 
     /// <summary>Generates, fills and lays out the dungeon for <paramref name="seed"/>.</summary>
@@ -101,27 +192,9 @@ public static class SeededLayout
         }
         rooms[graph.BossId] = PullRoom(rooms[graph.BossId], C.LayoutDef.BossPullId, PullDepthMm, arena.AggroMm, doorZ);
 
-        var boxes = new List<C.LayoutBox> { rooms[graph.EntranceId] };
-        var chain = new List<int> { graph.EntranceId };
-        chain.AddRange(walked.Rooms);
-        chain.Add(graph.BossId);
-        for (var k = 0; k + 1 < chain.Count; k++)
-        {
-            boxes.AddRange(corridors[(chain[k], chain[k + 1])]);
-            boxes.Add(rooms[chain[k + 1]]);
-        }
-        var sideBoxes = new List<C.LayoutBox>();
-        var sideChain = new List<int> { graph.EntranceId };
-        sideChain.AddRange(side.Rooms);
-        sideChain.Add(graph.BossId);
-        for (var k = 0; k + 1 < sideChain.Count; k++)
-        {
-            sideBoxes.AddRange(corridors[(sideChain[k], sideChain[k + 1])]);
-            if (k + 2 < sideChain.Count)
-            {
-                sideBoxes.Add(rooms[sideChain[k + 1]]);
-            }
-        }
+        var walk = Walk(graph, grid, new[] { branch }, n => rooms[n.Id]);
+        var boxes = walk.Boxes;
+        var sideBoxes = walk.SideBoxes;
 
         var route = new List<C.LayoutPoint>();
         for (var k = 0; k + 1 < boxes.Count; k++)

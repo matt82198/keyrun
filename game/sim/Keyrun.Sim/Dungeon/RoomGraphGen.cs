@@ -13,6 +13,10 @@ namespace Keyrun.Sim.Dungeon;
 /// edge points deeper, nothing points back into the entrance, no edge joins the two branches, and the edge from the
 /// entrance into a branch's first room is a one-way door (<see cref="RoomEdge.OneWayDoor"/>), so once a branch is
 /// entered neither the entrance nor the untaken branch is reachable. Pure: the same seed gives the same graph.
+/// Segments (STATE.md D65, <see cref="DungeonGenParams.Segments"/>): the shape above repeats S times end to end; each
+/// mid boss room is the next segment's fork (its exits are one-way doors too), so no edge leads back into a finished
+/// segment, and the final boss room is the last room. A dungeon of S segments has 1 + S * (two branches of 2 or 3
+/// rooms + 1 boss room) rooms.
 /// </summary>
 public static class RoomGraphGen
 {
@@ -34,39 +38,47 @@ public static class RoomGraphGen
         ArgumentNullException.ThrowIfNull(p);
         p.Validate();
         var rng = DungeonPipeline.StageRng(seed, 1);
-        var lengths = new int[BranchCount];
-        for (var b = 0; b < BranchCount; b++)
-        {
-            lengths[b] = MinBranchRooms + Draw(ref rng, MaxBranchRooms - MinBranchRooms + 1);
-        }
-        var bossLayer = lengths.Max() + 1;
 
-        // Ids are dense in (layer, lane) order: the entrance, then each depth's branch rooms by lane, then the boss.
+        // Ids are dense in (layer, lane) order: the entrance, then per segment each depth's branch rooms by lane, then
+        // that segment's boss, which is the next segment's fork. Segment 0 draws first, so one segment is the
+        // single-fork graph draw for draw.
         var nodes = new List<RoomNode> { new(0, 0, 0, RoomKind.Entrance) };
-        var idOf = new int[BranchCount, MaxBranchRooms + 1];
-        for (var layer = 1; layer < bossLayer; layer++)
+        var edges = new List<RoomEdge>();
+        var fork = 0;
+        for (var segment = 0; segment < p.Segments; segment++)
         {
+            var lengths = new int[BranchCount];
             for (var b = 0; b < BranchCount; b++)
             {
-                if (layer <= lengths[b])
+                lengths[b] = MinBranchRooms + Draw(ref rng, MaxBranchRooms - MinBranchRooms + 1);
+            }
+            var forkLayer = nodes[fork].Layer;
+            var bossLayer = forkLayer + lengths.Max() + 1;
+            var idOf = new int[BranchCount, MaxBranchRooms + 1];
+            for (var depth = 1; forkLayer + depth < bossLayer; depth++)
+            {
+                for (var b = 0; b < BranchCount; b++)
                 {
-                    idOf[b, layer] = nodes.Count;
-                    nodes.Add(new RoomNode(nodes.Count, layer, b, RoomKind.Trash));
+                    if (depth <= lengths[b])
+                    {
+                        idOf[b, depth] = nodes.Count;
+                        nodes.Add(new RoomNode(nodes.Count, forkLayer + depth, b, RoomKind.Trash, segment, b));
+                    }
                 }
             }
-        }
-        var boss = nodes.Count;
-        nodes.Add(new RoomNode(boss, bossLayer, 0, RoomKind.Boss));
+            var boss = nodes.Count;
+            nodes.Add(new RoomNode(boss, bossLayer, 0, RoomKind.Boss, segment));
 
-        var edges = new List<RoomEdge>();
-        for (var b = 0; b < BranchCount; b++)
-        {
-            edges.Add(new RoomEdge(0, idOf[b, 1], OneWayDoor: true));
-            for (var layer = 1; layer < lengths[b]; layer++)
+            for (var b = 0; b < BranchCount; b++)
             {
-                edges.Add(new RoomEdge(idOf[b, layer], idOf[b, layer + 1]));
+                edges.Add(new RoomEdge(fork, idOf[b, 1], OneWayDoor: true));
+                for (var depth = 1; depth < lengths[b]; depth++)
+                {
+                    edges.Add(new RoomEdge(idOf[b, depth], idOf[b, depth + 1]));
+                }
+                edges.Add(new RoomEdge(idOf[b, lengths[b]], boss));
             }
-            edges.Add(new RoomEdge(idOf[b, lengths[b]], boss));
+            fork = boss;
         }
         edges.Sort((x, y) => x.From != y.From ? x.From.CompareTo(y.From) : x.To.CompareTo(y.To));
         return new RoomGraph(nodes, edges);
