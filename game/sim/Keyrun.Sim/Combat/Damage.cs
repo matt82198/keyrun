@@ -19,6 +19,9 @@ public readonly record struct DamageResult(long RawAmount, long ModifiedAmount, 
 /// </summary>
 public static class Damage
 {
+    /// <summary>The only school class armor mitigates (L3 SIM-ARMOR-SCHOOL; WoW: armor is physical only).</summary>
+    public const string PhysicalSchool = "physical";
+
     /// <summary>
     /// sim/combat/damage.ts:29-33 applyModifiers: <c>trunc(base * (10000 + src) / 10000)</c>, then the same with the
     /// target bp, then max 0. Both divisions are Math.trunc (ORACLE.md section 8), so TruncDiv, never FloorDiv.
@@ -48,6 +51,7 @@ public static class Damage
     /// <param name="emit">Event sink.</param>
     /// <param name="sourceId">Attacker id.</param>
     /// <param name="weighting">The active Pact weighting, or null.</param>
+    /// <param name="school">Damage school; armor applies only to "physical" (the default, so unannotated callers keep their armor).</param>
     /// <returns>The hit's outcome.</returns>
     public static DamageResult ApplyDamage(
         int tick,
@@ -58,14 +62,16 @@ public static class Damage
         IReadOnlyDictionary<string, EffectDef> defs,
         Action<SimEvent> emit,
         int sourceId,
-        DamageWeighting? weighting = null)
+        DamageWeighting? weighting = null,
+        string school = PhysicalSchool)
     {
         if (!target.Alive)
         {
             return new DamageResult(rawAmount, 0, 0, 0, false);
         }
         var pactAmount = weighting is null ? rawAmount : weighting(rawAmount);
-        var modifiedAmount = ApplyArmor(ApplyModifiers(pactAmount, sourceModBp, targetModBp), target.ArmorBp);
+        var modified = ApplyModifiers(pactAmount, sourceModBp, targetModBp);
+        var modifiedAmount = school == PhysicalSchool ? ApplyArmor(modified, target.ArmorBp) : modified;
         return ResolveModified(tick, target, rawAmount, modifiedAmount, defs, emit, sourceId);
     }
 

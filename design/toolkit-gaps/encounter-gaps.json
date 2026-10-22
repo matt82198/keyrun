@@ -1,0 +1,19 @@
+{
+  "count": 14,
+  "gaps": [
+    { "subject": "encounter", "id": "bellfoundry.brineMother", "code": "threat-defensive", "file": "game/content/data/enemies/bellfoundry.json", "detail": "no uninterruptible telegraphed cast lethal to a seat that the best defensive survives (3 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "bellfoundry.brineMother", "code": "threat-mobility", "file": "game/content/data/enemies/bellfoundry.json", "detail": "no telegraphed circle lethal to a seat that walking cannot leave in its warning window (3 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "bellfoundry.greatBell", "code": "threat-defensive", "file": "game/content/data/enemies/bellfoundry.json", "detail": "no uninterruptible telegraphed cast lethal to a seat that the best defensive survives (2 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "bellfoundry.greatBell", "code": "threat-mobility", "file": "game/content/data/enemies/bellfoundry.json", "detail": "no telegraphed circle lethal to a seat that walking cannot leave in its warning window (2 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "bellfoundry.ommet", "code": "threat-defensive", "file": "game/content/data/enemies/bellfoundry.json", "detail": "no uninterruptible telegraphed cast lethal to a seat that the best defensive survives (2 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "bellfoundry.ommet", "code": "threat-mobility", "file": "game/content/data/enemies/bellfoundry.json", "detail": "no telegraphed circle lethal to a seat that walking cannot leave in its warning window (2 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "choir", "code": "threat-defensive", "file": "content/data/enemies/choir.json", "detail": "no uninterruptible telegraphed cast lethal to a seat that the best defensive survives (0 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "choir", "code": "threat-mobility", "file": "content/data/enemies/choir.json", "detail": "no telegraphed circle lethal to a seat that walking cannot leave in its warning window (0 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "hollowWarden.boss", "code": "threat-defensive", "file": "content/data/enemies/hollow-warden.json", "detail": "no uninterruptible telegraphed cast lethal to a seat that the best defensive survives (3 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "hollowWarden.boss", "code": "threat-mobility", "file": "content/data/enemies/hollow-warden.json", "detail": "no telegraphed circle lethal to a seat that walking cannot leave in its warning window (3 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "pair", "code": "threat-defensive", "file": "content/data/enemies/pair.json", "detail": "no uninterruptible telegraphed cast lethal to a seat that the best defensive survives (0 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "pair", "code": "threat-mobility", "file": "content/data/enemies/pair.json", "detail": "no telegraphed circle lethal to a seat that walking cannot leave in its warning window (0 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "seed", "code": "threat-defensive", "file": "content/data/enemies/seed.json", "detail": "no uninterruptible telegraphed cast lethal to a seat that the best defensive survives (2 telegraphed casts, 0 lethal to a 250 seat)" },
+    { "subject": "encounter", "id": "seed", "code": "threat-mobility", "file": "content/data/enemies/seed.json", "detail": "no telegraphed circle lethal to a seat that walking cannot leave in its warning window (2 telegraphed casts, 0 lethal to a 250 seat)" }
+  ]
+}

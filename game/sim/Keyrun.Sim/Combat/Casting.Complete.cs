@@ -92,6 +92,11 @@ public static partial class Casting
             {
                 Mitigation.CreditResource(actor, r.Delta);
             }
+            else if (op is DisplaceOp displace)
+            {
+                // TOOLKIT-CONTRACT L2: moves the CASTER, once per cast (not per target); the bounds and walkable clamps run after.
+                Displace.Apply(actor, targets.Count > 0 ? targets[0] : null, displace);
+            }
         }
         if (actor.CastIsOverheat)
         {
@@ -120,10 +125,10 @@ public static partial class Casting
             switch (op)
             {
                 case DamageOp d:
-                    Mitigation.DealDamage(state.Tick, source, target, d.Amount, ctx.Effects, emit, source.Id, ctx.Hooks.Weighting);
+                    Mitigation.DealDamage(state.Tick, source, target, d.Amount, ctx.Effects, emit, source.Id, ctx.Hooks.Weighting, d.School);
                     break;
                 case DamagePctOp p:
-                    Mitigation.DealDamage(state.Tick, source, target, Effects.PctOfMaxHealth(target, p.MaxHealthBp), ctx.Effects, emit, source.Id, ctx.Hooks.Weighting);
+                    Mitigation.DealDamage(state.Tick, source, target, Effects.PctOfMaxHealth(target, p.MaxHealthBp), ctx.Effects, emit, source.Id, ctx.Hooks.Weighting, p.School);
                     break;
                 case PullOp pull:
                     Movement.PullToward(target, source, pull.DistanceMm);

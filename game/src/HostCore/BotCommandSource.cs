@@ -84,6 +84,12 @@ public sealed class BotCommandSource : ICommandSource
     /// </summary>
     public ForcesPlan? Forces { get; set; }
 
+    /// <summary>
+    /// The receipt sink (G2.4): every bot command issued by <see cref="Sample"/> is recorded here with its K1 reason, in issue
+    /// order. The default drops them, so a run with no sink attached is unchanged.
+    /// </summary>
+    public IBotReceiptSink Receipts { get; set; } = NullBotReceiptSink.Instance;
+
     /// <summary>The bot seats driven, ascending.</summary>
     public IReadOnlyList<int> BotActorIds => _bots.Keys.OrderBy(id => id).ToList();
 
@@ -170,6 +176,8 @@ public sealed class BotCommandSource : ICommandSource
         {
             into.Add(command);
             Absorb(command);
+            var seatClass = run.State.Actors.TryGetValue(command.ActorId, out var seat) ? seat.ClassId : string.Empty;
+            Receipts.Record(BotReceipt.Of(tick, seatClass, command, Reasons.Of(command).Why));
         }
         if (_pings.Count > 0)
         {

@@ -40,6 +40,12 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
     public Action<int, Run, IReadOnlyList<Command>>? Observe { get; init; }
 
     /// <summary>
+    /// G2.4: receives one <see cref="Keyrun.Bots.Shared.BotReceipt"/> per command stepped, in issue order (the playtest
+    /// host writes bot-receipts.jsonl next to run.log). Null (the default) records nothing.
+    /// </summary>
+    public Keyrun.Bots.Shared.IBotReceiptSink? Receipts { get; init; }
+
+    /// <summary>
     /// Finding f-3dcc702c (WoW: plan the count, pull to 100, then boss): the leader pulls the layout's packs until the Enemy
     /// Forces bar is full before it walks to the boss, as the host autorun Warden does. False restores the old walk past
     /// every optional pack (a control for tests). Null (the default) is true, for the scripted party and for a policy run
@@ -223,6 +229,12 @@ public static class PlaytestRunner
             foreach (var c in commands)
             {
                 log.Append("C ").Append(c).Append('\n');
+            }
+            var receipts = options.Receipts ?? Keyrun.Bots.Shared.NullBotReceiptSink.Instance;
+            foreach (var c in commands)
+            {
+                var seatClass = run.State.Actors.TryGetValue(c.ActorId, out var seat) ? seat.ClassId : string.Empty;
+                receipts.Record(Keyrun.Bots.Shared.BotReceipt.Of(tick, seatClass, c, Reasons.Of(c).Why));
             }
             stats.ObserveCommands(commands);
             options.Observe?.Invoke(tick, run, commands);
