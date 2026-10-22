@@ -70,7 +70,9 @@ $wrapper = Join-Path $repo 'tools/godot/godot.ps1'
 $hold = Join-Path $repo 'game/fixtures/input/hold-key1.input-log.json'
 $ErrorActionPreference = 'Continue'
 # --quit-after is a hang guard: the replay's events are all due by frame ~150, the run keeps going until the guard.
-$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after 600 '--' --replay-input $hold 2>&1 | Out-String
+# --view-size 1280x720 (Main.cs ApplyViewSize): a headless window is 64x64, too small for the 39-line hold tooltip; the run
+# lays out against the shipped window size, as the desktop game does. Render-only; the sim and the replay do not read it.
+$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after 600 '--' --view-size 1280x720 --replay-input $hold 2>&1 | Out-String
 $rc = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 Assert-GodotFound $rc $text
