@@ -48,6 +48,12 @@ public sealed class RunCCarelessPairTests
 
         /// <summary>Combos that closed an Attuned Window (combo events with windowId attuned: Anthem or Flashfire).</summary>
         public int AttunedCombos { get; init; }
+
+        /// <summary>
+        /// AGGRO-CHASE (f-f0c886eb): on the Pair's engage tick the careless seat stood in the Pair's aggro reach: the pull's
+        /// ring, or a member's own aggro radius around that member (the rule that engages it, <see cref="EnemyAggro"/>).
+        /// </summary>
+        public bool CarelessInPairReach { get; init; }
     }
 
     private static readonly Lazy<Drive> Driven = new(DriveRunC);
@@ -85,6 +91,7 @@ public sealed class RunCCarelessPairTests
         int? choirClear = null;
         int? pairEngage = null;
         Vec3? carelessAt = null;
+        var inReach = false;
         var pairHitBot = false;
         var partyIds = party.Select(p => (long)p.Id).ToHashSet();
         var chanterSetupsOnEnemy = 0;
@@ -107,6 +114,10 @@ public sealed class RunCCarelessPairTests
                 {
                     pairEngage = e.Tick;
                     carelessAt = run.State.Actors[CarelessSeat].Pos;
+                    // The members engaged on this tick's post-combat positions (they had stood idle), so these are where they saw it.
+                    var seat = carelessAt.Value;
+                    inReach = Aggro.InRing(seat, Pulls.RingCenter(pair), pair.AggroMm) ||
+                        pairIds.Any(id => run.State.Actors[id] is { AggroMm: { } r } m && Aggro.InRing(seat, m.Pos, r));
                 }
                 else if (e.Type == "damage" && pairSet.Contains(Int(e, "sourceId")) && botSeats.Contains(Int(e, "targetId")) && Int(e, "healthDamage") > 0)
                 {
@@ -130,6 +141,7 @@ public sealed class RunCCarelessPairTests
         {
             ChanterSetupsOnEnemy = chanterSetupsOnEnemy,
             AttunedCombos = attunedCombos,
+            CarelessInPairReach = inReach,
         };
     }
 
@@ -161,7 +173,9 @@ public sealed class RunCCarelessPairTests
         Assert.True(d.ChoirClear is not null, $"the Choir never cleared (run ended {d.Result?.ToString() ?? "unfinished"} at tick {d.EndTick})");
         Assert.True(d.PairEngage is not null, "the Pair never engaged");
         Assert.True(d.PairEngage > d.ChoirClear, $"the Pair engaged at tick {d.PairEngage}, while the Choir was still up (cleared at tick {d.ChoirClear}): a double pull");
-        Assert.True(Aggro.InRing(d.CarelessAtPairEngage!.Value, center, pair.AggroMm), "the careless seat was not in the Pair's ring when it engaged");
+        // AGGRO-CHASE (f-f0c886eb): the Pair engages on its ring or on a member's own aggro radius, so the seat that pulled it
+        // stood inside one of the two.
+        Assert.True(d.CarelessInPairReach, "the careless seat was in neither the Pair's ring nor a Pair member's aggro radius when it engaged");
         Assert.True(d.PairHitABot, "no Pair enemy damaged a bot seat (HudSceneTest check 12's bot-damage line)");
         Assert.Equal(RunResult.Timed, d.Result);
     }

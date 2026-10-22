@@ -133,7 +133,8 @@ public static class Patrols
             }
             foreach (var spawn in patrol.Spawns)
             {
-                if (state.Actors.TryGetValue(spawn.ActorId, out var a) && a.Alive && a.Idle)
+                // AGGRO-CHASE: an evading member walks home (Leash), it is not put back on the loop mid-walk.
+                if (state.Actors.TryGetValue(spawn.ActorId, out var a) && a.Alive && a.Idle && !a.Evading)
                 {
                     a.Pos = MemberAt(patrol, spawn, state.Tick);
                 }

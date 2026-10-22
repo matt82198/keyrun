@@ -206,6 +206,11 @@ public static class RunRoot
         var rules = Rules.Make(rulesConfig);
         // R-PATH-1: on a layout run an enemy chase walks its grid path to its target, not a straight line into a wall.
         var enemyCommands = layout is null ? enc.Commands : NavFollow.RouteChase(run.State, enc.Commands, NavGrid.Of(layout));
+        if (layout is not null && Leash.EvadeMoves(run.State, NavGrid.Of(layout)) is { Count: > 0 } evades)
+        {
+            // AGGRO-CHASE leash: a pack that gave up the chase walks its grid path home.
+            enemyCommands = enemyCommands.Concat(evades).ToList();
+        }
         var merged = commands.Concat(enemyCommands).ToList();
         // BIBLE.md:156 Tide: floor patches drift with the telegraphs, before combat reads them this tick.
         var stepped = Tick.Step(Clauses.DriftFloorWindows(run.State, run.Encounter.Rules), merged, rules);
@@ -255,7 +260,7 @@ public static class RunRoot
             {
                 // A pull or a pack (PATH-PACKS) runs its scripts on its own clock from its engage tick.
                 var groups = Aggro.GroupsOf(run.Dungeon, nextState.Tick, content.Packs, content.Layout, content.Patrols).Where(g => newly.Contains(g.Id)).Select(g => g.ActorIds).ToList();
-                activeScripts = OnEngageClock(activeScripts ?? content.EnemyScripts, groups, nextState.Tick, content.Abilities);
+                activeScripts = OnEngageClock(activeScripts ?? content.EnemyScripts, content.EnemyScripts, groups, nextState.Tick, content.Abilities);
             }
         }
         var echo = EchoSpawns.Step(nextEncounter, nextState, events, nextState.Tick, emit);
@@ -313,10 +318,12 @@ public static class RunRoot
     // group's scripts run on the group's own clock from its engage tick, so its first cast and that cast's telegraph fall
     // inside the fight whatever tick the party arrived on. SWING-PHASE (ruling R-307-C item 3): within each group the
     // members' auto-attacks are then spread over the swing period (Scripts.SwingPhased, members in ascending id), so a
-    // pack's swings never land in lockstep. Every other actor's script is kept as it is.
+    // pack's swings never land in lockstep. Every other actor's script is kept as it is. An engaging member's script is
+    // shifted from its content script (baseScripts), never from an already-shifted one, so a pack that leashed home and is
+    // pulled again starts its clock afresh (AGGRO-CHASE); on a first engage the two are the same script.
     private static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> OnEngageClock(
-        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts, IReadOnlyList<IReadOnlyList<int>> groups, int startTick,
-        IReadOnlyDictionary<string, AbilityDef> abilities)
+        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> baseScripts,
+        IReadOnlyList<IReadOnlyList<int>> groups, int startTick, IReadOnlyDictionary<string, AbilityDef> abilities)
     {
         var place = new Dictionary<int, (int Member, int Members)>();
         foreach (var group in groups)
@@ -335,7 +342,7 @@ public static class RunRoot
         foreach (var (actorId, script) in scripts)
         {
             shifted[actorId] = place.TryGetValue(actorId, out var at)
-                ? script.Select(s => Scripts.SwingPhased(Scripts.StartingAt(s, startTick), abilities.GetValueOrDefault(s.Cast), at.Member, at.Members)).ToList()
+                ? baseScripts.GetValueOrDefault(actorId, script).Select(s => Scripts.SwingPhased(Scripts.StartingAt(s, startTick), abilities.GetValueOrDefault(s.Cast), at.Member, at.Members)).ToList()
                 : script;
         }
         return shifted;
@@ -384,6 +391,9 @@ public static class RunRoot
         // R-DOOR-3 / STATE.md D44 ("no gates, just path to boss with packs"): nothing gates the boss pull. The Hollow Door
         // (BossDoor.Admit) is not applied on the forward route; the Forces bar is a run-completion condition (plan #536 S8).
         var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs, layout, run.Content.Patrols);
+        // AGGRO-CHASE leash: evaders that reached home reset, and a pack dragged past its leash gives up, before the aggro
+        // check (an evading pack engages on nothing).
+        encounter = Leash.Step(next, encounter, groups, run.Content.BaseSpeedMmPerTick, emit);
         var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);
         return (next, encounter);

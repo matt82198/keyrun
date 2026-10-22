@@ -180,6 +180,8 @@ public sealed record HostRunSetup(
         // scripts plus every pack and patrol member's, so this runs after LayoutPackGroups.BuildPatrols; ScaleEnemyCooldowns scales each
         // ability id once however many scripts cast it (finding f-c94c7cd7).
         abilities = Tempo.ScaleEnemyCooldowns(abilities, allScripts.Values.Concat(boss.Twins.Select(t => t.Script)), keyLevel);
+        // AGGRO-CHASE (f-f0c886eb): every placed enemy carries its run.json enemyAggro radius, assist and leash.
+        (dungeon, packs, patrols) = WithEnemyAggro(registry.Run.EnemyAggro, layout, dungeon, packs, patrols);
 
         var run = registry.Run;
         var movement = new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm, nav.Extent);
@@ -239,6 +241,45 @@ public sealed record HostRunSetup(
     {
         ArgumentNullException.ThrowIfNull(m);
         return new MarkRules(m.SpreadEffectId, m.SpreadRadiusMm, m.SpreadDamage, m.StackEffectId, m.StackRadiusMm, m.StackDamage);
+    }
+
+    /// <summary>
+    /// AGGRO-CHASE (finding f-f0c886eb): every pull, pack and patrol spawn with its run.json <c>enemyAggro</c> values
+    /// (<see cref="C.EnemyAggroConfig.For"/>; 0 = off, so null on the spawn). Every enemy assists. A group whose ring the
+    /// layout authors keeps that ring as its whole aggro rule, so its members carry no radius of their own: every pack and
+    /// patrol (layout.json <c>aggroMm</c>, the ring LayoutValidator proves skippable or disjoint from the pulls) and a pull
+    /// whose room sets <c>aggroMm</c> (the boss arena). The other pulls (the Choir, the Pair, the Seed behind its room gate)
+    /// aggro on each member's own radius beside the default ring. Patrol members never leash (a patrol's home is its moving
+    /// loop). Unchanged when the content has no block.
+    /// </summary>
+    /// <param name="aggro">The run.json block, or null.</param>
+    /// <param name="layout">The content layout (which rooms author a ring).</param>
+    /// <param name="dungeon">The placed dungeon.</param>
+    /// <param name="packs">The layout packs.</param>
+    /// <param name="patrols">The layout patrols.</param>
+    /// <returns>The three with the values set.</returns>
+    public static (DungeonDef Dungeon, IReadOnlyList<PackGroup> Packs, IReadOnlyList<PatrolPack> Patrols) WithEnemyAggro(
+        C.EnemyAggroConfig? aggro, C.LayoutDef layout, DungeonDef dungeon, IReadOnlyList<PackGroup> packs, IReadOnlyList<PatrolPack> patrols)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(dungeon);
+        ArgumentNullException.ThrowIfNull(packs);
+        ArgumentNullException.ThrowIfNull(patrols);
+        if (aggro is null)
+        {
+            return (dungeon, packs, patrols);
+        }
+        var authored = layout.Boxes.Where(b => b.Pull is not null && b.AggroMm is not null).Select(b => b.Pull!).ToHashSet(StringComparer.Ordinal);
+        static long? On(int mm) => mm > 0 ? mm : null;
+        List<PullSpawn> Tuned(IEnumerable<PullSpawn> spawns, bool ownRadius, bool leash) => spawns.Select(s =>
+        {
+            var (aggroMm, assistMm, leashMm) = aggro.For(s.ClassId);
+            return s with { AggroMm = ownRadius ? On(aggroMm) : null, AssistMm = On(assistMm), LeashMm = leash ? On(leashMm) : null };
+        }).ToList();
+        return (
+            dungeon with { Pulls = dungeon.Pulls.Select(p => p with { Spawns = Tuned(p.Spawns, !authored.Contains(p.Id), leash: true) }).ToList() },
+            packs.Select(k => k with { Spawns = Tuned(k.Spawns, ownRadius: false, leash: true) }).ToList(),
+            patrols.Select(k => k with { Spawns = Tuned(k.Spawns, ownRadius: false, leash: false) }).ToList());
     }
 
     /// <summary>The sim affix table from content run.json <c>affixes</c> (the values are data, pending Matt).</summary>

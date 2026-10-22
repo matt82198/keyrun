@@ -67,6 +67,8 @@ public static class Pulls
                 var actor = SpawnActor(spawn);
                 actor.Idle = true;
                 actor.Pos = RowSlot(pull.Spawns, spawn, actorRadiusMm);
+                // AGGRO-CHASE leash: home is the placed point, so a pull engaged at creation (EngageStartPull) leashes too.
+                actor.Home = actor.Pos;
                 actors.Add(actor);
             }
         }

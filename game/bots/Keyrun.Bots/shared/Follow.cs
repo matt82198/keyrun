@@ -157,7 +157,11 @@ public static class Follow
     public static bool LeadHandedOver(BotView view)
     {
         ArgumentNullException.ThrowIfNull(view);
-        if (view.Layout is not { } layout || AnyLivingEnemy(view.State) || view.State.Tick < IdleLeaderTicks)
+        // AGGRO-CHASE (f-f0c886eb): a pack now aggroes from range and chases, so the handed-over lead also holds through a
+        // fight the bots pulled away from the Entrance; otherwise the bots would turn and drag the pack back to the idle
+        // seat. A fight that reaches the Entrance (the idle seat's own fight) hands the lead back.
+        if (view.Layout is not { } layout || view.State.Tick < IdleLeaderTicks ||
+            view.State.Actors.Values.Any(a => a.Alive && a.Kind == ActorKind.Enemy && !a.Idle && Movement.Contains(layout.Boxes[0].Box, a.Pos)))
         {
             return false;
         }

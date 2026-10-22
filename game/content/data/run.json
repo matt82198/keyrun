@@ -31,5 +31,13 @@
   "classArmorBp": {
     "warden": 3500
   },
-  "stunImmuneEnemies": ["hollowWarden.boss"]
+  "stunImmuneEnemies": ["hollowWarden.boss"],
+  "enemyAggro": {
+    "aggroMm": 8000,
+    "assistMm": 3000,
+    "leashMm": 30000,
+    "kinds": {
+      "hollowWarden.boss": { "aggroMm": 0, "assistMm": 0, "leashMm": 0 }
+    }
+  }
 }

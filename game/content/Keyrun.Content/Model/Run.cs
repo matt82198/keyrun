@@ -38,6 +38,57 @@ public sealed record RunConfig
     /// Every id names a known enemy.
     /// </summary>
     public required ValueList<string> StunImmuneEnemies { get; init; }
+
+    /// <summary>
+    /// AGGRO-CHASE (finding f-f0c886eb; WoW Mythic+ where the bible is silent): every enemy's own aggro radius, assist
+    /// radius and leash distance on a layout run, with per-enemy overrides. Null (absent) = no per-enemy rule: only the
+    /// group rings engage and nothing leashes. Kept here, not on the enemy entries in the frozen content/data (STATE.md
+    /// D12), like the other C#-only rules in this file.
+    /// </summary>
+    public EnemyAggroConfig? EnemyAggro { get; init; }
+}
+
+/// <summary>
+/// AGGRO-CHASE tuning (run.json <c>enemyAggro</c>), mm. The defaults apply to every enemy a layout run places (pulls,
+/// packs and patrols; patrols never leash); <see cref="Kinds"/> overrides them per enemy id, and 0 switches a rule off for
+/// that enemy (the boss: R-BOSS-2 owns its reset). Every value is non-negative, every key a known enemy, and a leash that
+/// is on is longer than the same enemy's aggro radius (or a pack would reset in the party's reach and re-pull forever).
+/// </summary>
+public sealed record EnemyAggroConfig
+{
+    /// <summary>Default aggro radius, measured from the enemy itself.</summary>
+    public required int AggroMm { get; init; }
+
+    /// <summary>Default assist radius: an idle enemy this close to an engaged one joins with its pack.</summary>
+    public required int AssistMm { get; init; }
+
+    /// <summary>Default leash: an engaged enemy this far from home makes its pack evade and reset.</summary>
+    public required int LeashMm { get; init; }
+
+    /// <summary>Enemy id to its overrides. A <see cref="ValueMap{TValue}"/> so two loads stay value-equal.</summary>
+    public ValueMap<EnemyAggroKind> Kinds { get; init; } = new();
+
+    /// <summary>The aggro radius, assist radius and leash for <paramref name="enemyId"/>, 0 = off.</summary>
+    /// <param name="enemyId">The enemy id.</param>
+    /// <returns>The three values, mm.</returns>
+    public (int AggroMm, int AssistMm, int LeashMm) For(string enemyId)
+    {
+        Kinds.TryGetValue(enemyId, out var k);
+        return (k?.AggroMm ?? AggroMm, k?.AssistMm ?? AssistMm, k?.LeashMm ?? LeashMm);
+    }
+}
+
+/// <summary>One enemy's AGGRO-CHASE overrides; a null field keeps the default, 0 switches the rule off.</summary>
+public sealed record EnemyAggroKind
+{
+    /// <summary>Aggro radius override, mm.</summary>
+    public int? AggroMm { get; init; }
+
+    /// <summary>Assist radius override, mm.</summary>
+    public int? AssistMm { get; init; }
+
+    /// <summary>Leash override, mm.</summary>
+    public int? LeashMm { get; init; }
 }
 
 /// <summary>

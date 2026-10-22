@@ -24,5 +24,28 @@ internal sealed class RunConfigRule : IContentRule
         ArenaBounds b = run.ArenaBounds;
         if (b.MinX >= b.MaxX || b.MinZ >= b.MaxZ)
             Fail("run arenaBounds must have minX < maxX and minZ < maxZ, got x " + b.MinX + ".." + b.MaxX + " z " + b.MinZ + ".." + b.MaxZ);
+        if (run.EnemyAggro is { } aggro)
+        {
+            CheckEnemyAggro(reg, aggro);
+        }
+    }
+
+    // AGGRO-CHASE (run.json enemyAggro): non-negative values, known enemy keys, and a leash that is on is longer than the
+    // same enemy's aggro radius, so a pack never resets inside the reach that pulls it again.
+    private static void CheckEnemyAggro(ContentRegistry reg, EnemyAggroConfig aggro)
+    {
+        foreach (string id in aggro.Kinds.Keys)
+        {
+            if (!reg.Enemies.ContainsKey(id))
+                Fail("run enemyAggro.kinds \"" + id + "\" is not an enemy");
+        }
+        foreach (string id in aggro.Kinds.Keys.Prepend("(default)"))
+        {
+            var (aggroMm, assistMm, leashMm) = aggro.For(id);
+            if (aggroMm < 0 || assistMm < 0 || leashMm < 0)
+                Fail("run enemyAggro " + id + " aggroMm, assistMm and leashMm must be non-negative, got " + aggroMm + ", " + assistMm + " and " + leashMm);
+            if (leashMm > 0 && leashMm <= aggroMm)
+                Fail("run enemyAggro " + id + " leashMm " + leashMm + " must be longer than its aggroMm " + aggroMm);
+        }
     }
 }
