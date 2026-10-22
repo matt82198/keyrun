@@ -24,7 +24,9 @@ namespace Keyrun.View;
 /// into (for <see cref="AnimRule.ReleaseEndsMs"/>, then the cast pose resumes), and every clip start prints a
 /// <see cref="AnimRule.ViewLine"/> (<c>VIEW anim actor=N clip=X tick=T</c>). A model without an AnimationPlayer gets no
 /// animator (<see cref="TryCreate"/> returns null), so it
-/// keeps its static pose.
+/// keeps its static pose. ABILITY-ANIMS: every content ability has its own release and cast loop
+/// (<see cref="AbilityClipTable"/> via <see cref="AbilityClipPlayer"/>), and each ability, flinch or death clip start
+/// writes <c>ANIM actor=N clip=X ability=Y</c> to the run log.
 /// </summary>
 public sealed class ActorAnimator
 {
@@ -50,10 +52,15 @@ public sealed class ActorAnimator
     private bool _spawning;
     private readonly string _moveClip;
     private readonly int _scalePermille;
+    // ABILITY-ANIMS: every ability's own release and cast loop (AbilityClipTable) and the ANIM run-log line per start.
+    private readonly AbilityClipPlayer _abilities;
+    private readonly Dictionary<string, string?> _castLoops = new(StringComparer.Ordinal);
+    private string? _castAbility;
 
-    private ActorAnimator(AnimationPlayer player, ActorClips clips, int scalePermille)
+    private ActorAnimator(AnimationPlayer player, ActorClips clips, int scalePermille, Action<string>? log)
     {
         _player = player;
+        _abilities = new AbilityClipPlayer(log);
         _moveClip = clips.Move;
         _scalePermille = scalePermille;
         var names = player.GetAnimationList();
@@ -102,15 +109,16 @@ public sealed class ActorAnimator
 
     /// <summary>
     /// An animator for the first AnimationPlayer under <paramref name="model"/>, or null when it has none.
-    /// <paramref name="scalePermille"/> is the scale the model is drawn at (KF1-GAIT: its stride scales with it).
+    /// <paramref name="scalePermille"/> is the scale the model is drawn at (KF1-GAIT: its stride scales with it);
+    /// <paramref name="log"/> is the run-log sink the ANIM lines go to (null: console only).
     /// </summary>
-    public static ActorAnimator? TryCreate(Node model, ActorClips clips, int scalePermille = 1000)
+    public static ActorAnimator? TryCreate(Node model, ActorClips clips, int scalePermille = 1000, Action<string>? log = null)
     {
         foreach (var node in model.FindChildren("*", "AnimationPlayer", true, false))
         {
             if (node is AnimationPlayer player)
             {
-                return new ActorAnimator(player, clips, scalePermille);
+                return new ActorAnimator(player, clips, scalePermille, log);
             }
         }
         return null;
@@ -136,6 +144,7 @@ public sealed class ActorAnimator
                 if (_death is not null)
                 {
                     GD.Print(AnimRule.ViewLine(now.Id, _death, tick) + " kind=Death");
+                    _abilities.Started(now.Id, _death, null);
                 }
             }
             return;
@@ -150,7 +159,7 @@ public sealed class ActorAnimator
         // bar, a spell for its release window), posed from sim time each frame so contact lands on the resolve frame.
         if (now.CastId is string castId && now.CastStartTick is int castStart && now.CastEndsTick is int castEnds)
         {
-            var name = AbilityAnim.ActClip(castId, _rowAct);
+            var name = AbilityClipPlayer.ReleaseName(castId, _rowAct);
             var windClip = AbilityClip(name);
             if (windClip is not null && AbilityAnim.Windup(name, castStart, castEnds, tick, alphaPermille) is WindupPose pose)
             {
@@ -169,6 +178,7 @@ public sealed class ActorAnimator
                     _player.Play(windClip, windBlend);
                     GD.Print(FormattableString.Invariant(
                         $"ANIM windup actor={now.Id} tick={tick} clip={windClip} ability={castId} ends={castEnds} from={pose.ClipMs} speed={pose.SpeedPermille}"));
+                    _abilities.Started(now.Id, windClip, castId);
                 }
                 _windup = windClip;
                 _oneShot = null;
@@ -186,15 +196,18 @@ public sealed class ActorAnimator
         var playing = _oneShot is not null && _player.IsPlaying() && _player.CurrentAnimation == _oneShot
             ? _oneShotKind
             : AnimClip.None;
-        // KF1-WINDUP: the swing is the resolved ability's own clip (AbilityAnim.ActClip), else the row's.
-        var actName = AbilityAnim.ActClip(ResolvedAbility(now.Id, events), _rowAct);
+        // KF1-WINDUP, ABILITY-ANIMS: the swing is the resolved ability's own clip (AbilityClipTable), else the row's.
+        var resolvedId = AbilityClipPlayer.Resolved(now.Id, events);
+        var actName = AbilityClipPlayer.ReleaseName(resolvedId, _rowAct);
         var actClip = AbilityClip(actName);
         var released = actClip is not null && AnimRule.Resolved(now.Id, Pairs(events));
+        // ABILITY-ANIMS: the cast bar shows the ability's own loop (a spell's Spellcasting, Bulwark's Block), else the row's.
+        _castAbility = now.CastId;
         var facts = new AnimFacts(
             Alive: true,
             NewTick: newTick,
             Moving: speedMps > MoveSpeedMps,
-            Casting: now.CastId is not null && _cast is not null,
+            Casting: now.CastId is not null && CastLoop() is not null,
             Acted: actClip is not null && (released || now.GcdReadyTick > before.GcdReadyTick),
             Hurt: _hit is not null && now.Health < before.Health,
             Staggered: _hit is not null && (StaggerLanded(before, now) || AnimRule.Kicked(now.Id, Targets(events))),
@@ -246,6 +259,10 @@ public sealed class ActorAnimator
                 // Proof line (like ACTOR): which one-shot started, on whom, on which tick, from where in the clip.
                 GD.Print(AnimRule.ViewLine(now.Id, clip, tick) + FormattableString.Invariant(
                     $" kind={decision.Clip} from={from:0.00} moving={(facts.Moving ? 1 : 0)} casting={(facts.Casting ? 1 : 0)}"));
+                // ABILITY-ANIMS proof: a swing names the ability it resolves, a flinch the cast its kick cut.
+                _abilities.Started(now.Id, clip, decision.Clip == AnimClip.Act
+                    ? resolvedId
+                    : AbilityClipPlayer.Kicked(now.Id, events));
             }
             return;
         }
@@ -254,6 +271,7 @@ public sealed class ActorAnimator
         if (decision.Clip == AnimClip.Cast && next is not null && !(_player.CurrentAnimation == next && _player.IsPlaying()))
         {
             GD.Print(AnimRule.ViewLine(now.Id, next, tick) + " kind=Cast");
+            _abilities.Started(now.Id, next, now.CastId);
         }
         // KF1-GAIT: the run or walk loop steps at the body's speed, so the planted foot stays still on the floor.
         _player.SpeedScale = next is not null && next == _move
@@ -266,12 +284,28 @@ public sealed class ActorAnimator
     {
         AnimClip.Idle => _idle,
         AnimClip.Move => _move ?? _idle,
-        AnimClip.Cast => _cast,
+        AnimClip.Cast => CastLoop(),
         AnimClip.Act => _act,
         AnimClip.Hit => _hit,
         AnimClip.Death => _death,
         _ => null,
     };
+
+    // ABILITY-ANIMS: the loop for the current cast's bar, the ability's own (AbilityClipTable.CastClip) when the model
+    // ships it, else the row's. Matched once per name, looped like the row's cast clip.
+    private string? CastLoop()
+    {
+        if (AbilityClipPlayer.CastName(_castAbility) is not string name)
+        {
+            return _cast;
+        }
+        if (!_castLoops.TryGetValue(name, out var clip))
+        {
+            clip = Match(_player.GetAnimationList(), name, loop: true);
+            _castLoops[name] = clip;
+        }
+        return clip ?? _cast;
+    }
 
     // The model's animation for a swing clip name (the row's, or an ability's own from AbilityAnim.ActClip), or null
     // when the model lacks it. Matched once per name.
@@ -283,23 +317,6 @@ public sealed class ActorAnimator
             _abilityClips[name] = clip;
         }
         return clip;
-    }
-
-    // The ability id of this step's cast_complete for this actor, or null.
-    private static string? ResolvedAbility(int actorId, IReadOnlyList<SimEvent>? events)
-    {
-        if (events is null)
-        {
-            return null;
-        }
-        foreach (var e in events)
-        {
-            if (e.Type == AnimRule.ResolveEvent && e.Get("actorId") is JsInt id && id.Value == actorId)
-            {
-                return e.Get("abilityId") is JsString ability ? ability.Value : null;
-            }
-        }
-        return null;
     }
 
     // One step's events as (type, actorId) pairs for AnimRule.Resolved.
