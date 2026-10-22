@@ -15,7 +15,6 @@ namespace Keyrun.Content.Tests;
 /// </summary>
 public sealed class SkipBarTests
 {
-    private const string ForcesFile = "forces.json";
 
     /// <summary>The shipped walking line, optional pack points, and their best balanced split (test-side oracle).</summary>
     private static (int Line, List<int> Optional, int Balanced) Shipped()
@@ -41,7 +40,7 @@ public sealed class SkipBarTests
     }
 
     private static MutableSource WithBar(int required) =>
-        new MutableSource().Edit(ForcesFile, n => n["required"] = required);
+        new MutableSource().EditForces(n => n["required"] = required);
 
     [Fact]
     public void A_layout_without_two_disjoint_pack_sets_that_reach_the_bar_fails_the_load()
