@@ -19,15 +19,12 @@ namespace Keyrun.View;
 /// <c>ACTOR model=&lt;res path|capsule&gt; fallback=&lt;0|1&gt; id=N</c> to the run log (finding f-30dcbb08). KF1: a health drop flashes the bound model for
 /// <see cref="AnimRule.FlashTicks"/> sim ticks (<see cref="AnimRule.FlashPermilleFor"/>, party bodies only: an enemy never
 /// flashes, ENEMY-BODY-STABLE), logged as <c>ANIM flash</c> and, through the host, <c>FLASH actor=N tick=T strength=S</c>.
-/// f-84d213a5: a party bot between the camera and the player or the player's target (or pressed against the lens) fades
-/// to <see cref="PartyFade.FadedPermille"/> and eases back when it moves (<see cref="PartyFade"/>), logged as
-/// <c>FADE actor=N alpha=A tick=T</c> on each change; the player's own model and enemies never fade by that rule.
-/// CAMERA-FG: on top of it, any actor body within <see cref="CameraNearFade.FadeDistanceMm"/> of the camera fades by
-/// distance (<see cref="CameraNearFade"/>), the Warden's own model included; a body that occludes the pivot fades whatever its
-/// distance (<see cref="CameraNearFade.Occludes"/>, the Warden's own model excepted); a party body drawn taller than a third
-/// of the viewport is capped at <see cref="PartyFade.FadedPermille"/> (<see cref="CameraNearFade.ScreenHeightCapPermille"/>,
-/// the lowest alpha of the party rules wins (<see cref="CameraNearFade.AppliedPermille"/>). ENEMY-BODY-STABLE: no enemy
-/// (the boss and the twins) is faded by any camera rule or flashed on a hit, so its colour and alpha stay stable.
+/// PARTY-SOLID (Matt 2026-10-21, "i want to be able to see my party"): the drawn alpha is
+/// <see cref="CameraNearFade.AppliedPermille"/>, which is opaque for every body: the seated player's own model, every party
+/// bot and every enemy. The old party fades (f-84d213a5's sight-line fade, CAMERA-FG's distance, occlusion and
+/// screen-height rules) no longer lower it; the CAMERA line below still reports what those rules rate. A change of the
+/// drawn alpha is logged as <c>FADE actor=N alpha=A tick=T</c>. ENEMY-BODY-STABLE: no enemy (the boss and the twins) is
+/// flashed on a hit, so its colour and alpha stay stable.
 /// Each 60 sim ticks in a pull, every living body (party and enemies) logs a
 /// <c>CAMERA tick=T actor=N dist=D near=A applied=A occl=0|1 sh=S cap=C</c> line.
 /// U6 GEAR: the Warden's equipped items draw as one primitive mark per slot (<see cref="GearVisual"/>, pure), tinted by
@@ -85,7 +82,6 @@ public partial class ActorView : Node3D
     private bool _flashOn;
     private int _flashLoggedTick = int.MinValue;
 
-    private readonly System.Collections.Generic.List<(int X, int Y, int Z)> _foci = new();
     private System.Collections.Generic.List<FadeSurface>? _fadeSurfaces;
     private float _fade = 1f;
     private int _fadeWant = PartyFade.OpaquePermille;
@@ -190,7 +186,7 @@ public partial class ActorView : Node3D
         GetNode<MeshInstance3D>("Body").Visible = false;
         GetNode<MeshInstance3D>("Nose").Visible = false;
         _model = model;
-        _animator = ActorAnimator.TryCreate(model, row.Clips, row.ScalePermille);
+        _animator = ActorAnimator.TryCreate(model, row.Clips, row.ScalePermille, Driver.HostLine); // ANIM lines to the run log
         // A body bound while its actor is alive rises with its spawn clip (enemies; party rows have none and idle).
         if (actor.Alive)
         {
@@ -430,10 +426,9 @@ public partial class ActorView : Node3D
         }
     }
 
-    // f-84d213a5 (bible section 3): a party bot standing between the camera and the player's body or the player's target,
-    // or pressed against the lens, fades to PartyFade.FadedPermille so cast bars and floor shapes stay readable, and eases
-    // back when it moves. The rule is PartyFade's (pure, tested); this only feeds it positions and drives the materials.
-    // The player's own model (the Warden the camera follows) and enemies are rated opaque by the rule.
+    // PARTY-SOLID (Matt 2026-10-21): the drawn alpha comes from one entry point, CameraNearFade.AppliedPermille, which is
+    // opaque for every body (party and enemies). The f-84d213a5 sight-line fade (PartyFade.AlphaPermille) is no longer
+    // applied here. The material path below still eases toward the wanted alpha, so a body never stays translucent.
     private void Fade(float delta)
     {
         if (Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var now))
@@ -443,24 +438,9 @@ public partial class ActorView : Node3D
         var role = RoleOf(now);
         var want = PartyFade.OpaquePermille;
         var camera = GetViewport()?.GetCamera3D();
-        if (role == FadeRole.Ally && camera is not null)
-        {
-            _foci.Clear();
-            if (Driver.State.Actors.TryGetValue(SimDriver.WardenId, out var me))
-            {
-                _foci.Add(ChestMm(SimDriver.WardenId, me));
-                if (me.TargetId is int targetId && targetId != ActorId &&
-                    Driver.State.Actors.TryGetValue(targetId, out var target) && target.Alive)
-                {
-                    _foci.Add(ChestMm(targetId, target));
-                }
-            }
-            var centre = ToMm3(GlobalPosition + new Vector3(0, PartyFade.BodyCentreMm * MmToM, 0));
-            want = PartyFade.AlphaPermille(ToMm3(camera.GlobalPosition), _foci, new FadeBody(role, centre, PartyFade.BodyRadiusMm));
-        }
-        // CAMERA-FG: every actor body near the lens fades by distance, and a body that occludes the pivot (the camera rig's
-        // position, the Warden's shoulder) fades at any distance (CameraNearFade). The camera is the viewport's current
-        // camera; the pivot is its rig's position. The Warden's own model never occludes.
+        // CAMERA-FG inputs (distance to the lens, occlusion of the pivot, screen height) are still measured for the CAMERA
+        // log line; AppliedPermille rates every body opaque whatever they read. The camera is the viewport's current
+        // camera; the pivot is its rig's position.
         if (camera is not null)
         {
             var chest = GlobalPosition + new Vector3(0, PartyFade.BodyCentreMm * MmToM, 0);
@@ -471,8 +451,8 @@ public partial class ActorView : Node3D
             // the cap is 1000 for Self and enemies, so the boss and the twins are never held by it.
             var screenHeight = ScreenHeight(camera, GlobalPosition, GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero);
             var cap = CameraNearFade.ScreenHeightCapPermille(role, screenHeight);
-            // ENEMY-BODY-STABLE: the one entry point for the near-camera rules. An enemy is 1000 whatever the distance,
-            // occlusion or height; a party body is the lowest of its rules (the same numbers as before).
+            // The one entry point for the drawn alpha: 1000 for every enemy (ENEMY-BODY-STABLE) and every party body
+            // (PARTY-SOLID), whatever the distance, occlusion or height.
             want = Mathf.Min(want, CameraNearFade.AppliedPermille(role, distanceMm, occludes, screenHeight));
             LogCamera(now, distanceMm, CameraNearFade.AlphaPermille(distanceMm), occludes, screenHeight, cap, want);
         }
@@ -545,14 +525,6 @@ public partial class ActorView : Node3D
             }
         }
         return false;
-    }
-
-    // The body's chest on the interpolated position the views draw it at, mm (a sight-line focus for PartyFade).
-    private (int X, int Y, int Z) ChestMm(int id, ActorState now)
-    {
-        var before = Driver!.PreviousState.Actors.TryGetValue(id, out var prev) ? prev : now;
-        var feet = ToMetres(before.Pos).Lerp(ToMetres(now.Pos), Driver.Alpha);
-        return ToMm3(feet + new Vector3(0, PartyFade.BodyCentreMm * MmToM, 0));
     }
 
     // Drives the fade on the bound CC0 model (per-view duplicates of its active materials, swapped in only while faded so

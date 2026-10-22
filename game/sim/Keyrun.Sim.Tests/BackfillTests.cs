@@ -375,27 +375,32 @@ public sealed class BackfillTests
         return new PackDrive(run, backfill, fills, engageStep, engageEvent, seatAtAbandon, healerPos, seatPos);
     }
 
-    [Fact]
-    public void A_seat_open_before_a_pack_engage_is_refilled_at_the_engage()
+    [Fact(DisplayName = "Backfill (R-BACKFILL-1, BIBLE s10 \"a joiner arrives at the next pull start\"): a seat abandoned before a pack_engage stays empty through the engage")]
+    public void A_seat_open_before_a_pack_engage_is_not_refilled_at_the_engage()
     {
         var d = DrivePackRun((tick, engaged) => tick == 5 && !engaged);
 
         Assert.NotNull(d.EngageStepTick);
         Assert.Equal(0, d.Run.Encounter.PullIndex);
-        var fill = Assert.Single(d.Fills);
-        Assert.Equal(Seat, fill.ActorId);
-        Assert.Same(Key10, fill.Joiner);
-        Assert.Equal(5, fill.AbandonTick);
-        Assert.Equal(d.EngageStepTick, fill.FillTick);
-        Assert.Empty(d.Backfill.Open);
+        Assert.Empty(d.Fills);
+        Assert.Equal(Seat, Assert.Single(d.Backfill.Open).ActorId);
+    }
 
-        // Arrive: the joiner stands on the staying member nearest the leaver (the healer in the hall), not where it idled.
-        Assert.Equal(d.HealerPosAt[fill.FillTick], d.SeatPosAt[fill.FillTick]);
-        Assert.NotEqual(d.SeatAtAbandon, d.SeatPosAt[fill.FillTick]);
+    [Fact(DisplayName = "Backfill (R-BACKFILL-1): a seat open before a pack_engage is not refilled at the engage and stays where it stood")]
+    public void A_seat_open_before_a_pack_engage_stays_idle_where_it_stood()
+    {
+        // R-BACKFILL-1: the engage is not a pull start, so the seat is not refilled there (it was: the joiner arrived on the engage).
+        var d = DrivePackRun((tick, engaged) => tick == 5 && !engaged);
+
+        Assert.NotNull(d.EngageStepTick);
+        Assert.Equal(0, d.Run.Encounter.PullIndex);
+        Assert.Empty(d.Fills);
+        Assert.Equal(Seat, Assert.Single(d.Backfill.Open).ActorId);
+        Assert.Equal(d.SeatAtAbandon, d.SeatPosAt[d.EngageStepTick!.Value]);
     }
 
     [Fact]
-    public void A_seat_opened_after_the_pack_engage_is_not_filled_on_it()
+    public void A_seat_opened_before_or_after_the_pack_engage_is_not_filled_on_it()
     {
         var probe = DrivePackRun((_, _) => false);
         Assert.NotNull(probe.EngageEventTick);
@@ -416,10 +421,11 @@ public sealed class BackfillTests
         Assert.Empty(atEngage.Fills);
         Assert.Equal(Seat, Assert.Single(atEngage.Backfill.Open).ActorId);
 
-        // One tick earlier is before the engage: that seat fills on it.
+        // One tick earlier is before the engage. R-BACKFILL-1: the engage is not a pull start, so that seat stays open too
+        // (it was refilled on the engage before the ruling).
         var before = OpenAt(eventTick - 1);
-        Assert.Equal(eventTick - 1, Assert.Single(before.Fills).AbandonTick);
-        Assert.Empty(before.Backfill.Open);
+        Assert.Empty(before.Fills);
+        Assert.Equal(Seat, Assert.Single(before.Backfill.Open).ActorId);
     }
 
     [Fact]

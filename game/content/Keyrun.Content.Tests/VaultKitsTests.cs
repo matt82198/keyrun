@@ -94,6 +94,17 @@ public sealed class VaultKitsTests
         Assert.IsType<DamagePctOp>(effect.Periodic!.Op);
     }
 
+    [Fact(DisplayName = "Searing Hex's telegraph is anchored on the Hexer's target (BIBLE 9.3 'circle under the target')")]
+    public void Searing_hex_telegraph_is_anchored_on_the_target()
+    {
+        // TELEGRAPH-ANCHOR (finding f-ebb50027): the first shipped content using an anchor. The other vault casts keep
+        // the caster default (Stoke centres on the Keeper; Undertow and Crushing Slam are cones from the caster).
+        Assert.Equal(TelegraphAnchor.Target, StepCasting("ash.hexer", "ash.searingHex").Telegraph!.Anchor);
+        Assert.Null(StepCasting("bellows.keeper", "bellows.stoke").Telegraph!.Anchor);
+        Assert.Null(StepCasting("drowned.chorister", "drowned.undertow").Telegraph!.Anchor);
+        Assert.Null(StepCasting("vault.brute", "vault.crushingSlam").Telegraph!.Anchor);
+    }
+
     [Fact(DisplayName = "Each vault cast lands its BIBLE 9.3 effect through the #302 caster ops")]
     public void Each_vault_cast_lands_its_bible_effect()
     {

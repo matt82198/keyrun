@@ -139,7 +139,7 @@ public static class Floor
         {
             return null;
         }
-        return Moves.MoveToward(view.State.Tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(target.Pos));
+        return PathMoves.Toward(view, view.State.Tick, self, target.Pos);
     }
 
     private sealed record FriendlyWindow(PointMm Center, long RadiusMm, string SetupClass);

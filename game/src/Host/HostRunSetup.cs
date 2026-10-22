@@ -46,6 +46,13 @@ public sealed record HostRunSetup(
     /// </summary>
     public static readonly IReadOnlyList<string> StunEffectIds = new[] { "stunned" };
 
+    /// <summary>
+    /// BOSS-CC-IMMUNE (R-BOSS-1 follow-up; WoW: bosses are immune to crowd control): what a stunImmuneEnemies actor
+    /// refuses on landing, the stun plus Steam's <c>blinded</c> (its carrier misses every hit). Before this the boss was
+    /// blinded for most of its fight and missed 31 of 48 hits, so a seat standing in its Cleave was barely hurt.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ImmuneRefusedEffectIds = new[] { "stunned", "blinded" };
+
     /// <summary>content-dungeon.ts:38 PULL_ACTOR_ID_START.</summary>
     public const int PullActorIdStart = 100;
 
@@ -162,15 +169,17 @@ public sealed record HostRunSetup(
         // PATH-PACKS (BIBLE s9.1): the layout's trash packs, required and optional, idle on the path from tick 0 and each
         // pulled whole by proximity, like a pull.
         // Mythic+ trash only a pack fields (hall.sentry) is scaled here exactly as a pull spawn is (ScaledTrashSpawn).
-        var (packs, packScripts) = LayoutPackGroups.Build(
-            layout, dungeon, scripts,
-            packOnly: PackOnlyTemplates(registry, layout, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false)));
+        var packOnly = PackOnlyTemplates(registry, layout, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false));
+        var (packs, packScripts) = LayoutPackGroups.Build(layout, dungeon, scripts, packOnly: packOnly);
+        // MPLUS-PATROLS (BIBLE s9.1): the layout's patrol packs, each member copied from the same scaled template as a pack
+        // member, ids after the packs. allScripts is the pull, boss and pack scripts plus every patrol member's.
+        var (patrols, allScripts) = LayoutPackGroups.BuildPatrols(layout, dungeon, packs, packScripts, packOnly: packOnly);
         // TEMPO-CAST-FLOOR (BIBLE s8): every cast an enemy script of the run makes (pulls, boss, pack members including
         // pack-only enemies such as the Hall Sentry, and the Twins) gets the key-scaled cooldown its scaled loop was
-        // floored against, so the loop speeds up and its cast is ready on the fire tick. packScripts is the pull and boss
-        // scripts plus every pack member's, so this runs after LayoutPackGroups.Build; ScaleEnemyCooldowns scales each
+        // floored against, so the loop speeds up and its cast is ready on the fire tick. allScripts is the pull and boss
+        // scripts plus every pack and patrol member's, so this runs after LayoutPackGroups.BuildPatrols; ScaleEnemyCooldowns scales each
         // ability id once however many scripts cast it (finding f-c94c7cd7).
-        abilities = Tempo.ScaleEnemyCooldowns(abilities, packScripts.Values.Concat(boss.Twins.Select(t => t.Script)), keyLevel);
+        abilities = Tempo.ScaleEnemyCooldowns(abilities, allScripts.Values.Concat(boss.Twins.Select(t => t.Script)), keyLevel);
 
         var run = registry.Run;
         var movement = new MovementConfig(run.Movement.SpeedMmPerTick, run.Movement.RadiusMm, nav.Extent);
@@ -183,7 +192,7 @@ public sealed record HostRunSetup(
             ActorRadiusMm = 0,
             Bounds = movement.Bounds,
             Overheat = OverheatRulesOf(registry),
-            EnemyScripts = packScripts,
+            EnemyScripts = allScripts,
             KeyLevel = keyLevel,
             ParTicks = dungeonDef.ParTicks,
             Combos = combos,
@@ -191,9 +200,11 @@ public sealed record HostRunSetup(
             Clauses = clauses,
             Layout = nav,
             Packs = packs,
+            Patrols = patrols,
             StopEffectIds = StopEffectIds,
             StunEffectIds = StunEffectIds,
             StunImmuneClassIds = run.StunImmuneEnemies.ToList(),
+            ImmuneRefusedEffectIds = ImmuneRefusedEffectIds,
             Marks = MarkRulesOf(run.PairMarks),
         }.WithMovement(movement);
 
@@ -785,7 +796,7 @@ public sealed record HostRunSetup(
         return step with
         {
             Telegraph = s.Telegraph is { } t
-                ? new TelegraphSpec(ShapeName(t.Shape), t.LeadTicks) { Radius = t.Radius, Angle1024 = t.Angle1024, Length = t.Length, Width = t.Width, SpansCast = t.SpansCast ?? false }
+                ? new TelegraphSpec(ShapeName(t.Shape), t.LeadTicks) { Radius = t.Radius, Angle1024 = t.Angle1024, Length = t.Length, Width = t.Width, SpansCast = t.SpansCast ?? false, AnchorTarget = t.Anchor == C.TelegraphAnchor.Target }
                 : null,
             Target = s.Target switch
             {

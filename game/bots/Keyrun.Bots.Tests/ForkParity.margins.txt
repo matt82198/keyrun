@@ -3,38 +3,38 @@
 # then a's margin over b (+ = a better: clear b-a ticks, deaths b-a, combos a-b). Last field: the verdict.
 # Tolerance (NoiseTolerance.Measured): clear 715 bp of the slower clear, deaths 0, combos 3. Only a margin that exceeds it counts; only "DOMINATES ... beyond noise" gates.
 # Noise sweep (re-measured at this re-baseline):
-#   k2 base kit, dial 90, seeds 1..12: clear 1482..1738 (median 1580, sd 73.8), deaths 0..0, combos 39..55
-#   k2 paired margin sd, median over 31 sibling pairs: clear 89.5 ticks (567 bp of the median base clear), deaths 0.28, combos 4.12
-#   k10 base kit, dial 90, seeds 1..12: clear 1796..2294 (median 1924, sd 134.5), deaths 0..1, combos 51..66
-#   k10 paired margin sd, median over 31 sibling pairs: clear 140.0 ticks (728 bp of the median base clear), deaths 0.37, combos 4.97
-warden.strike rend riposte | hv-k2-s7 1714/1/47 1552/0/46 -162/-1/+1 | hv-k2-s11-d90 1542/0/50 1544/0/50 +2/+0/+0 | hv-k10-s7 2053/0/53 2178/1/56 +125/+1/-3 | tradeoff
-warden.strike rend warcry | hv-k2-s7 1714/1/47 1549/0/46 -165/-1/+1 | hv-k2-s11-d90 1542/0/50 1660/0/45 +118/+0/+5 | hv-k10-s7 2053/0/53 1910/0/63 -143/+0/-10 | tradeoff
-warden.strike riposte warcry | hv-k2-s7 1552/0/46 1549/0/46 -3/+0/+0 | hv-k2-s11-d90 1544/0/50 1660/0/45 +116/+0/+5 | hv-k10-s7 2178/1/56 1910/0/63 -268/-1/-7 | tradeoff
-warden.guardBreak focused pin | hv-k2-s7 1704/0/48 1552/0/46 -152/+0/+2 | hv-k2-s11-d90 1746/0/46 1542/0/50 -204/+0/-4 | hv-k10-s7 1975/0/55 2178/1/56 +203/+1/-1 | tradeoff
-warden.guardBreak focused surge | hv-k2-s7 1704/0/48 1688/0/48 -16/+0/+0 | hv-k2-s11-d90 1746/0/46 1738/0/48 -8/+0/-2 | hv-k10-s7 1975/0/55 2022/0/51 +47/+0/+4 | tradeoff
-warden.guardBreak pin surge | hv-k2-s7 1552/0/46 1688/0/48 +136/+0/-2 | hv-k2-s11-d90 1542/0/50 1738/0/48 +196/+0/+2 | hv-k10-s7 2178/1/56 2022/0/51 -156/-1/+5 | tradeoff
-warden.bulwark fortress mobile | hv-k2-s7 1689/1/50 1532/0/48 -157/-1/+2 | hv-k2-s11-d90 1582/0/45 1510/0/50 -72/+0/-5 | hv-k10-s7 1952/0/56 1894/0/62 -58/+0/-6 | tradeoff
-warden.reckoning execute overwhelm | hv-k2-s7 1544/0/50 1696/0/47 +152/+0/+3 | hv-k2-s11-d90 1556/0/53 1892/1/55 +336/+1/-2 | hv-k10-s7 2033/0/57 1949/0/62 -84/+0/-5 | tradeoff
-warden.vigil ally reserve | hv-k2-s7 1504/0/51 1702/0/42 +198/+0/+9 | hv-k2-s11-d90 1484/0/53 1544/0/48 +60/+0/+5 | hv-k10-s7 2043/1/64 1874/0/67 -169/-1/-3 | tradeoff
-cinder.emberBolt instant piercing | hv-k2-s7 1684/1/52 1602/0/49 -82/-1/+3 | hv-k2-s11-d90 1554/0/52 1702/0/50 +148/+0/+2 | hv-k10-s7 1929/0/56 1968/0/62 +39/+0/-6 | tradeoff
-cinder.emberBolt instant overcharge | hv-k2-s7 1684/1/52 1473/0/48 -211/-1/+4 | hv-k2-s11-d90 1554/0/52 1592/0/47 +38/+0/+5 | hv-k10-s7 1929/0/56 1850/0/55 -79/+0/+1 | tradeoff
-cinder.emberBolt piercing overcharge | hv-k2-s7 1602/0/49 1473/0/48 -129/+0/+1 | hv-k2-s11-d90 1702/0/50 1592/0/47 -110/+0/+3 | hv-k10-s7 1968/0/62 1850/0/55 -118/+0/+7 | tradeoff
-cinder.flare wildfire lingering | hv-k2-s7 1473/0/39 1709/0/50 +236/+0/-11 | hv-k2-s11-d90 1568/0/37 1652/0/48 +84/+0/-11 | hv-k10-s7 1946/0/44 1954/0/58 +8/+0/-14 | tradeoff
-cinder.flare wildfire efficient | hv-k2-s7 1473/0/39 1472/0/38 -1/+0/+1 | hv-k2-s11-d90 1568/0/37 1406/0/38 -162/+0/-1 | hv-k10-s7 1946/0/44 1903/0/45 -43/+0/-1 | tradeoff
-cinder.flare lingering efficient | hv-k2-s7 1709/0/50 1472/0/38 -237/+0/+12 | hv-k2-s11-d90 1652/0/48 1406/0/38 -246/+0/+10 | hv-k10-s7 1954/0/58 1903/0/45 -51/+0/+13 | tradeoff
-cinder.coldSnap deepFreeze overflow | hv-k2-s7 1552/0/46 1540/0/45 -12/+0/+1 | hv-k2-s11-d90 1542/0/50 1432/0/50 -110/+0/+0 | hv-k10-s7 2178/1/56 1876/0/54 -302/-1/+2 | tradeoff
-cinder.detonate chainReaction cheapShot | hv-k2-s7 2034/0/56 1594/0/44 -440/+0/+12 | hv-k2-s11-d90 2128/1/62 1566/0/45 -562/-1/+17 | hv-k10-s7 2518/0/63 1966/0/55 -552/+0/+8 | tradeoff
-cinder.detonate chainReaction overkill | hv-k2-s7 2034/0/56 1582/1/44 -452/+1/+12 | hv-k2-s11-d90 2128/1/62 1472/0/48 -656/-1/+14 | hv-k10-s7 2518/0/63 1941/0/51 -577/+0/+12 | tradeoff
-cinder.detonate cheapShot overkill | hv-k2-s7 1594/0/44 1582/1/44 -12/+1/+0 | hv-k2-s11-d90 1566/0/45 1472/0/48 -94/+0/-3 | hv-k10-s7 1966/0/55 1941/0/51 -25/+0/+4 | tradeoff
-cinder.cinderfield spreading flashpoint | hv-k2-s7 1593/0/50 1473/0/50 -120/+0/+0 | hv-k2-s11-d90 1469/0/51 1698/0/43 +229/+0/+8 | hv-k10-s7 1842/0/65 1887/0/57 +45/+0/+8 | tradeoff
-chanter.cadence resonance groupSong | hv-k2-s7 1552/0/46 1570/0/40 +18/+0/+6 | hv-k2-s11-d90 1588/0/50 1712/1/42 +124/+1/+8 | hv-k10-s7 1958/0/54 1913/0/47 -45/+0/+7 | tradeoff
-chanter.cadence resonance swift | hv-k2-s7 1552/0/46 1510/0/47 -42/+0/-1 | hv-k2-s11-d90 1588/0/50 1530/0/52 -58/+0/-2 | hv-k10-s7 1958/0/54 2015/0/64 +57/+0/-10 | tradeoff
-chanter.cadence groupSong swift | hv-k2-s7 1570/0/40 1510/0/47 -60/+0/-7 | hv-k2-s11-d90 1712/1/42 1530/0/52 -182/-1/-10 | hv-k10-s7 1913/0/47 2015/0/64 +102/+0/-17 | tradeoff
-chanter.refrain overture crescendo | hv-k2-s7 1534/0/46 1552/0/47 +18/+0/-1 | hv-k2-s11-d90 1546/0/47 1542/0/51 -4/+0/-4 | hv-k10-s7 2018/1/57 2178/1/56 +160/+0/+1 | tradeoff
-chanter.chorus roundCall discipline | hv-k2-s7 1552/0/46 1661/0/44 +109/+0/+2 | hv-k2-s11-d90 1542/0/50 1620/0/49 +78/+0/+1 | hv-k10-s7 2178/1/56 1951/0/59 -227/-1/-3 | tradeoff
-chanter.chorus roundCall encore | hv-k2-s7 1552/0/46 1699/0/46 +147/+0/+0 | hv-k2-s11-d90 1542/0/50 1632/0/47 +90/+0/+3 | hv-k10-s7 2178/1/56 1910/0/63 -268/-1/-7 | tradeoff
-chanter.chorus discipline encore | hv-k2-s7 1661/0/44 1699/0/46 +38/+0/-2 | hv-k2-s11-d90 1620/0/49 1632/0/47 +12/+0/+2 | hv-k10-s7 1951/0/59 1910/0/63 -41/+0/-4 | tradeoff
-chanter.dissonance amplify discord | hv-k2-s7 1737/1/45 1914/0/43 +177/-1/+2 | hv-k2-s11-d90 1504/0/49 1906/0/41 +402/+0/+8 | hv-k10-s7 1986/0/60 2545/0/43 +559/+0/+17 | tradeoff
-chanter.hymn grandHymn staccato | hv-k2-s7 1506/0/47 1563/0/51 +57/+0/-4 | hv-k2-s11-d90 1510/0/49 1696/0/49 +186/+0/+0 | hv-k10-s7 1961/0/60 1967/0/63 +6/+0/-3 | tradeoff
-chanter.hymn grandHymn roundRobin | hv-k2-s7 1506/0/47 1552/0/46 +46/+0/+1 | hv-k2-s11-d90 1510/0/49 1524/0/53 +14/+0/-4 | hv-k10-s7 1961/0/60 2057/0/58 +96/+0/+2 | tradeoff
-chanter.hymn staccato roundRobin | hv-k2-s7 1563/0/51 1552/0/46 -11/+0/+5 | hv-k2-s11-d90 1696/0/49 1524/0/53 -172/+0/-4 | hv-k10-s7 1967/0/63 2057/0/58 +90/+0/+5 | tradeoff
+#   k2 base kit, dial 90, seeds 1..12: clear 1446..1608 (median 1478, sd 60.2), deaths 0..1, combos 47..54
+#   k2 paired margin sd, median over 31 sibling pairs: clear 69.7 ticks (471 bp of the median base clear), deaths 0.28, combos 3.69
+#   k10 base kit, dial 90, seeds 1..12: clear 1778..1876 (median 1824, sd 29.6), deaths 0..0, combos 58..69
+#   k10 paired margin sd, median over 31 sibling pairs: clear 59.6 ticks (327 bp of the median base clear), deaths 0.28, combos 4.44
+warden.strike rend riposte | hv-k2-s7 1650/1/41 1531/0/48 -119/-1/-7 | hv-k2-s11-d90 1446/0/54 1414/0/54 -32/+0/+0 | hv-k10-s7 1834/0/64 1828/0/62 -6/+0/+2 | tradeoff
+warden.strike rend warcry | hv-k2-s7 1650/1/41 1514/0/46 -136/-1/-5 | hv-k2-s11-d90 1446/0/54 1506/0/46 +60/+0/+8 | hv-k10-s7 1834/0/64 1820/1/63 -14/+1/+1 | tradeoff
+warden.strike riposte warcry | hv-k2-s7 1531/0/48 1514/0/46 -17/+0/+2 | hv-k2-s11-d90 1414/0/54 1506/0/46 +92/+0/+8 | hv-k10-s7 1828/0/62 1820/1/63 -8/+1/-1 | tradeoff
+warden.guardBreak focused pin | hv-k2-s7 1471/0/50 1531/0/48 +60/+0/+2 | hv-k2-s11-d90 1484/0/58 1446/0/54 -38/+0/+4 | hv-k10-s7 1954/0/61 1828/0/62 -126/+0/-1 | tradeoff
+warden.guardBreak focused surge | hv-k2-s7 1471/0/50 1505/0/48 +34/+0/+2 | hv-k2-s11-d90 1484/0/58 1476/0/53 -8/+0/+5 | hv-k10-s7 1954/0/61 1836/0/62 -118/+0/-1 | tradeoff
+warden.guardBreak pin surge | hv-k2-s7 1531/0/48 1505/0/48 -26/+0/+0 | hv-k2-s11-d90 1446/0/54 1476/0/53 +30/+0/+1 | hv-k10-s7 1828/0/62 1836/0/62 +8/+0/+0 | tradeoff
+warden.bulwark fortress mobile | hv-k2-s7 1472/1/50 1569/1/53 +97/+0/-3 | hv-k2-s11-d90 1540/0/51 1446/0/54 -94/+0/-3 | hv-k10-s7 1871/0/54 1804/0/65 -67/+0/-11 | tradeoff
+warden.reckoning execute overwhelm | hv-k2-s7 1507/0/46 1518/0/50 +11/+0/-4 | hv-k2-s11-d90 1472/0/52 1536/1/56 +64/+1/-4 | hv-k10-s7 1864/0/61 1904/0/61 +40/+0/+0 | tradeoff
+warden.vigil ally reserve | hv-k2-s7 1423/0/54 1443/0/44 +20/+0/+10 | hv-k2-s11-d90 1430/0/59 1446/0/54 +16/+0/+5 | hv-k10-s7 1749/0/62 1757/0/63 +8/+0/-1 | tradeoff
+cinder.emberBolt instant piercing | hv-k2-s7 1445/0/52 1627/0/55 +182/+0/-3 | hv-k2-s11-d90 1532/0/51 1562/0/56 +30/+0/-5 | hv-k10-s7 1795/0/62 1922/0/67 +127/+0/-5 | tradeoff
+cinder.emberBolt instant overcharge | hv-k2-s7 1445/0/52 1469/0/48 +24/+0/+4 | hv-k2-s11-d90 1532/0/51 1416/0/49 -116/+0/+2 | hv-k10-s7 1795/0/62 1772/0/58 -23/+0/+4 | tradeoff
+cinder.emberBolt piercing overcharge | hv-k2-s7 1627/0/55 1469/0/48 -158/+0/+7 | hv-k2-s11-d90 1562/0/56 1416/0/49 -146/+0/+7 | hv-k10-s7 1922/0/67 1772/0/58 -150/+0/+9 | tradeoff
+cinder.flare wildfire lingering | hv-k2-s7 1382/0/45 1448/0/48 +66/+0/-3 | hv-k2-s11-d90 1326/0/45 1580/1/50 +254/+1/-5 | hv-k10-s7 1624/0/57 1748/0/68 +124/+0/-11 | tradeoff
+cinder.flare wildfire efficient | hv-k2-s7 1382/0/45 1442/0/41 +60/+0/+4 | hv-k2-s11-d90 1326/0/45 1448/1/46 +122/+1/-1 | hv-k10-s7 1624/0/57 1767/0/56 +143/+0/+1 | tradeoff
+cinder.flare lingering efficient | hv-k2-s7 1448/0/48 1442/0/41 -6/+0/+7 | hv-k2-s11-d90 1580/1/50 1448/1/46 -132/+0/+4 | hv-k10-s7 1748/0/68 1767/0/56 +19/+0/+12 | tradeoff
+cinder.coldSnap deepFreeze overflow | hv-k2-s7 1531/0/48 1446/0/46 -85/+0/+2 | hv-k2-s11-d90 1446/0/54 1502/0/50 +56/+0/+4 | hv-k10-s7 1828/0/62 1797/0/63 -31/+0/-1 | tradeoff
+cinder.detonate chainReaction cheapShot | hv-k2-s7 1888/0/57 1492/0/46 -396/+0/+11 | hv-k2-s11-d90 1870/0/71 1420/0/52 -450/+0/+19 | hv-k10-s7 2209/0/73 1788/0/63 -421/+0/+10 | tradeoff
+cinder.detonate chainReaction overkill | hv-k2-s7 1888/0/57 1552/1/52 -336/+1/+5 | hv-k2-s11-d90 1870/0/71 1476/0/52 -394/+0/+19 | hv-k10-s7 2209/0/73 1838/0/59 -371/+0/+14 | tradeoff
+cinder.detonate cheapShot overkill | hv-k2-s7 1492/0/46 1552/1/52 +60/+1/-6 | hv-k2-s11-d90 1420/0/52 1476/0/52 +56/+0/+0 | hv-k10-s7 1788/0/63 1838/0/59 +50/+0/+4 | tradeoff
+cinder.cinderfield spreading flashpoint | hv-k2-s7 1504/0/53 1469/0/50 -35/+0/+3 | hv-k2-s11-d90 1640/1/45 1472/0/52 -168/-1/-7 | hv-k10-s7 1985/1/60 1815/0/59 -170/-1/+1 | tradeoff
+chanter.cadence resonance groupSong | hv-k2-s7 1531/0/48 1512/0/49 -19/+0/-1 | hv-k2-s11-d90 1422/0/49 1454/0/49 +32/+0/+0 | hv-k10-s7 1923/0/60 1871/0/57 -52/+0/+3 | tradeoff
+chanter.cadence resonance swift | hv-k2-s7 1531/0/48 1436/0/50 -95/+0/-2 | hv-k2-s11-d90 1422/0/49 1482/0/49 +60/+0/+0 | hv-k10-s7 1923/0/60 1767/0/67 -156/+0/-7 | tradeoff
+chanter.cadence groupSong swift | hv-k2-s7 1512/0/49 1436/0/50 -76/+0/-1 | hv-k2-s11-d90 1454/0/49 1482/0/49 +28/+0/+0 | hv-k10-s7 1871/0/57 1767/0/67 -104/+0/-10 | tradeoff
+chanter.refrain overture crescendo | hv-k2-s7 1473/0/49 1529/0/51 +56/+0/-2 | hv-k2-s11-d90 1446/0/54 1446/0/55 +0/+0/-1 | hv-k10-s7 1828/0/62 1828/0/64 +0/+0/-2 | tradeoff
+chanter.chorus roundCall discipline | hv-k2-s7 1531/0/48 1443/0/44 -88/+0/+4 | hv-k2-s11-d90 1446/0/54 1474/0/53 +28/+0/+1 | hv-k10-s7 1828/0/62 1868/0/54 +40/+0/+8 | tradeoff
+chanter.chorus roundCall encore | hv-k2-s7 1531/0/48 1452/0/45 -79/+0/+3 | hv-k2-s11-d90 1446/0/54 1482/0/50 +36/+0/+4 | hv-k10-s7 1828/0/62 1805/0/64 -23/+0/-2 | tradeoff
+chanter.chorus discipline encore | hv-k2-s7 1443/0/44 1452/0/45 +9/+0/-1 | hv-k2-s11-d90 1474/0/53 1482/0/50 +8/+0/+3 | hv-k10-s7 1868/0/54 1805/0/64 -63/+0/-10 | tradeoff
+chanter.dissonance amplify discord | hv-k2-s7 1554/0/43 1742/0/48 +188/+0/-5 | hv-k2-s11-d90 1482/0/55 1776/0/43 +294/+0/+12 | hv-k10-s7 1835/0/55 2215/0/59 +380/+0/-4 | tradeoff
+chanter.hymn grandHymn staccato | hv-k2-s7 1473/0/50 1415/0/51 -58/+0/-1 | hv-k2-s11-d90 1412/0/55 1508/0/46 +96/+0/+9 | hv-k10-s7 1923/0/60 1902/0/67 -21/+0/-7 | tradeoff
+chanter.hymn grandHymn roundRobin | hv-k2-s7 1473/0/50 1552/0/49 +79/+0/+1 | hv-k2-s11-d90 1412/0/55 1456/0/47 +44/+0/+8 | hv-k10-s7 1923/0/60 1828/0/63 -95/+0/-3 | tradeoff
+chanter.hymn staccato roundRobin | hv-k2-s7 1415/0/51 1552/0/49 +137/+0/+2 | hv-k2-s11-d90 1508/0/46 1456/0/47 -52/+0/-1 | hv-k10-s7 1902/0/67 1828/0/63 -74/+0/+4 | tradeoff

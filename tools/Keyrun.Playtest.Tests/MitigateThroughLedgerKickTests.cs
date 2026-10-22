@@ -41,9 +41,12 @@ public sealed class MitigateThroughLedgerKickTests
     // assertions are unchanged, neither side's literal reused): the kick-plan run now ends Timed at 7777 with boss cleaves
     // 7341-7381, 7497-7537 and 7653-7693, so 11 ticks into the first cleave is 7352; the run's own state at 7352 has the
     // boss casting hollowWarden.cleave, start 7341, end 7381.
-    // R-DOOR-1 + R-TAUNT-1 + KF3 merge re-derivation (WHY: the merged tree's first boss cleave kick-open is the same event
-    // this scene was built on; see the probe note in the commit message).
-    private const int Tick = 7352;
+    // R-PATROL-3b merge re-derivation (#528 onto main; a measurement by a probe on the merged tree): the first boss cleave
+    // telegraphs at 7480 and resolves at 7520 on that tree, so 11 ticks in is 7491. WHY: a pin that passes only because the
+    // test places the boss mid-cleave itself is not on the trajectory; the event-derived tick is what counts.
+    // R-DECLUTTER-1 merge (main 1f8fed7f, #515 taunt and kick, #537): the probe on this tree puts the first boss cleave
+    // telegraph at 7480 (resolves 7520, the run ends Timed at 7903), so the event-derived tick is 7491 (11 ticks in).
+    private const int Tick = 7491;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 

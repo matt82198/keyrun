@@ -1,0 +1,2 @@
+- DOCS-STATE-RULINGS STATE.md gets a rulings block (D45, D46, R-BOSS-1, R-PATH-1, R-DECLUTTER-1, R-PATROL-3, R-PACKS-7, R-ORACLE-1, R-LOADER-1, R-STALE-1) plus the 20 Hz tick note; docs only, no code, sim or content change.
+BUILDLOG: docs(state): rulings block in STATE.md Locked decisions (D45, D46, R-BOSS-1, R-PATH-1, R-DECLUTTER-1, R-PATROL-3, R-PACKS-7, R-ORACLE-1, R-LOADER-1, R-STALE-1), 20 Hz tick note, pointers to reviews and PR #546.

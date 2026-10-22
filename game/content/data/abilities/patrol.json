@@ -1,0 +1,16 @@
+[
+  {
+    "id": "choir.patrolSwing",
+    "name": "Patrol Swing",
+    "castTicks": 0,
+    "gcdTicks": 0,
+    "cooldownTicks": 40,
+    "charges": 1,
+    "range": 3000,
+    "shape": { "kind": "target" },
+    "interruptible": false,
+    "tags": [],
+    "effects": [ { "op": "damage", "amount": 22, "school": "physical" } ],
+    "cost": { "resource": "none", "amount": 0 }
+  }
+]

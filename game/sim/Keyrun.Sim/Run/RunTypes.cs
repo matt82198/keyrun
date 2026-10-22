@@ -100,6 +100,14 @@ public sealed record RunContent
     public IReadOnlyList<string>? StunImmuneClassIds { get; init; }
 
     /// <summary>
+    /// BOSS-CC-IMMUNE (R-BOSS-1 follow-up; WoW: a boss is immune to crowd control): the effects an actor in
+    /// <see cref="StunImmuneClassIds"/> refuses on landing (<see cref="ControlStops.RefuseImmuneStuns"/>), each with an
+    /// "immune" event. Null = <see cref="StunEffectIds"/> alone (the stun). The host adds Steam's <c>blinded</c>: a blinded
+    /// boss missed 31 of its 48 hits in the default boss fight, so its Cleave threatened no one.
+    /// </summary>
+    public IReadOnlyList<string>? ImmuneRefusedEffectIds { get; init; }
+
+    /// <summary>
     /// The Pair's spread and stack mark rules (<see cref="PairMarks"/>), or null for none. Null on every oracle run; a
     /// host builds it from content (game/content/data/run.json pairMarks).
     /// </summary>
@@ -132,6 +140,14 @@ public sealed record RunContent
     /// Null or empty = no packs (every oracle run).
     /// </summary>
     public IReadOnlyList<PackGroup>? Packs { get; init; }
+
+    /// <summary>
+    /// MPLUS-PATROLS (BIBLE section 9.1; layout runs only): the layout's patrol packs. Each member stands idle on its
+    /// patrol's point from tick 0 (<see cref="Patrols.SpawnIdle"/>), walks the loop every tick (<see cref="Patrols.Walk"/>)
+    /// and engages whole by proximity or damage as one <see cref="Aggro.GroupsOf"/> group with pull index -1. Their
+    /// members' scripts ride in <see cref="EnemyScripts"/>. Null or empty = no patrols (every oracle run).
+    /// </summary>
+    public IReadOnlyList<PatrolPack>? Patrols { get; init; }
 
     /// <summary>
     /// This content with its movement fields taken from the host's validated <paramref name="movement"/>
