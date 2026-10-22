@@ -138,6 +138,8 @@ public static class PlaytestRunner
         ArgumentNullException.ThrowIfNull(options);
         var content = baseRegistry ?? C.ContentLoader.Load();
         var policy = options.Policy;
+        // K3a (design/PLAYTESTER-GUIDE.md section 1): a plan states its mode; no plan is the guided scripted party.
+        var mode = policy?.Mode ?? Keyrun.Bots.Shared.PlaytesterMode.Guided;
         var registry = policy is null ? content : WithTalents(content, policy);
         // R-MULTIBOSS-1: the run seed also generates a multi-segment dungeon's layout (the Sunken Bellfoundry); the Hollow Vault ignores it.
         var setup = HostRunSetup.Build(registry, options.DungeonId, options.Key, options.HumanClassId, withBots: true, dungeonSeed: options.Seed);
@@ -234,7 +236,7 @@ public static class PlaytestRunner
             foreach (var c in commands)
             {
                 var seatClass = run.State.Actors.TryGetValue(c.ActorId, out var seat) ? seat.ClassId : string.Empty;
-                receipts.Record(Keyrun.Bots.Shared.BotReceipt.Of(tick, seatClass, c, Reasons.Of(c).Why));
+                receipts.Record(Keyrun.Bots.Shared.BotReceipt.Of(tick, seatClass, c, Reasons.Of(c).Why, mode));
             }
             stats.ObserveCommands(commands);
             options.Observe?.Invoke(tick, run, commands);

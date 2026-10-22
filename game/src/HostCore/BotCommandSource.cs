@@ -90,6 +90,13 @@ public sealed class BotCommandSource : ICommandSource
     /// </summary>
     public IBotReceiptSink Receipts { get; set; } = NullBotReceiptSink.Instance;
 
+    /// <summary>
+    /// The playtester mode stamped on every receipt (design/PLAYTESTER-GUIDE.md section 1; G2.4, K3a). The host has no plan
+    /// today, so a host run records <see cref="PlaytesterMode.Guided"/>, the default every planless run is; a caller that
+    /// knows the run's mode sets it before the first <see cref="Sample"/>.
+    /// </summary>
+    public PlaytesterMode Mode { get; set; } = PlaytesterMode.Guided;
+
     /// <summary>The bot seats driven, ascending.</summary>
     public IReadOnlyList<int> BotActorIds => _bots.Keys.OrderBy(id => id).ToList();
 
@@ -177,7 +184,7 @@ public sealed class BotCommandSource : ICommandSource
             into.Add(command);
             Absorb(command);
             var seatClass = run.State.Actors.TryGetValue(command.ActorId, out var seat) ? seat.ClassId : string.Empty;
-            Receipts.Record(BotReceipt.Of(tick, seatClass, command, Reasons.Of(command).Why));
+            Receipts.Record(BotReceipt.Of(tick, seatClass, command, Reasons.Of(command).Why, Mode));
         }
         if (_pings.Count > 0)
         {
