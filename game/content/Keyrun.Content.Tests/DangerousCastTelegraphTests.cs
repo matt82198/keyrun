@@ -54,8 +54,8 @@ public sealed class DangerousCastTelegraphTests
         Assert.True(failures.Count == 0, string.Join(System.Environment.NewLine, failures));
         // Vacuity guard: seed.slam, seed.lash (KF3-SEED-ENGAGE), hollowWarden.slam, hollowWarden.cleave, twinA and twinB
         // twins.slam; D66 the Sunken Bellfoundry's bosses and Clappers: ommet.pourSlag, brineMother.undertow, boilingSurge
-        // and drowningHymn, greatBell.clangour, and clapperA and clapperB greatBell.peal (was 6).
-        Assert.Equal(13, count);
+        // and drowningHymn, greatBell.clangour, and clapperA and clapperB greatBell.peal (was 6); R-SORROW-1 adds greatBell.resonance, Old Sorrow's damaging cast that replaced the Lock (13 -> 14).
+        Assert.Equal(14, count);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class DangerousCastTelegraphTests
             let ability = Reg.Abilities[step.Cast]
             where ability.Tags.Contains("setup:lock")
             select (enemy, step, ability)).ToList();
-        Assert.Equal(new[] { "hollowWarden.boss", "bellfoundry.greatBell" }, lockSteps.Select(l => l.enemy.Id));
+        Assert.Equal(new[] { "hollowWarden.boss" }, lockSteps.Select(l => l.enemy.Id)); // R-SORROW-1: Old Sorrow's Still the Bell (a copy of this Lock) became Resonance, a damaging kick
         foreach (var lockStep in lockSteps)
         {
             AssertLockStep(lockStep.enemy, lockStep.step, lockStep.ability);
@@ -96,10 +96,10 @@ public sealed class DangerousCastTelegraphTests
     public void Every_dangerous_cast_telegraph_spans_the_cast()
     {
         // SLAM-TELEGRAPH: the floor shape stays down for the whole cast bar and resolves when the cast lands
-        // (seed.slam, seed.lash, hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam, and the seven D66
+        // (seed.slam, seed.lash, hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam, and the eight D66
         // Sunken Bellfoundry boss and Clapper casts the rule above counts).
         var slams = DangerousSteps().ToList();
-        Assert.Equal(13, slams.Count);
+        Assert.Equal(14, slams.Count);
         Assert.All(slams, s =>
         {
             Assert.True(s.Step.Telegraph?.SpansCast == true, s.Enemy.Id + " -> " + s.Ability.Id + " telegraph does not span its cast");

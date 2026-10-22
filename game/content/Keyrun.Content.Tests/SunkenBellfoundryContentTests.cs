@@ -78,9 +78,10 @@ public sealed class SunkenBellfoundryContentTests
             var packs = Pool.Count(p => p.Enemies.Any(g => g.EnemyId == kind));
             Assert.True(packs >= 2, $"{kind} is in {packs} packs, want at least 2");
         }
-        // Reuse two or three existing kinds where it fits (the brief): the Hollow Vault's casters and Brute come along.
+        // R-SORROW-1 item 5 (D66, themed unique mobs): no Hollow Vault kind is fielded any more; every kind is Bellfoundry-owned
+        // (was InRange(reused, 2, 5): the Hollow Vault's casters and Brute came along).
         var reused = Pool.SelectMany(p => p.Enemies).Select(g => g.EnemyId).Where(e => !e.StartsWith("bellfoundry.", StringComparison.Ordinal)).Distinct().Count();
-        Assert.InRange(reused, 2, 5);
+        Assert.Equal(0, reused);
     }
 
     [Fact(DisplayName = "D66 forces: the shortest route of three segments (two pack rooms a branch) on the smallest packs still passes 100%")]
