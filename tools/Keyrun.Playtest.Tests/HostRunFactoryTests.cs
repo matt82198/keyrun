@@ -42,7 +42,8 @@ public sealed class HostRunFactoryTests
         var dungeon = setup.Dungeon;
         if (startPull > 1)
         {
-            dungeon = dungeon with { Pulls = dungeon.Pulls.Skip(startPull - 1).ToList() };
+            // Mirrors HostRunSetup.FromPull: a slice that drops earlier pulls carries no forces goal (FINISH-NEEDS-FORCES).
+            dungeon = dungeon with { Pulls = dungeon.Pulls.Skip(startPull - 1).ToList(), ForcesGoal = null };
         }
         var start = setup.StartFor(null, null, registry, classId);
         var options = (start.Options ?? new RunOptions()) with { RotationIndex = setup.RotationIndex };
