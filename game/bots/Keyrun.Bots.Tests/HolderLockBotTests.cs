@@ -53,6 +53,23 @@ public sealed class HolderLockBotTests
         Assert.Same(enemy, TankEngage.PickLooseEnemy(actors, actors[1]));
     }
 
+    // R-TAUNT-3 row 1 (LOOSE-PICKUP): the enemy hurting its seat (in melee reach of it) is picked before a nearer one that
+    // stands off from its holder and hurts nobody, so where an idle caster stands never decides who the Taunt goes to.
+    [Fact]
+    public void The_loose_enemy_hurting_its_seat_is_picked_before_a_nearer_one_standing_off()
+    {
+        var hurting = Actors.Create(100, ActorKind.Enemy, "test.brute", ActorRole.None, new Vec3(4000, 0, 0), 1000, 0);
+        hurting.HolderId = 3;
+        var quiet = Actors.Create(102, ActorKind.Enemy, "test.caster", ActorRole.None, new Vec3(0, 0, 3500), 1000, 0);
+        quiet.HolderId = 3;
+        var actors = Party(hurting);
+        actors[quiet.Id] = quiet;
+        Assert.True(RoleShared.Dist(quiet, actors[1]) < RoleShared.Dist(hurting, actors[1]));
+        Assert.True(TankEngage.HurtsItsSeat(actors, hurting));
+        Assert.False(TankEngage.HurtsItsSeat(actors, quiet));
+        Assert.Same(hurting, TankEngage.PickLooseEnemy(actors, actors[1]));
+    }
+
     [Fact]
     public void An_enemy_the_tank_holds_is_not_loose_whoever_its_TargetId_names()
     {

@@ -156,6 +156,13 @@ public sealed record RunContent
     public IReadOnlyList<PatrolPack>? Patrols { get; init; }
 
     /// <summary>
+    /// IDLE-WANDER (f-c1044aa4; layout runs only): un-engaged packs and pulls (never the boss, the room-gated Seed or a patrol)
+    /// walk deterministically inside their own aggro ring (<see cref="Encounter.IdleWander"/>). False = they stand still (every
+    /// oracle run and every hand-built test layout); the host's assembly turns it on.
+    /// </summary>
+    public bool IdleWander { get; init; }
+
+    /// <summary>
     /// This content with its movement fields taken from the host's validated <paramref name="movement"/>
     /// (the run-root side of <see cref="RulesConfig.WithMovement"/>: the host never hard-codes speed, radius or bounds).
     /// </summary>

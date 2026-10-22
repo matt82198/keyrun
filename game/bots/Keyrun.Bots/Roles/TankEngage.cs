@@ -69,6 +69,13 @@ public static class TankEngage
         return actors.TryGetValue(tid, out var t) && t.Kind == ActorKind.Player;
     }
 
+    /// <summary>True when <paramref name="enemy"/> stands within melee reach of the player it is aimed at (its holder, else its target): it is hurting that seat now.</summary>
+    /// <param name="actors">Actor table.</param>
+    /// <param name="enemy">The enemy.</param>
+    /// <returns>True when it is in melee reach of its seat.</returns>
+    public static bool HurtsItsSeat(SortedDictionary<int, ActorState> actors, ActorState enemy) =>
+        (enemy.HolderId ?? enemy.TargetId) is { } tid && actors.TryGetValue(tid, out var seat) && RoleShared.Dist(enemy, seat) <= DefaultReachMm;
+
     /// <summary>tank-engage.ts pickLooseEnemy: the nearest alive enemy the tank does not hold that is aimed at another player, ties to the lowest id.</summary>
     /// <param name="actors">Actor table.</param>
     /// <param name="tank">The tank.</param>
@@ -79,7 +86,11 @@ public static class TankEngage
         ArgumentNullException.ThrowIfNull(tank);
         return actors.Values
             .Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle && !HoldsThreat(a, tank.Id) && AimedAtOtherPlayer(actors, a, tank.Id))
-            .OrderBy(a => RoleShared.Dist(a, tank))
+            // R-TAUNT-3 row 1 (design/THREAT-MODEL.md section 4; LOOSE-PICKUP): the enemy hurting its seat now (in melee reach of
+            // the seat it is aimed at) comes before a nearer one standing off from its holder and hurting nobody, so where an idle
+            // caster stands (a wander, a held post) never decides which enemy the Taunt goes to while a seat dies.
+            .OrderBy(a => HurtsItsSeat(actors, a) ? 0 : 1)
+            .ThenBy(a => RoleShared.Dist(a, tank))
             .ThenBy(a => a.Id)
             .FirstOrDefault();
     }
