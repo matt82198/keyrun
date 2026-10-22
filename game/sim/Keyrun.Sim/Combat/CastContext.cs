@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Combat;
 
@@ -22,4 +24,11 @@ public sealed record CastContext(
 
     /// <summary>The Pair's spread and stack mark rules (<see cref="PairMarks"/>) for the mark_applied receipt, or null for none (every oracle run).</summary>
     public MarkRules? Marks { get; init; }
+
+    /// <summary>
+    /// L5 caster-los: true when a straight ray from the first point (the caster) to the second (the target) is clear of
+    /// every layout obstacle; an enemy target-shaped cast with no sight is withheld (<see cref="Casting.NoSightError"/>).
+    /// Null on every run without a layout (every oracle run): no cast is ever withheld.
+    /// </summary>
+    public Func<Vec3, Vec3, bool>? Sight { get; init; }
 }
