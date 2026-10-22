@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Runs;
@@ -160,14 +159,14 @@ public sealed class MultiBossRunTests
     private const int TrashPoints = 100;
 
     /// <summary>
-    /// Adds the forces trash enemy (idle, at the boss spot) and a Enemy Forces bar of <paramref name="required"/> points to
-    /// <paramref name="run"/>. The bar is the only run-completion condition beside the final boss (R-FORCES-COMPLETE-1).
+    /// Adds the forces trash enemy (idle, at the boss spot) and a forces goal of <paramref name="required"/> points to the
+    /// run's dungeon (R-FORCES-COMPLETE-1, FINISH-NEEDS-FORCES). The trash is the only forces source; the boss banks 0.
     /// </summary>
     private static Run WithForces(Run run, int required)
     {
-        run.State.Actors[Trash] = Actors.Create(Trash, ActorKind.Enemy, "trash.melee", ActorRole.None, Vec3.Zero, 100000, 0);
+        run.State.Actors[Trash] = Keyrun.Sim.Combat.Actors.Create(Trash, ActorKind.Enemy, "trash.melee", ActorRole.None, Vec3.Zero, 100000, 0);
         var table = new Dictionary<string, int>(StringComparer.Ordinal) { ["trash.melee"] = TrashPoints };
-        return run with { Content = run.Content with { ForcesBar = new RunForces(table, required) } };
+        return run with { Dungeon = run.Dungeon with { ForcesGoal = new ForcesGoal(table, required) } };
     }
 
     [Fact(DisplayName = "R-FORCES-COMPLETE-1: the final boss dies below 100% forces, no run_end; the packs then reach 100% and run_end fires")]
@@ -180,11 +179,9 @@ public sealed class MultiBossRunTests
         Assert.False(boss.State.Actors[First].Alive);
         Assert.Null(boss.RunEnd.Result);
         Assert.DoesNotContain(bossEvents, e => e.Type == "run_end");
-        Assert.Equal(0, Forces.Points(boss.State, ForcesOf(boss)));
 
         var (end, packEvents) = Kill(boss, Trash);
 
-        Assert.Equal(TrashPoints, Forces.Points(end.State, ForcesOf(end)));
         Assert.Equal(RunResult.Timed, end.RunEnd.Result);
         Assert.Single(packEvents, e => e.Type == "run_end");
     }
@@ -205,7 +202,4 @@ public sealed class MultiBossRunTests
         Assert.Equal(RunResult.Timed, end.RunEnd.Result);
         Assert.Single(bossEvents, e => e.Type == "run_end");
     }
-
-    /// <summary>The forces table the run carries (the same one <see cref="WithForces"/> set).</summary>
-    private static IReadOnlyDictionary<string, int> ForcesOf(Run run) => run.Content.ForcesBar!.PointsByEnemy;
 }

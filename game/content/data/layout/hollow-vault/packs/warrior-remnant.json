@@ -12,7 +12,7 @@
   "enemies": [
     {
       "enemyId": "pair.melee",
-      "count": 5,
+      "count": 6,
       "spawn": {
         "x": 0,
         "z": 500
@@ -20,7 +20,7 @@
     },
     {
       "enemyId": "choir.lieutenant",
-      "count": 2,
+      "count": 1,
       "spawn": {
         "x": 0,
         "z": -500

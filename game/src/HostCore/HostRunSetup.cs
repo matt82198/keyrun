@@ -122,6 +122,37 @@ public sealed partial record HostRunSetup(
     public IReadOnlyList<int> BotActorIds => Party.Where(p => p.Id != HumanActorId).Select(p => p.Id).OrderBy(id => id).ToList();
 
     /// <summary>
+    /// A <c>--pull N</c> harness slice (HostRunFactory.Create): the dungeon from its 1-based pull <paramref name="startPull"/>
+    /// on. A slice that drops earlier pulls can never bank their forces, so it is not a full key and carries no forces goal
+    /// (FINISH-NEEDS-FORCES): it completes when its last pull clears. Pull 1 (or less) returns the dungeon unchanged.
+    /// </summary>
+    /// <param name="dungeon">The run dungeon.</param>
+    /// <param name="startPull">The 1-based start pull.</param>
+    /// <returns>The sliced dungeon.</returns>
+    public static DungeonDef FromPull(DungeonDef dungeon, int startPull)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        return startPull <= 1 ? dungeon : dungeon with { Pulls = dungeon.Pulls.Skip(startPull - 1).ToList(), ForcesGoal = null };
+    }
+
+    /// <summary>
+    /// FINISH-NEEDS-FORCES: the sim forces goal from content forces.json (enemy id to points, and the points that fill
+    /// the bar). The goal's constructor rejects a non-positive requirement, so a broken table fails the run setup.
+    /// </summary>
+    /// <param name="registry">Content.</param>
+    /// <returns>The goal.</returns>
+    public static ForcesGoal ForcesGoalOf(C.ContentRegistry registry)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        var table = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var v in registry.Forces.Values)
+        {
+            table[v.EnemyId] = v.Points;
+        }
+        return new ForcesGoal(table, registry.Forces.Required);
+    }
+
+    /// <summary>
     /// Builds the setup. Fails closed (<see cref="InvalidOperationException"/>) on an unknown dungeon, class or enemy
     /// and on any content op the sim union does not carry, instead of inventing a default.
     /// </summary>
@@ -201,6 +232,8 @@ public sealed partial record HostRunSetup(
         }
         var nav = NavLayouts.ToSim(layout);
         dungeon = NavLayouts.PlaceDungeon(layout, dungeon);
+        // FINISH-NEEDS-FORCES (f-8c50a787, WoW Mythic+): the key completes only at 100% Enemy Forces and the boss dead.
+        dungeon = dungeon with { ForcesGoal = ForcesGoalOf(registry) };
         // PATH-PACKS (BIBLE s9.1): the layout's trash packs, required and optional, idle on the path from tick 0 and each
         // pulled whole by proximity, like a pull.
         // Mythic+ trash only a pack fields (hall.sentry) is scaled here exactly as a pull spawn is (ScaledTrashSpawn).
@@ -247,7 +280,6 @@ public sealed partial record HostRunSetup(
             Marks = MarkRulesOf(run.PairMarks),
             // R-BOSS-4: an unanswered Cleave stacks Cleaved on each seat it hits other than its target.
             CleaveMark = run.Cleaved is { } cleaved ? new CleaveMarkRule(cleaved.AbilityId, cleaved.EffectId, cleaved.DurationTicks) : null,
-            ForcesBar = ForcesBarOf(registry),
         }.WithMovement(movement);
 
         // HUMAN-PLAY (D65/D66): a party whose human is not the tank starts in its travel formation behind the human.
@@ -265,26 +297,6 @@ public sealed partial record HostRunSetup(
                 kv => kv.Key,
                 kv => (IReadOnlyDictionary<string, AbilityDef>)kv.Value.Abilities.ToDictionary(a => a.Key, a => ToSim(a.Value), StringComparer.Ordinal)),
         };
-    }
-
-    /// <summary>
-    /// R-FORCES-COMPLETE-1 (WoW Mythic+): the run's Enemy Forces bar from forces.json. A key completes only once the bar is
-    /// full AND the final boss is dead, so the run keeps going after a final boss killed below 100%.
-    /// </summary>
-    /// <param name="registry">The validated content.</param>
-    /// <returns>The bar, or null when content has no forces table.</returns>
-    private static RunForces? ForcesBarOf(C.ContentRegistry registry)
-    {
-        if (registry.Forces is not { } forces)
-        {
-            return null;
-        }
-        var table = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var v in forces.Values)
-        {
-            table[v.EnemyId] = v.Points;
-        }
-        return new RunForces(table, forces.Required);
     }
 
     /// <summary>

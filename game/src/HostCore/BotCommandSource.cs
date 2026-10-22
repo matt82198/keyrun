@@ -77,6 +77,13 @@ public sealed class BotCommandSource : ICommandSource
         Reset();
     }
 
+    /// <summary>
+    /// The forces table (finding f-7aa25aa6): with it every view carries the run's <see cref="BotView.PullPlan"/>, so a bot in
+    /// the lead seat pulls the layout's packs until the Enemy Forces bar is full before the boss. Null (the default) leaves
+    /// the walk as it was; the host sets it from content.
+    /// </summary>
+    public ForcesPlan? Forces { get; set; }
+
     /// <summary>The bot seats driven, ascending.</summary>
     public IReadOnlyList<int> BotActorIds => _bots.Keys.OrderBy(id => id).ToList();
 
@@ -153,7 +160,7 @@ public sealed class BotCommandSource : ICommandSource
             run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph),
             ClassKitView.Empty,
             // f-80b5cf16: the run's own (loadout- and Facet-patched) ability map judges which abilities are off the GCD.
-            _kits.ForRun(run.Content.Abilities)) with { Layout = run.Content.Layout };
+            _kits.ForRun(run.Content.Abilities)) with { Layout = run.Content.Layout, PullPlan = PullPlan.Of(run, Forces) };
         // sim-runtime.ts step(): drop pings older than the reaction window, then hand the rest to runBots.
         _pings.RemoveAll(p => tick - p.Tick > Pings.PingReactionWindowTicks);
         var batch = Bot.RunBots(view, _bots, _memories, _prng, _pings);

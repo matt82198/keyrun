@@ -45,6 +45,7 @@ public sealed class PolicyBot : IBot
     private int? _dodgeAt;
     private int? _defensiveAt;
     private bool _walking;
+    private int? _assist;
     private readonly Dictionary<(int EnemyId, int CastStart), int> _kickAt = new();
 
     /// <summary>Creates the seat.</summary>
@@ -313,13 +314,22 @@ public sealed class PolicyBot : IBot
                 return hit.Id;
             }
         }
-        if (self.TargetId is { } own && actors.TryGetValue(own, out var t) && t.Alive && t.Kind == ActorKind.Enemy)
+        // A player holds the focus they chose until it dies: a kick press retargets the seat (the press names its caster), so
+        // reading the seat's own target made every dealer drift to whichever Cantor it last kicked and split the damage
+        // between two healers that heal each other (f-7aa25aa6, the Warrior Remnant's two Cantors).
+        if (_assist is { } held && actors.TryGetValue(held, out var heldEnemy) && heldEnemy.Alive && heldEnemy.Kind == ActorKind.Enemy && !heldEnemy.Idle)
         {
-            return own;
+            return held;
         }
         if (actors.TryGetValue(_tankId, out var tank) && tank.TargetId is { } tt && actors.TryGetValue(tt, out var tankTarget) && tankTarget.Alive && tankTarget.Kind == ActorKind.Enemy)
         {
+            _assist = tt;
             return tt;
+        }
+        if (self.TargetId is { } own && actors.TryGetValue(own, out var t) && t.Alive && t.Kind == ActorKind.Enemy)
+        {
+            _assist = own;
+            return own;
         }
         return null;
     }
@@ -327,13 +337,15 @@ public sealed class PolicyBot : IBot
     private long RangeOf(string abilityId) => _registry.Abilities.TryGetValue(abilityId, out var a) ? a.Range : 0;
 
     // The kicker for a cast: the first class in the rule's order whose seat is alive with its interrupt ready and in range.
-    private int? KickerFor(BotView view, ActorState enemy, IReadOnlyList<string> order)
+    // A seat already named for an earlier cast this tick (<paramref name="claimed"/>) is not named again: two Cantors casting
+    // together need two kickers, not one seat named twice and the second cast answered a reaction later (f-7aa25aa6).
+    private int? KickerFor(BotView view, ActorState enemy, IReadOnlyList<string> order, ISet<int> claimed)
     {
         var tick = view.State.Tick;
         foreach (var classId in order)
         {
             var seat = view.State.Actors.Values.FirstOrDefault(a => a.Kind == ActorKind.Player && a.Alive && string.Equals(a.ClassId, classId, StringComparison.Ordinal));
-            if (seat is null)
+            if (seat is null || claimed.Contains(seat.Id))
             {
                 continue;
             }
@@ -366,10 +378,20 @@ public sealed class PolicyBot : IBot
             .Where(a => a.Kind == ActorKind.Enemy && a.Alive && a.CastId is not null && a.CastStartTick is not null)
             .OrderBy(a => a.CastEndsTick ?? int.MaxValue)
             .ThenBy(a => a.Id);
+        var claimed = new HashSet<int>();
         foreach (var enemy in casting)
         {
             var order = _policy.KickersFor(enemy.CastId!);
-            if (order is null || KickerFor(view, enemy, order) != self.Id)
+            if (order is null)
+            {
+                continue;
+            }
+            var kicker = KickerFor(view, enemy, order, claimed);
+            if (kicker is { } named)
+            {
+                claimed.Add(named);
+            }
+            if (kicker != self.Id)
             {
                 continue;
             }

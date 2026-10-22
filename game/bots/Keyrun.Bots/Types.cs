@@ -103,4 +103,11 @@ public sealed record BotView(SimState State, IReadOnlyList<BotTelegraph> Telegra
     /// unchanged: there the next pull spawns the step after a clear, leaving one enemy-free tick the bots must not act on.
     /// </summary>
     public Keyrun.Sim.Encounter.NavLayout? Layout { get; init; }
+
+    /// <summary>
+    /// The packs and the forces table (finding f-7aa25aa6) when the host counts the Enemy Forces bar, else null. A bot in
+    /// the lead seat (<see cref="Shared.Follow.LeadCommand"/>) pulls the layout's packs until the bar is full before it walks
+    /// on to the boss (<see cref="Shared.ForcesPlanner"/>); null leaves the walk as it was.
+    /// </summary>
+    public Shared.PullPlan? PullPlan { get; init; }
 }

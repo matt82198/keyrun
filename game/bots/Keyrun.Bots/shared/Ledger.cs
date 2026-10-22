@@ -175,12 +175,14 @@ public static class Ledger
     /// </param>
     /// <param name="tick">Current tick.</param>
     /// <param name="priorityAbilityIds">Priority-cast list.</param>
+    /// <param name="pulls">The run's pull plan (the dungeon's own pulls teach the kick and are always kicked); null never holds a heal.</param>
     /// <returns>The assignment, or null.</returns>
     public static InterruptAssignment? ResolvePartyInterrupt(
         SortedDictionary<int, ActorState> actors,
         IEnumerable<(int ActorId, string InterruptAbilityId, long RangeMm, bool InterruptOffGcd)> seats,
         int tick,
-        IReadOnlyList<string>? priorityAbilityIds = null)
+        IReadOnlyList<string>? priorityAbilityIds = null,
+        PullPlan? pulls = null)
     {
         ArgumentNullException.ThrowIfNull(actors);
         ArgumentNullException.ThrowIfNull(seats);
@@ -190,6 +192,10 @@ public static class Ledger
             return null;
         }
         var target = actors[targetId.Value];
+        if (OverhealHeld(actors, target, pulls, priorityAbilityIds))
+        {
+            return null;
+        }
         var kicker = seats
             .Where(s => actors.TryGetValue(s.ActorId, out var a)
                 && a.Alive
@@ -207,6 +213,40 @@ public static class Ledger
         var late = LateKicker(actors, seats, target, tick);
         return late is null ? null : new InterruptAssignment(targetId.Value, late.Value);
     }
+
+    /// <summary>
+    /// KICK-NO-OVERHEAL (WoW Mythic+ kick discipline: a kick on a heal that heals no one is a wasted cooldown, and a pull with
+    /// two healers needs every kick it has for the heals that land on a hurt mob). A must-kick heal cast by an enemy of an
+    /// optional pack is held while no fighting enemy is missing a quarter of the healer's own health (a heal on mobs that are
+    /// not hurt, or on small adds that die first, buys nothing); the kick stays up for the heal that matters. The dungeon's
+    /// own pulls teach the kick, so their heals are always kicked.
+    /// </summary>
+    /// <param name="actors">Actor table.</param>
+    /// <param name="caster">The casting enemy.</param>
+    /// <param name="pulls">The run's pull plan, or null (then nothing is held).</param>
+    /// <param name="priorityAbilityIds">The must-kick casts.</param>
+    /// <returns>True when the kick on this cast is held.</returns>
+    public static bool OverhealHeld(SortedDictionary<int, ActorState> actors, ActorState caster, PullPlan? pulls, IReadOnlyList<string>? priorityAbilityIds)
+    {
+        ArgumentNullException.ThrowIfNull(actors);
+        ArgumentNullException.ThrowIfNull(caster);
+        return pulls is not null
+            && priorityAbilityIds is not null
+            && caster.CastId is { } castId
+            && priorityAbilityIds.Contains(castId, StringComparer.Ordinal)
+            && !pulls.PullActorIds.Contains(caster.Id)
+            && !AnyEnemyHurt(actors, caster);
+    }
+
+    /// <summary>KICK-NO-OVERHEAL: the share of the healer's max health, in quarters, a fighting enemy must be missing for a heal to be worth a kick.</summary>
+    public const int HurtQuarters = 1;
+
+    /// <summary>True when some living, fighting enemy is missing at least <see cref="HurtQuarters"/> quarters of the casting healer's own max health (a heal worth a kick restores a real share of a healer's pool).</summary>
+    /// <param name="actors">Actor table.</param>
+    /// <param name="caster">The casting healer.</param>
+    /// <returns>True when a heal from <paramref name="caster"/> is worth a kick.</returns>
+    public static bool AnyEnemyHurt(SortedDictionary<int, ActorState> actors, ActorState caster) =>
+        actors.Values.Any(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle && (a.MaxHealth - a.Health) * 4 >= caster.MaxHealth * HurtQuarters);
 
     /// <summary>
     /// KICK-LEDGER-COOLDOWN-GAP (finding f-13b5c33a; the WoW Mythic+ kick rotation): when no seat can kick the cast right

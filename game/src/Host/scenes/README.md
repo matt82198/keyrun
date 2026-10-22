@@ -27,6 +27,7 @@ edit is needed.
 | M | `HudRunM-SceneTest.ps1` | 36-39 | 4 (M1-M4) |
 | N | `HudRunN-SceneTest.ps1` | 41 | 1 |
 | source | `HudSourceChecks-SceneTest.ps1` | 25, 26 (reads source files, no launch) | 0 |
+| tooltip | `HudTooltip-SceneTest.ps1` | ability tooltip on key 1 held 400 ms (replays `game/fixtures/input/hold-key1.input-log.json`; added after the split, not in the 193) | 1 |
 | human | `HumanPlay-SceneTest.ps1` | H1-H7 (HUMAN-PLAY, D65/D66: `--replay-input game/fixtures/input/human-<class>.input-log.json` for each class; seat 1's class, the Choir engaged and fought, the Cantor's heal kicked by seat 1, the ping routed; added after the split, not part of the 193 count) | 3 |
 | tabs | `ScreenTabs-SceneTest.ps1` | S1-S6 (SCREEN-TABS, f-08279d82: opens on Character, tab walk, sheet, seats, Queue starts the run; added after the split, so not part of the 193 count below) | 1 |
 

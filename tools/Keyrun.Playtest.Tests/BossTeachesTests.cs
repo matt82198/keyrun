@@ -144,7 +144,8 @@ public sealed class BossTeachesTests
         int cleaves = 0, cleavesAnswered = 0, staggers = 0, staggersAnswered = 0, staggersTwo = 0, locksOpened = 0, locksBroken = 0, locksFailed = 0, carelessDeaths = 0, carelessAlive = 0, bossMisses = 0;
         var drainers = new HashSet<int>();
         int cleavedEvents = 0, maxCleavedStacks = 0, cleavedOnTank = 0, carelessCleaved = 0;
-        for (var i = 0; i < DriveCapTicks && run.RunEnd.Result is null && wipe is null; i++)
+        // FINISH-NEEDS-FORCES: the boss's death no longer ends the run short of 100% forces, so the drive stops on the kill.
+        for (var i = 0; i < DriveCapTicks && run.RunEnd.Result is null && wipe is null && fightClear is null; i++)
         {
             var tick = run.State.Tick;
             var commands = new List<Command>();
@@ -253,8 +254,13 @@ public sealed class BossTeachesTests
             }
         }
         var bossHp = run.State.Actors.TryGetValue(BossId, out var boss) ? (int)boss.Health : -1;
-        var key = KeyMove.ForRun(run);
-        var clock = Timer.ClockTicks(run.Encounter, run.RunEnd.ResultTick ?? run.State.RunTimerTicks);
+        // FINISH-NEEDS-FORCES (f-8c50a787): on main's layout the bots skip every optional pack, so the boss dies short of
+        // 100% forces and the run stays open. The key is then judged as it would finish on the kill (the count full, as
+        // the layout lane makes it): the same clock and par rule (KeyMove.Of) at the boss-clear tick.
+        var key = KeyMove.ForRun(run) ?? (fightClear is { } killTick
+            ? KeyMove.Of(Timer.IsTimed(run.Encounter, killTick) ? RunResult.Timed : RunResult.Depleted, run.Encounter.KeyLevel, Timer.ClockTicks(run.Encounter, killTick), run.Encounter.ParTicks)
+            : null);
+        var clock = Timer.ClockTicks(run.Encounter, run.RunEnd.ResultTick ?? fightClear ?? run.State.RunTimerTicks);
         return new Fight(fightStart, fightClear, wipe, cleaves, cleavesAnswered, staggers, staggersTwo, locksOpened, locksBroken, locksFailed, carelessDeaths, bossHp, run.State.Tick,
             carelessAlive, run.Encounter.Deaths, run.Encounter.PenaltyTicks, clock, run.Encounter.ParTicks,
             run.RunEnd.Result?.ToJs() ?? "none", key?.Line ?? "-", key?.Tier ?? -1, bossMisses)

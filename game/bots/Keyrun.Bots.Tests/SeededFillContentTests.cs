@@ -39,11 +39,11 @@ public sealed class SeededFillContentTests
         Assert.Equal(new[] { ("choir", 0, 160), ("pair", 1, 260), ("seed", 2, 180) }, teaching.Select(t => (t.Id, t.PullIndex, t.Points)).ToArray());
         var optional = SeededRoster.Optional(reg);
         Assert.Equal(
-            new[] { ("cantor-vigil", 400), ("hall-sentries", 240), ("warrior-remnant", 420) },
+            new[] { ("cantor-vigil", 400), ("hall-sentries", 240), ("warrior-remnant", 392) },
             optional.Select(o => (o.Id, o.Points)).OrderBy(o => o.Id, StringComparer.Ordinal).ToArray());
         Assert.Equal(reg.Forces.Required, SeededRoster.Params(reg).ForcesRequired);
-        // The branch target is the bar plus the biggest optional pack (420), so any one optional pack is skippable.
-        Assert.Equal(1420, SeededRoster.Params(reg).TargetPoints);
+        // The branch target is the bar plus the biggest optional pack (400, the Cantor Vigil; R-REMNANT-2 took the Remnant from 420 to 392), so any one optional pack is skippable.
+        Assert.Equal(1400, SeededRoster.Params(reg).TargetPoints);
     }
 
     [Fact(DisplayName = "Seeded fill content: per seed every branch still reaches the bar with any one optional pack skipped")]

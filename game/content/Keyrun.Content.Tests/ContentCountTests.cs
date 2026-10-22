@@ -14,11 +14,11 @@ public sealed class ContentCountTests
     {
         ContentRegistry reg = ContentLoader.Load();
 
-        Assert.Equal(61, reg.Abilities.Count); // 61 since R-PATROL-4 added choir.patrolSweep (was 60); 60 since D66 added the Sunken Bellfoundry's 14 casts in abilities/bellfoundry.json (was 46; 46 since R-PATROL-3b added choir.patrolSwing to abilities/patrol.json (was 45 with VAULT-KITS (S1) and its five BIBLE 9.3 vault casts in abilities/vault.json, was 40; 40 since SEED-LOCK-TEACHES added seed.lock, was 39))
-        Assert.Equal(34, reg.Effects.Count); // 34 since R-BOSS-4 added cleaved in effects/vault.json and D66 added resonance, overheatedCore, slagBurn, boilingBlood and bronzeWard in effects/bellfoundry.json (was 29 with cleaved; was 28; 28 since VAULT-KITS (S1) added searingHex, cinders, stoked, rooted and drenched in effects/vault.json (was 23; 23 since R-PILE-7e added chorusEcho, Encore's echo, was 22))
+        Assert.Equal(66, reg.Abilities.Count); // 66 since R-PATROL-4 added choir.patrolSweep (was 65); 65 since R-SORROW-1 swapped Still the Bell for Resonance and added the five Bellfoundry-owned mob casts (was 60); 60 since D66 added the Sunken Bellfoundry's 14 casts in abilities/bellfoundry.json (was 46; 46 since R-PATROL-3b added choir.patrolSwing to abilities/patrol.json (was 45 with VAULT-KITS (S1) and its five BIBLE 9.3 vault casts in abilities/vault.json, was 40; 40 since SEED-LOCK-TEACHES added seed.lock, was 39))
+        Assert.Equal(36, reg.Effects.Count); // 36 since R-SORROW-1 added moltenBrand and fannedCoals in effects/bellfoundry.json (was 34); 34 since R-BOSS-4 added cleaved in effects/vault.json and D66 added resonance, overheatedCore, slagBurn, boilingBlood and bronzeWard in effects/bellfoundry.json (was 29 with cleaved; was 28; 28 since VAULT-KITS (S1) added searingHex, cinders, stoked, rooted and drenched in effects/vault.json (was 23; 23 since R-PILE-7e added chorusEcho, Encore's echo, was 22))
         Assert.Equal(3, reg.Classes.Count);
         Assert.Equal(13, reg.Combos.Count);
-        Assert.Equal(24, reg.Enemies.Count); // 24 since R-PATROL-4 added vault.patroller (was 23); 23 since D66 added the Sunken Bellfoundry's five trash kinds, three bosses and two Clappers in enemies/bellfoundry.json (was 13; 13 since VAULT-KITS (S1) added the five BIBLE 9.3 vault enemies in enemies/vault.json, was 8; 8 since PATH-PACKS added hall.sentry, was 7; STATE.md D49)
+        Assert.Equal(29, reg.Enemies.Count); // 29 since R-PATROL-4 added vault.patroller (was 28); 28 since R-SORROW-1 added the five Bellfoundry-owned mob kinds (was 23); 23 since D66 added the Sunken Bellfoundry's five trash kinds, three bosses and two Clappers in enemies/bellfoundry.json (was 13; 13 since VAULT-KITS (S1) added the five BIBLE 9.3 vault enemies in enemies/vault.json, was 8; 8 since PATH-PACKS added hall.sentry, was 7; STATE.md D49)
         Assert.Equal(2, reg.Dungeons.Count); // 2 since D66: the Hollow Vault (tutorial) and the Sunken Bellfoundry
         Assert.Equal(11, reg.Roster.Count); // D66: the Sunken Bellfoundry's 11 roster packs, one file each under roster/
         Assert.Equal(4, reg.Clauses.Count);
@@ -43,18 +43,20 @@ public sealed class ContentCountTests
         // R-LOADER-1: layout.json and forces.json became the per-kind heads layout/hollow-vault/dungeon.json and
         // forces/hollow-vault.json (still listed, so 33 stays 33); the rooms, packs, patrols and forces values are one file
         // each under ContentLoader.Directories and are loaded without a list entry, so they are not in this inventory.
+        // Ability tooltips (Matt 2026-10-22) add the C#-only ability-text.json (themed player ability names and flavor,
+        // read by AbilityTextLoader for the HUD), so 33 -> 34: an inventory raise for a real new file.
         // D66 (the Sunken Bellfoundry) adds the C#-only abilities/, effects/ and enemies/bellfoundry.json and its dungeon
-        // definition dungeons/sunken-bellfoundry.json, so 33 -> 37; its roster packs live under roster/ (a directory).
+        // definition dungeons/sunken-bellfoundry.json, so 34 -> 38; its roster packs live under roster/ (a directory).
         string[] csharpOnly =
         {
             "run.json", "layout/hollow-vault/dungeon.json", "theme.json", "combo-riders.json", "forces/hollow-vault.json", "hazards.json",
             "gear.json", "enemies/hall.json", "melee-abilities.json", "palette.json",
-            "abilities/vault.json", "effects/vault.json", "enemies/vault.json", "abilities/patrol.json",
+            "abilities/vault.json", "effects/vault.json", "enemies/vault.json", "abilities/patrol.json", "ability-text.json",
             "abilities/bellfoundry.json", "effects/bellfoundry.json", "enemies/bellfoundry.json", "dungeons/sunken-bellfoundry.json",
         };
         bool UnderDirectory(string p) => ContentLoader.Directories.Any(d => p.StartsWith(d, System.StringComparison.Ordinal));
         string[] listedEmbedded = embedded.Where(p => !UnderDirectory(p)).ToArray();
-        Assert.Equal(37, listedEmbedded.Length);
+        Assert.Equal(38, listedEmbedded.Length);
         Assert.Equal(19, listedEmbedded.Count(p => !csharpOnly.Contains(p)));
         Assert.Equal(listedEmbedded, loaded);
         Assert.Contains(embedded, UnderDirectory);
@@ -72,7 +74,7 @@ public sealed class ContentCountTests
         Assert.Equal(new[] { "hollow-vault", "sunken-bellfoundry" }, reg.Dungeons.Keys.ToArray());
         Assert.Equal(24000, reg.Dungeons["sunken-bellfoundry"].ParTicks);
         Assert.Equal("warden.strike", reg.Abilities.Keys.First());
-        Assert.Equal(14400, reg.Dungeons["hollow-vault"].ParTicks);
+        Assert.Equal(13100, reg.Dungeons["hollow-vault"].ParTicks);
     }
 
     [Fact]

@@ -2,7 +2,7 @@
   "id": "brine-chapel",
   "dungeon": "sunken-bellfoundry",
   "name": "Brine Chapel",
-  "teaches": "two kickable casts, two kickers: Bronze Ward and Undertow",
+  "teaches": "two kickable casts, two kickers: Bronze Ward and the Drowned Dirge",
   "aggroMm": 4500,
   "enemies": [
     {
@@ -14,7 +14,7 @@
       }
     },
     {
-      "enemyId": "drowned.chorister",
+      "enemyId": "bellfoundry.knellSinger",
       "count": 2,
       "spawn": {
         "x": 1500,
@@ -33,5 +33,5 @@
   "chainWith": [
     "drowned-choir"
   ],
-  "chainNote": "Chain with Drowned Choir: five Undertows drag the party into the Bell's ring while two Menders ward the pack. Kick the Wards; let the drags land and walk back."
+  "chainNote": "Chain with Drowned Choir: five Dirges drag the party into the Bell's ring while two Menders ward the pack. Kick the Wards; let the drags land and walk back."
 }

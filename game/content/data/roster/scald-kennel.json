@@ -14,7 +14,7 @@
       }
     },
     {
-      "enemyId": "bellows.keeper",
+      "enemyId": "bellfoundry.pitTender",
       "count": 1,
       "spawn": {
         "x": 1500,
@@ -25,5 +25,5 @@
   "chainWith": [
     "tolling-shift"
   ],
-  "chainNote": "Chain with Tolling Shift (see there). Kick the Keeper's Stoke: Stoked Hounds that boil over are the wipe."
+  "chainNote": "Chain with Tolling Shift (see there). Kick the Tender's Fan the Coals: Fanned Hounds that boil over are the wipe."
 }

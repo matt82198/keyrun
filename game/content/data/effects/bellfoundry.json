@@ -9,5 +9,10 @@
   { "id": "boilingBlood", "name": "Boiling Blood", "maxStacks": 1,
     "modifiers": { "damageDoneBp": 5000, "hasteBp": 3000 }, "dispellableTag": "enrage" },
   { "id": "bronzeWard", "name": "Bronze Ward", "maxStacks": 1,
-    "modifiers": { "damageTakenBp": -5000 }, "dispellableTag": "magic" }
+    "modifiers": { "damageTakenBp": -5000 }, "dispellableTag": "magic" },
+  { "id": "moltenBrand", "name": "Molten Brand", "maxStacks": 1,
+    "periodic": { "everyTicks": 20, "op": { "op": "damagePct", "maxHealthBp": 400, "school": "fire" } },
+    "modifiers": {}, "dispellableTag": "magic" },
+  { "id": "fannedCoals", "name": "Fanned Coals", "maxStacks": 1,
+    "modifiers": { "damageDoneBp": 2000, "hasteBp": 4000 }, "dispellableTag": "enrage" }
 ]

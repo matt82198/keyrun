@@ -33,8 +33,10 @@ public sealed class HallSentriesTests
 
     private const string HallPackId = "hall-sentries";
 
+    // f-7aa25aa6: a policy run now pulls to 100% by default (it engages these sentries, the most forces per health), so the
+    // walking-line route this helper stands for is the run with the pull plan off, as the scripted case in the same test is.
     private static PlaytestResult Play(string? policyJson) =>
-        PlaytestRunner.Play(new PlaytestOptions(2, 1, policyJson is null ? null : PolicyReader.Parse(policyJson, Registry)), Registry);
+        PlaytestRunner.Play(new PlaytestOptions(2, 1, policyJson is null ? null : PolicyReader.Parse(policyJson, Registry)) { PullToForces = false }, Registry);
 
     private static IReadOnlyList<int> Sentries(PlaytestResult r) =>
         r.Setup.Content.Packs!.Single(p => p.Id == HallPackId).Spawns.Select(s => s.ActorId).ToList();
@@ -55,10 +57,13 @@ public sealed class HallSentriesTests
             .Min());
     }
 
-    [Fact(DisplayName = "Hall Sentries: the default route never engages them (an optional pack off the walking line, G5)")]
+    // f-3dcc702c: the scripted autorun now counts the forces bar to 100% and pulls these sentries (the most forces per health),
+    // so the walking-line route this pin is about is the playtest with the pull plan off (PullToForces false) and a policy run.
+    [Fact(DisplayName = "Hall Sentries: a route that does not pull to 100 never engages them (an optional pack off the walking line, G5)")]
     public void Default_route_does_not_engage_the_hall_sentries()
     {
-        foreach (var r in new[] { Play(KickPlan), Play(null) })
+        var walkingLine = PlaytestRunner.Play(new PlaytestOptions(2, 1, null) { PullToForces = false }, Registry);
+        foreach (var r in new[] { Play(KickPlan), walkingLine })
         {
             var sentries = Sentries(r);
             // R-PINS-1: a pack of several sentries (the loops below are vacuous on an empty or one-member pack), not the literal 5.

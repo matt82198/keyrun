@@ -22,10 +22,12 @@ public static class Names
         return registry.Classes.TryGetValue(classId, out var cls) ? cls.Name : classId;
     }
 
-    /// <summary>An ability's display name, else <paramref name="abilityId"/>.</summary>
+    /// <summary>
+    /// The name a player reads for an ability, through the ONE resolver (<see cref="AbilityNames.Display"/>): a player kit
+    /// ability's ability-text.json display name, else the content name (enemy casts), else <paramref name="abilityId"/>.
+    /// </summary>
     /// <param name="registry">The content, or null.</param>
     /// <param name="abilityId">The ability id.</param>
     /// <returns>The name.</returns>
-    public static string Ability(ContentRegistry? registry, string abilityId) =>
-        registry is not null && registry.Abilities.TryGetValue(abilityId, out var def) ? def.Name : abilityId;
+    public static string Ability(ContentRegistry? registry, string abilityId) => AbilityNames.Display(registry, abilityId);
 }

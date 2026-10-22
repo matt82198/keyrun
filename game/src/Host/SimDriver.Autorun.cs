@@ -114,7 +114,7 @@ public partial class SimDriver
             var clause = run.Encounter.Rules.ActiveClauseId
                 ?? Registry?.Clauses.Keys.OrderBy(k => k, StringComparer.Ordinal).FirstOrDefault()
                 ?? "none";
-            _queue.Add(new QueueRequest(DungeonId, key, clause));
+            _queue.Add(new QueueRequest(SelectedDungeonId, key, clause));
         }
     }
 }
