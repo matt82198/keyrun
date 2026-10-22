@@ -120,10 +120,10 @@ public static partial class Casting
             switch (op)
             {
                 case DamageOp d:
-                    Mitigation.DealDamage(state.Tick, source, target, d.Amount, ctx.Effects, emit, source.Id, ctx.Hooks.Weighting);
+                    Mitigation.DealDamage(state.Tick, source, target, d.Amount, ctx.Effects, emit, source.Id, ctx.Hooks.Weighting, d.School);
                     break;
                 case DamagePctOp p:
-                    Mitigation.DealDamage(state.Tick, source, target, Effects.PctOfMaxHealth(target, p.MaxHealthBp), ctx.Effects, emit, source.Id, ctx.Hooks.Weighting);
+                    Mitigation.DealDamage(state.Tick, source, target, Effects.PctOfMaxHealth(target, p.MaxHealthBp), ctx.Effects, emit, source.Id, ctx.Hooks.Weighting, p.School);
                     break;
                 case PullOp pull:
                     Movement.PullToward(target, source, pull.DistanceMm);

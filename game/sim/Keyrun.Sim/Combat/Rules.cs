@@ -308,12 +308,12 @@ public static class Rules
         {
             case DamageOp d:
                 state.Actors.TryGetValue(sourceId, out var source);
-                Mitigation.DealDamage(state.Tick, source, target, d.Amount, effectDefs, emit, sourceId, hooks.Weighting);
+                Mitigation.DealDamage(state.Tick, source, target, d.Amount, effectDefs, emit, sourceId, hooks.Weighting, d.School);
                 break;
             case DamagePctOp p:
                 // BIBLE 9.3 Searing Hex: a share of the carrier's max health per tick (C#-only, no oracle content).
                 state.Actors.TryGetValue(sourceId, out var pctSource);
-                Mitigation.DealDamage(state.Tick, pctSource, target, Effects.PctOfMaxHealth(target, p.MaxHealthBp), effectDefs, emit, sourceId, hooks.Weighting);
+                Mitigation.DealDamage(state.Tick, pctSource, target, Effects.PctOfMaxHealth(target, p.MaxHealthBp), effectDefs, emit, sourceId, hooks.Weighting, p.School);
                 break;
             case HealOp h:
                 Damage.ApplyHeal(state.Tick, target, h.Amount, sourceId, emit);
