@@ -39,7 +39,7 @@ public sealed class HudSceneRunsBKTests
 
     private static Run Create(HostRunSetup setup, Keyrun.Content.ContentRegistry registry, int startPull, QueueRequest? request, Progression? progression)
     {
-        var dungeon = setup.Dungeon with { Pulls = setup.Dungeon.Pulls.Skip(startPull - 1).ToList() };
+        var dungeon = HostRunSetup.FromPull(setup.Dungeon, startPull);
         var start = setup.StartFor(request, progression, registry, "warden");
         var options = (start.Options ?? new RunOptions()) with { RotationIndex = setup.RotationIndex };
         var party = setup.PartyFor(dungeon);

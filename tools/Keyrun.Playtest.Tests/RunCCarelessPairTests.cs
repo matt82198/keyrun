@@ -48,6 +48,9 @@ public sealed class RunCCarelessPairTests
 
         /// <summary>Combos that closed an Attuned Window (combo events with windowId attuned: Anthem or Flashfire).</summary>
         public int AttunedCombos { get; init; }
+
+        /// <summary>The run at the end of the drive.</summary>
+        public Run? Final { get; init; }
     }
 
     private static readonly Lazy<Drive> Driven = new(DriveRunC);
@@ -128,6 +131,7 @@ public sealed class RunCCarelessPairTests
         }
         return new Drive(choirClear, pairEngage, carelessAt, pairHitBot, run.RunEnd.Result, run.State.Tick, setup.Dungeon)
         {
+            Final = run,
             ChanterSetupsOnEnemy = chanterSetupsOnEnemy,
             AttunedCombos = attunedCombos,
         };
@@ -163,6 +167,13 @@ public sealed class RunCCarelessPairTests
         Assert.True(d.PairEngage > d.ChoirClear, $"the Pair engaged at tick {d.PairEngage}, while the Choir was still up (cleared at tick {d.ChoirClear}): a double pull");
         Assert.True(Aggro.InRing(d.CarelessAtPairEngage!.Value, center, pair.AggroMm), "the careless seat was not in the Pair's ring when it engaged");
         Assert.True(d.PairHitABot, "no Pair enemy damaged a bot seat (HudSceneTest check 12's bot-damage line)");
-        Assert.Equal(RunResult.Timed, d.Result);
+        // FINISH-NEEDS-FORCES (f-8c50a787, WoW Mythic+): the party clears every pull and kills the boss, but on main's
+        // layout it skips every optional pack, so Enemy Forces stay short of 100% and the key stays open. The layout lane
+        // (feat/dungeon-branches) flips this back to a Timed clear.
+        var final = d.Final!;
+        Assert.True(final.Encounter.PullIndex >= final.Dungeon.Pulls.Count, "the party never killed the boss");
+        var goal = Assert.IsType<ForcesGoal>(final.Dungeon.ForcesGoal);
+        Assert.False(goal.Met(final.State), $"forces reached {goal.Read(final.State).PercentBp} bp yet the run stayed open");
+        Assert.Null(d.Result);
     }
 }

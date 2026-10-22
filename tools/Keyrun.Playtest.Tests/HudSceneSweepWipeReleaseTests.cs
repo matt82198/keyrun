@@ -114,19 +114,22 @@ public sealed class HudSceneSweepWipeReleaseTests
     /// The party autorun (RunEndBonusSceneTest run C, NameplateDeclutterTest, CombatTextOverlapTest): the bot party
     /// opens the Seed's seedbloom Window and the run ends before 7000, so the run-end lines those scenes read ("HUD
     /// runend bonus", "HUD runend layout", "HUD numbers cleared reason=runend") still print inside the unchanged budget.
+    /// FINISH-NEEDS-FORCES (f-8c50a787, WoW Mythic+): on main's layout the bot party skips every optional pack, so the boss
+    /// dies inside the budget short of 100% Enemy Forces and the run stays open: those three scenes see no run_end inside
+    /// --ticks 9000 until the layout lane (feat/dungeon-branches) fills the count, which flips this case back.
     /// </summary>
-    [Fact(DisplayName = "Party scene run (RunEndBonus C, NameplateDeclutter, CombatTextOverlap): ends inside the 9000-tick budget (R-DOOR-1)")]
-    public void Party_scene_run_ends_inside_its_unchanged_budget()
+    [Fact(DisplayName = "Party scene run (RunEndBonus C, NameplateDeclutter, CombatTextOverlap): on main's layout the boss dies inside the 9000-tick budget short of 100% forces and the run stays open (FINISH-NEEDS-FORCES)")]
+    public void Party_scene_run_kills_the_boss_short_of_the_count_inside_its_budget()
     {
         var r = HudSceneWipeReleaseRunsTests.DriveRun(solo: false, startPull: 1, request: null, progression: null, abandon: null, idle: false, budget: PartyTicks);
-        Assert.True(r.AtEnd is not null, "the party scene run never ended");
-        var end = r.AtEnd!;
-        var endTick = end.RunEnd.ResultTick!.Value;
+        var atBudget = r.AtBudget;
+        var bossClear = r.Events.FirstOrDefault(e => e.Type == "pull_clear" && e.Get("pullId") is JsString { Value: "boss" });
         var seed = r.Events.FirstOrDefault(e => e.Type == "window_opened" && e.Get("windowId") is JsString { Value: "seedbloom" });
-        _output.WriteLine($"party scene run: end={endTick} result={end.RunEnd.Result} seedbloom opened={seed?.Tick.ToString() ?? "never"} budget={PartyTicks} spare={PartyTicks - endTick}");
-        Assert.Equal(endTick, Assert.Single(r.Events, e => e.Type == "run_end").Tick);
-        Assert.True(seed is not null && seed.Tick < endTick, "RunEndBonusSceneTest run C: the Seed's seedbloom Window never opened before run_end");
-        Assert.True(endTick < PartyTicks,
-            $"the party scene run ends at {endTick}; the unchanged --ticks {PartyTicks} must reach it");
+        var goal = Assert.IsType<ForcesGoal>(atBudget.Dungeon.ForcesGoal);
+        _output.WriteLine($"party scene run: boss clear={bossClear?.Tick.ToString() ?? "never"} at budget result={atBudget.RunEnd.Result?.ToString() ?? "open"} forces bp={goal.Read(atBudget.State).PercentBp} seedbloom opened={seed?.Tick.ToString() ?? "never"} budget={PartyTicks}");
+        Assert.True(bossClear is not null && bossClear.Tick < PartyTicks, "the party scene run never killed the boss inside the budget");
+        Assert.True(seed is not null && seed.Tick < bossClear!.Tick, "RunEndBonusSceneTest run C: the Seed's seedbloom Window never opened before the boss died");
+        Assert.False(goal.Met(atBudget.State), $"forces reached {goal.Read(atBudget.State).PercentBp} bp inside the budget");
+        Assert.Null(atBudget.RunEnd.Result);
     }
 }

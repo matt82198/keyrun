@@ -99,7 +99,7 @@ public sealed class HudSceneWipeReleaseRunsTests
     {
         var registry = ContentLoader.Load();
         var setup = HostRunSetup.Build(registry, "hollow-vault", Key, "warden", withBots: !solo);
-        var dungeon = startPull > 1 ? setup.Dungeon with { Pulls = setup.Dungeon.Pulls.Skip(startPull - 1).ToList() } : setup.Dungeon;
+        var dungeon = HostRunSetup.FromPull(setup.Dungeon, startPull);
         var start = setup.StartFor(request, progression, registry, "warden");
         var options = (start.Options ?? new RunOptions()) with { RotationIndex = setup.RotationIndex };
         var party = setup.PartyFor(dungeon);

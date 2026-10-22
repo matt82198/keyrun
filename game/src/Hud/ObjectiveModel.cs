@@ -17,6 +17,12 @@ namespace Keyrun.Hud;
 public sealed record ObjectiveLine(int Number, int Total, string PullId, string Name, int Remaining, int Count, bool Complete)
 {
     /// <summary>
+    /// FINISH-NEEDS-FORCES (f-8c50a787, WoW Mythic+): Enemy Forces in basis points while the pulls are cleared but the
+    /// dungeon's forces goal is not met (the run is still open), else null.
+    /// </summary>
+    public int? ForcesShortBp { get; init; }
+
+    /// <summary>
     /// The line a player reads: "Pull 1/4  The Choir" (<see cref="PullHeader.Title"/>; the content <c>teaches</c> note
     /// is designer intent and is never shown).
     /// </summary>
@@ -25,7 +31,9 @@ public sealed record ObjectiveLine(int Number, int Total, string PullId, string 
         : new PullHeader(Number, Total, Name).Title;
 
     /// <summary>The task under it: "Defeat the pull: 3 of 3 remain".</summary>
-    public string Task => Complete
+    public string Task => Complete && ForcesShortBp is int shortBp
+        ? FormattableString.Invariant($"Enemy Forces {shortBp / 100}% - finish the count")
+        : Complete
         ? Remaining switch
         {
             0 => "No enemies remain",
@@ -36,7 +44,7 @@ public sealed record ObjectiveLine(int Number, int Total, string PullId, string 
 
     /// <summary>"HUD objective pull=1/4 id=choir name="The Choir" remaining=3/3".</summary>
     public string LogLine() => FormattableString.Invariant(
-        $"HUD objective pull={Number}/{Total} id={PullId} name=\"{Name}\" remaining={Remaining}/{Count}{(Complete ? " complete" : string.Empty)}");
+        $"HUD objective pull={Number}/{Total} id={PullId} name=\"{Name}\" remaining={Remaining}/{Count}{(ForcesShortBp is int bp ? FormattableString.Invariant($" forces_short={bp}") : string.Empty)}{(Complete ? " complete" : string.Empty)}");
 }
 
 /// <summary>
@@ -66,7 +74,11 @@ public static class ObjectiveModel
             // by RUN-END-FREEZE, Run.StepRun). Count the enemies the sim still holds alive, never claim zero.
             var standing = run.State.Actors.Values.Count(a => a.Alive && a.Kind == ActorKind.Enemy);
             var enemies = run.State.Actors.Values.Count(a => a.Kind == ActorKind.Enemy);
-            return new ObjectiveLine(total, total, "done", content?.Name ?? run.Dungeon.Id, standing, enemies, true);
+            // FINISH-NEEDS-FORCES: the boss is dead but the count is short, so the run is still open; say what is owed.
+            var shortBp = run.RunEnd.Result is null && run.Dungeon.ForcesGoal is { } goal && !goal.Met(run.State)
+                ? goal.Read(run.State).PercentBp
+                : (int?)null;
+            return new ObjectiveLine(total, total, "done", content?.Name ?? run.Dungeon.Id, standing, enemies, true) { ForcesShortBp = shortBp };
         }
         var pull = pulls[index];
         var number = contentIds.IndexOf(pull.Id) + 1;

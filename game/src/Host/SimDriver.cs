@@ -1124,7 +1124,7 @@ public partial class SimDriver : Node
             {
                 throw new ArgumentException($"--pull {Options.StartPull} is past the dungeon's {dungeon.Pulls.Count} pulls");
             }
-            dungeon = dungeon with { Pulls = dungeon.Pulls.Skip(Options.StartPull - 1).ToList() };
+            dungeon = HostRunSetup.FromPull(dungeon, Options.StartPull);
         }
         // Lane NAV-CORE: a --pull N run starts its party in pull N's room (HostRunSetup.PartyFor), else in the Entrance.
         // Finding f-f9b80112 (BIBLE s7): the screen's equipped gear, keystone included, reaches the run on top of the

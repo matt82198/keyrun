@@ -365,7 +365,10 @@ public static class RunWiring
         {
             return prev;
         }
-        if (encounter.PullIndex >= dungeon.Pulls.Count)
+        // FINISH-NEEDS-FORCES (f-8c50a787, WoW Mythic+): with a forces goal the key completes only when the last pull
+        // (the boss) is cleared AND the forces bar is full, in either order; short of the count the run stays open and
+        // the clock runs on to the cap below.
+        if (encounter.PullIndex >= dungeon.Pulls.Count && (dungeon.ForcesGoal is not { } goal || goal.Met(state)))
         {
             return new RunEndState(Timer.FinishRun(encounter, tick, true, emit), tick, prev.WipeStartTick);
         }

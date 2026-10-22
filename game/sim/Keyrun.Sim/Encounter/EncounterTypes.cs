@@ -179,4 +179,12 @@ public sealed record PullDef(string Id, IReadOnlyList<PullSpawn> Spawns)
 /// <summary>A dungeon as the encounter sees it (sim/encounter/pulls.ts:33 DungeonDef).</summary>
 /// <param name="Id">Dungeon id.</param>
 /// <param name="Pulls">Ordered pulls.</param>
-public sealed record DungeonDef(string Id, IReadOnlyList<PullDef> Pulls);
+public sealed record DungeonDef(string Id, IReadOnlyList<PullDef> Pulls)
+{
+    /// <summary>
+    /// FINISH-NEEDS-FORCES (WoW Mythic+): the Enemy Forces the run must bank before it can complete, or null for none.
+    /// Null on every oracle run (the frozen rule: the run completes when the last pull clears); a host sets it from
+    /// content forces.json.
+    /// </summary>
+    public ForcesGoal? ForcesGoal { get; init; }
+}
