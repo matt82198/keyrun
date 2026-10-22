@@ -20,9 +20,10 @@ $wrapper = Join-Path $repo 'tools/godot/godot.ps1'
 
 function Invoke-Arena([int]$n, [string[]]$extra) {
     # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
+    # --view-size 1280x720 (Main.cs ApplyViewSize, as HudTooltip-SceneTest.ps1:73-75): a headless window is 64x64, too small for the timer box; render-only, the sim does not read it.
     $guard = (3 * $n) + 240
     $ErrorActionPreference = 'Continue'
-    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n @extra 2>&1 | Out-String
+    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n --view-size 1280x720 @extra 2>&1 | Out-String
     $rc = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     Assert-GodotFound $rc $text
