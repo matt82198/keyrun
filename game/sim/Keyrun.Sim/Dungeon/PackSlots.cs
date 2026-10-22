@@ -17,11 +17,11 @@ public sealed record RosterPack(string Id, int Points);
 public sealed record RoomQuota(int RoomId, int QuotaPoints, IReadOnlyList<Vec3> Slots);
 
 /// <summary>
-/// Stage 3, pack slots by forces budget and route. Every route visits exactly one trash room per middle layer, so a
-/// per-room floor of ceil((2 * required + biggest pack) / middle layers) puts at least 2 * required + biggest pack on
-/// every route. Any set that large splits into two disjoint sets of at least <c>required</c> each (deal the packs one
-/// by one to the lighter side: the sides end within one pack of each other), which is D45's "two disjoint pack
-/// choices reach 100%". Pure over (graph, grid, params, roster).
+/// Stage 3, pack slots by forces budget and route. A route is one branch (RoomGraphGen: one fork, two branches), so a
+/// floor of ceil((2 * required + biggest pack) / rooms in the branch) per room of that branch puts at least
+/// 2 * required + biggest pack on every route. Any set that large splits into two disjoint sets of at least
+/// <c>required</c> each (deal the packs one by one to the lighter side: the sides end within one pack of each other),
+/// which is D45's "two disjoint pack choices reach 100%". Pure over (graph, grid, params, roster).
 /// </summary>
 public static class PackSlots
 {
@@ -38,17 +38,20 @@ public static class PackSlots
         ValidateRoster(roster);
         var maxPack = roster.Max(r => r.Points);
         var minPack = roster.Min(r => r.Points);
-        var middle = graph.LayerCount - 2;
-        var quota = (int)IntMath.CeilDiv((2L * p.ForcesRequired) + maxPack, middle);
-        var slotCount = (int)Math.Min(MaxSlotsPerRoom, IntMath.CeilDiv(quota, minPack));
-        if ((long)slotCount * maxPack < quota)
+        var trash = graph.Nodes.Where(n => n.Kind == RoomKind.Trash).ToList();
+        var quotas = new List<RoomQuota>();
+        foreach (var n in trash)
         {
-            throw new ArgumentException($"roster: {slotCount} packs of at most {maxPack} cannot meet a room quota of {quota}", nameof(roster));
+            var branchRooms = trash.Count(m => m.Lane == n.Lane);
+            var quota = (int)IntMath.CeilDiv((2L * p.ForcesRequired) + maxPack, branchRooms);
+            var slotCount = (int)Math.Min(MaxSlotsPerRoom, IntMath.CeilDiv(quota, minPack));
+            if ((long)slotCount * maxPack < quota)
+            {
+                throw new ArgumentException($"roster: {slotCount} packs of at most {maxPack} cannot meet a room quota of {quota}", nameof(roster));
+            }
+            quotas.Add(new RoomQuota(n.Id, quota, SlotCenters(grid, grid.Rooms[n.Id]).Take(slotCount).ToList()));
         }
-        return graph.Nodes
-            .Where(n => n.Kind == RoomKind.Trash)
-            .Select(n => new RoomQuota(n.Id, quota, SlotCenters(grid, grid.Rooms[n.Id]).Take(slotCount).ToList()))
-            .ToList();
+        return quotas;
     }
 
     /// <summary>Throws unless the roster is non-empty with unique ids and positive points (fail closed).</summary>

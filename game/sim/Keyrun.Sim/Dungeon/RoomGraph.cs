@@ -21,20 +21,25 @@ public enum RoomKind
 
 /// <summary>One room of the graph.</summary>
 /// <param name="Id">Room id, dense from 0 in layer then lane order.</param>
-/// <param name="Layer">Depth from the entrance (0) to the boss (last).</param>
-/// <param name="Lane">Index within its layer, 0-based.</param>
+/// <param name="Layer">Depth from the entrance (0) to the boss (last); a branch room's layer is its depth in its branch.</param>
+/// <param name="Lane">The branch a trash room belongs to (0 or 1); 0 for the entrance and the boss.</param>
 /// <param name="Kind">Entrance, trash or boss.</param>
 public readonly record struct RoomNode(int Id, int Layer, int Lane, RoomKind Kind);
 
-/// <summary>A one-way connection from a room to a room exactly one layer deeper (D45: forward-only).</summary>
+/// <summary>A one-way connection from a room to a deeper room (D45: forward-only).</summary>
 /// <param name="From">Room id.</param>
 /// <param name="To">Room id.</param>
-public readonly record struct RoomEdge(int From, int To);
+/// <param name="OneWayDoor">
+/// True on the entrance-to-branch edges: the door closes behind the party once the branch's first room is entered,
+/// so the entrance and the untaken branch are no longer reachable (BIBLE section 9, D45 "no backtracking"). The run
+/// enforces it at runtime in slice G6; the graph carries it so every consumer reads one fact.
+/// </param>
+public readonly record struct RoomEdge(int From, int To, bool OneWayDoor = false);
 
 /// <summary>
-/// A layered room DAG from one entrance to one boss room (stage 1 of the pipeline). Edges only go one layer deeper,
-/// so the graph is forward-only and acyclic by construction; <see cref="RoomGraphGen"/> also guarantees a fork and a
-/// single rejoin room just before the boss.
+/// A room DAG from one entrance to one boss room (stage 1 of the pipeline). Edges only point deeper, so the graph is
+/// forward-only and acyclic by construction; <see cref="RoomGraphGen"/> guarantees its shape: one fork right after
+/// the entrance into two branches of two or three rooms that converge on the boss.
 /// </summary>
 public sealed class RoomGraph
 {
@@ -122,7 +127,7 @@ public sealed class RoomGraph
         }
         foreach (var e in Edges)
         {
-            sb.Append(e.From.ToString(CultureInfo.InvariantCulture)).Append('>').Append(e.To.ToString(CultureInfo.InvariantCulture)).Append(',');
+            sb.Append(e.From.ToString(CultureInfo.InvariantCulture)).Append(e.OneWayDoor ? "|>" : ">").Append(e.To.ToString(CultureInfo.InvariantCulture)).Append(',');
         }
         return sb.ToString();
     }

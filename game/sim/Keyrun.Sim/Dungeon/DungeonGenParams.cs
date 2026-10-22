@@ -11,19 +11,13 @@ public sealed record DungeonGenParams
     /// <summary>The default parameters.</summary>
     public static readonly DungeonGenParams Default = new();
 
-    /// <summary>Fewest middle layers (rooms between the entrance and the boss on any route). At least 2.</summary>
-    public int MinMiddleLayers { get; init; } = 4;
-
-    /// <summary>Most middle layers.</summary>
-    public int MaxMiddleLayers { get; init; } = 6;
-
-    /// <summary>Most rooms side by side in one layer (the fork width). At least 2.</summary>
-    public int MaxWidth { get; init; } = 3;
+    // The graph's shape (one fork, two branches of two or three rooms) is a contract, not a tunable:
+    // RoomGraphGen.BranchCount, MinBranchRooms and MaxBranchRooms (STATE.md D63).
 
     /// <summary>A room's side, in cells (square rooms). At least 10, so six pack slots fit.</summary>
     public int RoomCells { get; init; } = 12;
 
-    /// <summary>Empty rows between two rooms of one layer.</summary>
+    /// <summary>Empty rows between the two branches' rooms of one layer.</summary>
     public int RowGapCells { get; init; } = 4;
 
     /// <summary>A corridor's width, in cells.</summary>
@@ -39,11 +33,12 @@ public sealed record DungeonGenParams
     /// <exception cref="ArgumentException">A value out of range.</exception>
     public void Validate()
     {
-        if (MinMiddleLayers < 2 || MaxMiddleLayers < MinMiddleLayers)
+        // Two corridors enter the boss room on opposite halves of its west wall (WalkGridGen), so each must fit in half.
+        if ((2 * CorridorCells) + 3 > RoomCells)
         {
-            throw new ArgumentException("middle layers: need 2 <= min <= max");
+            throw new ArgumentException("dungeon params: two corridors must fit side by side in a room wall");
         }
-        if (MaxWidth < 2 || RoomCells < 10 || RowGapCells < 1 || CorridorCells < 1 || CellMm <= 0 || ForcesRequired <= 0)
+        if (RoomCells < 10 || RowGapCells < 1 || CorridorCells < 1 || CellMm <= 0 || ForcesRequired <= 0)
         {
             throw new ArgumentException("dungeon params out of range");
         }
