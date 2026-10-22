@@ -17,7 +17,11 @@ $SceneName = 'HudSourceChecks-SceneTest'
 # ---- Source checks 25-26 (lane HUD-FU): no stale run-over banner, no stale queue caption ----------------------
 $barSrc = Get-Content -Raw (Join-Path $repo 'game/src/Hud/AbilityBar.cs')
 $panelSrc = Get-Content -Raw (Join-Path $repo 'game/src/Hud/RunEndPanel.cs')
-$screenSrc = Get-Content -Raw (Join-Path $repo 'game/src/Hud/Screen.cs')
+# Screen.cs plus its partials (S8, #556 split the lobby Screen into Screen.*.cs by tab and concern), so check 26 still
+# reads the whole Screen class; the Screen.cs-only read would miss a caption that moved into a partial.
+$screenFiles = @(Get-ChildItem -LiteralPath (Join-Path $repo 'game/src/Hud') -File -Filter 'Screen*.cs' | Where-Object { $_.Name -match '^Screen(\.[A-Za-z]+)?\.cs$' } | Sort-Object Name)
+if ($screenFiles.Count -eq 0) { throw 'no game/src/Hud/Screen*.cs found: check 26 has nothing to read' }
+$screenSrc = ($screenFiles | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
 if ($barSrc -match 'Run over') { $failures.Add('AbilityBar.cs still draws a "Run over" banner (the run-end panel owns the run-over state)') }
 if ($barSrc -match 'Draw(String|Centered|Meter)\([^;]*(RunEnd|RunResult|\.ToJs\(\))') { $failures.Add('AbilityBar.cs draws run-over text (the run-end panel owns the result, rewards and Enter hint)') }
 if ($barSrc -notmatch 'ShowsOutOfRange\([^;]*\brunOver:') { $failures.Add('AbilityBar.cs calls ShowsOutOfRange without a runOver argument (the range tint must be off once the run has ended, lane TINT-RUNOVER)') }

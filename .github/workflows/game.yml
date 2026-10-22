@@ -156,7 +156,11 @@ jobs:
 
   game-e2e:
     runs-on: windows-latest
-    timeout-minutes: 30
+    # 45 since S3 (PR #558), was 30, raised by measurement: a code PR's game-e2e already took 27m19s on 2026-10-22
+    # (run of fix/fork-parity-main), the scene-test step alone 24m29s on PR #558's first run, and the glob adds the four
+    # scene tests no step had wired plus run K's R-BOSS-1 budget (18000 frames). Each launch stays capped by
+    # KEYRUN_GODOT_TIMEOUT_SEC below, so a hang still fails at 660 s.
+    timeout-minutes: 45
     env:
       # Per-launch wall-clock cap of tools/godot/godot.ps1 (default 300s for local launches). A cold runner's
       # --build-solutions and export can run longer; 660s stays under the 12-minute step timeouts below.
