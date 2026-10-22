@@ -15,7 +15,7 @@ namespace Keyrun.Host;
 /// <c>--seed N</c>, <c>--dungeon-seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T|A@pullN+O|A@pullN.hpP+O</c>, <c>--joiner-key K</c>,
 /// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
 /// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>, <c>--rotation N</c>,
-/// <c>--ready-hold F</c>.
+/// <c>--ready-hold F</c>, <c>--talent SEAT:TALENT</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -88,6 +88,9 @@ namespace Keyrun.Host;
 /// starting preset, render-only. Chase (the default) is the unchanged follow camera; V flips it in play.</param>
 /// <param name="DungeonSeed">D45/D46 (<c>--dungeon-seed N</c>): play the seeded two-branch dungeon generated from N
 /// (<see cref="Keyrun.Bots.Shared.SeededLayout"/>) instead of the hand-built Hollow Vault; null (the default) keeps the hand layout.</param>
+/// <param name="TalentPicks">Finding f-a3de0a01 (<c>--talent SEAT:TALENT</c>, repeatable, <see cref="SeatTalent"/>): seat SEAT,
+/// bot or human, plays every run with that talent picked (<see cref="RunRequest.Talents"/>), logged
+/// <c>TALENT seat=S id=T</c> once. A seat not in the party or a talent its class lacks stops the launch. Null = none.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -110,8 +113,12 @@ public sealed record ArenaOptions(
     int? Rotation = null,
     int ReadyHold = 0,
     CameraModeKind Camera = CameraModeKind.Chase,
-    long? DungeonSeed = null)
+    long? DungeonSeed = null,
+    IReadOnlyList<SeatTalent>? TalentPicks = null)
 {
+    /// <summary>The <c>--talent</c> picks in flag order (empty when none).</summary>
+    public IReadOnlyList<SeatTalent> Talents => TalentPicks ?? Array.Empty<SeatTalent>();
+
     /// <summary>
     /// Default autorun length: 20 s, set when the lieutenant's first heal began at tick 196 at key 2, leaving room for
     /// it, the kick, and the Warden's opening rotation. Measured on main 026bca17 (f-e1ff13e3,
@@ -156,6 +163,7 @@ public sealed record ArenaOptions(
         var readyHold = 0;
         var camera = CameraModeKind.Chase;
         long? dungeonSeed = null;
+        var talents = new List<SeatTalent>();
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -220,6 +228,9 @@ public sealed record ArenaOptions(
                 case "--log":
                     log = Value(args, ref i);
                     break;
+                case SeatTalent.Flag:
+                    talents.Add(SeatTalent.Parse(Value(args, ref i)));
+                    break;
                 case CameraMode.Flag:
                     camera = CameraMode.Parse(Value(args, ref i));
                     break;
@@ -234,7 +245,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, dungeonSeed);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, dungeonSeed, talents);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)

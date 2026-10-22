@@ -14,7 +14,14 @@ namespace Keyrun.Sim.Encounter;
 /// <param name="Spawns">Its members, placed in the world (actor ids unique in the run).</param>
 /// <param name="Center">Aggro ring centre, mm.</param>
 /// <param name="AggroMm">Aggro ring radius, mm.</param>
-public sealed record PackGroup(string Id, IReadOnlyList<PullSpawn> Spawns, Vec3 Center, long AggroMm);
+public sealed record PackGroup(string Id, IReadOnlyList<PullSpawn> Spawns, Vec3 Center, long AggroMm)
+{
+    /// <summary>
+    /// N1 PACK-LINKS (BIBLE section 9.1 chain pulls; layout.json pack <c>links</c>): the groups (packs or patrols) that
+    /// engage with this pack, on the same tick, in either direction (<see cref="Aggro.Triggered"/>). Empty by default.
+    /// </summary>
+    public IReadOnlyList<string> Links { get; init; } = Array.Empty<string>();
+}
 
 /// <summary>
 /// PATH-PACKS on PRESPAWN-AGGRO (new behaviour, no TS oracle; layout runs only; Matt 2026-10-20 "no more gates, just

@@ -168,12 +168,22 @@ public sealed class VaultKitsTests
     [Fact(DisplayName = "The dungeon has exactly the four BIBLE 9.3 kickable casts")]
     public void The_dungeon_has_exactly_the_four_bible_kickable_casts()
     {
-        var kickable = (
-            from enemy in Reg.Enemies.Values
-            from step in enemy.Script
-            let ability = Reg.Abilities[step.Cast]
-            where ability.Interruptible
-            select ability.Name).Distinct().OrderBy(n => n, StringComparer.Ordinal).ToArray();
-        Assert.Equal(new[] { "Choral Mending", "Searing Hex", "Stoke", "Undertow" }, kickable);
+        // BIBLE 9.3 is the Hollow Vault's kick economy; the Sunken Bellfoundry's own enemies (D66, enemies/bellfoundry.json)
+        // carry their kicks below.
+        Assert.Equal(new[] { "Choral Mending", "Searing Hex", "Stoke", "Undertow" }, KickableNames(e => !e.Id.StartsWith("bellfoundry.", StringComparison.Ordinal)));
     }
+
+    [Fact(DisplayName = "D66: the Sunken Bellfoundry adds exactly four kickable casts of its own")]
+    public void The_bellfoundry_adds_four_kickable_casts()
+    {
+        Assert.Equal(new[] { "Bronze Ward", "Drowning Hymn", "Stoke Core", "Temper" }, KickableNames(e => e.Id.StartsWith("bellfoundry.", StringComparison.Ordinal)));
+    }
+
+    private static string[] KickableNames(Func<EnemyDef, bool> which) => (
+        from enemy in Reg.Enemies.Values
+        where which(enemy)
+        from step in enemy.Script
+        let ability = Reg.Abilities[step.Cast]
+        where ability.Interruptible
+        select ability.Name).Distinct().OrderBy(n => n, StringComparer.Ordinal).ToArray();
 }

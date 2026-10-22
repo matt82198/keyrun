@@ -152,7 +152,8 @@ public static class Follow
 
     /// <summary>
     /// True when the party's leader (<see cref="Leader"/>) has stood in the Entrance box (box 0) past
-    /// <see cref="IdleLeaderTicks"/> with no engaged enemy alive, and another living player seat exists to take the lead.
+    /// <see cref="IdleLeaderTicks"/> with no living engaged enemy inside the Entrance (a fight the bots pulled elsewhere keeps
+    /// the hand-over, AGGRO-CHASE), and another living player seat exists to take the lead.
     /// A human who never walks would otherwise hold every bot at the Entrance forever: the lead is the lowest living seat,
     /// and the bots only walk the route when that seat is a bot (<see cref="LeadCommand"/>). Stateless: it reads the view
     /// only (tick, positions, the layout), never the human's input.
@@ -162,7 +163,11 @@ public static class Follow
     public static bool LeadHandedOver(BotView view)
     {
         ArgumentNullException.ThrowIfNull(view);
-        if (view.Layout is not { } layout || AnyLivingEnemy(view.State) || view.State.Tick < IdleLeaderTicks)
+        // AGGRO-CHASE (f-f0c886eb): a pack now aggroes from range and chases, so the handed-over lead also holds through a
+        // fight the bots pulled away from the Entrance; otherwise the bots would turn and drag the pack back to the idle
+        // seat. A fight that reaches the Entrance (the idle seat's own fight) hands the lead back.
+        if (view.Layout is not { } layout || view.State.Tick < IdleLeaderTicks ||
+            view.State.Actors.Values.Any(a => a.Alive && a.Kind == ActorKind.Enemy && !a.Idle && Movement.Contains(layout.Boxes[0].Box, a.Pos)))
         {
             return false;
         }

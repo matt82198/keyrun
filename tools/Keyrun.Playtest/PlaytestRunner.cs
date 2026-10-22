@@ -37,6 +37,12 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
     /// Null (the default) keeps the autorun walk.
     /// </summary>
     public Func<int, ActorState, Run, MoveCommand?>? LeaderWalk { get; init; }
+
+    /// <summary>
+    /// The arena's <c>--talent SEAT:TALENT</c> picks (finding f-a3de0a01, <see cref="RunRequest.Talents"/>), so the
+    /// headless replica plays the seats an autorun capture talents. Empty (the default) leaves the run unchanged.
+    /// </summary>
+    public IReadOnlyList<SeatTalent> Talents { get; init; } = Array.Empty<SeatTalent>();
 }
 
 /// <summary>A finished playtest: the final run, the event/command log and the stats the summary reads.</summary>
@@ -123,6 +129,7 @@ public static class PlaytestRunner
         {
             BotLoadouts = false,
             RotationOptions = false,
+            Talents = options.Talents,
         }).Run;
         var kits = KitRegistry.From(registry);
         var context = new PolicyContext();

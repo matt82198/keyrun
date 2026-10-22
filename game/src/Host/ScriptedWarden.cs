@@ -12,8 +12,9 @@ namespace Keyrun.Host;
 /// <summary>
 /// The autorun Warden (Godot-free, deterministic): walks at the Choir Cantor (the lieutenant) until his kick is in
 /// range, kicks the Cantor's heal once it is half cast (so the cast bar is on screen for two seconds first), and spends
-/// the GCD on his rotation against whatever is in reach: Reckoning at full Momentum, Vigil at 50, Guard Break, Strike,
-/// and Brace below half health. Every command goes through the same <see cref="CastTargeting"/> rule as a key press.
+/// the GCD on his rotation against whatever is in reach: Reckoning at full Momentum, Vigil at 50, Guard Break when it
+/// closes an ally's Window, else Strike (the filler, every free global; trash pulls only, R-WARDEN-FILLER-3: in the boss
+/// pull Guard Break whenever ready, as on main), and Brace below half health. Every command goes through the same <see cref="CastTargeting"/> rule as a key press.
 /// On a layout run (lane NAV-CORE, STATE.md D18) with no living enemy he walks the route instead
 /// (<see cref="Follow.LeadRoute"/>: each room's far doorway in turn, but in the active pull's room he holds at the
 /// standoff point until the party is inside, LEADER-WAITS), so the pull spawns once all are in; then the combat script above. With no living lieutenant but a living enemy (lane
@@ -33,6 +34,9 @@ public sealed class ScriptedWarden
     private const string Kick = "warden.shieldBash";
     private const string Defensive = "warden.brace";
     private const string Taunt = "warden.taunt";
+
+    /// <summary>Guard Break: the cooldown-free Payoff that Strike (the filler) yields to only when it closes a Window.</summary>
+    private const string PayoffBuilder = "warden.guardBreak";
 
     /// <summary>Appends the scripted commands for <paramref name="tick"/>.</summary>
     /// <param name="tick">The pre-step tick.</param>
@@ -79,9 +83,18 @@ public sealed class ScriptedWarden
             into.Add(new CastCommand(tick, me.Id, Taunt, loose!.Id));
         }
 
+        // R-TAUNT-2b (ruling on #573): while Taunt is cooling down, he walks toward an enemy damaging a non-tank seat outside
+        // Taunt's range, so the Taunt has that enemy in reach when it comes ready (an aggro-range pull lets a Choir melee chase
+        // the Cinder away from him; he kept hitting his own target and the Cinder died before the Taunt reached it).
+        var tauntCooling = abilities.TryGetValue(Taunt, out var tauntDef) && !Ready(me, tauntDef, tick);
+        var chaser = tauntCooling ? DamagingSeatOutOfReach(state, me, tauntDef!) : null;
         if (tauntReady && !tauntInRange)
         {
             into.Add(Toward(tick, me, loose!));
+        }
+        else if (chaser is not null)
+        {
+            into.Add(Toward(tick, me, chaser));
         }
         else if (lieutenant is not null && Casting.RangeMm(me, lieutenant) > ApproachMm)
         {
@@ -120,7 +133,17 @@ public sealed class ScriptedWarden
             into.Add(new CastCommand(tick, me.Id, Defensive, me.Id));
             return;
         }
-        foreach (var id in Rotation)
+        // R-WARDEN-FILLER-3 (BIBLE s9 "The Lock"; LockAnswer is the bots' half): while the boss casts or holds a Lock no
+        // partner Setup has tagged yet, the Warden spends no global, so his Payoff is off the GCD when the setter's Setup
+        // lands; once it has, Guard Break goes first. Without the hold a Forge 8 ticks before the setter's Setup put the
+        // Payoff 2 ticks past the Window's end (lock_failed at 5280, Forge at 5282).
+        var lockSetup = LockSetupBy(run);
+        if (lockSetup == LockHold)
+        {
+            return;
+        }
+        var order = lockSetup is { } setter && setter != me.Id ? LockPayoffFirst : Rotation;
+        foreach (var id in order)
         {
             var def = abilities[id];
             if (!Ready(me, def, tick))
@@ -128,12 +151,41 @@ public sealed class ScriptedWarden
                 continue;
             }
             var target = CastTargeting.For(run, me.Id, id);
+            // R-WARDEN-FILLER-3: the filler gate is a trash-pull rule; in the boss pull Guard Break keeps main's priority.
+            if (id == PayoffBuilder && !InBossPull(run) && !PayoffCloses(run, me, def, target, tick))
+            {
+                continue;
+            }
             if (def.Shape.Kind == ShapeKind.Self || (state.Actors.TryGetValue(target, out var t) && t.Id != me.Id && Casting.RangeMm(me, t) <= def.Range))
             {
                 into.Add(new CastCommand(tick, me.Id, id, target));
                 return;
             }
         }
+    }
+
+    /// <summary>R-TAUNT-2b: an enemy this close to the seat it is aimed at is damaging that seat now (melee reach), mm.</summary>
+    internal const long OnSeatMm = 3000;
+
+    /// <summary>
+    /// R-TAUNT-2b (ruling on #573): the nearest living engaged enemy outside Taunt's range that is damaging a non-tank seat
+    /// now: aimed at it (its holder, else its target) and in melee reach of it, or casting at it. Null when there is none.
+    /// </summary>
+    /// <param name="state">The state.</param>
+    /// <param name="me">The Warden.</param>
+    /// <param name="taunt">Taunt.</param>
+    /// <returns>The enemy to walk toward, or null.</returns>
+    internal static ActorState? DamagingSeatOutOfReach(SimState state, ActorState me, AbilityDef taunt)
+    {
+        bool Damaging(ActorState e) =>
+            (e.HolderId ?? e.TargetId) is { } id && id != me.Id && state.Actors.TryGetValue(id, out var seat) && seat.Alive &&
+            seat.Kind == ActorKind.Player && seat.Role != ActorRole.Tank &&
+            ((e.CastId is not null && (e.CastTargetId ?? e.TargetId) == seat.Id) || Casting.RangeMm(e, seat) <= OnSeatMm);
+        return state.Actors.Values
+            .Where(e => e.Kind == ActorKind.Enemy && e.Alive && !e.Idle && Casting.RangeMm(me, e) > taunt.Range && Damaging(e))
+            .OrderBy(e => Casting.RangeMm(me, e))
+            .ThenBy(e => e.Id)
+            .FirstOrDefault();
     }
 
     /// <summary>
@@ -155,6 +207,74 @@ public sealed class ScriptedWarden
             .OrderBy(e => Casting.RangeMm(me, e))
             .ThenBy(e => e.Id)
             .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// WARDEN-FILLER (finding f-95d23cfc; the core loop defers to WoW Mythic+: a tank's filler fires every global nothing
+    /// better is ready for): Guard Break has no cooldown and no cost, so pressed whenever ready it took every global from
+    /// Strike (2 Strikes in a 166 s KF1 run). It is a Payoff (BIBLE section 5), so it is the better button only when its
+    /// target carries an open Window the Warden may close for a Combo: another class's Window (the Warden's own Sundered is
+    /// a self_combo denial), and for a Lock Window not the class that closed the last one (Payoff.TryClosePayoff's rule).
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <param name="me">The Warden.</param>
+    /// <param name="def">Guard Break as loaded (a talent may patch its shape).</param>
+    /// <param name="targetId">Guard Break's cast target.</param>
+    /// <param name="tick">The pre-step tick.</param>
+    /// <returns>True when the Payoff would close a Window and fire a Combo.</returns>
+    /// <summary>
+    /// R-WARDEN-FILLER-3 (supersedes the withdrawn R-WARDEN-FILLER-2): true while the armed boss
+    /// (<c>run.Encounter.Boss</c>) is alive and engaged. The WARDEN-FILLER gate on Guard Break applies to trash pulls
+    /// only; in the boss pull the Warden presses Guard Break whenever ready, as on main: Strike-as-filler there opened a
+    /// Sundered Window every global, and the Consecrate heals masked a careless seat (BossTeachesTests).
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <returns>True in the boss pull.</returns>
+    internal static bool InBossPull(Run run) =>
+        run.Encounter.Boss is { } boss
+        && run.State.Actors.TryGetValue(boss.Config.BossActorId, out var b) && b.Alive && !b.Idle;
+
+    /// <summary><see cref="LockSetupBy"/>'s "hold the global" answer: a Lock is cast or open and no Setup has tagged it.</summary>
+    private const int LockHold = -1;
+
+    /// <summary>The rotation while a partner's Setup is on the boss inside a Lock: the Payoff first.</summary>
+    private static readonly string[] LockPayoffFirst = { "warden.guardBreak", "warden.reckoning", "warden.vigil", "warden.strike" };
+
+    /// <summary>
+    /// The boss Lock's state for the Warden's global: null when no Lock is being cast or held open (or outside the boss
+    /// pull), <see cref="LockHold"/> while the Lock is cast or open with no Setup inside its Window yet, else the actor
+    /// whose Setup tagged the boss inside the Window (Encounter/Boss.cs AfterCombat records it).
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <returns>The Lock state as above.</returns>
+    internal static int? LockSetupBy(Run run)
+    {
+        if (!InBossPull(run) || run.Encounter.Boss is not { } boss)
+        {
+            return null;
+        }
+        if (boss.Active is { } open && run.State.Tick < open.EndsTick)
+        {
+            return open.SetupActorId ?? LockHold;
+        }
+        return boss.Casting is not null ? LockHold : null;
+    }
+
+    internal static bool PayoffCloses(Run run, ActorState me, AbilityDef def, int targetId, int tick)
+    {
+        // The Payoff closes the Window on its primary target only: a single-target patch (Focused Break) goes at the cast
+        // target, the cone at the lowest-id hostile inside it (Targeting.ResolveTargets, Windows.ApplyWindowsAndCombosTo).
+        var target = def.Shape.Kind == ShapeKind.Target
+            ? (run.State.Actors.TryGetValue(targetId, out var t) && t.Id != me.Id && Casting.RangeMm(me, t) <= def.Range ? t : null)
+            : Targeting.ResolveTargets(run.State, me, def, Affinities.Of(def, run.Content.Effects)).FirstOrDefault();
+        if (target is null || !target.Alive
+            || WindowState.FindOpenWindow(target, tick) is not { } window
+            || WindowState.ParseWindowEffectId(window.EffectId) is not { } parsed)
+        {
+            return false;
+        }
+        var denied = parsed.Alternate ? WindowState.LastSetupClassOf(target) : parsed.SetupClass;
+        return denied != me.ClassId && run.Content.Combos?.Lookup(parsed.SetupClass, me.ClassId) is not null;
     }
 
     private static bool Ready(ActorState me, AbilityDef def, int tick) =>

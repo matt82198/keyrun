@@ -76,7 +76,21 @@ $livePing = $null
 for ($i = 0; $i -lt $iWipe; $i++) {
     if ($c.Lines[$i] -match '^HUD ping label=(SPREAD|STACK) ') { $livePing = $c.Lines[$i]; break }
 }
-if (-not $livePing) { $failures.Add('run C: no "HUD ping label=SPREAD|STACK" line while the run was live') }
+# R-WARDEN-FILLER-1 (keyrun #540, f-95d23cfc): Strike is the autorun Warden's filler, so Sundered stays up on the Pair
+# and the Cinder's Shatter (Sundered + Cinder Payoff, a 1 s stun) keeps landing. Measured headless
+# (RunCCarelessPairTests, seed 1 key 2): four Paired Warriors die before their first Spread Mark at engage+400, and the
+# Shatter at 2450 interrupts the last one's pair.spreadMark, so no mark lands in run C (main: first call 2206). A Pair
+# mark cast reached and stopped by the party is the same mechanic seen from the other side, so check 11 accepts either
+# the live call or that interrupt before the wipe. The live call stays required in the default bot run (E2eAssert.ps1
+# check 6; headless: mark_applied pair.spreadMark at 2333).
+$markStopped = $null
+if (-not $livePing) {
+    for ($i = 0; $i -lt $iWipe; $i++) {
+        if ($c.Lines[$i] -match '^EVENT \{"abilityId":"pair\.(spreadMark|stackCall)",.*"type":"interrupt"') { $markStopped = $c.Lines[$i]; break }
+    }
+}
+if (-not $livePing -and -not $markStopped) { $failures.Add('run C: no "HUD ping label=SPREAD|STACK" line while the run was live, and no Pair mark cast was interrupted before the wipe') }
+Write-Host "PING run C: live='$livePing' markStopped='$markStopped'"
 # Private run log, two seats: the human's (seat 1) run-end panel never lists a bot seat's causes.
 $causesC = @($c.Lines | Where-Object { $_ -match '^HUD runend cause ' })
 $foreignC = @($causesC | Where-Object { $_ -notmatch '^HUD runend cause seat=1 ' })
@@ -114,20 +128,32 @@ if (-not $botsC) { $failures.Add('run C: no "BOTS done commands=N hash=H" line')
 elseif ($botsC -match 'commands=0 ') { $failures.Add("run C: the bots issued no commands: '$botsC'") }
 elseif ($botsC -ne $botsC2) { $failures.Add("run C: bot command stream differs across two same-seed runs: '$botsC' vs '$botsC2'") }
 $armedC = Assert-BossArmed 'C' @(FirstRun $c.Lines)
-# Lane NAV-CORE 13a (STATE.md D18): the Warden walks the route room by room, and each pull spawns only once he is in.
+# Lane NAV-CORE 13a (STATE.md D18): the Warden walks the route room by room, and the pulls engage in route order.
+# R-PINS-1 (f-f0c886eb, aggro-chase): the old "each pull spawns only once the Warden is in its room" predates D44's
+# prespawned packs and held only while a pull needed a seat inside its 4 m ring. Pulls now aggro on each member's own
+# 8 m radius, and run C's careless seat pulls the Pair from corridor-2 by design (RunCCarelessPairTests proves it stood in
+# the Pair's reach). The property kept: pull r engages after pull r-1 and only once the Warden has reached the room
+# before it on the route (room r-1), never ahead of the party's progress.
 $cRun = @(FirstRun $c.Lines)
 $roomOrder = @('choir-room', 'pair-hall', 'seed-chamber', 'warden-arena')
 $roomsC = @()
 $iPrevRoom = -1
+$iPrevSpawn = -1
 for ($r = 0; $r -lt $roomOrder.Count; $r++) {
     $enter = First $cRun "^EVENT \{`"actorId`":1,`"room`":`"$($roomOrder[$r])`",`"tick`":\d+,`"type`":`"room_enter`"\}$"
     $spawn = First $cRun "^PULL spawn index=$r "
     if (-not $enter) { $failures.Add("run C: the Warden never entered $($roomOrder[$r]) (no room_enter EVENT for actor 1)"); continue }
     $iEnter = [array]::IndexOf($cRun, $enter)
     if ($iEnter -le $iPrevRoom) { $failures.Add("run C: the Warden entered $($roomOrder[$r]) before the room ahead of it on the route") }
+    $iRoomBefore = $iPrevRoom
     $iPrevRoom = $iEnter
     if (-not $spawn) { $failures.Add("run C: no 'PULL spawn index=$r' line (the pull of $($roomOrder[$r]) never spawned)") }
-    elseif ([array]::IndexOf($cRun, $spawn) -lt $iEnter) { $failures.Add("run C: pull $r spawned before the Warden entered $($roomOrder[$r]): '$spawn'") }
+    else {
+        $iSpawn = [array]::IndexOf($cRun, $spawn)
+        if ($iSpawn -lt $iPrevSpawn) { $failures.Add("run C: pull $r spawned before pull $($r - 1): '$spawn'") }
+        if ($r -gt 0 -and $iSpawn -lt $iRoomBefore) { $failures.Add("run C: pull $r spawned before the Warden entered $($roomOrder[$r - 1]), the room before it: '$spawn'") }
+        $iPrevSpawn = $iSpawn
+    }
     $roomsC += $enter
 }
 $startSpawn = First $cRun '^PULL spawn index=0 '

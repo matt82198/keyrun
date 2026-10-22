@@ -57,7 +57,7 @@ public sealed class ReferenceTests
             if (e.Periodic is not null) CheckOps(new[] { e.Periodic.Op }, refs, "effect " + e.Id);
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(25, refs.Checked); // vacuity guard: exact ref count from the JSON (+4: the searingHex, cinders, stoked and rooted applyEffects of abilities/vault.json, VAULT-KITS S1; was 21)
+        Assert.Equal(31, refs.Checked); // vacuity guard: exact ref count from the JSON (+6: the resonance, overheatedCore, slagBurn, boilingBlood, bronzeWard and lockShield applyEffects of abilities/bellfoundry.json, D66; was 25;+4: the searingHex, cinders, stoked and rooted applyEffects of abilities/vault.json, VAULT-KITS S1; was 21)
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class ReferenceTests
         }
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(48, refs.Checked); // vacuity guard: exact ref count from the JSON (+2: seed.lash ability and script step, KF3; +2: seed.lock ability and script step, SEED-LOCK-TEACHES; +2: hall.sentry ability and script step, PATH-PACKS, STATE.md D49; +14: the five enemies/vault.json kits, 7 abilities and 7 script steps, VAULT-KITS S1)
+        Assert.Equal(87, refs.Checked); // vacuity guard: exact ref count from the JSON (+39: the ten enemies/bellfoundry.json entries, 20 abilities, 16 script steps, the clapperBreak onEmpty and the two Clappers' breakBarId, D66; was 48;+2: seed.lash ability and script step, KF3; +2: seed.lock ability and script step, SEED-LOCK-TEACHES; +2: hall.sentry ability and script step, PATH-PACKS, STATE.md D49; +14: the five enemies/vault.json kits, 7 abilities and 7 script steps, VAULT-KITS S1)
     }
 
     [Fact]
@@ -124,7 +124,12 @@ public sealed class ReferenceTests
                 foreach (PullEnemy pe in pull.Enemies)
                     refs.Expect(Reg.Enemies.ContainsKey(pe.EnemyId), d.Id + " " + pull.Id + " -> enemy " + pe.EnemyId);
             refs.Expect(Reg.Enemies.ContainsKey(d.Boss.EnemyId), d.Id + " boss -> enemy " + d.Boss.EnemyId);
+            foreach (DungeonSegment s in d.Segments)
+                refs.Expect(Reg.Enemies.ContainsKey(s.Boss.EnemyId), d.Id + " " + s.Id + " boss -> enemy " + s.Boss.EnemyId);
         }
+        foreach (RosterPack p in Reg.Roster.Values)
+            foreach (PullEnemy pe in p.Enemies)
+                refs.Expect(Reg.Enemies.ContainsKey(pe.EnemyId), "roster " + p.Id + " -> enemy " + pe.EnemyId);
         foreach (FacetDef f in Reg.Facets.Values)
         {
             refs.Expect(Reg.Abilities.ContainsKey(f.AbilityId), f.Id + " -> ability " + f.AbilityId);
@@ -133,6 +138,6 @@ public sealed class ReferenceTests
         }
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(79, refs.Checked); // vacuity guard: exact ref count from the JSON
+        Assert.Equal(112, refs.Checked); // vacuity guard: exact ref count from the JSON (+1: the Sunken Bellfoundry's boss; +4: the four segment bosses, Hollow Vault 1 and Bellfoundry 3; +28: the 28 member groups of its 11 roster packs, D66; was 79)
     }
 }

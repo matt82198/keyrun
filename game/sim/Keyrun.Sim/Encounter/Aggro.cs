@@ -71,7 +71,7 @@ public static class Aggro
     /// <summary>
     /// The run's groups on <paramref name="tick"/>: the dungeon's pulls in pull order, then every layout pack
     /// (PATH-PACKS, required and optional) in <paramref name="packs"/> order with pull index -1, its ring at the pack
-    /// centre and no links. A pack stands idle from tick 0 like a pull (<see cref="LayoutPacks.SpawnAllIdle"/>) and
+    /// centre and its <see cref="PackGroup.Links"/> (N1 PACK-LINKS). A pack stands idle from tick 0 like a pull (<see cref="LayoutPacks.SpawnAllIdle"/>) and
     /// engages, whole, by the same proximity and damage rule, emitting <c>pack_engage</c>.
     /// </summary>
     /// <param name="dungeon">The dungeon.</param>
@@ -96,7 +96,8 @@ public static class Aggro
             .ToList();
         if (packs is not null)
         {
-            groups.AddRange(packs.Select(k => new AggroGroup(k.Id, -1, k.Spawns.Select(s => s.ActorId).ToList(), k.Center, k.AggroMm, Array.Empty<string>())));
+            // N1 PACK-LINKS: a pack's links chain-pull its partners (Triggered, symmetric and transitive).
+            groups.AddRange(packs.Select(k => new AggroGroup(k.Id, -1, k.Spawns.Select(s => s.ActorId).ToList(), k.Center, k.AggroMm, k.Links)));
         }
         if (patrols is not null)
         {
@@ -142,24 +143,31 @@ public static class Aggro
                 }
                 continue;
             }
-            if (players.Any(p => InRing(p.Pos, g.Center, g.AggroMm)) || g.ActorIds.Any(id => TookDamage(before, after, id)))
+            if (EnemyAggro.Evading(after, g))
+            {
+                // AGGRO-CHASE leash: a pack walking home engages on nothing until every member is back (Leash).
+                continue;
+            }
+            if (players.Any(p => InRing(p.Pos, g.Center, g.AggroMm)) || g.ActorIds.Any(id => TookDamage(before, after, id)) ||
+                EnemyAggro.SeesPlayer(after, g, players))
             {
                 hit.Add(g.Id);
             }
         }
-        // Links chain-pull: symmetric and transitive.
-        var changed = hit.Count > 0;
+        // Links chain-pull (symmetric and transitive) and AGGRO-CHASE assist (an idle enemy within its assist radius of an
+        // engaged enemy, or of a member of a group engaging this tick, brings its group in: the body pull), to a fixpoint.
+        var changed = hit.Count > 0 || EnemyAggro.AnyAssister(after);
         while (changed)
         {
             changed = false;
             foreach (var g in groups)
             {
-                if (hit.Contains(g.Id) || Pulls.IsEngaged(encounter, g.Id))
+                if (hit.Contains(g.Id) || Pulls.IsEngaged(encounter, g.Id) || g.ActorIds.Count == 0 || EnemyAggro.Evading(after, g))
                 {
                     continue;
                 }
                 var linked = g.Links.Any(hit.Contains) || groups.Any(o => hit.Contains(o.Id) && o.Links.Contains(g.Id, StringComparer.Ordinal));
-                if (linked)
+                if (linked || (g.ActivateRoom is null && EnemyAggro.Assisted(after, g, groups, hit)))
                 {
                     hit.Add(g.Id);
                     changed = true;

@@ -36,6 +36,12 @@ public sealed record RunRequest(long Seed, C.ContentRegistry Registry, string Hu
     /// start's options as they are, null included (Keyrun.Playtest before this factory; see <see cref="BotLoadouts"/>).
     /// </summary>
     public bool RotationOptions { get; init; } = true;
+
+    /// <summary>
+    /// <c>--talent SEAT:TALENT</c> picks (finding f-a3de0a01), in flag order: each seat, bot or human, plays with that
+    /// talent (<see cref="SeatTalentPatch"/>). Empty (the default) leaves every run exactly as before.
+    /// </summary>
+    public IReadOnlyList<SeatTalent> Talents { get; init; } = Array.Empty<SeatTalent>();
 }
 
 /// <summary>A created run and the pieces of its assembly the host logs.</summary>
@@ -47,8 +53,8 @@ public sealed record HostRun(Run Run, RunStart Start, IReadOnlyList<PartyMemberS
 
 /// <summary>
 /// The one way a host run is assembled (review R7): SimDriver.StartRun, Keyrun.Playtest's PlaytestRunner and the tests
-/// all call <see cref="Create"/>, so a new assembly step lands in one place. Godot-free. It sits next to SimDriver for
-/// now and belongs in the HostCore assembly once that slice lands.
+/// all call <see cref="Create"/>, so a new assembly step lands in one place. Godot-free, so it lives in the
+/// HostCore assembly (S4) beside HostRunSetup.
 /// </summary>
 public static class HostRunFactory
 {
@@ -79,7 +85,10 @@ public static class HostRunFactory
         // Lane NAV-CORE: a --pull N run starts its party in pull N's room (HostRunSetup.PartyFor), else in the Entrance.
         // Finding f-f9b80112 (BIBLE s7): the screen's equipped gear, keystone included, reaches the run on top of the
         // request's Clause and talents (RunStart.Of; no screen yet means the request's options alone).
-        var start = setup.StartFor(req.Queued, req.Progression, req.Registry, req.HumanClassId);
+        // f-a3de0a01: --talent picks resolve first (a bad seat or talent stops the launch); the human seat's rides the
+        // queued loadout so RunStart.Of stacks its Facets on it, as on a screen pick.
+        var talents = SeatTalentPatch.Resolve(setup, req.Registry, req.Talents);
+        var start = setup.StartFor(talents is null ? req.Queued : talents.WithHuman(req.Queued), req.Progression, req.Registry, req.HumanClassId);
         // The run's options record the weekly rotation index the setup was built with (the sim reads it as an input).
         var options = req.RotationOptions ? (start.Options ?? new RunOptions()) with { RotationIndex = setup.RotationIndex } : start.Options;
         // Bot seats wear their default gear (HostRunSetup.BotLoadouts, BIBLE s6 parity) next to the human's loadouts.
@@ -87,6 +96,11 @@ public static class HostRunFactory
         if (req.BotLoadouts)
         {
             options = setup.WithBotLoadouts(options, party) ?? options;
+        }
+        // f-a3de0a01: a bot seat's --talent replaces its carried ability (its default gear stacked on when bots wear it).
+        if (talents is not null)
+        {
+            options = talents.WithBots(options, req.BotLoadouts);
         }
         var created = RunRoot.CreateRun(req.Seed, party, dungeon, setup.Content, options);
         if (req.StartPull > 1)

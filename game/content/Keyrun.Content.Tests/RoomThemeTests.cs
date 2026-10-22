@@ -374,12 +374,12 @@ public sealed class RoomThemeTests
     {
         // The content layer cannot reference the Godot host, so ThemeSite mirrors HostRunSetup.TwinOffsetMm; this pins the mirror.
         var d = new DirectoryInfo(AppContext.BaseDirectory);
-        while (d is not null && !File.Exists(Path.Combine(d.FullName, "src", "Host", "HostRunSetup.cs")))
+        while (d is not null && !File.Exists(Path.Combine(d.FullName, "src", "HostCore", "HostRunSetup.cs")))
         {
             d = d.Parent;
         }
         Assert.NotNull(d);
-        var source = File.ReadAllText(Path.Combine(d!.FullName, "src", "Host", "HostRunSetup.cs"));
+        var source = File.ReadAllText(Path.Combine(d!.FullName, "src", "HostCore", "HostRunSetup.cs"));
         Assert.Contains($"public const int TwinOffsetMm = {ThemeSite.TwinOffsetMm};", source, StringComparison.Ordinal);
         Assert.Equal(new[] { 93500 + ThemeSite.TwinOffsetMm, 93500 - ThemeSite.TwinOffsetMm }, Twins.Select(t => t.X).ToArray());
     }
