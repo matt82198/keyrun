@@ -22,7 +22,11 @@ namespace Keyrun.Playtest.Tests;
 /// <item>Cleave: a <c>hollowWarden.cleave</c> cast lands, and its damage reaches no party member but the boss's target
 /// (the tank faced it away; nobody else stood in the cone).</item>
 /// <item>The Sundered Twins: their shared Break bar staggers (<c>stagger</c> on <c>twinsBreak</c>), drained by
-/// interrupt- or control-tagged casts from at least two different party members (the two-person timing).</item>
+/// interrupt- or control-tagged casts on the Twins, and every stagger is answered: at least one party seat's kick or
+/// control cast drained the bar inside that stagger's window (since the previous stagger). R-PINS-1 (R-ORACLE-1 applied,
+/// ruling on #573): this replaces a single-seed pin that both staggers come from two different seats; on the
+/// aggro-chase trajectory the second bar fills from Cinder's Quench and Cold Snap 2 ticks before the Chanter's Rebuke is
+/// ready (3536 vs 3538), so "two seats" was timing luck, not the mechanic. The two-seat count is still printed.</item>
 /// <item>The Lock: a Lock Window opens and the party breaks it (<c>lock_broken</c>, a Setup then another class's Payoff).</item>
 /// </list>
 /// The default run is driven headlessly exactly as <see cref="MovieFramesDefaultRunTests"/> does (SimDriver.StartRun /
@@ -85,6 +89,9 @@ public sealed class BossTeachesTests
         int KeyTier,
         int BossMisses)
     {
+        /// <summary>R-PINS-1: staggers with at least one party drain (a kick or control cast on a Twin) in their window.</summary>
+        public int StaggersAnswered { get; init; }
+
         public int? Ticks => Start is { } s && Clear is { } c ? c - s : null;
 
         /// <summary>Boss pull ticks so far: to the clear, else to where the drive stopped.</summary>
@@ -92,7 +99,7 @@ public sealed class BossTeachesTests
 
         public override string ToString() =>
             $"BOSS start={Start?.ToString() ?? "-"} clear={Clear?.ToString() ?? "-"} ticks={Ticks?.ToString() ?? "-"} wipe={WipeTick?.ToString() ?? "-"} " +
-            $"cleaves={Cleaves} cleavesAnswered={CleavesAnswered} staggers={Staggers} staggersTwoPerson={StaggersTwoPerson} " +
+            $"cleaves={Cleaves} cleavesAnswered={CleavesAnswered} staggers={Staggers} staggersAnswered={StaggersAnswered} staggersTwoPerson={StaggersTwoPerson} " +
             $"locksOpened={LocksOpened} locksBroken={LocksBroken} locksFailed={LocksFailed} carelessDeaths={CarelessDeaths} bossHp={BossHealthAtEnd} endTick={EndTick} " +
             $"carelessAliveTicks={CarelessAliveTicks} partyDeaths={PartyDeaths} penaltyTicks={PenaltyTicks} clock={ClockTicks} par={ParTicks} result={Result} key=\"{KeyLine}\" bossMisses={BossMisses}";
     }
@@ -122,7 +129,7 @@ public sealed class BossTeachesTests
         var twinIds = new HashSet<int>(setup.Boss.Twins.Select(t => t.ActorId));
 
         int? fightStart = null, fightClear = null, wipe = null;
-        int cleaves = 0, cleavesAnswered = 0, staggers = 0, staggersTwo = 0, locksOpened = 0, locksBroken = 0, locksFailed = 0, carelessDeaths = 0, carelessAlive = 0, bossMisses = 0;
+        int cleaves = 0, cleavesAnswered = 0, staggers = 0, staggersAnswered = 0, staggersTwo = 0, locksOpened = 0, locksBroken = 0, locksFailed = 0, carelessDeaths = 0, carelessAlive = 0, bossMisses = 0;
         var drainers = new HashSet<int>();
         // FINISH-NEEDS-FORCES: the boss's death no longer ends the run short of 100% forces, so the drive stops on the kill.
         for (var i = 0; i < DriveCapTicks && run.RunEnd.Result is null && wipe is null && fightClear is null; i++)
@@ -183,6 +190,10 @@ public sealed class BossTeachesTests
                         break;
                     case "stagger" when Str(e, "barId") == TwinsBar:
                         staggers++;
+                        if (drainers.Count >= 1)
+                        {
+                            staggersAnswered++;
+                        }
                         if (drainers.Count >= 2)
                         {
                             staggersTwo++;
@@ -227,7 +238,10 @@ public sealed class BossTeachesTests
         var clock = Timer.ClockTicks(run.Encounter, run.RunEnd.ResultTick ?? fightClear ?? run.State.RunTimerTicks);
         return new Fight(fightStart, fightClear, wipe, cleaves, cleavesAnswered, staggers, staggersTwo, locksOpened, locksBroken, locksFailed, carelessDeaths, bossHp, run.State.Tick,
             carelessAlive, run.Encounter.Deaths, run.Encounter.PenaltyTicks, clock, run.Encounter.ParTicks,
-            run.RunEnd.Result?.ToJs() ?? "none", key?.Line ?? "-", key?.Tier ?? -1, bossMisses);
+            run.RunEnd.Result?.ToJs() ?? "none", key?.Line ?? "-", key?.Tier ?? -1, bossMisses)
+        {
+            StaggersAnswered = staggersAnswered,
+        };
     }
 
     /// <summary>The smallest raw amount a Cleave hit carries (its first damage op), to tell it from a same-tick Slam.</summary>
@@ -255,7 +269,8 @@ public sealed class BossTeachesTests
         Assert.True(f.Ticks >= MinFightTicks && f.Ticks <= MaxFightTicks,
             $"fight lasted {f.Ticks} ticks ({f.Ticks / (double)Tick.TickHz:0.0} s), outside [{MinFightTicks}, {MaxFightTicks}]: {f}");
         Assert.True(f.CleavesAnswered >= 2, $"Cleave answered {f.CleavesAnswered} times (of {f.Cleaves}), need 2: {f}");
-        Assert.True(f.StaggersTwoPerson >= 2, $"Twins staggered by two party members {f.StaggersTwoPerson} times (of {f.Staggers}), need 2: {f}");
+        Assert.True(f.Staggers >= 2 && f.StaggersAnswered == f.Staggers,
+            $"Twins staggered {f.Staggers} times, {f.StaggersAnswered} answered by a party kick in their window; need at least 2, every one answered: {f}");
         Assert.True(f.LocksBroken >= 2, $"Lock broken {f.LocksBroken} times (of {f.LocksOpened} opened), need 2: {f}");
     }
 

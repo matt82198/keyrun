@@ -25,8 +25,15 @@ public sealed class LeaderClosesToReachTests
     /// <summary>The caster must start farther than the leader's strike reach (warden.strike, 3000 mm), mm.</summary>
     public const double MinStartMm = 3000;
 
-    /// <summary>The caster must start nearer than this (engaged from outside reach, not across the room), mm.</summary>
-    public const double MaxStartMm = 6000;
+    /// <summary>
+    /// The caster must start nearer than this (engaged from outside reach, not across the room), mm. AGGRO-CHASE re-derivation
+    /// (f-f0c886eb; a measurement, the closing, cast and death assertions are unchanged): was 6000, set when the Choir's melee
+    /// were walked into and fought on the caster's doorstep (3796 mm on main 0e748ca1). The melee now aggro on their own
+    /// 8000 mm radius (run.json enemyAggro) and run at the party, so the fight sits where they met the tank and the caster,
+    /// which never approaches, is the lone target 7514 mm away on this tree. The bound is the caster kind's own aggro radius,
+    /// the reach at which its pack engages the party, read from the content: farther than that is across the room.
+    /// </summary>
+    public static readonly double MaxStartMm = Keyrun.Content.ContentLoader.Load().Run.EnemyAggro?.For(CasterClassId).AggroMm ?? 6000;
 
     /// <summary>The leader must cast on the caster within this many ticks of the engagement (30 s would be 600 ticks at 20 Hz).</summary>
     public const int CastWithinTicks = 600;

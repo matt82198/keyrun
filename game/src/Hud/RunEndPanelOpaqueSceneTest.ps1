@@ -5,7 +5,8 @@
 
 .DESCRIPTION
   Boots the real game (Main.tscn -> Arena.tscn) headless at --fixed-fps 60 with --autorun --ticks <Ticks> --solo (the
-  solo Warden wipes in pull 1, so the run ends and the run-end panel is built) and reads the panel's own proof lines:
+  solo Warden wipes and releases until the timer cap ends the run at tick 9600, R-BACKFILL-2, so the run-end panel is
+  built) and reads the panel's own proof lines:
 
     1. godot exits 0;
     2. one "HUD runend fill r=R g=G b=B a=A panel=X,Y,WxH" line (RunEndPanel prints the PanelFill it draws with);
@@ -19,7 +20,10 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$Ticks = 600
+    # 10000 since the S3 glob first ran this test (PR #558), was 600: under R-BACKFILL-2 (#446, BIBLE s9.1) the solo wipe
+    # releases and runs back instead of ending the run, so a --solo autorun ends only at the timer cap (tick 9600, depleted),
+    # as HudRunA-SceneTest's identical launch shows; 600 ticks never built the run-end panel. The assertions are unchanged.
+    [int]$Ticks = 10000
 )
 $ErrorActionPreference = 'Stop'
 

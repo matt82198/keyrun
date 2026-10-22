@@ -14,7 +14,8 @@ Why pinned: Matt 2026-10-19, verbatim: "there seems to be a misunderstaning with
 - POC dungeon, section 9, verbatim: "Three pulls and a boss, forward-only, no backtracking (research/02). Each pull teaches one thing." Pulls: "**The Choir**" teaches the kick ledger (must-kick 4-second heal cast); "**The Pair**" teaches reading shape (spread ring, then stack circle); "**The Seed**" teaches the boss's core rule with no stakes. Boss "the Hollow Warden": Cleave, The Sundered Twins, The Lock.
 - Gear, section 7, verbatim: "**Five slots**: Weapon, Armor, Charm, Ring, Keystone." "Tier is power and it is capped at 10." "**Facets change function**" "**End of every run: choose one of three**" "Ash buys only cosmetics and titles." "**After the cap: Ascension.** ... and Ascension marks on the character."
 - Current milestone, STATE.md D10 (verbatim): "**MVP = 3D gameplay**" ... "the MVP deliverable is one complete 3D run Matt can play end to end and judge by feel, not a test count." Phase 3 exit waits on Matt's human-played run. MVP LINE (D10 question, RESOLVED 2026-10-20 under Matt's out-of-dungeon rule, see INTENT): the MVP is the full section 1 loop: one screen with tabs, then Queue, then the Dungeon, then the end-of-run choice of three, then back to the screen.
-- Acceptance is Matt watching (D15): frames and video viewed before a visible row closes. Demo verdict 2026-10-19 (default run C at 75da3ef): KF1 combat animation reads badly; KF2 bots idle in the first room (the Choir is meant to teach the kick); KF3 the Seed elite spawns on entry and the bots cheese it. Known section 3 gaps (recon 2026-10-21 16:18Z): every Warden, Twins and Seed threat is a cast with a spansCast telegraph; the one shape mismatch is seed.lash (target-shaped, drawn as a caster-centred circle r1500), re-scoped as LASH-1 view + LASH-2 content in the 17:00Z block.
+- Acceptance is Matt watching (D15): frames and video viewed before a visible row closes. Demo verdict 2026-10-19 (default run C at 75da3ef): KF1 combat animation reads badly; KF2 bots idle in the first room (the Choir is meant to teach the kick); KF3 the Seed elite spawns on entry and the bots cheese it. KF2 on main (1f8fed7f, #515, "scripted Warden kicks the casting lieutenant"): the Choir kick works, capture kf2-kick-1f8fed7f shows Choral Mending interrupted at ticks 312, 508 and 706 by seats 1, 2 and 3; KF2 is re-captured and awaiting Matt's view, not open. Known section 3 gaps (recon 2026-10-21 16:18Z): every Warden, Twins and Seed threat is a cast with a spansCast telegraph. The seed.lash shape mismatch is fixed on main: its telegraph is a caster-to-target line (shape line, length 1500, width 1200; content/data/enemies/seed.json, #486 6f699097), drawn as a rectangle by TelegraphView (#485 651a9d75). TelegraphAnchor caster|target is pending #539, not merged.
+- Boss door and room gate are gone on main (D44; #515 1f8fed7f removed the boss door and the DOOR-100 detour; 6c6746bb removed the no-gates route). Run.cs:377 says BossDoor.Admit is not applied on the forward route. No gate_closed or gate_open event is emitted, and game/src/View/RoomGateView.cs and the GateView and GateCutaway scene tests are absent. Any STATE or map line that calls the boss door or a room gate live is stale.
 - Art and gear models: CC0 packs only (D17). How gear shows on the CC0 models was an open design question, RESOLVED 2026-10-20 under Matt's out-of-dungeon rule (see INTENT): as in Dark and Darker, equipped gear is visible on the character model, within the CC0 assets (D17). A BIBLE-ALIGN recon on 2026-10-19 is mapping the bible against main.
 
 **Intent (Matt, 2026-09-18):** "isolating m+ from WoW and just making it an open and queue game like Dark and Darker,
@@ -24,38 +25,39 @@ abilities, a boss. Mechanics like interrupts, but be more creative than blizzard
 class max, 10 total keybinds should be plenty for rotation, movement, utility... the goal is class synergy." No art
 assets; pure POC.
 
-## Current state (checkpoint 2026-10-18)
-- Main tip: 36feb7e (#174 squash, HOST-HEADING). Prior main tips: cfa40b9 (#173), 8ffe1e3 (#172), f72c738 (#171), 581212d (#170), 9df96ef (#169), 6ae14a1 (#168 docs), 30f5708 (#167), 10de063 (#106), 56c5686 (#105), b54eb40 (#104 docs), 2c8f8ea (#102), 54e69c5 (#99), 00e4ebb (#98).
-- Merged today since the 23:30Z checkpoint: #101 99836b0 (window ring labels + payoff-ready key glow + ping context + aimed spot ping); #102 2c8f8ea (bots/src/roles/shared.ts inLull, tank-pressure.ts).
-- MERGED 99f39a2: #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info).
-- Phase: 3 rows 3A-3J all MERGED on main (2026-10-18, verified per PR, see NEXT STEPS). PHASE 3 EXIT NOT RECORDED. D10
-  verdict (2026-10-18): FOURTH pass PARTIAL, PHASE 3 EXIT NOT-MET (Phase 3 block, FOURTH-PASS ORACLE VERDICT). It supersedes
-  the third pass NOT-MET, the second pass MET-WITH-TUNING-GAP and the first pass NOT-MET (DECISIONS AND OBSERVATIONS (d)).
-  Why: #158 (D14) lets an autorun reach and clear the boss, but no human-played run to the boss is measured, and only that
-  closes Phase 3 exit. Phase 5 "Matt playing" is the acceptance test; not yet reached. Phase 4 (TS deletion) stays blocked on D10.
-- Earlier landed (unchanged): #92 e3f622e, #95 e56955c, #97 08b9611, #98 00e4ebb, #99 54e69c5.
-- Test count on 2c8f8ea: not restated in this checkpoint (not sourced for this head).
-- NEXT (supersedes the status in NEXT STEPS item 1; rewritten 2026-10-18 from BUILDLOG.md and git log -15):
-  Merged since the 23:55Z checkpoint: #104 b54eb40 (checkpoint docs); #105 56c5686 (SPREAD/STACK telegraph floor
-  labels with countdown, render/telegraph-label.ts); #106 10de063 (sim-host scaleStep keeps `every`, so recurring
-  STACK calls fire during The Pair; server/src/content-setup.ts ported identically). BUILDLOG.md has no line for
-  #104-#106; these come from git log and the commit bodies.
-  Earlier 2026-10-17 merges (BUILDLOG-recorded): #98 00e4ebb (named ability bar, cast projections, actor tags,
-  objective line, GCD dim, hit flash); #101 99836b0 (window ring labels, payoff key glow, ping context, aimed spot
-  ping); #102 2c8f8ea (tank banks GCD in a lull); #103 99f39a2 (status chips, DOWNED tag, dash trail, telegraph
-  contrast 0.15->0.4, ?net=1 cast parity).
-  BIBLE-vs-client gap ladder, remaining:
-  - Slack delta (needs hud-wiring.ts prevSnapshot; deferred in #103 per decision 6 below).
-  - Cast-bar ability names (ladder rung 7): in the #101 lane scope but not in its merged title; confirm on main before
-    ticking it. Proof: boss bar reads "Cleave".
-  - Class silhouettes and legend overlay: no BUILDLOG line either way; treat as not started.
-  - Open from the ladder: boss Slam cast bar unnamed; Lock ring with no shield; boss-bar.ts has no phase field;
-    window ring colour is time-only; setupClass never rendered; capsules have no names on the non-#98 path.
-  - Balance: 3 of 4 bots die in pull 2 at key 2; with hz=60 the party is mostly DOWNED (see OBSERVATIONS). Tuning is
-    Matt's call; bring the numbers, not a tuned constant.
-  - Then NEXT STEPS below in Matt's priority.
+## Current state (2026-10-22, main 73b706c0)
+WHY: the 2026-10-18 note here was four days stale. This replaces it with main as of #560, from `git log ed8ad21f..73b706c0` and gh.
+The full 2026-10-18 text is in git history (this file at 73b706c0).
+- Main: 73b706c0 (#560, 2026-10-22 00:56Z). Previous recency point: ed8ad21f (#508, CHECKPOINT 2026-10-21 21:12Z below).
+- Main is RED on game-test until #569 lands (clip row, scoreboard denominator, boss refuses blind).
+  #569 required checks all pass at 01:35Z; non-required balance fails. Auto-merge armed.
+- Merged since ed8ad21f (50 PRs), by area:
+  - Game loop: #505 Seed activates on room entry (KF3); #514 key sets the Clause (R1); #516 pick-of-three code deleted;
+    #518 Queue readout branches (B57, B58); #512 Ascension card on the run-end panel (U10); #515 taunt never roots the tank.
+  - Dungeon and packs: #502 Hall Sentries optional (G5); #511 LayoutPack.Branch; #517 per-branch forces totals;
+    #513 packs.json retired (R7); #537 skip bar (R-PACKS-1); #538 vault kits (S1); #528 corridor-2 patrol;
+    #533 teaching pulls pinned to BIBLE s9; #536 pack build slices doc.
+  - Sim: #551 integer A* pathing for bots and enemy chase (R-PATH-1); #561 boss fight 90-180 s (R-BOSS-1);
+    #539 telegraphs anchor on the caster's target; #560 TelegraphDraw record; #559 no dominated Cadence fork.
+  - View and HUD: #519 #523 #531 KF1 strike cue; #522 telegraph palette (R8); #530 seats line off the bar; #541 party
+    bodies opaque; #543 --camera chase|vertical and V; #544 per-ability CC0 clips with ANIM lines; #545 scoreboard kills; #526 GEAR lines for the Warden only.
+  - Refactor and deletion: #553 TypeScript tree deleted (phase 4A); #547 Casting partials; #550 SimEvent views;
+    #554 directory loader (unwired); #556 Screen partials; #557 one file per validator rule.
+  - Tests, CI, tools, docs: #503 #507 #509 #527 #529 #532 #534 #535; #504 #521 #524 #525 #548 #549.
+- Armed queue behind #569: #570 #568 #567 #566 #564 #563 #562 #558; merge-forward (DIRTY) #555 #540 #542.
+- Unarmed, waiting on Matt: #546 (Mythic+ dungeon plan), #552 (seeded dungeon architecture, D46).
+- Matt's product gaps (2026-10-21), status on main:
+  - Ability animations: landed #544. Pathing: landed #551. Boss length and teaching: landed #561.
+  - Party solid: landed #541. Vertical camera for captures: landed #543.
+  - Pulling and aggro range: packs engage on aggro radius (Aggro.cs); pull feel not judged by Matt yet.
+  - Non-linear rooms: not built; route is one path (layout.json route, 9 points). D45, D46, #552 unarmed.
+  - Pack diversity: vault kits landed #538; pack links #564 armed.
+  - Landed means merged code, not accepted. Acceptance is Matt's played run (D10, D15).
+- Current milestone (2026-10-22, D65, f-8fc6e252): by 2026-10-22 13:00Z a human plays the tutorial (Hollow Vault) as seat 1 end to end, and a second dungeon with at least two bosses is on main.
+- Row files: 50 in game/lanes/ wait for a fold lane into BUILDLOG.md and the game/CLAUDE.md lane list.
 
 ## Locked decisions
+Duplicate ids D45/D46: the entries near the top (branching rooms; seeded dungeons) are the 2026-10-21/22 rulings; the later ones (near 1566/1576) are the 2026-10-19 originals; new ids start at D65.
 - D1 **Stack**: TypeScript for sim, content, client, bots, server; Vitest; esbuild; Three.js for the 3D client; no engine.
 - D2 **Bots-first**: the first playable is one human plus bot party against the dungeon; networking is phase 4.
 - D3 **3D MVP** (Matt, 2026-09-18: "2d is not playable, please 3d mvp"): third-person camera, WASD + mouse-look,
@@ -98,6 +100,7 @@ WHY: lanes and future sessions must read rulings from the repo, not the orchestr
 
 - D45 **Branching rooms, not one path** (2026-10-21 23:5xZ). Supersedes the "one forward path" wording of D44; D44's no gates and prespawned packs stand. Matt: "and the rooms should not force you to one path, where in the bible does it say linear dungeon?" WHY: BIBLE s9 says forward-only, no backtracking, never linear. Rooms branch; the player chooses the route and which packs to pull. Scoreboard = timer with par, enemy forces %, kill count, deaths (WoW M+). The orchestrator had drifted into one corridor.
 - D46 **Seeded dungeons, reusable everything else** (2026-10-22 00:0xZ). Matt: "we need a video game productivity engineer to help out architecturally, like make everything reusable, except the dungeons, and they should generate by seed honestly... then we fill with enemies... like consider order of operations... everything can be reusable and quick, and we can attack the rare edge cases once the game is testable per the objective". Rule: dungeons generate by seed (forward-only with a fork, D45) and are filled from a pack roster; everything else is reusable data-driven components; edge cases wait until one full run is testable. WHY: an architecture that is fast to change.
+- D63 (2026-10-22): seeded dungeon architecture is the plan of record; generator in Sim/Dungeon; see game/design/ARCHITECTURE.md. Contract: one fork right after the entrance into two branches of 2 or 3 rooms that converge on the boss, entrance-to-branch edges are one-way doors. WHY: D47 (the id first proposed) is taken by HALL SENTRIES and D46 is used twice, so this takes the next free id; main's entries are not renumbered.
 - R-BOSS-1 (2026-10-21 23:5xZ). Boss fight 90 to 180 s at key 2 = 1800 to 3600 ticks at 20 Hz; Cleave, Twins and Lock each at least twice, each answered by a bot. Matt: "the boss should be like a minute still on learning dungeons minimum lol, 10second boss is insane". WHY: a boss that dies in seconds teaches nothing.
 - R-PATH-1 (2026-10-21 23:5xZ). Deterministic integer pathing in the sim, never Godot navigation. Matt: "still no pathing which was supposed to be done yesterday, just a linear route... drifted." WHY: D3 keeps the sim headless and deterministic; the route was 9 straight points at z=0 with no pathfinder.
 - R-DECLUTTER-1 (2026-10-21 23:42Z). The target frame cast bar belongs to the current target; a cast left mid-retarget draws overhead. Proof lines are sampled from one moment, not two. No Matt quote in the ledger. WHY: the #528 game-e2e failure came from proof sampling (unitframe line at step time, castbar line at view time).
@@ -106,6 +109,20 @@ WHY: lanes and future sessions must read rulings from the repo, not the orchestr
 - R-ORACLE-1 (2026-10-22 00:1xZ). Whole-run hash asserts are non-required; kept as byte-identical proof for mechanical splits; deleted once every ruling has a named property test. Amends D28. Math vector oracles, the frozenSources check and anti-vacuity guards stay. Matt (23:4xZ): "this seems like an architectural issue, you are losing understanding of your code base so quick". WHY: hash-pinned trace oracles make every behaviour change a re-record and a conflict.
 - R-LOADER-1 (2026-10-22 00:1xZ). An ordinal-order directory loader is allowed, with byte-identical trace proof first. No Matt quote in the ledger. WHY: the seams review found serialization tied to explicit file lists and single validator lists.
 - R-STALE-1 (2026-10-22 00:2xZ). An open PR blocks a refactor slice only if it is mergeable (not DIRTY) or was updated within 12 h. Stale DIRTY PRs with no live lane do not block; they are re-cut later. Closing them is presented to Matt first. WHY: stale DIRTY PRs such as #298 owned HudSceneTest.ps1 and blocked every split (the S3 lane stopped on it).
+- D65 **Dungeons are 15 to 20 minutes with multiple bosses; the Hollow Vault is the tutorial; a human plays seat 1 from one launch** (2026-10-22 04:1xZ, ledger f-8fc6e252, event store seq 89). Matt: "tomorrow morning i want to be able to play the tutorial and have at least 1 other dungeon with multiple bosses, something the bible got wrong is dungeon length was 15-20min, not 1min lmfao...". Rule: (1) a dungeon is 15 to 20 minutes of play at key 2 (18000 to 24000 ticks at 20 Hz); par is set per dungeon from its route (bots at key 2 inside par by a margin the content states), not a fixed 12:00. (2) The Hollow Vault stays the tutorial: three teaching pulls and the Hollow Warden on the full forces route (R-FORCES-1: 100% forces and the last boss), target 8 to 12 minutes at key 2, longer than today's five. (3) Every other dungeon has at least two bosses, each inside R-BOSS-1, joined by branching segments per D45/D46, seeded as entrance, fork, boss, fork, final boss. (4) The human plays seat 1 end to end (screen with five tabs #583, Queue, dungeon, choice of three, screen) from a one-line launch documented in README.md. Every earlier ruling stands; the "12:00 par" and one-boss lines elsewhere are history (amended 2026-10-22: D65). BIBLE s1, s9 intro, s9.8, s12. WHY: the bible's one-boss, 12-minute par shape produced runs of 3 to 5 minutes (the 10-21 captures in this file: 0:34, 3:14, 3:21, 4:23 of 12:00), which is not a Mythic+ dungeon.
+- D66 **Themed mobs, huge pulls, any class** (2026-10-22 04:2xZ). Matt: "you can be creative with mechanics and use inspiration from other games, ensure its themed properly to the name, and has unique mobs" / "I also want to be able to play any class, not just the warden" / "if you dont know, defer to wow, huge pulls are fun". Rule: each dungeon has its own themed mobs with new mechanics (some reused); layouts and packs allow chain-pulling several packs, and the danger is what the mobs do together, never a scripted wipe; the human plays any of the three classes with bots filling the other roles; when unsure, defer to WoW. BIBLE s9.9. WHY: unique, themed dungeons and big pulls are the fun of Mythic+, and a Warden-only human seat tests one class.
+- D67 **Three bosses minimum past the tutorial; five-boss dungeons later** (2026-10-22 04:3xZ). Amends D65 point (3) from two bosses to three. Matt: "any dungeon past tutorial should have 3 bosses" "min" "some players like longer dungeons, ultimately we'll end up with some 5 boss dungeons that drop the bis items and take longer, its inevitable, you need some difficulty curve other than scaling though and thats master a longer route/path and perfect coordination". Rule: every dungeon past the tutorial has at least three bosses, seeded as three segments (entrance, fork, boss, fork, boss, fork, final boss); five-boss dungeons come later, take longer and drop the best items; the difficulty curve is mastering a longer route and perfect coordination, not only key scaling. BIBLE s9 intro, s9.8. WHY: key scaling alone is not a difficulty curve.
+
+### Rulings 2026-10-22 01:5xZ to 02:4xZ (from the event store, conductor3 events/log)
+- R-WARDEN-FILLER-2 is WITHDRAWN (Strike is the Warden's builder and Sundered setup by design, BIBLE s4).
+- R-WARDEN-FILLER-3 (01:5xZ, shipped on #540). #540's filler gate applies to trash pulls only; in the boss pull the ScriptedWarden keeps Guard Break priority. Accepted Lock hold: the Warden bot spends no global while a boss Lock waits for a partner's Setup. WHY: the boss-pull filler opened 74 windows whose Consecrate heals masked a careless seat.
+- R-BREAKBAR-1 (01:5xZ, #558). The Twins' shared Break bar drains 50 per interrupt-tagged kick and 20 (DrainPerControl) per control-tagged cast at a Twin, casting or not; two kicks on one tick drain 100; a broken bar does not move. Single-seed partial-fill pins become properties (R-ORACLE-1).
+- R-BOSS-4 (02:4xZ). An unanswered Hollow Warden Cleave applies a stacking Cleaved debuff (+damage taken per stack, 20 s, refreshed on hit). WHY: carelessness escalates past healing, so the careless-seat tier loss is a property of the mechanism, not of one seed's deaths.
+- R-PINS-1 (02:4xZ, R-ORACLE-1 applied). A Playtest assertion pinning one seed's trajectory (exact tick, HP, which seat) is replaced by the property it guards; re-pins only for documented drift detection, with the cause named in the commit.
+- R-FORCES-1 (#576). A key completes only when enemy forces reach 100% and the final boss is dead, in either order; the timer keeps running; "timed" only if the completion tick is within par.
+- R-AGGRO-1 (#573). Each enemy has its own aggro and assist radius; a pack aggroes together; enemies chase along the R-PATH-1 A* path; past the leash a pack evades home and resets at full health; pull_start fires on the first member that aggroes. Defaults in run.json enemyAggro: aggro 8000 mm, assist 3000, leash 30000, boss exempt.
+- Plan PRs (01:5xZ, under D64): #546 CLOSED (contradicted D46 seeded dungeons and R-PACKS-7). #552 is the plan of record; its D63 entry lands with #552 (still OPEN at main 9a5f4f90).
+- D64 **Matt's verdicts 2026-10-22.** Matt: "why is there still no pathing? and the first couple packs just stand still? doesnt really make positioning important at all and you can just go one at a time lol"; "like we discussed, m+ style routes with enemies, two seperate branches to discover, not a linear dungeon"; "just make decisions lmao". Rule: the orchestrator decides balance reds, ledger triage and plan PRs itself and reports; hard stops unchanged. WHY: packs that never aggro and a linear route make positioning meaningless (R-AGGRO-1, R-PATH-1, D45).
 
 **Time note (2026-10-22 00:0xZ).** The sim ticks at 20 Hz (Core/Tick.cs:28), so durations quoted in ticks divide by 20. The earlier "10 second boss" figure was a 60 Hz error. The boss pull was about 29 s (585 ticks); Choir was about 82 s (1651 ticks).
 

@@ -11,7 +11,7 @@ namespace Keyrun.Content.Tests;
 /// </summary>
 public sealed class LayoutConfigTests
 {
-    private const string LayoutFile = "layout.json";
+    private const string LayoutFile = MutableSource.LayoutHead;
 
     private static ContentLoadException LoadFails(MutableSource source) =>
         Assert.Throws<ContentLoadException>(() => ContentLoader.Load(source.Build()));
@@ -37,21 +37,21 @@ public sealed class LayoutConfigTests
     [Fact]
     public void A_pull_without_a_room_is_rejected()
     {
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "pair-hall").Remove("pull")));
+        var ex = LoadFails(new MutableSource().EditLayout(n => Box(n, "pair-hall").Remove("pull")));
         Assert.Contains("layout", ex.Message);
     }
 
     [Fact]
     public void A_trigger_outside_its_room_is_rejected()
     {
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "choir-room")["trigger"]!["maxX"] = 27000));
+        var ex = LoadFails(new MutableSource().EditLayout(n => Box(n, "choir-room")["trigger"]!["maxX"] = 27000));
         Assert.Contains("trigger must be its room shrunk 2000 mm", ex.Message);
     }
 
     [Fact]
     public void A_spawn_near_the_door_is_rejected()
     {
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "seed-chamber")["origin"]!["x"] = 58000));
+        var ex = LoadFails(new MutableSource().EditLayout(n => Box(n, "seed-chamber")["origin"]!["x"] = 58000));
         Assert.Contains("from the door", ex.Message);
     }
 
@@ -59,28 +59,28 @@ public sealed class LayoutConfigTests
     public void A_spawn_reachable_within_6_m_on_the_trigger_tick_is_rejected()
     {
         // 9000 mm from the door is inside 8..12 m, but only 7 m past the trigger edge: a dash at the trigger tick lands 3.8 m away.
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "warden-arena")["origin"]!["x"] = 91000));
+        var ex = LoadFails(new MutableSource().EditLayout(n => Box(n, "warden-arena")["origin"]!["x"] = 91000));
         Assert.Contains("within 6000 mm", ex.Message);
     }
 
     [Fact]
     public void A_gate_on_a_later_pull_is_rejected()
     {
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "corridor-2")["gate"] = "seed"));
+        var ex = LoadFails(new MutableSource().EditLayout(n => Box(n, "corridor-2")["gate"] = "seed"));
         Assert.Contains("whose room is not before it", ex.Message);
     }
 
     [Fact]
     public void A_route_point_outside_its_doorway_is_rejected()
     {
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => n["route"]![2]!["x"] = 20000));
+        var ex = LoadFails(new MutableSource().EditLayout(n => n["route"]![2]!["x"] = 20000));
         Assert.Contains("route point 2", ex.Message);
     }
 
     [Fact]
     public void A_gap_between_boxes_is_rejected()
     {
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "corridor-3")["minX"] = 57000));
+        var ex = LoadFails(new MutableSource().EditLayout(n => Box(n, "corridor-3")["minX"] = 57000));
         Assert.Contains("does not overlap", ex.Message);
     }
 
@@ -95,14 +95,14 @@ public sealed class LayoutConfigTests
     [Fact]
     public void A_non_positive_aggro_radius_is_rejected()
     {
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "warden-arena")["aggroMm"] = 0));
+        var ex = LoadFails(new MutableSource().EditLayout(n => Box(n, "warden-arena")["aggroMm"] = 0));
         Assert.Contains("aggroMm must be positive", ex.Message);
     }
 
     [Fact]
     public void An_aggro_radius_on_a_box_with_no_pull_is_rejected()
     {
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Box(n, "corridor-4")["aggroMm"] = 7100));
+        var ex = LoadFails(new MutableSource().EditLayout(n => Box(n, "corridor-4")["aggroMm"] = 7100));
         Assert.Contains("aggroMm but no pull", ex.Message);
     }
 
@@ -112,7 +112,7 @@ public sealed class LayoutConfigTests
     [Fact]
     public void A_pack_branch_naming_a_room_not_in_the_layout_is_rejected()
     {
-        var ex = LoadFails(new MutableSource().Edit(LayoutFile, n => Pack(n, "cantor-vigil")["branch"] = "no-such-room"));
+        var ex = LoadFails(new MutableSource().EditLayout(n => Pack(n, "cantor-vigil")["branch"] = "no-such-room"));
         Assert.Contains("pack \"cantor-vigil\"", ex.Message);
         Assert.Contains("no-such-room", ex.Message);
     }
@@ -120,7 +120,7 @@ public sealed class LayoutConfigTests
     [Fact]
     public void A_pack_with_a_valid_branch_loads_with_it_set()
     {
-        LayoutDef layout = ContentLoader.Load(new MutableSource().Edit(LayoutFile, n => Pack(n, "cantor-vigil")["branch"] = "choir-room").Build()).Layout;
+        LayoutDef layout = ContentLoader.Load(new MutableSource().EditLayout(n => Pack(n, "cantor-vigil")["branch"] = "choir-room").Build()).Layout;
         Assert.Equal("choir-room", layout.Packs.Single(p => p.Id == "cantor-vigil").Branch);
     }
 
@@ -132,9 +132,38 @@ public sealed class LayoutConfigTests
     }
 
     [Fact]
-    public void Missing_layout_json_is_rejected()
+    public void Missing_layout_dungeon_json_is_rejected()
     {
         var ex = LoadFails(new MutableSource().Remove(LayoutFile));
-        Assert.Contains("missing file \"layout.json\"", ex.Message);
+        Assert.Contains("missing file \"layout/hollow-vault/dungeon.json\"", ex.Message);
+    }
+
+    // R-LOADER-1: a pack is added by adding a file; no list in ContentLoader is edited.
+    private const string NewPack = """
+        { "id": "zz-added", "name": "Added Pack", "room": "seed-chamber", "optional": true, "branch": "seed-chamber",
+          "center": { "x": 69000, "z": -5500 }, "aggroMm": 4000,
+          "enemies": [ { "enemyId": "pair.melee", "count": 1, "spawn": { "x": 0, "z": 0 } } ] }
+        """;
+
+    [Fact]
+    public void A_new_pack_file_loads_without_a_list_edit_and_sorts_last_by_its_name()
+    {
+        string path = MutableSource.LayoutDir + "packs/zz-added.json";
+        Assert.DoesNotContain(path, ContentLoader.Files);
+
+        LayoutDef layout = ContentLoader.Load(new MutableSource().Add(path, NewPack).Build()).Layout;
+
+        Assert.Equal("zz-added", layout.Packs[^1].Id);
+        Assert.Equal(ContentLoader.Load().Layout.Packs.Count + 1, layout.Packs.Count);
+    }
+
+    [Fact]
+    public void A_file_under_layout_outside_the_read_directories_is_refused_not_ignored()
+    {
+        var ex = LoadFails(new MutableSource().Add(MutableSource.LayoutDir + "extras/zz-added.json", NewPack));
+        Assert.Contains("unlisted file \"layout/hollow-vault/extras/zz-added.json\"", ex.Message);
+
+        var other = LoadFails(new MutableSource().Add("layout/other-dungeon/packs/zz-added.json", NewPack));
+        Assert.Contains("unlisted file \"layout/other-dungeon/packs/zz-added.json\"", other.Message);
     }
 }

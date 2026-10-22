@@ -46,7 +46,24 @@ public static partial class Casting
         return actor.CastTargetPinned ? actor.CastTargetId : actor.TargetId;
     }
 
-    /// <summary>Drops the pin once the cast is over (completed with its Windows, stopped, interrupted, or replaced).</summary>
+    /// <summary>
+    /// The target a cast resolves on once it has ended (<see cref="End"/> returned it): its pinned start target, else
+    /// the caster's current target. This is how a completed cast's Windows still resolve on the start target after the
+    /// actor's cast (pin included) is already cleared.
+    /// </summary>
+    /// <param name="actor">The caster.</param>
+    /// <param name="cast">The ended cast, or null for none (resolves on the current target).</param>
+    /// <returns>The cast's target id, or null.</returns>
+    public static int? TargetOfEnded(ActorState actor, CastInFlight? cast)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return cast is { TargetPinned: true } c ? c.PinnedTargetId : actor.TargetId;
+    }
+
+    /// <summary>
+    /// Drops the pin of the cast in flight and keeps the cast. No production caller since R2 (<see cref="End"/> clears
+    /// the pin with the cast); kept for one release with the legacy cast shims.
+    /// </summary>
     /// <param name="actor">The caster.</param>
     public static void ReleaseCastTarget(ActorState actor)
     {

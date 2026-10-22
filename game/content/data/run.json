@@ -31,5 +31,21 @@
   "classArmorBp": {
     "warden": 3500
   },
-  "stunImmuneEnemies": ["hollowWarden.boss"]
+  "stunImmuneEnemies": ["hollowWarden.boss"],
+  "enemyScriptAt": {
+    "pair.melee": { "pair.spreadMark": 80, "pair.stackCall": 280 }
+  },
+  "cleaved": {
+    "abilityId": "hollowWarden.cleave",
+    "effectId": "cleaved",
+    "durationTicks": 400
+  },
+  "enemyAggro": {
+    "aggroMm": 8000,
+    "assistMm": 3000,
+    "leashMm": 30000,
+    "kinds": {
+      "hollowWarden.boss": { "aggroMm": 0, "assistMm": 0, "leashMm": 0 }
+    }
+  }
 }

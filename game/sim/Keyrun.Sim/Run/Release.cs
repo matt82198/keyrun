@@ -99,12 +99,7 @@ public static class Release
         back.Pos = spawn.Pos;
         back.Yaw = spawn.Yaw;
         back.TargetId = null;
-        back.CastId = null;
-        back.CastEndsTick = null;
-        back.CastStartTick = null;
-        back.CastIsOverheat = false;
-        back.CastTargetPinned = false;
-        back.CastTargetId = null;
+        Casting.End(back, CastEnd.Released);
         back.QueuedCast = null;
         back.Effects = new List<EffectInstance>();
         back.Threat = new SortedDictionary<int, long>();

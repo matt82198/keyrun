@@ -31,11 +31,11 @@ public partial class Screen
         // KeyMove is the one read of that move, shared with the run-end panel's key line, so the panel and the reopened
         // screen never disagree about the level. It uses the same tick fallback (ResultTick ?? RunTimerTicks) as main's
         // tier read, and clamps the raise to the key range.
-        // LOBBY-TABS: the lobby comes back on its Play tab at that key, class and build kept (Lobby.ReturnFrom); before the
+        // LOBBY-TABS: the lobby comes back on its Character tab at that key, class and build kept (Lobby.ReturnFrom); before the
         // first open (an --autorun run) there is no lobby yet and the key waits for it.
         var move = KeyMove.ForRun(_driver.Run)!;
         // R1: the band reads the Clause from the same rotation index and content clauseStartKey the run is built with,
-        // as the Play tab does (Screen.cs Lobby.Open), so the reopened key never shows a Clause the run does not carry.
+        // as the Key tab does (Screen.cs Lobby.Open), so the reopened key never shows a Clause the run does not carry.
         var clauseStartKey = _driver.Registry is { } reg ? reg.Run.Affixes.ClauseStartKey : ScreenState.NoClauseStartKey;
         var to = ScreenState.Open(SimDriver.DungeonId, ClauseIds(), move.To, _driver.RotationIndex, clauseStartKey).KeyLevel;
         if (_lobby is { } lobby)

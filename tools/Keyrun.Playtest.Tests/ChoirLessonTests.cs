@@ -67,6 +67,56 @@ public sealed class ChoirLessonTests
             $"the never-kick party killed the boss at clock {Timer.ClockTicks(neverKick.Run.Encounter, bossClear ?? 0)}, inside par {neverKick.Run.Encounter.ParTicks}");
     }
 
+    /// <summary>
+    /// f-70d36828 (KF2 demo verdict): the lesson is only taught if the player sees the cast bar. A human reacts in
+    /// 0.3-0.6 s, so the scripted party (the default run) never kicks a Choral Mending sooner than 8 ticks (0.4 s at
+    /// 20 Hz) after it starts. Stated independently of Ledger.KickOpensTick.
+    /// </summary>
+    private const int VisibleCastBarTicks = 8;
+
+    [Fact(DisplayName = "Choir lesson: in the default run every kicked Choral Mending shows its cast bar for 8+ ticks before the kick")]
+    public void Default_run_shows_the_mending_cast_bar_before_the_kick()
+    {
+        // Cast starts as the run saw them before each step: (caster, start) -> ends.
+        var casts = new System.Collections.Generic.Dictionary<(int Actor, int Start), int>();
+        var r = PlaytestRunner.Play(new PlaytestOptions(2, 1, null)
+        {
+            Observe = (_, run, _) =>
+            {
+                foreach (var a in run.State.Actors.Values)
+                {
+                    if (a.CastId == "choir.healCast" && a.CastStartTick is { } s && a.CastEndsTick is { } e)
+                    {
+                        casts[(a.Id, s)] = e;
+                    }
+                }
+            },
+        }, Registry);
+        var tickRx = new System.Text.RegularExpressions.Regex("\"tick\":(\\d+)");
+        var targetRx = new System.Text.RegularExpressions.Regex("\"targetId\":(\\d+)");
+        var mending = r.Log.Split('\n').Where(l => l.StartsWith("E ", System.StringComparison.Ordinal) && l.Contains("\"abilityId\":\"choir.healCast\"")).ToList();
+        // Kicks only: an interrupt event with a "stop" field is a crowd-control side effect (a silence or stun riding a
+        // rotational cast), not the kick ledger's press.
+        var stops = mending.Where(l => l.Contains("\"type\":\"interrupt\"") && !l.Contains("\"stop\":")).ToList();
+        Assert.True(stops.Count > 0, "the default run never kicked a Choral Mending; the check would be vacuous");
+        var failures = new System.Collections.Generic.List<string>();
+        foreach (var l in stops)
+        {
+            var tick = int.Parse(tickRx.Match(l).Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            var target = int.Parse(targetRx.Match(l).Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            var start = casts.Keys.Where(k => k.Actor == target && k.Start <= tick && tick < casts[k]).Select(k => (int?)k.Start).Max();
+            if (start is null)
+            {
+                failures.Add($"stop at {tick} on {target} matches no observed cast");
+            }
+            else if (tick - start.Value < VisibleCastBarTicks)
+            {
+                failures.Add($"Mending {start}..{casts[(target, start.Value)]} on {target} stopped at {tick}, its bar seen only {tick - start.Value} ticks");
+            }
+        }
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+    }
+
     [Fact(DisplayName = "Choir lesson: a party that kicks Choral Mending clears the Choir and kills the boss inside par at key 2 (a kick plan and the scripted party)")]
     public void Kicking_party_times_the_key()
     {

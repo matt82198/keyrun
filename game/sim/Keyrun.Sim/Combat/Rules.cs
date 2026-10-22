@@ -141,13 +141,13 @@ public static class Rules
                 {
                     // The verse variant is resolved before CompleteCast credits the cast's own resource ops (a swap).
                     var def = cfg.Abilities.TryGetValue(actor.CastId, out var found) ? Abilities.ResolveVerse(found, actor) : null;
-                    Casting.CompleteCast(state, actor, ctx, emit);
+                    // R2: CompleteCast ends the cast whole (pin included) and hands it back; CAST-KEEPS-START-TARGET,
+                    // its Windows resolve on the ended cast's start target, as its effects did.
+                    var ended = Casting.CompleteCast(state, actor, ctx, emit);
                     if (def is not null)
                     {
-                        Windows.ApplyWindowsAndCombos(state, actor, def, wctx, emit);
+                        Windows.ApplyWindowsAndCombos(state, actor, def, ended, wctx, emit);
                     }
-                    // CAST-KEEPS-START-TARGET: the cast's effects and Windows both resolved on its start target.
-                    Casting.ReleaseCastTarget(actor);
                 }
             }
 
@@ -202,8 +202,8 @@ public static class Rules
                         if (err is null && def.CastTicks == 0)
                         {
                             var resolved = Abilities.ResolveVerse(def, actor);
-                            Casting.CompleteCast(state, actor, ctx, emit);
-                            Windows.ApplyWindowsAndCombos(state, actor, resolved, wctx, emit);
+                            var ended = Casting.CompleteCast(state, actor, ctx, emit);
+                            Windows.ApplyWindowsAndCombos(state, actor, resolved, ended, wctx, emit);
                         }
                         break;
                 }
