@@ -30,7 +30,7 @@ public sealed class QueuedFacetOnceTests
         var facet = Registry.Facets[FacetId];
         var progression = Progression.Start(1).Take(new Item("reward-armor-t1-0", "armor", 1, new Facet(facet.Id, facet.Text, facet.AbilityId), Rewards.StartingCharges));
         var picks = TalentPicks.Start(Registry.Classes[ClassId]).Pick(0, 0);
-        var state = ScreenState.Open("hollow-vault", Registry.Clauses.Keys.ToList(), 2);
+        var state = ScreenState.Open("hollow-vault", Registry.Clauses.Keys.ToList(), 2, 0, ScreenState.NoClauseStartKey);
 
         var (_, request) = QueuedKit.Queue(state, Registry, picks, progression, ClassId);
         var setup = HostRunSetup.Build(Registry, request!.DungeonId, request.KeyLevel, ClassId, withBots: false);

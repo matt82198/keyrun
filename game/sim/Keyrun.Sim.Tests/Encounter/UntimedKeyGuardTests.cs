@@ -30,7 +30,7 @@ public sealed class UntimedKeyGuardTests
                 {
                     var move = KeyMove.Of(result, key, finish, Par);
                     Assert.Equal((key, key, 0), (move.From, move.To, move.Tier));
-                    Assert.Equal(key, ScreenState.Open("hollow-vault", new[] { "echo", "tide", "hush", "pact" }, move.To).KeyLevel);
+                    Assert.Equal(key, ScreenState.Open("hollow-vault", new[] { "echo", "tide", "hush", "pact" }, move.To, 0, ScreenState.NoClauseStartKey).KeyLevel);
                 }
             }
         }
