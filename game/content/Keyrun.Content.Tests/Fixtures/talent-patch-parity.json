@@ -4049,7 +4049,7 @@
         "variants": {
           "mend": [
             {
-              "durationTicks": 60,
+              "durationTicks": 100,
               "effectId": "mendingHot",
               "op": "applyEffect",
               "stacks": 1
@@ -4064,7 +4064,7 @@
           ],
           "ward": [
             {
-              "durationTicks": 60,
+              "durationTicks": 100,
               "effectId": "wardShield",
               "op": "applyEffect",
               "stacks": 1
@@ -4088,7 +4088,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 0,
+        "cooldownTicks": 60,
         "cost": {
           "amount": 0,
           "resource": "none"

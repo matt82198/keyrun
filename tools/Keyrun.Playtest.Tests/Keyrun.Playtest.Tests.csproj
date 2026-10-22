@@ -40,6 +40,11 @@
     <Compile Include="../../game/src/Host/AffixWeek.cs" Link="Host/AffixWeek.cs" />
     <!-- f-04dba988: the HUD's Godot-free MISS/IMMUNE word path (CombatText.cs calls it per event), driven by real runs. -->
     <Compile Include="../../game/src/Hud/CombatTextWords.cs" Link="Hud/CombatTextWords.cs" />
+    <!-- R-DECLUTTER-1: the Godot-free cast proof (one placement decision per cast per step) and the unit frame model it
+         reads (CastProofTests). HudDeclutter is the placement rule the proof uses. -->
+    <Compile Include="../../game/src/Hud/CastProof.cs" Link="Hud/CastProof.cs" />
+    <Compile Include="../../game/src/Hud/UnitFrameModel.cs" Link="Hud/UnitFrameModel.cs" />
+    <Compile Include="../../game/src/Hud/HudDeclutter.cs" Link="Hud/HudDeclutter.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -30,6 +30,16 @@ namespace Keyrun.Playtest.Tests;
 /// at 1751. With the Warden acting from tick 0 he engages first (75) and nothing is ever loose: no real autorun run
 /// produces a loose enemy under the holder lock; the trigger is content (adds, patrols, aggro resets), the rule is right.
 /// </para>
+/// <para>
+/// R-PATH-1 rebuild (coordinator ruling on PR #551): those numbers pinned a collision artifact, not the rule. On main
+/// 3bb6eed5 the "late" Warden never acted before the engage, yet the careless Cinder, walking head-on at the z = 0 doorway
+/// point, shoved him 4140 -> 10889 mm by tick 75 (a symmetric push of about 90 mm/tick), so he stood in the Choir room when
+/// it engaged. With pathing the Cinder walks its computed path past him, the push is gone, he really starts from the
+/// Entrance, and the Cinder died at 436 before the third Taunt. The scenario now places the Warden where main's push had
+/// carried him (<see cref="LateWardenX"/>, <see cref="LateWardenZ"/>), still idle until the engage, so he is late by his
+/// own start. Measured with pathing: engage 80 with all three held by seat 3; Taunts move them back at 108, 268, 428; no
+/// seat dies; the Choir clears at 1641.
+/// </para>
 /// </summary>
 public sealed class RunCWardenPicksUpLooseTests
 {
@@ -40,6 +50,11 @@ public sealed class RunCWardenPicksUpLooseTests
     private const int CarelessFromTick = 0; // R-PILE-9: the Cinder pulls before the Warden engages
     private const int WardenId = 1;
     private const string Taunt = "warden.taunt";
+
+    // R-PATH-1 rebuild: where main's collision push had put the idle Warden at the Choir engage (tick 122; measured
+    // x 11593 z -312 at tick 100 and x 12309 z -360 at tick 125 on main 3bb6eed5), inside the Choir room, outside its ring.
+    private const long LateWardenX = 12200;
+    private const long LateWardenZ = -350;
 
     private sealed record Drive(
         int? EngageTick, int? LooseTick, IReadOnlyDictionary<int, int> LooseHolders, List<(int Tick, int Enemy)> TauntsBack,
@@ -58,7 +73,12 @@ public sealed class RunCWardenPicksUpLooseTests
         var registry = ContentLoader.Load();
         var setup = HostRunSetup.Build(registry, "hollow-vault", Key, "warden", withBots: true);
         var start = setup.StartFor(null, null, registry, "warden");
-        var created = RunRoot.CreateRun(Seed, setup.PartyFor(setup.Dungeon), setup.Dungeon, setup.Content, start.Options);
+        // R-PATH-1 rebuild: the Warden starts where main's collision push had carried him by the Choir engage (see the
+        // class summary), so he is late by his own idle start, not by the Cinder shoving him.
+        var party = setup.PartyFor(setup.Dungeon)
+            .Select(m => m.Id == WardenId ? m with { Pos = new Vec3(LateWardenX, m.Pos.Y, LateWardenZ) } : m)
+            .ToList();
+        var created = RunRoot.CreateRun(Seed, party, setup.Dungeon, setup.Content, start.Options);
         var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
         Assert.Equal("choir", setup.Dungeon.Pulls[0].Id);
         var choirIds = setup.Dungeon.Pulls[0].Spawns.Select(s => s.ActorId).ToList();

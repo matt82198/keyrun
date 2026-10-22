@@ -107,7 +107,7 @@ public static class HealPick
             {
                 return new Command[] { new CastCommand(tick, self.Id, second.AbilityId) };
             }
-            if (self.CastId is null && target.Id != self.Id && Moves.MoveToward(tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(target.Pos)) is { } walk)
+            if (self.CastId is null && target.Id != self.Id && PathMoves.Toward(view, tick, self, target.Pos) is { } walk)
             {
                 return new Command[] { walk };
             }
@@ -120,6 +120,6 @@ public static class HealPick
         {
             return Array.Empty<Command>();
         }
-        return Moves.MoveToward(tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(target.Pos)) is { } move ? new Command[] { move } : Array.Empty<Command>();
+        return PathMoves.Toward(view, tick, self, target.Pos) is { } move ? new Command[] { move } : Array.Empty<Command>();
     }
 }

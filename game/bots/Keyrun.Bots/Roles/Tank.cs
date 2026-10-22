@@ -75,6 +75,10 @@ public sealed class TankRole : IRole
         {
             return new Command[] { escape };
         }
+        if (BreakBarKick.Command(view, self, kit) is { } barKick)
+        {
+            return new Command[] { barKick };
+        }
         if (Floor.MeleeReapproachCommand(view, self) is { } reapproach)
         {
             return new Command[] { reapproach };
