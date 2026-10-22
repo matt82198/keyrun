@@ -57,6 +57,9 @@ public static class RunWiring
             // was loaded from: under the TS rule a pack locked on a standing tank (HOLDER-LOCK D30) shoves him
             // back through a doorway the party already crossed.
             TsSymmetricPushOut = content.TsSymmetricPushOut && content.Layout is null,
+            // TEMPO-LOOP-CLAMP: a frozen-TS replay marks every enemy step TsCastReplace (Keyrun.Replay RunSetup.TsScripts);
+            // any other run's scheduler never fires a cast before its cooldown, so a not_ready refusal is reported.
+            ReportsEnemyNotReady = !content.EnemyScripts.Values.Any(s => s is not null && s.Any(step => step.TsCastReplace)),
         };
     }
 

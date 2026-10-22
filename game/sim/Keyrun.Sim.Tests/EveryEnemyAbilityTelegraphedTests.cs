@@ -76,6 +76,10 @@ public sealed class EveryEnemyAbilityTelegraphedTests
     public static readonly IReadOnlySet<string> OnDeathBursts = new HashSet<string>(StringComparer.Ordinal)
     {
         "ash.cinders",
+        // D66 (the Sunken Bellfoundry): the Furnace Thrall's Slag Burst, the same kind of burst as Cinders (a burn on
+        // whoever stands in a 3000 mm circle, telegraphed 40 ticks), fired only by its gated onDeath step (an Overheated
+        // Core, a Stoke Core the party did not kick); its warning is the Stoke Core cast bar while it lives.
+        "furnaceThrall.slagBurst",
     };
 
     private const int AutoAttackMaxRangeMm = 3000;
@@ -458,6 +462,10 @@ public sealed class EveryEnemyAbilityTelegraphedTests
             "applyEffect" => new SC.ApplyEffectOp(StrOf(o.Get("effectId"))!, (int)req(o, "durationTicks"), req(o, "stacks")),
             "damagePct" => new SC.DamagePctOp(req(o, "maxHealthBp"), StrOf(o.Get("school"))!),
             "pull" => new SC.PullOp(req(o, "distanceMm")),
+            // D66 abilities/bellfoundry.json: Ommet's Temper (a heal) and Old Sorrow's Still the Bell (its Lock Window).
+            "heal" => new SC.HealOp(req(o, "amount")),
+            "window" => new SC.WindowOp(StrOf(o.Get("windowId"))!, (int)req(o, "durationTicks"), o.Get("onTarget") is JsBool { Value: true }, StrOf(o.Get("setupClass"))!,
+                o.Get("self") is JsBool s ? s.Value : null, o.Get("alternate") is JsBool alt ? alt.Value : null),
             var k => throw new InvalidOperationException($"C#-only kit op '{k}' is not read by this test"),
         };
         var abilities = items("abilities").ToDictionary(Id, a =>

@@ -35,6 +35,72 @@ public partial class Screen
         {
             Proof($"SCREEN class ability key={keyLabel} name=\"{name}\"");
         }
+        ProofSheet();
+        ProofSeats();
+    }
+
+    // The Character tab's sheet (f-08279d82): class, key, Ascension and the five slots, from the pure CharacterSheet.
+    private CharacterSheet? Sheet() =>
+        _driver?.Registry is { } reg && _lobby is { } lobby ? CharacterSheet.Of(reg, _progression, lobby) : null;
+
+    private void ProofSheet()
+    {
+        if (Sheet() is not { } sheet)
+        {
+            return;
+        }
+        Proof(FormattableString.Invariant(
+            $"SCREEN sheet class={sheet.ClassId} key={sheet.KeyLevel} marks={sheet.Ascension.Marks} ascended={(sheet.Ascension.Ascended ? 1 : 0)}"));
+        foreach (var g in sheet.Gear)
+        {
+            Proof(g.Equipped
+                ? FormattableString.Invariant(
+                    $"SCREEN sheet slot={g.Slot} state=equipped tier={g.Tier} name=\"{g.Name}\" facet={g.FacetId} active={(g.FacetActive ? 1 : 0)}")
+                : FormattableString.Invariant($"SCREEN sheet slot={g.Slot} state=empty"));
+        }
+    }
+
+    // Character tab, middle: who this character is before the queue: the class, the key it queues at, the Ascension
+    // marks, and the five equipped slots by name with tier and Facet (the full detail and the reroll are on Gear).
+    private void DrawSheet(Rect2 r)
+    {
+        Band(r, "Character");
+        if (Sheet() is not { } sheet)
+        {
+            return;
+        }
+        var x = r.Position.X + 14;
+        var inner = r.Size.X - 28;
+        var y = r.Position.Y + 60;
+        HudNodes.Text(this, new Vector2(x, y), sheet.ClassName, 22, Parchment);
+        var keyText = FormattableString.Invariant($"Key +{sheet.KeyLevel}");
+        HudNodes.Text(this, new Vector2(r.End.X - 14 - HudNodes.Width(keyText, 18), y), keyText, 18, Gold);
+        y += 22;
+        var marks = sheet.Ascension.Ascended || sheet.Ascension.Marks > 0
+            ? FormattableString.Invariant($"Ascension marks {sheet.Ascension.Marks}{(sheet.Ascension.Ascended ? "  (ascended)" : string.Empty)}")
+            : FormattableString.Invariant($"Slots at tier {Progression.MaxTier}: {sheet.Ascension.SlotsAtCap} of {Rewards.GearSlots.Count}");
+        HudNodes.Text(this, new Vector2(x, y), Clip(marks, inner, SmallFont), SmallFont, sheet.Ascension.Ascended ? Gold : Dim);
+        y += 16;
+        var rowHeight = Math.Min(64f, (r.End.Y - y - 8) / sheet.Gear.Count);
+        foreach (var g in sheet.Gear)
+        {
+            var box = new Rect2(x, y, inner, rowHeight - 6);
+            DrawRect(box, CardBg);
+            DrawRect(box, BronzeDim, filled: false, width: 1f);
+            HudNodes.Text(this, box.Position + new Vector2(10, 18), g.Slot.ToUpperInvariant(), SmallFont, Dim);
+            if (!g.Equipped)
+            {
+                HudNodes.Text(this, box.Position + new Vector2(96, 18), "Empty", BodyFont, new Color(Parchment, 0.4f));
+            }
+            else
+            {
+                var tier = FormattableString.Invariant($"Tier {g.Tier}");
+                HudNodes.Text(this, box.Position + new Vector2(box.Size.X - 10 - HudNodes.Width(tier, BodyFont), 18), tier, BodyFont, TierColor(g.Tier));
+                HudNodes.Text(this, box.Position + new Vector2(96, 18), Clip(g.Name, box.Size.X - 180, BodyFont), BodyFont, Parchment);
+                HudNodes.Text(this, box.Position + new Vector2(10, 38), Clip(g.FacetText, box.Size.X - 20, SmallFont), SmallFont, g.FacetActive ? Calm : Dim);
+            }
+            y += rowHeight;
+        }
     }
 
     // Up/Down on the Character tab: the next or previous class in roster order.

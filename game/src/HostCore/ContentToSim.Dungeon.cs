@@ -18,7 +18,7 @@ public sealed partial record HostRunSetup
     /// and scripts, and the boss appended as one more pull at <see cref="BossActorId"/>.
     /// </summary>
     private static (DungeonDef Dungeon, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> Scripts) ToSimDungeon(
-        C.ContentRegistry registry, C.DungeonDef dungeonDef, int keyLevel, int trashHealthBp, int bossHealthBp)
+        C.ContentRegistry registry, C.DungeonDef dungeonDef, C.EnemyDef boss, int keyLevel, int trashHealthBp, int bossHealthBp)
     {
         // Plan M5: Fortified (trash) and Tyrannical (boss) health on top of Tempo, applied at spawn.
         var nextId = PullActorIdStart;
@@ -40,7 +40,6 @@ public sealed partial record HostRunSetup
             pulls.Add(new PullDef(pull.Id, spawns));
         }
 
-        var boss = Enemy(registry, dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss");
         // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon (Build, after this) stands it at the
         // arena origin and gives it the arena's aggroMm (layout.json), the same helper the bots use.
         pulls.Add(new PullDef(C.LayoutDef.BossPullId, new[]
@@ -49,6 +48,23 @@ public sealed partial record HostRunSetup
         }));
         scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel, CastFloors(registry, keyLevel));
         return (new DungeonDef(dungeonDef.Id, pulls), scripts);
+    }
+
+    /// <summary>
+    /// D66: the sim script an enemy runs at <paramref name="keyLevel"/>, exactly as a pull or pack member gets it
+    /// (Tempo-scaled, each loop floored against its cast's key-scaled cooldown, gates kept). For the seeded fill, which
+    /// places roster packs the setup's layout does not carry, and for scenario tests of a single enemy kind.
+    /// </summary>
+    /// <param name="registry">The content.</param>
+    /// <param name="enemyId">The enemy.</param>
+    /// <param name="keyLevel">The key level.</param>
+    /// <returns>The scaled script.</returns>
+    /// <exception cref="InvalidOperationException">The enemy is unknown.</exception>
+    public static IReadOnlyList<ScriptStep> EnemyScript(C.ContentRegistry registry, string enemyId, int keyLevel)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        var def = Enemy(registry, enemyId, "enemy script");
+        return Tempo.ScaleScript(ToSim(def.Script), keyLevel, CastFloors(registry, keyLevel));
     }
 
     /// <summary>
@@ -127,6 +143,7 @@ public sealed partial record HostRunSetup
                 C.ScriptTarget.Random => ScriptTargetOverride.Random,
                 _ => throw new InvalidOperationException($"run setup: script step casting \"{s.Cast}\" has unknown target {s.Target}"),
             },
+            When = s.When is { } w ? new ScriptGate(w.HasEffect, w.HealthBelowBp) : null,
         };
     }
 

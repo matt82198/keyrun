@@ -25,14 +25,23 @@ public partial class Screen
         {
             case LobbyTab.Character:
                 DrawClasses(l);
-                DrawGear(l.Gear);
+                DrawSheet(l.Gear);
                 DrawKit(l.Kit);
+                break;
+            case LobbyTab.Gear:
+                DrawGear(l.GearFull);
+                DrawGearDetail(l.GearDetail);
                 break;
             case LobbyTab.Build:
                 break; // the TalentPanel child draws the Build tab
-            default:
+            case LobbyTab.Key:
                 DrawSummary(l.Summary);
                 DrawKey(l.Key, lobby.Key);
+                DrawKeyNote(l.Note, lobby.Key);
+                break;
+            default:
+                DrawSummary(l.Summary);
+                DrawSeats(l.Key, lobby.Key);
                 DrawQueue(l.Queue, lobby.Key);
                 break;
         }
@@ -99,15 +108,19 @@ public partial class Screen
     }
 
     // The rects of every tab at a screen of `size`: the tab bar, then per tab its panels. Only the open tab's panels
-    // are drawn; the Clause cards and the talent panel are child controls placed here and shown on their own tab only.
+    // are drawn; the talent panel is a child control placed here and shown on the Build tab only. The Queue tab reuses
+    // the Key tab's left and middle columns (summary, seats) and puts the Queue box in the right one.
     private readonly record struct ScreenLayout(
         IReadOnlyList<Rect2> Tabs,
         Rect2 Classes,
         IReadOnlyList<Rect2> ClassCards,
         Rect2 Gear,
         Rect2 Kit,
+        Rect2 GearFull,
+        Rect2 GearDetail,
         Rect2 Summary,
         Rect2 Key,
+        Rect2 Note,
         Rect2 Queue,
         Rect2 KeyDown,
         Rect2 KeyUp,
@@ -140,14 +153,15 @@ public partial class Screen
             .Select(i => new Rect2(TabsLeft + (i * (TabWidth + 6)), 12, TabWidth, top - 18))
             .ToList();
 
-        // Play: summary | key band with the Clause cards | Queue.
+        // Key: summary | key band | a note on what Queue does. Queue: summary | the seats | the Queue box.
         var summary = new Rect2(Margin, top, width * 0.28f, height);
         var key = new Rect2(summary.End.X + 16, top, width * 0.40f, height);
+        var note = new Rect2(key.End.X + 16, top, size.X - Margin - key.End.X - 16, height);
         var queue = new Rect2(key.End.X + 16, top, size.X - Margin - key.End.X - 16, 120);
         var keyDown = new Rect2(key.Position.X + 14, key.Position.Y + 44, 40, 40);
         var keyUp = new Rect2(key.Position.X + 150, key.Position.Y + 44, 40, 40);
 
-        // Character: class cards | the five gear slots | the class kit.
+        // Character: class cards | the character sheet (key, Ascension, the five slots) | the class kit.
         var classes = new Rect2(Margin, top, width * 0.28f, height);
         var cards = Enumerable.Range(0, 3)
             .Select(i => new Rect2(classes.Position.X + 12, classes.Position.Y + 40 + (i * 92), classes.Size.X - 24, 84))
@@ -155,9 +169,13 @@ public partial class Screen
         var gear = new Rect2(classes.End.X + 16, top, width * 0.42f, height);
         var kit = new Rect2(gear.End.X + 16, top, size.X - Margin - gear.End.X - 16, height);
 
+        // Gear: the five slots in detail | the selected item.
+        var gearFull = new Rect2(Margin, top, width * 0.58f, height);
+        var gearDetail = new Rect2(gearFull.End.X + 16, top, size.X - Margin - gearFull.End.X - 16, height);
+
         // Build: the talent panel over the whole content area.
         var talents = new Rect2(Margin, top, width, height);
-        return new ScreenLayout(tabs, classes, cards, gear, kit, summary, key, queue, keyDown, keyUp, talents);
+        return new ScreenLayout(tabs, classes, cards, gear, kit, gearFull, gearDetail, summary, key, note, queue, keyDown, keyUp, talents);
     }
 
     // project.godot display/window/size/viewport_width and _height (1280x720).
@@ -174,7 +192,7 @@ public partial class Screen
         DrawRect(new Rect2(r.Position.X + 14, r.Position.Y + 31, Math.Min(120, r.Size.X - 28), 1), BronzeDim);
     }
 
-    // The title and the three tabs in the title row (the Dark and Darker lobby shape: one bar of tabs over one screen),
+    // The title and the five tabs in the title row (the Dark and Darker lobby shape: one bar of tabs over one screen),
     // the active tab lit with a gold rule under it, and the character's Ash and private rating on the right.
     private void DrawTabBar(ScreenLayout l, Lobby lobby)
     {
@@ -205,15 +223,19 @@ public partial class Screen
     private static string TabLabel(LobbyTab tab) => tab switch
     {
         LobbyTab.Character => "CHARACTER",
+        LobbyTab.Gear => "GEAR",
         LobbyTab.Build => "BUILD",
-        _ => "PLAY",
+        LobbyTab.Key => "KEY",
+        _ => "QUEUE",
     };
 
     private static string HintFor(LobbyTab tab) => tab switch
     {
-        LobbyTab.Character => "Q/E tabs    Up/Down class    Tab item    R reroll Facet    Enter queue",
+        LobbyTab.Character => "Q/E or F1-F5 tabs    Up/Down class    T talents    Enter queue",
+        LobbyTab.Gear => "Q/E tabs    Up/Down or Tab item    R reroll Facet    Enter queue",
         LobbyTab.Build => "Q/E tabs    Up/Down fork    1-3 pick    Backspace respec    T back    Enter queue",
-        _ => "Q/E tabs    Left/Right key    T talents    Enter queue",
+        LobbyTab.Key => "Q/E tabs    Left/Right key    Enter queue",
+        _ => "Q/E tabs    Enter or click Queue",
     };
 
     private static string Clip(string text, float width, int size)

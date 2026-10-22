@@ -52,23 +52,36 @@ public sealed class DangerousCastTelegraphTests
         }
 
         Assert.True(failures.Count == 0, string.Join(System.Environment.NewLine, failures));
-        // Vacuity guard: seed.slam, seed.lash (KF3-SEED-ENGAGE), hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam.
-        Assert.Equal(6, count);
+        // Vacuity guard: seed.slam, seed.lash (KF3-SEED-ENGAGE), hollowWarden.slam, hollowWarden.cleave, twinA and twinB
+        // twins.slam; D66 the Sunken Bellfoundry's bosses and Clappers: ommet.pourSlag, brineMother.undertow, boilingSurge
+        // and drowningHymn, greatBell.clangour, and clapperA and clapperB greatBell.peal (was 6).
+        Assert.Equal(13, count);
     }
 
     [Fact]
     public void The_bosss_Lock_is_a_cast_with_a_bar_and_a_floor_circle_that_spans_it()
     {
         // LOCK-TELEGRAPH (f-dfafcec6): the Lock deals no damage, so the rule above never saw it, and it shipped with
-        // castTicks 0 and no telegraph: the boss's biggest mechanic began with no bar and nothing on the floor. The one
-        // boss script step that casts the setup:lock ability must have a cast bar and a circle that spans the cast.
-        var lockStep = Assert.Single(
+        // castTicks 0 and no telegraph: the boss's biggest mechanic began with no bar and nothing on the floor. Every
+        // boss script step that casts a setup:lock ability must have a cast bar and a circle that spans the cast: the
+        // Hollow Warden's Lock and (D66) Old Sorrow's Still the Bell.
+        var lockSteps = (
             from enemy in Reg.Enemies.Values
             where enemy.Role == EnemyRole.Boss
             from step in enemy.Script
             let ability = Reg.Abilities[step.Cast]
             where ability.Tags.Contains("setup:lock")
-            select (enemy, step, ability));
+            select (enemy, step, ability)).ToList();
+        Assert.Equal(new[] { "hollowWarden.boss", "bellfoundry.greatBell" }, lockSteps.Select(l => l.enemy.Id));
+        foreach (var lockStep in lockSteps)
+        {
+            AssertLockStep(lockStep.enemy, lockStep.step, lockStep.ability);
+        }
+    }
+
+    private static void AssertLockStep(EnemyDef enemy, ScriptStep step, AbilityDef ability)
+    {
+        var lockStep = (enemy, step, ability);
         string at = lockStep.enemy.Id + " -> " + lockStep.ability.Id;
         Assert.True(lockStep.ability.CastTicks > 0, at + ": castTicks " + lockStep.ability.CastTicks + " (no cast bar)");
         var telegraph = lockStep.step.Telegraph;
@@ -83,9 +96,10 @@ public sealed class DangerousCastTelegraphTests
     public void Every_dangerous_cast_telegraph_spans_the_cast()
     {
         // SLAM-TELEGRAPH: the floor shape stays down for the whole cast bar and resolves when the cast lands
-        // (seed.slam, seed.lash, hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam).
+        // (seed.slam, seed.lash, hollowWarden.slam, hollowWarden.cleave, twinA and twinB twins.slam, and the seven D66
+        // Sunken Bellfoundry boss and Clapper casts the rule above counts).
         var slams = DangerousSteps().ToList();
-        Assert.Equal(6, slams.Count);
+        Assert.Equal(13, slams.Count);
         Assert.All(slams, s =>
         {
             Assert.True(s.Step.Telegraph?.SpansCast == true, s.Enemy.Id + " -> " + s.Ability.Id + " telegraph does not span its cast");
