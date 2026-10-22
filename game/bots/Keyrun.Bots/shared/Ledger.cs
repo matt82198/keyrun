@@ -200,6 +200,67 @@ public static class Ledger
             .ThenBy(s => s.ActorId)
             .Select(s => (int?)s.ActorId)
             .FirstOrDefault();
-        return kicker is null ? null : new InterruptAssignment(targetId.Value, kicker.Value);
+        if (kicker is not null)
+        {
+            return new InterruptAssignment(targetId.Value, kicker.Value);
+        }
+        var late = LateKicker(actors, seats, target, tick);
+        return late is null ? null : new InterruptAssignment(targetId.Value, late.Value);
     }
+
+    /// <summary>
+    /// KICK-LEDGER-COOLDOWN-GAP (finding f-13b5c33a; the WoW Mythic+ kick rotation): when no seat can kick the cast right
+    /// now, the next must-kick goes to the seat that can land a kick before the cast resolves. A seat whose interrupt is on
+    /// cooldown but comes off it before the resolve waits and kicks late, and a seat whose interrupt is ready but out of
+    /// its range walks in (the Warden's 3 m Shield Bash). The landing tick of a seat is the latest of now, its cooldown
+    /// end, its GCD (an off-GCD interrupt has none), its own cast ending and its walk into range at the seat's own speed
+    /// (<see cref="DefaultWalkMmPerTick"/> when it has none). A kick must land strictly before the cast's end tick (a
+    /// cast ending on a tick completes before that tick's commands run). The earliest landing wins, ties to the least
+    /// recently kicked (earliest cooldown end), then the lowest seat id. Integer ticks and mm only.
+    /// </summary>
+    private static int? LateKicker(
+        SortedDictionary<int, ActorState> actors,
+        IEnumerable<(int ActorId, string InterruptAbilityId, long RangeMm, bool InterruptOffGcd)> seats,
+        ActorState target,
+        int tick)
+    {
+        if (target.CastEndsTick is not { } ends)
+        {
+            return null;
+        }
+        return seats
+            .Where(s => actors.TryGetValue(s.ActorId, out var a) && a.Alive)
+            .Select(s => (Seat: s, Actor: actors[s.ActorId]))
+            .Select(x => (x.Seat.ActorId, Ready: Readiness.CooldownReadyTick(x.Actor, x.Seat.InterruptAbilityId), Land: LandingTickOf(x.Actor, x.Seat, target, tick)))
+            .Where(x => x.Land < ends)
+            .OrderBy(x => x.Land)
+            .ThenBy(x => x.Ready)
+            .ThenBy(x => x.ActorId)
+            .Select(x => (int?)x.ActorId)
+            .FirstOrDefault();
+    }
+
+    /// <summary>The tick <paramref name="seat"/> can land its interrupt on <paramref name="target"/> if it starts at <paramref name="tick"/>.</summary>
+    private static long LandingTickOf(ActorState a, (int ActorId, string InterruptAbilityId, long RangeMm, bool InterruptOffGcd) seat, ActorState target, int tick)
+    {
+        long land = Math.Max(tick, Readiness.CooldownReadyTick(a, seat.InterruptAbilityId));
+        land = Math.Max(land, Readiness.LandingTick(a, tick));
+        if (!seat.InterruptOffGcd)
+        {
+            land = Math.Max(land, a.GcdReadyTick);
+        }
+        var gap = Casting.RangeMm(a, target) - seat.RangeMm;
+        if (gap > 0)
+        {
+            var speed = a.SpeedMmPerTick ?? DefaultWalkMmPerTick;
+            land = Math.Max(land, tick + ((gap + speed - 1) / speed));
+        }
+        return land;
+    }
+
+    /// <summary>
+    /// KICK-LEDGER-COOLDOWN-GAP: the walk speed, mm per tick, the ledger assumes for a seat with no speed of its own; equal to
+    /// the dungeon content's baseSpeedMmPerTick (180 mm/tick, 3.6 m per second at 20 Hz).
+    /// </summary>
+    public const long DefaultWalkMmPerTick = 180;
 }
