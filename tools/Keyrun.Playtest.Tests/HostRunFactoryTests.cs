@@ -163,15 +163,34 @@ public sealed class HostRunFactoryTests
         Assert.NotEqual(host.Hash, bare.Hash);
     }
 
-    /// <summary>The factory keeps StartRun's fail-closed <c>--pull N</c> check, message included.</summary>
-    [Fact(DisplayName = "HostRunFactory.Create refuses a --pull past the dungeon's pulls with StartRun's message")]
-    public void Factory_refuses_a_pull_past_the_dungeon()
+    /// <summary>
+    /// <c>--pull N</c> is out of range below 1 or above the dungeon's pulls; the message names the valid range (route
+    /// order, segment boss pulls included).
+    /// </summary>
+    [Fact(DisplayName = "HostRunFactory.Create refuses a --pull outside 1..pulls and names the valid range")]
+    public void Factory_refuses_a_pull_out_of_range()
     {
         var registry = ContentLoader.Load();
         var classId = Lobby.DefaultClassId;
         var setup = HostRunSetup.Build(registry, DungeonId, Key, classId, withBots: true, rotationIndex: 0);
-        var past = setup.Dungeon.Pulls.Count + 1;
-        var e = Assert.Throws<ArgumentException>(() => HostRunFactory.Create(setup, new RunRequest(Seed, registry, classId) { StartPull = past }));
-        Assert.Equal(FormattableString.Invariant($"--pull {past} is past the dungeon's {setup.Dungeon.Pulls.Count} pulls"), e.Message);
+        var count = setup.Dungeon.Pulls.Count;
+        foreach (var bad in new[] { count + 1, 0 })
+        {
+            var e = Assert.Throws<ArgumentException>(() => HostRunFactory.Create(setup, new RunRequest(Seed, registry, classId) { StartPull = bad }));
+            Assert.Equal(
+                FormattableString.Invariant($"--pull {bad} is out of range: the dungeon's pulls are numbered 1..{count} in route order (segment boss pulls included)"),
+                e.Message);
+        }
+    }
+
+    [Fact(DisplayName = "HostRunFactory.Create starts a multi-boss run at --pull N in route order, boss pulls included")]
+    public void Factory_starts_a_multi_boss_run_at_a_route_order_pull()
+    {
+        var registry = ContentLoader.Load();
+        var classId = Lobby.DefaultClassId;
+        var setup = HostRunSetup.Build(registry, "sunken-bellfoundry", Key, classId, withBots: true, rotationIndex: 0, dungeonSeed: Seed);
+        Assert.Equal(new[] { "boss-s1", "boss-s2", "boss" }, setup.Dungeon.Pulls.Select(p => p.Id));
+        var run = HostRunFactory.Create(setup, new RunRequest(Seed, registry, classId) { StartPull = 2 }).Run;
+        Assert.Equal(new[] { "boss-s2", "boss" }, run.Dungeon.Pulls.Select(p => p.Id));
     }
 }

@@ -2,9 +2,23 @@ using System;
 using System.Linq;
 using Keyrun.Content;
 using Keyrun.Sim.Core;
+using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Runs;
 
 namespace Keyrun.Hud;
+
+/// <summary>What the objective's task line counts (f-c5fb7b31).</summary>
+public enum ObjectiveFocus
+{
+    /// <summary>The current pull's own enemies (the default; every pull that is engaged, and every trash pull).</summary>
+    Pull,
+
+    /// <summary>An engaged generated trash pack's living enemies, while the next boss pull is not yet engaged.</summary>
+    Pack,
+
+    /// <summary>No count: trash is alive but no pack is engaged and the next boss pull is not engaged yet.</summary>
+    Hidden,
+}
 
 /// <summary>The objective line for the current pull (Godot-free).</summary>
 /// <param name="Number">1-based position of the current pull in the dungeon (boss last).</param>
@@ -14,7 +28,7 @@ namespace Keyrun.Hud;
 /// <param name="Remaining">Enemies of this pull still alive; once complete, enemies still alive anywhere in the run.</param>
 /// <param name="Count">Enemies the pull spawned; once complete, enemies the run spawned.</param>
 /// <param name="Complete">True once the pull index is past the last pull (the run is cleared).</param>
-public sealed record ObjectiveLine(int Number, int Total, string PullId, string Name, int Remaining, int Count, bool Complete)
+public sealed record ObjectiveLine(int Number, int Total, string PullId, string Name, int Remaining, int Count, bool Complete, ObjectiveFocus Focus = ObjectiveFocus.Pull)
 {
     /// <summary>
     /// The line a player reads: "Pull 1/4  The Choir" (<see cref="PullHeader.Title"/>; the content <c>teaches</c> note
@@ -24,7 +38,10 @@ public sealed record ObjectiveLine(int Number, int Total, string PullId, string 
         ? FormattableString.Invariant($"{Name} cleared")
         : new PullHeader(Number, Total, Name).Title;
 
-    /// <summary>The task under it: "Defeat the pull: 3 of 3 remain".</summary>
+    /// <summary>
+    /// The task under it: "Defeat the pull: 3 of 3 remain", or "Defeat the pack" while an engaged trash pack is what
+    /// is fought, or empty (hidden) while trash is alive and the next boss pull is not engaged (f-c5fb7b31).
+    /// </summary>
     public string Task => Complete
         ? Remaining switch
         {
@@ -32,7 +49,12 @@ public sealed record ObjectiveLine(int Number, int Total, string PullId, string 
             1 => "1 enemy left standing",
             _ => FormattableString.Invariant($"{Remaining} enemies left standing"),
         }
-        : FormattableString.Invariant($"Defeat the pull: {Remaining} of {Count} remain");
+        : Focus switch
+        {
+            ObjectiveFocus.Pack => FormattableString.Invariant($"Defeat the pack: {Remaining} of {Count} remain"),
+            ObjectiveFocus.Hidden => string.Empty,
+            _ => FormattableString.Invariant($"Defeat the pull: {Remaining} of {Count} remain"),
+        };
 
     /// <summary>"HUD objective pull=1/4 id=choir name="The Choir" remaining=3/3".</summary>
     public string LogLine() => FormattableString.Invariant(
@@ -57,7 +79,9 @@ public static class ObjectiveModel
         ArgumentNullException.ThrowIfNull(run);
         var pulls = run.Dungeon.Pulls;
         var content = registry is not null && registry.Dungeons.TryGetValue(run.Dungeon.Id, out var d) ? d : null;
-        var contentIds = content is null ? pulls.Select(p => p.Id).ToList() : content.Pulls.Select(p => p.Id).Concat(LayoutDef.BossPullIds(content)).ToList();
+        // R-MULTIBOSS-1: the route order includes every segment boss pull, so the header's number and total agree with --pull N.
+        // (Same list as main's content.Pulls + LayoutDef.BossPullIds; PullHeader.RouteOrder is that list.)
+        var contentIds = content is null ? pulls.Select(p => p.Id).ToList() : PullHeader.RouteOrder(content).ToList();
         var total = contentIds.Count;
         var index = run.Encounter.PullIndex;
         if (index >= pulls.Count)
@@ -79,6 +103,29 @@ public static class ObjectiveModel
         var remaining = run.State.Actors.Values.Count(a => ids.Contains(a.Id) && a.Alive && a.Kind == ActorKind.Enemy);
         // An actor not spawned yet is still owed: count the spawns the state does not hold yet.
         remaining += ids.Count(id => !run.State.Actors.ContainsKey(id));
+        // f-c5fb7b31 (P0, wrong data): while the next boss pull is not engaged, its header names the boss but its count
+        // must not describe the boss. Trash is what the party fights: count the engaged pack's living enemies, or hide
+        // the count while trash is alive and no pack is engaged. Never "1 of 1 remain" while trash is alive.
+        if (LayoutDef.IsBossPull(pull.Id) && !run.Encounter.Engaged.Contains(pull.Id, StringComparer.Ordinal))
+        {
+            var trash = Aggro.GroupsOf(run.Dungeon, run.State.Tick, run.Content.Packs, run.Content.Layout, run.Content.Patrols)
+                .Where(g => g.PullIndex < 0)
+                .ToList();
+            var engaged = trash.Where(g => run.Encounter.Engaged.Contains(g.Id, StringComparer.Ordinal)).ToList();
+            var engagedSpawned = engaged.Sum(g => g.ActorIds.Count);
+            var engagedLiving = engaged.SelectMany(g => g.ActorIds).Count(id => IsLivingEnemy(run, id));
+            if (engagedLiving > 0)
+            {
+                return new ObjectiveLine(number, total, pull.Id, name, engagedLiving, engagedSpawned, false, ObjectiveFocus.Pack);
+            }
+            if (trash.SelectMany(g => g.ActorIds).Any(id => IsLivingEnemy(run, id)))
+            {
+                return new ObjectiveLine(number, total, pull.Id, name, remaining, ids.Count, false, ObjectiveFocus.Hidden);
+            }
+        }
         return new ObjectiveLine(number, total, pull.Id, name, remaining, ids.Count, false);
     }
+
+    private static bool IsLivingEnemy(Run run, int actorId) =>
+        run.State.Actors.TryGetValue(actorId, out var actor) && actor.Alive && actor.Kind == ActorKind.Enemy;
 }

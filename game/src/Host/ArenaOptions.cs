@@ -23,8 +23,8 @@ namespace Keyrun.Host;
 /// <param name="MovieDir">Optional directory for the three proof PNG frames (needs a rendering window).</param>
 /// <param name="KeyLevel">Key level (Tempo scaling and the Slack bank).</param>
 /// <param name="Seed">Run seed.</param>
-/// <param name="StartPull">1-based pull the run starts at (default 1). A later start drops the earlier pulls from the
-/// run's dungeon, keeping actor ids and scripts (lane 3C: the HUD scene test reaches the Pair's SPREAD/STACK calls).</param>
+/// <param name="StartPull">1-based pull the run starts at, in route order including segment boss pulls (default 1; out of
+/// 1..pulls fails fast). A later start drops the earlier pulls from the run's dungeon, keeping actor ids and scripts (lane 3C: the HUD scene test reaches the Pair's SPREAD/STACK calls).</param>
 /// <param name="Solo">The human's seat alone, no bot seats (<c>--solo</c>; the phase 2 run). Default: the three-seat
 /// bot party (lane 3H).</param>
 /// <param name="Requeue">Under <c>--autorun</c>, start the run the between-runs screen queues (<c>--requeue</c>, lane

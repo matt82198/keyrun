@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Keyrun.Content;
@@ -20,10 +21,22 @@ public sealed record PullHeader(int Number, int Total, string Name)
     /// <summary>The line a player reads: "Pull 1/4  The Choir".</summary>
     public string Title => FormattableString.Invariant($"Pull {Number}/{Total}  {Name}");
 
-    /// <summary>The header for one pull of a content dungeon, or null when the dungeon has no such pull.</summary>
-    /// <param name="registry">Content (the boss pull's name is its enemy's name).</param>
+    /// <summary>
+    /// The pull ids of a content dungeon in route order (the order a <c>--pull N</c> start counts): the trash pulls, then
+    /// every boss pull in fight order (R-MULTIBOSS-1: one per segment, the final boss last).
+    /// </summary>
     /// <param name="dungeon">The content dungeon.</param>
-    /// <param name="pullId">A trash pull id, or <see cref="BossPullId"/>.</param>
+    /// <returns>The ids, first pull first.</returns>
+    public static IReadOnlyList<string> RouteOrder(DungeonDef dungeon)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        return dungeon.Pulls.Select(p => p.Id).Concat(LayoutDef.BossPullIds(dungeon)).ToList();
+    }
+
+    /// <summary>The header for one pull of a content dungeon, or null when the dungeon has no such pull.</summary>
+    /// <param name="registry">Content (a boss pull's name is its boss enemy's name).</param>
+    /// <param name="dungeon">The content dungeon.</param>
+    /// <param name="pullId">A trash pull id, or a boss pull id (<see cref="LayoutDef.BossPullIds"/>).</param>
     /// <returns>The header, or null.</returns>
     public static PullHeader? Of(ContentRegistry registry, DungeonDef dungeon, string pullId)
     {
