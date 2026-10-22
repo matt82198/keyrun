@@ -137,7 +137,7 @@ the existing suites stay green unmodified, and the oracle fixtures are untouched
 
 | # | Slice | Owns | Proof (red first) | Wave |
 |---|---|---|---|---|
-| M-A | CONTENT-BY-DIRECTORY | `Keyrun.Content/Loading/ContentLoader.cs`, `Loading/DirectoryContentSource.cs` (new), `Keyrun.Content.Tests/DirectoryLoadTests.cs` (new) | a new `enemies/test-only.json` loads with no loader edit; the existing content set is byte-equal to today's | 1 |
+| M-A | CONTENT-BY-DIRECTORY | `Keyrun.Content/Loading/ContentLoader.cs`, `Loading/DirectoryContentSource.cs` (new), `Keyrun.Content.Tests/DirectoryLoadTests.cs` (new) | a new `enemies/test-only.json` loads with no loader edit; the existing content set is byte-equal to today's | 1 (landed: #567, R-LOADER-1) |
 | M-B | ONE-RULE-PER-FILE | `Keyrun.Content/Rules/*.cs` (new), `Loading/ContentValidator.cs` (shrinks to a runner) | each existing check moves to one rule file; a fixture breaking each rule yields exactly that rule's finding | 1 |
 | M-C | EFFECT-OP-REGISTRY | `Combat/Casting.cs`, `Combat/Ops/*.cs` (new) | every op in content resolves through the registry; Casting has no op switch; CombatOracle tests stay green | 1 |
 | M-D | RUN-STEP-PHASES | `Run/Run.cs`, `Run/Phases/*.cs` (new: movement, aggro, encounter, wipe, clock) | StepRun is a fixed list of phase calls; replay digests unchanged | 2 (after M-C) |
@@ -154,8 +154,9 @@ and G9 adds one call to HostRunSetup.cs, so G9 waits for M-E if both are open at
 
 ## 5. Coordination with lanes in flight
 
-- **layout.json, Layout.cs, LayoutValidator.cs** (the hand-made layout): this pipeline does not edit them. Pack
-  placement is never hand-placed in layout.json for a generated dungeon: it is stage 4, a fill step over the
+- **The hand-made layout** (`game/content/data/layout/`, split out of layout.json by #567; Layout.cs,
+  LayoutValidator.cs): this pipeline does not edit them. Pack placement is never hand-placed in the layout files for a
+  generated dungeon: it is stage 4, a fill step over the
   generated graph. G6 produces run content directly and leaves the hand-made layout as the default until Matt plays
   a seeded run.
 - **Pathing (#551, merged)**: integer A* in the sim. It reads `WalkGrid` for generated dungeons (section 2); G5 is
