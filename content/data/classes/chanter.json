@@ -50,7 +50,7 @@
         {
           "id": "groupSong",
           "name": "Group Song",
-          "text": "Cadence becomes a party-wide area.",
+          "text": "Cadence becomes a party-wide area; its Mend and Ward last longer.",
           "patch": {
             "shape": {
               "kind": "circle",
@@ -59,15 +59,26 @@
             "tags": [
               "setup:attuned",
               "aoe"
-            ]
+            ],
+            "variants": {
+              "mend": [
+                { "op": "applyEffect", "effectId": "mendingHot", "durationTicks": 100, "stacks": 1 },
+                { "op": "window", "windowId": "attuned", "durationTicks": 60, "onTarget": true, "setupClass": "chanter" }
+              ],
+              "ward": [
+                { "op": "applyEffect", "effectId": "wardShield", "durationTicks": 100, "stacks": 1 },
+                { "op": "window", "windowId": "attuned", "durationTicks": 60, "onTarget": true, "setupClass": "chanter" }
+              ]
+            }
           }
         },
         {
           "id": "swift",
           "name": "Swift Verse",
-          "text": "Instant cast; Mend and Ward run out sooner.",
+          "text": "Instant cast on a short cooldown; Mend and Ward run out sooner.",
           "patch": {
             "castTicks": 0,
+            "cooldownTicks": 60,
             "variants": {
               "mend": [
                 { "op": "applyEffect", "effectId": "mendingHot", "durationTicks": 40, "stacks": 1 },
