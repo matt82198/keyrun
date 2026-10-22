@@ -25,6 +25,8 @@
     <Compile Include="../../game/src/Host/HostRunSetup.cs" Link="Host/HostRunSetup.cs" />
     <!-- R7: the one run-assembly path (Build's successors through BossRules.Arm), shared with SimDriver.StartRun. -->
     <Compile Include="../../game/src/Host/HostRunFactory.cs" Link="Host/HostRunFactory.cs" />
+    <!-- f-a3de0a01: the factory's talent SEAT:TALENT seat patch. Godot-free. -->
+    <Compile Include="../../game/src/Host/SeatTalents.cs" Link="Host/SeatTalents.cs" />
     <Compile Include="../../game/src/Host/QueuedKit.cs" Link="Host/QueuedKit.cs" />
     <Compile Include="../../game/src/Host/Lobby.cs" Link="Host/Lobby.cs" />
     <EmbeddedResource Include="GUIDE.md" LogicalName="Keyrun.Playtest.GUIDE.md" />
