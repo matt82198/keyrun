@@ -51,6 +51,14 @@ public static class EncounterJson
                 JsBool b => b.Value,
                 _ => throw new FormatException($"{what}.spansCast must be a boolean"),
             },
+            // TELEGRAPH-ANCHOR (C#-only): absent or "caster" is the TS rule; "target" draws at the caster's target.
+            AnchorTarget = o.Get("anchor") switch
+            {
+                null => false,
+                JsString { Value: "caster" } => false,
+                JsString { Value: "target" } => true,
+                _ => throw new FormatException($"{what}.anchor must be caster or target"),
+            },
         };
     }
 
