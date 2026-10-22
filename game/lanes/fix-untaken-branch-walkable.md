@@ -1,0 +1,2 @@
+f-16a6b655 CONFIRMED: Sunken Bellfoundry seed 1 has 8 of 19 rooms (the untaken branch) outside the run's walkable nav set, and a move into one is clamped back; receipt tests UntakenBranchWalkableTests fail on main, fix is a design call (side branch is SideBoxes, one branch walked per run), draft PR not auto-merged.
+Hollow Vault is hand-built with no side branch (dungeon.json sideMm is a doorway offset), so the finding applies to the seeded Bellfoundry only.
