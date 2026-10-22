@@ -75,6 +75,12 @@ public sealed record EncounterState
     /// </summary>
     public IReadOnlyList<DeferredCast> DeferredCasts { get; init; } = Array.Empty<DeferredCast>();
 
+    /// <summary>
+    /// SCRIPT-FIRST-TICK (R-BOSS-5 (c)): actor id to the first tick its script ran (<see cref="StepEnemyScriptsResult.ScriptStarts"/>).
+    /// A boss pulled after the run's clock began has no telegraph draw before its script starts, so its first cast waits.
+    /// </summary>
+    public IReadOnlyDictionary<int, int> ScriptStarts { get; init; } = new SortedDictionary<int, int>();
+
     /// <summary>Echo adds queued but not yet spawned.</summary>
     public IReadOnlyList<EchoSpawnRequest> PendingEchoSpawns { get; init; } = Array.Empty<EchoSpawnRequest>();
 

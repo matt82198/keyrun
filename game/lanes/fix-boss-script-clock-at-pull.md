@@ -1,0 +1,2 @@
+- fix(sim): a scripted boss cast never issues before its telegraph is drawn; the first script tick is carried and a plain telegraph whose draw falls before it shifts its fire by LeadTicks (R-BOSS-5 (c), f-0431d7f5, G2)
+BUILDLOG: 2026-10-22 fix-boss-script-clock-at-pull: hollow-warden slam issued at 1176 with no telegraph (draw tick 1166 before the boss existed at 1173); EncounterState.ScriptStarts carries the first script tick, ScriptFiresAt shifts the fire to start+lead; red test on main, green after.
