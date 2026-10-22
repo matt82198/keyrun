@@ -410,34 +410,14 @@ public partial class SimDriver : Node
             Setup = HostRunSetup.Build(registry, dungeonId, keyLevel, classId, withBots: !Options.Solo, rotationIndex: RotationIndex);
         }
         var setup = Setup;
-        var dungeon = setup.Dungeon;
-        if (Options.StartPull > 1)
+        // R7: the --pull N slice, StartFor, WithBotLoadouts, CreateRun, EngageStartPull and BossRules.Arm, in that order,
+        // live in HostRunFactory, the one assembly path PlaytestRunner and the tests share.
+        var (run, start, party, dungeon) = HostRunFactory.Create(setup, new RunRequest(Options.Seed, registry, classId)
         {
-            if (Options.StartPull > dungeon.Pulls.Count)
-            {
-                throw new ArgumentException($"--pull {Options.StartPull} is past the dungeon's {dungeon.Pulls.Count} pulls");
-            }
-            dungeon = dungeon with { Pulls = dungeon.Pulls.Skip(Options.StartPull - 1).ToList() };
-        }
-        // Lane NAV-CORE: a --pull N run starts its party in pull N's room (HostRunSetup.PartyFor), else in the Entrance.
-        // Finding f-f9b80112 (BIBLE s7): the screen's equipped gear, keystone included, reaches the run on top of the
-        // request's Clause and talents (RunStart.Of; no screen yet means the request's options alone).
-        var start = setup.StartFor(request, _screen?.Progression, registry, classId);
-        // The run's options record the weekly rotation index the setup was built with (the sim reads it as an input).
-        var options = (start.Options ?? new RunOptions()) with { RotationIndex = setup.RotationIndex };
-        // Bot seats wear their default gear (HostRunSetup.BotLoadouts, BIBLE s6 parity) next to the human's loadouts.
-        var party = setup.PartyFor(dungeon);
-        options = setup.WithBotLoadouts(options, party) ?? options;
-        var created = RunRoot.CreateRun(Options.Seed, party, dungeon, setup.Content, options);
-        if (Options.StartPull > 1)
-        {
-            // A --pull N start begins in pull N's fight (NavLayouts.PlaceParty; STATE.md D27 spawned it at creation).
-            // PRESPAWN-AGGRO leaves that pull idle with the party at its room start, outside the aggro ring, so an idle
-            // human never fights (HudSceneTest runs I and K1 never wiped): engage it here, the host's explicit fight start.
-            created = RunRoot.EngageStartPull(created);
-        }
-        // 3F's hand-off (its decision 6): arm the boss on the created run's encounter.
-        var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
+            Queued = request,
+            Progression = _screen?.Progression,
+            StartPull = Options.StartPull,
+        });
         Run = run;
         _backfill = BackfillState.Empty;
         // A pull engaged at creation (a --pull N start) drops its pull_start (see below): it started at the run's first tick.
