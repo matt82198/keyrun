@@ -1,0 +1,10 @@
+{
+  "schema": "keyrun.input-log/1",
+  "seed": 1,
+  "key": 2,
+  "events": [
+    { "tick": 0, "key": "Enter", "pressed": true },
+    { "tick": 40, "key": "Key1", "pressed": true },
+    { "tick": 48, "key": "Key1", "pressed": false }
+  ]
+}

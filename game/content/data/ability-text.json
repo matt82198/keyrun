@@ -1,0 +1,31 @@
+{
+  "abilities": [
+    { "id": "warden.strike", "displayName": "Sundering Verdict", "flavor": "The first blow is the charge sheet." },
+    { "id": "warden.guardBreak", "displayName": "Gavel Sweep", "flavor": "One swing, and the whole bench hears it." },
+    { "id": "warden.bulwark", "displayName": "Bastion Wall", "flavor": "Stand behind me and the stone holds." },
+    { "id": "warden.reckoning", "displayName": "Final Judgment", "flavor": "Every stored blow, delivered at once." },
+    { "id": "warden.vigil", "displayName": "Iron Vigil", "flavor": "The watch does not sleep, and it does not bend." },
+    { "id": "warden.shieldBash", "displayName": "Contempt Bash", "flavor": "Order in the hall. Now." },
+    { "id": "warden.brace", "displayName": "Rampart Stance", "flavor": "Plant the heels. Let it break on me." },
+    { "id": "warden.taunt", "displayName": "Accusing Roar", "flavor": "You. Answer to me." },
+    { "id": "warden.charge", "displayName": "Tower Charge", "flavor": "A falling wall still hits like a wall." },
+    { "id": "chanter.cadence", "displayName": "Attuning Cadence", "flavor": "Set the beat; let the others land on it." },
+    { "id": "chanter.refrain", "displayName": "Lifting Refrain", "flavor": "The same line, sung again, changes the song." },
+    { "id": "chanter.chorus", "displayName": "Grand Chorus", "flavor": "Every voice at once, on the downbeat." },
+    { "id": "chanter.dissonance", "displayName": "Discordant Note", "flavor": "The wrong note, struck on purpose." },
+    { "id": "chanter.hymn", "displayName": "Hallowed Hymn", "flavor": "Stand in the song and it carries you." },
+    { "id": "chanter.rebuke", "displayName": "Silencing Rebuke", "flavor": "Not one more word." },
+    { "id": "chanter.aegis", "displayName": "Psalm Shield", "flavor": "A verse held up like a buckler." },
+    { "id": "chanter.cleanse", "displayName": "Cleansing Canticle", "flavor": "Sing the curse out of the blood." },
+    { "id": "chanter.glide", "displayName": "Wandering Verse", "flavor": "The melody moves, and so do you." },
+    { "id": "cinder.emberBolt", "displayName": "Ember Lance", "flavor": "A coal thrown hard enough to matter." },
+    { "id": "cinder.flare", "displayName": "Kindling Flare", "flavor": "Light the mark; let the others burn it." },
+    { "id": "cinder.coldSnap", "displayName": "Rimefrost Snap", "flavor": "All that heat, quenched in one crack of ice." },
+    { "id": "cinder.detonate", "displayName": "Ash Detonation", "flavor": "Spend the fire you have been holding." },
+    { "id": "cinder.cinderfield", "displayName": "Smoldering Field", "flavor": "The floor remembers the fire." },
+    { "id": "cinder.quench", "displayName": "Quenching Frost", "flavor": "A breath of frost snuffs the spell." },
+    { "id": "cinder.ashenSkin", "displayName": "Cinder Shell", "flavor": "Burned once, the skin will not burn again." },
+    { "id": "cinder.purge", "displayName": "Purging Flame", "flavor": "Burn away what does not belong." },
+    { "id": "cinder.blink", "displayName": "Flicker Step", "flavor": "Gone like a spark up the flue." }
+  ]
+}
