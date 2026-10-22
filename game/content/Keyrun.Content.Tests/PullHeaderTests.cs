@@ -54,6 +54,21 @@ public sealed class PullHeaderTests
             titles);
     }
 
+    [Fact(DisplayName = "f-82f89359: every segment boss of the Sunken Bellfoundry has a numbered, named pull header (boss-s1, boss-s2, boss)")]
+    public void Headers_NameEverySegmentBoss()
+    {
+        var bellfoundry = Registry.Dungeons["sunken-bellfoundry"];
+        var ids = LayoutDef.BossPullIds(bellfoundry);
+        Assert.Equal(new[] { "boss-s1", "boss-s2", "boss" }, ids);
+
+        var titles = ids.Select(id => PullHeader.Of(Registry, bellfoundry, id)).ToArray();
+
+        Assert.All(titles, h => Assert.False(string.IsNullOrWhiteSpace(h?.Title), "a segment boss has no pull header"));
+        Assert.Equal(
+            bellfoundry.Segments.Select((s, i) => $"Pull {i + 1}/3  {Registry.Enemies[s.Boss.EnemyId].Name}"),
+            titles.Select(h => h!.Title));
+    }
+
     [Fact]
     public void Header_UnknownPull_IsNull() => Assert.Null(PullHeader.Of(Registry, Vault, "nope"));
 }

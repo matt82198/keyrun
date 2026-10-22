@@ -268,6 +268,11 @@ public sealed record Lobby
     /// <returns>The lobby, or this one when the band refused.</returns>
     public Lobby StepKey(int delta) => WithKey(Key.StepKey(delta));
 
+    /// <summary>The lobby on dungeon <paramref name="dungeonId"/> (D65: the pre-run pick), or this one when locked.</summary>
+    /// <param name="dungeonId">The dungeon.</param>
+    /// <returns>The lobby.</returns>
+    public Lobby WithDungeon(string dungeonId) => WithKey(Key.WithDungeon(dungeonId));
+
     /// <summary>
     /// Queue: the locked lobby (still on <see cref="ClassId"/>, which <see cref="ClassFor"/> reads) and the request
     /// (<see cref="QueuedKit.Queue"/> for this class's build and the equipped gear), or null when already queued.

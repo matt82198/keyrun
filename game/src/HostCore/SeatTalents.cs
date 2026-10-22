@@ -123,7 +123,8 @@ public sealed class SeatTalentPatch
             setup.Content.KeyLevel ?? throw new InvalidOperationException("seat talents: the run setup has no key level"),
             setup.HumanClassId,
             withBots: setup.Party.Count > 1,
-            rotationIndex: setup.RotationIndex);
+            rotationIndex: setup.RotationIndex,
+            dungeonSeed: DungeonPick.KitSeed);
         return new SeatTalentPatch(setup.HumanActorId, talented, bySeat);
     }
 
