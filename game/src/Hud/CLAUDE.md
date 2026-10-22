@@ -1,0 +1,55 @@
+# game/src/Hud - the in-run HUD and the between-runs Screen (Godot C#)
+
+## Screen (lobby) partials
+
+`Screen` is one Godot script class split across partial files by tab and concern (lane S8, pure move):
+
+- `Screen.cs` - constants, fields, public properties, OpenFrom/OpenFirst/Open/Close, _Ready/_ExitTree/_Process.
+- `Screen.Input.cs` - key and mouse input, tab switching: _UnhandledInput, _GuiInput, SelectTab, ToggleTalents, HandleKey, TabKey, StepKey.
+- `Screen.TabCharacter.cs` - Character tab: class pick, kit and Ascension: PickClass, CycleClass, ClassIds, ClassName, ClassSlots, Abilities, DrawClasses, DrawAscension, DrawKit.
+- `Screen.TabBuild.cs` - Build tab: talent picks, respec, save and proof lines: PickTalent, RespecTalents, SaveTalents, ChoicesText, TalentClassName, TalentAbilityName, ClauseText, HandleTalentKey, TalentsFor, ProofTalentMarks, ProofTalents.
+- `Screen.TabPlay.cs` - Play tab: summary, key band, Queue box, affix line: ProofKeyBand, ClauseIds, DrawSummary, DrawKey, AffixLine, DrawQueue.
+- `Screen.Gear.cs` - gear slots, Facet reroll, gear totals and their proof lines: CycleSelected, Reroll, EquippedText, SlotStats, GearTotal, ProofGear, GearTotalText, ProofItem, SlotPool, DrawGear, TierColor.
+- `Screen.Queue.cs` - Queue press, the queued loadout and its proof lines: Queue, HumanLoadout, TalentLoadouts, RunLoadout, Merge, AppliedCount, ProofQueuedTalents, ProofQueuedFacets, ProofRunFacets, FacetKey, FacetStats, Stats, Locked.
+- `Screen.Run.cs` - run events, the autorun script, progression and rating load/save: OnStepped, OnRunStarted, RunAutorunScript, Proof, LoadProgression, RecordRating, SaveProgression.
+- `Screen.Layout.cs` - _Draw, rects, tab bar, text wrap and clip: _Draw, SetHelpVisible, CaptionLines, Wrap, ScreenLayout, Layout, ClauseTextWidth, LayoutFor, DesignSize, Band, DrawTabBar, TabLabel, HintFor, Clip.
+
+## Screen design and lane history
+
+Moved verbatim from the `Screen` class XML doc summary (S8 split); `<see cref>` targets are C# symbols.
+
+```text
+<summary>
+The between-runs screen (BIBLE s10 "One screen, three bands"; s1 loop "End-of-run choice of three, then Screen";
+ENGINE-PLAN 3D), drawn as one lobby with three tabs (lane LOBBY-TABS, Matt 2026-10-20 "just one screen with tabs
+should be enough before entering a game/queue"): <b>Character</b> (class pick and the five gear slots with tier),
+<b>Build</b> (the class's talent forks) and <b>Play</b> (key, Clause and Queue). The tab, the class, its build and the
+Key band are the pure <see cref="Lobby"/>; Q/E, F1-F3 or a click switch tabs, Up/Down or a click picks the class on
+the Character tab, and every older key works on every tab (Enter queues from anywhere). Opened by the run-end panel when a reward is taken (<see cref="OpenFrom"/>), and at launch before
+the first run in the interactive game (<see cref="OpenFirst"/>, lane 3D-b), and again by <see cref="OpenFirst"/> each
+time a run ends in the interactive game and Enter is pressed on the run-end panel (the SimDriver reopen path, lane
+3D-c, wipe included), it shows:
+<list type="bullet">
+<item><b>Character</b>: the class, the "since last run" line, banked Ash, the five abilities with their keybinds,
+and the equipped gear with tier, Facet and crafting charges left (Tab selects an item, R rerolls its Facet).</item>
+<item><b>Key</b>: the key stepper (Left/Right, 2-20), the readiness line, the key's Clause as text, read-only (BIBLE s8,
+R1 2026-10-21: the key sets it; lane U2 shows it) and the private last-three-runs strip.</item>
+<item><b>Queue</b>: one button (Enter or a click), which locks the Key band and raises <see cref="Queued"/>.</item>
+</list>
+Progression (Ash, gear, the crafting PRNG) is the pure <see cref="Progression"/> and the Key band the pure
+<see cref="ScreenState"/>; this node renders them and maps input. Ash is banked when the run ends, win or lose,
+whether or not a reward is taken. Under <c>--autorun</c> every change prints a "SCREEN ..." proof line and a short
+script drives the screen through the real input path (take reward 1, reroll three times, key up, the
+talent panel: T, pick fork 1 side 1, Down, pick side 2, free respec, pick again, T, then Queue).
+<para>Talents (BIBLE s6, lane BIBLE-TALENTS-UI): T opens the <see cref="TalentPanel"/> over the Character and Key
+bands; the build is the pure <see cref="TalentPicks"/> for the human's class, kept across opens, and Backspace
+respecs for free (Ash is untouched). Queue hands the picks to the run (lane TALENT-PICKS): they are resolved with
+<see cref="TalentPicks.Resolve"/>, converted to sim AbilityDefs by the host's own content conversion
+(<see cref="HostRunSetup.Build"/>), and queued on the <see cref="QueueRequest"/> as the human's loadout, which
+<see cref="QueueRequest.ToRunOptions"/> passes to the run as RunOptions.Loadouts. The panel's <c>applied=</c> count is
+the number of talented abilities the next Queue hands over. Every pick and respec is kept in the progression save
+(lane TALENT-SAVE, f-83c5e369: <see cref="Progression.Talents"/>, saved with reason=talent), and the first open after
+a launch restores the saved build with <see cref="Keyrun.Content.TalentPicks.Restore"/>, so the next launch's run
+plays it too.</para>
+</summary>
+```

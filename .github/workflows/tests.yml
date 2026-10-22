@@ -1,5 +1,5 @@
 name: Tests
-# Owns the required checks `test` and `e2e`. No paths filter: every PR gets exactly one run of each name.
+# Owns the required checks `test` (lane row-file gate) and `e2e` (no suite left; see the job). No paths filter: every PR gets exactly one run of each name.
 # Each job decides docs-only in its own first step (the scope step). A code PR runs the real steps; a
 # docs-only PR runs one pass-through step under the same check name. No job-level `if:` here, because a
 # skipped required check counts as success for branch protection (the #473 fail-open this file closes).
@@ -54,15 +54,14 @@ jobs:
       - name: npm ci
         if: steps.scope.outputs.code == 'true' && success()
         run: npm ci
-      - name: typecheck
+      # The frozen TypeScript sim/client/bots/screen/server and their typecheck, vitest suites and esbuild
+      # bundle were removed. The one TS suite left is the lane row-file gate.
+      - name: lane row-file gate (npx vitest run tests/lanes)
         if: steps.scope.outputs.code == 'true' && success()
-        run: npm run typecheck
-      - name: test
-        if: steps.scope.outputs.code == 'true' && success()
-        run: npm test
-      - name: build
-        if: steps.scope.outputs.code == 'true' && success()
-        run: npm run build
+        run: npx vitest run tests/lanes
+  # Required check name kept so branch protection still resolves. Its only suite (tests/client/e2e, the
+  # Playwright run of the TS browser client) and that suite's wait ratchet were removed with the TS tree.
+  # Until `e2e` is dropped from the required checks, this job states that and passes.
   e2e:
     runs-on: ubuntu-latest
     steps:
@@ -97,19 +96,10 @@ jobs:
       - name: Docs-only pass-through
         if: steps.scope.outputs.code == 'false' && success()
         run: 'echo "docs-only PR: e2e has no code to run (pass-through)"'
-      - uses: actions/setup-node@v4
+      - name: No TypeScript e2e suite (removed with the TS client)
         if: steps.scope.outputs.code == 'true' && success()
-        with:
-          node-version: 24
-      - name: npm ci
-        if: steps.scope.outputs.code == 'true' && success()
-        run: npm ci
-      - name: Install Playwright chromium
-        if: steps.scope.outputs.code == 'true' && success()
-        run: npx playwright install --with-deps chromium
-      - name: e2e wait ratchet
-        if: steps.scope.outputs.code == 'true' && success()
-        run: python tools/ci/e2e_wait_ratchet.py
-      - name: test:e2e
-        if: steps.scope.outputs.code == 'true' && success()
-        run: npm run test:e2e
+        shell: bash
+        run: |
+          # Fails closed if a TS e2e suite comes back without this job being rewired to run it.
+          if [ -d tests/client/e2e ]; then echo "tests/client/e2e exists again: rewire this job to run it"; exit 1; fi
+          echo "e2e: the TS browser e2e suite was removed; game e2e runs in game.yml game-e2e"
