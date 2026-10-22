@@ -20,11 +20,18 @@ public sealed class StunImmuneEnemiesTests
     private static ContentLoadException LoadFails(MutableSource source) =>
         Assert.Throws<ContentLoadException>(() => ContentLoader.Load(source.Build()));
 
-    [Fact(DisplayName = "The Hollow Warden is the one stun-immune enemy; its Twins and the trash are stunnable")]
+    [Fact(DisplayName = "The bosses are the stun-immune enemies (R-BOSS-3); their adds and the trash are stunnable")]
     public void Loads_the_boss_as_the_one_stun_immune_enemy()
     {
         var reg = ContentLoader.Load();
-        Assert.Equal(new[] { Boss }, reg.Run.StunImmuneEnemies.ToArray());
+        // R-BOSS-3 (bosses are immune to CC): every boss-role enemy, the Hollow Warden and (D66) the Sunken Bellfoundry's
+        // three, and nothing else.
+        Assert.Equal(new[] { Boss, "bellfoundry.ommet", "bellfoundry.brineMother", "bellfoundry.greatBell" }, reg.Run.StunImmuneEnemies.ToArray());
+        Assert.Equal(
+            reg.Enemies.Values.Where(e => e.Role == EnemyRole.Boss).Select(e => e.Id).OrderBy(i => i, System.StringComparer.Ordinal),
+            reg.Run.StunImmuneEnemies.OrderBy(i => i, System.StringComparer.Ordinal));
+        Assert.DoesNotContain("bellfoundry.clapperA", reg.Run.StunImmuneEnemies);
+        Assert.DoesNotContain("bellfoundry.clapperB", reg.Run.StunImmuneEnemies);
         Assert.Equal(EnemyRole.Boss, reg.Enemies[Boss].Role);
         Assert.DoesNotContain("hollowWarden.twinA", reg.Run.StunImmuneEnemies);
         Assert.DoesNotContain("hollowWarden.twinB", reg.Run.StunImmuneEnemies);

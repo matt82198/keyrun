@@ -1,0 +1,29 @@
+{
+  "id": "pour-line",
+  "dungeon": "sunken-bellfoundry",
+  "name": "Pour Line",
+  "teaches": "turn the Rams to a wall: three charges, one lane",
+  "aggroMm": 4000,
+  "enemies": [
+    {
+      "enemyId": "bellfoundry.slagRam",
+      "count": 3,
+      "spawn": {
+        "x": 0,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.tollingBell",
+      "count": 1,
+      "spawn": {
+        "x": 1500,
+        "z": 0
+      }
+    }
+  ],
+  "chainWith": [
+    "slag-haulers"
+  ],
+  "chainNote": "Chain with Slag Haulers (see there)."
+}

@@ -1,0 +1,37 @@
+{
+  "id": "tolling-shift",
+  "dungeon": "sunken-bellfoundry",
+  "name": "Tolling Shift",
+  "teaches": "kill the Bell first: every Toll stacks its crew's damage",
+  "aggroMm": 4500,
+  "enemies": [
+    {
+      "enemyId": "bellfoundry.tollingBell",
+      "count": 1,
+      "spawn": {
+        "x": 1500,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.scaldHound",
+      "count": 4,
+      "spawn": {
+        "x": -500,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.furnaceThrall",
+      "count": 1,
+      "spawn": {
+        "x": 0,
+        "z": 800
+      }
+    }
+  ],
+  "chainWith": [
+    "scald-kennel"
+  ],
+  "chainNote": "Chain with Scald Kennel: nine Hounds under one Bell. Burn the Bell, then sweep the Hounds down together so they boil over at once and die before Boiling Blood lands twice."
+}
