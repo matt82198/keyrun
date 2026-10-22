@@ -85,6 +85,73 @@ public sealed class CleaveMarkTests
         return (KeyMove.Of(RunResult.Timed, 2, answeredClock, par).Tier, KeyMove.Of(RunResult.Timed, 2, carelessClock, par).Tier);
     }
 
+    private static Run CreateTough()
+    {
+        var run = Create(withRule: true);
+        run.State.Actors[Careless].MaxHealth = 10_000_000;
+        run.State.Actors[Careless].Health = 10_000_000;
+        return run;
+    }
+
+    private static int CleavedStacks(Run run) =>
+        run.State.Actors[Careless].Effects.Where(e => e.EffectId == "cleaved").Select(e => (int)e.Stacks).DefaultIfEmpty(0).Max();
+
+    [Fact(DisplayName = "R-BOSS-4: Cleaved stacks one per unanswered hit up to 5 and never past the cap")]
+    public void Cleaved_stacks_grow_one_per_hit_and_cap_at_five()
+    {
+        var run = CreateTough();
+        var reported = new List<int>();
+        for (var i = 0; i < FightTicks * 2; i++)
+        {
+            var stepped = RunRoot.StepRun(run, Array.Empty<Command>());
+            reported.AddRange(stepped.Events.Where(e => e.Type == "cleaved" && ((JsInt)e.Get("actorId")!).Value == Careless).Select(e => (int)((JsInt)e.Get("stacks")!).Value));
+            run = stepped.Run;
+        }
+        _out.WriteLine($"reported stacks [{string.Join(",", reported)}]");
+        Assert.True(reported.Count >= 7, $"only {reported.Count} unanswered hits landed");
+        Assert.Equal(new[] { 1, 2, 3, 4, 5 }, reported.Take(5));
+        Assert.All(reported.Skip(5), s => Assert.Equal(5, s));
+        Assert.Equal(5, CleavedStacks(run));
+    }
+
+    [Fact(DisplayName = "R-BOSS-4: Cleaved expires 400 ticks after the latest hit and the stack count resets")]
+    public void Cleaved_expires_after_its_duration_without_a_refresh()
+    {
+        var run = CreateTough();
+        int? lastHit = null;
+        var hits = 0;
+        for (var guard = 0; hits < 2 && guard < FightTicks; guard++)
+        {
+            var stepped = RunRoot.StepRun(run, Array.Empty<Command>());
+            run = stepped.Run;
+            if (stepped.Events.Any(e => e.Type == "cleaved" && ((JsInt)e.Get("actorId")!).Value == Careless))
+            {
+                hits++;
+                lastHit = run.State.Tick;
+            }
+        }
+        Assert.Equal(2, CleavedStacks(run));
+        // The seat leaves the cone (and the boss's reach) now: no later Cleave can refresh the mark.
+        var seat = run.State.Actors[Careless];
+        seat.Pos = new Vec3(seat.Pos.X + 15000, seat.Pos.Y, seat.Pos.Z + 15000);
+        var stillMarkedAt = -1;
+        for (var i = 0; i < 399; i++)
+        {
+            run = RunRoot.StepRun(run, Array.Empty<Command>()).Run;
+            if (CleavedStacks(run) > 0)
+            {
+                stillMarkedAt = run.State.Tick;
+            }
+        }
+        _out.WriteLine($"last hit at {lastHit}, still marked through {stillMarkedAt}, now {run.State.Tick}");
+        Assert.Equal(2, CleavedStacks(run));
+        for (var i = 0; i < 4; i++)
+        {
+            run = RunRoot.StepRun(run, Array.Empty<Command>()).Run;
+        }
+        Assert.Equal(0, CleavedStacks(run));
+    }
+
     [Fact(DisplayName = "R-BOSS-4: unanswered cleaves stack and the careless seat loses a tier even with maximal Consecrate healing")]
     public void Unanswered_cleaves_stack_and_cost_a_tier_through_full_healing()
     {

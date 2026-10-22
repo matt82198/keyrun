@@ -74,7 +74,7 @@ budget before fill, fill before patrols, boss last, because each stage only read
 | # | Stage | Input -> output | Rule | Test (game/sim/Keyrun.Sim.Tests/Dungeon/) | Status |
 |---|---|---|---|---|---|
 | 0 | Seed | run seed -> stage streams | one stream per stage | `A_different_seed_gives_a_different_graph` | built |
-| 1 | Room graph | seed -> `RoomGraph` | exactly one fork, immediately after the entrance, into exactly two branches; each branch a chain of 2 or 3 trash rooms (seeded per branch); both converge on the boss and nowhere else; edges only point deeper; the entrance-to-branch edges are one-way doors (`RoomEdge.OneWayDoor`) | `Every_graph_forks_once_after_the_entrance_into_two_branches_that_converge_on_the_boss`, `A_branch_once_entered_never_reaches_the_entrance_or_the_untaken_branch` (seeds 1 to 50) | built |
+| 1 | Room graph | seed -> `RoomGraph` | exactly one fork, immediately after the entrance, into exactly two branches; each branch a chain of 2 or 3 trash rooms (seeded per branch); both converge on the boss and nowhere else; edges only point deeper; the entrance-to-branch edges are one-way doors (`RoomEdge.OneWayDoor`). With `DungeonGenParams.Segments` = S (D65) that shape repeats S times end to end, each mid boss room the next fork (its exits one-way doors too); rooms carry `Segment` and `Branch`, the graph `BossRooms`, `SegmentEntry(s)` and `RoomCount` = 1 + S x (2 branches of 2 or 3 + 1 boss) | `Every_graph_forks_once_after_the_entrance_into_two_branches_that_converge_on_the_boss`, `A_branch_once_entered_never_reaches_the_entrance_or_the_untaken_branch` (seeds 1 to 50); `SegmentedDungeonTests` (S = 2 and 3, seeds 1 to 50; S = 1 byte-identical) | built |
 | 2 | Walkable grid and corridors | graph -> `WalkGrid` | 1000 mm cells, square rooms in column bands, each branch on its own row; one corridor lane per edge in the gap; the two branches' corridors use opposite halves of the entrance and boss walls, so the branches share no cell outside those two rooms | `Grid_walks_from_entrance_to_boss`, `Grid_keeps_the_two_branches_apart_outside_the_entrance_and_boss_rooms`, `Same_seed_gives_identical_graph_and_grid_twice` | built |
 | 3 | Pack slots by forces budget and route | graph, grid, roster -> `RoomQuota[]` | each trash room's quota = ceil((2 x required + biggest pack) / rooms in its branch); up to six slots per room | `Every_route_reaches_full_forces_by_two_disjoint_pack_choices` | built |
 | 4 | Fill from the pack roster | seed, quotas, roster -> `PackPlacement[]` | seeded draw per slot, the biggest pack when a draw could not finish the quota | same test, plus `Filler_fails_closed_on_a_bad_roster` | stub |
@@ -121,7 +121,7 @@ end to end on a seeded dungeon: queue, walk a branching route, choose packs, fil
 
 ### 3.1 Edge cases deferred until the run is playable (named so nobody builds them early)
 
-- More than one fork, or branches longer than three rooms (the contract is one fork, two branches of 2 or 3, D63).
+- More than one fork per segment, or branches longer than three rooms (the contract is one fork per segment, two branches of 2 or 3, D63/D65).
 - Room size, shape and dressing variety (rooms are fixed squares). Room themes from `dungeons/` come later.
 - Pack themes per room, linked chain pulls, and keeping two casters of the same kick out of one room.
 - Forces overshoot tuning (every route carries at least 2x + one pack); the BIBLE 9.2 ~20% surplus is a later tune.

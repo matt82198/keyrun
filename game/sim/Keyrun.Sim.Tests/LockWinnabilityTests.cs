@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using Keyrun.Host;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
@@ -229,6 +230,14 @@ public sealed class LockWinnabilityTests
             {
                 cmds.Add(new CastCommand(tick, Warden, "warden.strike", Boss));
             }
+        }
+
+        if (state.Actors.TryGetValue(Warden, out var answering) && answering.Alive)
+        {
+            // CLEAVE-ANSWER (the autorun Warden's rule, game/src/Host/ScriptedWarden.cs CleaveAnswer): with Tempo no
+            // longer dropping Cleaves (f-57c04b4a) every one lands on schedule, so the Warden Braces for the boss's
+            // frontal when Brace is ready and steps out of the cone when it is not.
+            ScriptedWarden.ApplyFrontalAnswer(ScriptedWarden.CleaveAnswer(run, answering, tick), Warden, cmds, 0);
         }
 
         if (state.Actors.TryGetValue(Cinder, out var c) && c.Alive && c.CastId is null)
