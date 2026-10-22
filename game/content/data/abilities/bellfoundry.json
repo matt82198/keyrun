@@ -25,7 +25,7 @@
   },
   {
     "id": "furnaceThrall.slagBurst", "name": "Slag Burst",
-    "castTicks": 0, "gcdTicks": 0, "cooldownTicks": 0, "charges": 1, "range": 0,
+    "castTicks": 40, "gcdTicks": 0, "cooldownTicks": 0, "charges": 1, "range": 0,
     "shape": { "kind": "circle", "radius": 3000 },
     "interruptible": false, "tags": [],
     "effects": [ { "op": "applyEffect", "effectId": "slagBurn", "durationTicks": 100, "stacks": 1 } ],
@@ -33,9 +33,9 @@
   },
   {
     "id": "scaldHound.boilingBlood", "name": "Boiling Blood",
-    "castTicks": 0, "gcdTicks": 0, "cooldownTicks": 60, "charges": 1, "range": 0,
+    "castTicks": 30, "gcdTicks": 0, "cooldownTicks": 60, "charges": 1, "range": 0,
     "shape": { "kind": "self" },
-    "interruptible": false, "tags": [],
+    "interruptible": true, "tags": [],
     "effects": [ { "op": "applyEffect", "effectId": "boilingBlood", "durationTicks": 80, "stacks": 1 } ],
     "cost": { "resource": "none", "amount": 0 }
   },
@@ -65,8 +65,8 @@
   },
   {
     "id": "brineMother.undertow", "name": "Mother's Undertow",
-    "castTicks": 50, "gcdTicks": 0, "cooldownTicks": 400, "charges": 1, "range": 25000,
-    "shape": { "kind": "circle", "radius": 25000 },
+    "castTicks": 50, "gcdTicks": 0, "cooldownTicks": 400, "charges": 1, "range": 27500,
+    "shape": { "kind": "circle", "radius": 27500 },
     "interruptible": false, "tags": [],
     "effects": [ { "op": "damage", "amount": 10, "school": "frost" }, { "op": "pull", "distanceMm": 9000 } ],
     "cost": { "resource": "none", "amount": 0 }
@@ -81,8 +81,8 @@
   },
   {
     "id": "brineMother.drowningHymn", "name": "Drowning Hymn",
-    "castTicks": 70, "gcdTicks": 0, "cooldownTicks": 200, "charges": 1, "range": 25000,
-    "shape": { "kind": "circle", "radius": 25000 },
+    "castTicks": 70, "gcdTicks": 0, "cooldownTicks": 200, "charges": 1, "range": 6000,
+    "shape": { "kind": "cone", "radius": 6000, "angle1024": 340 },
     "interruptible": true, "tags": ["healer"],
     "effects": [ { "op": "damage", "amount": 110, "school": "frost" } ],
     "cost": { "resource": "none", "amount": 0 }
@@ -96,13 +96,57 @@
     "cost": { "resource": "none", "amount": 0 }
   },
   {
-    "id": "greatBell.stillTheBell", "name": "Still the Bell",
-    "castTicks": 20, "gcdTicks": 0, "cooldownTicks": 0, "charges": 1, "range": 0,
-    "shape": { "kind": "self" },
-    "interruptible": false, "tags": ["setup:lock"],
+    "id": "greatBell.resonance", "name": "Resonance",
+    "castTicks": 60, "gcdTicks": 0, "cooldownTicks": 600, "charges": 1, "range": 3500,
+    "shape": { "kind": "circle", "radius": 3500 },
+    "interruptible": true, "tags": ["healer"],
     "effects": [
-      { "op": "applyEffect", "effectId": "lockShield", "durationTicks": 60, "stacks": 1 },
-      { "op": "window", "windowId": "lock", "durationTicks": 60, "onTarget": true, "setupClass": "boss", "self": true, "alternate": true }
+      { "op": "damage", "amount": 125, "school": "physical" },
+      { "op": "applyEffect", "effectId": "stunned", "durationTicks": 40, "stacks": 1 }
+    ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "slagHexer.moltenBrand", "name": "Molten Brand",
+    "castTicks": 50, "gcdTicks": 0, "cooldownTicks": 200, "charges": 1, "range": 25000,
+    "shape": { "kind": "target" },
+    "interruptible": true, "tags": [],
+    "effects": [ { "op": "applyEffect", "effectId": "moltenBrand", "durationTicks": 120, "stacks": 1 } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "ingotBrute.anvilDrop", "name": "Anvil Drop",
+    "castTicks": 50, "gcdTicks": 0, "cooldownTicks": 200, "charges": 1, "range": 2500,
+    "shape": { "kind": "circle", "radius": 2500 },
+    "interruptible": false, "tags": [],
+    "effects": [ { "op": "damagePct", "maxHealthBp": 3500, "school": "physical" } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "slagWhelp.sparkLunge", "name": "Spark Lunge",
+    "castTicks": 30, "gcdTicks": 0, "cooldownTicks": 150, "charges": 1, "range": 4000,
+    "shape": { "kind": "line", "length": 4000, "radius": 600 },
+    "interruptible": false, "tags": [],
+    "effects": [ { "op": "damage", "amount": 45, "school": "fire" } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "pitTender.fanTheCoals", "name": "Fan the Coals",
+    "castTicks": 70, "gcdTicks": 0, "cooldownTicks": 240, "charges": 1, "range": 0,
+    "shape": { "kind": "circle", "radius": 4000 },
+    "interruptible": true, "tags": [],
+    "effects": [ { "op": "applyEffect", "effectId": "fannedCoals", "durationTicks": 160, "stacks": 1 } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "knellSinger.dirge", "name": "Drowned Dirge",
+    "castTicks": 60, "gcdTicks": 0, "cooldownTicks": 180, "charges": 1, "range": 6000,
+    "shape": { "kind": "line", "length": 6000, "radius": 700 },
+    "interruptible": true, "tags": [],
+    "effects": [
+      { "op": "damage", "amount": 30, "school": "frost" },
+      { "op": "pull", "distanceMm": 4000 },
+      { "op": "applyEffect", "effectId": "drenched", "durationTicks": 60, "stacks": 1 }
     ],
     "cost": { "resource": "none", "amount": 0 }
   },

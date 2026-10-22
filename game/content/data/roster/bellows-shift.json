@@ -2,11 +2,11 @@
   "id": "bellows-shift",
   "dungeon": "sunken-bellfoundry",
   "name": "Bellows Shift",
-  "teaches": "two kicks a round: Stoke and Stoke Core, and you choose which goes through",
+  "teaches": "two kicks a round: Fan the Coals and Stoke Core, and you choose which goes through",
   "aggroMm": 4000,
   "enemies": [
     {
-      "enemyId": "bellows.keeper",
+      "enemyId": "bellfoundry.pitTender",
       "count": 2,
       "spawn": {
         "x": 1500,
