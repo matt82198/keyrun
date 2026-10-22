@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Keyrun.Sim.Core;
+using Keyrun.Sim.Nav;
 
 namespace Keyrun.Bots.Shared;
 
@@ -91,6 +92,30 @@ public static class Floor
         if (!Positioning.IsInAnyDanger(selfMm, danger))
         {
             return null;
+        }
+
+        // FLOOR-ESCAPE WALKABLE (finding f-4250969b, R-DODGE-2): on a layout run the safe point must be walkable and the
+        // move walks the sim's path to it. The sim clamps each actor into its open boxes after every tick, so a straight
+        // move toward a point in a wall pins the seat against the wall inside the hazard. Off a layout run the straight
+        // move is unchanged.
+        if (view.Layout is { } layout)
+        {
+            var grid = NavGrid.Of(layout);
+            bool Walkable(PointMm p) => grid.Walkable(new Vec3(p.X, self.Pos.Y, p.Z));
+            PointMm? walkable = null;
+            if (options.KeepNear is { } walkKeep)
+            {
+                walkable = Positioning.NearestSafePoint(selfMm, danger, 500, 20, p =>
+                {
+                    var dx = p.X - walkKeep.Anchor.X;
+                    var dz = p.Z - walkKeep.Anchor.Z;
+                    return Walkable(p) && (dx * dx) + (dz * dz) <= walkKeep.MaxDistMm * walkKeep.MaxDistMm;
+                });
+            }
+            walkable ??= Positioning.NearestSafePoint(selfMm, danger, extraCheck: Walkable);
+            return walkable is null
+                ? null
+                : PathMoves.Along(tick, self, layout, new Vec3(walkable.Value.X, self.Pos.Y, walkable.Value.Z));
         }
 
         PointMm? safe = null;
