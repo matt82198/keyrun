@@ -111,7 +111,7 @@ public sealed class ReferenceTests
         }
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(87, refs.Checked); // vacuity guard: exact ref count from the JSON (+39: the ten enemies/bellfoundry.json entries, 20 abilities, 16 script steps, the clapperBreak onEmpty and the two Clappers' breakBarId, D66; was 48;+2: seed.lash ability and script step, KF3; +2: seed.lock ability and script step, SEED-LOCK-TEACHES; +2: hall.sentry ability and script step, PATH-PACKS, STATE.md D49; +14: the five enemies/vault.json kits, 7 abilities and 7 script steps, VAULT-KITS S1)
+        Assert.Equal(91, refs.Checked); // vacuity guard: exact ref count from the JSON (+4: vault.patroller 2 abilities and 2 script steps, R-PATROL-4; was 87;+39: the ten enemies/bellfoundry.json entries, 20 abilities, 16 script steps, the clapperBreak onEmpty and the two Clappers' breakBarId, D66; was 48;+2: seed.lash ability and script step, KF3; +2: seed.lock ability and script step, SEED-LOCK-TEACHES; +2: hall.sentry ability and script step, PATH-PACKS, STATE.md D49; +14: the five enemies/vault.json kits, 7 abilities and 7 script steps, VAULT-KITS S1)
     }
 
     [Fact]
@@ -138,6 +138,6 @@ public sealed class ReferenceTests
         }
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(112, refs.Checked); // vacuity guard: exact ref count from the JSON (+1: the Sunken Bellfoundry's boss; +4: the four segment bosses, Hollow Vault 1 and Bellfoundry 3; +28: the 28 member groups of its 11 roster packs, D66; was 79)
+        Assert.Equal(119, refs.Checked); // vacuity guard: exact ref count from the JSON (+7: one Scald Hound member group in each of the seven roster packs grown to 5-8 mobs, D66 big pulls; +1: the Sunken Bellfoundry's boss; +4: the four segment bosses, Hollow Vault 1 and Bellfoundry 3; +28: the 28 member groups of its 11 roster packs, D66; was 79)
     }
 }

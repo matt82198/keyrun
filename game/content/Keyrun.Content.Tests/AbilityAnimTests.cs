@@ -64,7 +64,7 @@ public sealed class AbilityAnimTests
         Assert.Equal(
             new[]
             {
-                "greatBell.clangour", "greatBell.peal", "hollowWarden.cleave", "hollowWarden.slam", "ommet.pourSlag", "seed.lash",
+                "choir.patrolSweep", "greatBell.clangour", "greatBell.peal", "hollowWarden.cleave", "hollowWarden.slam", "ommet.pourSlag", "seed.lash",
                 "seed.slam", "slagRam.moltenCharge", "twins.slam", "vault.crushingSlam",
             },
             names);

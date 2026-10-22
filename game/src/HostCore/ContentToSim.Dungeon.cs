@@ -15,10 +15,11 @@ public sealed partial record HostRunSetup
     /// <summary>
     /// content/sim-adapt.ts toSimDungeon (ids from <see cref="PullActorIdStart"/> in pull, group, count order; yaw 0;
     /// speed and chase margin only when the enemy sets them) plus content-dungeon.ts buildDungeon: Tempo-scaled health
-    /// and scripts, and the boss appended as one more pull at <see cref="BossActorId"/>.
+    /// and scripts, and each boss appended as one more pull (R-MULTIBOSS-1: one per segment, in fight order, each at its
+    /// own actor id; the Hollow Vault's single boss is pull "boss" at <see cref="BossActorId"/>).
     /// </summary>
     private static (DungeonDef Dungeon, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> Scripts) ToSimDungeon(
-        C.ContentRegistry registry, C.DungeonDef dungeonDef, C.EnemyDef boss, int keyLevel, int trashHealthBp, int bossHealthBp)
+        C.ContentRegistry registry, C.DungeonDef dungeonDef, IReadOnlyList<BossSlot> bosses, int keyLevel, int trashHealthBp, int bossHealthBp)
     {
         // Plan M5: Fortified (trash) and Tyrannical (boss) health on top of Tempo, applied at spawn.
         var nextId = PullActorIdStart;
@@ -40,15 +41,25 @@ public sealed partial record HostRunSetup
             pulls.Add(new PullDef(pull.Id, spawns));
         }
 
-        // The boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon (Build, after this) stands it at the
+        // A boss pull's id is the layout's boss room key; NavLayouts.PlaceDungeon (Build, after this) stands it at the
         // arena origin and gives it the arena's aggroMm (layout.json), the same helper the bots use.
-        pulls.Add(new PullDef(C.LayoutDef.BossPullId, new[]
+        foreach (var slot in bosses)
         {
-            new PullSpawn(BossActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp)),
-        }));
-        scripts[BossActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel, CastFloors(registry, keyLevel));
+            var boss = slot.Def;
+            pulls.Add(new PullDef(slot.PullId, new[]
+            {
+                new PullSpawn(slot.ActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp)),
+            }));
+            scripts[slot.ActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel, CastFloors(registry, keyLevel));
+        }
         return (new DungeonDef(dungeonDef.Id, pulls), scripts);
     }
+
+    /// <summary>One boss of a run: its pull id (<see cref="C.LayoutDef.BossPullIds"/>), enemy definition and sim actor id.</summary>
+    /// <param name="PullId">The boss pull's id.</param>
+    /// <param name="Def">The boss enemy.</param>
+    /// <param name="ActorId">The boss actor's id (<see cref="BossActorIdOf"/>).</param>
+    private sealed record BossSlot(string PullId, C.EnemyDef Def, int ActorId);
 
     /// <summary>
     /// D66: the sim script an enemy runs at <paramref name="keyLevel"/>, exactly as a pull or pack member gets it
@@ -106,6 +117,17 @@ public sealed partial record HostRunSetup
             foreach (var group in pack.Enemies.Where(g => !fielded.Contains(g.EnemyId) && !templates.ContainsKey(g.EnemyId)))
             {
                 var def = Enemy(registry, group.EnemyId, $"pack \"{pack.Id}\"");
+                templates[def.Id] = new PackTemplate(
+                    ScaledTrashSpawn(def, 0, Vec3.Zero, keyLevel, trashHealthBp),
+                    Tempo.ScaleScript(ToSim(def.Script), keyLevel, CastFloors(registry, keyLevel)));
+            }
+        }
+        // R-PATROL-4: a patrol-only enemy (the corridor patrol's Vault Patroller) is a template too.
+        foreach (var patrol in layout.Patrols)
+        {
+            foreach (var group in patrol.Enemies.Where(g => !fielded.Contains(g.EnemyId) && !templates.ContainsKey(g.EnemyId)))
+            {
+                var def = Enemy(registry, group.EnemyId, $"patrol \"{patrol.Id}\"");
                 templates[def.Id] = new PackTemplate(
                     ScaledTrashSpawn(def, 0, Vec3.Zero, keyLevel, trashHealthBp),
                     Tempo.ScaleScript(ToSim(def.Script), keyLevel, CastFloors(registry, keyLevel)));

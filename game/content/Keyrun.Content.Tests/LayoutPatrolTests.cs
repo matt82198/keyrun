@@ -39,7 +39,8 @@ public sealed class LayoutPatrolTests
         Assert.Equal(50, patrol.SpeedMmPerTick);
         Assert.Equal(2, patrol.Waypoints.Count());
         Assert.Equal(2, patrol.Enemies.Count());
-        Assert.All(patrol.Enemies, e => Assert.Equal("choir.melee", e.EnemyId));
+        // R-PATROL-4: one Acolyte and one Vault Patroller (the Patrol Sweep caster), exactly these two, in this order.
+        Assert.Equal(new[] { "choir.melee", "vault.patroller" }, patrol.Enemies.Select(e => e.EnemyId));
     }
 
     [Fact(DisplayName = "Patrol (MPLUS-PATROLS): a waypoint outside the corridor the patrol walks fails the load")]
