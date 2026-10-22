@@ -34,7 +34,8 @@ public readonly record struct FadeBody(FadeRole Role, (int X, int Y, int Z) Cent
 /// </list>
 /// It is drawn opaque again the frame it stops. The player's own model (<see cref="FadeRole.Self"/>) and enemies are never
 /// faded. No Godot types and integers only (the Keyrun.Content purity rule); unit-tested in
-/// Keyrun.Content.Tests/PartyFadeTests.cs, applied to the CC0 model's materials by game/src/View/ActorView.cs.
+/// Keyrun.Content.Tests/PartyFadeTests.cs. PARTY-SOLID (Matt 2026-10-21, "i want to be able to see my party"): no longer
+/// applied by game/src/View/ActorView.cs; every party body is drawn opaque (<see cref="CameraNearFade.AppliedPermille"/>).
 /// Units: plan mm, Y up; alpha in permille.
 /// </summary>
 public static class PartyFade
