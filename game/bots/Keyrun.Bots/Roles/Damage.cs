@@ -140,17 +140,29 @@ public sealed class DamageRole : IRole
         {
             return new Command[] { escape };
         }
+        if (BreakBarKick.Command(view, self, kit) is { } barKick)
+        {
+            return new Command[] { barKick };
+        }
         var payoff = PayoffOnWindowCommand(view, self, kit);
         if (payoff.Count > 0)
         {
             return payoff;
         }
+        // BOSS-TEACHES (R-BOSS-1): the designated setter's Setup into the boss's Lock first; every other Setup on the
+        // boss is held while the Lock is under way (LockAnswer).
+        var lockSetup = LockAnswer.SetupCommand(view, self, kit);
+        if (lockSetup.Count > 0)
+        {
+            return lockSetup;
+        }
         var setup = SetupForAllyCommand(view, self, kit);
-        if (setup.Count > 0)
+        if (setup.Count > 0 && !LockAnswer.Holds(view, self, setup))
         {
             return setup;
         }
-        var rotationKit = kit with { Rotation = Fillers.ArrangeFillers(view, self, kit, kit.Rotation, self.TargetId) };
+        var arranged = Fillers.ArrangeFillers(view, self, kit, kit.Rotation, self.TargetId);
+        var rotationKit = kit with { Rotation = arranged.Where(id => !LockAnswer.HoldsSetup(view, self, self.TargetId, id) || !kit.SetupAbilityIds.Contains(id)).ToList() };
         if (PickResourceAwareRotation(rotationKit, self, tick) is { } abilityId)
         {
             return new Command[] { new CastCommand(tick, self.Id, abilityId, self.TargetId) };

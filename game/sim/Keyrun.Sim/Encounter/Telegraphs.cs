@@ -52,7 +52,7 @@ public sealed record TelegraphCancel(IReadOnlyList<Telegraph> Telegraphs, IReadO
 /// <param name="HitActorIds">Hit actors, ascending.</param>
 public sealed record TelegraphHit(int TelegraphId, IReadOnlyList<int> HitActorIds);
 
-/// <summary>The registry after one <see cref="Telegraphs.Advance"/>.</summary>
+/// <summary>The registry after one <see cref="Telegraphs.Advance(SimState, IReadOnlyList{Telegraph}, IReadOnlyList{TelegraphDraw}, int, Action{SimEvent}, Func{IReadOnlyList{Telegraph}, IReadOnlyList{Telegraph}})"/>.</summary>
 /// <param name="Telegraphs">Still-pending telegraphs, in registry order.</param>
 /// <param name="NextTelegraphId">The next id to mint.</param>
 /// <param name="Hits">Telegraphs resolved this tick.</param>
@@ -236,6 +236,47 @@ public static class Telegraphs
     }
 
     /// <summary>
+    /// TELEGRAPH-DRAW (review R1): the Telegraph for one typed draw (sim/encounter/index.ts registerTelegraph), with no
+    /// field-bag round trip; its <see cref="Telegraph.CastStartTick"/> is the draw's.
+    /// </summary>
+    /// <param name="draw">The draw.</param>
+    /// <param name="id">The id to mint.</param>
+    /// <returns>The registry telegraph.</returns>
+    public static Telegraph Register(in TelegraphDraw draw, int id)
+    {
+        var spec = draw.Spec ?? throw new ArgumentException("telegraph draw lacks a spec", nameof(draw));
+        return new Telegraph(id, draw.ActorId, draw.Cast, spec.Shape, draw.Origin, draw.Yaw, draw.ResolvesTick)
+        {
+            Radius = spec.Radius,
+            Angle1024 = spec.Angle1024,
+            Length = spec.Length,
+            Width = spec.Width,
+            CastStartTick = draw.CastStartTick,
+        };
+    }
+
+    /// <summary>
+    /// One tick of the telegraph registry for typed draws (TELEGRAPH-DRAW): as the event overload below, with each new
+    /// telegraph registered by <see cref="Register(in TelegraphDraw, int)"/> in draw order.
+    /// </summary>
+    public static TelegraphAdvance Advance(
+        SimState state,
+        IReadOnlyList<Telegraph> active,
+        IReadOnlyList<TelegraphDraw> newDraws,
+        int nextTelegraphId,
+        Action<SimEvent> emit,
+        Func<IReadOnlyList<Telegraph>, IReadOnlyList<Telegraph>>? drift = null)
+    {
+        ArgumentNullException.ThrowIfNull(newDraws);
+        var registered = new List<Telegraph>(newDraws.Count);
+        for (var i = 0; i < newDraws.Count; i++)
+        {
+            registered.Add(Register(newDraws[i], nextTelegraphId + i));
+        }
+        return AdvanceRegistered(state, active, registered, nextTelegraphId, emit, drift);
+    }
+
+    /// <summary>
     /// One tick of the telegraph registry, in stepEncounter's order: register <paramref name="newTelegraphEvents"/>
     /// with consecutive ids from <paramref name="nextTelegraphId"/>, append them to <paramref name="active"/>,
     /// apply <paramref name="drift"/> (the Tide clause hook, lane 2C; identity when null), resolve, emit one
@@ -259,6 +300,17 @@ public static class Telegraphs
                 CastStartTick = castStartTicks is not null && i < castStartTicks.Count ? castStartTicks[i] : null,
             })
             .ToList();
+        return AdvanceRegistered(state, active, registered, nextTelegraphId, emit, drift);
+    }
+
+    private static TelegraphAdvance AdvanceRegistered(
+        SimState state,
+        IReadOnlyList<Telegraph> active,
+        IReadOnlyList<Telegraph> registered,
+        int nextTelegraphId,
+        Action<SimEvent> emit,
+        Func<IReadOnlyList<Telegraph>, IReadOnlyList<Telegraph>>? drift)
+    {
         IReadOnlyList<Telegraph> all = active.Concat(registered).ToList();
         if (drift is not null)
         {
@@ -288,7 +340,7 @@ public static class Telegraphs
     /// never cancelled.
     /// </summary>
     /// <param name="after">The state after this tick's combat.</param>
-    /// <param name="pending">The registry after this tick's <see cref="Advance"/>.</param>
+    /// <param name="pending">The registry after this tick's <see cref="Advance(SimState, IReadOnlyList{Telegraph}, IReadOnlyList{TelegraphDraw}, int, Action{SimEvent}, Func{IReadOnlyList{Telegraph}, IReadOnlyList{Telegraph}})"/>.</param>
     /// <param name="tick">The tick just stepped.</param>
     /// <param name="emit">Event sink.</param>
     /// <param name="abilities">Ability definitions, to tell a cast that needs a hostile target; null skips that check.</param>

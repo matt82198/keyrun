@@ -18,7 +18,7 @@
     "abilities": ["ash.searingHex", "ash.cinders"],
     "script": [
       { "at": "loop", "every": 200, "cast": "ash.searingHex",
-        "telegraph": { "shape": "circle", "radius": 1200, "leadTicks": 50, "spansCast": true } },
+        "telegraph": { "shape": "circle", "radius": 1200, "leadTicks": 50, "spansCast": true, "anchor": "target" } },
       { "at": "onDeath", "cast": "ash.cinders",
         "telegraph": { "shape": "circle", "radius": 2000, "leadTicks": 40 } }
     ]
