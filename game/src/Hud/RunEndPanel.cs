@@ -533,9 +533,10 @@ public partial class RunEndPanel : Control
             HudNodes.Text(this, card.Position + new Vector2(10, 22), FormattableString.Invariant($"{i + 1}  {slot}  Tier {c.Tier}"), 16, new Color(1f, 0.9f, 0.55f, alpha));
             // A Facet names its ability only when content knows it (the content pool's kit ids resolve, lane 3C-d; the
             // placeholder pool's ids, used only without content, are not shown).
-            if (_driver?.Registry is { } reg && reg.Abilities.TryGetValue(c.Facet.AbilityId, out var abilityDef))
+            if (_driver?.Registry is { } reg && reg.Abilities.TryGetValue(c.Facet.AbilityId, out _))
             {
-                HudNodes.Text(this, card.Position + new Vector2(10, 42), abilityDef.Name, CardFont, new Color(0.7f, 0.85f, 1f, alpha));
+                // f-b24741e2: the reward card names the ability by its display name, the one every other surface shows.
+                HudNodes.Text(this, card.Position + new Vector2(10, 42), _driver.AbilityName(c.Facet.AbilityId), CardFont, new Color(0.7f, 0.85f, 1f, alpha));
             }
             var y = card.Position.Y + 62;
             // f-e880cd4c: what this card's tier gives, from the content gear table (no numbers live here).

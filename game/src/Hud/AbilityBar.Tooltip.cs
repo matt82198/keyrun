@@ -36,11 +36,10 @@ public partial class AbilityBar
     private (int Slot, PixelRect Box, List<(string Text, int Font, Color Color)> Lines)? _tip;
     private string? _lastTipLine;
 
-    /// <summary>The themed display name of an ability (ability-text.json), else its content name.</summary>
+    /// <summary>The themed display name of an ability, through the one resolver (Names.Ability via the driver).</summary>
     /// <param name="abilityId">The ability id.</param>
     /// <returns>The name.</returns>
-    private string SlotName(string abilityId) =>
-        AbilityText()?.NameOr(abilityId, Driver!.AbilityName(abilityId)) ?? Driver!.AbilityName(abilityId);
+    private string SlotName(string abilityId) => Driver!.AbilityName(abilityId);
 
     private AbilityTextTable? AbilityText()
     {
