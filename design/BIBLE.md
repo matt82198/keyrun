@@ -274,7 +274,7 @@ timer rules above.
 - **Untimed: the key stays the same level.** No depletion and no downgrade (f-7c7abdf4). This replaces the
   depletion rule in the timer bullet above.
 - **Loot quality is set by the key level that was run.** A +2 or +3 pays by the key movement it earns. The
-  one-of-three choice at the end of a run is unchanged (section 7).
+  completion roll replaces the one-of-three choice at the end of a run, and its tier band rises with the key (section 7; design/PROGRESSION-PIVOT.md s2.3). (R-PIVOT-1, 2026-10-22)
 - **The thresholds (100%, 80%, 60%) are WoW's current values.** Verify them against the live game before tuning.
 - **Open, not decided here:** a run that finishes between par and par plus Slack counts as timed under the
   depletion rule, but no tier above covers it. Matt's decision does not cover that band, so it is flagged for him.
@@ -285,8 +285,8 @@ timer rules above.
   "honestly just lean into m+ design heavily while in the dungeon". Inside the dungeon, World of Warcraft Mythic+ is
   the reference design. Where this section, or the timer rules of section 8, diverges from a Mythic+ in-dungeon
   convention, Mythic+ wins unless a section 0 test or a recorded Matt decision says otherwise, and every such
-  divergence names its reason. This applies to the dungeon only. The screen, the queue, gear, the end-of-run choice
-  and the social rules (sections 7 and 10) stay as written.
+  divergence names its reason. This applies to the dungeon only. The screen, the queue, gear, the completion roll
+  (R-PIVOT-1, 2026-10-22, which replaces the end-of-run choice of three) and the social rules (sections 7 and 10) stay as written.
 - **Almost exactly WoW, with fewer buttons.** **Direction (Matt, 2026-10-20), recorded verbatim:** "it should feel
   almost exact to wow with less button clutter". The one intended divergence from WoW Mythic+ in the dungeon is
   fewer buttons: the ten-keybind budget (section 2, D4). For the same reason there are no invisibility or skip
@@ -337,7 +337,7 @@ older line above contradicts one of them, that line is kept and marked "(superse
 - **Private rating.** A WoW-style Mythic+ rating is shown only on the player's own screen. It is never shown to
   others and never used to filter groups. This keeps section 0's "no shareable score". (f-a3230c59)
 - **Loot from key level.** Loot quality comes from the key level. A timed +2 or +3 moves the key up 2 or 3 levels.
-  Choose-one-of-three stays. (f-baeb031a)
+  The choose-one-of-three is replaced by the completion roll (R-PIVOT-1, 2026-10-22). (f-baeb031a)
 - **Twins die with the Warden.** The Sundered Twins die with the Hollow Warden. Boss death ends the encounter and
   any adds despawn, as in WoW. Sim change pending. (f-77fcfca4)
 - **Affixes follow current WoW.** From +5, one of Fortified or Tyrannical rotates. From +10, both are on. A
@@ -556,8 +556,8 @@ shown (for example 104%) and do nothing else. The fight itself is unchanged. (am
    ledger. Low positional demand.
 2. **The Pair** — five melee; every 20 s one player is marked to *spread* (a ring: stand apart), ten seconds
    later the pack calls a *stack* (a circle: stand together, damage split). Teaches reading shape.
-3. **The Seed** — an elite that on death drops a Window on the floor; a Combo landed in it grants bonus loot at
-   run end. Teaches the boss's core rule with no stakes. It activates when the party enters its chamber, as WoW mini-bosses do (amended 2026-10-21, orchestrator ruling R6; Matt may overrule); every other group engages on its aggro radius.
+3. **The Seed** — an elite that on death drops a Window on the floor; a Combo landed in it gives every player a second independent completion roll at
+   run end (R-PIVOT-1, 2026-10-22; design/PROGRESSION-PIVOT.md s2.3). Teaches the boss's core rule with no stakes. It activates when the party enters its chamber, as WoW mini-bosses do (amended 2026-10-21, orchestrator ruling R6; Matt may overrule); every other group engages on its aggro radius.
 
 **Boss: the Hollow Warden.** Three mechanics, sequenced, never layered (research/06):
 1. **Cleave** — a slow frontal cone, readable from the boss's facing. Stand behind or beside.
@@ -601,7 +601,7 @@ have at least 1 other dungeon with multiple bosses, something the bible got wron
   boss, fork, boss, fork, final boss. Each fork splits into branches that meet at the next boss. Forces on offer are above 100% on every route (9.2), and the key completes on 100% forces with the
   final boss dead (R-FORCES-1).
 - **The human plays seat 1, end to end.** A human plays seat 1 through the whole section 1 loop: the screen (five
-  tabs), Queue, the dungeon, the end-of-run choice of three, and back to the screen. It starts from a one-line launch
+  tabs), Queue, the dungeon, the completion roll (R-PIVOT-1, 2026-10-22), and back to the screen. It starts from a one-line launch
   command documented in README.md. Bots fill the other seats (D2).
 - **Longer dungeons and the difficulty curve (D67, 2026-10-22).** **Direction (Matt), recorded verbatim:** "any
   dungeon past tutorial should have 3 bosses" "min" "some players like longer dungeons, ultimately we'll end up with
@@ -636,7 +636,7 @@ class, not just the warden" / "if you dont know, defer to wow, huge pulls are fu
   pop times out (10 seconds) and returns everyone to the queue, with no penalty for declining or timing out
   (research/08:127-128).
 - **Last-3-runs strip.** A collapsed, private strip under the queue state shows the character's last three runs:
-  time, result, and what the clear moved (section 7). It lives on the screen, not in a separate menu
+  time, result, and the roll line and tree point the clear gave (section 7; R-PIVOT-1, 2026-10-22). It lives on the screen, not in a separate menu
   (research/08:131-132), and no one else can see it.
 - **Backfill is in the first playable** (Fellowship's named defect, research/09:65, :112, :125): a slot that empties
   mid-run is offered to the queue at the same key. A joiner arrives at the next pull start (a teaching pull or a
@@ -664,7 +664,7 @@ narrative. The sim, content, bots and client are built so none of these require 
 ## 12. Data versus judgment
 
 **From the research** (cited above): the timer spine and one-Clause-at-a-time rule; soft roles and the queue evidence;
-depth from modifiers on a frozen kit; forks not trees; facets not item level; per-run choice of three; transparent
+depth from modifiers on a frozen kit; forks, then per-ability improvement trees (R-PIVOT-1, 2026-10-22; design/PROGRESSION-PIVOT.md s1, replacing "forks not trees"); facets not item level; per-completion roll (R-PIVOT-1, 2026-10-22, replacing "per-run choice of three"); transparent
 drop sources; bounded crafting; Ash on every run; telegraph readability rules; sequenced not layered mechanics;
 no single-mistake wipes; the one-screen hub; backfill; no exported score; fixed-tick determinism; route choice
 and pull size against a required enemy-forces percentage; mixed melee and caster packs with priority kicks;
@@ -672,7 +672,7 @@ Clauses starting at a higher key; the kick window in ticks with a lag margin; ti
 kick-ready party-frame readout; vote-to-leave keeping the key; the honest queue screen.
 
 **Matt's 2026-10-20 decisions** (recorded verbatim in sections 6, 7 and 8): forks kept, with a dominance check; the
-Clause set by the key, never picked; every clear moves something visible; the vault every run; prespawn with
+Clause set by the key, never picked; every clear moves something visible (its upgrade guarantee superseded, R-PIVOT-1, 2026-10-22); the vault every run; prespawn with
 aggro distance and zero downtime as stakes (section 9.1); Mythic+ as the dungeon's reference, "almost exact to wow
 with less button clutter" (section 9); an untimed key keeps its level, the upgrade tiers and loot quality from the
 key level (sections 7 and 8); Fortified and Tyrannical with a rotating Clause on top (section 8); the Twins dying
