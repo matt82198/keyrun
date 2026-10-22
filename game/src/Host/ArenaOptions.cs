@@ -12,7 +12,7 @@ namespace Keyrun.Host;
 /// <summary>
 /// The arena's user arguments (after <c>--</c> on the Godot command line), in the style of Main.cs's
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
-/// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T|A@pullN+O|A@pullN.hpP+O</c>, <c>--joiner-key K</c>,
+/// <c>--seed N</c>, <c>--dungeon-seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T|A@pullN+O|A@pullN.hpP+O</c>, <c>--joiner-key K</c>,
 /// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
 /// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>, <c>--rotation N</c>,
 /// <c>--ready-hold F</c>.
@@ -86,6 +86,8 @@ namespace Keyrun.Host;
 /// human then answers ready (no key is pushed, so a recording is unchanged). 0 = answer at the pop.</param>
 /// <param name="Camera">CAMERA-VERTICAL (<c>--camera chase|vertical</c>, <see cref="CameraMode"/>): the CameraRig's
 /// starting preset, render-only. Chase (the default) is the unchanged follow camera; V flips it in play.</param>
+/// <param name="DungeonSeed">D45/D46 (<c>--dungeon-seed N</c>): play the seeded two-branch dungeon generated from N
+/// (<see cref="Keyrun.Bots.Shared.SeededLayout"/>) instead of the hand-built Hollow Vault; null (the default) keeps the hand layout.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -107,7 +109,8 @@ public sealed record ArenaOptions(
     CarelessSeatPlan? CarelessSeat = null,
     int? Rotation = null,
     int ReadyHold = 0,
-    CameraModeKind Camera = CameraModeKind.Chase)
+    CameraModeKind Camera = CameraModeKind.Chase,
+    long? DungeonSeed = null)
 {
     /// <summary>
     /// Default autorun length: 20 s, set when the lieutenant's first heal began at tick 196 at key 2, leaving room for
@@ -152,6 +155,7 @@ public sealed record ArenaOptions(
         CarelessSeatPlan? careless = null;
         var readyHold = 0;
         var camera = CameraModeKind.Chase;
+        long? dungeonSeed = null;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -179,6 +183,9 @@ public sealed record ArenaOptions(
                     break;
                 case "--pull":
                     pull = PositiveInt(args, ref i);
+                    break;
+                case "--dungeon-seed":
+                    dungeonSeed = PositiveInt(args, ref i);
                     break;
                 case "--seed":
                     seed = PositiveInt(args, ref i);
@@ -227,7 +234,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, dungeonSeed);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
