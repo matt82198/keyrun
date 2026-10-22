@@ -14,7 +14,6 @@ namespace Keyrun.Content.Tests;
 /// </summary>
 public sealed class OptionalBranchForcesTests
 {
-    private const string LayoutFile = "layout.json";
     private const string HallSentries = "hall-sentries";
 
     private static JsonObject Pack(JsonNode root, string id) =>
@@ -104,19 +103,19 @@ public sealed class OptionalBranchForcesTests
     public void A_layout_pack_with_an_unknown_property_fails_closed()
     {
         var ex = Assert.Throws<ContentLoadException>(() => ContentLoader.Load(new MutableSource()
-            .Edit(LayoutFile, n => Pack(n, HallSentries)["ringMm"] = 3000)
+            .EditLayout(n => Pack(n, HallSentries)["ringMm"] = 3000)
             .Build()));
 
-        Assert.Contains(LayoutFile, ex.Message);
+        Assert.Contains(MutableSource.LayoutDir + "packs/", ex.Message);
     }
 
     [Fact]
     public void A_layout_pack_missing_its_aggro_radius_fails_closed()
     {
         var ex = Assert.Throws<ContentLoadException>(() => ContentLoader.Load(new MutableSource()
-            .Edit(LayoutFile, n => Pack(n, HallSentries).Remove("aggroMm"))
+            .EditLayout(n => Pack(n, HallSentries).Remove("aggroMm"))
             .Build()));
 
-        Assert.Contains(LayoutFile, ex.Message);
+        Assert.Contains(MutableSource.LayoutDir + "packs/", ex.Message);
     }
 }

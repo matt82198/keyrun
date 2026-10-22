@@ -14,7 +14,8 @@ Why pinned: Matt 2026-10-19, verbatim: "there seems to be a misunderstaning with
 - POC dungeon, section 9, verbatim: "Three pulls and a boss, forward-only, no backtracking (research/02). Each pull teaches one thing." Pulls: "**The Choir**" teaches the kick ledger (must-kick 4-second heal cast); "**The Pair**" teaches reading shape (spread ring, then stack circle); "**The Seed**" teaches the boss's core rule with no stakes. Boss "the Hollow Warden": Cleave, The Sundered Twins, The Lock.
 - Gear, section 7, verbatim: "**Five slots**: Weapon, Armor, Charm, Ring, Keystone." "Tier is power and it is capped at 10." "**Facets change function**" "**End of every run: choose one of three**" "Ash buys only cosmetics and titles." "**After the cap: Ascension.** ... and Ascension marks on the character."
 - Current milestone, STATE.md D10 (verbatim): "**MVP = 3D gameplay**" ... "the MVP deliverable is one complete 3D run Matt can play end to end and judge by feel, not a test count." Phase 3 exit waits on Matt's human-played run. MVP LINE (D10 question, RESOLVED 2026-10-20 under Matt's out-of-dungeon rule, see INTENT): the MVP is the full section 1 loop: one screen with tabs, then Queue, then the Dungeon, then the end-of-run choice of three, then back to the screen.
-- Acceptance is Matt watching (D15): frames and video viewed before a visible row closes. Demo verdict 2026-10-19 (default run C at 75da3ef): KF1 combat animation reads badly; KF2 bots idle in the first room (the Choir is meant to teach the kick); KF3 the Seed elite spawns on entry and the bots cheese it. Known section 3 gaps (recon 2026-10-21 16:18Z): every Warden, Twins and Seed threat is a cast with a spansCast telegraph; the one shape mismatch is seed.lash (target-shaped, drawn as a caster-centred circle r1500), re-scoped as LASH-1 view + LASH-2 content in the 17:00Z block.
+- Acceptance is Matt watching (D15): frames and video viewed before a visible row closes. Demo verdict 2026-10-19 (default run C at 75da3ef): KF1 combat animation reads badly; KF2 bots idle in the first room (the Choir is meant to teach the kick); KF3 the Seed elite spawns on entry and the bots cheese it. KF2 on main (1f8fed7f, #515, "scripted Warden kicks the casting lieutenant"): the Choir kick works, capture kf2-kick-1f8fed7f shows Choral Mending interrupted at ticks 312, 508 and 706 by seats 1, 2 and 3; KF2 is re-captured and awaiting Matt's view, not open. Known section 3 gaps (recon 2026-10-21 16:18Z): every Warden, Twins and Seed threat is a cast with a spansCast telegraph. The seed.lash shape mismatch is fixed on main: its telegraph is a caster-to-target line (shape line, length 1500, width 1200; content/data/enemies/seed.json, #486 6f699097), drawn as a rectangle by TelegraphView (#485 651a9d75). TelegraphAnchor caster|target is pending #539, not merged.
+- Boss door and room gate are gone on main (D44; #515 1f8fed7f removed the boss door and the DOOR-100 detour; 6c6746bb removed the no-gates route). Run.cs:377 says BossDoor.Admit is not applied on the forward route. No gate_closed or gate_open event is emitted, and game/src/View/RoomGateView.cs and the GateView and GateCutaway scene tests are absent. Any STATE or map line that calls the boss door or a room gate live is stale.
 - Art and gear models: CC0 packs only (D17). How gear shows on the CC0 models was an open design question, RESOLVED 2026-10-20 under Matt's out-of-dungeon rule (see INTENT): as in Dark and Darker, equipped gear is visible on the character model, within the CC0 assets (D17). A BIBLE-ALIGN recon on 2026-10-19 is mapping the bible against main.
 
 **Intent (Matt, 2026-09-18):** "isolating m+ from WoW and just making it an open and queue game like Dark and Darker,
@@ -24,36 +25,35 @@ abilities, a boss. Mechanics like interrupts, but be more creative than blizzard
 class max, 10 total keybinds should be plenty for rotation, movement, utility... the goal is class synergy." No art
 assets; pure POC.
 
-## Current state (checkpoint 2026-10-18)
-- Main tip: 36feb7e (#174 squash, HOST-HEADING). Prior main tips: cfa40b9 (#173), 8ffe1e3 (#172), f72c738 (#171), 581212d (#170), 9df96ef (#169), 6ae14a1 (#168 docs), 30f5708 (#167), 10de063 (#106), 56c5686 (#105), b54eb40 (#104 docs), 2c8f8ea (#102), 54e69c5 (#99), 00e4ebb (#98).
-- Merged today since the 23:30Z checkpoint: #101 99836b0 (window ring labels + payoff-ready key glow + ping context + aimed spot ping); #102 2c8f8ea (bots/src/roles/shared.ts inLull, tank-pressure.ts).
-- MERGED 99f39a2: #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info).
-- Phase: 3 rows 3A-3J all MERGED on main (2026-10-18, verified per PR, see NEXT STEPS). PHASE 3 EXIT NOT RECORDED. D10
-  verdict (2026-10-18): FOURTH pass PARTIAL, PHASE 3 EXIT NOT-MET (Phase 3 block, FOURTH-PASS ORACLE VERDICT). It supersedes
-  the third pass NOT-MET, the second pass MET-WITH-TUNING-GAP and the first pass NOT-MET (DECISIONS AND OBSERVATIONS (d)).
-  Why: #158 (D14) lets an autorun reach and clear the boss, but no human-played run to the boss is measured, and only that
-  closes Phase 3 exit. Phase 5 "Matt playing" is the acceptance test; not yet reached. Phase 4 (TS deletion) stays blocked on D10.
-- Earlier landed (unchanged): #92 e3f622e, #95 e56955c, #97 08b9611, #98 00e4ebb, #99 54e69c5.
-- Test count on 2c8f8ea: not restated in this checkpoint (not sourced for this head).
-- NEXT (supersedes the status in NEXT STEPS item 1; rewritten 2026-10-18 from BUILDLOG.md and git log -15):
-  Merged since the 23:55Z checkpoint: #104 b54eb40 (checkpoint docs); #105 56c5686 (SPREAD/STACK telegraph floor
-  labels with countdown, render/telegraph-label.ts); #106 10de063 (sim-host scaleStep keeps `every`, so recurring
-  STACK calls fire during The Pair; server/src/content-setup.ts ported identically). BUILDLOG.md has no line for
-  #104-#106; these come from git log and the commit bodies.
-  Earlier 2026-10-17 merges (BUILDLOG-recorded): #98 00e4ebb (named ability bar, cast projections, actor tags,
-  objective line, GCD dim, hit flash); #101 99836b0 (window ring labels, payoff key glow, ping context, aimed spot
-  ping); #102 2c8f8ea (tank banks GCD in a lull); #103 99f39a2 (status chips, DOWNED tag, dash trail, telegraph
-  contrast 0.15->0.4, ?net=1 cast parity).
-  BIBLE-vs-client gap ladder, remaining:
-  - Slack delta (needs hud-wiring.ts prevSnapshot; deferred in #103 per decision 6 below).
-  - Cast-bar ability names (ladder rung 7): in the #101 lane scope but not in its merged title; confirm on main before
-    ticking it. Proof: boss bar reads "Cleave".
-  - Class silhouettes and legend overlay: no BUILDLOG line either way; treat as not started.
-  - Open from the ladder: boss Slam cast bar unnamed; Lock ring with no shield; boss-bar.ts has no phase field;
-    window ring colour is time-only; setupClass never rendered; capsules have no names on the non-#98 path.
-  - Balance: 3 of 4 bots die in pull 2 at key 2; with hz=60 the party is mostly DOWNED (see OBSERVATIONS). Tuning is
-    Matt's call; bring the numbers, not a tuned constant.
-  - Then NEXT STEPS below in Matt's priority.
+## Current state (2026-10-22, main 73b706c0)
+WHY: the 2026-10-18 note here was four days stale. This replaces it with main as of #560, from `git log ed8ad21f..73b706c0` and gh.
+The full 2026-10-18 text is in git history (this file at 73b706c0).
+- Main: 73b706c0 (#560, 2026-10-22 00:56Z). Previous recency point: ed8ad21f (#508, CHECKPOINT 2026-10-21 21:12Z below).
+- Main is RED on game-test until #569 lands (clip row, scoreboard denominator, boss refuses blind).
+  #569 required checks all pass at 01:35Z; non-required balance fails. Auto-merge armed.
+- Merged since ed8ad21f (50 PRs), by area:
+  - Game loop: #505 Seed activates on room entry (KF3); #514 key sets the Clause (R1); #516 pick-of-three code deleted;
+    #518 Queue readout branches (B57, B58); #512 Ascension card on the run-end panel (U10); #515 taunt never roots the tank.
+  - Dungeon and packs: #502 Hall Sentries optional (G5); #511 LayoutPack.Branch; #517 per-branch forces totals;
+    #513 packs.json retired (R7); #537 skip bar (R-PACKS-1); #538 vault kits (S1); #528 corridor-2 patrol;
+    #533 teaching pulls pinned to BIBLE s9; #536 pack build slices doc.
+  - Sim: #551 integer A* pathing for bots and enemy chase (R-PATH-1); #561 boss fight 90-180 s (R-BOSS-1);
+    #539 telegraphs anchor on the caster's target; #560 TelegraphDraw record; #559 no dominated Cadence fork.
+  - View and HUD: #519 #523 #531 KF1 strike cue; #522 telegraph palette (R8); #530 seats line off the bar; #541 party
+    bodies opaque; #543 --camera chase|vertical and V; #544 per-ability CC0 clips with ANIM lines; #545 scoreboard kills; #526 GEAR lines for the Warden only.
+  - Refactor and deletion: #553 TypeScript tree deleted (phase 4A); #547 Casting partials; #550 SimEvent views;
+    #554 directory loader (unwired); #556 Screen partials; #557 one file per validator rule.
+  - Tests, CI, tools, docs: #503 #507 #509 #527 #529 #532 #534 #535; #504 #521 #524 #525 #548 #549.
+- Armed queue behind #569: #570 #568 #567 #566 #564 #563 #562 #558; merge-forward (DIRTY) #555 #540 #542.
+- Unarmed, waiting on Matt: #546 (Mythic+ dungeon plan), #552 (seeded dungeon architecture, D46).
+- Matt's product gaps (2026-10-21), status on main:
+  - Ability animations: landed #544. Pathing: landed #551. Boss length and teaching: landed #561.
+  - Party solid: landed #541. Vertical camera for captures: landed #543.
+  - Pulling and aggro range: packs engage on aggro radius (Aggro.cs); pull feel not judged by Matt yet.
+  - Non-linear rooms: not built; route is one path (layout.json route, 9 points). D45, D46, #552 unarmed.
+  - Pack diversity: vault kits landed #538; pack links #564 armed.
+  - Landed means merged code, not accepted. Acceptance is Matt's played run (D10, D15).
+- Row files: 50 in game/lanes/ wait for a fold lane into BUILDLOG.md and the game/CLAUDE.md lane list.
 
 ## Locked decisions
 - D1 **Stack**: TypeScript for sim, content, client, bots, server; Vitest; esbuild; Three.js for the 3D client; no engine.

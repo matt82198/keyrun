@@ -207,13 +207,19 @@
         {
           "id": "discord",
           "name": "Discord",
-          "text": "Dissonance becomes a frontal cone.",
+          "text": "Lighter hits, twice as often: more Payoffs to close Windows, less burst.",
           "patch": {
-            "shape": {
-              "kind": "cone",
-              "radius": 4000,
-              "angle1024": 120
-            }
+            "cooldownTicks": 30,
+            "effects": [
+              {
+                "op": "damage",
+                "amount": 80,
+                "school": "radiant"
+              },
+              {
+                "op": "payoff"
+              }
+            ]
           }
         }
       ]
