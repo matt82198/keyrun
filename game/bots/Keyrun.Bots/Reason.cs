@@ -94,6 +94,30 @@ public static class Reasons
         return command;
     }
 
+    /// <summary>
+    /// Tags a guided decision (G2.4 K3b): the rule id is <c>guide:&lt;class&gt;:&lt;entry&gt;</c> and the phrase is the guide's own
+    /// quoted reason, so the receipt names the guide entry that fired. Guide ids are not in <see cref="Catalog"/>; their shape is checked.
+    /// </summary>
+    /// <typeparam name="T">Command type.</typeparam>
+    /// <param name="command">The command a guided decision site returns.</param>
+    /// <param name="ruleId">A <c>guide:</c> id with a class and an entry.</param>
+    /// <param name="why">The guide's quoted reason; non-empty.</param>
+    /// <returns><paramref name="command"/>, unchanged.</returns>
+    public static T TagGuided<T>(T command, string ruleId, string why) where T : Command
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (ruleId is null || !ruleId.StartsWith("guide:", StringComparison.Ordinal) || ruleId.Length <= "guide:".Length)
+        {
+            throw new ArgumentException($"guided rule id '{ruleId}' must be guide:<class>:<entry>", nameof(ruleId));
+        }
+        if (string.IsNullOrWhiteSpace(why))
+        {
+            throw new ArgumentException("a guided decision quotes its guide reason", nameof(why));
+        }
+        Table.AddOrUpdate(command, new Reason(ruleId, why));
+        return command;
+    }
+
     /// <summary>Tags every command of <paramref name="commands"/> with <paramref name="ruleId"/>.</summary>
     /// <param name="commands">Commands from one decision site.</param>
     /// <param name="ruleId">A key of <see cref="Catalog"/>.</param>
