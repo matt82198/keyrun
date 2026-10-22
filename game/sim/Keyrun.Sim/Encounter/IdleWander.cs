@@ -20,10 +20,6 @@ namespace Keyrun.Sim.Encounter;
 /// pack's own ring, outside every other group's ring and on walkable floor, so wandering never pulls a second pack.
 /// </para>
 /// <para>
-/// A caster whose script casts an interruptible ability (<see cref="HoldsPost"/>) holds its post and never strolls, so the
-/// party's kick and taunt reach on it is exactly a standing pack's; its mates walk on.
-/// </para>
-/// <para>
 /// Aggro never moves with the wander. The pack ring is fixed, and an enemy's personal sight and assist radii are measured
 /// from its anchor (<see cref="EnemyAggro"/>), so a wandering enemy wakes its pack on exactly the tick a standing one does.
 /// The wander ends the instant the group engages (its members stop being idle) or leashes home (the anchor clears, and
@@ -55,23 +51,6 @@ public static class IdleWander
         public int Period => (Offsets.Count * PauseTicks) + LegTicks.Sum();
     }
 
-    /// <summary>
-    /// True when <paramref name="actorId"/> is a caster that holds its post: its script casts at least one interruptible ability
-    /// (the Cantor's Choral Mending), so the kick ledger and the party's interrupts are planned against where it stands. WoW
-    /// Mythic+ trash casters stay behind their melee; here they never stroll, so a wander can never carry a kickable caster
-    /// out of the kick range a standing pack would have left it in (BIBLE s3: the kick is the answer to a visible cast;
-    /// R-PINS-1: the ledger-named seat kicks).
-    /// </summary>
-    /// <param name="content">The run content (enemy scripts and abilities).</param>
-    /// <param name="actorId">The enemy actor id.</param>
-    /// <returns>True when the enemy stands at its post while idle.</returns>
-    public static bool HoldsPost(Keyrun.Sim.Runs.RunContent content, int actorId)
-    {
-        ArgumentNullException.ThrowIfNull(content);
-        return content.EnemyScripts.TryGetValue(actorId, out var steps)
-            && steps.Any(s => content.Abilities.TryGetValue(s.Cast, out var def) && def.Interruptible);
-    }
-
     /// <summary>True for the boss pull id and for an earlier segment's boss pull (<c>boss-</c> prefix; R-MULTIBOSS-1).</summary>
     /// <param name="groupId">The group id.</param>
     /// <returns>True for a boss group.</returns>
@@ -87,10 +66,8 @@ public static class IdleWander
     /// <param name="groups">Every static group (pulls and packs); patrols excluded by the caller.</param>
     /// <param name="encounter">The encounter (its engaged set).</param>
     /// <param name="grid">The layout grid (walkable floor).</param>
-    /// <param name="content">The run content (which casters hold their post, <see cref="HoldsPost"/>).</param>
-    public static void Step(SimState state, IReadOnlyList<AggroGroup> groups, EncounterState encounter, NavGrid grid, Keyrun.Sim.Runs.RunContent content)
+    public static void Step(SimState state, IReadOnlyList<AggroGroup> groups, EncounterState encounter, NavGrid grid)
     {
-        ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(groups);
         ArgumentNullException.ThrowIfNull(encounter);
@@ -116,12 +93,6 @@ public static class IdleWander
             }
             foreach (var m in members)
             {
-                if (HoldsPost(content, m.Id))
-                {
-                    // A kickable caster stands at its post: its anchor is wherever it stands (a shove moves both).
-                    m.WanderAnchor = m.Pos;
-                    continue;
-                }
                 if (m.WanderLoop is { Offsets.Count: > 1 } loop && m.WanderAnchor is { } anchor)
                 {
                     if (state.Tick > m.WanderEpoch)

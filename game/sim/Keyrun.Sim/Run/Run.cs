@@ -256,7 +256,7 @@ public static class RunRoot
         {
             // IDLE-WANDER: un-engaged packs and pulls (never a patrol, which keeps its route) walk inside their own ring.
             var patrolIds = (run.Content.Patrols ?? Array.Empty<PatrolPack>()).Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
-            IdleWander.Step(next, groups.Where(g => !patrolIds.Contains(g.Id)).ToList(), encounter, NavGrid.Of(layout), run.Content);
+            IdleWander.Step(next, groups.Where(g => !patrolIds.Contains(g.Id)).ToList(), encounter, NavGrid.Of(layout));
         }
         // AGGRO-CHASE leash: evaders that reached home reset, and a pack dragged past its leash gives up, before the aggro
         // check (an evading pack engages on nothing).
