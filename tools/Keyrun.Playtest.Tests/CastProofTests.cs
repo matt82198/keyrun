@@ -44,6 +44,24 @@ public sealed class CastProofTests
         }
     }
 
+    [Fact(DisplayName = "Cast proof (R-DECLUTTER-1, player cast): the played character's own cast bar is logged as where=frame, and no unit frame cast line is printed for it")]
+    public void A_player_cast_logs_its_own_frame_castbar_and_no_unit_frame_line()
+    {
+        var s = SimState.Create(1);
+        s.Actors[Human] = new ActorState
+        {
+            Id = Human, Kind = ActorKind.Player, ClassId = "warden", CastId = "warden.strike", CastStartTick = 50, CastEndsTick = 80,
+        };
+        s.Actors[Other] = new ActorState { Id = Other, Kind = ActorKind.Enemy, ClassId = "pair.melee" };
+
+        // The played character has no target frame of its own: its bar is on its frame (main's placement), and the unit frame
+        // cast line is for the enemy frames only. The step must not throw on the player and must still print its line.
+        var lines = new CastProofLog().Observe(s, Human, NotInterruptible);
+
+        Assert.Contains($"HUD castbar actor={Human} kind=player where=frame ability=warden.strike", lines);
+        Assert.DoesNotContain(lines, l => l.StartsWith("HUD unitframe cast ", System.StringComparison.Ordinal) && l.Contains($"actor={Human} "));
+    }
+
     [Fact(DisplayName = "Cast proof (R-DECLUTTER-1): a target switch mid-cast moves the caster between the unit frame and over the head, and the two proof lines describe the same moment")]
     public void Target_switch_mid_cast_keeps_the_frame_and_castbar_proof_in_step()
     {

@@ -44,10 +44,12 @@ public sealed class CastProofLog
             }
             _last[id] = (start, where);
             lines.Add($"HUD castbar actor={id} kind={HudDeclutter.Side(actor)} where={where} ability={castId}");
-            if (where == "frame" && actor.CastEndsTick is not null)
+            // A unit frame line only for a cast a unit frame shows (an enemy frame). The played character's own bar is on its
+            // frame by placement (CastPlacement says frame for every player) but no unit frame lists it: no unit frame line,
+            // and no exception, so the rest of the step's lines still print.
+            if (where == "frame" && actor.CastEndsTick is not null && frames.FirstOrDefault(f => f.ActorId == id) is { } shown)
             {
-                var kind = frames.First(f => f.ActorId == id).Kind;
-                lines.Add($"HUD unitframe cast kind={kind} actor={id} ability={castId} interruptible={(interruptible(castId) ? 1 : 0)}");
+                lines.Add($"HUD unitframe cast kind={shown.Kind} actor={id} ability={castId} interruptible={(interruptible(castId) ? 1 : 0)}");
             }
         }
         return lines;
