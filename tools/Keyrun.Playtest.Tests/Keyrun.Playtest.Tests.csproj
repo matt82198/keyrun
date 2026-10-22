@@ -30,6 +30,8 @@
       the open PRs that own it land (S4 moved the rest of the Godot-free host to Keyrun.HostCore, referenced below).
     -->
     <Compile Include="../../game/src/Host/ScriptedWarden.cs" Link="Host/ScriptedWarden.cs" />
+    <!-- f-b24741e2: Names.Ability, the one player-facing ability name path (AbilityNamesEverywhereTests). No engine types. -->
+    <Compile Include="../../game/src/Host/Names.cs" Link="Host/Names.cs" />
     <!-- HudSceneTest run B's "HUD ping" calls (R-PILE-10; HudSceneRunsBKTests). The Godot-free half of Hud/Pings.cs. -->
     <Compile Include="../../game/src/Hud/PingCalls.cs" Link="Hud/PingCalls.cs" />
     <!-- f-c5fb7b31: the Godot-free objective line (pull header and remain count), driven by real Bellfoundry runs (ObjectiveTrashTests). -->

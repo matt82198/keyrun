@@ -208,7 +208,7 @@ public partial class SimDriver : Node
         return Names.Actor(Registry, actor.ClassId);
     }
 
-    /// <summary>The content display name of an ability, else its id.</summary>
+    /// <summary>The name a player reads for an ability (display name, else content name, else id), via Names.Ability.</summary>
     /// <param name="abilityId">The ability id.</param>
     /// <returns>The name.</returns>
     public string AbilityName(string abilityId) => Names.Ability(Registry, abilityId);
