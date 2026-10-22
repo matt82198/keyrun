@@ -270,9 +270,19 @@ public sealed record NavLayout
     /// </summary>
     public IReadOnlyList<Combat.Bounds> Obstacles { get; init; } = Array.Empty<Combat.Bounds>();
 
-    /// <summary>The XZ box around every box (the host's coarse arena clamp; the walkable rule does the rest).</summary>
+    /// <summary>
+    /// R-BRANCH-WALK-1 (D45): the untaken branch's corridors and rooms. They are walkable (the clamp, the path grid and
+    /// room_enter all see them) but are not part of the route: <see cref="Boxes"/> and <see cref="Route"/> stay the walked
+    /// chain, so the route follow and the pull order never index into a side box. Empty on a layout with one path.
+    /// </summary>
+    public IReadOnlyList<NavBox> SideBoxes { get; init; } = Array.Empty<NavBox>();
+
+    /// <summary>Every walkable box: the route boxes, then the side boxes.</summary>
+    public IEnumerable<NavBox> AllBoxes => Boxes.Concat(SideBoxes);
+
+    /// <summary>The XZ box around every box, side boxes included (the host's coarse arena clamp; the walkable rule does the rest).</summary>
     public Combat.Bounds Extent => new(
-        Boxes.Min(b => b.Box.MinX), Boxes.Max(b => b.Box.MaxX), Boxes.Min(b => b.Box.MinZ), Boxes.Max(b => b.Box.MaxZ));
+        AllBoxes.Min(b => b.Box.MinX), AllBoxes.Max(b => b.Box.MaxX), AllBoxes.Min(b => b.Box.MinZ), AllBoxes.Max(b => b.Box.MaxZ));
 
     /// <summary>The trigger for <paramref name="pullId"/>, or null.</summary>
     public NavTrigger? TriggerFor(string pullId) => Triggers.FirstOrDefault(t => string.Equals(t.PullId, pullId, StringComparison.Ordinal));
@@ -333,7 +343,7 @@ public sealed record NavLayout
 
     /// <summary>The open boxes on pull <paramref name="pullIndex"/>, in layout order.</summary>
     public IReadOnlyList<Combat.Bounds> OpenBoxes(DungeonDef dungeon, int pullIndex) =>
-        Boxes.Where(b => IsOpen(b, dungeon, pullIndex)).Select(b => b.Box).ToList();
+        AllBoxes.Where(b => IsOpen(b, dungeon, pullIndex)).Select(b => b.Box).ToList();
 
     /// <summary>Throws unless every pull of <paramref name="dungeon"/> has a trigger (fail closed: a pull without a room never spawns).</summary>
     /// <exception cref="ArgumentException">A pull has no trigger.</exception>

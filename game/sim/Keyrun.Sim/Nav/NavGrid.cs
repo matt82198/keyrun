@@ -134,7 +134,7 @@ public sealed class NavGrid
         return Grids.GetValue(layout, static l =>
         {
             var boxes = new List<Bounds>(l.Boxes.Count);
-            foreach (var b in l.Boxes)
+            foreach (var b in l.AllBoxes)
             {
                 boxes.Add(b.Box);
             }

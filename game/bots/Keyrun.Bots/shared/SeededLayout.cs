@@ -185,7 +185,10 @@ public static class SeededLayout
         var grid = WalkGridGen.Emit(graph, p);
         var fill = SegmentFill.Fill(seed, graph, bosses, SeededRoster.Pool(reg, dungeonId), reg.Forces.Required);
         var branches = BotBranches(seed, graph.SegmentCount);
-        return new SegmentedDungeon(dungeonId, graph, grid, fill, branches, Walk(graph, grid, branches));
+        // R-BRANCH-WALK-1: the run's nav set is both branches (NavLayouts.ToSim: route boxes plus NavLayout.SideBoxes), so the
+        // dungeon's Walk.Boxes is the walkable set, the walked chain first; SideBoxes stays the untaken branch alone.
+        var walk = Walk(graph, grid, branches);
+        return new SegmentedDungeon(dungeonId, graph, grid, fill, branches, walk with { Boxes = walk.Boxes.Concat(walk.SideBoxes).ToList() });
     }
 
     /// <summary>
