@@ -1,0 +1,47 @@
+{
+  "classId": "warden",
+  "version": 1,
+  "rotation": [
+    {
+      "id": "brace-low",
+      "press": "warden.brace",
+      "when": { "healthBelowPct": 35 },
+      "reason": "Brace is the bot's hard defensive floor at 35% health (Tank.DefensiveThresholdPct)."
+    },
+    {
+      "id": "vigil-chain",
+      "press": "warden.vigil",
+      "when": {
+        "all": [
+          { "resourceAtLeast": 50 },
+          { "any": [ { "attackersOnSelfAtLeast": 3 }, { "healthBelowPct": 60 } ] }
+        ]
+      },
+      "reason": "Chain mitigation under pressure; 60% is the sustain floor (Tank.SustainThresholdPct)."
+    },
+    {
+      "id": "bulwark-pressure",
+      "press": "warden.bulwark",
+      "when": { "attackersOnSelfAtLeast": 3 },
+      "reason": "Group mitigation under pack pressure: three or more enemies aimed at the Warden."
+    },
+    {
+      "id": "reckoning-payoff",
+      "press": "warden.reckoning",
+      "when": { "resourceAtLeast": 100 },
+      "reason": "The biggest hit is worth most as a Payoff at full Momentum."
+    },
+    {
+      "id": "guard-break-pack",
+      "press": "warden.guardBreak",
+      "when": { "attackersOnSelfAtLeast": 2 },
+      "reason": "Guard Break out-damages Strike on any pack."
+    },
+    {
+      "id": "strike-setup",
+      "press": "warden.strike",
+      "when": { "all": [] },
+      "reason": "Filler Setup: opens Sundered for the Cinder's stop and the Chanter's heal."
+    }
+  ]
+}

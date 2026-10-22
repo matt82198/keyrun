@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Keyrun.Sim.Core;
 
@@ -34,6 +35,19 @@ public sealed record RoleSet(IRole? Tank, IRole? Healer, IRole? Damage)
     /// <c>damageDecide</c> imports. This is what the TS <c>makeBot()</c> dispatches through.
     /// </summary>
     public static RoleSet Default { get; } = new(Roles.TankRole.Instance, Roles.HealerRole.Instance, Roles.DamageRole.Instance);
+
+    /// <summary>
+    /// The guided registry (G2.4 K3b): the Tank slot plays the Warden's guide (<see cref="Guides.GuidedTankRole"/>); Healer and
+    /// Damage stay scripted. Throws at construction when no Warden guide is loaded, so a guided run fails at plan load.
+    /// </summary>
+    /// <param name="guides">The loaded guides.</param>
+    /// <returns>The guided registry.</returns>
+    /// <exception cref="System.InvalidOperationException">No guide is loaded for the warden.</exception>
+    public static RoleSet Guided(Guides.GuideSet guides)
+    {
+        ArgumentNullException.ThrowIfNull(guides);
+        return new RoleSet(new Guides.GuidedTankRole(guides.Require("warden")), Roles.HealerRole.Instance, Roles.DamageRole.Instance);
+    }
 
     /// <summary>The role for <paramref name="role"/>; null for <see cref="ActorRole.None"/> (bot.ts dispatches nothing).</summary>
     /// <param name="role">Actor role tag.</param>
