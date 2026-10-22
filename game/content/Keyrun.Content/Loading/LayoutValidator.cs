@@ -285,7 +285,8 @@ public static class LayoutValidator
     /// party in formation passes it without a pull. The teaching pulls plus every pack fill the forces bar, and they still
     /// fill it with any one optional pack skipped. PATH-PACKS: a required pack's ring meets the walking line (so walking
     /// forward pulls it), holds neither the start nor stands in the boss's room, and the walking line alone (teaching pulls
-    /// plus required packs) falls short of the bar whenever an optional pack exists.
+    /// plus required packs) falls short of the bar whenever an optional pack exists. N1 PACK-LINKS: every link is checked
+    /// by <see cref="CheckPackLinks"/>.
     /// </summary>
     private static void CheckPacks(ContentRegistry reg, DungeonDef dungeon, LayoutDef layout, List<string> pullOrder, HashSet<string> boxIds)
     {
@@ -306,6 +307,7 @@ public static class LayoutValidator
             if (pack.AggroMm <= 0) Fail(where + " aggroMm must be positive, got " + pack.AggroMm);
             if (!Inside(room!, pack.Center)) Fail(where + " centre (" + pack.Center.X + ", " + pack.Center.Z + ") is outside room \"" + pack.Room + "\"");
             if (pack.Enemies.Count == 0) Fail(where + " has no enemies");
+            CheckPackLinks(layout, pack, where);
             foreach (PullEnemy member in pack.Enemies)
             {
                 if (!reg.Enemies.ContainsKey(member.EnemyId)) Fail(where + " references unknown enemy \"" + member.EnemyId + "\"");
@@ -353,6 +355,22 @@ public static class LayoutValidator
             int onLine = RouteForces.CriticalPathPoints(forces, dungeon) + layout.Packs.Where(p => !p.Optional).Sum(p => RouteForces.LayoutPackPoints(forces, p));
             if (onLine >= forces.Required)
                 Fail("the walking line reaches " + onLine + " of the " + forces.Required + " forces required without an optional pack (the bar must need more packs)");
+        }
+    }
+
+    /// <summary>
+    /// N1 PACK-LINKS (BIBLE section 9.1 chain pulls): each of a pack's <see cref="LayoutPack.Links"/> names another layout
+    /// pack or a patrol (never the pack itself, a pull or a box) and appears once.
+    /// </summary>
+    private static void CheckPackLinks(LayoutDef layout, LayoutPack pack, string where)
+    {
+        var seen = new HashSet<string>(System.StringComparer.Ordinal);
+        foreach (string link in pack.Links)
+        {
+            if (link == pack.Id) Fail(where + " links itself");
+            if (!layout.Packs.Any(p => p.Id == link) && !layout.Patrols.Any(p => p.Id == link))
+                Fail(where + " links unknown pack or patrol \"" + link + "\"");
+            if (!seen.Add(link)) Fail(where + " lists link \"" + link + "\" twice");
         }
     }
 

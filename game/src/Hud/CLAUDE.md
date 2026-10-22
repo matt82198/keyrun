@@ -6,10 +6,11 @@
 
 - `Screen.cs` - constants, fields, public properties, OpenFrom/OpenFirst/Open/Close, _Ready/_ExitTree/_Process.
 - `Screen.Input.cs` - key and mouse input, tab switching: _UnhandledInput, _GuiInput, SelectTab, ToggleTalents, HandleKey, TabKey, StepKey.
-- `Screen.TabCharacter.cs` - Character tab: class pick, kit and Ascension: PickClass, CycleClass, ClassIds, ClassName, ClassSlots, Abilities, DrawClasses, DrawAscension, DrawKit.
+- `Screen.TabCharacter.cs` - Character tab: class pick, the character sheet (pure `HostCore/CharacterSheet.cs`: key, Ascension, the five slots by name), kit and Ascension: PickClass, Sheet, ProofSheet, DrawSheet, CycleClass, ClassIds, ClassName, ClassSlots, Abilities, DrawClasses, DrawAscension, DrawKit.
 - `Screen.TabBuild.cs` - Build tab: talent picks, respec, save and proof lines: PickTalent, RespecTalents, SaveTalents, ChoicesText, TalentClassName, TalentAbilityName, ClauseText, HandleTalentKey, TalentsFor, ProofTalentMarks, ProofTalents.
-- `Screen.TabPlay.cs` - Play tab: summary, key band, Queue box, affix line: ProofKeyBand, ClauseIds, DrawSummary, DrawKey, AffixLine, DrawQueue.
-- `Screen.Gear.cs` - gear slots, Facet reroll, gear totals and their proof lines: CycleSelected, Reroll, EquippedText, SlotStats, GearTotal, ProofGear, GearTotalText, ProofItem, SlotPool, DrawGear, TierColor.
+- `Screen.TabKey.cs` - Key tab (and the summary and Queue box the Queue tab shares): ProofKeyBand, ClauseIds, DrawSummary, DrawKeyNote, DrawKey, AffixLine, DrawQueue.
+- `Screen.TabQueue.cs` - Queue tab: the seats the Queue fills (`CharacterSheet.Seats`): QueueSeats, ProofSeats, DrawSeats.
+- `Screen.Gear.cs` - Gear tab: gear slots, the selected item, Facet reroll, gear totals and their proof lines: CycleSelected, Reroll, EquippedText, SlotStats, GearTotal, ProofGear, GearTotalText, ProofItem, SlotPool, DrawGear, DrawGearDetail, TierColor.
 - `Screen.Queue.cs` - Queue press, the queued loadout and its proof lines: Queue, HumanLoadout, TalentLoadouts, RunLoadout, Merge, AppliedCount, ProofQueuedTalents, ProofQueuedFacets, ProofRunFacets, FacetKey, FacetStats, Stats, Locked.
 - `Screen.Run.cs` - run events, the autorun script, progression and rating load/save: OnStepped, OnRunStarted, RunAutorunScript, Proof, LoadProgression, RecordRating, SaveProgression.
 - `Screen.Layout.cs` - _Draw, rects, tab bar, text wrap and clip: _Draw, SetHelpVisible, CaptionLines, Wrap, ScreenLayout, Layout, ClauseTextWidth, LayoutFor, DesignSize, Band, DrawTabBar, TabLabel, HintFor, Clip.
@@ -28,6 +29,11 @@
 ## Screen design and lane history
 
 Moved verbatim from the `Screen` class XML doc summary (S8 split); `<see cref>` targets are C# symbols.
+
+SCREEN-TABS (f-08279d82, D10 MVP line) supersedes the three-tab text below: the bar is Character, Gear, Build, Key,
+Queue (F1-F5); every open and every run-end return lands on Character; the gear slots and reroll moved to Gear, the
+key band to Key, the Queue box and the seats it fills to Queue; T toggles Build and Character. Under `--autorun` the
+open also prints `SCREEN sheet ...` and `SCREEN seats ...` lines (scene test `game/src/Host/scenes/ScreenTabs-SceneTest.ps1`).
 
 ```text
 <summary>

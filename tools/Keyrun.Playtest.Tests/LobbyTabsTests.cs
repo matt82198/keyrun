@@ -13,7 +13,7 @@ namespace Keyrun.Playtest.Tests;
 /// <summary>
 /// BIBLE s1 "Screen -> Queue -> Dungeon (timed, one boss) -> End-of-run choice of three -> Screen", as one screen
 /// with tabs (Matt 2026-10-20: "just one screen with tabs should be enough before entering a game/queue"). The pure
-/// <see cref="Lobby"/> is the screen's selection state: the tab (Character, Build, Play), the class, the class's talent
+/// <see cref="Lobby"/> is the screen's selection state: the tab (Character, Gear, Build, Key, Queue), the class, the class's talent
 /// build and the Key band. These tests drive it the way the Godot Screen does and follow its request through the same
 /// host calls SimDriver.StartRun makes (<see cref="Lobby.SetupFor"/>, <see cref="HostRunSetup.StartFor"/>,
 /// <see cref="RunRoot.CreateRun"/>), then end that real run and come back to the screen.
@@ -27,28 +27,30 @@ public sealed class LobbyTabsTests
     private static Lobby Fresh(Progression? p = null, int key = 2) =>
         Lobby.Open(Registry, p ?? Progression.Start(1), Dungeon, Registry.Clauses.Keys.ToList(), key, 0, ScreenState.NoClauseStartKey);
 
-    [Fact(DisplayName = "Lobby: opens on Play as the Warden, unlocked, at the asked key")]
-    public void Opens_on_play_as_the_default_class()
+    [Fact(DisplayName = "Lobby: opens on Character as the Warden, unlocked, at the asked key")]
+    public void Opens_on_character_as_the_default_class()
     {
         var lobby = Fresh(key: 4);
-        Assert.Equal(LobbyTab.Play, lobby.Tab);
+        Assert.Equal(LobbyTab.Character, lobby.Tab);
         Assert.Equal("warden", lobby.ClassId);
         Assert.Equal("warden", lobby.Talents.ClassId);
         Assert.Equal(4, lobby.Key.KeyLevel);
         Assert.False(lobby.Locked);
     }
 
-    [Fact(DisplayName = "Lobby: three tabs in order, cycling wraps, switching tabs changes nothing else")]
+    [Fact(DisplayName = "Lobby: five tabs in order, cycling wraps, switching tabs changes nothing else")]
     public void Tabs_cycle_and_wrap_without_touching_the_selection()
     {
-        Assert.Equal(new[] { LobbyTab.Character, LobbyTab.Build, LobbyTab.Play }, Lobby.Tabs);
+        Assert.Equal(new[] { LobbyTab.Character, LobbyTab.Gear, LobbyTab.Build, LobbyTab.Key, LobbyTab.Queue }, Lobby.Tabs);
         var lobby = Fresh().PickClass(Registry, Progression.Start(1), "chanter").StepKey(3);
-        var c = lobby.SelectTab(LobbyTab.Character);
+        var c = lobby.SelectTab(LobbyTab.Queue).SelectTab(LobbyTab.Character);
         Assert.Equal(LobbyTab.Character, c.Tab);
-        Assert.Equal(LobbyTab.Build, c.CycleTab(1).Tab);
-        Assert.Equal(LobbyTab.Play, c.CycleTab(2).Tab);
-        Assert.Equal(LobbyTab.Character, c.CycleTab(3).Tab);
-        Assert.Equal(LobbyTab.Play, c.CycleTab(-1).Tab);
+        Assert.Equal(LobbyTab.Gear, c.CycleTab(1).Tab);
+        Assert.Equal(LobbyTab.Build, c.CycleTab(2).Tab);
+        Assert.Equal(LobbyTab.Key, c.CycleTab(3).Tab);
+        Assert.Equal(LobbyTab.Queue, c.CycleTab(4).Tab);
+        Assert.Equal(LobbyTab.Character, c.CycleTab(5).Tab);
+        Assert.Equal(LobbyTab.Queue, c.CycleTab(-1).Tab);
         foreach (var t in Lobby.Tabs)
         {
             var moved = lobby.SelectTab(t);
@@ -114,7 +116,7 @@ public sealed class LobbyTabsTests
         var lobby = Fresh(progression).SelectTab(LobbyTab.Character).PickClass(Registry, progression, "cinder");
         lobby = lobby.SelectTab(LobbyTab.Build);
         lobby = lobby.WithTalents(lobby.Talents.Pick(0, 0));
-        lobby = lobby.SelectTab(LobbyTab.Play).StepKey(5);
+        lobby = lobby.SelectTab(LobbyTab.Key).StepKey(5);
         var talented = lobby.Talents.Forks[0].AbilityId;
 
         var (locked, request) = lobby.Queue(Registry, progression);
@@ -170,7 +172,7 @@ public sealed class LobbyTabsTests
         Assert.DoesNotContain(typeof(QueueRequest).GetProperties(), prop => prop.Name.Contains("Class", StringComparison.Ordinal) && prop.Name != "ClauseId");
     }
 
-    [Fact(DisplayName = "Run end: the choice of three is taken and the screen comes back unlocked on Play, class kept")]
+    [Fact(DisplayName = "Run end: the choice of three is taken and the screen comes back unlocked on Character, class kept")]
     public void Run_end_returns_to_the_screen()
     {
         var progression = Progression.Start(1);
@@ -205,9 +207,9 @@ public sealed class LobbyTabsTests
         Assert.All(offer, card => Assert.StartsWith("chanter.", card.Facet.Id, StringComparison.Ordinal));
         progression = progression.BankRun(run.RunEnd.Result!.Value).Take(offer[0]);
 
-        var back = queued.SelectTab(LobbyTab.Character).ReturnFrom(run);
+        var back = queued.SelectTab(LobbyTab.Queue).ReturnFrom(run);
         Assert.False(back.Locked);
-        Assert.Equal(LobbyTab.Play, back.Tab);
+        Assert.Equal(LobbyTab.Character, back.Tab);
         Assert.Equal("chanter", back.ClassId);
         Assert.Equal(KeyMove.ForRun(run)!.To, back.Key.KeyLevel);
         Assert.Equal(4, back.Key.KeyLevel); // a depleted key keeps its level (BIBLE s8)
