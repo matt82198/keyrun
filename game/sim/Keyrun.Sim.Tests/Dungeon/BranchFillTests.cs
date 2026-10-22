@@ -178,6 +178,25 @@ public sealed class BranchFillTests
         }
     }
 
+    [Fact(DisplayName = "Branch fill: every generated graph fills, both branches teach and carry the target")]
+    public void Every_generated_graph_fills()
+    {
+        var target = BranchFillParams.Default.TargetPoints;
+        var shapes = new HashSet<string>(StringComparer.Ordinal);
+        for (long seed = 1; seed <= 200; seed++)
+        {
+            var g = RoomGraphGen.Generate(seed, DungeonGenParams.Default);
+            var fill = BranchFill.Fill(seed, g, Teaching, Optional);
+            shapes.Add(string.Join("/", fill.Branches.Select(b => b.Rooms.Count)));
+            Assert.Equal(g.Nodes.Count - 2, fill.Branches.Sum(b => b.Rooms.Count));
+            Assert.All(fill.Branches, b => Assert.True(b.Points >= target, $"seed {seed}: branch {b.Index} carries {b.Points}"));
+            Assert.All(fill.Branches, b => Assert.Equal(2, fill.Packs.Count(p => b.Rooms.Contains(p.RoomId) && p.PullIndex >= 0)));
+            // Every branch room lies on the graph's route through that branch's first room.
+            Assert.All(fill.Branches, b => Assert.Contains(g.Routes(), r => r.Skip(1).Take(r.Count - 2).SequenceEqual(b.Rooms)));
+        }
+        Assert.Equal(4, shapes.Count);
+    }
+
     [Fact(DisplayName = "Branch fill: fails closed on a graph without the entrance fork, a rejoin, or a short roster")]
     public void Fails_closed()
     {

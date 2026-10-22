@@ -17,36 +17,17 @@ namespace Keyrun.Bots.Tests;
 /// </summary>
 public sealed class SeededFillContentTests
 {
-    private static readonly (int A, int B)[] Shapes = { (2, 2), (2, 3), (3, 2), (3, 3) };
+    private static readonly long[] Seeds = Enumerable.Range(1, 100).Select(i => (long)i).ToArray();
 
-    private static readonly long[] Seeds = Enumerable.Range(1, 32).Select(i => (long)i).ToArray();
-
-    // D45 shape: room 0 entrance, branch A's chain, branch B's chain, the boss (the generator's contract, PR #552).
-    private static RoomGraph TwoBranchGraph(int a, int b)
-    {
-        var nodes = new List<RoomNode> { new(0, 0, 0, RoomKind.Entrance) };
-        nodes.AddRange(Enumerable.Range(0, a).Select(i => new RoomNode(1 + i, i + 1, 0, RoomKind.Trash)));
-        nodes.AddRange(Enumerable.Range(0, b).Select(i => new RoomNode(1 + a + i, i + 1, 1, RoomKind.Trash)));
-        var boss = 1 + a + b;
-        nodes.Add(new RoomNode(boss, Math.Max(a, b) + 1, 0, RoomKind.Boss));
-        var edges = new List<RoomEdge> { new(0, 1), new(0, 1 + a), new(a, boss), new(a + b, boss) };
-        edges.AddRange(Enumerable.Range(1, a - 1).Select(i => new RoomEdge(i, i + 1)));
-        edges.AddRange(Enumerable.Range(1, b - 1).Select(i => new RoomEdge(a + i, a + i + 1)));
-        return new RoomGraph(nodes, edges.OrderBy(e => e.From).ThenBy(e => e.To).ToList());
-    }
-
+    // The seeded generator's graph (RoomGraphGen: one fork after the entrance, two branches of 2 or 3 rooms).
     private static IEnumerable<(long Seed, BranchFillResult Fill)> Fills(ContentRegistry reg)
     {
         var teaching = SeededRoster.Teaching(reg);
         var optional = SeededRoster.Optional(reg);
         var p = SeededRoster.Params(reg);
-        foreach (var (a, b) in Shapes)
+        foreach (var seed in Seeds)
         {
-            var g = TwoBranchGraph(a, b);
-            foreach (var seed in Seeds)
-            {
-                yield return (seed, BranchFill.Fill(seed, g, teaching, optional, p));
-            }
+            yield return (seed, BranchFill.Fill(seed, RoomGraphGen.Generate(seed, DungeonGenParams.Default), teaching, optional, p));
         }
     }
 
