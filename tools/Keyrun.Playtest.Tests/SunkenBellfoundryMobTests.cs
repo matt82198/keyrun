@@ -95,7 +95,7 @@ public sealed class SunkenBellfoundryMobTests
     [Fact(DisplayName = "D66 Slag Ram: Molten Charge runs through the tank and hits the player behind it, never the one beside")]
     public void Slag_ram_charge_is_a_line_through_the_tank()
     {
-        var run = Arena(new[] { new Mob(100, "bellfoundry.slagRam", 0, 0) }, tank: (0, 2000), healer: (5000, 2000), damage: (0, 6000));
+        var run = Arena(new[] { new Mob(100, "bellfoundry.slagRam", 0, 0) }, tank: (0, 2000), healer: (1500, 4000), damage: (600, 6000));
         var (_, events) = StepTo(run, 600);
         var charges = events.Where(e => e.Type == "cast_complete" && Int(e, "actorId") == 100 && e.Get("abilityId") is JsString { Value: "slagRam.moltenCharge" }).ToList();
         Assert.True(charges.Count >= 2, $"{charges.Count} charges landed");

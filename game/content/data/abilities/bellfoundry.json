@@ -2,7 +2,7 @@
   {
     "id": "slagRam.moltenCharge", "name": "Molten Charge",
     "castTicks": 50, "gcdTicks": 0, "cooldownTicks": 240, "charges": 1, "range": 9000,
-    "shape": { "kind": "line", "length": 9000, "width": 1600 },
+    "shape": { "kind": "line", "length": 9000, "radius": 800 },
     "interruptible": false, "tags": [],
     "effects": [ { "op": "damage", "amount": 150, "school": "fire" } ],
     "cost": { "resource": "none", "amount": 0 }
