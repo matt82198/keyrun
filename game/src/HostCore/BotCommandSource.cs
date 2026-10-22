@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Keyrun.Bots;
+using Keyrun.Bots.Guides;
 using Keyrun.Bots.Shared;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Runs;
@@ -36,6 +37,7 @@ public sealed class BotCommandSource : ICommandSource
     private const ulong FnvPrime = 1099511628211UL;
 
     private readonly Dictionary<int, IBot> _bots;
+    private readonly Dictionary<int, IBot>? _guidedBots;
     private readonly KitRegistry _kits;
     private readonly int _skillDial;
     private readonly long _seed;
@@ -53,7 +55,9 @@ public sealed class BotCommandSource : ICommandSource
     /// <param name="skillDial">Every bot's skill dial (0..100).</param>
     /// <param name="careless">CARELESS-SEAT (<c>--careless-seat</c>): bot seats that play carelessly, each wrapped by
     /// <see cref="Careless.Wrap"/> with its plan; null or empty = none. A plan for a seat that is not a bot seat throws.</param>
-    public BotCommandSource(IEnumerable<int> botActorIds, KitRegistry kits, long seed, int skillDial = DefaultSkillDial, IReadOnlyDictionary<int, CarelessPlan>? careless = null)
+    /// <param name="guides">G2.4 K3b: the loaded playtester guides, or null (the default: no guided selector). With guides, a run in
+    /// <see cref="PlaytesterMode.Guided"/> plays the Warden's guide; a Blind run keeps the scripted roster unchanged. Throws when no Warden guide is loaded.</param>
+    public BotCommandSource(IEnumerable<int> botActorIds, KitRegistry kits, long seed, int skillDial = DefaultSkillDial, IReadOnlyDictionary<int, CarelessPlan>? careless = null, GuideSet? guides = null)
     {
         ArgumentNullException.ThrowIfNull(botActorIds);
         ArgumentNullException.ThrowIfNull(kits);
@@ -71,6 +75,16 @@ public sealed class BotCommandSource : ICommandSource
             }
             _bots[id] = Careless.Wrap(bot, plan);
         }
+        if (guides is not null)
+        {
+            if (careless is { Count: > 0 })
+            {
+                throw new ArgumentException("guided seats do not combine with careless seats yet", nameof(guides));
+            }
+            // G2.4 K3b: every bot seat gets the guided roster; only the Warden's Tank slot changes (RoleSet.Guided).
+            var guided = Bot.MakeBot(RoleSet.Guided(guides));
+            _guidedBots = _bots.Keys.ToDictionary(id => id, _ => guided);
+        }
         _kits = kits;
         _skillDial = skillDial;
         _seed = seed;
@@ -83,6 +97,19 @@ public sealed class BotCommandSource : ICommandSource
     /// the walk as it was; the host sets it from content.
     /// </summary>
     public ForcesPlan? Forces { get; set; }
+
+    /// <summary>
+    /// The receipt sink (G2.4): every bot command issued by <see cref="Sample"/> is recorded here with its K1 reason, in issue
+    /// order. The default drops them, so a run with no sink attached is unchanged.
+    /// </summary>
+    public IBotReceiptSink Receipts { get; set; } = NullBotReceiptSink.Instance;
+
+    /// <summary>
+    /// The playtester mode stamped on every receipt (design/PLAYTESTER-GUIDE.md section 1; G2.4, K3a). The host has no plan
+    /// today, so a host run records <see cref="PlaytesterMode.Guided"/>, the default every planless run is; a caller that
+    /// knows the run's mode sets it before the first <see cref="Sample"/>.
+    /// </summary>
+    public PlaytesterMode Mode { get; set; } = PlaytesterMode.Guided;
 
     /// <summary>The bot seats driven, ascending.</summary>
     public IReadOnlyList<int> BotActorIds => _bots.Keys.OrderBy(id => id).ToList();
@@ -163,13 +190,17 @@ public sealed class BotCommandSource : ICommandSource
             _kits.ForRun(run.Content.Abilities)) with { Layout = run.Content.Layout, PullPlan = PullPlan.Of(run, Forces) };
         // sim-runtime.ts step(): drop pings older than the reaction window, then hand the rest to runBots.
         _pings.RemoveAll(p => tick - p.Tick > Pings.PingReactionWindowTicks);
-        var batch = Bot.RunBots(view, _bots, _memories, _prng, _pings);
+        // G2.4 K3b: a Guided run with guides loaded plays the guide's rotation; a Blind run always keeps the scripted roster.
+        var roster = Mode == PlaytesterMode.Guided && _guidedBots is not null ? _guidedBots : _bots;
+        var batch = Bot.RunBots(view, roster, _memories, _prng, _pings);
         _memories = batch.Memories;
         _prng = batch.Prng;
         foreach (var command in batch.Commands)
         {
             into.Add(command);
             Absorb(command);
+            var seatClass = run.State.Actors.TryGetValue(command.ActorId, out var seat) ? seat.ClassId : string.Empty;
+            Receipts.Record(BotReceipt.Of(tick, seatClass, command, Reasons.Of(command).Why, Mode));
         }
         if (_pings.Count > 0)
         {

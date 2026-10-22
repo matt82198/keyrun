@@ -35,6 +35,9 @@ Before every run you write a plan: one JSON object. A field you leave out means 
 at all. An empty plan `{}` is a party that knows nothing: it presses its rotation and nothing else.
 
 - `reason`: one line saying why this plan (it is copied into the run summary).
+- `mode`: `"guided"` (the default when left out) or `"blind"`. The mode is copied into the run summary and into every bot
+  receipt. Only guided runs judge balance; a blind run reports only how long it takes to learn (design/PLAYTESTER-GUIDE.md
+  section 1). Any other value refuses the plan.
 - `talents`: per class, which option to take on a talent fork, e.g.
   `{"cinder": {"<fork ability id>": "<option id>"}}`. Ids come from `playtest kit`. Forks you do not name keep the base
   ability.

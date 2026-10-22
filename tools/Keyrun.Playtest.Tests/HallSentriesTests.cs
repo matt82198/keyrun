@@ -68,7 +68,13 @@ public sealed class HallSentriesTests
             var sentries = Sentries(r);
             // R-PINS-1: a pack of several sentries (the loops below are vacuous on an empty or one-member pack), not the literal 5.
             Assert.True(sentries.Count >= 2, $"the Hall Sentries are a pack of several; content gave {sentries.Count}");
-            Assert.DoesNotContain($"\"packId\":\"{HallPackId}\"", r.Log);
+            // G2.5 L4: pack_skipped now names the pack on this route, so the pin asserts on the ENGAGE events (pack_engage,
+            // pull_start) rather than on the packId string. The pin's intent is that a route that does not pull never engages.
+            var lines = r.Log.Split('\n');
+            Assert.DoesNotContain(lines, l => l.Contains("\"type\":\"pack_engage\"") && l.Contains($"\"packId\":\"{HallPackId}\""));
+            Assert.DoesNotContain(lines, l => l.Contains("\"type\":\"pull_start\"") && l.Contains($"\"pullId\":\"{HallPackId}\""));
+            // The skip is the observable on this route: the party walked past the pack, and the log records it.
+            Assert.Contains(lines, l => l.Contains("\"type\":\"pack_skipped\"") && l.Contains($"\"packId\":\"{HallPackId}\""));
             var swings = FirstSwings(r.Log, sentries);
             Assert.True(swings.Values.All(t => t < 0), "a Hall Sentry swung on the default route: " + string.Join(", ", swings.Select(kv => $"{kv.Key}@{kv.Value}")));
             Assert.Empty(DeadIn(r.Log).Intersect(sentries));

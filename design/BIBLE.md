@@ -96,6 +96,11 @@ Tests: tools/Keyrun.Playtest.Tests/TankSurvivabilityTests.cs.
 This is the design's centre and the answer to "more creative than Blizzard": synergy is not a buff you press,
 it is a *timing game between two people*.
 
+Synergy also has a second axis: the party's toolkit played against the dungeon's own systems (leash, aggro and aggro
+drops, telegraph geometry, routes and skips). Those systems are deterministic, documented and exploitable on purpose,
+so at high keys the best line is often a toolkit sequence that moves the dungeon, as in Mythic+. This section stays
+axis one, and design/DUNGEON-SYNERGY.md is axis two (R-SYNERGY-1, 2026-10-22).
+
 - **Setup abilities open a Window.** Certain abilities tag their target (or a floor patch) with a **Window**: a
   visible ring that lasts 3 seconds (60 ticks). Each class has exactly two Setup abilities among its five.
 - **Payoff abilities close a Window.** Any *other* class's Payoff ability landing inside the ring closes it and

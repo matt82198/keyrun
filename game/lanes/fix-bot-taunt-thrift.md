@@ -1,0 +1,2 @@
+- G2.1-TAUNT-THRIFT bot tank taunt thrift (f-dc7eff7d, R-TAUNT-5): rule (a) doomed-enemy taunt ordering reverted (it broke BotTankTakesHolderTests seed 3 and the tutorial Cinder run), rule (c) LooseEnemies SeatHealthKey ordering kept; finding f-dc7eff7d stays open for a rule (a) redesign.
+BUILDLOG: G2.1 taunt-thrift ship candidate on fix/bot-taunt-thrift: rule (a) reverted per bisect (as-is a+c FAIL, a off PASS), rule (c) kept, CommittedDamage left unused; row file cut to the two-line gate shape.

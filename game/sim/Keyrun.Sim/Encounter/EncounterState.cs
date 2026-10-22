@@ -27,6 +27,9 @@ public sealed record EncounterState
     /// </summary>
     public IReadOnlyList<string> Engaged { get; init; } = Array.Empty<string>();
 
+    /// <summary>R-SYNERGY-1 / G2.5 lane L4: the skip record (<see cref="Skips"/>). Empty until the party passes a pack's post.</summary>
+    public SkipLedger Skips { get; init; } = SkipLedger.Empty;
+
     /// <summary>Slack bank, ticks.</summary>
     public int SlackTicks { get; init; }
 
@@ -71,6 +74,12 @@ public sealed record EncounterState
     /// for the CAST-FINISH steps, which wait in <see cref="PendingSteps"/> instead.
     /// </summary>
     public IReadOnlyList<DeferredCast> DeferredCasts { get; init; } = Array.Empty<DeferredCast>();
+
+    /// <summary>
+    /// SCRIPT-FIRST-TICK (R-BOSS-5 (c)): actor id to the first tick its script ran (<see cref="StepEnemyScriptsResult.ScriptStarts"/>).
+    /// A boss pulled after the run's clock began has no telegraph draw before its script starts, so its first cast waits.
+    /// </summary>
+    public IReadOnlyDictionary<int, int> ScriptStarts { get; init; } = new SortedDictionary<int, int>();
 
     /// <summary>Echo adds queued but not yet spawned.</summary>
     public IReadOnlyList<EchoSpawnRequest> PendingEchoSpawns { get; init; } = Array.Empty<EchoSpawnRequest>();

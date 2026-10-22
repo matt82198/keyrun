@@ -22,7 +22,11 @@ internal static class CombatPhase
             ? c.Tables.ArmedRules(run.Encounter.Rules, armedBoss.Config)
             : c.Tables.Rules(run.Encounter.Rules);
         // R-PATH-1: on a layout run an enemy chase walks its grid path to its target, not a straight line into a wall.
-        var enemyCommands = layout is null ? enc.Commands : NavFollow.RouteChase(run.State, enc.Commands, NavGrid.Of(layout));
+        // L5 caster-los: a caster out of sight of its target (a layout obstacle between) walks that path until the ray is clear.
+        var chase = layout is { Obstacles.Count: > 0 }
+            ? Chase.SeekSight(run.State, run.ActiveScripts ?? run.Content.EnemyScripts, c.Tables.ScriptAbilities, (a, b) => CastSight.Clear(layout.Obstacles, a, b), enc.Commands)
+            : enc.Commands;
+        var enemyCommands = layout is null ? enc.Commands : NavFollow.RouteChase(run.State, chase, NavGrid.Of(layout));
         if (layout is not null && Leash.EvadeMoves(run.State, NavGrid.Of(layout)) is { Count: > 0 } evades)
         {
             // AGGRO-CHASE leash: a pack that gave up the chase walks its grid path home.

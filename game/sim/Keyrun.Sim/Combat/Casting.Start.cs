@@ -10,6 +10,23 @@ public static partial class Casting
     /// <returns><c>lockout:&lt;school&gt;</c>.</returns>
     public static string LockoutEffectId(string school) => "lockout:" + school;
 
+    /// <summary>L5 caster-los: the refusal code of an enemy target-shaped cast whose ray to its target crosses an obstacle.</summary>
+    public const string NoSightError = "no_line_of_sight";
+
+    // L5 caster-los (R-SYNERGY-2): an enemy target-shaped cast starts only with a clear integer ray to its target, so a
+    // tank pulling a pack around a pillar makes its casters walk in. Players are exempt (their casts are commands the
+    // human or a bot chose), and a context with no Sight (every run without layout obstacles) never withholds.
+    // Checked after StartError, so no cost, charge or GCD is spent on a withheld cast.
+    private static bool NoSight(SimState state, ActorState actor, AbilityDef def, int? targetId, CastContext? ctx)
+    {
+        if (ctx?.Sight is not { } sight || actor.Kind != ActorKind.Enemy || def.Shape.Kind != ShapeKind.Target ||
+            targetId is not { } tid || !state.Actors.TryGetValue(tid, out var target))
+        {
+            return false;
+        }
+        return !sight(actor.Pos, target.Pos);
+    }
+
     private static bool IsSchoolLocked(ActorState actor, string school, int now)
     {
         var id = LockoutEffectId(school);
@@ -52,6 +69,10 @@ public static partial class Casting
         if (StartError(state, actor, def, targetId, now, hooks, overheat) is { } err)
         {
             return err;
+        }
+        if (NoSight(state, actor, def, targetId, ctx))
+        {
+            return NoSightError;
         }
         if (!overheat)
         {
@@ -99,6 +120,11 @@ public static partial class Casting
         {
             return "silenced";
         }
+        // G2.5 (f-1c94a912): an evader walking home casts nothing (Leash also stops its cast when it starts home).
+        if (actor.Evading)
+        {
+            return "evading";
+        }
         if (IsCastingPlayer(actor))
         {
             return "casting";
@@ -121,7 +147,8 @@ public static partial class Casting
             {
                 return "target_required";
             }
-            if (!state.Actors.TryGetValue(targetId.Value, out var target) || !target.Alive)
+            // G2.5 (f-1c94a912): an evader is immune from the moment it starts walking home, not only at target resolution.
+            if (!state.Actors.TryGetValue(targetId.Value, out var target) || !target.Alive || target.Evading)
             {
                 return "invalid_target";
             }

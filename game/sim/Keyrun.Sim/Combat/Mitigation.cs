@@ -26,6 +26,7 @@ public static class Mitigation
     /// <param name="emit">Event sink.</param>
     /// <param name="sourceId">Attacker id (reported even when <paramref name="source"/> is null).</param>
     /// <param name="weighting">The active Pact weighting, or null (see <see cref="DamageWeighting"/>).</param>
+    /// <param name="school">Damage school of the op; armor mitigates only "physical".</param>
     /// <returns>The hit's outcome.</returns>
     public static DamageResult DealDamage(
         int tick,
@@ -35,7 +36,8 @@ public static class Mitigation
         IReadOnlyDictionary<string, EffectDef> defs,
         Action<SimEvent> emit,
         int sourceId,
-        DamageWeighting? weighting = null)
+        DamageWeighting? weighting = null,
+        string school = Damage.PhysicalSchool)
     {
         if (source is not null && target.Alive && IsBlinded(source, tick))
         {
@@ -50,7 +52,7 @@ public static class Mitigation
         // C#-only gear stats (BIBLE s7 "Tier is power", Runs.GearPower) add to the effect bp; 0 on every oracle run.
         var sourceModBp = source is not null ? Effects.AggregateModifiers(source, defs).DamageDoneBp + source.GearDamageDoneBp : 0;
         var targetModBp = Effects.AggregateModifiers(target, defs).DamageTakenBp + target.GearDamageTakenBp;
-        return Damage.ApplyDamage(tick, target, rawAmount, sourceModBp, targetModBp, defs, emit, sourceId, weighting);
+        return Damage.ApplyDamage(tick, target, rawAmount, sourceModBp, targetModBp, defs, emit, sourceId, weighting, school);
     }
 
     /// <summary>The status id that makes its carrier miss (design/BIBLE.md section 4, Steam: "they miss").</summary>

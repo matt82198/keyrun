@@ -170,7 +170,13 @@ public static class ContentLoader
     /// The directories read whole (<see cref="PerKindContent.DirectoriesFor"/>): any JSON file in them loads without a
     /// <see cref="Files"/> entry. Every other file must be listed (the frozen content/data entries stay an explicit list).
     /// </summary>
-    public static IReadOnlyList<string> Directories { get; } = PerKindContent.DirectoriesFor(LayoutDungeon).Append(RosterRoot).ToArray();
+    public static IReadOnlyList<string> Directories { get; } = PerKindContent.DirectoriesFor(LayoutDungeon).Append(RosterRoot).Append(GuidesRoot).ToArray();
+
+    /// <summary>
+    /// G2.4 K3b: the per-class playtester guides (game/content/data/guides/&lt;classId&gt;.json). Known so the file set check accepts them;
+    /// they are not read into the registry. Keyrun.Bots.Guides.GuideSet parses and fails closed on them when a guided run loads them.
+    /// </summary>
+    public const string GuidesRoot = "guides/";
 
     /// <summary>
     /// C#-only run config (game/content/data/run.json, embedded under the same logical root): walk

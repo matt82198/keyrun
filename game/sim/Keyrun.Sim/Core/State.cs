@@ -405,6 +405,12 @@ public sealed class ActorState
     public bool Evading { get; set; }
 
     /// <summary>
+    /// G2.5 (f-1c94a912): true from the tick a leashed group resets until this member stands on its patrol loop again. While
+    /// it is set, <see cref="Encounter.Patrols"/> walks the member at its speed instead of placing it on the loop.
+    /// </summary>
+    public bool ResetWalk { get; set; }
+
+    /// <summary>
     /// The wearer's summed gear damageDoneBp (BIBLE s7 "Tier is power"; Runs.GearPower). C#-only: 0 on every oracle run.
     /// </summary>
     public long GearDamageDoneBp { get; set; }

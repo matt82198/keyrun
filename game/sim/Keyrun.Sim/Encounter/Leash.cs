@@ -68,8 +68,10 @@ public static class Leash
                     a.Evading = false;
                     a.Health = a.MaxHealth;
                     a.Effects.Clear();
+                    // G2.5 (f-1c94a912): a reset member walks back onto its patrol loop (Patrols.Walk), it does not teleport.
+                    a.ResetWalk = true;
                 }
-                emit(GroupEvent(tick, "pack_reset", g.Id, evaders));
+                emit(GroupEvent(tick, "pack_reset", g.Id, evaders, LeashCause));
             }
         }
 
@@ -95,6 +97,8 @@ public static class Leash
                 a.TargetId = null;
                 a.HolderId = null;
                 a.Threat.Clear();
+                // G2.5 (f-1c94a912): a DoT or debuff does not keep ticking on an evader walking home; it sheds at the start.
+                a.Effects.Clear();
                 a.Idle = true;
                 a.Evading = true;
                 // IDLE-WANDER: the pack walks home to its anchor (Home), then wanders again from where it resets.
@@ -102,7 +106,7 @@ public static class Leash
                 a.WanderLoop = null;
             }
             engaged = engaged.Where(id => !string.Equals(id, g.Id, StringComparison.Ordinal)).ToList();
-            emit(GroupEvent(tick, "pack_evade", g.Id, living));
+            emit(GroupEvent(tick, "pack_evade", g.Id, living, LeashCause));
             var ids = living.Select(a => a.Id).ToHashSet();
             keep ??= encounter.Telegraphs.ToList();
             foreach (var tg in keep.Where(t => ids.Contains(t.SourceId)).ToList())
@@ -143,8 +147,11 @@ public static class Leash
     private static IEnumerable<ActorState> Members(SimState state, AggroGroup g) =>
         g.ActorIds.Select(id => state.Actors.TryGetValue(id, out var a) ? a : null).Where(a => a is { Alive: true }).Select(a => a!);
 
-    private static SimEvent GroupEvent(int tick, string type, string groupId, IEnumerable<ActorState> members) =>
-        new(tick, type, ("groupId", JsValue.Str(groupId)), ("actorIds", JsValue.Arr(members.Select(a => JsValue.Int(a.Id)))));
+    /// <summary>L1 (DUNGEON-SYNERGY 2.2): the cause both leash events carry, so captures and bots can tell a leash from a later aggro drop.</summary>
+    public const string LeashCause = "leash";
+
+    private static SimEvent GroupEvent(int tick, string type, string groupId, IEnumerable<ActorState> members, string cause) =>
+        new(tick, type, ("groupId", JsValue.Str(groupId)), ("actorIds", JsValue.Arr(members.Select(a => JsValue.Int(a.Id)))), ("cause", JsValue.Str(cause)));
 
     private static long Dist2(Vec3 a, Vec3 b)
     {

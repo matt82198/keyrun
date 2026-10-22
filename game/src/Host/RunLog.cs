@@ -226,6 +226,11 @@ public sealed class CombatNarrator
             {
                 lines.Add(spawn);
             }
+            // G2.5 L4: one SKIP line per pack the party walked past (Keyrun.Sim.Encounter.Skips).
+            if (Keyrun.Sim.Encounter.Skips.LogLine(e) is { } skip)
+            {
+                lines.Add(skip);
+            }
         }
 
         if (before.Actors.TryGetValue(SimDriver.WardenId, out var w0) && after.Actors.TryGetValue(SimDriver.WardenId, out var w1))

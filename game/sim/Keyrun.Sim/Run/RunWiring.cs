@@ -4,6 +4,7 @@ using System.Linq;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
+using Keyrun.Sim.Nav;
 
 namespace Keyrun.Sim.Runs;
 
@@ -52,6 +53,8 @@ public static class RunWiring
             Clause = encounterRules is null ? null : new EncounterClause(encounterRules),
             Overheat = content.Overheat,
             Marks = content.Marks,
+            // L5 caster-los: a layout run's enemy casts need a ray clear of the layout's obstacles (none = always clear).
+            Sight = content.Layout is { Obstacles.Count: > 0 } layout ? (from, to) => CastSight.Clear(layout.Obstacles, from, to) : null,
             // The TS push-out is a frozen-TS replay rule, and a replay has no layout (RunContent.Layout is null on every
             // oracle run). A layout run is a game run, so D54 ENEMIES-NEVER-DISPLACE holds there whatever setup it
             // was loaded from: under the TS rule a pack locked on a standing tank (HOLDER-LOCK D30) shoves him

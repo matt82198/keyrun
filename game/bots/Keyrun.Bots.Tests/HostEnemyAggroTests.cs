@@ -29,7 +29,7 @@ public sealed class HostEnemyAggroTests
         });
     }
 
-    [Fact(DisplayName = "Host enemy aggro: pack and patrol members keep the layout's ring (no own radius) but assist; patrols never leash")]
+    [Fact(DisplayName = "Host enemy aggro: pack and patrol members keep the layout's ring (no own radius) but assist; patrols leash at 30000 (L1)")]
     public void Packs_and_patrols_keep_the_authored_ring()
     {
         var packMembers = Setup.Content.Packs!.SelectMany(k => k.Spawns).ToList();
@@ -46,7 +46,7 @@ public sealed class HostEnemyAggroTests
         {
             Assert.Null(s.AggroMm);
             Assert.Equal(3000, s.AssistMm);
-            Assert.Null(s.LeashMm);
+            Assert.Equal(30000, s.LeashMm);
         });
     }
 

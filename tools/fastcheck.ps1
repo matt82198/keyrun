@@ -131,6 +131,23 @@ Write-Output "fastcheck: build ok at $([int]$sw.Elapsed.TotalSeconds)s"
 # --- Tests. ---
 $failed = @()
 $counts = @()
+# --- Lane row-file gate: the same step CI runs (.github/workflows/tests.yml "lane row-file gate",
+# `npx vitest run tests/lanes`). Not path-selected: it runs on every invocation, so a lane row that
+# is malformed fails here before it can go red in CI. Node deps come from `npm ci`, as in CI. ---
+if (-not (Test-Path -LiteralPath 'node_modules' -PathType Container)) {
+    & npm ci --no-audit --no-fund
+    if ($LASTEXITCODE -ne 0) {
+        Write-Output "fastcheck: FAIL lanes (npm ci exit $LASTEXITCODE) after $([int]$sw.Elapsed.TotalSeconds)s"
+        exit 1
+    }
+}
+$laneOut = @()
+& npx vitest run tests/lanes | Tee-Object -Variable laneOut
+$laneCode = $LASTEXITCODE
+$laneMatch = [regex]::Match(($laneOut -join "`n"), 'Tests\s+(\d+) passed')
+$laneCount = if ($laneMatch.Success) { $laneMatch.Groups[1].Value } else { '?' }
+$counts += "lanes $laneCount"
+if ($laneCode -ne 0) { $failed += 'tests/lanes' }
 foreach ($proj in $selected) {
     # Category=Balance facts (fork parity) are reported below, not gated; every other assertion gates.
     $testOut = @()

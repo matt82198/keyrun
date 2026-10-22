@@ -154,11 +154,11 @@ public sealed class HealerRole : IRole
 
         if (RoleShared.LedgerKickCommand(view, self, kit) is { } kick)
         {
-            return new Command[] { kick };
+            return new Command[] { Reasons.Tag(kick, "healer:ledger-kick") };
         }
         if (BreakBarKick.Command(view, self, kit) is { } barKick)
         {
-            return new Command[] { barKick };
+            return new Command[] { Reasons.Tag(barKick, "healer:break-bar-kick") };
         }
 
         var party =actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != self.Id).ToList();
@@ -167,7 +167,7 @@ public sealed class HealerRole : IRole
             : new FloorEscapeOptions();
         if (Floor.FloorEscapeCommand(view, self, escapeOpts) is { } escape)
         {
-            return new Command[] { escape };
+            return new Command[] { Reasons.Tag(escape, "healer:floor-escape") };
         }
 
         if (kit.LoopKind == LoopKind.Stance
@@ -176,7 +176,7 @@ public sealed class HealerRole : IRole
             && PartyMissingHealthRatio(actors) >= PartyMendThresholdPct
             && RoleShared.ReadyAndAffordable(self, kit.StanceSwapAbilityId, tick, kit))
         {
-            return new Command[] { new CastCommand(tick, self.Id, kit.StanceSwapAbilityId) };
+            return new Command[] { Reasons.Tag(new CastCommand(tick, self.Id, kit.StanceSwapAbilityId), "healer:stance-swap") };
         }
 
         var dispellable = new HashSet<string>(
@@ -195,28 +195,28 @@ public sealed class HealerRole : IRole
                 var lockSetup = LockAnswer.SetupCommand(view, self, kit);
                 if (lockSetup.Count > 0)
                 {
-                    return lockSetup;
+                    return Reasons.TagAll(lockSetup, "healer:lock-setup");
                 }
                 var setup = HealerSetup.SetupCommands(view, self, kit);
                 if (setup.Count > 0 && !LockAnswer.Holds(view, self, setup))
                 {
-                    return setup;
+                    return Reasons.TagAll(setup, "healer:setup");
                 }
                 var idle = HealerIdle.IdleCommands(view, self, kit, MendVerseValue);
                 if (idle.Count > 0 && !LockAnswer.Holds(view, self, idle))
                 {
-                    return idle;
+                    return Reasons.TagAll(idle, "healer:idle-payoff");
                 }
                 var press = PressCommands(view, self, kit);
-                return LockAnswer.Holds(view, self, press) ? Array.Empty<Command>() : press;
+                return LockAnswer.Holds(view, self, press) ? Array.Empty<Command>() : Reasons.TagAll(press, "healer:press");
             }
             // BOTS-FIVE-BUTTONS: someone needs healing while the stance sits in Ward, so Refrain back to Mend first
             // (its Mend burst heals on the swap) before the shape-aware heal.
             if (HealerIdle.StanceSwapReady(self, kit, tick) && self.Resource != MendVerseValue)
             {
-                return new Command[] { new CastCommand(tick, self.Id, kit.StanceSwapAbilityId!) };
+                return new Command[] { Reasons.Tag(new CastCommand(tick, self.Id, kit.StanceSwapAbilityId!), "healer:stance-back") };
             }
-            return HealPick.HealCommands(view, self, kit, healTarget);
+            return Reasons.TagAll(HealPick.HealCommands(view, self, kit, healTarget), "healer:heal");
         }
 
         var abilityId = kit.DispelAbilityId ?? "dispel";
@@ -226,10 +226,10 @@ public sealed class HealerRole : IRole
         }
         if (RoleShared.Dist(target, self) > HealRangeMm)
         {
-            return PathMoves.Toward(view, tick, self, target.Pos) is { } move ? new Command[] { move } : Array.Empty<Command>();
+            return PathMoves.Toward(view, tick, self, target.Pos) is { } move ? new Command[] { Reasons.Tag(move, "healer:dispel-approach") } : Array.Empty<Command>();
         }
         return RoleShared.ReadyAndAffordable(self, abilityId, tick, kit)
-            ? new Command[] { new CastCommand(tick, self.Id, abilityId, dispelId) }
+            ? new Command[] { Reasons.Tag(new CastCommand(tick, self.Id, abilityId, dispelId), "healer:dispel") }
             : Array.Empty<Command>();
     }
 }
