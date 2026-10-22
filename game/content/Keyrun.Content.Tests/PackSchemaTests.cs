@@ -8,16 +8,16 @@ namespace Keyrun.Content.Tests;
 /// PURPOSE: this artifact exists to build the rest of slice S3 PACK-SCHEMA of game/design/FORCES-ROUTE-PLAN.md, the pack
 /// <c>links</c> field (N1 PACK-LINKS), so a chain pull is a route decision (BIBLE section 9.1; finding f-82d9390e);
 /// status: real.
-/// S3's patrol half landed in #528 (layout.json <c>patrols</c>, LayoutPatrolTests: a waypoint outside its corridor fails
+/// S3's patrol half landed in #528 (layout <c>patrols</c>, LayoutPatrolTests: a waypoint outside its corridor fails
 /// the load). A layout pack's optional <c>links</c> names the packs or patrols that engage with it; the validator fails
 /// the load on a link that names no pack or patrol, on a pack linked to itself, and on a link listed twice.
 /// </summary>
 public sealed class PackSchemaTests
 {
-    private const string LayoutFile = "layout.json";
-
+    // The layout is per-kind files since #567 (R-LOADER-1): one packs/<id>.json per pack under layout/hollow-vault/,
+    // edited as the one assembled layout object through MutableSource.EditLayout.
     private static MutableSource WithLinks(string packId, params string[] links) =>
-        new MutableSource().Edit(LayoutFile, n =>
+        new MutableSource().EditLayout(n =>
         {
             JsonNode pack = n["packs"]!.AsArray().First(p => (string)p!["id"]! == packId)!;
             pack["links"] = new JsonArray(links.Select(l => (JsonNode)JsonValue.Create(l)!).ToArray());
