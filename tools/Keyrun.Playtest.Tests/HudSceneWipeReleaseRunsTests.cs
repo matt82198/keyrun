@@ -194,7 +194,18 @@ public sealed class HudSceneWipeReleaseRunsTests
     /// Run A's late-combo lines (lane COMBO-BLAME): the run-end panel prints one line per distinct (windowId, reason) of
     /// seat 1's combo_denied, while the scene test counts those EVENT lines over the whole autorun, after the end too.
     /// No distinct pair may first appear between the end and $Ticks, or the two counts part for a reason that is not a
-    /// defect; and at least one pair exists by the end, or the check is vacuous.
+    /// defect.
+    /// <para>
+    /// R-WARDEN-FILLER-1 (f-95d23cfc, keyrun #540: Strike is the filler; Guard Break presses only when it closes a Window):
+    /// this test used to require at least one pair by the end, but every pair solo run A ever produced was a Guard Break
+    /// pressed into the Warden's own Sundered ("sundered|self_combo"). That was the wasted press the filler fix removes, so
+    /// it was a fact of the old rotation, not of the HUD. Re-measured on the merged tree, solo run A has Strike 172, Vigil 74,
+    /// Brace 24, Shield Bash 15, no Guard Break or Reckoning, and 0 seat-1 combo_denied by the end at 9600. With no ally
+    /// Window to close, a solo Warden that plays right is never denied. The pinned expectation is that measured empty set;
+    /// the closure rule (no pair first appears after the end) still holds and still guards the HUD count. The non-vacuous
+    /// COMBO-BLAME line now comes from the party runs, where Reckoning into his own Sundered is still denied (the default
+    /// three-seat run: one "sundered|self_combo").
+    /// </para>
     /// </summary>
     [Fact(DisplayName = "HudSceneTest run A: seat 1's distinct combo_denied at the run end are all the autorun prints")]
     public void Run_a_combo_denied_set_is_closed_at_the_end()
@@ -206,7 +217,8 @@ public sealed class HudSceneWipeReleaseRunsTests
         var atEnd = own.Where(e => e.Tick <= end).Select(Pair).ToHashSet(StringComparer.Ordinal);
         var later = own.Where(e => e.Tick > end).Select(Pair).Where(p => !atEnd.Contains(p)).Distinct(StringComparer.Ordinal).ToList();
         _output.WriteLine($"run A: seat 1 distinct combo_denied by the end={atEnd.Count}, new between the end {end} and $Ticks {RunATicks}={later.Count}");
-        Assert.True(atEnd.Count > 0, "run A: seat 1 has no combo_denied by the end: the COMBO-BLAME check is vacuous");
+        // R-WARDEN-FILLER-1: the solo autorun Warden never presses a Payoff he cannot close, so run A's set is empty.
+        Assert.True(atEnd.Count == 0, $"run A: seat 1 was denied {string.Join(",", atEnd)} by the end: the solo filler rotation pressed a Payoff into a Window it may not close");
         Assert.Empty(later);
     }
 

@@ -9,11 +9,16 @@ namespace Keyrun.Bots.Tests;
 /// <summary>
 /// The fork parity noise tolerance (finding f-e3daed76, R-PILE-7): a dominance inside the measured seed noise is
 /// recorded in ForkParity.margins.txt but does not gate; a dominance beyond it still blocks, through the same
-/// failure path <see cref="ForkParityTests.No_fork_option_is_dominated"/> asserts on.
+/// failure path <see cref="ForkParityTests.No_fork_option_is_dominated"/> asserts on. These cases pin the margin
+/// mechanics against a fixed fixture tolerance (<see cref="Fixed"/>), so they do not move when the noise study is
+/// re-run; the measured tolerance itself is covered by <see cref="ForkParityNoiseStudyTests"/>.
 /// </summary>
 public sealed class ForkParityMarginsTests
 {
     private static readonly string[] RunNames = { "hv-k2-s7", "hv-k2-s11-d90", "hv-k10-s7" };
+
+    /// <summary>Fixture tolerance for the margin mechanics (the pre-study 1-sd values): clear 715 bp, deaths 0, combos 3.</summary>
+    private static readonly NoiseTolerance Fixed = new(715, 0, 3);
 
     /// <summary>The base kit's three hv runs on main a7069768 (1407/0/43, 1478/0/42, 1855/1/59).</summary>
     private static readonly RunMeasures[] Base =
@@ -38,31 +43,31 @@ public sealed class ForkParityMarginsTests
     {
         var twoCombos = With(0, Base[0] with { Combos = 45 });
         Assert.True(ForkParityTests.Dominates(twoCombos, Base));
-        Assert.False(ForkParityMargins.DominatesBeyondNoise(twoCombos, Base, NoiseTolerance.Measured));
+        Assert.False(ForkParityMargins.DominatesBeyondNoise(twoCombos, Base, Fixed));
 
         var fiftyTicks = With(0, Base[0] with { ClearTick = 1357 });
         Assert.True(ForkParityTests.Dominates(fiftyTicks, Base));
-        Assert.False(ForkParityMargins.DominatesBeyondNoise(fiftyTicks, Base, NoiseTolerance.Measured));
-        Assert.Empty(ForkParityMargins.Excess(fiftyTicks, Base, NoiseTolerance.Measured, RunNames));
+        Assert.False(ForkParityMargins.DominatesBeyondNoise(fiftyTicks, Base, Fixed));
+        Assert.Empty(ForkParityMargins.Excess(fiftyTicks, Base, Fixed, RunNames));
     }
 
     [Fact(DisplayName = "fork parity margins > a dominance beyond the measured noise gates; a trade-off never does")]
     public void Beyond_noise_dominance_gates()
     {
         var fourCombos = With(1, Base[1] with { Combos = 46 });
-        Assert.True(ForkParityMargins.DominatesBeyondNoise(fourCombos, Base, NoiseTolerance.Measured));
+        Assert.True(ForkParityMargins.DominatesBeyondNoise(fourCombos, Base, Fixed));
 
         // 715 bp of 1407 is 100 ticks: 101 ticks faster is beyond the noise, 100 is not.
-        Assert.True(ForkParityMargins.DominatesBeyondNoise(With(0, Base[0] with { ClearTick = 1407 - 101 }), Base, NoiseTolerance.Measured));
-        Assert.False(ForkParityMargins.DominatesBeyondNoise(With(0, Base[0] with { ClearTick = 1407 - 100 }), Base, NoiseTolerance.Measured));
+        Assert.True(ForkParityMargins.DominatesBeyondNoise(With(0, Base[0] with { ClearTick = 1407 - 101 }), Base, Fixed));
+        Assert.False(ForkParityMargins.DominatesBeyondNoise(With(0, Base[0] with { ClearTick = 1407 - 100 }), Base, Fixed));
 
         var oneDeathFewer = With(2, Base[2] with { Deaths = 0 });
-        Assert.True(ForkParityMargins.DominatesBeyondNoise(oneDeathFewer, Base, NoiseTolerance.Measured));
-        Assert.Equal(new[] { "hv-k10-s7 deaths 1 > 0" }, ForkParityMargins.Excess(oneDeathFewer, Base, NoiseTolerance.Measured, RunNames));
+        Assert.True(ForkParityMargins.DominatesBeyondNoise(oneDeathFewer, Base, Fixed));
+        Assert.Equal(new[] { "hv-k10-s7 deaths 1 > 0" }, ForkParityMargins.Excess(oneDeathFewer, Base, Fixed, RunNames));
 
         var tradeOff = new[] { Base[0] with { ClearTick = 1200 }, Base[1] with { Combos = 41 }, Base[2] };
-        Assert.False(ForkParityMargins.DominatesBeyondNoise(tradeOff, Base, NoiseTolerance.Measured));
-        Assert.Empty(ForkParityMargins.Excess(tradeOff, Base, NoiseTolerance.Measured, RunNames));
+        Assert.False(ForkParityMargins.DominatesBeyondNoise(tradeOff, Base, Fixed));
+        Assert.Empty(ForkParityMargins.Excess(tradeOff, Base, Fixed, RunNames));
 
         // Zero tolerance is the bible's literal rule.
         Assert.True(ForkParityMargins.DominatesBeyondNoise(With(0, Base[0] with { Combos = 44 }), Base, NoiseTolerance.None));
@@ -76,17 +81,17 @@ public sealed class ForkParityMarginsTests
         var noiseFork = Double("double.noise", ("plain", Base), ("lucky", With(0, Base[0] with { Combos = 45 })));
         var known = new Dictionary<string, string>();
 
-        var red = ForkParityTests.DominanceFailures(new[] { dominatedFork, noiseFork }, known, NoiseTolerance.Measured);
+        var red = ForkParityTests.DominanceFailures(new[] { dominatedFork, noiseFork }, known, Fixed);
         Assert.Single(red);
         Assert.StartsWith("double.dominated:dull is dominated by sharp beyond noise", red[0]);
 
-        Assert.Empty(ForkParityTests.DominanceFailures(new[] { noiseFork }, known, NoiseTolerance.Measured));
+        Assert.Empty(ForkParityTests.DominanceFailures(new[] { noiseFork }, known, Fixed));
         // The same noise fork is red under the literal zero-tolerance rule: the tolerance is what lets it through.
         Assert.Single(ForkParityTests.DominanceFailures(new[] { noiseFork }, known, NoiseTolerance.None));
 
         // A listed option that is only dominated inside the noise is stale (remove the entry).
         var staleKnown = new Dictionary<string, string> { ["double.noise:plain"] = "f-test" };
-        var stale = ForkParityTests.DominanceFailures(new[] { noiseFork }, staleKnown, NoiseTolerance.Measured);
+        var stale = ForkParityTests.DominanceFailures(new[] { noiseFork }, staleKnown, Fixed);
         Assert.Single(stale);
         Assert.Contains("double.noise:plain", stale[0]);
     }
@@ -98,7 +103,7 @@ public sealed class ForkParityMarginsTests
         var lucky = With(0, Base[0] with { Combos = 45 });
         var forks = new[] { Double("double.a", ("x", Base), ("y", dull), ("z", lucky)) };
 
-        var lines = ForkParityMargins.Lines(forks, RunNames, NoiseTolerance.Measured);
+        var lines = ForkParityMargins.Lines(forks, RunNames, Fixed);
         Assert.Equal(3, lines.Count);
         Assert.Equal(
             "double.a x y | hv-k2-s7 1407/0/43 1607/0/37 +200/+0/+6 | hv-k2-s11-d90 1478/0/42 1678/0/36 +200/+0/+6 | hv-k10-s7 1855/1/59 2055/1/53 +200/+0/+6 | x DOMINATES y beyond noise",
@@ -106,27 +111,27 @@ public sealed class ForkParityMarginsTests
         Assert.EndsWith("| z dominates x within noise", lines[1]);
         Assert.EndsWith("| z DOMINATES y beyond noise", lines[2]);
 
-        var text = ForkParityMargins.Render(lines, NoiseTolerance.Measured, null);
+        var text = ForkParityMargins.Render(lines, Fixed, null);
         var parsed = ForkParityMargins.Parse(text);
         Assert.Equal(new[] { "double.a x y", "double.a x z", "double.a y z" }, parsed.Keys.ToArray());
         Assert.Equal(lines[0], parsed["double.a x y"]);
         Assert.Empty(ForkParityMargins.PairSetChanges(parsed, lines));
 
         var grown = new[] { Double("double.a", ("x", Base), ("y", dull), ("z", lucky), ("w", Base)) };
-        var changes = ForkParityMargins.PairSetChanges(parsed, ForkParityMargins.Lines(grown, RunNames, NoiseTolerance.Measured));
+        var changes = ForkParityMargins.PairSetChanges(parsed, ForkParityMargins.Lines(grown, RunNames, Fixed));
         Assert.Equal(new[] { "unrecorded pair: double.a x w", "unrecorded pair: double.a y w", "unrecorded pair: double.a z w" }, changes);
     }
 
     [Fact(DisplayName = "fork parity margins > drift beyond the noise between the recorded and the measured margins is reported, drift inside it is not")]
     public void Drift_is_reported_beyond_noise()
     {
-        var recorded = ForkParityMargins.Lines(new[] { Double("double.a", ("x", Base), ("y", With(0, Base[0] with { Combos = 45 }))) }, RunNames, NoiseTolerance.Measured);
-        var small = ForkParityMargins.Lines(new[] { Double("double.a", ("x", Base), ("y", With(0, Base[0] with { Combos = 46 }))) }, RunNames, NoiseTolerance.Measured);
-        var large = ForkParityMargins.Lines(new[] { Double("double.a", ("x", Base), ("y", With(0, Base[0] with { Combos = 52 }))) }, RunNames, NoiseTolerance.Measured);
-        var parsed = ForkParityMargins.Parse(ForkParityMargins.Render(recorded, NoiseTolerance.Measured, null));
+        var recorded = ForkParityMargins.Lines(new[] { Double("double.a", ("x", Base), ("y", With(0, Base[0] with { Combos = 45 }))) }, RunNames, Fixed);
+        var small = ForkParityMargins.Lines(new[] { Double("double.a", ("x", Base), ("y", With(0, Base[0] with { Combos = 46 }))) }, RunNames, Fixed);
+        var large = ForkParityMargins.Lines(new[] { Double("double.a", ("x", Base), ("y", With(0, Base[0] with { Combos = 52 }))) }, RunNames, Fixed);
+        var parsed = ForkParityMargins.Parse(ForkParityMargins.Render(recorded, Fixed, null));
 
-        Assert.Empty(ForkParityMargins.Drift(parsed, small, NoiseTolerance.Measured));
-        var drift = ForkParityMargins.Drift(parsed, large, NoiseTolerance.Measured);
+        Assert.Empty(ForkParityMargins.Drift(parsed, small, Fixed));
+        var drift = ForkParityMargins.Drift(parsed, large, Fixed);
         Assert.Single(drift);
         Assert.StartsWith("double.a x y: hv-k2-s7 combos margin -2 -> -9", drift[0]);
     }

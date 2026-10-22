@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Keyrun.HostCore: the Godot-free half of the host (run setup, lobby, queue gate and kit, bot command source, cast
+    targeting, seat abandon plan, affix week, movie director, input log document, replay clock and feed). Namespace
+    Keyrun.Host, unchanged. The Godot project (game/Keyrun.csproj), Keyrun.Playtest and the test projects reference
+    this assembly instead of compile-linking the sources.
+    HARD RULE: no Godot reference, no System.Random, no clock (BannedApiAnalyzers over the one shared banned list,
+    game/sim/Keyrun.Sim/BannedSymbols.txt, RS0030 an error under TreatWarningsAsErrors). ScriptedWarden.cs is also
+    Godot-free but stays in game/src/Host until the open PRs that own it land.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Keyrun.Host</RootNamespace>
+    <AssemblyName>Keyrun.HostCore</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>12.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="../../sim/Keyrun.Sim/BannedSymbols.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../sim/Keyrun.Sim/Keyrun.Sim.csproj" />
+    <ProjectReference Include="../../content/Keyrun.Content/Keyrun.Content.csproj" />
+    <ProjectReference Include="../../bots/Keyrun.Bots/Keyrun.Bots.csproj" />
+  </ItemGroup>
+
+</Project>
