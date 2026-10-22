@@ -9,8 +9,8 @@ namespace Keyrun.Content;
 /// (ruling R-LOADER-1), so content grows by adding a file:
 /// <list type="bullet">
 /// <item><c>layout/&lt;dungeon&gt;/dungeon.json</c> (dungeon, start, route, formation), <c>rooms/*.json</c> (one
-/// <see cref="LayoutBox"/> each) and <c>packs/*.json</c> (one <see cref="LayoutPack"/> each) become one
-/// <see cref="LayoutDef"/>; rooms and packs keep ordinal path order (name rooms <c>NNN-&lt;name&gt;.json</c>).</item>
+/// <see cref="LayoutBox"/> each), <c>packs/*.json</c> (one <see cref="LayoutPack"/> each) and <c>patrols/*.json</c> (one <see cref="LayoutPatrol"/> each) become one
+/// <see cref="LayoutDef"/>; rooms, packs and patrols keep ordinal path order (name rooms <c>NNN-&lt;name&gt;.json</c>).</item>
 /// <item><c>forces/&lt;dungeon&gt;.json</c> (required, route) and <c>forces/values/*.json</c> (one
 /// <see cref="ForcesValue"/> each) become one <see cref="ForcesTable"/>; a duplicate enemy id across value files fails.</item>
 /// </list>
@@ -27,8 +27,27 @@ public static class PerKindContent
     /// <summary>The forces values directory: one <see cref="ForcesValue"/> per file.</summary>
     public const string ForcesValuesDir = ForcesRoot + "values/";
 
-    /// <summary>The C#-only directories whose files need no list entry (<see cref="ContentFileSet"/>).</summary>
+    /// <summary>The C#-only directory roots whose files need no list entry (<see cref="ContentFileSet"/>).</summary>
     public static IReadOnlyList<string> KnownDirectories { get; } = new[] { LayoutRoot, ForcesRoot };
+
+    /// <summary>The single files the per-kind kinds of <paramref name="dungeonId"/> read: each must be present.</summary>
+    /// <param name="dungeonId">The dungeon, e.g. <c>hollow-vault</c>.</param>
+    /// <returns><c>layout/&lt;d&gt;/dungeon.json</c> and <c>forces/&lt;d&gt;.json</c>.</returns>
+    public static IReadOnlyList<string> FilesFor(string dungeonId) =>
+        new[] { LayoutRoot + dungeonId + "/dungeon.json", ForcesRoot + dungeonId + ".json" };
+
+    /// <summary>
+    /// The directories <see cref="AssembleLayout"/> and <see cref="AssembleForces"/> read whole for
+    /// <paramref name="dungeonId"/>: a file there is loaded without a list edit, and a file anywhere else under
+    /// <see cref="KnownDirectories"/> is one nothing reads, so the file-set check refuses it (fail closed).
+    /// </summary>
+    /// <param name="dungeonId">The dungeon, e.g. <c>hollow-vault</c>.</param>
+    /// <returns>rooms/, packs/ and patrols/ under <c>layout/&lt;d&gt;/</c>, and <c>forces/values/</c>.</returns>
+    public static IReadOnlyList<string> DirectoriesFor(string dungeonId)
+    {
+        string dir = LayoutRoot + dungeonId + "/";
+        return new[] { dir + "rooms/", dir + "packs/", dir + "patrols/", ForcesValuesDir };
+    }
 
     /// <summary>Assembles <c>layout/&lt;dungeonId&gt;/</c> into a <see cref="LayoutDef"/>.</summary>
     /// <param name="source">The content source.</param>
@@ -41,8 +60,11 @@ public static class PerKindContent
         ArgumentException.ThrowIfNullOrEmpty(dungeonId);
         string dir = LayoutRoot + dungeonId + "/";
         LayoutDungeonFile head = ContentLoader.ReadOne<LayoutDungeonFile>(source, dir + "dungeon.json")[0];
+        if (!string.Equals(head.Dungeon, dungeonId, StringComparison.Ordinal))
+            throw new ContentLoadException("content: " + dir + "dungeon.json names dungeon \"" + head.Dungeon + "\", not its directory \"" + dungeonId + "\"");
         LayoutBox[] rooms = ContentDirectory.Under(source, dir + "rooms/").Select(p => ContentLoader.ReadOne<LayoutBox>(source, p)[0]).ToArray();
         LayoutPack[] packs = ContentDirectory.Under(source, dir + "packs/").Select(p => ContentLoader.ReadOne<LayoutPack>(source, p)[0]).ToArray();
+        LayoutPatrol[] patrols = ContentDirectory.Under(source, dir + "patrols/").Select(p => ContentLoader.ReadOne<LayoutPatrol>(source, p)[0]).ToArray();
         return new LayoutDef
         {
             Dungeon = head.Dungeon,
@@ -51,6 +73,7 @@ public static class PerKindContent
             Route = head.Route,
             Packs = new ValueList<LayoutPack>(packs),
             Formation = head.Formation,
+            Patrols = new ValueList<LayoutPatrol>(patrols),
         };
     }
 

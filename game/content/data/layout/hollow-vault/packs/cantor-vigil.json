@@ -1,0 +1,30 @@
+{
+  "id": "cantor-vigil",
+  "name": "Cantor Vigil",
+  "room": "choir-room",
+  "optional": true,
+  "branch": "choir-room",
+  "center": {
+    "x": 14000,
+    "z": -6000
+  },
+  "aggroMm": 4000,
+  "enemies": [
+    {
+      "enemyId": "choir.lieutenant",
+      "count": 3,
+      "spawn": {
+        "x": 0,
+        "z": -1000
+      }
+    },
+    {
+      "enemyId": "choir.melee",
+      "count": 4,
+      "spawn": {
+        "x": 0,
+        "z": 1000
+      }
+    }
+  ]
+}
