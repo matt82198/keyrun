@@ -21,9 +21,6 @@ public sealed class NavGrid
     /// <summary>Grid cell edge, mm. A 3000 mm corridor is six cells wide; a 1000 mm doorway overlap is two.</summary>
     public const long CellMm = 500;
 
-    /// <summary>Segment sampling step for the line-of-sight test, mm (half a cell).</summary>
-    public const long SightStepMm = 250;
-
     /// <summary>A walker this near its start cell's centre counts as standing on it (one walk step of 180 mm and a margin), mm.</summary>
     public const long WaypointReachMm = 250;
 
@@ -228,8 +225,8 @@ public sealed class NavGrid
 
     /// <summary>
     /// True when a walker can go straight from <paramref name="a"/> to <paramref name="b"/>: the segment crosses no
-    /// obstacle grown by <see cref="ClearanceMm"/> (exact, <see cref="SegmentCrosses"/>) and stays inside the layout boxes,
-    /// sampled every <see cref="SightStepMm"/> or less (integer interpolation, both ends included).
+    /// obstacle grown by <see cref="ClearanceMm"/> (exact, <see cref="SegmentCrosses"/>) and stays inside the union of the
+    /// layout boxes (exact too, f-eb9ac9de: no sampling, so a clipped outer corner is never missed).
     /// </summary>
     /// <param name="a">One end.</param>
     /// <param name="b">The other end.</param>
@@ -243,16 +240,80 @@ public sealed class NavGrid
                 return false;
             }
         }
+        return InsideBoxUnion(a, b);
+    }
+
+    // f-eb9ac9de: the whole segment lies in the union of the layout boxes, exactly (no sampling). The closed interval of
+    // the segment parameter t in [0, 1] each box holds is clipped in integers (t kept as the fraction num / den, den > 0,
+    // compared by cross-multiplication in 128-bit integers); the intervals sorted by start must then cover [0, 1] with no
+    // gap. A sampled test passed a start that clipped a room's outer corner and failed one step on, so the walker paced
+    // between the two (the Sunken Bellfoundry, seed 7, room 16 to hall 16-17): sight is now a property of the line alone,
+    // so a walker that sees a waypoint keeps seeing it as it walks the line to it.
+    private bool InsideBoxUnion(Vec3 a, Vec3 b)
+    {
         var dx = b.X - a.X;
         var dz = b.Z - a.Z;
-        var len = Movement.Isqrt((dx * dx) + (dz * dz));
-        var n = Math.Max(1, (len + SightStepMm - 1) / SightStepMm);
-        for (long i = 0; i <= n; i++)
+        if (dx == 0 && dz == 0)
         {
-            if (!InBoxes(new Vec3(a.X + IntMath.TruncDiv(dx * i, n), a.Y, a.Z + IntMath.TruncDiv(dz * i, n))))
+            return InBoxes(a);
+        }
+        var spans = new List<(Int128 LoN, Int128 LoD, Int128 HiN, Int128 HiD)>();
+        foreach (var box in _boxes)
+        {
+            Int128 loN = 0, loD = 1, hiN = 1, hiD = 1;
+            if (!ClipClosed(a.X, dx, box.MinX, box.MaxX, ref loN, ref loD, ref hiN, ref hiD) ||
+                !ClipClosed(a.Z, dz, box.MinZ, box.MaxZ, ref loN, ref loD, ref hiN, ref hiD) ||
+                loN * hiD > hiN * loD)
+            {
+                continue;
+            }
+            spans.Add((loN, loD, hiN, hiD));
+        }
+        spans.Sort((p, q) => (p.LoN * q.LoD).CompareTo(q.LoN * p.LoD));
+        Int128 curN = 0, curD = 1;
+        foreach (var (loN, loD, hiN, hiD) in spans)
+        {
+            if (loN * curD > curN * loD)
             {
                 return false;
             }
+            if (hiN * curD > curN * hiD)
+            {
+                curN = hiN;
+                curD = hiD;
+            }
+            if (curN >= curD)
+            {
+                return true;
+            }
+        }
+        return curN >= curD;
+    }
+
+    // Narrows the window [lo, hi] of the segment parameter to the part with min <= p + t * d <= max (faces included).
+    private static bool ClipClosed(long p, long d, long min, long max, ref Int128 loN, ref Int128 loD, ref Int128 hiN, ref Int128 hiD)
+    {
+        if (d == 0)
+        {
+            return p >= min && p <= max;
+        }
+        Int128 n1 = min - p, n2 = max - p, den = d;
+        if (d < 0)
+        {
+            n1 = -n1;
+            n2 = -n2;
+            den = -den;
+        }
+        var (nLo, nHi) = n1 < n2 ? (n1, n2) : (n2, n1);
+        if (nLo * loD > loN * den)
+        {
+            loN = nLo;
+            loD = den;
+        }
+        if (nHi * hiD < hiN * den)
+        {
+            hiN = nHi;
+            hiD = den;
         }
         return true;
     }
