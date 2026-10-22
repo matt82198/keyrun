@@ -13,7 +13,8 @@ namespace Keyrun.Host;
 /// The autorun Warden (Godot-free, deterministic): walks at the Choir Cantor (the lieutenant) until his kick is in
 /// range, kicks the Cantor's heal once it is half cast (so the cast bar is on screen for two seconds first), and spends
 /// the GCD on his rotation against whatever is in reach: Reckoning at full Momentum, Vigil at 50, Guard Break when it
-/// closes an ally's Window, else Strike (the filler, every free global), and Brace below half health. Every command goes through the same <see cref="CastTargeting"/> rule as a key press.
+/// closes an ally's Window, else Strike (the filler, every free global; trash pulls only, R-WARDEN-FILLER-3: in the boss
+/// pull Guard Break whenever ready, as on main), and Brace below half health. Every command goes through the same <see cref="CastTargeting"/> rule as a key press.
 /// On a layout run (lane NAV-CORE, STATE.md D18) with no living enemy he walks the route instead
 /// (<see cref="Follow.LeadRoute"/>: each room's far doorway in turn, but in the active pull's room he holds at the
 /// standoff point until the party is inside, LEADER-WAITS), so the pull spawns once all are in; then the combat script above. With no living lieutenant but a living enemy (lane
@@ -123,7 +124,17 @@ public sealed class ScriptedWarden
             into.Add(new CastCommand(tick, me.Id, Defensive, me.Id));
             return;
         }
-        foreach (var id in Rotation)
+        // R-WARDEN-FILLER-3 (BIBLE s9 "The Lock"; LockAnswer is the bots' half): while the boss casts or holds a Lock no
+        // partner Setup has tagged yet, the Warden spends no global, so his Payoff is off the GCD when the setter's Setup
+        // lands; once it has, Guard Break goes first. Without the hold a Forge 8 ticks before the setter's Setup put the
+        // Payoff 2 ticks past the Window's end (lock_failed at 5280, Forge at 5282).
+        var lockSetup = LockSetupBy(run);
+        if (lockSetup == LockHold)
+        {
+            return;
+        }
+        var order = lockSetup is { } setter && setter != me.Id ? LockPayoffFirst : Rotation;
+        foreach (var id in order)
         {
             var def = abilities[id];
             if (!Ready(me, def, tick))
@@ -131,7 +142,8 @@ public sealed class ScriptedWarden
                 continue;
             }
             var target = CastTargeting.For(run, me.Id, id);
-            if (id == PayoffBuilder && !PayoffCloses(run, me, def, target, tick))
+            // R-WARDEN-FILLER-3: the filler gate is a trash-pull rule; in the boss pull Guard Break keeps main's priority.
+            if (id == PayoffBuilder && !InBossPull(run) && !PayoffCloses(run, me, def, target, tick))
             {
                 continue;
             }
@@ -177,6 +189,44 @@ public sealed class ScriptedWarden
     /// <param name="targetId">Guard Break's cast target.</param>
     /// <param name="tick">The pre-step tick.</param>
     /// <returns>True when the Payoff would close a Window and fire a Combo.</returns>
+    /// <summary>
+    /// R-WARDEN-FILLER-3 (supersedes the withdrawn R-WARDEN-FILLER-2): true while the armed boss
+    /// (<c>run.Encounter.Boss</c>) is alive and engaged. The WARDEN-FILLER gate on Guard Break applies to trash pulls
+    /// only; in the boss pull the Warden presses Guard Break whenever ready, as on main: Strike-as-filler there opened a
+    /// Sundered Window every global, and the Consecrate heals masked a careless seat (BossTeachesTests).
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <returns>True in the boss pull.</returns>
+    internal static bool InBossPull(Run run) =>
+        run.Encounter.Boss is { } boss
+        && run.State.Actors.TryGetValue(boss.Config.BossActorId, out var b) && b.Alive && !b.Idle;
+
+    /// <summary><see cref="LockSetupBy"/>'s "hold the global" answer: a Lock is cast or open and no Setup has tagged it.</summary>
+    private const int LockHold = -1;
+
+    /// <summary>The rotation while a partner's Setup is on the boss inside a Lock: the Payoff first.</summary>
+    private static readonly string[] LockPayoffFirst = { "warden.guardBreak", "warden.reckoning", "warden.vigil", "warden.strike" };
+
+    /// <summary>
+    /// The boss Lock's state for the Warden's global: null when no Lock is being cast or held open (or outside the boss
+    /// pull), <see cref="LockHold"/> while the Lock is cast or open with no Setup inside its Window yet, else the actor
+    /// whose Setup tagged the boss inside the Window (Encounter/Boss.cs AfterCombat records it).
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <returns>The Lock state as above.</returns>
+    internal static int? LockSetupBy(Run run)
+    {
+        if (!InBossPull(run) || run.Encounter.Boss is not { } boss)
+        {
+            return null;
+        }
+        if (boss.Active is { } open && run.State.Tick < open.EndsTick)
+        {
+            return open.SetupActorId ?? LockHold;
+        }
+        return boss.Casting is not null ? LockHold : null;
+    }
+
     internal static bool PayoffCloses(Run run, ActorState me, AbilityDef def, int targetId, int tick)
     {
         // The Payoff closes the Window on its primary target only: a single-target patch (Focused Break) goes at the cast
