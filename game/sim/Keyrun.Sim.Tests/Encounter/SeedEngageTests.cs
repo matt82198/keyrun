@@ -45,12 +45,18 @@ public sealed class SeedEngageTests
 
     internal sealed record LayoutRoom(string Id, Bounds Box, bool IsRoom, string? Gate, string? Pull, Bounds? Trigger, Vec3? Origin);
 
-    private static string LayoutPath()
+    private static string LayoutDir()
     {
-        // Fixtures/oracle -> Keyrun.Sim.Tests -> sim -> game, then content/data/layout.json.
+        // Fixtures/oracle -> Keyrun.Sim.Tests -> sim -> game, then content/data/layout/hollow-vault (R-LOADER-1: dungeon.json
+        // plus one file per room in rooms/, read in ordinal path order like the loader).
         var game = Directory.GetParent(OracleFixtures.Directory)!.Parent!.Parent!.Parent!.FullName;
-        return Path.Combine(game, "content", "data", "layout.json");
+        return Path.Combine(game, "content", "data", "layout", "hollow-vault");
     }
+
+    private static IEnumerable<JsObject> RoomFiles() =>
+        Directory.GetFiles(Path.Combine(LayoutDir(), "rooms"), "*.json", SearchOption.AllDirectories)
+            .OrderBy(p => Path.GetRelativePath(LayoutDir(), p).Replace('\\', '/'), StringComparer.Ordinal)
+            .Select(p => (JsObject)JsValue.Parse(File.ReadAllText(p)));
 
     private static long L(JsObject o, string key) => ((JsInt)o.Get(key)!).Value;
 
@@ -60,8 +66,8 @@ public sealed class SeedEngageTests
     // shipped layout file so the room the test stands in is the room the game builds.
     internal static (NavLayout Nav, List<LayoutRoom> Rooms) Layout()
     {
-        var root = (JsObject)JsValue.Parse(File.ReadAllText(LayoutPath()));
-        var rooms = ((JsArray)root.Get("boxes")!).Items.Cast<JsObject>().Select(b => new LayoutRoom(
+        var root = (JsObject)JsValue.Parse(File.ReadAllText(Path.Combine(LayoutDir(), "dungeon.json")));
+        var rooms = RoomFiles().Select(b => new LayoutRoom(
             ((JsString)b.Get("id")!).Value,
             BoundsOf(b),
             ((JsString)b.Get("kind")!).Value == "room",

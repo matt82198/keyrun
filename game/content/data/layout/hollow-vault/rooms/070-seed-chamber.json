@@ -1,0 +1,23 @@
+{
+  "id": "seed-chamber",
+  "kind": "room",
+  "minX": 62000,
+  "maxX": 76000,
+  "minZ": -7000,
+  "maxZ": 7000,
+  "pull": "seed",
+  "trigger": {
+    "minX": 64000,
+    "maxX": 76000,
+    "minZ": -7000,
+    "maxZ": 7000
+  },
+  "origin": {
+    "x": 63500,
+    "z": 0
+  },
+  "start": {
+    "x": 66500,
+    "z": 0
+  }
+}
