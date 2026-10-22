@@ -32,6 +32,14 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
     public Action<int, Run, IReadOnlyList<Command>>? Observe { get; init; }
 
     /// <summary>
+    /// Finding f-3dcc702c (WoW: plan the count, pull to 100, then boss): the leader pulls the layout's packs until the Enemy
+    /// Forces bar is full before it walks to the boss, as the host autorun Warden does. False restores the old walk past
+    /// every optional pack (a control for tests). Null (the default) is true for the scripted party (no policy) and false
+    /// for a policy run: a playtester's policy owns its pulls, and a pull plan in a policy is a follow-up.
+    /// </summary>
+    public bool? PullToForces { get; init; }
+
+    /// <summary>
     /// The arena's <c>--talent SEAT:TALENT</c> picks (finding f-a3de0a01, <see cref="RunRequest.Talents"/>), so the
     /// headless replica plays the seats an autorun capture talents. Empty (the default) leaves the run unchanged.
     /// </summary>
@@ -126,6 +134,7 @@ public static class PlaytestRunner
         }).Run;
         var kits = KitRegistry.From(registry);
         var context = new PolicyContext();
+        var forces = (options.PullToForces ?? (policy is null)) ? ForcesPlan.Of(registry) : null;
 
         var bots = new SortedDictionary<int, IBot>();
         var memories = new SortedDictionary<int, BotMemory>();
@@ -167,7 +176,7 @@ public static class PlaytestRunner
                 if (!Follow.AnyLivingEnemy(run.State))
                 {
                     commands.RemoveAll(c => c.ActorId == leaderId);
-                    if (!Resting(run.State, policy) && Follow.LeadRoute(tick, leader, run) is { } walk)
+                    if (!Resting(run.State, policy) && Follow.LeadRoute(tick, leader, run, null, forces) is { } walk)
                     {
                         commands.Add(walk);
                     }

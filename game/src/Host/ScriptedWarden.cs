@@ -38,6 +38,12 @@ public sealed class ScriptedWarden
     /// <summary>Guard Break: the cooldown-free Payoff that Strike (the filler) yields to only when it closes a Window.</summary>
     private const string PayoffBuilder = "warden.guardBreak";
 
+    /// <summary>
+    /// The forces table (f-3dcc702c): with it the Warden pulls the layout's packs until the Enemy Forces bar is full before he
+    /// walks on to the boss (<see cref="ForcesPlanner"/>). Null leaves the walk as it was; the host sets it from content.
+    /// </summary>
+    public ForcesPlan? Forces { get; set; }
+
     /// <summary>Appends the scripted commands for <paramref name="tick"/>.</summary>
     /// <param name="tick">The pre-step tick.</param>
     /// <param name="run">The run.</param>
@@ -54,7 +60,7 @@ public sealed class ScriptedWarden
         }
         if (run.Content.Layout is not null && !Follow.AnyLivingEnemy(state))
         {
-            if (Follow.LeadRoute(tick, me, run, openSeats) is { } walk)
+            if (Follow.LeadRoute(tick, me, run, openSeats, Forces) is { } walk)
             {
                 into.Add(walk);
             }

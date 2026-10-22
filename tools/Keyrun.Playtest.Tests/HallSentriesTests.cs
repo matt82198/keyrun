@@ -55,10 +55,13 @@ public sealed class HallSentriesTests
             .Min());
     }
 
-    [Fact(DisplayName = "Hall Sentries: the default route never engages them (an optional pack off the walking line, G5)")]
+    // f-3dcc702c: the scripted autorun now counts the forces bar to 100% and pulls these sentries (the most forces per health),
+    // so the walking-line route this pin is about is the playtest with the pull plan off (PullToForces false) and a policy run.
+    [Fact(DisplayName = "Hall Sentries: a route that does not pull to 100 never engages them (an optional pack off the walking line, G5)")]
     public void Default_route_does_not_engage_the_hall_sentries()
     {
-        foreach (var r in new[] { Play(KickPlan), Play(null) })
+        var walkingLine = PlaytestRunner.Play(new PlaytestOptions(2, 1, null) { PullToForces = false }, Registry);
+        foreach (var r in new[] { Play(KickPlan), walkingLine })
         {
             var sentries = Sentries(r);
             Assert.Equal(5, sentries.Count);

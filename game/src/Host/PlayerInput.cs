@@ -203,6 +203,8 @@ public partial class PlayerInput : Node, ICommandSource
         ArgumentNullException.ThrowIfNull(run);
         if (_scripted)
         {
+            // f-3dcc702c: the autorun Warden counts the Enemy Forces bar to 100% before the boss (forces.json via the HUD's table).
+            _script.Forces ??= ForcesPlan.Of(Driver?.Registry);
             _script.Sample(tick, run, into, Driver?.OpenSeats);
             return;
         }

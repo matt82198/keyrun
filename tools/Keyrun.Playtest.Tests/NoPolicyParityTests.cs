@@ -31,6 +31,8 @@ public sealed class NoPolicyParityTests
         var kits = KitRegistry.From(registry);
         var source = new BotCommandSource(setup.Party.Select(p => p.Id), kits, seed);
         var log = new StringBuilder();
+        // f-3dcc702c: the host's autorun leader counts the forces bar to 100% (PlayerInput hands ScriptedWarden this plan).
+        var forces = ForcesPlan.Of(registry);
         while (run.State.Tick < maxTicks && run.RunEnd.ResultTick is null)
         {
             var tick = run.State.Tick;
@@ -41,7 +43,7 @@ public sealed class NoPolicyParityTests
                 if (!Follow.AnyLivingEnemy(run.State))
                 {
                     commands.RemoveAll(c => c.ActorId == leader.Id);
-                    if (Follow.LeadRoute(tick, leader, run) is { } walk)
+                    if (Follow.LeadRoute(tick, leader, run, null, forces) is { } walk)
                     {
                         commands.Add(walk);
                     }
