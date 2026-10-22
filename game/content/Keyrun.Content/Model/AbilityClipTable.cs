@@ -159,12 +159,13 @@ public static class AbilityClipTable
 
     /// <summary>
     /// The run-log proof line for an ability clip starting on an actor:
-    /// <c>ANIM actor=N clip=X ability=Y</c> (<c>ability=-</c> for a clip no ability started, a hit or a death).
+    /// <c>ANIM actor=N clip=X ability=Y at=T</c> (<c>ability=-</c> for a clip no ability started, a hit or a death;
+    /// <c>at</c> is the sim tick the view showed when the clip started, ANIMS-READABLE-2).
     /// </summary>
-    public static string AnimLine(int actorId, string clip, string? abilityId)
+    public static string AnimLine(int actorId, string clip, string? abilityId, int tick)
     {
         ArgumentNullException.ThrowIfNull(clip);
-        return FormattableString.Invariant($"ANIM actor={actorId} clip={clip} ability={abilityId ?? "-"}");
+        return FormattableString.Invariant($"ANIM actor={actorId} clip={clip} ability={abilityId ?? "-"} at={tick}");
     }
 
     private static Dictionary<string, AbilityClipRow> Index(IEnumerable<AbilityClipRow> rows)

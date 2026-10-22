@@ -10,7 +10,7 @@ namespace Keyrun.View;
 /// ABILITY-ANIMS (Matt 2026-10-21 "theres still no ability animations"): the ability side of
 /// <see cref="ActorAnimator"/>. It names the clip each ability plays from <see cref="AbilityClipTable"/> (content, pure:
 /// the release one-shot on the sim's <c>cast_complete</c>, the cast loop for the bar), reads which ability a step's
-/// events resolved or kicked, and writes one <c>ANIM actor=N clip=X ability=Y</c> line per clip start to the run log
+/// events resolved or kicked, and writes one <c>ANIM actor=N clip=X ability=Y at=T</c> line per clip start to the run log
 /// (through the host's log sink, so a capture's log proves every start; GD.Print never reaches it). Read-only: it never
 /// writes sim state and never touches materials or alpha.
 /// </summary>
@@ -27,10 +27,10 @@ public sealed class AbilityClipPlayer
     /// <summary>The cast-loop clip name for <paramref name="abilityId"/>, or null for the row's own cast loop.</summary>
     public static string? CastName(string? abilityId) => AbilityClipTable.CastClip(abilityId);
 
-    /// <summary>Writes the proof line for <paramref name="clip"/> starting on <paramref name="actorId"/>.</summary>
-    public void Started(int actorId, string clip, string? abilityId)
+    /// <summary>Writes the proof line for <paramref name="clip"/> starting on <paramref name="actorId"/> at sim <paramref name="tick"/>.</summary>
+    public void Started(int actorId, string clip, string? abilityId, int tick)
     {
-        var line = AbilityClipTable.AnimLine(actorId, clip, abilityId);
+        var line = AbilityClipTable.AnimLine(actorId, clip, abilityId, tick);
         if (_log is null)
         {
             GD.Print(line);
@@ -39,9 +39,23 @@ public sealed class AbilityClipPlayer
         _log(line);
     }
 
-    /// <summary>The ability id of this step's <c>cast_complete</c> for <paramref name="actorId"/>, or null.</summary>
-    public static string? Resolved(int actorId, IReadOnlyList<SimEvent>? events) =>
-        Find(events, AnimRule.ResolveEvent, "actorId", actorId);
+    /// <summary>
+    /// ANIMS-READABLE-2: every ability this step's <c>cast_complete</c> events resolved for <paramref name="actorId"/>,
+    /// in event order (<see cref="ReleaseHold.Resolved"/>; a cast and the instant fired on its resolve both draw).
+    /// </summary>
+    public static IReadOnlyList<string> Resolved(int actorId, IReadOnlyList<SimEvent>? events)
+    {
+        var triples = new List<(string, int?, string?)>();
+        if (events is not null)
+        {
+            foreach (var e in events)
+            {
+                triples.Add((e.Type, e.Get("actorId") is JsInt id ? (int)id.Value : null,
+                    e.Get("abilityId") is JsString ability ? ability.Value : null));
+            }
+        }
+        return ReleaseHold.Resolved(actorId, triples);
+    }
 
     /// <summary>The ability id of the cast this step's <c>interrupt</c> cut on <paramref name="actorId"/>, or null.</summary>
     public static string? Kicked(int actorId, IReadOnlyList<SimEvent>? events) =>
