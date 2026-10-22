@@ -13,4 +13,13 @@
   - "The tutorial run (key 2, seed 1) kills the boss with seat 1 as each class (bots on every seat, headless)(classId: cinder)"
   - "The bot Warden holds a member of every pack within 60 ticks of it engaging, human Cinder (seeds 1..5)(seed: 3)"
   Whether the tutorial failure predates this change is not established (not bisected).
-- Status: pushed, no PR opened (fastcheck FAIL).
+- Bisect (targeted playtests, Keyrun.Playtest.Tests filter on BotTankTakesHolderTests + Tutorial_completes_as_each_class):
+  | config | tutorial Cinder | seed-3 holder |
+  | as-is 8ce165f1 (a + c) | FAIL | FAIL |
+  | a off, c on | PASS | PASS |
+  | a on, c off | FAIL | FAIL |
+- Rule (a) REMOVED at ship: the doomed ordering in TauntTarget and DiesInTauntWindow, plus the two rule-a tests.
+  blocked: breaks BotTankTakesHolderTests seed 3 (and the tutorial Cinder run) when enabled.
+  Rule (c) (LooseEnemies SeatHealthKey ordering) kept. CommittedDamage (public R-TAUNT-4a estimate) left in place, now unused.
+- Tutorial red was caused by rule (a) on this branch, not pre-existing; main was not checked because the bisect already attributes it.
+- Status: ship candidate; fastcheck -All gate pending on the rule-(a)-removed commit.

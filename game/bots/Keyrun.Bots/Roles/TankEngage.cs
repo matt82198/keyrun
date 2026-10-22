@@ -212,23 +212,9 @@ public static class TankEngage
     }
 
     /// <summary>
-    /// R-TAUNT-4a: true when <paramref name="target"/> has no more HP than the party's committed damage over the taunt
-    /// cooldown, so it dies inside the window and the taunt would be wasted. False when the taunt ability is unknown.
-    /// </summary>
-    private static bool DiesInTauntWindow(BotView view, ActorState target, EffectiveKit kit)
-    {
-        if (string.IsNullOrEmpty(kit.TauntAbilityId) || AbilityOf(view, kit.TauntAbilityId) is not { } taunt)
-        {
-            return false;
-        }
-        return target.Health <= CommittedDamage(view, view.State.Actors, target, taunt.CooldownTicks);
-    }
-
-    /// <summary>
-    /// The loose-enemy taunt target. R-TAUNT-5: an enemy the party kills inside the taunt window (R-TAUNT-4a) is an ORDERING
-    /// key, never a veto. Enemies that are not estimated doomed come first, each group in <see cref="LooseEnemies"/> order
-    /// (seat HP, hurting its seat, distance, id); when every loose enemy in range is doomed, the first of them is still
-    /// taunted. Null when the taunt is not ready, has no ability id, or no loose enemy is in taunt range.
+    /// The loose-enemy taunt target: the first in-range enemy in <see cref="LooseEnemies"/> order (seat HP, hurting its seat,
+    /// distance, id). R-TAUNT-4a (doomed-enemy ordering) was removed by R-TAUNT-5 ship: it broke BotTankTakesHolderTests seed 3
+    /// and the tutorial Cinder run. Null when the taunt is not ready, has no ability id, or no loose enemy is in taunt range.
     /// </summary>
     private static ActorState? TauntTarget(BotView view, ActorState self, EffectiveKit kit)
     {
@@ -238,7 +224,7 @@ public static class TankEngage
         }
         var tauntRange = RangeOf(view, kit.TauntAbilityId) ?? DefaultReachMm;
         var inRange = LooseEnemies(view.State.Actors, self).Where(e => RoleShared.Dist(self, e) <= tauntRange).ToList();
-        return inRange.FirstOrDefault(e => !DiesInTauntWindow(view, e, kit)) ?? inRange.FirstOrDefault();
+        return inRange.FirstOrDefault();
     }
 
     /// <summary>tank-engage.ts tankEngageCommands: null when there is nothing to engage.</summary>

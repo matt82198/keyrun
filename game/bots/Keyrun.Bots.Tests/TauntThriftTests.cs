@@ -8,10 +8,10 @@ using static Keyrun.Bots.Tests.RolesTestKit;
 namespace Keyrun.Bots.Tests;
 
 /// <summary>
-/// R-TAUNT-4 (event seq 280, finding f-dc7eff7d): the bot tank's taunt selector must not waste the 160-tick taunt on an
-/// enemy that dies inside the cooldown window (rule a), and on TankEngage the first taunt goes to the enemy aimed at the
-/// lowest-HP non-tank seat (rule c). Rule b (never taunt when every live enemy already targets the tank) is already
-/// enforced by PickLooseEnemy, which only yields enemies aimed at another player, so it has no test here.
+/// R-TAUNT-4 (event seq 280, finding f-dc7eff7d): on TankEngage the first taunt goes to the enemy aimed at the
+/// lowest-HP non-tank seat (rule c). Rule a (doomed-enemy ordering, R-TAUNT-5) was removed at ship because it broke
+/// BotTankTakesHolderTests seed 3 and the tutorial Cinder run. Rule b (never taunt when every live enemy already targets
+/// the tank) is already enforced by PickLooseEnemy, which only yields enemies aimed at another player, so it has no test here.
 /// </summary>
 public sealed class TauntThriftTests
 {
@@ -30,28 +30,6 @@ public sealed class TauntThriftTests
     {
         var tank = actors[0];
         return TankRole.TankDecide(ViewOf(10, RealKits, null, actors), tank).ToList();
-    }
-
-    [Fact(DisplayName = "Warden taunt thrift R-TAUNT-5 > with two loose enemies in range, the taunt goes to the one the party does not kill in the window (doomed is an ordering key)")]
-    public void TauntPrefersNonDoomedLooseEnemy()
-    {
-        // Enemy 100 is nearer the tank, has 1 HP and is aimed at the Cinder seat, so the party kills it inside the window.
-        // Enemy 101 is healthy and farther. Without the doomed ordering key, the nearer doomed enemy would be taunted.
-        var cmds = Decide(
-            Warden(),
-            Seat(3, 4000, 250, targetId: 100),
-            Enemy(100, 1000, targetId: 3, health: 1),
-            Enemy(101, 2500, targetId: 3, health: 6720));
-        Assert.Contains(new CastCommand(10, 2, "warden.taunt", 101), cmds);
-        Assert.DoesNotContain(new CastCommand(10, 2, "warden.taunt", 100), cmds);
-    }
-
-    [Fact(DisplayName = "Warden taunt thrift R-TAUNT-5 > a single doomed loose enemy in range is still taunted (doomed is never a veto)")]
-    public void SingleDoomedLooseEnemyStillTaunted()
-    {
-        // One enemy with 1 HP aimed at the Cinder seat: the party's committed damage over the 160-tick window is far above 1.
-        var cmds = Decide(Warden(), Seat(3, 4000, 250, targetId: 100), Enemy(100, 2000, targetId: 3, health: 1));
-        Assert.Contains(new CastCommand(10, 2, "warden.taunt", 100), cmds);
     }
 
     [Fact(DisplayName = "Warden taunt thrift R-TAUNT-4a > still taunts a healthy loose enemy inside taunt range (control)")]
