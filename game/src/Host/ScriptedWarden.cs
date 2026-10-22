@@ -333,7 +333,7 @@ public sealed class ScriptedWarden
             // The cleave is the alternate global: it follows a Strike (R-WARDEN-FILLER-1: Strike is the filler, one in every two
             // globals at least), so a cooldown that comes ready never takes two globals running from the filler.
             if (id == PayoffBuilder && !InBossPull(run) && !PayoffCloses(run, me, def, target, tick)
-                && !(CleavesTwo(run, me, def, target) && !WouldBeDenied(run, me, def, target, tick) && !_lastBuilderWasCleave))
+                && !(CleavesTwo(run, me, def, target) && !WouldBeDenied(run, me, def, target, tick) && !_lastBuilderWasCleave && tick - _lastStrikeTick <= CleaveAfterStrikeTicks))
             {
                 continue;
             }
@@ -370,8 +370,8 @@ public sealed class ScriptedWarden
     /// </summary>
     private bool _lastBuilderWasCleave;
 
-    /// <summary>R-AOE-1: a Guard Break that closes no Window (a plain cleave) waits for a Strike within this many ticks before it.</summary>
-    internal const int CleaveAfterStrikeTicks = 45;
+    /// <summary>R-AOE-1: a Guard Break that closes no Window (a plain cleave) follows a Strike within this many ticks: past it (Bulwark and Reckoning took the globals) the Strike is due first, so the filler is never starved (R-WARDEN-FILLER-1).</summary>
+    internal const int CleaveAfterStrikeTicks = 60;
 
     /// <summary>
     /// R-AOE-1: Bulwark (a 20-tick cast) goes up on the global right after a Strike, so its cast time sits inside the filler's

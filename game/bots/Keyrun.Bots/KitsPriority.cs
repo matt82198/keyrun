@@ -42,7 +42,9 @@ public static class KitPriority
     /// <summary>kit-priority.ts tier: cost-paying finishers 0, Payoffs 1, Setups 2, everything else 3, the filler 4 (R-AOE-1).</summary>
     private static int Tier(AbilityDef def, string resource)
     {
-        if (IsFiller(def, resource))
+        // R-AOE-2: a Payoff or Setup keeps its own tier even at cooldown 0 (Flare, Guard Break, Strike are spammable builders);
+        // only an untagged cost-free, cooldown-free rotational is the filler that sinks to the last tier.
+        if (IsFiller(def, resource) && !HasTag(def, PayoffTag) && TagWithPrefix(def, SetupTagPrefix) is null)
         {
             return 4;
         }

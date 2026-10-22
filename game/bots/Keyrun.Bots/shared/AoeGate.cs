@@ -92,6 +92,9 @@ public static class AoeGate
         return rotation
             .Where(id => !reg.Abilities.TryGetValue(id, out var def)
                 || !IsShapedAoeDamage(def)
+                // R-AOE-2: a spammable Payoff builder (Guard Break) is also the button that closes a Window for a Combo, so it
+                // stays in the rotation at one enemy; dropping it left the boss fight with no Payoff presses at all.
+                || (def.CooldownTicks == 0 && KitPriority.HasTag(def, KitPriority.PayoffTag))
                 || EnemiesInShape(view, self, def, targetId) >= MinEnemies)
             .ToList();
     }
