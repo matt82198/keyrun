@@ -12,7 +12,6 @@ namespace Keyrun.Content.Tests;
 /// </summary>
 public sealed class LayoutPatrolTests
 {
-    private const string LayoutFile = "layout.json";
 
     /// <summary>The shipped patrol, as layout.json declares it (2x choir.melee between (32500,0) and (26500,0) at 50 mm/tick).</summary>
     private const string CorridorPatrol = """
@@ -29,7 +28,7 @@ public sealed class LayoutPatrolTests
         Assert.Throws<ContentLoadException>(() => ContentLoader.Load(source.Build()));
 
     private static MutableSource WithPatrol(string patrolJson) =>
-        new MutableSource().Edit(LayoutFile, n => n["patrols"] = new JsonArray(JsonNode.Parse(patrolJson)));
+        new MutableSource().EditLayout(n => n["patrols"] = new JsonArray(JsonNode.Parse(patrolJson)));
 
     [Fact(DisplayName = "Patrol (MPLUS-PATROLS): the shipped layout declares the corridor-2 patrol pack with its two members, its loop and its speed")]
     public void Shipped_layout_declares_the_corridor_patrol()
