@@ -24,12 +24,16 @@ public static class NavLayouts
         var boxes = layout.Boxes
             .Select(b => new NavBox(b.Id, new Bounds(b.MinX, b.MaxX, b.MinZ, b.MaxZ), b.Kind == C.LayoutBoxKind.Room, b.Gate))
             .ToList();
-        var triggers = layout.Boxes
+        // D45: the other branch's boxes (content SideBoxes) are walkable and hold its pull rooms, off the route chain.
+        var side = layout.SideBoxes
+            .Select(b => new NavBox(b.Id, new Bounds(b.MinX, b.MaxX, b.MinZ, b.MaxZ), b.Kind == C.LayoutBoxKind.Room, null))
+            .ToList();
+        var triggers = layout.Boxes.Concat(layout.SideBoxes)
             .Where(b => b.Pull is not null && b.Trigger is not null)
             .Select(b => new NavTrigger(b.Pull!, new Bounds(b.Trigger!.MinX, b.Trigger.MaxX, b.Trigger.MinZ, b.Trigger.MaxZ)))
             .ToList();
         var route = layout.Route.Select(p => new Vec3(p.X, 0, p.Z)).ToList();
-        return new NavLayout(boxes, triggers, route);
+        return new NavLayout(boxes, triggers, route) { Side = side };
     }
 
     /// <summary>
@@ -55,7 +59,8 @@ public static class NavLayouts
                 Pos = boss ? new Vec3(origin.X, s.Pos.Y, origin.Z) : new Vec3(origin.X + s.Pos.X, s.Pos.Y, origin.Z + s.Pos.Z),
             }).ToList();
             // PRESPAWN-AGGRO: the room's per-group aggro radius (layout.json aggroMm), else the pull's own.
-            return pull with { Spawns = spawns, AggroMm = room.AggroMm ?? pull.AggroMm };
+            // D45: a seeded branch room tags its pull with the branch (Pulls.CheckPullAdvance skips the untaken one).
+            return pull with { Spawns = spawns, AggroMm = room.AggroMm ?? pull.AggroMm, Branch = room.Branch };
         }).ToList();
         return dungeon with { Pulls = pulls };
     }
@@ -89,7 +94,7 @@ public static class NavLayouts
     }
 
     private static C.LayoutBox RoomOf(C.LayoutDef layout, string pullId) =>
-        layout.Boxes.FirstOrDefault(b => string.Equals(b.Pull, pullId, StringComparison.Ordinal) && b.Origin is not null && b.Start is not null)
+        layout.Boxes.Concat(layout.SideBoxes).FirstOrDefault(b => string.Equals(b.Pull, pullId, StringComparison.Ordinal) && b.Origin is not null && b.Start is not null)
             ?? throw new InvalidOperationException($"layout has no room for pull \"{pullId}\"");
 }
 
@@ -375,12 +380,13 @@ public static class Follow
             return null;
         }
         var p = new Vec3(leader.Pos.X - slot.BehindMm, leader.Pos.Y, leader.Pos.Z + slot.SideMm);
-        if (layout.BoxIndexAt(p) >= 0)
+        if (layout.InAnyBox(p))
         {
             return p;
         }
-        var home = layout.BoxIndexAt(leader.Pos);
-        return home >= 0 ? Movement.ClampPoint(p, layout.Boxes[home].Box) : leader.Pos;
+        // D45: the leader's box may be on the other branch (layout.Side), off the route chain.
+        var home = layout.AllBoxes.LastOrDefault(b => Movement.Contains(b.Box, leader.Pos));
+        return home is not null ? Movement.ClampPoint(p, home.Box) : leader.Pos;
     }
 
     /// <summary>
@@ -479,7 +485,7 @@ public static class Follow
     public static NavBox? RoomAt(NavLayout layout, Vec3 p)
     {
         ArgumentNullException.ThrowIfNull(layout);
-        foreach (var box in layout.Boxes)
+        foreach (var box in layout.AllBoxes)
         {
             if (box.IsRoom && Movement.Contains(box.Box, p))
             {
@@ -512,7 +518,9 @@ public static class Follow
         ArgumentNullException.ThrowIfNull(layout);
         var (aLow, aHigh) = Span(layout, a);
         var (bLow, bHigh) = Span(layout, b);
-        return aLow >= 0 && bLow >= 0 && aLow <= bHigh && bLow <= aHigh;
+        // D45: two points in one box of the other branch (layout.Side) share it too.
+        return (aLow >= 0 && bLow >= 0 && aLow <= bHigh && bLow <= aHigh) ||
+            layout.Side.Any(s => Movement.Contains(s.Box, a) && Movement.Contains(s.Box, b));
     }
 
     private static (int Low, int High) Span(NavLayout layout, Vec3 p)

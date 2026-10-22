@@ -133,8 +133,8 @@ public sealed class NavGrid
         ArgumentNullException.ThrowIfNull(layout);
         return Grids.GetValue(layout, static l =>
         {
-            var boxes = new List<Bounds>(l.Boxes.Count);
-            foreach (var b in l.Boxes)
+            var boxes = new List<Bounds>(l.Boxes.Count + l.Side.Count);
+            foreach (var b in l.AllBoxes)
             {
                 boxes.Add(b.Box);
             }

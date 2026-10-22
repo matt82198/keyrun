@@ -30,6 +30,13 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
     /// stepped, after the leader's travel and fight strip are applied. Null in play.
     /// </summary>
     public Action<int, Run, IReadOnlyList<Command>>? Observe { get; init; }
+
+    /// <summary>
+    /// D45 (the player chooses the route): the leader's walk between fights in place of <see cref="Follow.LeadRoute"/>
+    /// (tick, leader, run; null = stand), so a test can play a seated human leading down a branch the bots would not pick.
+    /// Null (the default) keeps the autorun walk.
+    /// </summary>
+    public Func<int, ActorState, Run, MoveCommand?>? LeaderWalk { get; init; }
 }
 
 /// <summary>A finished playtest: the final run, the event/command log and the stats the summary reads.</summary>
@@ -160,7 +167,7 @@ public static class PlaytestRunner
                 if (!Follow.AnyLivingEnemy(run.State))
                 {
                     commands.RemoveAll(c => c.ActorId == leaderId);
-                    if (!Resting(run.State, policy) && Follow.LeadRoute(tick, leader, run) is { } walk)
+                    if (!Resting(run.State, policy) && (options.LeaderWalk is { } lead ? lead(tick, leader, run) : Follow.LeadRoute(tick, leader, run)) is { } walk)
                     {
                         commands.Add(walk);
                     }

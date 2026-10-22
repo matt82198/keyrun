@@ -370,7 +370,7 @@ public static class RunRoot
             {
                 continue;
             }
-            foreach (var box in layout.Boxes)
+            foreach (var box in layout.AllBoxes)
             {
                 if (box.IsRoom && !Movement.Contains(box.Box, was.Pos) && Movement.Contains(box.Box, actor.Pos))
                 {

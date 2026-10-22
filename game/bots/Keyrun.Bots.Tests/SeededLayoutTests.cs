@@ -64,38 +64,83 @@ public sealed class SeededLayoutTests
         }
     }
 
-    [Fact(DisplayName = "Seeded layout: the run's pulls are the walked branch's teaching pulls; the other branch's stand there as packs")]
-    public void Pulls_follow_the_walked_branch()
+    // The walked chain alone as a registry: the route boxes, their packs, and the walked branch's two teaching pulls.
+    private static ContentRegistry WalkedOnly(SeededDungeon d, LayoutDef? layout = null)
+    {
+        layout ??= d.Registry.Layout;
+        var sideRooms = layout.SideBoxes.Select(b => b.Id).ToHashSet(StringComparer.Ordinal);
+        var id = d.Registry.Forces.Route.DungeonId;
+        var dungeon = d.Registry.Dungeons[id];
+        var walked = dungeon with { Pulls = new ValueList<PullDef>(dungeon.Pulls.Take(2)) };
+        return d.Registry with
+        {
+            Layout = layout with { Packs = new ValueList<LayoutPack>(layout.Packs.Where(p => !sideRooms.Contains(p.Room))), SideBoxes = new() },
+            Dungeons = new ValueMap<DungeonDef>(d.Registry.Dungeons.Select(kv => kv.Key == id ? new KeyValuePair<string, DungeonDef>(kv.Key, walked) : kv)),
+        };
+    }
+
+    [Fact(DisplayName = "Seeded layout: the run's pulls are both branches' teaching pulls, walked branch first, each room tagged with its branch")]
+    public void Pulls_cover_both_branches()
     {
         foreach (var (seed, d) in All())
         {
             var dungeon = d.Registry.Dungeons[d.Registry.Forces.Route.DungeonId];
             var second = d.Fill.Branches[d.Branch].SecondPull;
-            Assert.Equal(new[] { "choir", second }, dungeon.Pulls.Select(p => p.Id));
-            var layout = d.Registry.Layout;
-            var sideRooms = layout.SideBoxes.Select(b => b.Id).ToHashSet(StringComparer.Ordinal);
             var otherSecond = d.Fill.Branches[1 - d.Branch].SecondPull;
-            Assert.Contains(layout.Packs, p => sideRooms.Contains(p.Room) && p.Name == "The Choir");
-            Assert.Contains(layout.Packs, p => sideRooms.Contains(p.Room) && p.Name == dungeonNameOf(otherSecond));
-            Assert.Equal(d.Fill.Packs.Count - 2, layout.Packs.Count);
+            Assert.Equal(new[] { "choir", second, "choir" + SeededLayout.MirrorSuffix, otherSecond }, dungeon.Pulls.Select(p => p.Id));
+            var layout = d.Registry.Layout;
             Assert.Equal(new[] { "choir", second, LayoutDef.BossPullId }, layout.Boxes.Where(b => b.Pull is not null).Select(b => b.Pull));
+            Assert.Equal(new[] { "choir" + SeededLayout.MirrorSuffix, otherSecond }, layout.SideBoxes.Where(b => b.Pull is not null).Select(b => b.Pull));
+            // Only the optional packs stay packs: every teaching placement is a pull.
+            Assert.Equal(d.Fill.Packs.Count(p => p.PullIndex < 0), layout.Packs.Count);
+            var tag = d.Branch.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Assert.All(layout.Boxes.Where(b => b.Kind == LayoutBoxKind.Room).Skip(1).SkipLast(1), b => Assert.Equal(tag, b.Branch));
+            Assert.All(layout.SideBoxes.Where(b => b.Kind == LayoutBoxKind.Room), b => Assert.NotEqual(tag, b.Branch));
+            Assert.Null(layout.Boxes[0].Branch);
+            Assert.Null(layout.Boxes[^1].Branch);
+            // PlaceDungeon carries each room's branch onto its sim pull; the boss stays untagged.
+            var sim = new Keyrun.Sim.Encounter.DungeonDef("d", dungeon.Pulls.Select(p => new Keyrun.Sim.Encounter.PullDef(p.Id, System.Array.Empty<Keyrun.Sim.Encounter.PullSpawn>()))
+                .Append(new Keyrun.Sim.Encounter.PullDef(LayoutDef.BossPullId, System.Array.Empty<Keyrun.Sim.Encounter.PullSpawn>())).ToList());
+            var placed = NavLayouts.PlaceDungeon(layout, sim);
+            Assert.Equal(new[] { tag, tag, OtherTag(d.Branch), OtherTag(d.Branch), null }, placed.Pulls.Select(p => p.Branch));
+            _ = seed;
         }
 
-        static string dungeonNameOf(string pull) => pull == "pair" ? "The Pair" : "The Seed";
+        static string OtherTag(int b) => (1 - b).ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    [Fact(DisplayName = "Seeded layout: the walked chain passes the content's LayoutValidator for every seed, the side branch is not walked")]
+    [Fact(DisplayName = "Seeded layout: the walked chain passes the content's LayoutValidator, the other branch is walkable beside it")]
     public void Walked_chain_is_a_valid_layout()
     {
         foreach (var (seed, d) in All())
         {
             var layout = d.Registry.Layout;
-            var sideRooms = layout.SideBoxes.Select(b => b.Id).ToHashSet(StringComparer.Ordinal);
-            var walkedOnly = d.Registry with { Layout = layout with { Packs = new ValueList<LayoutPack>(layout.Packs.Where(p => !sideRooms.Contains(p.Room))), SideBoxes = new() } };
-            LayoutValidator.Check(walkedOnly);
+            LayoutValidator.Check(WalkedOnly(d));
             var nav = NavLayouts.ToSim(layout);
-            Assert.DoesNotContain(nav.Boxes, b => sideRooms.Contains(b.Id));
+            var sideIds = layout.SideBoxes.Select(b => b.Id).ToHashSet(StringComparer.Ordinal);
+            Assert.DoesNotContain(nav.Boxes, b => sideIds.Contains(b.Id));
+            Assert.Equal(layout.SideBoxes.Select(b => b.Id), nav.Side.Select(b => b.Id));
+            // Every side room's centre is walkable and the other branch's pulls have room triggers.
+            Assert.All(layout.SideBoxes.Where(b => b.Kind == LayoutBoxKind.Room), b => Assert.True(nav.InAnyBox(new Keyrun.Sim.Core.Vec3(b.MinX + ((b.MaxX - b.MinX) / 2), 0, b.MinZ + ((b.MaxZ - b.MinZ) / 2)))));
+            Assert.All(layout.SideBoxes.Where(b => b.Pull is not null), b => Assert.NotNull(nav.RoomFor(b.Pull!)));
             _ = seed;
+        }
+    }
+
+    [Fact(DisplayName = "Seeded layout: the other branch as the chain (walk override) is the same boxes and also a valid chain")]
+    public void Other_branch_chain_is_the_same_geometry()
+    {
+        var reg = ContentLoader.Load();
+        foreach (var seed in Seeds.Take(30))
+        {
+            var bots = SeededLayout.Build(reg, seed);
+            var other = SeededLayout.Build(reg, seed, walk: 1 - bots.Branch);
+            Assert.Equal(1 - bots.Branch, other.Branch);
+            string Key(LayoutBox b) => $"{b.Id}:{b.MinX},{b.MaxX},{b.MinZ},{b.MaxZ}";
+            Assert.Equal(
+                bots.Registry.Layout.Boxes.Concat(bots.Registry.Layout.SideBoxes).Select(Key).OrderBy(k => k, StringComparer.Ordinal),
+                other.Registry.Layout.Boxes.Concat(other.Registry.Layout.SideBoxes).Select(Key).OrderBy(k => k, StringComparer.Ordinal));
+            LayoutValidator.Check(WalkedOnly(other));
         }
     }
 
@@ -103,16 +148,16 @@ public sealed class SeededLayoutTests
     public void A_broken_chain_fails_the_validator()
     {
         var d = SeededLayout.Build(ContentLoader.Load(), 1);
-        var layout = d.Registry.Layout;
-        var sideRooms = layout.SideBoxes.Select(b => b.Id).ToHashSet(StringComparer.Ordinal);
-        var walked = layout with { Packs = new ValueList<LayoutPack>(layout.Packs.Where(p => !sideRooms.Contains(p.Room))), SideBoxes = new() };
+        var valid = WalkedOnly(d);
+        LayoutValidator.Check(valid);
+        var walked = valid.Layout;
         // Drop the first corridor box: the entrance no longer overlaps the next box at a doorway.
         var broken = walked with
         {
             Boxes = new ValueList<LayoutBox>(walked.Boxes.Where((_, i) => i != 1)),
             Route = new ValueList<LayoutPoint>(walked.Route.Where((_, i) => i != 1)),
         };
-        Assert.Throws<ContentLoadException>(() => LayoutValidator.Check(d.Registry with { Layout = broken }));
+        Assert.Throws<ContentLoadException>(() => LayoutValidator.Check(valid with { Layout = broken }));
     }
 
     [Fact(DisplayName = "Seeded layout: the shell the view builds opens two doorways in the entrance's east wall and draws two one-way arrows")]

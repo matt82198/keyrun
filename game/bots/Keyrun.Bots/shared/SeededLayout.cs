@@ -65,19 +65,28 @@ public static class SeededLayout
         return (int)value;
     }
 
+    /// <summary>The pull id of the other branch's copy of a teaching pull both branches field (the Choir): "choir-2".</summary>
+    public const string MirrorSuffix = "-2";
+
     /// <summary>Generates, fills and lays out the dungeon for <paramref name="seed"/>.</summary>
     /// <param name="reg">Loaded content (its hand-built layout supplies the formation and the boss arena's size and ring).</param>
     /// <param name="seed">The run seed.</param>
+    /// <param name="walk">
+    /// The branch the route chain follows, or null for the bots' branch (<see cref="BotBranch"/>). The geometry is the same
+    /// either way (the boss room is centred on the bots' door), so a second layout with the other branch as its chain gives
+    /// a seat the route down that branch over the same boxes.
+    /// </param>
     /// <returns>The armed dungeon.</returns>
     /// <exception cref="C.ContentLoadException">The seeded layout breaks a layout invariant.</exception>
     /// <exception cref="InvalidOperationException">The grid does not cut into boxes (a corridor that is no straight or three-leg run).</exception>
-    public static SeededDungeon Build(C.ContentRegistry reg, long seed)
+    public static SeededDungeon Build(C.ContentRegistry reg, long seed, int? walk = null)
     {
         ArgumentNullException.ThrowIfNull(reg);
         var graph = RoomGraphGen.Generate(seed, Params);
         var grid = WalkGridGen.Emit(graph, Params);
         var fill = BranchFill.Fill(seed, graph, SeededRoster.Teaching(reg), SeededRoster.Optional(reg), SeededRoster.Params(reg));
-        var branch = BotBranch(seed);
+        var bots = BotBranch(seed);
+        var branch = walk ?? bots;
         var corridors = Corridors(graph, grid);
         var hand = reg.Layout;
         var arena = hand.Boxes.First(b => string.Equals(b.Pull, C.LayoutDef.BossPullId, StringComparison.Ordinal));
@@ -87,17 +96,26 @@ public static class SeededLayout
         var walked = fill.Branches[branch];
         var side = fill.Branches[1 - branch];
 
-        var bossDoor = corridors[(walked.Rooms[^1], graph.BossId)][^1];
+        var bossDoor = corridors[(fill.Branches[bots].Rooms[^1], graph.BossId)][^1];
         var doorZ = Mid(bossDoor.MinZ, bossDoor.MaxZ);
         var rooms = new Dictionary<int, C.LayoutBox>();
         foreach (var n in graph.Nodes)
         {
             rooms[n.Id] = RoomBox(grid, n, n.Kind == RoomKind.Boss ? arena : null, doorZ);
         }
-        // The walked branch's teaching pulls hold their rooms; the boss holds the boss room.
-        foreach (var p in fill.Packs.Where(p => p.Branch == branch && p.PullIndex >= 0))
+        // D45 (the player chooses the route): every branch room carries its branch, and both branches' teaching pulls hold
+        // their rooms as pulls (the walked branch's under their content ids, the other's mirror of a shared pull as id-2);
+        // the boss holds the boss room.
+        foreach (var br in fill.Branches)
         {
-            rooms[p.RoomId] = PullRoom(rooms[p.RoomId], p.PackId, OriginDepth(pullById[p.PackId]), null);
+            foreach (var r in br.Rooms)
+            {
+                rooms[r] = rooms[r] with { Branch = BranchTag(br.Index) };
+            }
+        }
+        foreach (var p in fill.Packs.Where(p => p.PullIndex >= 0))
+        {
+            rooms[p.RoomId] = PullRoom(rooms[p.RoomId], PullIdOf(p, branch), OriginDepth(pullById[p.PackId]), null);
         }
         rooms[graph.BossId] = PullRoom(rooms[graph.BossId], C.LayoutDef.BossPullId, PullDepthMm, arena.AggroMm, doorZ);
 
@@ -131,9 +149,7 @@ public static class SeededLayout
         route.Add(boxes[^1].Origin!);
 
         var walkedPacks = fill.Packs.Where(p => p.Branch == branch && p.PullIndex < 0).Select(p => Pack(reg, p, rooms[p.RoomId], walked.Rooms[0])).ToList();
-        var sidePacks = fill.Packs.Where(p => p.Branch != branch).Select(p => p.PullIndex >= 0
-            ? PullAsPack(pullById[p.PackId], p, rooms[p.RoomId], side.Rooms[0])
-            : Pack(reg, p, rooms[p.RoomId], side.Rooms[0])).ToList();
+        var sidePacks = fill.Packs.Where(p => p.Branch != branch && p.PullIndex < 0).Select(p => Pack(reg, p, rooms[p.RoomId], side.Rooms[0])).ToList();
         var entrance = rooms[graph.EntranceId];
         var layout = new C.LayoutDef
         {
@@ -145,15 +161,25 @@ public static class SeededLayout
             Formation = hand.Formation,
             SideBoxes = new C.ValueList<C.LayoutBox>(sideBoxes),
         };
-        var walkedPulls = fill.Packs.Where(p => p.Branch == branch && p.PullIndex >= 0).OrderBy(p => p.PullIndex).Select(p => pullById[p.PackId]);
-        var dungeon = content with { Pulls = new C.ValueList<C.PullDef>(walkedPulls) };
+        // The run's pulls: the walked branch's teaching pulls in order, then the other branch's (PlaceDungeon tags each with
+        // its room's branch; Pulls.CheckPullAdvance skips the branch the party did not take), then the host's boss.
+        C.PullDef PullOf(FilledPack p) => pullById[p.PackId] with { Id = PullIdOf(p, branch) };
+        var walkedPulls = fill.Packs.Where(p => p.Branch == branch && p.PullIndex >= 0).OrderBy(p => p.PullIndex).Select(PullOf).ToList();
+        var sidePulls = fill.Packs.Where(p => p.Branch != branch && p.PullIndex >= 0).OrderBy(p => p.PullIndex).Select(PullOf).ToList();
+        var dungeon = content with { Pulls = new C.ValueList<C.PullDef>(walkedPulls.Concat(sidePulls)) };
         var armed = reg with
         {
             Layout = layout,
             Dungeons = new C.ValueMap<C.DungeonDef>(reg.Dungeons.Select(kv => kv.Key == dungeonId ? new KeyValuePair<string, C.DungeonDef>(kv.Key, dungeon) : kv)),
         };
-        // Fail closed: the walked chain obeys every layout invariant (the side branch is drawn, never walked or validated).
-        C.LayoutValidator.Check(armed with { Layout = layout with { Packs = new C.ValueList<C.LayoutPack>(walkedPacks), SideBoxes = new() } });
+        // Fail closed: the walked chain, with its own pulls and packs, obeys every layout invariant (the other branch is the
+        // same construction mirrored; Build(reg, seed, walk: other) validates it as a chain).
+        var walkedOnly = content with { Pulls = new C.ValueList<C.PullDef>(walkedPulls) };
+        C.LayoutValidator.Check(armed with
+        {
+            Layout = layout with { Packs = new C.ValueList<C.LayoutPack>(walkedPacks), SideBoxes = new() },
+            Dungeons = new C.ValueMap<C.DungeonDef>(reg.Dungeons.Select(kv => kv.Key == dungeonId ? new KeyValuePair<string, C.DungeonDef>(kv.Key, walkedOnly) : kv)),
+        });
         return new SeededDungeon(armed, branch, graph, grid, fill);
     }
 
@@ -205,25 +231,13 @@ public static class SeededLayout
         return def with { Id = p.InstanceId, Room = room.Id, Center = SlotPoint(room, p.Slot), Optional = true, Branch = RoomBoxId(branchRoom) };
     }
 
-    // The other branch's teaching pull as a pack: its members around the pull's spawn mean, standing where the pull would.
-    private static C.LayoutPack PullAsPack(C.PullDef pull, FilledPack p, C.LayoutBox room, int branchRoom)
-    {
-        var n = pull.Enemies.Sum(e => e.Count);
-        var mx = pull.Enemies.Sum(e => e.Count * e.Spawn.X) / n;
-        var mz = pull.Enemies.Sum(e => e.Count * e.Spawn.Z) / n;
-        var depth = OriginDepth(pull);
-        return new C.LayoutPack
-        {
-            Id = p.InstanceId,
-            Name = pull.Name,
-            Room = room.Id,
-            Optional = true,
-            Center = new C.LayoutPoint { X = room.MinX + depth + mx, Z = Mid(room.MinZ, room.MaxZ) + mz },
-            AggroMm = (int)Keyrun.Sim.Encounter.Pulls.DefaultAggroMm,
-            Enemies = new C.ValueList<C.PullEnemy>(pull.Enemies.Select(e => e with { Spawn = new C.SpawnPoint { X = e.Spawn.X - mx, Z = e.Spawn.Z - mz } })),
-            Branch = RoomBoxId(branchRoom),
-        };
-    }
+    // A branch's tag on its rooms and pulls ("0" or "1").
+    private static string BranchTag(int branch) => branch.ToString(CultureInfo.InvariantCulture);
+
+    // A teaching placement's pull id: its content id on the walked branch, the mirror id on the other branch for a pull
+    // both branches field (the first teaching pull, the Choir), its content id otherwise (the Pair or the Seed appears once).
+    private static string PullIdOf(FilledPack p, int walked) =>
+        p.Branch != walked && p.PullIndex == 0 ? p.PackId + MirrorSuffix : p.PackId;
 
     // The doorway point between consecutive boxes: the centre of their overlap.
     private static C.LayoutPoint DoorPoint(C.LayoutBox a, C.LayoutBox b) => new()

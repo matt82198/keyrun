@@ -95,6 +95,39 @@ public sealed class SeededBranchRunTests
         Assert.All(seeded.Fill.Branches[seeded.Branch].Rooms, r => Assert.Contains(SeededLayout.RoomBoxId(r), entered));
     }
 
+    [Theory(DisplayName = "Seeded branches (key 2): a seat leading down the branch the bots would not pick is followed, and the party clears it to the boss")]
+    [InlineData(1L)]
+    [InlineData(2L)]
+    public void A_seat_leads_the_other_branch_to_the_boss(long seed)
+    {
+        var reg = ContentLoader.Load();
+        var seeded = SeededLayout.Build(reg, seed);
+        var other = 1 - seeded.Branch;
+        // The seat's walk: the same boxes with the other branch as the route chain (SeededLayout walk override).
+        var alt = NavLayouts.ToSim(SeededLayout.Build(reg, seed, walk: other).Registry.Layout);
+        var result = PlaytestRunner.Play(
+            new PlaytestOptions(2, seed, null) { LeaderWalk = (tick, leader, _) => Follow.WalkRoute(tick, leader, alt) },
+            seeded.Registry);
+        var events = result.Log.Split('\n')
+            .Where(line => line.StartsWith("E ", StringComparison.Ordinal))
+            .Select(line => JsonDocument.Parse(line.AsSpan(2).ToString()).RootElement)
+            .ToList();
+        var entered = events.Where(e => Str(e, "type") == "room_enter").Select(e => Str(e, "room") ?? string.Empty).Distinct().ToList();
+        var started = events.Where(e => Str(e, "type") == "pull_start").Select(e => Str(e, "pullId")).ToList();
+        var cleared = events.Where(e => Str(e, "type") == "pull_clear").Select(e => Str(e, "pullId")).ToList();
+        var forces = seeded.Registry.Forces;
+        var reading = Forces.Read(result.Run.State, forces.Values.ToDictionary(v => v.EnemyId, v => v.Points, StringComparer.Ordinal), forces.Required);
+        var otherSecond = seeded.Fill.Branches[other].SecondPull;
+        _out.WriteLine($"seed {seed}: seat leads branch {other} rooms [{string.Join(",", seeded.Fill.Branches[other].Rooms)}] (bots' branch {seeded.Branch}); result {result.Run.RunEnd.Result} at {result.Run.RunEnd.ResultTick}; started [{string.Join(",", started)}]; cleared [{string.Join(",", cleared)}]; forces {reading.Points}/{reading.Required}; rooms entered [{string.Join(",", entered)}]");
+
+        var wanted = new[] { "choir" + SeededLayout.MirrorSuffix, otherSecond, LayoutDef.BossPullId };
+        Assert.Equal(wanted, cleared);
+        Assert.Equal(wanted, started);
+        Assert.Equal(RunResult.Timed, result.Run.RunEnd.Result);
+        Assert.All(seeded.Fill.Branches[other].Rooms, r => Assert.Contains(SeededLayout.RoomBoxId(r), entered));
+        Assert.All(seeded.Fill.Branches[seeded.Branch].Rooms, r => Assert.DoesNotContain(SeededLayout.RoomBoxId(r), entered));
+    }
+
     private static string? Str(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 }

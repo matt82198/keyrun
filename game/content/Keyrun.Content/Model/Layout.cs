@@ -131,6 +131,13 @@ public sealed record LayoutBox
     /// </summary>
     public bool OneWay { get; init; }
 
+    /// <summary>
+    /// D45 (the player chooses the route): the branch a seeded dungeon's branch room stands on ("0" or "1"); its pull is
+    /// tagged with it (sim PullDef.Branch) so the untaken branch's pulls are skipped. Null for every hand-built box and
+    /// for the entrance and boss rooms every route plays.
+    /// </summary>
+    public string? Branch { get; init; }
+
     /// <summary>A pull room's trigger: the room box shrunk 2000 mm from its entry door. Pull rooms only.</summary>
     public LayoutRect? Trigger { get; init; }
 
