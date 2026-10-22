@@ -47,6 +47,76 @@ public static class Chase
         return best;
     }
 
+    /// <summary>
+    /// L5 caster-los (R-SYNERGY-2): the "move until in sight" step. An enemy whose script casts a hostile target-shaped
+    /// ability (a caster) and whose default target is alive but out of sight (<paramref name="sight"/> false from the
+    /// enemy to the target: the cast would be withheld, <see cref="Combat.Casting.NoSightError"/>) walks at its target even
+    /// when already within reach. The move is the chase's straight step, so the layout run routes it onto the A* path
+    /// (<see cref="Nav.NavFollow.RouteChase"/>) and the caster stops walking the tick its ray is clear. An actor that is
+    /// idle, dead or mid-cast is left alone, and a straight chase move already in <paramref name="commands"/> is kept; a
+    /// turn-only move (zero direction) for a blind caster is replaced by the walking one. Integer only.
+    /// </summary>
+    /// <param name="state">The pre-combat state the chase reads.</param>
+    /// <param name="scripts">The enemy scripts.</param>
+    /// <param name="abilities">The script view of each ability.</param>
+    /// <param name="sight">True when a cast from the first point to the second has sight.</param>
+    /// <param name="commands">The encounter's commands.</param>
+    /// <returns><paramref name="commands"/> itself when no caster is blind, else the commands with the walking moves.</returns>
+    public static IReadOnlyList<Command> SeekSight(
+        SimState state,
+        IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts,
+        IReadOnlyDictionary<string, ScriptAbility> abilities,
+        Func<Vec3, Vec3, bool> sight,
+        IReadOnlyList<Command> commands)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(scripts);
+        ArgumentNullException.ThrowIfNull(abilities);
+        ArgumentNullException.ThrowIfNull(sight);
+        ArgumentNullException.ThrowIfNull(commands);
+        List<Command>? output = null;
+        foreach (var actorId in scripts.Keys.OrderBy(k => k))
+        {
+            if (!state.Actors.TryGetValue(actorId, out var actor) || !actor.Alive || actor.Idle || actor.CastId is not null ||
+                !CastsAtTarget(scripts[actorId], abilities))
+            {
+                continue;
+            }
+            var targetId = ScriptTarget.Resolve(state, actor).TargetId;
+            if (targetId is not { } tid || !state.Actors.TryGetValue(tid, out var target) || !target.Alive || sight(actor.Pos, target.Pos))
+            {
+                continue;
+            }
+            var current = output ?? commands;
+            if (current.Any(c => c.ActorId == actorId && c is MoveCommand { Dir: var d } && (d.X != 0 || d.Z != 0)))
+            {
+                continue;
+            }
+            var walk = new Vec3(target.Pos.X - actor.Pos.X, 0, target.Pos.Z - actor.Pos.Z);
+            if (walk.X == 0 && walk.Z == 0)
+            {
+                continue;
+            }
+            var dir = Fixed.NormaliseTo(walk, 1000);
+            output = current.Where(c => !(c.ActorId == actorId && c is MoveCommand)).ToList();
+            output.Add(new MoveCommand(state.Tick, actorId, new Dir2(dir.X, dir.Z), Fixed.YawBetween(actor.Pos, target.Pos)));
+        }
+        return output ?? commands;
+    }
+
+    // A caster: some non-onDeath step casts a hostile target-shaped ability (the casts the sight rule withholds).
+    private static bool CastsAtTarget(IReadOnlyList<ScriptStep> script, IReadOnlyDictionary<string, ScriptAbility> abilities)
+    {
+        foreach (var step in script)
+        {
+            if (step.Trigger != StepTrigger.OnDeath && abilities.TryGetValue(step.Cast, out var a) && !a.Heals && a.ShapeKind == "target")
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>chase.ts:52 chaseCommands: one move per chasing enemy, in ascending actor id order.</summary>
     public static IReadOnlyList<Command> ChaseCommands(
         SimState state,

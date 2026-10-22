@@ -56,6 +56,12 @@ public sealed record RulesConfig
     public MarkRules? Marks { get; init; }
 
     /// <summary>
+    /// L5 caster-los (R-SYNERGY-2): the sight predicate (caster position, target position) an enemy target-shaped cast
+    /// must pass, or null for none. Null on every oracle run; a host builds it from the layout's obstacles.
+    /// </summary>
+    public Func<Vec3, Vec3, bool>? Sight { get; init; }
+
+    /// <summary>
     /// The frozen TS push-out (sim/combat: every overlapping pair parts symmetrically, so an enemy can shove a player).
     /// True only on an oracle replay (Keyrun.Replay RunSetup), so the traces keep checking the TS rules tick for tick;
     /// false (the default) everywhere else, where STATE.md D54 ENEMIES-NEVER-DISPLACE holds.
@@ -139,7 +145,7 @@ public static class Rules
         {
             var hooks = new ClauseHooks(cfg.Clause);
             var noClause = new ClauseHooks(null);
-            var ctx = new CastContext(cfg.Abilities, cfg.Effects, cfg.LockoutTicks) { Hooks = hooks, Overheat = cfg.Overheat, Marks = cfg.Marks };
+            var ctx = new CastContext(cfg.Abilities, cfg.Effects, cfg.LockoutTicks) { Hooks = hooks, Overheat = cfg.Overheat, Marks = cfg.Marks, Sight = cfg.Sight };
             var wctx = new WindowsContext(cfg.Effects, combos, fieldCombos, new FloorWindowRegistry(state.FloorWindows), hooks) { Overheat = cfg.Overheat };
 
             foreach (var actor in state.Actors.Values.ToList())
@@ -208,6 +214,11 @@ public static class Rules
                         if (actor.Kind == ActorKind.Enemy && (err == "out_of_range" || (err == "not_ready" && cfg.ReportsEnemyNotReady)))
                         {
                             emit(new SimEvent(state.Tick, "cast_refused", ("actorId", JsValue.Int(actor.Id)), ("abilityId", JsValue.Str(def.Id)), ("reason", JsValue.Str(err))));
+                        }
+                        // L5 caster-los: a cast withheld for sight never started; Chase walks the caster until the ray is clear.
+                        if (actor.Kind == ActorKind.Enemy && err == Casting.NoSightError)
+                        {
+                            emit(new SimEvent(state.Tick, "cast_los_withheld", ("actorId", JsValue.Int(actor.Id)), ("abilityId", JsValue.Str(def.Id)), ("targetId", JsValue.Int(c.TargetId ?? actor.TargetId ?? 0))));
                         }
                         if (err is null && def.CastTicks == 0)
                         {
