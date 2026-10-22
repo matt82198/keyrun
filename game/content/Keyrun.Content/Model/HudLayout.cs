@@ -51,6 +51,11 @@ public sealed record TopBarLayout(PixelRect Objective, PixelRect Slack, int Titl
     public PixelRect Band(int viewportWidth) => new(0, 0, Math.Max(0, viewportWidth), Math.Max(Objective.Bottom, Slack.Bottom));
 }
 
+/// <summary>The Slack slot split in two (<see cref="HudLayout.SlackSplit"/>): the fill bar and the timer text's box.</summary>
+/// <param name="Bar">The fill bar: deaths label, fill, timer strip and tier marks.</param>
+/// <param name="Timer">The timer box: key level, run clock and par.</param>
+public readonly record struct SlackParts(PixelRect Bar, PixelRect Timer);
+
 /// <summary>
 /// HUD layout as pure integer pixel math (design/ART-PLAN.md section 8 lane 8, HUD polish). Godot-free, so the HUD's
 /// rules are unit-tested here and src/Hud/{Objective,TimerSlack}.cs and src/View/LabelView.cs only apply them.
@@ -138,6 +143,33 @@ public static class HudLayout
     {
         ArgumentNullException.ThrowIfNull(bar);
         return new PixelRect(bar.Slack.X, bar.Slack.Bottom + ForcesGap, bar.Slack.Width, ForcesHeight);
+    }
+
+    /// <summary>Inset of the timer text inside its box, each side.</summary>
+    public const int TimerPad = 6;
+
+    /// <summary>Gap between the Slack fill bar and the timer box.</summary>
+    public const int TimerGap = 4;
+
+    /// <summary>The narrowest the Slack fill bar gets beside the timer box (room for "Deaths 9 (+135s)").</summary>
+    public const int MinSlackFill = 120;
+
+    /// <summary>
+    /// Splits the Slack slot into the fill bar (left; the deaths label, the fill, the timer strip and its tier marks) and
+    /// the timer box (right; "+2  3:42 / par 12:00"), f-1bf2dace: drawn in one rect, the strip's tier marks and the fill
+    /// edge crossed the timer text. The box is the text plus <see cref="TimerPad"/> each side, flush with the slot's
+    /// right edge; the bar keeps at least <see cref="MinSlackFill"/> and the two never touch.
+    /// </summary>
+    /// <param name="slack">The Slack slot (<see cref="TopBarLayout.Slack"/>).</param>
+    /// <param name="timerTextWidth">The widest the timer text draws, in pixels.</param>
+    /// <returns>The two rects.</returns>
+    public static SlackParts SlackSplit(PixelRect slack, int timerTextWidth)
+    {
+        var room = Math.Max(0, slack.Width - MinSlackFill - TimerGap);
+        var box = Math.Min(Math.Max(0, timerTextWidth) + (2 * TimerPad), room);
+        var bar = new PixelRect(slack.X, slack.Y, slack.Width - box - TimerGap, slack.Height);
+        var timer = new PixelRect(slack.Right - box, slack.Y, box, slack.Height);
+        return new SlackParts(bar, timer);
     }
 
     /// <summary>The objective panel's drawn width: its widest line plus the inset, never wider than its slot.</summary>

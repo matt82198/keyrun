@@ -20,9 +20,10 @@ $wrapper = Join-Path $repo 'tools/godot/godot.ps1'
 
 function Invoke-Arena([int]$n, [string[]]$extra) {
     # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
+    # --view-size 1280x720 (Main.cs ApplyViewSize, as HudTooltip-SceneTest.ps1:73-75): a headless window is 64x64, too small for the timer box; render-only, the sim does not read it.
     $guard = (3 * $n) + 240
     $ErrorActionPreference = 'Continue'
-    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n @extra 2>&1 | Out-String
+    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n --view-size 1280x720 @extra 2>&1 | Out-String
     $rc = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     Assert-GodotFound $rc $text
@@ -99,6 +100,25 @@ if ($slackLines.Count -eq 0) {
     if (-not $slackLower) { $failures.Add('run A: no "HUD slack ... penalty=N" line above 0 after the death (the death added no time to the run clock)') }
     $drained = $slackLines | Where-Object { $_ -match '^HUD slack ticks=(\d+) ' -and [int]$Matches[1] -lt 620 } | Select-Object -First 1
     if ($drained) { $failures.Add("run A: a death drained the Slack bank (D46: deaths only add time to the clock): '$drained'") }
+}
+
+# f-1bf2dace: the timer text ("+2  3:42 / par 12:00") has its own box right of the Slack fill bar (HudLayout.SlackSplit),
+# so the fill edge and the strip's tier marks never cross it; the box holds the measured text with 6 px each side.
+$timerLines = @($a.Lines | Where-Object { $_ -match '^HUD timer bar=\d+,\d+,\d+,\d+ box=\d+,\d+,\d+,\d+ text=\d+ viewport=[1-9]\d*x\d+ label=' })
+if ($timerLines.Count -eq 0) {
+    $failures.Add("run A: no 'HUD timer bar=X,Y,W,H box=X,Y,W,H text=W viewport=WxH label=...' line with a laid-out viewport (got '$(First $a.Lines '^HUD timer ')')")
+}
+foreach ($t in $timerLines) {
+    $null = $t -match '^HUD timer bar=(\d+),(\d+),(\d+),(\d+) box=(\d+),(\d+),(\d+),(\d+) text=(\d+) viewport=\d+x\d+ label=(.*)$'
+    $barRight = [int]$Matches[1] + [int]$Matches[3]
+    $boxX = [int]$Matches[5]
+    $boxW = [int]$Matches[7]
+    $textW = [int]$Matches[9]
+    $label = $Matches[10]
+    if ($barRight + 4 -gt $boxX) { $failures.Add("run A: the Slack bar runs into the timer box (bar right $barRight, box x $boxX): '$t'") }
+    if ($textW + 12 -gt $boxW) { $failures.Add("run A: the timer box ($boxW px) cannot hold its text ($textW px + 6 px each side): '$t'") }
+    if ([int]$Matches[2] -ne [int]$Matches[6] -or [int]$Matches[4] -ne [int]$Matches[8]) { $failures.Add("run A: the timer box is not on the Slack bar's row: '$t'") }
+    if ($label -notmatch '^\+2  \d+:\d\d / par \d+:\d\d$') { $failures.Add("run A: the timer label lost the key level, clock or par: '$t'") }
 }
 
 # R-BACKFILL-2 (the #446 lane brief's R-WIPE-RESET): the wipe released the Warden, so run A ends at the timer cap

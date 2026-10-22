@@ -1,0 +1,2 @@
+- FIX-HUD-TIMER-LABEL-PILEUP-V2 re-cut of #581 from main (R-STALE-2): the timer box is sized to its text (HudLayout.SlackSplit, f-1bf2dace) and the debug text is off the player HUD (f-f148db42); the RunA scene launches at --view-size 1280x720 because a headless window is 64x64, so the box room was 0.
+BUILDLOG: re-cut of #581 from main under R-STALE-2; carries e4442e9b, scene launch --view-size 1280x720 (width-0 root cause: HudLayout.cs:168-169 room=0 at 64x64).

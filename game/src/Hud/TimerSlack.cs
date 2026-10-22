@@ -24,6 +24,7 @@ public partial class TimerSlack : Control
 
     private SimDriver? _driver;
     private string? _logged;
+    private string? _layoutLogged;
 
     /// <summary>The driver to read the run from.</summary>
     [Export]
@@ -63,17 +64,18 @@ public partial class TimerSlack : Control
             return;
         }
         var s = SlackReading.Of(run);
-        // HUD polish (ART-PLAN lane 8): top right beside the objective panel (HudLayout.TopBar), no longer centred over
-        // the pull title (at 1280 px it spanned x 460..820). This node spans the HUD root, so the slot is in viewport pixels.
-        var slot = HudLayout.TopBar((int)Size.X, (int)Size.Y).Slack;
-        var bar = new Rect2(slot.X, slot.Y, slot.Width, slot.Height);
+        var timer = s.TimerLabel;
+        var (parts, _) = Layout(s);
+        var bar = new Rect2(parts.Bar.X, parts.Bar.Y, parts.Bar.Width, parts.Bar.Height);
+        var box = new Rect2(parts.Timer.X, parts.Timer.Y, parts.Timer.Width, parts.Timer.Height);
         DrawRect(bar, HudNodes.Back);
         DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * s.Fraction, bar.Size.Y)), s.Depleted ? DepletedFill : SlackFill);
         DrawRect(bar, HudNodes.Edge, filled: false, width: 1f);
         HudNodes.Text(this, new Vector2(bar.Position.X + 6, bar.End.Y - 3), s.Label, Font, Colors.White);
-        var timer = s.TimerLabel;
         var color = s.OverPar ? new Color(1f, 0.5f, 0.4f) : new Color(0.85f, 0.88f, 0.95f);
-        HudNodes.Text(this, new Vector2(bar.End.X - HudNodes.Width(timer, Font) - 6, bar.End.Y - 3), timer, Font, color);
+        DrawRect(box, HudNodes.Back);
+        DrawRect(box, HudNodes.Edge, filled: false, width: 1f);
+        HudNodes.Text(this, new Vector2(box.End.X - HudNodes.Width(timer, Font) - HudLayout.TimerPad, box.End.Y - 3), timer, Font, color);
 
         // M1 TIMER-TIERS: a 3 px timer strip along the bar's bottom edge (inside the slot, so HudClearance is unchanged)
         // with the +3 (60% of par), +2 (80% of par) and par marks, on the run clock (D46: past par the key is not timed).
@@ -86,9 +88,40 @@ public partial class TimerSlack : Control
         }
     }
 
+    // HUD polish (ART-PLAN lane 8): top right beside the objective panel (HudLayout.TopBar), no longer centred over the pull
+    // title (at 1280 px it spanned x 460..820). This node spans the HUD root, so the slot is in viewport pixels.
+    // f-1bf2dace: the timer text gets its own box right of the fill bar (HudLayout.SlackSplit), sized to a fixed-width
+    // template so it never jitters; the fill edge and the strip's tier marks used to cross it ("3:42 /,par 12:00").
+    private (SlackParts Parts, int TextWidth) Layout(SlackReading s)
+    {
+        var slot = HudLayout.TopBar((int)Size.X, (int)Size.Y).Slack;
+        var textWidth = (int)Math.Ceiling(Math.Max(HudNodes.Width(s.TimerTemplate, Font), HudNodes.Width(s.TimerLabel, Font)));
+        return (HudLayout.SlackSplit(slot, textWidth), textWidth);
+    }
+
+    // "HUD timer bar=X,Y,W,H box=X,Y,W,H text=W viewport=WxH label=+2  0:14 / par 12:00", on a layout change only
+    // (the scene test reads it).
+    private void LogLayout(SlackReading s)
+    {
+        if (_driver is null)
+        {
+            return;
+        }
+        var (parts, textWidth) = Layout(s);
+        var key = FormattableString.Invariant($"{HudClearance.Format(parts.Bar)}:{HudClearance.Format(parts.Timer)}:{textWidth}");
+        if (key == _layoutLogged)
+        {
+            return;
+        }
+        _layoutLogged = key;
+        HudNodes.Proof(_driver, FormattableString.Invariant(
+            $"HUD timer bar={HudClearance.Format(parts.Bar)} box={HudClearance.Format(parts.Timer)} text={textWidth} viewport={(int)Size.X}x{(int)Size.Y} label={s.TimerLabel}"));
+    }
+
     private void OnRunStarted()
     {
         _logged = null;
+        _layoutLogged = null;
         Log();
     }
 
@@ -108,5 +141,6 @@ public partial class TimerSlack : Control
             _logged = key;
             HudNodes.Proof(_driver, s.LogLine());
         }
+        LogLayout(s);
     }
 }
