@@ -29,12 +29,6 @@ public sealed class ScoreboardLiveTests
     private const string HumanClassId = "warden";
     private const int MaxTicks = 7000;
 
-    /// <summary>
-    /// Counted enemies in Hollow Vault: Choir 3, Pair 5, Seed 1, cantor-vigil 7, hall-sentries 5, warrior-remnant 7
-    /// (the GROUP lines of a run log); the boss and the Twins carry no forces entry.
-    /// </summary>
-    private const int CountedEnemies = 28;
-
     private static readonly Lazy<ContentRegistry> Registry = new(() => ContentLoader.Load());
     private static readonly Lazy<Drive> Default = new(() => DriveToEnd(null));
 
@@ -89,6 +83,21 @@ public sealed class ScoreboardLiveTests
     }
 
     private static (IReadOnlyDictionary<string, int> Table, int Required) ForcesTable() => ScoreboardReading.ForcesOf(Registry.Value);
+
+    /// <summary>
+    /// Counted enemies in the dungeon, derived from content by KillCount's rule (an enemy with a forces.json entry is
+    /// counted): every member of the dungeon's pulls, the layout's packs and the layout's patrols whose enemy id has a
+    /// forces entry. The boss and the Twins carry no forces entry. Derived, not pinned, so new forces-bearing content
+    /// (e.g. the corridor-2 patrol) moves the denominator with it.
+    /// </summary>
+    private static int CountedEnemies(IReadOnlyDictionary<string, int> table)
+    {
+        var registry = Registry.Value;
+        var groups = registry.Dungeons[DungeonId].Pulls.SelectMany(p => p.Enemies)
+            .Concat(registry.Layout.Packs.SelectMany(p => p.Enemies))
+            .Concat(registry.Layout.Patrols.SelectMany(p => p.Enemies));
+        return groups.Where(g => table.ContainsKey(g.EnemyId)).Sum(g => g.Count);
+    }
 
     private static ScoreboardReading Read(Run run)
     {
@@ -177,25 +186,26 @@ public sealed class ScoreboardLiveTests
         Assert.Equal(("choir", 3), (at780.PullId, at780.Remain));
     }
 
-    [Fact(DisplayName = "Scoreboard forces and kills: both follow the enemy death events; the Choir clear reads 16.00% and 3/28")]
+    [Fact(DisplayName = "Scoreboard forces and kills: both follow the enemy death events; the Choir clear reads 16.00% and 3 kills of the content-counted total")]
     public void Forces_and_kills_follow_death_events()
     {
         var d = Default.Value;
         var (table, required) = ForcesTable();
         Assert.Equal(1000, required);
+        var total = CountedEnemies(table);
         foreach (var r in d.Readings)
         {
             var counted = d.Deaths.Where(x => x.Tick <= r.Tick && x.Kind == ActorKind.Enemy && table.ContainsKey(x.ClassId)).ToList();
             var points = counted.Sum(x => table[x.ClassId]);
             Assert.True(points * 10000 / required == r.ForcesBp, $"tick {r.Tick}: forces {r.ForcesBp} bp, the death events bank {points} points");
             Assert.True(counted.Count == r.Kills.Killed, $"tick {r.Tick}: kills {r.Kills.Killed}, the death events say {counted.Count}");
-            Assert.Equal(CountedEnemies, r.Kills.Total);
+            Assert.Equal(total, r.Kills.Total);
         }
         var afterChoir = d.Readings.First(r => r.Tick >= d.PullClearTick["choir"]);
         Assert.Equal((1600, 3), (afterChoir.ForcesBp, afterChoir.Kills.Killed));
-        Assert.Equal("Kills 3/28", afterChoir.Kills.Label);
+        Assert.Equal("Kills 3/" + total, afterChoir.Kills.Label);
         Assert.Equal(
-            "HUD scoreboard tick=" + afterChoir.Tick + " timer=" + afterChoir.TimerSeconds + " forces=16.00 kills=3/28 deaths=0 pull=pair remain=5",
+            "HUD scoreboard tick=" + afterChoir.Tick + " timer=" + afterChoir.TimerSeconds + " forces=16.00 kills=3/" + total + " deaths=0 pull=pair remain=5",
             afterChoir.LogLine());
     }
 

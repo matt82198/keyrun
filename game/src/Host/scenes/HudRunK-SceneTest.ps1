@@ -12,7 +12,7 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$RecordFrames = 18000,  # BOSS-TEACHES (R-BOSS-1): run K's boss fight now ends at tick 4603 (was 691); was 6600
+    [int]$RecordFrames = 21000,  # BOSS-CC-IMMUNE: run K's boss fight now ends at tick 5170 (R-BOSS-1 4603, was 691); was 18000, 6600
     [string]$KeepK1Record = ''
 )
 $SceneName = 'HudRunK-SceneTest'

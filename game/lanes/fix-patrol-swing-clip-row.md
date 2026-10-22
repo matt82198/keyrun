@@ -1,0 +1,2 @@
+- PATROL-SWING-CLIP-ROW AbilityClipTable (`game/content/Keyrun.Content/Model/`) gains the choir.patrolSwing row (Strike, Unarmed_Melee_Attack_Punch_A, the choir.meleeSwing shape), the ability #528 added in abilities/patrol.json after #544 mapped the 45 on its base, so AbilityClipTableTests.Every_content_ability_has_its_own_clip_row is green again.
+BUILDLOG: main red fix: choir.patrolSwing (from #528) had no clip row in #544's AbilityClipTable; it now maps to Unarmed_Melee_Attack_Punch_A like the other enemy melee swings.

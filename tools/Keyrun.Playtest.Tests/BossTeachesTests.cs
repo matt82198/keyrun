@@ -74,7 +74,16 @@ public sealed class BossTeachesTests
         int LocksFailed,
         int CarelessDeaths,
         int BossHealthAtEnd,
-        int EndTick)
+        int EndTick,
+        int CarelessAliveTicks,
+        int PartyDeaths,
+        long PenaltyTicks,
+        long ClockTicks,
+        int ParTicks,
+        string Result,
+        string KeyLine,
+        int KeyTier,
+        int BossMisses)
     {
         public int? Ticks => Start is { } s && Clear is { } c ? c - s : null;
 
@@ -84,7 +93,8 @@ public sealed class BossTeachesTests
         public override string ToString() =>
             $"BOSS start={Start?.ToString() ?? "-"} clear={Clear?.ToString() ?? "-"} ticks={Ticks?.ToString() ?? "-"} wipe={WipeTick?.ToString() ?? "-"} " +
             $"cleaves={Cleaves} cleavesAnswered={CleavesAnswered} staggers={Staggers} staggersTwoPerson={StaggersTwoPerson} " +
-            $"locksOpened={LocksOpened} locksBroken={LocksBroken} locksFailed={LocksFailed} carelessDeaths={CarelessDeaths} bossHp={BossHealthAtEnd} endTick={EndTick}";
+            $"locksOpened={LocksOpened} locksBroken={LocksBroken} locksFailed={LocksFailed} carelessDeaths={CarelessDeaths} bossHp={BossHealthAtEnd} endTick={EndTick} " +
+            $"carelessAliveTicks={CarelessAliveTicks} partyDeaths={PartyDeaths} penaltyTicks={PenaltyTicks} clock={ClockTicks} par={ParTicks} result={Result} key=\"{KeyLine}\" bossMisses={BossMisses}";
     }
 
     /// <summary>
@@ -112,9 +122,9 @@ public sealed class BossTeachesTests
         var twinIds = new HashSet<int>(setup.Boss.Twins.Select(t => t.ActorId));
 
         int? fightStart = null, fightClear = null, wipe = null;
-        int cleaves = 0, cleavesAnswered = 0, staggers = 0, staggersTwo = 0, locksOpened = 0, locksBroken = 0, locksFailed = 0, carelessDeaths = 0;
+        int cleaves = 0, cleavesAnswered = 0, staggers = 0, staggersTwo = 0, locksOpened = 0, locksBroken = 0, locksFailed = 0, carelessDeaths = 0, carelessAlive = 0, bossMisses = 0;
         var drainers = new HashSet<int>();
-        for (var i = 0; i < DriveCapTicks && fightClear is null && wipe is null; i++)
+        for (var i = 0; i < DriveCapTicks && run.RunEnd.Result is null && wipe is null; i++)
         {
             var tick = run.State.Tick;
             var commands = new List<Command>();
@@ -187,10 +197,18 @@ public sealed class BossTeachesTests
                     case "lock_failed":
                         locksFailed++;
                         break;
+                    case "miss" when fightStart is not null && Int(e, "sourceId") == BossId:
+                        bossMisses++;
+                        break;
                     case "death" when fightStart is not null && ignoreCleaveSeat is { } seat && Int(e, "actorId") == seat:
                         carelessDeaths++;
                         break;
                 }
+            }
+            if (fightStart is not null && fightClear is null && ignoreCleaveSeat is { } watched &&
+                run.State.Actors.TryGetValue(watched, out var w) && w.Alive)
+            {
+                carelessAlive++;
             }
             if (fightStart is not null && fightClear is null &&
                 players.All(id => !run.State.Actors.TryGetValue(id, out var p) || !p.Alive))
@@ -199,7 +217,11 @@ public sealed class BossTeachesTests
             }
         }
         var bossHp = run.State.Actors.TryGetValue(BossId, out var boss) ? (int)boss.Health : -1;
-        return new Fight(fightStart, fightClear, wipe, cleaves, cleavesAnswered, staggers, staggersTwo, locksOpened, locksBroken, locksFailed, carelessDeaths, bossHp, run.State.Tick);
+        var key = KeyMove.ForRun(run);
+        var clock = Timer.ClockTicks(run.Encounter, run.RunEnd.ResultTick ?? run.State.RunTimerTicks);
+        return new Fight(fightStart, fightClear, wipe, cleaves, cleavesAnswered, staggers, staggersTwo, locksOpened, locksBroken, locksFailed, carelessDeaths, bossHp, run.State.Tick,
+            carelessAlive, run.Encounter.Deaths, run.Encounter.PenaltyTicks, clock, run.Encounter.ParTicks,
+            run.RunEnd.Result?.ToJs() ?? "none", key?.Line ?? "-", key?.Tier ?? -1, bossMisses);
     }
 
     /// <summary>The smallest raw amount a Cleave hit carries (its first damage op), to tell it from a same-tick Slam.</summary>
@@ -231,21 +253,33 @@ public sealed class BossTeachesTests
         Assert.True(f.LocksBroken >= 2, $"Lock broken {f.LocksBroken} times (of {f.LocksOpened} opened), need 2: {f}");
     }
 
-    /// <summary>The damage seat (Cinder), which ignores the Cleave in <see cref="An_ignored_cleave_kills_the_seat_and_loses_the_window"/>.</summary>
+    /// <summary>The damage seat (Cinder), which ignores the Cleave in <see cref="An_ignored_cleave_costs_the_key_tier"/>.</summary>
     private const int CarelessSeat = 3;
 
-    [Fact(DisplayName = "R-BOSS-1 / BIBLE test 1: a seat that ignores the Cleave dies to it repeatedly and the party cannot kill the Warden inside 180 s")]
-    public void An_ignored_cleave_kills_the_seat_and_loses_the_window()
+    /// <summary>
+    /// BOSS-CARELESS-WINDOW: what Matt sees at the end of a run is the key line ("Key +2 -> +5  (timed +3)"), so the
+    /// careless run is judged on the key result, not on fight ticks alone: a seat that stands in every Cleave dies
+    /// repeatedly, each death adds <see cref="Timer.DeathSlackCostTicks"/> to the run clock, the fight runs past the
+    /// window without that seat's damage, and the key earns a lower upgrade tier than the same run answered. The boss
+    /// lands its hits: it refuses Steam's blind (BOSS-CC-IMMUNE), so it never misses (on main before the fix it was
+    /// blinded for most of the fight, missed 31 of 48 hits, the careless seat died twice and the key result did not change).
+    /// </summary>
+    [Fact(DisplayName = "R-BOSS-1 / BIBLE test 1: a seat that ignores the Cleave dies repeatedly, the fight overruns 180 s and the key earns a lower tier than the answered run")]
+    public void An_ignored_cleave_costs_the_key_tier()
     {
+        var answered = DriveRun();
         var f = DriveRun(ignoreCleaveSeat: CarelessSeat);
-        _output.WriteLine(f.ToString());
-        Assert.True(f.Start is not null, $"the boss pull never started: {f}");
+        _output.WriteLine("answered " + answered);
+        _output.WriteLine("careless " + f);
+        Assert.True(f.Start is not null && f.Clear is not null, $"the careless boss pull never ran to a kill: {f}");
+        Assert.True(answered.BossMisses == 0 && f.BossMisses == 0, $"the boss missed (blinded): answered {answered.BossMisses}, careless {f.BossMisses}: {f}");
         var unanswered = f.Cleaves - f.CleavesAnswered;
         Assert.True(unanswered >= 2, $"the careless seat stood in {unanswered} Cleaves, need 2: {f}");
         // A 250-health non-tank does not survive two Cleaves (220 each) without a heal between: it dies, releases and
         // runs back from the entrance, and the fight goes on without its damage.
-        Assert.True(f.CarelessDeaths >= 2, $"the careless seat died {f.CarelessDeaths} times in {unanswered} Cleaves, need 2: {f}");
-        Assert.True(f.WipeTick is not null || f.Clear is null || f.Ticks > MaxFightTicks,
-            $"ignoring the Cleave still killed the Warden inside {MaxFightTicks} ticks: {f}");
+        Assert.True(f.CarelessDeaths >= 3, $"the careless seat died {f.CarelessDeaths} times in {unanswered} Cleaves, need 3: {f}");
+        Assert.True(f.Ticks > MaxFightTicks, $"ignoring the Cleave still killed the Warden inside {MaxFightTicks} ticks: {f}");
+        Assert.True(answered.KeyTier >= 1 && f.KeyTier < answered.KeyTier,
+            $"the careless key result \"{f.KeyLine}\" is no worse than the answered \"{answered.KeyLine}\": {f}");
     }
 }

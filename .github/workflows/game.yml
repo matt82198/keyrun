@@ -158,7 +158,7 @@ jobs:
     runs-on: windows-latest
     # 45 since S3 (PR #558), was 30, raised by measurement: a code PR's game-e2e already took 27m19s on 2026-10-22
     # (run of fix/fork-parity-main), the scene-test step alone 24m29s on PR #558's first run, and the glob adds the four
-    # scene tests no step had wired plus run K's R-BOSS-1 budget (18000 frames). Each launch stays capped by
+    # scene tests no step had wired plus run K's boss budget (21000 frames since #569, was 18000). Each launch stays capped by
     # KEYRUN_GODOT_TIMEOUT_SEC below, so a hang still fails at 660 s.
     timeout-minutes: 45
     env:
