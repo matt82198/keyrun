@@ -77,25 +77,27 @@ public sealed class TankRole : IRole
 
         if (RoleShared.LedgerKickCommand(view, self, kit) is { } kick)
         {
-            return new Command[] { kick };
+            return new Command[] { Reasons.Tag(kick, "tank:ledger-kick") };
         }
         if (Floor.FloorEscapeCommand(view, self) is { } escape)
         {
-            return new Command[] { escape };
+            return new Command[] { Reasons.Tag(escape, "tank:floor-escape") };
         }
         if (BreakBarKick.Command(view, self, kit) is { } barKick)
         {
-            return new Command[] { barKick };
+            return new Command[] { Reasons.Tag(barKick, "tank:break-bar-kick") };
         }
         if (Floor.MeleeReapproachCommand(view, self) is { } reapproach)
         {
-            return new Command[] { reapproach };
+            return new Command[] { Reasons.Tag(reapproach, "tank:melee-reapproach") };
         }
 
         // Defensives first: the sim gates even a gcd-0 cast on the GCD, so it must precede a rotation cast.
         var defensive = DefensiveCommands(view, self, kit);
+        Reasons.TagAll(defensive, "tank:defensive");
         if (TankEngage.TankEngageCommands(view, self, kit) is { } engage)
         {
+            Reasons.TagAll(engage, "tank:engage");
             defensive.AddRange(engage);
             return defensive;
         }
@@ -103,7 +105,7 @@ public sealed class TankRole : IRole
         var output = new List<Command>();
         if (Priority.PickTankTarget(view.State.Actors, self.Id) is { } targetId && self.TargetId != targetId)
         {
-            output.Add(new TargetCommand(tick, self.Id, targetId));
+            output.Add(Reasons.Tag(new TargetCommand(tick, self.Id, targetId), "tank:retarget"));
         }
         var party = view.State.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != self.Id).ToList();
         if (party.Count > 0)
@@ -114,7 +116,7 @@ public sealed class TankRole : IRole
                 var desiredYaw = Moves.YawToward(c, PointMm.Of(self.Pos)); // faces away from the party centroid
                 if (Moves.YawChanged(self.Yaw, desiredYaw))
                 {
-                    output.Add(new MoveCommand(tick, self.Id, new Dir2(0, 0), desiredYaw));
+                    output.Add(Reasons.Tag(new MoveCommand(tick, self.Id, new Dir2(0, 0), desiredYaw), "tank:face-away"));
                 }
             }
         }

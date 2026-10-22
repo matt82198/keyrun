@@ -134,15 +134,15 @@ public sealed class DamageRole : IRole
 
         if (RoleShared.LedgerKickCommand(view, self, kit) is { } kick)
         {
-            return new Command[] { kick };
+            return new Command[] { Reasons.Tag(kick, "damage:ledger-kick") };
         }
         if (Floor.FloorEscapeCommand(view, self) is { } escape)
         {
-            return new Command[] { escape };
+            return new Command[] { Reasons.Tag(escape, "damage:floor-escape") };
         }
         if (BreakBarKick.Command(view, self, kit) is { } barKick)
         {
-            return new Command[] { barKick };
+            return new Command[] { Reasons.Tag(barKick, "damage:break-bar-kick") };
         }
         // BOSS-TEACHES (R-BOSS-1): the designated setter's Setup into the boss's Lock first; every other Setup on the
         // boss is held while the Lock is under way (LockAnswer). R-LOCK-SETTER (#573): ahead of a Payoff, which spends the
@@ -150,31 +150,31 @@ public sealed class DamageRole : IRole
         var lockSetup = LockAnswer.SetupCommand(view, self, kit);
         if (lockSetup.Count > 0)
         {
-            return lockSetup;
+            return Reasons.TagAll(lockSetup, "damage:lock-setup");
         }
         var payoff = PayoffOnWindowCommand(view, self, kit);
         if (payoff.Count > 0)
         {
-            return payoff;
+            return Reasons.TagAll(payoff, "damage:payoff");
         }
         var setup = SetupForAllyCommand(view, self, kit);
         if (setup.Count > 0 && !LockAnswer.Holds(view, self, setup))
         {
-            return setup;
+            return Reasons.TagAll(setup, "damage:setup");
         }
         var arranged = Fillers.ArrangeFillers(view, self, kit, kit.Rotation, self.TargetId);
         var rotationKit = kit with { Rotation = arranged.Where(id => !LockAnswer.HoldsSetup(view, self, self.TargetId, id) || !kit.SetupAbilityIds.Contains(id)).ToList() };
         if (PickResourceAwareRotation(rotationKit, self, tick) is { } abilityId)
         {
-            return new Command[] { new CastCommand(tick, self.Id, abilityId, self.TargetId) };
+            return new Command[] { Reasons.Tag(new CastCommand(tick, self.Id, abilityId, self.TargetId), "damage:rotation") };
         }
         if (Floor.MeleeReapproachCommand(view, self) is { } reapproach)
         {
-            return new Command[] { reapproach };
+            return new Command[] { Reasons.Tag(reapproach, "damage:melee-reapproach") };
         }
         if (Floor.FriendlyWindowApproachCommand(view, self) is { } approach)
         {
-            return new Command[] { approach };
+            return new Command[] { Reasons.Tag(approach, "damage:window-approach") };
         }
         return Array.Empty<Command>();
     }
