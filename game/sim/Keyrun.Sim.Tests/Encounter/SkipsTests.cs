@@ -4,6 +4,8 @@ using System.Linq;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
+using Keyrun.Sim.Runs;
+using Keyrun.Tools.Replay;
 using Xunit;
 
 namespace Keyrun.Sim.Tests.Encounter;
@@ -164,6 +166,50 @@ public sealed class SkipsTests
         var first = Walk();
         Assert.Equal(first, Walk());
         Assert.Contains(first, l => l.StartsWith("pack-a@", StringComparison.Ordinal));
+    }
+
+    // The shipped k2 dungeon placed into the shipped layout as the host places it, the whole party standing in the boss room.
+    private static List<SimEvent> PartyInBossRoom(int ticks)
+    {
+        var (nav, rooms) = SeedEngageTests.Layout();
+        var setup = RunSetup.Load(OracleFixtures.PathOf("hollow-vault-k2.setup.json"), 1);
+        var placed = setup.Dungeon with
+        {
+            Pulls = setup.Dungeon.Pulls.Select(p =>
+            {
+                var origin = rooms.Single(r => r.Pull == p.Id).Origin!.Value;
+                var boss = p.Id == "boss";
+                return p with
+                {
+                    Spawns = p.Spawns.Select(s => s with
+                    {
+                        Pos = boss ? new Vec3(origin.X, s.Pos.Y, origin.Z) : new Vec3(origin.X + s.Pos.X, s.Pos.Y, origin.Z + s.Pos.Z),
+                    }).ToList(),
+                };
+            }).ToList(),
+        };
+        var bossAt = rooms.Single(r => r.Pull == "boss").Origin!.Value;
+        var party = setup.Party.Take(3).Select((m, i) => m with { Pos = new Vec3(bossAt.X, 0, bossAt.Z + ((i - 1) * 1200)), Yaw = 0 }).ToList();
+        var content = setup.Content with { Layout = nav, Bounds = nav.Extent };
+        var run = RunRoot.CreateRun(1, party, placed, content, setup.Options);
+        var events = new List<SimEvent>();
+        for (var i = 0; i < ticks; i++)
+        {
+            var stepped = RunRoot.StepRun(run, Array.Empty<Command>());
+            events.AddRange(stepped.Events);
+            run = stepped.Run;
+        }
+        return events;
+    }
+
+    [Fact(DisplayName = "Skips (hook + d): a real layout run with the party past every trash room emits pack_skipped from the run loop, identically on two runs")]
+    public void The_run_loop_records_skips_deterministically()
+    {
+        var first = PartyInBossRoom(5).Where(e => e.Type == "pack_skipped").Select(Skips.LogLine).ToList();
+        var second = PartyInBossRoom(5).Where(e => e.Type == "pack_skipped").Select(Skips.LogLine).ToList();
+        Assert.NotEmpty(first);
+        Assert.Equal(first.Count, first.Distinct().Count());
+        Assert.Equal(first, second);
     }
 
     [Fact(DisplayName = "Skips (e): the run log gets one skip line per skipped pack, in the run log's KEY=value style; a leash is silent")]

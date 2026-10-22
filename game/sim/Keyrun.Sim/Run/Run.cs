@@ -263,6 +263,8 @@ public static class RunRoot
         encounter = Leash.Step(next, encounter, groups, run.Content.BaseSpeedMmPerTick, emit);
         var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);
+        // G2.5 L4 (R-SYNERGY-1): the skip record. A pack the party has walked past, never engaged, is a log fact, not a bug.
+        encounter = Skips.Step(next, encounter, groups, layout, run.Dungeon.ForcesGoal, openSeats, emit);
         return (next, encounter);
     }
 }
