@@ -25,19 +25,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The host's Godot-free bot command source, the reference "today's bot run" for NoPolicyParityTests. -->
-    <Compile Include="../../game/src/Host/BotCommandSource.cs" Link="Host/BotCommandSource.cs" />
-    <!-- Run C's seat 1, the autorun Warden, unedited (RunCEngagesChoirTests). Both files are Godot-free. -->
+    <!--
+      Run C's seat 1, the autorun Warden, unedited (RunCEngagesChoirTests). Godot-free; it stays in game/src/Host until
+      the open PRs that own it land (S4 moved the rest of the Godot-free host to Keyrun.HostCore, referenced below).
+    -->
     <Compile Include="../../game/src/Host/ScriptedWarden.cs" Link="Host/ScriptedWarden.cs" />
-    <Compile Include="../../game/src/Host/CastTargeting.cs" Link="Host/CastTargeting.cs" />
-    <!-- Run F's abandon-seat plan, fixed or pull-relative (R-415-D; SeatAbandonPlanTests, RunFJoinerActsTests). Godot-free. -->
-    <Compile Include="../../game/src/Host/SeatAbandonPlan.cs" Link="Host/SeatAbandonPlan.cs" />
     <!-- HudSceneTest run B's "HUD ping" calls (R-PILE-10; HudSceneRunsBKTests). The Godot-free half of Hud/Pings.cs. -->
     <Compile Include="../../game/src/Hud/PingCalls.cs" Link="Hud/PingCalls.cs" />
-    <!-- The write-movie proof-frame picker and the weekly rotation, driven over the real default run (f-e1ff13e3;
-         MovieFramesDefaultRunTests). Both files are Godot-free. -->
-    <Compile Include="../../game/src/Host/MovieDirector.cs" Link="Host/MovieDirector.cs" />
-    <Compile Include="../../game/src/Host/AffixWeek.cs" Link="Host/AffixWeek.cs" />
     <!-- f-04dba988: the HUD's Godot-free MISS/IMMUNE word path (CombatText.cs calls it per event), driven by real runs. -->
     <Compile Include="../../game/src/Hud/CombatTextWords.cs" Link="Hud/CombatTextWords.cs" />
     <!-- R-DECLUTTER-1: the Godot-free cast proof (one placement decision per cast per step) and the unit frame model it
@@ -55,6 +49,13 @@
     <ProjectReference Include="../../game/sim/Keyrun.Sim/Keyrun.Sim.csproj" />
     <ProjectReference Include="../../game/content/Keyrun.Content/Keyrun.Content.csproj" />
     <ProjectReference Include="../../game/bots/Keyrun.Bots/Keyrun.Bots.csproj" />
+    <!--
+      The Godot-free host (namespace Keyrun.Host): BotCommandSource, the reference "today's bot run" (NoPolicyParityTests);
+      CastTargeting (RunCEngagesChoirTests); SeatAbandonPlan, run F's abandon-seat plan (R-415-D; SeatAbandonPlanTests,
+      RunFJoinerActsTests); MovieDirector and AffixWeek, the proof-frame picker and the weekly rotation over the real
+      default run (f-e1ff13e3; MovieFramesDefaultRunTests).
+    -->
+    <ProjectReference Include="../../game/src/HostCore/Keyrun.HostCore.csproj" />
   </ItemGroup>
 
 </Project>

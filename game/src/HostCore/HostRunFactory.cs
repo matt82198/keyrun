@@ -47,8 +47,8 @@ public sealed record HostRun(Run Run, RunStart Start, IReadOnlyList<PartyMemberS
 
 /// <summary>
 /// The one way a host run is assembled (review R7): SimDriver.StartRun, Keyrun.Playtest's PlaytestRunner and the tests
-/// all call <see cref="Create"/>, so a new assembly step lands in one place. Godot-free. It sits next to SimDriver for
-/// now and belongs in the HostCore assembly once that slice lands.
+/// all call <see cref="Create"/>, so a new assembly step lands in one place. Godot-free, so it lives in the
+/// HostCore assembly (S4) beside HostRunSetup.
 /// </summary>
 public static class HostRunFactory
 {
