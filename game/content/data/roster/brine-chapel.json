@@ -20,6 +20,14 @@
         "x": 1500,
         "z": -600
       }
+    },
+    {
+      "enemyId": "bellfoundry.scaldHound",
+      "count": 1,
+      "spawn": {
+        "x": -1200,
+        "z": 0
+      }
     }
   ],
   "chainWith": [

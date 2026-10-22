@@ -111,7 +111,14 @@ public static class HostRunFactory
             created = RunRoot.EngageStartPull(created);
         }
         // 3F's hand-off (its decision 6): arm the boss on the created run's encounter.
-        var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
+        // R-MULTIBOSS-1: a multi-segment dungeon arms all its bosses (the first now, each later one when the one before dies);
+        // a one-boss dungeon arms exactly as before.
+        var run = created with
+        {
+            Encounter = setup.NextBosses.Count == 0
+                ? BossRules.Arm(created.Encounter, setup.Boss)
+                : BossRules.ArmAll(created.Encounter, new[] { setup.Boss }.Concat(setup.NextBosses).ToList()),
+        };
         return new HostRun(run, start, party, dungeon);
     }
 }
