@@ -133,7 +133,8 @@ public static class TankEngage
         {
             return null;
         }
-        return Moves.MoveToward(view.State.Tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(target.Pos));
+        // R-PATH-1: the tank closes on the pack along its computed path (straight when in sight).
+        return PathMoves.Toward(view, view.State.Tick, self, target.Pos);
     }
 
     // The loose-enemy taunt: a loose enemy inside taunt range with the taunt ready.
