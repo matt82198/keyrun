@@ -57,7 +57,7 @@ public sealed class ReferenceTests
             if (e.Periodic is not null) CheckOps(new[] { e.Periodic.Op }, refs, "effect " + e.Id);
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(21, refs.Checked); // vacuity guard: exact ref count from the JSON
+        Assert.Equal(25, refs.Checked); // vacuity guard: exact ref count from the JSON (+4: the searingHex, cinders, stoked and rooted applyEffects of abilities/vault.json, VAULT-KITS S1; was 21)
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class ReferenceTests
         }
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(34, refs.Checked); // vacuity guard: exact ref count from the JSON (+2: seed.lash ability and script step, KF3; +2: seed.lock ability and script step, SEED-LOCK-TEACHES; +2: hall.sentry ability and script step, PATH-PACKS, STATE.md D49)
+        Assert.Equal(48, refs.Checked); // vacuity guard: exact ref count from the JSON (+2: seed.lash ability and script step, KF3; +2: seed.lock ability and script step, SEED-LOCK-TEACHES; +2: hall.sentry ability and script step, PATH-PACKS, STATE.md D49; +14: the five enemies/vault.json kits, 7 abilities and 7 script steps, VAULT-KITS S1)
     }
 
     [Fact]

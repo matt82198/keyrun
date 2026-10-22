@@ -1,0 +1,61 @@
+[
+  {
+    "id": "vault.hound",
+    "name": "Hollow Hound",
+    "maxHealth": 1200,
+    "role": "melee",
+    "speedMmPerTick": 260,
+    "abilities": ["choir.meleeSwing"],
+    "script": [
+      { "at": 60, "every": 150, "cast": "choir.meleeSwing" }
+    ]
+  },
+  {
+    "id": "ash.hexer",
+    "name": "Ash Hexer",
+    "maxHealth": 6000,
+    "role": "caster",
+    "abilities": ["ash.searingHex", "ash.cinders"],
+    "script": [
+      { "at": "loop", "every": 200, "cast": "ash.searingHex",
+        "telegraph": { "shape": "circle", "radius": 1200, "leadTicks": 50, "spansCast": true } },
+      { "at": "onDeath", "cast": "ash.cinders",
+        "telegraph": { "shape": "circle", "radius": 2000, "leadTicks": 40 } }
+    ]
+  },
+  {
+    "id": "vault.brute",
+    "name": "Vault Brute",
+    "maxHealth": 6000,
+    "role": "melee",
+    "speedMmPerTick": 207,
+    "abilities": ["vault.crushingSlam", "choir.meleeSwing"],
+    "script": [
+      { "at": "loop", "every": 160, "cast": "vault.crushingSlam",
+        "telegraph": { "shape": "cone", "radius": 3500, "angle1024": 256, "leadTicks": 40, "spansCast": true } },
+      { "at": 60, "every": 150, "cast": "choir.meleeSwing" }
+    ]
+  },
+  {
+    "id": "bellows.keeper",
+    "name": "Bellows Keeper",
+    "maxHealth": 6000,
+    "role": "caster",
+    "abilities": ["bellows.stoke"],
+    "script": [
+      { "at": "loop", "every": 240, "cast": "bellows.stoke", "target": "self",
+        "telegraph": { "shape": "circle", "radius": 4000, "leadTicks": 70, "spansCast": true } }
+    ]
+  },
+  {
+    "id": "drowned.chorister",
+    "name": "Drowned Chorister",
+    "maxHealth": 6000,
+    "role": "caster",
+    "abilities": ["drowned.undertow"],
+    "script": [
+      { "at": "loop", "every": 180, "cast": "drowned.undertow",
+        "telegraph": { "shape": "cone", "radius": 25000, "angle1024": 85, "leadTicks": 60, "spansCast": true } }
+    ]
+  }
+]

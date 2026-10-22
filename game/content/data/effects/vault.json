@@ -1,0 +1,14 @@
+[
+  { "id": "searingHex", "name": "Searing Hex", "maxStacks": 1,
+    "periodic": { "everyTicks": 24, "op": { "op": "damagePct", "maxHealthBp": 500, "school": "shadow" } },
+    "modifiers": {}, "dispellableTag": "magic" },
+  { "id": "cinders", "name": "Cinders", "maxStacks": 1,
+    "periodic": { "everyTicks": 24, "op": { "op": "damagePct", "maxHealthBp": 500, "school": "fire" } },
+    "modifiers": {}, "dispellableTag": null },
+  { "id": "stoked", "name": "Stoked", "maxStacks": 1,
+    "modifiers": { "damageDoneBp": 3000, "hasteBp": 2500 }, "dispellableTag": "enrage" },
+  { "id": "rooted", "name": "Rooted", "maxStacks": 1,
+    "modifiers": { "movementBp": -10000 }, "dispellableTag": null },
+  { "id": "drenched", "name": "Drenched", "maxStacks": 1,
+    "modifiers": { "movementBp": -3000 }, "dispellableTag": "magic" }
+]
