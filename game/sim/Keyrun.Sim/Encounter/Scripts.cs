@@ -260,6 +260,13 @@ public static class Scripts
             _busyUntil = actor.CastId is not null && actor.CastEndsTick is { } ends && ends > state.Tick ? ends : state.Tick;
         }
 
+        // TEMPO-LOOP-CLAMP: the cast is off cooldown (charges, GCD) on t, judged on this call's state plus the casts this
+        // queue has already started ahead of the real clock.
+        private bool CooldownAllows(string cast, AbilityDef def, int t) =>
+            Cooldowns.IsAbilityReady(_actor, def, t)
+            && !(_readyAt.TryGetValue(cast, out var ready) && ready > t)
+            && !(def.GcdTicks > 0 && _gcdUntil > t);
+
         /// <summary>Steps still waiting after the last <see cref="Advance"/>, in firing order.</summary>
         public List<int> Pending { get; private set; }
 
@@ -291,6 +298,16 @@ public static class Scripts
                 var s = _script[j];
                 _abilities.TryGetValue(s.Cast, out var ability);
                 var def = ability?.Def;
+                if (def is not null && !CooldownAllows(s.Cast, def, t))
+                {
+                    // TEMPO-LOOP-CLAMP (f-57c04b4a, BIBLE s0 test 1): a step never fires its cast before the cast's
+                    // cooldown allows it. A loop whose period Tempo (the key, or the boss's Lock stacks) shrank below
+                    // the cooldown, or a step a busy caster pushed late so that its next fire comes early, waits for
+                    // the cooldown instead of issuing a cast combat refuses not_ready and losing a whole period: the
+                    // effective interval is max(loop, cooldown).
+                    waiting.Add(j);
+                    continue;
+                }
                 var starts = ability is not null
                     ? WillStart(_state, _actorId, _actor, s, ability, _abilities, t)
                         && !(_readyAt.TryGetValue(s.Cast, out var ready) && ready > t)
