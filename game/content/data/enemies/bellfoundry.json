@@ -2,7 +2,7 @@
   {
     "id": "bellfoundry.slagRam",
     "name": "Slag Ram",
-    "maxHealth": 7000,
+    "maxHealth": 4620,
     "role": "melee",
     "speedMmPerTick": 207,
     "abilities": ["slagRam.moltenCharge", "choir.meleeSwing"],
@@ -15,7 +15,7 @@
   {
     "id": "bellfoundry.tollingBell",
     "name": "Drowned Bell",
-    "maxHealth": 3000,
+    "maxHealth": 1980,
     "role": "caster",
     "abilities": ["tollingBell.toll"],
     "script": [
@@ -26,7 +26,7 @@
   {
     "id": "bellfoundry.furnaceThrall",
     "name": "Furnace Thrall",
-    "maxHealth": 5000,
+    "maxHealth": 3300,
     "role": "melee",
     "speedMmPerTick": 207,
     "abilities": ["furnaceThrall.stokeCore", "furnaceThrall.slagBurst", "choir.meleeSwing"],
@@ -41,7 +41,7 @@
   {
     "id": "bellfoundry.scaldHound",
     "name": "Scald Hound",
-    "maxHealth": 2500,
+    "maxHealth": 1650,
     "role": "melee",
     "speedMmPerTick": 260,
     "abilities": ["scaldHound.boilingBlood", "choir.meleeSwing"],
@@ -54,7 +54,7 @@
   {
     "id": "bellfoundry.brineMender",
     "name": "Brine Mender",
-    "maxHealth": 5000,
+    "maxHealth": 3300,
     "role": "caster",
     "abilities": ["brineMender.bronzeWard"],
     "script": [
@@ -65,7 +65,7 @@
   {
     "id": "bellfoundry.slagHexer",
     "name": "Slag Hexer",
-    "maxHealth": 6000,
+    "maxHealth": 3960,
     "role": "caster",
     "abilities": ["slagHexer.moltenBrand"],
     "script": [
@@ -76,7 +76,7 @@
   {
     "id": "bellfoundry.ingotBrute",
     "name": "Ingot Brute",
-    "maxHealth": 6000,
+    "maxHealth": 3960,
     "role": "melee",
     "speedMmPerTick": 207,
     "abilities": ["ingotBrute.anvilDrop", "choir.meleeSwing"],
@@ -89,7 +89,7 @@
   {
     "id": "bellfoundry.slagWhelp",
     "name": "Slag Whelp",
-    "maxHealth": 1200,
+    "maxHealth": 792,
     "role": "melee",
     "speedMmPerTick": 260,
     "abilities": ["slagWhelp.sparkLunge", "choir.meleeSwing"],
@@ -102,7 +102,7 @@
   {
     "id": "bellfoundry.pitTender",
     "name": "Casting-Pit Tender",
-    "maxHealth": 6000,
+    "maxHealth": 3960,
     "role": "caster",
     "abilities": ["pitTender.fanTheCoals"],
     "script": [
@@ -113,7 +113,7 @@
   {
     "id": "bellfoundry.knellSinger",
     "name": "Knell Singer",
-    "maxHealth": 6000,
+    "maxHealth": 3960,
     "role": "caster",
     "abilities": ["knellSinger.dirge"],
     "script": [
