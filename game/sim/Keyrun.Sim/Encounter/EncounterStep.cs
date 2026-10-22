@@ -34,7 +34,7 @@ public sealed record StepEncounterResult(SimState State, EncounterState Encounte
 /// combat (sim/index.ts:148-156). In order: (1) the scripts decide this tick's enemy casts and telegraphs, and the
 /// "telegraph" events are emitted; (2) they join the registry with run-minted ids, Tide drifts every tracked
 /// telegraph, the due ones resolve and emit <c>telegraph_hit</c> (who stood in it; no damage) and are dropped
-/// (<see cref="Telegraphs.Advance"/>); (3) Break bars tick their reset, are lazily created the first tick all their
+/// (<see cref="Telegraphs.Advance(SimState, IReadOnlyList{Telegraph}, IReadOnlyList{TelegraphDraw}, int, Action{SimEvent}, Func{IReadOnlyList{Telegraph}, IReadOnlyList{Telegraph}})"/>); (3) Break bars tick their reset, are lazily created the first tick all their
 /// actors are alive, and drain off this tick's tagged casts; (4) the pull advances when cleared. The pull_start of the
 /// next pull, Echo spawns and Slack are the run root's, after combat (sim/index.ts:165-175).
 /// </summary>
@@ -93,9 +93,9 @@ public static class EncounterStep
 
         // index.ts:119-123: scripts, emit their telegraph events, register them.
         var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities, encounter.PendingSteps, encounter.DeferredCasts);
-        foreach (var e in scripted.TelegraphEvents)
+        foreach (var d in scripted.Draws)
         {
-            emit(e);
+            emit(d.ToEvent());
         }
 
         // f-8b3fff18 (BIBLE s9 Twins, s9.3 "Stops as well as kicks"; C#-only, no bar on any oracle run): a bar actor still
@@ -107,8 +107,8 @@ public static class EncounterStep
             : scripted.Commands.Where(c => !stunned.Contains(c.ActorId)).ToList();
 
         // index.ts:129-135: Tide drift, resolve, emit hits, drop the resolved.
-        var advance = Telegraphs.Advance(state, encounter.Telegraphs, scripted.TelegraphEvents, encounter.NextTelegraphId, emit,
-            all => Clauses.DriftTelegraphs(all, encounter.Rules), scripted.TelegraphCastStarts);
+        var advance = Telegraphs.Advance(state, encounter.Telegraphs, scripted.Draws, encounter.NextTelegraphId, emit,
+            all => Clauses.DriftTelegraphs(all, encounter.Rules));
 
         // index.ts:137-141: reset cooldowns of existing bars.
         var breakBars = new JsRecord<BreakBarState>();
