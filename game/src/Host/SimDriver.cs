@@ -156,6 +156,8 @@ public sealed class TickAccumulator
 /// <c>--press-enter</c>) normally answers the queue pop's ready check for the human at the pop
 /// (<see cref="QueuedRunGate.HumanReadyAtPop"/>); with F the "Group found" dialog stays up F frames first and the scripted
 /// human then answers ready (no key is pushed, so a recording is unchanged). 0 = answer at the pop.</param>
+/// <param name="Camera">CAMERA-VERTICAL (<c>--camera chase|vertical</c>, <see cref="CameraMode"/>): the CameraRig's
+/// starting preset, render-only. Chase (the default) is the unchanged follow camera; V flips it in play.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -176,7 +178,8 @@ public sealed record ArenaOptions(
     bool BotsHold = false,
     CarelessSeatPlan? CarelessSeat = null,
     int? Rotation = null,
-    int ReadyHold = 0)
+    int ReadyHold = 0,
+    CameraModeKind Camera = CameraModeKind.Chase)
 {
     /// <summary>
     /// Default autorun length: 20 s, set when the lieutenant's first heal began at tick 196 at key 2, leaving room for
@@ -220,6 +223,7 @@ public sealed record ArenaOptions(
         YawPlan? pressYaw = null;
         CarelessSeatPlan? careless = null;
         var readyHold = 0;
+        var camera = CameraModeKind.Chase;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -281,6 +285,9 @@ public sealed record ArenaOptions(
                 case "--log":
                     log = Value(args, ref i);
                     break;
+                case CameraMode.Flag:
+                    camera = CameraMode.Parse(Value(args, ref i));
+                    break;
                 case "--write-movie":
                     movie = Value(args, ref i);
                     autorun = true; // proof frames come from the scripted run
@@ -292,7 +299,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -601,6 +608,8 @@ public partial class SimDriver : Node
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _player = GetNode<PlayerInput>(InputPath);
             _rig = GetNodeOrNull<CameraRig>(CameraRigPath);
+            // CAMERA-VERTICAL: --camera chase|vertical picks the rig's preset (V flips it in play).
+            _rig?.SetMode(Options.Camera);
             _input = _player;
             // CARELESS-SEAT: --careless-seat S@T:GROUP makes bot seat S stray toward GROUP's idle pull from tick T.
             var careless = Options.CarelessSeat?.For(Setup.Dungeon);
@@ -1157,6 +1166,11 @@ public partial class SimDriver : Node
             Keyrun.Sim.Nav.NavGrid.Of(navLayout).Observer = (id, goal, n) =>
                 _log?.Line(FormattableString.Invariant($"PATH actor={id} goal={goal.X},{goal.Z} waypoints={n}"));
         }
+        // CAMERA-VERTICAL proof line: the rig's mode, pitch (mrad) and zoom (mm) as it holds them at run start.
+        var cameraView = CameraMode.For(Options.Camera);
+        _log?.Line(_rig is { } rig
+            ? CameraMode.ProofLine(rig.Mode, rig.PitchMrad, rig.ZoomMm)
+            : CameraMode.ProofLine(Options.Camera, cameraView.PitchMrad, cameraView.BoomMm));
         if (start.Gear is { } gear)
         {
             _log?.Line(FormattableString.Invariant(
