@@ -154,6 +154,25 @@ public sealed class RunFJoinerActsTests
             $"the abandon at {r.AbandonTick} is outside the first pull (pull_start {start}, pull_clear {clear})");
     }
 
+    /// <summary>
+    /// HudSceneTest run F check 23 ("the open seat stands idle"): no cast_complete by the abandoned seat between the
+    /// abandon and the refill. keyrun #540 CI: with the filler rotation the leave at 2@pull0.hp10+1 fell while the
+    /// Chanter was mid-way through Cadence (castTicks 20), and the cast begun before the leave completed after it
+    /// ("EVENT {"abilityId":"chanter.cadence","actorId":2,"tick":1593,"type":"cast_complete"}"): an empty seat acted.
+    /// </summary>
+    [Fact(DisplayName = "Run F: the open seat stands idle between the abandon and the refill (HudSceneTest run F check 23)")]
+    public void The_open_seat_stands_idle_until_the_refill()
+    {
+        var r = Driven.Value;
+        Assert.True(r.AbandonTick is not null && r.FillTick is not null, $"run F never abandoned and refilled seat {SeatId} (abandon {r.AbandonTick}, fill {r.FillTick})");
+        var acted = r.Events.Where(e => e.Type == "cast_complete" && ActorOf(e) == SeatId && e.Tick >= r.AbandonTick!.Value && e.Tick < r.FillTick!.Value).ToList();
+        _output.WriteLine($"abandon={r.AbandonTick} fill={r.FillTick} seat{SeatId} casts between={acted.Count}");
+        Assert.True(
+            acted.Count == 0,
+            $"the open seat {SeatId} acted between the abandon at {r.AbandonTick} and the refill at {r.FillTick}: "
+            + string.Join(", ", acted.Select(e => $"{(e.Get("abilityId") as JsString)?.Value}@{e.Tick}")));
+    }
+
     [Fact(DisplayName = "Run F: the party reaches pull 2 with no seat dead (HudSceneTest run F check 23)")]
     public void No_party_seat_dies_before_pull_2()
     {

@@ -143,7 +143,9 @@ budget as a parameter with the same default.
      10. in pull 1 (before the Pair spawns): a Chanter heal on a party seat and a Cinder damage hit on an enemy (at
          seed 1 the 3B healer role spends every GCD on heals and never casts Dissonance; the Cinder kit has no heal);
      11. the party reaches the Pair or run_end, is not wiped by tick 295, and a "HUD ping label=SPREAD|STACK" line
-         appears before the party's third death (a call during a live run);
+         appears before the party's third death (a call during a live run), or (R-WARDEN-FILLER-1, keyrun #540) a
+         Pair mark cast (pair.spreadMark or pair.stackCall) is interrupted before it, since the filler Warden's Sundered
+         lets the Cinder's Shatter stun the last Paired Warrior mid-cast; the live call stays required by E2eAssert.ps1;
      12. a bot seat takes damage and every "HUD runend cause" line is seat 1's (the private run log's seat filter
          with more than one seat in the sim), and the party clears the dungeon (lane TUNE-BOSS, STATE.md D14): a
          "PULL spawn index=3 id=boss actors=900:hollowWarden.boss" line and a lockIndex 1 "lock_open" EVENT before
