@@ -42,6 +42,7 @@ public static class ContentLoader
         LayoutFile,
         ThemeFile,
         PaletteFile,
+        AbilityTextFile,
         ComboRidersFile,
         ForcesFile,
         HazardsFile,
@@ -150,6 +151,13 @@ public static class ContentLoader
     /// Listed so the file set check accepts it, but not parsed into the registry: <see cref="PaletteLoader"/> reads it for the view only.
     /// </summary>
     public const string PaletteFile = "palette.json";
+
+    /// <summary>
+    /// C#-only themed player ability names and flavor lines (game/content/data/ability-text.json; Matt 2026-10-22).
+    /// Listed so the file set check accepts it, but not parsed into the registry: <see cref="AbilityTextLoader"/> reads
+    /// it for the HUD's ability bar and tooltips only.
+    /// </summary>
+    public const string AbilityTextFile = "ability-text.json";
 
     /// <summary>
     /// C#-only dungeon layout head (game/content/data/layout/hollow-vault/dungeon.json, same logical root): the start,
