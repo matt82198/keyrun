@@ -777,8 +777,11 @@ public partial class ActorView : Node3D
             _holdBefore = _hold;
             _hold = SwingFacing.After(Driver.State, now, Driver.LastEvents, abilities, _hold);
         }
-        var fromYaw = SwingFacing.RenderYaw(Driver.PreviousState, before, abilities, _holdBefore);
-        var toYaw = SwingFacing.RenderYaw(Driver.State, now, abilities, _hold);
+        // FACE-TARGET (f-e0650754): every frame, an actor with a live target faces it while casting, attacking or aggroed
+        // (ActorFacing); the seat the human steers keeps the camera's facing. The sim Yaw alone left packs looking away.
+        var steered = ActorId == (Driver.Setup?.HumanActorId ?? SimDriver.WardenId);
+        var fromYaw = ActorFacing.RenderYaw(Driver.PreviousState, before, abilities, _holdBefore, steered);
+        var toYaw = ActorFacing.RenderYaw(Driver.State, now, abilities, _hold, steered);
         Rotation = new Vector3(0, -YawRadians(fromYaw, toYaw, t), 0);
     }
 

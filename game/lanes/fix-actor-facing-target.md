@@ -1,0 +1,2 @@
+- NAME: fix/actor-facing-target: every actor faces its target for the whole cast and attack (f-e0650754)
+BUILDLOG: fix/actor-facing-target: ActorView.Place drew only cast and just-swung actors toward their target (CastFacing/SwingFacing) and every aggroed actor between attacks at its stale sim Yaw; the new ActorFacing.RenderYaw faces any live target every frame (steered seat and cone/line/self casts excepted), proven by ActorFacingTests red on main (type missing) and green after.
