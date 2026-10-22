@@ -50,7 +50,22 @@ public sealed class MitigateThroughLedgerKickTests
     // aggroes on its members' own radius at tick 51 and runs at the party, so the kick-plan run's Choir clears at 7644, the
     // boss pull runs 9106-12387 and the run ends Timed at 12388. The first boss cleave telegraphs at 9262 and resolves at
     // 9302 (the run's own state at 9273 has the boss casting hollowWarden.cleave, start 9262, end 9302), so 11 ticks in is 9273.
-    private const int Tick = 9273;
+    // R-PINS-1 (ruling on #573): no literal any more. The scene is 11 ticks into the kick-plan run's first boss Cleave, read
+    // from that run's own events (its first hollowWarden.cleave telegraph by the boss), so a trajectory change moves the
+    // scene with the run instead of breaking a pin; the assertions on the scene are unchanged.
+    private static readonly System.Lazy<int> FirstCleavePlus11 = new(() =>
+    {
+        var content = ContentLoader.Load();
+        var log = PlaytestRunner.Play(new PlaytestOptions(2, 1, PolicyReader.Parse(KickPlan, content)), content).Log;
+        var first = log.Split('\n')
+            .Where(l => l.StartsWith("E ", System.StringComparison.Ordinal) && l.Contains("\"type\":\"telegraph\"") &&
+                        l.Contains("\"cast\":\"hollowWarden.cleave\"") && l.Contains($"\"actorId\":{Boss},"))
+            .Select(l => int.Parse(System.Text.RegularExpressions.Regex.Match(l, "\"tick\":(\\d+)").Groups[1].Value))
+            .First();
+        return first + 11;
+    });
+
+    private static int Tick => FirstCleavePlus11.Value;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 
