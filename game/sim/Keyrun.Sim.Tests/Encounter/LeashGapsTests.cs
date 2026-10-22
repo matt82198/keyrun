@@ -121,22 +121,25 @@ public sealed class LeashGapsTests
         { AggroMm = 6000 };
         var dungeon = RunTestKit.OnePull("patrol", "p1", Enemy(101, 55000, 0, aggro: null, leash: null));
         var run = Create(dungeon, 36000, new[] { patrol });
-        Vec3? last = null;
-        var worstStep = 0L;
+        var trail = new List<(int Tick, Vec3 Pos)>();
         var (_, events) = Steps(run, 900, r =>
         {
             if (r.State.Tick == 1)
             {
                 r.State.Actors[Player].Pos = new Vec3(-30000, 0, 0);
             }
-            var p = r.State.Actors[201].Pos;
-            if (last is { } prev && r.State.Tick > 1)
-            {
-                worstStep = Math.Max(worstStep, Dist(prev, p));
-            }
-            last = p;
+            trail.Add((r.State.Tick, r.State.Actors[201].Pos));
         });
-        Assert.Single(events, e => e.Type == "pack_reset" && ((JsString)e.Get("groupId")!).Value == "pat");
-        Assert.True(worstStep <= EnemySpeed, $"a patrol member moved {worstStep} mm in one tick (walk speed {EnemySpeed}): it teleported");
+        var reset = Assert.Single(events, e => e.Type == "pack_reset" && ((JsString)e.Get("groupId")!).Value == "pat");
+        // The reset tick may carry the evade's arrival snap (<= one step) plus the first walk-back step (<= one step).
+        var worst = 0L;
+        for (var i = 1; i < trail.Count; i++)
+        {
+            var step = Dist(trail[i - 1].Pos, trail[i].Pos);
+            var cap = trail[i].Tick == reset.Tick ? 2 * EnemySpeed : EnemySpeed;
+            Assert.True(step <= cap, $"a patrol member moved {step} mm at tick {trail[i].Tick} (cap {cap}): it teleported");
+            worst = Math.Max(worst, step);
+        }
+        Assert.True(worst > 0, "the patrol member never moved, so nothing was asserted");
     }
 }
