@@ -103,8 +103,9 @@ top-down view (V toggles it in play). `--record-input PATH` and `--replay-input 
 the same seed and key ([game/fixtures/input/](game/fixtures/input/)).
 
 Tests: `dotnet test game/Keyrun.sln` (sim, content, bots and playtest suites; CI job `game-test`), the per-step lane check
-`tools/fastcheck.ps1`, and `npx vitest run tests/lanes` (the row-file gate). Scene tests and the exported build run
-in CI as `game-e2e`.
+`tools/fastcheck.ps1`, and `npx vitest run tests/lanes` (the row-file gate, the only Vitest suite left). Scene tests
+and the exported build run in CI as `game-e2e`. The TypeScript tree (browser client, rules engine, bots, server) was
+removed in PR #553; its oracle fixtures stay in `game/sim/Keyrun.Sim.Tests/Fixtures/oracle/` ([game/sim/ORACLE.md](game/sim/ORACLE.md)).
 
 ## Read further
 
