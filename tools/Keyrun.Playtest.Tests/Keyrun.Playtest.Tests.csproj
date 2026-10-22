@@ -39,6 +39,8 @@
     <Compile Include="../../game/src/Hud/CastProof.cs" Link="Hud/CastProof.cs" />
     <Compile Include="../../game/src/Hud/UnitFrameModel.cs" Link="Hud/UnitFrameModel.cs" />
     <Compile Include="../../game/src/Hud/HudDeclutter.cs" Link="Hud/HudDeclutter.cs" />
+    <!-- f-1bf2dace: the idle-pack name label rule (one label per idle pack, edge-clipped labels hidden; IdlePackLabelsTests). -->
+    <Compile Include="../../game/src/Hud/IdlePackLabels.cs" Link="Hud/IdlePackLabels.cs" />
   </ItemGroup>
 
   <ItemGroup>

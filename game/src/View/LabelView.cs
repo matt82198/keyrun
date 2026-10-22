@@ -83,6 +83,10 @@ public partial class LabelView : Node3D
     private readonly Dictionary<int, int> _kickLogged = new();
     private IReadOnlyDictionary<int, int> _kickNumbers = new Dictionary<int, int>();
     private KitRegistry? _kits;
+    // IDLE-PACKS (f-1bf2dace): the packs that have engaged this frame (their members keep one label each).
+    private IReadOnlySet<string> _engagedPacks = new HashSet<string>(StringComparer.Ordinal);
+    // No pack display names exist on main (packs carry only an id), so every idle pack is labelled by its leader and "+N".
+    private static readonly Dictionary<string, string> NoPackNames = new(StringComparer.Ordinal);
 
     private Control? _canvas;
 
@@ -156,6 +160,22 @@ public partial class LabelView : Node3D
         // max distance), measured from the human's sim position; with no human in the state every enemy is in range.
         var viewerId = Driver.Setup?.HumanActorId ?? SimDriver.WardenId;
         Vec3? viewer = state.Actors.TryGetValue(viewerId, out var viewing) ? viewing.Pos : null;
+        // IDLE-PACKS (f-1bf2dace): each enemy's layout pack, and the packs that have engaged: the run's engaged groups
+        // (EncounterState.Engaged, the pack_engage and pull_start ids) plus any pack with a living member holding threat.
+        var packOf = PackOf();
+        var engaged = new HashSet<string>(StringComparer.Ordinal);
+        if (Driver.Run is { } run)
+        {
+            engaged.UnionWith(run.Encounter.Engaged);
+        }
+        foreach (var (id, packName) in packOf)
+        {
+            if (state.Actors.TryGetValue(id, out var member) && member.Alive && member.Threat.Count > 0)
+            {
+                engaged.Add(packName);
+            }
+        }
+        _engagedPacks = engaged;
         foreach (var (id, actor) in state.Actors)
         {
             EnsureBody(id, actor);
@@ -164,6 +184,9 @@ public partial class LabelView : Node3D
                 plate = new Plate(id, Driver.DisplayName(actor));
                 _plates[id] = plate;
             }
+            plate.ClassId = actor.ClassId;
+            plate.Tint = BodyColor(actor);
+            plate.PackId = actor.Kind != ActorKind.Player && packOf.TryGetValue(id, out var pack) ? pack : null;
             // The Warden's own name and health live on the ability bar's meters, not over his head; the boss's name
             // lives on its unit frame.
             // LABEL-CULL: the one rule every label reads (LabelGroups.Labelled). A dead actor's plate hides on the frame its
@@ -235,10 +258,28 @@ public partial class LabelView : Node3D
         {
             var name = d.Placed.Name;
             var centre = name.X + (name.Width / 2f);
-            Line(font, new Vector2(centre, name.Y + PlatePad + NameFont), d.Text, NameFont, d.Targeted ? TargetColor : Colors.White);
+            Line(font, new Vector2(centre, name.Y + PlatePad + NameFont), d.Text, NameFont, d.Targeted ? TargetColor : d.Tint ?? Colors.White);
+            if (d.Chevron)
+            {
+                DrawChevron(centre, name.Y, d.Tint ?? Colors.White);
+            }
             DrawCast(font, d);
             DrawKickNumber(font, d);
         }
+    }
+
+    // IDLE-PACKS: the chevron on an idle pack's single label, drawn in the pack's threat colour over a black outline. The
+    // shape marks the label as a pack, so it is not colour alone (BIBLE s3).
+    private void DrawChevron(float centre, int top, Color color)
+    {
+        var y = top + 2f;
+        var left = new Vector2(centre - 4f, y);
+        var tip = new Vector2(centre, y + 4f);
+        var right = new Vector2(centre + 4f, y);
+        _canvas!.DrawLine(left, tip, Outline, 4f);
+        _canvas.DrawLine(tip, right, Outline, 4f);
+        _canvas.DrawLine(left, tip, color, 2f);
+        _canvas.DrawLine(tip, right, color, 2f);
     }
 
     // KICK-ORDER (BIBLE s3 "A suggested kick order"): a kickable caster's plate carries its kick number, the place in the
@@ -385,8 +426,9 @@ public partial class LabelView : Node3D
         return new PlateCast(MarkOf(castId), progress, label);
     }
 
-    // Places this frame's plates (every process frame, so the proof lines report what draws): project, sort nearest
-    // first, fold same-name crowds (HudDeclutter.PlateCrowds), then HudLayout.Separate.
+    // Places this frame's labels (every process frame, so the proof lines report what draws): project, sort nearest
+    // first, draw each idle pack as ONE label (IdlePackLabels.Plan, f-1bf2dace), fold same-name crowds
+    // (HudDeclutter.PlateCrowds), then HudLayout.Separate.
     private void LayoutPlates()
     {
         _drawn.Clear();
@@ -401,15 +443,35 @@ public partial class LabelView : Node3D
         var height = (int)view.Y;
 
         // Project every visible plate whose anchor is in front of the camera and on screen; nearest first.
-        _shown.Clear();
         var origin = camera.GlobalPosition;
+        var projected = new List<(Plate Plate, PixelPoint Anchor, float Depth)>();
         foreach (var plate in _plates.Values)
         {
-            if (!PlateOnScreen(camera, plate, width, height, out var anchor))
+            if (PlateOnScreen(camera, plate, width, height, out var anchor))
             {
-                continue;
+                projected.Add((plate, anchor, origin.DistanceSquaredTo(plate.Anchor)));
             }
-            _shown.Add(new Shown(plate, PlateRect(anchor, plate.BaseName), anchor, origin.DistanceSquaredTo(plate.Anchor)));
+        }
+        if (projected.Count == 0)
+        {
+            return;
+        }
+        projected.Sort((a, b) => a.Depth.CompareTo(b.Depth));
+
+        // IDLE-PACKS (f-1bf2dace): an idle pack draws one label at its centre; an engaged pack's members keep one label
+        // each; a label whose box would leave the viewport is hidden, not clamped (IdlePackLabels.Plan).
+        var labels = IdlePackLabels.Plan(
+            projected.Select(p => new IdlePackMember(p.Plate.Id, p.Plate.BaseName, p.Plate.ClassId, true, p.Anchor.X, p.Anchor.Y, p.Plate.PackId)).ToList(),
+            _engagedPacks, NoPackNames, width, height, s => (int)Math.Ceiling(HudNodes.Width(s, NameFont)), NameFont);
+        var byId = projected.ToDictionary(p => p.Plate.Id);
+        _shown.Clear();
+        foreach (var label in labels)
+        {
+            var members = label.ActorIds.Select(id => byId[id]).ToList();
+            var anchor = new PixelPoint(label.X, label.Y);
+            var leader = byId[label.LeaderId].Plate;
+            _shown.Add(new Shown(leader, PlateRect(anchor, label.Text), anchor, members.Min(m => m.Depth), label.Text, label.Chevron,
+                label.Chevron, members.Any(m => m.Plate.Targeted), label.Chevron ? leader.Tint : null, label.ActorIds));
         }
         if (_shown.Count == 0)
         {
@@ -417,31 +479,73 @@ public partial class LabelView : Node3D
         }
         _shown.Sort((a, b) => a.Depth.CompareTo(b.Depth));
 
-        // STACKED-PLATES: a casting enemy (or one whose cast is fading) keeps a plate of its own (PlateStack.FoldKey).
+        // STACKED-PLATES: a casting enemy (or one whose cast is fading) keeps a plate of its own (PlateStack.FoldKey). An
+        // idle pack's label folds only with itself (its key carries the pack id).
         var crowds = HudDeclutter.PlateCrowds(_shown.Select(s => new PlateCandidate(
-            PlateStack.FoldKey(s.Plate.BaseName, s.Plate.Id, ShowsCast(s.Plate)), s.Rect, s.Plate.Targeted)).ToList());
+            s.Idle ? "pack:" + s.Plate.PackId : PlateStack.FoldKey(s.Plate.BaseName, s.Plate.Id, ShowsCast(s.Plate)), s.Rect, s.Targeted)).ToList());
         var specs = new List<PlateSpec>(crowds.Count);
-        var byLeader = new Dictionary<int, (string Text, bool Targeted, int Crowd, PlateCast? Cast, CastBarView.CastEnding? Ending)>();
+        var byLeader = new Dictionary<int, (string Text, bool Targeted, int Crowd, PlateCast? Cast, CastBarView.CastEnding? Ending, bool Chevron, Color? Tint, IReadOnlyList<int> Folded)>();
         for (var ci = 0; ci < crowds.Count; ci++)
         {
             // NAMEPLATE-DECLUTTER: one plate per same-name crowd, at its leader (the target when it is in the crowd).
             var c = crowds[ci];
             var s = _shown[c.Leader];
-            var targeted = c.Members.Any(m => _shown[m].Plate.Targeted);
-            var text = HudDeclutter.PlateText(s.Plate.BaseName, c.Members.Count, targeted);
-            var cast = CastOf(s.Plate);
-            CastBarView.CastEnding? ending = cast is null && s.Plate.CastOnPlate && _endings.TryGetValue(s.Plate.Id, out var e) ? e : null;
-            byLeader[s.Plate.Id] = (text, targeted, ci, cast, ending);
+            var targeted = c.Members.Any(m => _shown[m].Targeted);
+            var text = HudDeclutter.PlateText(s.Text, c.Members.Count, targeted);
+            // An idle pack's label is not casting: its members are idle, so no cast or cast fade draws on it.
+            var cast = s.Idle ? null : CastOf(s.Plate);
+            CastBarView.CastEnding? ending = cast is null && !s.Idle && s.Plate.CastOnPlate && _endings.TryGetValue(s.Plate.Id, out var e) ? e : null;
+            byLeader[s.Plate.Id] = (text, targeted, ci, cast, ending, s.Chevron, s.Tint, c.Members.SelectMany(m => _shown[m].Folded).ToArray());
             specs.Add(new PlateSpec(s.Plate.Id, s.Anchor, PlateRect(s.Anchor, text).Width, (long)Math.Round(s.Depth * 1000f), cast is not null || ending is not null));
         }
         foreach (var placed in PlateStack.Layout(specs, width, height, Obstacles(width, height)))
         {
             var info = byLeader[placed.Id];
-            var drawn = new Drawn(info.Text, placed, info.Targeted, info.Crowd, info.Cast, info.Ending);
+            var drawn = new Drawn(info.Text, placed, info.Targeted, info.Crowd, info.Cast, info.Ending, info.Chevron, info.Tint);
             _drawn.Add(drawn);
-            _plateRects.Add(new DrawnPlate(placed.Block, crowds[info.Crowd].Members.Select(m => _shown[m].Plate.Id).ToArray()));
+            _plateRects.Add(new DrawnPlate(placed.Block, info.Folded.ToArray()));
         }
         LogCrowds(crowds);
+        LogIdlePacks();
+    }
+
+    // IDLE-PACKS: the layout pack each enemy belongs to (PackGroup.Spawns), keyed by actor id. Empty on a flat arena.
+    private Dictionary<int, string> PackOf()
+    {
+        var packOf = new Dictionary<int, string>();
+        if (Driver?.Run is { } run && run.Content.Packs is { } packs)
+        {
+            foreach (var pack in packs)
+            {
+                foreach (var spawn in pack.Spawns)
+                {
+                    packOf[spawn.ActorId] = pack.Id;
+                }
+            }
+        }
+        return packOf;
+    }
+
+    // IDLE-PACKS proof (autorun only): "HUD idlepack pack=ID label="TEXT" members=N" once per distinct line, for each idle
+    // pack label that survived the edge test this frame.
+    private void LogIdlePacks()
+    {
+        if (Driver is null || !Driver.Options.Autorun)
+        {
+            return;
+        }
+        foreach (var s in _shown)
+        {
+            if (!s.Idle)
+            {
+                continue;
+            }
+            var line = FormattableString.Invariant($"HUD idlepack pack={s.Plate.PackId} label=\"{s.Text}\" members={s.Folded.Count}");
+            if (_crowdLogged.Add(line))
+            {
+                HudNodes.Proof(Driver, line);
+            }
+        }
     }
 
     // True when the plate shows a cast this frame: an enemy casting, or its just-ended cast still fading.
@@ -470,8 +574,8 @@ public partial class LabelView : Node3D
             {
                 continue;
             }
-            var name = _shown[c.Leader].Plate.BaseName;
-            var target = c.Members.Any(m => _shown[m].Plate.Targeted);
+            var name = _shown[c.Leader].Text;
+            var target = c.Members.Any(m => _shown[m].Targeted);
             var drawn = _drawn.Count(d => d.Crowd == ci);
             var mark = _drawn.Any(d => d.Crowd == ci && d.Targeted && d.Text.StartsWith("> ", StringComparison.Ordinal));
             var line = FormattableString.Invariant(
@@ -629,11 +733,23 @@ public partial class LabelView : Node3D
         public int? CastStart { get; set; }
 
         public int? CastEnd { get; set; }
+
+        /// <summary>The actor's class id (".lieutenant" marks a pack leader; IDLE-PACKS).</summary>
+        public string ClassId { get; set; } = string.Empty;
+
+        /// <summary>The layout pack the enemy belongs to, or null (IDLE-PACKS, f-1bf2dace).</summary>
+        public string? PackId { get; set; }
+
+        /// <summary>The actor's threat colour (BodyColor), kept by an idle pack's single label.</summary>
+        public Color Tint { get; set; }
     }
 
-    private readonly record struct Shown(Plate Plate, PixelRect Rect, PixelPoint Anchor, float Depth);
+    // One label this frame: a plain actor's plate, or an idle pack's single label (Idle, Chevron) anchored at the pack's centre.
+    private readonly record struct Shown(Plate Plate, PixelRect Rect, PixelPoint Anchor, float Depth, string Text, bool Idle,
+        bool Chevron, bool Targeted, Color? Tint, IReadOnlyList<int> Folded);
 
     private readonly record struct PlateCast(CastMark Mark, float Progress, string Label);
 
-    private readonly record struct Drawn(string Text, StackedPlate Placed, bool Targeted, int Crowd, PlateCast? Cast, CastBarView.CastEnding? Ending);
+    private readonly record struct Drawn(string Text, StackedPlate Placed, bool Targeted, int Crowd, PlateCast? Cast, CastBarView.CastEnding? Ending,
+        bool Chevron, Color? Tint);
 }
