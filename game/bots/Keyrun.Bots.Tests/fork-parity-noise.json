@@ -1,0 +1,2008 @@
+{
+  "finding": "f-8ae6250a",
+  "mainSha": "8ffc0c11a8e758f8f6f1701929d6e027942adc80",
+  "rule": "tolerance per axis = floor(2 x max over keys of the median over measured sibling pairs of the sample sd (n-1) of the per-seed margin of each pair); clear in bp of the median base-kit clear of the key. See ForkParityNoiseStudy.cs.",
+  "params": {
+    "seedFirst": 1,
+    "seedLast": 32,
+    "dial": 90,
+    "maxTicks": 24000,
+    "k": 2,
+    "sd": "sample (n-1)"
+  },
+  "keys": {
+    "k2": {
+      "setup": "hollow-vault-k2.setup.json",
+      "medianBaseClear": 2523,
+      "options": {
+        "base": {
+          "clear": {
+            "mean": 2576.75,
+            "sd": 170.966
+          },
+          "deaths": {
+            "mean": 0.156,
+            "sd": 0.369
+          },
+          "combos": {
+            "mean": 93.031,
+            "sd": 5.294
+          }
+        },
+        "warden.strike:rend": {
+          "clear": {
+            "mean": 2608.719,
+            "sd": 193.371
+          },
+          "deaths": {
+            "mean": 0.25,
+            "sd": 0.44
+          },
+          "combos": {
+            "mean": 93.375,
+            "sd": 5.229
+          }
+        },
+        "warden.strike:riposte": {
+          "clear": {
+            "mean": 2556.813,
+            "sd": 160.695
+          },
+          "deaths": {
+            "mean": 0.094,
+            "sd": 0.296
+          },
+          "combos": {
+            "mean": 92.5,
+            "sd": 5.553
+          }
+        },
+        "warden.strike:warcry": {
+          "clear": {
+            "mean": 2549.156,
+            "sd": 169.78
+          },
+          "deaths": {
+            "mean": 0.156,
+            "sd": 0.448
+          },
+          "combos": {
+            "mean": 93.438,
+            "sd": 5.471
+          }
+        },
+        "warden.guardBreak:focused": {
+          "clear": {
+            "mean": 2611.469,
+            "sd": 235.183
+          },
+          "deaths": {
+            "mean": 0.563,
+            "sd": 1.105
+          },
+          "combos": {
+            "mean": 101.938,
+            "sd": 6.064
+          }
+        },
+        "warden.guardBreak:pin": {
+          "clear": {
+            "mean": 2576.75,
+            "sd": 170.966
+          },
+          "deaths": {
+            "mean": 0.156,
+            "sd": 0.369
+          },
+          "combos": {
+            "mean": 93.031,
+            "sd": 5.294
+          }
+        },
+        "warden.guardBreak:surge": {
+          "clear": {
+            "mean": 2581.031,
+            "sd": 188.658
+          },
+          "deaths": {
+            "mean": 0.438,
+            "sd": 1.268
+          },
+          "combos": {
+            "mean": 96.844,
+            "sd": 6.648
+          }
+        },
+        "warden.bulwark:fortress": {
+          "clear": {
+            "mean": 2613.438,
+            "sd": 280.326
+          },
+          "deaths": {
+            "mean": 0.5,
+            "sd": 1.27
+          },
+          "combos": {
+            "mean": 92.375,
+            "sd": 7.084
+          }
+        },
+        "warden.bulwark:mobile": {
+          "clear": {
+            "mean": 2532.344,
+            "sd": 147.955
+          },
+          "deaths": {
+            "mean": 0.063,
+            "sd": 0.246
+          },
+          "combos": {
+            "mean": 92.656,
+            "sd": 4.14
+          }
+        },
+        "warden.reckoning:execute": {
+          "clear": {
+            "mean": 2649.156,
+            "sd": 276.389
+          },
+          "deaths": {
+            "mean": 0.625,
+            "sd": 1.314
+          },
+          "combos": {
+            "mean": 94,
+            "sd": 11.095
+          }
+        },
+        "warden.reckoning:overwhelm": {
+          "clear": {
+            "mean": 2595.906,
+            "sd": 217.607
+          },
+          "deaths": {
+            "mean": 0.625,
+            "sd": 1.314
+          },
+          "combos": {
+            "mean": 95.75,
+            "sd": 10.09
+          }
+        },
+        "warden.vigil:ally": {
+          "clear": {
+            "mean": 2550.406,
+            "sd": 249.745
+          },
+          "deaths": {
+            "mean": 0.188,
+            "sd": 0.471
+          },
+          "combos": {
+            "mean": 93.75,
+            "sd": 5.261
+          }
+        },
+        "warden.vigil:reserve": {
+          "clear": {
+            "mean": 2515.5,
+            "sd": 100.193
+          },
+          "deaths": {
+            "mean": 0.031,
+            "sd": 0.177
+          },
+          "combos": {
+            "mean": 93.75,
+            "sd": 4.551
+          }
+        },
+        "cinder.emberBolt:instant": {
+          "clear": {
+            "mean": 2605.781,
+            "sd": 231.931
+          },
+          "deaths": {
+            "mean": 0.344,
+            "sd": 0.971
+          },
+          "combos": {
+            "mean": 95.125,
+            "sd": 4.723
+          }
+        },
+        "cinder.emberBolt:piercing": {
+          "clear": {
+            "mean": 2774.188,
+            "sd": 248.058
+          },
+          "deaths": {
+            "mean": 0.313,
+            "sd": 0.644
+          },
+          "combos": {
+            "mean": 97.781,
+            "sd": 5.014
+          }
+        },
+        "cinder.emberBolt:overcharge": {
+          "clear": {
+            "mean": 2454.813,
+            "sd": 162.563
+          },
+          "deaths": {
+            "mean": 0.25,
+            "sd": 0.916
+          },
+          "combos": {
+            "mean": 89.688,
+            "sd": 6.443
+          }
+        },
+        "cinder.flare:wildfire": {
+          "clear": {
+            "mean": 2417.531,
+            "sd": 170.957
+          },
+          "deaths": {
+            "mean": 0.25,
+            "sd": 0.916
+          },
+          "combos": {
+            "mean": 84.906,
+            "sd": 6.765
+          }
+        },
+        "cinder.flare:lingering": {
+          "clear": {
+            "mean": 2734.563,
+            "sd": 296.514
+          },
+          "deaths": {
+            "mean": 0.656,
+            "sd": 0.653
+          },
+          "combos": {
+            "mean": 98.531,
+            "sd": 6.53
+          }
+        },
+        "cinder.flare:efficient": {
+          "clear": {
+            "mean": 2376.375,
+            "sd": 255.248
+          },
+          "deaths": {
+            "mean": 0.688,
+            "sd": 1.281
+          },
+          "combos": {
+            "mean": 84.969,
+            "sd": 5.671
+          }
+        },
+        "cinder.coldSnap:deepFreeze": {
+          "clear": {
+            "mean": 2576.75,
+            "sd": 170.966
+          },
+          "deaths": {
+            "mean": 0.156,
+            "sd": 0.369
+          },
+          "combos": {
+            "mean": 93.031,
+            "sd": 5.294
+          }
+        },
+        "cinder.coldSnap:overflow": {
+          "clear": {
+            "mean": 2457.813,
+            "sd": 152.221
+          },
+          "deaths": {
+            "mean": 0.5,
+            "sd": 1.244
+          },
+          "combos": {
+            "mean": 89.875,
+            "sd": 7.482
+          }
+        },
+        "cinder.detonate:chainReaction": {
+          "clear": {
+            "mean": 3076.25,
+            "sd": 127.615
+          },
+          "deaths": {
+            "mean": 0.031,
+            "sd": 0.177
+          },
+          "combos": {
+            "mean": 113.281,
+            "sd": 6.028
+          }
+        },
+        "cinder.detonate:cheapShot": {
+          "clear": {
+            "mean": 2564.781,
+            "sd": 184.686
+          },
+          "deaths": {
+            "mean": 0.125,
+            "sd": 0.421
+          },
+          "combos": {
+            "mean": 92.219,
+            "sd": 4.605
+          }
+        },
+        "cinder.detonate:overkill": {
+          "clear": {
+            "mean": 2576.719,
+            "sd": 205.981
+          },
+          "deaths": {
+            "mean": 0.375,
+            "sd": 0.942
+          },
+          "combos": {
+            "mean": 91.031,
+            "sd": 6.327
+          }
+        },
+        "cinder.cinderfield:spreading": {
+          "clear": {
+            "mean": 2571.375,
+            "sd": 200.523
+          },
+          "deaths": {
+            "mean": 0.281,
+            "sd": 0.958
+          },
+          "combos": {
+            "mean": 92.375,
+            "sd": 7.84
+          }
+        },
+        "cinder.cinderfield:flashpoint": {
+          "clear": {
+            "mean": 2463.813,
+            "sd": 255.497
+          },
+          "deaths": {
+            "mean": 0.281,
+            "sd": 0.581
+          },
+          "combos": {
+            "mean": 90.156,
+            "sd": 7.414
+          }
+        },
+        "chanter.cadence:resonance": {
+          "clear": {
+            "mean": 2592.875,
+            "sd": 227.028
+          },
+          "deaths": {
+            "mean": 0.375,
+            "sd": 0.976
+          },
+          "combos": {
+            "mean": 93.219,
+            "sd": 7.975
+          }
+        },
+        "chanter.cadence:groupSong": {
+          "clear": {
+            "mean": 2605.813,
+            "sd": 459.363
+          },
+          "deaths": {
+            "mean": 0.188,
+            "sd": 0.592
+          },
+          "combos": {
+            "mean": 85.813,
+            "sd": 4.589
+          }
+        },
+        "chanter.cadence:swift": {
+          "clear": {
+            "mean": 2591.813,
+            "sd": 478.192
+          },
+          "deaths": {
+            "mean": 0.281,
+            "sd": 0.729
+          },
+          "combos": {
+            "mean": 95.563,
+            "sd": 3.689
+          }
+        },
+        "chanter.refrain:overture": {
+          "clear": {
+            "mean": 2552.875,
+            "sd": 162.28
+          },
+          "deaths": {
+            "mean": 0.094,
+            "sd": 0.296
+          },
+          "combos": {
+            "mean": 93.125,
+            "sd": 5.824
+          }
+        },
+        "chanter.refrain:crescendo": {
+          "clear": {
+            "mean": 2548.125,
+            "sd": 109.986
+          },
+          "deaths": {
+            "mean": 0.188,
+            "sd": 0.397
+          },
+          "combos": {
+            "mean": 95.813,
+            "sd": 5.676
+          }
+        },
+        "chanter.chorus:roundCall": {
+          "clear": {
+            "mean": 2576.75,
+            "sd": 170.966
+          },
+          "deaths": {
+            "mean": 0.156,
+            "sd": 0.369
+          },
+          "combos": {
+            "mean": 93.031,
+            "sd": 5.294
+          }
+        },
+        "chanter.chorus:discipline": {
+          "clear": {
+            "mean": 2521.5,
+            "sd": 120.719
+          },
+          "deaths": {
+            "mean": 0.094,
+            "sd": 0.296
+          },
+          "combos": {
+            "mean": 93.5,
+            "sd": 4
+          }
+        },
+        "chanter.chorus:encore": {
+          "clear": {
+            "mean": 2501.344,
+            "sd": 96.732
+          },
+          "deaths": {
+            "mean": 0.031,
+            "sd": 0.177
+          },
+          "combos": {
+            "mean": 94.656,
+            "sd": 4.404
+          }
+        },
+        "chanter.dissonance:amplify": {
+          "clear": {
+            "mean": 2568.125,
+            "sd": 168.791
+          },
+          "deaths": {
+            "mean": 0.219,
+            "sd": 0.42
+          },
+          "combos": {
+            "mean": 92.781,
+            "sd": 5.632
+          }
+        },
+        "chanter.dissonance:discord": {
+          "clear": {
+            "mean": 2483.25,
+            "sd": 193.559
+          },
+          "deaths": {
+            "mean": 0.563,
+            "sd": 1.243
+          },
+          "combos": {
+            "mean": 102.844,
+            "sd": 9.609
+          }
+        },
+        "chanter.hymn:grandHymn": {
+          "clear": {
+            "mean": 2500.531,
+            "sd": 111.894
+          },
+          "deaths": {
+            "mean": 0.031,
+            "sd": 0.177
+          },
+          "combos": {
+            "mean": 92.781,
+            "sd": 4.086
+          }
+        },
+        "chanter.hymn:staccato": {
+          "clear": {
+            "mean": 2537.281,
+            "sd": 177.515
+          },
+          "deaths": {
+            "mean": 0.281,
+            "sd": 0.924
+          },
+          "combos": {
+            "mean": 95.125,
+            "sd": 4.989
+          }
+        },
+        "chanter.hymn:roundRobin": {
+          "clear": {
+            "mean": 2580.531,
+            "sd": 176.361
+          },
+          "deaths": {
+            "mean": 0.125,
+            "sd": 0.421
+          },
+          "combos": {
+            "mean": 93.875,
+            "sd": 5.104
+          }
+        }
+      },
+      "pairs": {
+        "warden.strike rend riposte": {
+          "clear": {
+            "meanMargin": -51.906,
+            "sd": 158.342
+          },
+          "deaths": {
+            "meanMargin": -0.156,
+            "sd": 0.369
+          },
+          "combos": {
+            "meanMargin": 0.875,
+            "sd": 5.002
+          }
+        },
+        "warden.strike rend warcry": {
+          "clear": {
+            "meanMargin": -59.563,
+            "sd": 249.089
+          },
+          "deaths": {
+            "meanMargin": -0.094,
+            "sd": 0.588
+          },
+          "combos": {
+            "meanMargin": -0.063,
+            "sd": 8.238
+          }
+        },
+        "warden.strike riposte warcry": {
+          "clear": {
+            "meanMargin": -7.656,
+            "sd": 202.983
+          },
+          "deaths": {
+            "meanMargin": 0.063,
+            "sd": 0.435
+          },
+          "combos": {
+            "meanMargin": -0.938,
+            "sd": 6.937
+          }
+        },
+        "warden.guardBreak focused pin": {
+          "clear": {
+            "meanMargin": -34.719,
+            "sd": 324.775
+          },
+          "deaths": {
+            "meanMargin": -0.406,
+            "sd": 1.16
+          },
+          "combos": {
+            "meanMargin": 8.906,
+            "sd": 7.315
+          }
+        },
+        "warden.guardBreak focused surge": {
+          "clear": {
+            "meanMargin": -30.438,
+            "sd": 313.49
+          },
+          "deaths": {
+            "meanMargin": -0.125,
+            "sd": 1.792
+          },
+          "combos": {
+            "meanMargin": 5.094,
+            "sd": 8.992
+          }
+        },
+        "warden.guardBreak pin surge": {
+          "clear": {
+            "meanMargin": 4.281,
+            "sd": 230.56
+          },
+          "deaths": {
+            "meanMargin": 0.281,
+            "sd": 1.224
+          },
+          "combos": {
+            "meanMargin": -3.813,
+            "sd": 8.581
+          }
+        },
+        "warden.bulwark fortress mobile": {
+          "clear": {
+            "meanMargin": -81.094,
+            "sd": 345.355
+          },
+          "deaths": {
+            "meanMargin": -0.438,
+            "sd": 1.318
+          },
+          "combos": {
+            "meanMargin": -0.281,
+            "sd": 9.205
+          }
+        },
+        "warden.reckoning execute overwhelm": {
+          "clear": {
+            "meanMargin": -53.25,
+            "sd": 340.258
+          },
+          "deaths": {
+            "meanMargin": 0,
+            "sd": 1.849
+          },
+          "combos": {
+            "meanMargin": -1.75,
+            "sd": 14.863
+          }
+        },
+        "warden.vigil ally reserve": {
+          "clear": {
+            "meanMargin": -34.906,
+            "sd": 257.732
+          },
+          "deaths": {
+            "meanMargin": -0.156,
+            "sd": 0.515
+          },
+          "combos": {
+            "meanMargin": 0,
+            "sd": 6.294
+          }
+        },
+        "cinder.emberBolt instant piercing": {
+          "clear": {
+            "meanMargin": 168.406,
+            "sd": 349.058
+          },
+          "deaths": {
+            "meanMargin": -0.031,
+            "sd": 1.121
+          },
+          "combos": {
+            "meanMargin": -2.656,
+            "sd": 6.945
+          }
+        },
+        "cinder.emberBolt instant overcharge": {
+          "clear": {
+            "meanMargin": -150.969,
+            "sd": 275.882
+          },
+          "deaths": {
+            "meanMargin": -0.094,
+            "sd": 1.4
+          },
+          "combos": {
+            "meanMargin": 5.438,
+            "sd": 7.911
+          }
+        },
+        "cinder.emberBolt piercing overcharge": {
+          "clear": {
+            "meanMargin": -319.375,
+            "sd": 311.082
+          },
+          "deaths": {
+            "meanMargin": -0.063,
+            "sd": 0.982
+          },
+          "combos": {
+            "meanMargin": 8.094,
+            "sd": 8.785
+          }
+        },
+        "cinder.flare wildfire lingering": {
+          "clear": {
+            "meanMargin": 317.031,
+            "sd": 349.313
+          },
+          "deaths": {
+            "meanMargin": 0.406,
+            "sd": 1.103
+          },
+          "combos": {
+            "meanMargin": -13.625,
+            "sd": 8.976
+          }
+        },
+        "cinder.flare wildfire efficient": {
+          "clear": {
+            "meanMargin": -41.156,
+            "sd": 296.663
+          },
+          "deaths": {
+            "meanMargin": 0.438,
+            "sd": 1.564
+          },
+          "combos": {
+            "meanMargin": -0.063,
+            "sd": 9.99
+          }
+        },
+        "cinder.flare lingering efficient": {
+          "clear": {
+            "meanMargin": -358.188,
+            "sd": 400.224
+          },
+          "deaths": {
+            "meanMargin": 0.031,
+            "sd": 1.47
+          },
+          "combos": {
+            "meanMargin": 13.563,
+            "sd": 8.766
+          }
+        },
+        "cinder.coldSnap deepFreeze overflow": {
+          "clear": {
+            "meanMargin": -118.938,
+            "sd": 248.589
+          },
+          "deaths": {
+            "meanMargin": 0.344,
+            "sd": 1.208
+          },
+          "combos": {
+            "meanMargin": 3.156,
+            "sd": 9.395
+          }
+        },
+        "cinder.detonate chainReaction cheapShot": {
+          "clear": {
+            "meanMargin": -511.469,
+            "sd": 197.913
+          },
+          "deaths": {
+            "meanMargin": 0.094,
+            "sd": 0.466
+          },
+          "combos": {
+            "meanMargin": 21.063,
+            "sd": 7.637
+          }
+        },
+        "cinder.detonate chainReaction overkill": {
+          "clear": {
+            "meanMargin": -499.531,
+            "sd": 221.298
+          },
+          "deaths": {
+            "meanMargin": 0.344,
+            "sd": 0.937
+          },
+          "combos": {
+            "meanMargin": 22.25,
+            "sd": 10.405
+          }
+        },
+        "cinder.detonate cheapShot overkill": {
+          "clear": {
+            "meanMargin": 11.938,
+            "sd": 293.531
+          },
+          "deaths": {
+            "meanMargin": 0.25,
+            "sd": 1.047
+          },
+          "combos": {
+            "meanMargin": 1.188,
+            "sd": 7.921
+          }
+        },
+        "cinder.cinderfield spreading flashpoint": {
+          "clear": {
+            "meanMargin": -107.563,
+            "sd": 339.849
+          },
+          "deaths": {
+            "meanMargin": 0,
+            "sd": 1.191
+          },
+          "combos": {
+            "meanMargin": 2.219,
+            "sd": 10.658
+          }
+        },
+        "chanter.cadence resonance groupSong": {
+          "clear": {
+            "meanMargin": 12.938,
+            "sd": 515.682
+          },
+          "deaths": {
+            "meanMargin": -0.188,
+            "sd": 1.148
+          },
+          "combos": {
+            "meanMargin": 7.406,
+            "sd": 9.133
+          }
+        },
+        "chanter.cadence resonance swift": {
+          "clear": {
+            "meanMargin": -1.063,
+            "sd": 523.952
+          },
+          "deaths": {
+            "meanMargin": -0.094,
+            "sd": 1.304
+          },
+          "combos": {
+            "meanMargin": -2.344,
+            "sd": 8.051
+          }
+        },
+        "chanter.cadence groupSong swift": {
+          "clear": {
+            "meanMargin": -14,
+            "sd": 660.374
+          },
+          "deaths": {
+            "meanMargin": 0.094,
+            "sd": 0.928
+          },
+          "combos": {
+            "meanMargin": -9.75,
+            "sd": 5.424
+          }
+        },
+        "chanter.refrain overture crescendo": {
+          "clear": {
+            "meanMargin": -4.75,
+            "sd": 172.198
+          },
+          "deaths": {
+            "meanMargin": 0.094,
+            "sd": 0.39
+          },
+          "combos": {
+            "meanMargin": -2.688,
+            "sd": 5.385
+          }
+        },
+        "chanter.chorus roundCall discipline": {
+          "clear": {
+            "meanMargin": -55.25,
+            "sd": 202.286
+          },
+          "deaths": {
+            "meanMargin": -0.063,
+            "sd": 0.435
+          },
+          "combos": {
+            "meanMargin": -0.469,
+            "sd": 5.951
+          }
+        },
+        "chanter.chorus roundCall encore": {
+          "clear": {
+            "meanMargin": -75.406,
+            "sd": 195.984
+          },
+          "deaths": {
+            "meanMargin": -0.125,
+            "sd": 0.421
+          },
+          "combos": {
+            "meanMargin": -1.625,
+            "sd": 7.232
+          }
+        },
+        "chanter.chorus discipline encore": {
+          "clear": {
+            "meanMargin": -20.156,
+            "sd": 146.095
+          },
+          "deaths": {
+            "meanMargin": -0.063,
+            "sd": 0.354
+          },
+          "combos": {
+            "meanMargin": -1.156,
+            "sd": 5.28
+          }
+        },
+        "chanter.dissonance amplify discord": {
+          "clear": {
+            "meanMargin": -84.875,
+            "sd": 228.781
+          },
+          "deaths": {
+            "meanMargin": 0.344,
+            "sd": 1.335
+          },
+          "combos": {
+            "meanMargin": -10.063,
+            "sd": 10.473
+          }
+        },
+        "chanter.hymn grandHymn staccato": {
+          "clear": {
+            "meanMargin": 36.75,
+            "sd": 215.417
+          },
+          "deaths": {
+            "meanMargin": 0.25,
+            "sd": 0.95
+          },
+          "combos": {
+            "meanMargin": -2.344,
+            "sd": 6.041
+          }
+        },
+        "chanter.hymn grandHymn roundRobin": {
+          "clear": {
+            "meanMargin": 80,
+            "sd": 209.356
+          },
+          "deaths": {
+            "meanMargin": 0.094,
+            "sd": 0.466
+          },
+          "combos": {
+            "meanMargin": -1.094,
+            "sd": 6.26
+          }
+        },
+        "chanter.hymn staccato roundRobin": {
+          "clear": {
+            "meanMargin": 43.25,
+            "sd": 256.177
+          },
+          "deaths": {
+            "meanMargin": -0.156,
+            "sd": 1.019
+          },
+          "combos": {
+            "meanMargin": 1.25,
+            "sd": 6.091
+          }
+        }
+      },
+      "measuredPairs": 31,
+      "medianPairedMarginSd": {
+        "clear": 257.732,
+        "deaths": 1.047,
+        "combos": 7.921
+      }
+    },
+    "k10": {
+      "setup": "hollow-vault-k10.setup.json",
+      "medianBaseClear": 3182,
+      "options": {
+        "base": {
+          "clear": {
+            "mean": 3173.844,
+            "sd": 214.278
+          },
+          "deaths": {
+            "mean": 0.5,
+            "sd": 1.078
+          },
+          "combos": {
+            "mean": 114.125,
+            "sd": 8.987
+          }
+        },
+        "warden.strike:rend": {
+          "clear": {
+            "mean": 3140.625,
+            "sd": 269.697
+          },
+          "deaths": {
+            "mean": 0.594,
+            "sd": 1.292
+          },
+          "combos": {
+            "mean": 114.063,
+            "sd": 11.559
+          }
+        },
+        "warden.strike:riposte": {
+          "clear": {
+            "mean": 3191,
+            "sd": 189.333
+          },
+          "deaths": {
+            "mean": 0.563,
+            "sd": 1.076
+          },
+          "combos": {
+            "mean": 115.031,
+            "sd": 6.235
+          }
+        },
+        "warden.strike:warcry": {
+          "clear": {
+            "mean": 3115.875,
+            "sd": 124.785
+          },
+          "deaths": {
+            "mean": 0.5,
+            "sd": 1.244
+          },
+          "combos": {
+            "mean": 112,
+            "sd": 9.294
+          }
+        },
+        "warden.guardBreak:focused": {
+          "clear": {
+            "mean": 3141.625,
+            "sd": 133.853
+          },
+          "deaths": {
+            "mean": 0.813,
+            "sd": 1.712
+          },
+          "combos": {
+            "mean": 127.063,
+            "sd": 10.592
+          }
+        },
+        "warden.guardBreak:pin": {
+          "clear": {
+            "mean": 3173.844,
+            "sd": 214.278
+          },
+          "deaths": {
+            "mean": 0.5,
+            "sd": 1.078
+          },
+          "combos": {
+            "mean": 114.125,
+            "sd": 8.987
+          }
+        },
+        "warden.guardBreak:surge": {
+          "clear": {
+            "mean": 3139.031,
+            "sd": 160.189
+          },
+          "deaths": {
+            "mean": 0.531,
+            "sd": 1.27
+          },
+          "combos": {
+            "mean": 120.156,
+            "sd": 6.345
+          }
+        },
+        "warden.bulwark:fortress": {
+          "clear": {
+            "mean": 3140.625,
+            "sd": 234.424
+          },
+          "deaths": {
+            "mean": 0.5,
+            "sd": 1.295
+          },
+          "combos": {
+            "mean": 113.531,
+            "sd": 8.16
+          }
+        },
+        "warden.bulwark:mobile": {
+          "clear": {
+            "mean": 3223.625,
+            "sd": 235.594
+          },
+          "deaths": {
+            "mean": 0.375,
+            "sd": 0.976
+          },
+          "combos": {
+            "mean": 114.844,
+            "sd": 4.159
+          }
+        },
+        "warden.reckoning:execute": {
+          "clear": {
+            "mean": 3204.281,
+            "sd": 205.448
+          },
+          "deaths": {
+            "mean": 0.313,
+            "sd": 0.931
+          },
+          "combos": {
+            "mean": 116.844,
+            "sd": 10.911
+          }
+        },
+        "warden.reckoning:overwhelm": {
+          "clear": {
+            "mean": 3185.625,
+            "sd": 122.966
+          },
+          "deaths": {
+            "mean": 0.188,
+            "sd": 0.471
+          },
+          "combos": {
+            "mean": 118.75,
+            "sd": 5.34
+          }
+        },
+        "warden.vigil:ally": {
+          "clear": {
+            "mean": 3329.813,
+            "sd": 510.188
+          },
+          "deaths": {
+            "mean": 1.031,
+            "sd": 1.656
+          },
+          "combos": {
+            "mean": 112.031,
+            "sd": 13.781
+          }
+        },
+        "warden.vigil:reserve": {
+          "clear": {
+            "mean": 3363.063,
+            "sd": 534.461
+          },
+          "deaths": {
+            "mean": 0.75,
+            "sd": 1.545
+          },
+          "combos": {
+            "mean": 114.344,
+            "sd": 7.005
+          }
+        },
+        "cinder.emberBolt:instant": {
+          "clear": {
+            "mean": 3350.188,
+            "sd": 403.041
+          },
+          "deaths": {
+            "mean": 0.656,
+            "sd": 1.066
+          },
+          "combos": {
+            "mean": 114.469,
+            "sd": 13.359
+          }
+        },
+        "cinder.emberBolt:piercing": {
+          "clear": {
+            "mean": 3519.063,
+            "sd": 455.676
+          },
+          "deaths": {
+            "mean": 0.531,
+            "sd": 0.803
+          },
+          "combos": {
+            "mean": 121,
+            "sd": 6.778
+          }
+        },
+        "cinder.emberBolt:overcharge": {
+          "clear": {
+            "mean": 3075.313,
+            "sd": 256.973
+          },
+          "deaths": {
+            "mean": 0.344,
+            "sd": 0.937
+          },
+          "combos": {
+            "mean": 113.188,
+            "sd": 7.209
+          }
+        },
+        "cinder.flare:wildfire": {
+          "clear": {
+            "mean": 2980.875,
+            "sd": 233.04
+          },
+          "deaths": {
+            "mean": 0.25,
+            "sd": 0.568
+          },
+          "combos": {
+            "mean": 107.844,
+            "sd": 6.998
+          }
+        },
+        "cinder.flare:lingering": {
+          "clear": {
+            "mean": 3283.188,
+            "sd": 230.111
+          },
+          "deaths": {
+            "mean": 0.75,
+            "sd": 1.27
+          },
+          "combos": {
+            "mean": 119.219,
+            "sd": 6.724
+          }
+        },
+        "cinder.flare:efficient": {
+          "clear": {
+            "mean": 2885.594,
+            "sd": 218.065
+          },
+          "deaths": {
+            "mean": 0.906,
+            "sd": 1.748
+          },
+          "combos": {
+            "mean": 99.5,
+            "sd": 9.765
+          }
+        },
+        "cinder.coldSnap:deepFreeze": {
+          "clear": {
+            "mean": 3173.844,
+            "sd": 214.278
+          },
+          "deaths": {
+            "mean": 0.5,
+            "sd": 1.078
+          },
+          "combos": {
+            "mean": 114.125,
+            "sd": 8.987
+          }
+        },
+        "cinder.coldSnap:overflow": {
+          "clear": {
+            "mean": 2970.844,
+            "sd": 138.162
+          },
+          "deaths": {
+            "mean": 0.406,
+            "sd": 1.043
+          },
+          "combos": {
+            "mean": 110.563,
+            "sd": 7.286
+          }
+        },
+        "cinder.detonate:chainReaction": {
+          "clear": {
+            "mean": 3955.406,
+            "sd": 357.336
+          },
+          "deaths": {
+            "mean": 1.219,
+            "sd": 1.497
+          },
+          "combos": {
+            "mean": 138.656,
+            "sd": 11.547
+          }
+        },
+        "cinder.detonate:cheapShot": {
+          "clear": {
+            "mean": 3143,
+            "sd": 161.213
+          },
+          "deaths": {
+            "mean": 0.5,
+            "sd": 1.27
+          },
+          "combos": {
+            "mean": 114.406,
+            "sd": 5.254
+          }
+        },
+        "cinder.detonate:overkill": {
+          "clear": {
+            "mean": 3093.969,
+            "sd": 213.371
+          },
+          "deaths": {
+            "mean": 0.438,
+            "sd": 1.243
+          },
+          "combos": {
+            "mean": 109.625,
+            "sd": 8.545
+          }
+        },
+        "cinder.cinderfield:spreading": {
+          "clear": {
+            "mean": 3111.719,
+            "sd": 226.748
+          },
+          "deaths": {
+            "mean": 0.688,
+            "sd": 1.595
+          },
+          "combos": {
+            "mean": 112.188,
+            "sd": 7.818
+          }
+        },
+        "cinder.cinderfield:flashpoint": {
+          "clear": {
+            "mean": 2968.969,
+            "sd": 134.654
+          },
+          "deaths": {
+            "mean": 0.25,
+            "sd": 0.508
+          },
+          "combos": {
+            "mean": 111.094,
+            "sd": 4.624
+          }
+        },
+        "chanter.cadence:resonance": {
+          "clear": {
+            "mean": 3179.625,
+            "sd": 152.162
+          },
+          "deaths": {
+            "mean": 0.5,
+            "sd": 1.107
+          },
+          "combos": {
+            "mean": 116.875,
+            "sd": 5.655
+          }
+        },
+        "chanter.cadence:groupSong": {
+          "clear": {
+            "mean": 3116.813,
+            "sd": 181.866
+          },
+          "deaths": {
+            "mean": 0.781,
+            "sd": 1.68
+          },
+          "combos": {
+            "mean": 102.313,
+            "sd": 14.376
+          }
+        },
+        "chanter.cadence:swift": {
+          "clear": {
+            "mean": 3103.813,
+            "sd": 146.845
+          },
+          "deaths": {
+            "mean": 0.188,
+            "sd": 0.471
+          },
+          "combos": {
+            "mean": 117.5,
+            "sd": 4.806
+          }
+        },
+        "chanter.refrain:overture": {
+          "clear": {
+            "mean": 3182.781,
+            "sd": 227.243
+          },
+          "deaths": {
+            "mean": 0.469,
+            "sd": 1.077
+          },
+          "combos": {
+            "mean": 113.063,
+            "sd": 8.732
+          }
+        },
+        "chanter.refrain:crescendo": {
+          "clear": {
+            "mean": 3148.344,
+            "sd": 119.82
+          },
+          "deaths": {
+            "mean": 0.406,
+            "sd": 0.979
+          },
+          "combos": {
+            "mean": 116.75,
+            "sd": 7.444
+          }
+        },
+        "chanter.chorus:roundCall": {
+          "clear": {
+            "mean": 3170.969,
+            "sd": 214.217
+          },
+          "deaths": {
+            "mean": 0.469,
+            "sd": 1.016
+          },
+          "combos": {
+            "mean": 114.094,
+            "sd": 8.996
+          }
+        },
+        "chanter.chorus:discipline": {
+          "clear": {
+            "mean": 3171.344,
+            "sd": 203.971
+          },
+          "deaths": {
+            "mean": 0.281,
+            "sd": 0.924
+          },
+          "combos": {
+            "mean": 112.625,
+            "sd": 8.198
+          }
+        },
+        "chanter.chorus:encore": {
+          "clear": {
+            "mean": 3293.625,
+            "sd": 742.453
+          },
+          "deaths": {
+            "mean": 0.344,
+            "sd": 0.827
+          },
+          "combos": {
+            "mean": 116.844,
+            "sd": 5.383
+          }
+        },
+        "chanter.dissonance:amplify": {
+          "clear": {
+            "mean": 3144.906,
+            "sd": 254.965
+          },
+          "deaths": {
+            "mean": 0.531,
+            "sd": 1.295
+          },
+          "combos": {
+            "mean": 111.469,
+            "sd": 8.632
+          }
+        },
+        "chanter.dissonance:discord": {
+          "clear": {
+            "mean": 2997.125,
+            "sd": 123.5
+          },
+          "deaths": {
+            "mean": 0.063,
+            "sd": 0.246
+          },
+          "combos": {
+            "mean": 130.313,
+            "sd": 4.321
+          }
+        },
+        "chanter.hymn:grandHymn": {
+          "clear": {
+            "mean": 3149.781,
+            "sd": 191.69
+          },
+          "deaths": {
+            "mean": 0.031,
+            "sd": 0.177
+          },
+          "combos": {
+            "mean": 113.656,
+            "sd": 5.955
+          }
+        },
+        "chanter.hymn:staccato": {
+          "clear": {
+            "mean": 3141.875,
+            "sd": 154.152
+          },
+          "deaths": {
+            "mean": 0.219,
+            "sd": 0.491
+          },
+          "combos": {
+            "mean": 117.969,
+            "sd": 5.058
+          }
+        },
+        "chanter.hymn:roundRobin": {
+          "clear": {
+            "mean": 3118.063,
+            "sd": 111.963
+          },
+          "deaths": {
+            "mean": 0.219,
+            "sd": 0.491
+          },
+          "combos": {
+            "mean": 116.906,
+            "sd": 4.928
+          }
+        }
+      },
+      "pairs": {
+        "warden.strike rend riposte": {
+          "clear": {
+            "meanMargin": 50.375,
+            "sd": 334.132
+          },
+          "deaths": {
+            "meanMargin": -0.031,
+            "sd": 1.675
+          },
+          "combos": {
+            "meanMargin": -0.969,
+            "sd": 12.838
+          }
+        },
+        "warden.strike rend warcry": {
+          "clear": {
+            "meanMargin": -24.75,
+            "sd": 257.783
+          },
+          "deaths": {
+            "meanMargin": -0.094,
+            "sd": 1.89
+          },
+          "combos": {
+            "meanMargin": 2.063,
+            "sd": 14.917
+          }
+        },
+        "warden.strike riposte warcry": {
+          "clear": {
+            "meanMargin": -75.125,
+            "sd": 241.924
+          },
+          "deaths": {
+            "meanMargin": -0.063,
+            "sd": 1.795
+          },
+          "combos": {
+            "meanMargin": 3.031,
+            "sd": 11.754
+          }
+        },
+        "warden.guardBreak focused pin": {
+          "clear": {
+            "meanMargin": 32.219,
+            "sd": 232.171
+          },
+          "deaths": {
+            "meanMargin": -0.313,
+            "sd": 1.975
+          },
+          "combos": {
+            "meanMargin": 12.938,
+            "sd": 13.399
+          }
+        },
+        "warden.guardBreak focused surge": {
+          "clear": {
+            "meanMargin": -2.594,
+            "sd": 187.723
+          },
+          "deaths": {
+            "meanMargin": -0.281,
+            "sd": 2.174
+          },
+          "combos": {
+            "meanMargin": 6.906,
+            "sd": 12.225
+          }
+        },
+        "warden.guardBreak pin surge": {
+          "clear": {
+            "meanMargin": -34.813,
+            "sd": 245.822
+          },
+          "deaths": {
+            "meanMargin": 0.031,
+            "sd": 1.75
+          },
+          "combos": {
+            "meanMargin": -6.031,
+            "sd": 10.174
+          }
+        },
+        "warden.bulwark fortress mobile": {
+          "clear": {
+            "meanMargin": 83,
+            "sd": 316.239
+          },
+          "deaths": {
+            "meanMargin": -0.125,
+            "sd": 1.601
+          },
+          "combos": {
+            "meanMargin": -1.313,
+            "sd": 9.492
+          }
+        },
+        "warden.reckoning execute overwhelm": {
+          "clear": {
+            "meanMargin": -18.656,
+            "sd": 244.625
+          },
+          "deaths": {
+            "meanMargin": -0.125,
+            "sd": 1.07
+          },
+          "combos": {
+            "meanMargin": -1.906,
+            "sd": 10.747
+          }
+        },
+        "warden.vigil ally reserve": {
+          "clear": {
+            "meanMargin": 33.25,
+            "sd": 805.301
+          },
+          "deaths": {
+            "meanMargin": -0.281,
+            "sd": 2.275
+          },
+          "combos": {
+            "meanMargin": -2.313,
+            "sd": 16.647
+          }
+        },
+        "cinder.emberBolt instant piercing": {
+          "clear": {
+            "meanMargin": 168.875,
+            "sd": 631.315
+          },
+          "deaths": {
+            "meanMargin": -0.125,
+            "sd": 1.431
+          },
+          "combos": {
+            "meanMargin": -6.531,
+            "sd": 15.463
+          }
+        },
+        "cinder.emberBolt instant overcharge": {
+          "clear": {
+            "meanMargin": -274.875,
+            "sd": 515.825
+          },
+          "deaths": {
+            "meanMargin": -0.313,
+            "sd": 1.491
+          },
+          "combos": {
+            "meanMargin": 1.281,
+            "sd": 16.057
+          }
+        },
+        "cinder.emberBolt piercing overcharge": {
+          "clear": {
+            "meanMargin": -443.75,
+            "sd": 535.785
+          },
+          "deaths": {
+            "meanMargin": -0.188,
+            "sd": 1.355
+          },
+          "combos": {
+            "meanMargin": 7.813,
+            "sd": 9.596
+          }
+        },
+        "cinder.flare wildfire lingering": {
+          "clear": {
+            "meanMargin": 302.313,
+            "sd": 370.496
+          },
+          "deaths": {
+            "meanMargin": 0.5,
+            "sd": 1.524
+          },
+          "combos": {
+            "meanMargin": -11.375,
+            "sd": 9.047
+          }
+        },
+        "cinder.flare wildfire efficient": {
+          "clear": {
+            "meanMargin": -95.281,
+            "sd": 352.268
+          },
+          "deaths": {
+            "meanMargin": 0.656,
+            "sd": 1.961
+          },
+          "combos": {
+            "meanMargin": 8.344,
+            "sd": 12.553
+          }
+        },
+        "cinder.flare lingering efficient": {
+          "clear": {
+            "meanMargin": -397.594,
+            "sd": 283.515
+          },
+          "deaths": {
+            "meanMargin": 0.156,
+            "sd": 2.112
+          },
+          "combos": {
+            "meanMargin": 19.719,
+            "sd": 11.266
+          }
+        },
+        "cinder.coldSnap deepFreeze overflow": {
+          "clear": {
+            "meanMargin": -203,
+            "sd": 235.383
+          },
+          "deaths": {
+            "meanMargin": -0.094,
+            "sd": 1.634
+          },
+          "combos": {
+            "meanMargin": 3.563,
+            "sd": 12.743
+          }
+        },
+        "cinder.detonate chainReaction cheapShot": {
+          "clear": {
+            "meanMargin": -812.406,
+            "sd": 377.027
+          },
+          "deaths": {
+            "meanMargin": -0.719,
+            "sd": 1.486
+          },
+          "combos": {
+            "meanMargin": 24.25,
+            "sd": 10.94
+          }
+        },
+        "cinder.detonate chainReaction overkill": {
+          "clear": {
+            "meanMargin": -861.438,
+            "sd": 484.244
+          },
+          "deaths": {
+            "meanMargin": -0.781,
+            "sd": 2.028
+          },
+          "combos": {
+            "meanMargin": 29.031,
+            "sd": 15.543
+          }
+        },
+        "cinder.detonate cheapShot overkill": {
+          "clear": {
+            "meanMargin": -49.031,
+            "sd": 290.482
+          },
+          "deaths": {
+            "meanMargin": -0.063,
+            "sd": 1.9
+          },
+          "combos": {
+            "meanMargin": 4.781,
+            "sd": 10.992
+          }
+        },
+        "cinder.cinderfield spreading flashpoint": {
+          "clear": {
+            "meanMargin": -142.75,
+            "sd": 194.956
+          },
+          "deaths": {
+            "meanMargin": -0.438,
+            "sd": 1.458
+          },
+          "combos": {
+            "meanMargin": 1.094,
+            "sd": 10.212
+          }
+        },
+        "chanter.cadence resonance groupSong": {
+          "clear": {
+            "meanMargin": -62.813,
+            "sd": 247.481
+          },
+          "deaths": {
+            "meanMargin": 0.281,
+            "sd": 1.689
+          },
+          "combos": {
+            "meanMargin": 14.563,
+            "sd": 15.639
+          }
+        },
+        "chanter.cadence resonance swift": {
+          "clear": {
+            "meanMargin": -75.813,
+            "sd": 184.346
+          },
+          "deaths": {
+            "meanMargin": -0.313,
+            "sd": 1.091
+          },
+          "combos": {
+            "meanMargin": -0.625,
+            "sd": 6.651
+          }
+        },
+        "chanter.cadence groupSong swift": {
+          "clear": {
+            "meanMargin": -13,
+            "sd": 233.396
+          },
+          "deaths": {
+            "meanMargin": -0.594,
+            "sd": 1.739
+          },
+          "combos": {
+            "meanMargin": -15.188,
+            "sd": 13.544
+          }
+        },
+        "chanter.refrain overture crescendo": {
+          "clear": {
+            "meanMargin": -34.438,
+            "sd": 239.886
+          },
+          "deaths": {
+            "meanMargin": -0.063,
+            "sd": 1.458
+          },
+          "combos": {
+            "meanMargin": -3.688,
+            "sd": 10.751
+          }
+        },
+        "chanter.chorus roundCall discipline": {
+          "clear": {
+            "meanMargin": 0.375,
+            "sd": 295.048
+          },
+          "deaths": {
+            "meanMargin": -0.188,
+            "sd": 1.469
+          },
+          "combos": {
+            "meanMargin": 1.469,
+            "sd": 12.728
+          }
+        },
+        "chanter.chorus roundCall encore": {
+          "clear": {
+            "meanMargin": 122.656,
+            "sd": 653.225
+          },
+          "deaths": {
+            "meanMargin": -0.125,
+            "sd": 1.238
+          },
+          "combos": {
+            "meanMargin": -2.75,
+            "sd": 8.191
+          }
+        },
+        "chanter.chorus discipline encore": {
+          "clear": {
+            "meanMargin": 122.281,
+            "sd": 768.111
+          },
+          "deaths": {
+            "meanMargin": 0.063,
+            "sd": 1.268
+          },
+          "combos": {
+            "meanMargin": -4.219,
+            "sd": 10.407
+          }
+        },
+        "chanter.dissonance amplify discord": {
+          "clear": {
+            "meanMargin": -147.781,
+            "sd": 291.417
+          },
+          "deaths": {
+            "meanMargin": -0.469,
+            "sd": 1.319
+          },
+          "combos": {
+            "meanMargin": -18.844,
+            "sd": 9.589
+          }
+        },
+        "chanter.hymn grandHymn staccato": {
+          "clear": {
+            "meanMargin": -7.906,
+            "sd": 224.541
+          },
+          "deaths": {
+            "meanMargin": 0.188,
+            "sd": 0.535
+          },
+          "combos": {
+            "meanMargin": -4.313,
+            "sd": 5.688
+          }
+        },
+        "chanter.hymn grandHymn roundRobin": {
+          "clear": {
+            "meanMargin": -31.719,
+            "sd": 220.656
+          },
+          "deaths": {
+            "meanMargin": 0.188,
+            "sd": 0.535
+          },
+          "combos": {
+            "meanMargin": -3.25,
+            "sd": 7.767
+          }
+        },
+        "chanter.hymn staccato roundRobin": {
+          "clear": {
+            "meanMargin": -23.813,
+            "sd": 192.475
+          },
+          "deaths": {
+            "meanMargin": 0,
+            "sd": 0.762
+          },
+          "combos": {
+            "meanMargin": 1.063,
+            "sd": 7.322
+          }
+        }
+      },
+      "measuredPairs": 31,
+      "medianPairedMarginSd": {
+        "clear": 283.515,
+        "deaths": 1.524,
+        "combos": 10.992
+      }
+    }
+  },
+  "tolerance": {
+    "clearBp": 2043,
+    "deaths": 3,
+    "combos": 21
+  }
+}
