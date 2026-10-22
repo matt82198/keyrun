@@ -2,6 +2,7 @@
 
 Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGINE-PLAN.md. The game is the BIBLE
 (design/BIBLE.md) played natively on Windows. The TypeScript browser client is not the product.
+How a person plays the tutorial as any class (launch command, keys, screen flow): game/PLAY.md.
 
 ## Layout
 

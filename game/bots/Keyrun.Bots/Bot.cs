@@ -144,8 +144,21 @@ public static class Bot
             }
         }
 
+        // CHASE-SPEED (f-2f6982e9, BIBLE section 3): the tank's out-of-reach approach is skill-dial-free, like travel. A
+        // move holds for the one tick it is issued, so gating it behind the reaction delay and the mistake roll left the
+        // Warden walking one tick in three to six (about 40 mm/tick of the 180 walk) toward an engaged pack while the
+        // human out-ran him into aggro. A tick on which the role does not decide (delay or mistake) still carries the
+        // approach; a deciding tick gets it from TankEngage itself, so it is never issued twice.
+        var approach = avoid is null && !pingCommands.Any() && !travelling && self.Role == ActorRole.Tank
+            ? Roles.TankEngage.ApproachMove(view, self, Roles.RoleShared.KitOf(view, self.ClassId))
+            : null;
+
         if (tick < memory.NextActionTick)
         {
+            if (approach is not null)
+            {
+                commands.Add(approach);
+            }
             return new BotDecision(commands, memory, prng);
         }
 
@@ -153,6 +166,10 @@ public static class Bot
         var nextMemory = memory with { NextActionTick = tick + Skill.ReactionDelayTicks(memory.SkillDial) };
         if (roll.Mistake)
         {
+            if (approach is not null)
+            {
+                commands.Add(approach);
+            }
             return new BotDecision(commands, nextMemory, roll.Next);
         }
 

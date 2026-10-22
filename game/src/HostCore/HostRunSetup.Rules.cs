@@ -56,7 +56,7 @@ public sealed partial record HostRunSetup
     /// both sides fails closed, since one shared map cannot hold two scales for it.
     /// </summary>
     private static Dictionary<string, AbilityDef> ScaleEnemyDamage(
-        C.ContentRegistry registry, C.DungeonDef dungeonDef, C.EnemyDef boss, Dictionary<string, AbilityDef> abilities, int trashBp, int bossBp)
+        C.ContentRegistry registry, C.DungeonDef dungeonDef, IReadOnlyList<C.EnemyDef> bosses, Dictionary<string, AbilityDef> abilities, int trashBp, int bossBp)
     {
         static IEnumerable<string> Casts(C.EnemyDef e) => e.Abilities.Concat(e.Script.Select(s => s.Cast));
         var trash = dungeonDef.Pulls
@@ -65,7 +65,7 @@ public sealed partial record HostRunSetup
             .SelectMany(Casts)
             .ToHashSet(StringComparer.Ordinal);
         var bossSide = registry.Enemies.Values
-            .Where(e => e.Id == boss.Id || (e.BreakBarId is { } bar && boss.BreakBars?.Any(b => b.Id == bar) == true))
+            .Where(e => bosses.Any(boss => e.Id == boss.Id || (e.BreakBarId is { } bar && boss.BreakBars?.Any(b => b.Id == bar) == true)))
             .SelectMany(Casts)
             .ToHashSet(StringComparer.Ordinal);
         if (trash.Intersect(bossSide, StringComparer.Ordinal).FirstOrDefault() is { } shared)
