@@ -76,7 +76,21 @@ $livePing = $null
 for ($i = 0; $i -lt $iWipe; $i++) {
     if ($c.Lines[$i] -match '^HUD ping label=(SPREAD|STACK) ') { $livePing = $c.Lines[$i]; break }
 }
-if (-not $livePing) { $failures.Add('run C: no "HUD ping label=SPREAD|STACK" line while the run was live') }
+# R-WARDEN-FILLER-1 (keyrun #540, f-95d23cfc): Strike is the autorun Warden's filler, so Sundered stays up on the Pair
+# and the Cinder's Shatter (Sundered + Cinder Payoff, a 1 s stun) keeps landing. Measured headless
+# (RunCCarelessPairTests, seed 1 key 2): four Paired Warriors die before their first Spread Mark at engage+400, and the
+# Shatter at 2450 interrupts the last one's pair.spreadMark, so no mark lands in run C (main: first call 2206). A Pair
+# mark cast reached and stopped by the party is the same mechanic seen from the other side, so check 11 accepts either
+# the live call or that interrupt before the wipe. The live call stays required in the default bot run (E2eAssert.ps1
+# check 6; headless: mark_applied pair.spreadMark at 2333).
+$markStopped = $null
+if (-not $livePing) {
+    for ($i = 0; $i -lt $iWipe; $i++) {
+        if ($c.Lines[$i] -match '^EVENT \{"abilityId":"pair\.(spreadMark|stackCall)",.*"type":"interrupt"') { $markStopped = $c.Lines[$i]; break }
+    }
+}
+if (-not $livePing -and -not $markStopped) { $failures.Add('run C: no "HUD ping label=SPREAD|STACK" line while the run was live, and no Pair mark cast was interrupted before the wipe') }
+Write-Host "PING run C: live='$livePing' markStopped='$markStopped'"
 # Private run log, two seats: the human's (seat 1) run-end panel never lists a bot seat's causes.
 $causesC = @($c.Lines | Where-Object { $_ -match '^HUD runend cause ' })
 $foreignC = @($causesC | Where-Object { $_ -notmatch '^HUD runend cause seat=1 ' })
