@@ -55,7 +55,11 @@ public sealed class NoPolicyParityTests
                     // the rest of the leader's moves in a fight, as before.
                     var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits.ForRun(run.Content.Abilities)) with { Layout = run.Content.Layout };
                     var approach = leader.Role == ActorRole.Tank ? TankEngage.ApproachMove(view, leader, view.Kits.ResolveKit(leader.ClassId, view.ClassKit)) : null;
-                    commands.RemoveAll(c => c.ActorId == leader.Id && c is MoveCommand or DashCommand && !Equals(c, approach));
+                    // KICK-LEDGER-COOLDOWN-GAP (f-13b5c33a): BotCommandSource passes the leader's kick walk too (the step toward a caster
+                    // its Shield Bash is named to kick but cannot reach yet, RoleShared.LedgerKickApproachCommand), so the reference keeps
+                    // exactly that move beside the TankEngage approach; the byte-identical assertion below is unchanged.
+                    var kickWalk = RoleShared.LedgerKickApproachCommand(view, leader, view.Kits.ResolveKit(leader.ClassId, view.ClassKit));
+                    commands.RemoveAll(c => c.ActorId == leader.Id && c is MoveCommand or DashCommand && !Equals(c, approach) && !Equals(c, kickWalk));
                 }
             }
             foreach (var c in commands)

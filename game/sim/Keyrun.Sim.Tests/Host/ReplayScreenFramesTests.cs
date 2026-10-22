@@ -107,19 +107,21 @@ public sealed class ReplayScreenFramesTests
         }
         Assert.NotNull(dir);
         var log = InputLogDocument.Parse(File.ReadAllText(Path.Combine(dir!.FullName, EnterPingPath)), EnterPingPath);
-        var fired = Play(log, 5300);
+        var fired = Play(log, 5400);
         // Golden re-recorded 2026-10-21 on 24916b4b under the sim-tick recorder (R-CLOCK-2): Enter 0 -> 9, G 2 -> 11, Enter 694 -> 703, Enter 697 -> 706 (run starts on screen frame 9, so each run tick is +9 on the frame).
         // BOSS-TEACHES (R-BOSS-1, the Warden fight lasts 90-180 s): run K's run_end moved 691 -> 4603 (HudSceneRunsBKTests
         // measures it headlessly), so the run-end Enters moved 703/706 -> 4615/4618 (sim ticks 4606/4609). BOSS-CC-IMMUNE
         // (the boss refuses Steam's blind and lands its hits): run_end 4603 -> 5170, Enters 5182/5185 (sim 5173/5176).
         // R-LOCK-SETTER (#573, the bots' Lock setter is a damage seat whose Setup lands inside the Window, ahead of a
         // Payoff): run K's boss fight changed, run_end 5170 -> 5200, Enters 5212/5215 (sim 5203/5206).
+        // TEMPO-LOOP-CLAMP (f-57c04b4a, no Cleave dropped inside its cooldown), measured on the tree merged with #573:
+        // run_end 5200 -> 5299, Enters 5311/5314 (sim 5302/5305).
         var expected = new[]
         {
             new Fired("Enter", 9, false, 0),
             new Fired("G", 11, true, 2),
-            new Fired("Enter", 5212, true, 5203),
-            new Fired("Enter", 5215, true, 5206),
+            new Fired("Enter", 5311, true, 5302),
+            new Fired("Enter", 5314, true, 5305),
         };
         Assert.Equal(expected, fired);
     }

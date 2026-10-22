@@ -189,7 +189,13 @@ public static class PlaytestRunner
                     var approach = leader.Role == ActorRole.Tank
                         ? TankEngage.ApproachMove(view, leader, view.Kits.ResolveKit(leader.ClassId, view.ClassKit))
                         : null;
-                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && !Equals(c, approach));
+                    // KICK-LEDGER-COOLDOWN-GAP (f-13b5c33a): the same holds for the step a scripted leader takes toward a caster its
+                    // Shield Bash is named to kick but cannot reach yet (RoleShared.LedgerKickApproachCommand); a plan seat's kicks
+                    // come from the plan, so only the scripted party exempts it.
+                    var kickWalk = policy is null
+                        ? RoleShared.LedgerKickApproachCommand(view, leader, view.Kits.ResolveKit(leader.ClassId, view.ClassKit))
+                        : null;
+                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && !Equals(c, approach) && !Equals(c, kickWalk));
                 }
             }
 

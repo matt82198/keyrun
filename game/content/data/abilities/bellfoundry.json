@@ -1,0 +1,117 @@
+[
+  {
+    "id": "slagRam.moltenCharge", "name": "Molten Charge",
+    "castTicks": 50, "gcdTicks": 0, "cooldownTicks": 240, "charges": 1, "range": 9000,
+    "shape": { "kind": "line", "length": 9000, "radius": 800 },
+    "interruptible": false, "tags": [],
+    "effects": [ { "op": "damage", "amount": 150, "school": "fire" } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "tollingBell.toll", "name": "Resonant Toll",
+    "castTicks": 30, "gcdTicks": 0, "cooldownTicks": 160, "charges": 1, "range": 0,
+    "shape": { "kind": "circle", "radius": 6000 },
+    "interruptible": false, "tags": [],
+    "effects": [ { "op": "applyEffect", "effectId": "resonance", "durationTicks": 400, "stacks": 1 } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "furnaceThrall.stokeCore", "name": "Stoke Core",
+    "castTicks": 80, "gcdTicks": 0, "cooldownTicks": 300, "charges": 1, "range": 0,
+    "shape": { "kind": "self" },
+    "interruptible": true, "tags": ["healer"],
+    "effects": [ { "op": "applyEffect", "effectId": "overheatedCore", "durationTicks": 3000, "stacks": 1 } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "furnaceThrall.slagBurst", "name": "Slag Burst",
+    "castTicks": 0, "gcdTicks": 0, "cooldownTicks": 0, "charges": 1, "range": 0,
+    "shape": { "kind": "circle", "radius": 3000 },
+    "interruptible": false, "tags": [],
+    "effects": [ { "op": "applyEffect", "effectId": "slagBurn", "durationTicks": 100, "stacks": 1 } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "scaldHound.boilingBlood", "name": "Boiling Blood",
+    "castTicks": 0, "gcdTicks": 0, "cooldownTicks": 60, "charges": 1, "range": 0,
+    "shape": { "kind": "self" },
+    "interruptible": false, "tags": [],
+    "effects": [ { "op": "applyEffect", "effectId": "boilingBlood", "durationTicks": 80, "stacks": 1 } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "brineMender.bronzeWard", "name": "Bronze Ward",
+    "castTicks": 60, "gcdTicks": 0, "cooldownTicks": 240, "charges": 1, "range": 0,
+    "shape": { "kind": "circle", "radius": 6000 },
+    "interruptible": true, "tags": ["healer"],
+    "effects": [ { "op": "applyEffect", "effectId": "bronzeWard", "durationTicks": 200, "stacks": 1 } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "ommet.pourSlag", "name": "Pour Slag",
+    "castTicks": 40, "gcdTicks": 0, "cooldownTicks": 160, "charges": 1, "range": 4000,
+    "shape": { "kind": "cone", "radius": 4000, "angle1024": 200 },
+    "interruptible": false, "tags": [],
+    "effects": [ { "op": "damage", "amount": 160, "school": "fire" } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "ommet.temper", "name": "Temper",
+    "castTicks": 80, "gcdTicks": 0, "cooldownTicks": 300, "charges": 1, "range": 0,
+    "shape": { "kind": "self" },
+    "interruptible": true, "tags": ["healer"],
+    "effects": [ { "op": "heal", "amount": 2000 } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "brineMother.undertow", "name": "Mother's Undertow",
+    "castTicks": 50, "gcdTicks": 0, "cooldownTicks": 400, "charges": 1, "range": 25000,
+    "shape": { "kind": "circle", "radius": 25000 },
+    "interruptible": false, "tags": [],
+    "effects": [ { "op": "damage", "amount": 10, "school": "frost" }, { "op": "pull", "distanceMm": 9000 } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "brineMother.boilingSurge", "name": "Boiling Surge",
+    "castTicks": 50, "gcdTicks": 0, "cooldownTicks": 400, "charges": 1, "range": 4500,
+    "shape": { "kind": "circle", "radius": 4500 },
+    "interruptible": false, "tags": [],
+    "effects": [ { "op": "damage", "amount": 170, "school": "fire" } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "brineMother.drowningHymn", "name": "Drowning Hymn",
+    "castTicks": 70, "gcdTicks": 0, "cooldownTicks": 200, "charges": 1, "range": 25000,
+    "shape": { "kind": "circle", "radius": 25000 },
+    "interruptible": true, "tags": ["healer"],
+    "effects": [ { "op": "damage", "amount": 110, "school": "frost" } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "greatBell.clangour", "name": "Clangour",
+    "castTicks": 40, "gcdTicks": 0, "cooldownTicks": 160, "charges": 1, "range": 4500,
+    "shape": { "kind": "cone", "radius": 4500, "angle1024": 220 },
+    "interruptible": false, "tags": [],
+    "effects": [ { "op": "damage", "amount": 230, "school": "physical" } ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "greatBell.stillTheBell", "name": "Still the Bell",
+    "castTicks": 20, "gcdTicks": 0, "cooldownTicks": 0, "charges": 1, "range": 0,
+    "shape": { "kind": "self" },
+    "interruptible": false, "tags": ["setup:lock"],
+    "effects": [
+      { "op": "applyEffect", "effectId": "lockShield", "durationTicks": 60, "stacks": 1 },
+      { "op": "window", "windowId": "lock", "durationTicks": 60, "onTarget": true, "setupClass": "boss", "self": true, "alternate": true }
+    ],
+    "cost": { "resource": "none", "amount": 0 }
+  },
+  {
+    "id": "greatBell.peal", "name": "Peal",
+    "castTicks": 10, "gcdTicks": 0, "cooldownTicks": 60, "charges": 1, "range": 0,
+    "shape": { "kind": "circle", "radius": 3000 },
+    "interruptible": false, "tags": [],
+    "effects": [ { "op": "damage", "amount": 90, "school": "physical" } ],
+    "cost": { "resource": "none", "amount": 0 }
+  }
+]

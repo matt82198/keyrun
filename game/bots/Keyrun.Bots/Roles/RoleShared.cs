@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Keyrun.Bots.Shared;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Bots.Roles;
@@ -168,6 +169,56 @@ public static class RoleShared
         {
             return null;
         }
+        var assignment = AssignedKick(view, self, kit);
+        if (assignment is null)
+        {
+            return null;
+        }
+        // KICK-LEDGER-COOLDOWN-GAP: a layout run's ledger may name a seat that is not ready yet (its cooldown ends before
+        // the cast resolves) or not in range yet (it walks in, LedgerKickApproachCommand); it presses the tick it can.
+        if (view.Layout is not null && !CanPressInterrupt(view, self, interruptId, kit, view.State.Actors[assignment.TargetId]))
+        {
+            return null;
+        }
+        return new CastCommand(tick, self.Id, interruptId, assignment.TargetId);
+    }
+
+    /// <summary>
+    /// KICK-LEDGER-COOLDOWN-GAP (finding f-13b5c33a; the WoW kick rotation: a melee kicker walks in to reach the caster):
+    /// when the ledger names <paramref name="self"/> to kick a cast but its interrupt cannot reach the caster yet, the step
+    /// toward the caster along the sim's path (R-PATH-1). Null when it is not the named kicker, the kick is not open yet
+    /// (BOT-KICK-TIMING), or the caster is already in range. Layout runs only; the oracle runner keeps the frozen ledger.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">Deciding actor.</param>
+    /// <param name="kit">Its kit.</param>
+    /// <returns>The step, or null.</returns>
+    public static MoveCommand? LedgerKickApproachCommand(BotView view, ActorState self, EffectiveKit kit)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        ArgumentNullException.ThrowIfNull(kit);
+        var interruptId = kit.InterruptAbilityId;
+        if (view.Layout is null || string.IsNullOrEmpty(interruptId) || !self.Alive || AssignedKick(view, self, kit) is not { } assignment)
+        {
+            return null;
+        }
+        var target = view.State.Actors[assignment.TargetId];
+        if (Casting.RangeMm(self, target) <= InterruptRangeMm(view, interruptId))
+        {
+            return null;
+        }
+        return PathMoves.Toward(view, view.State.Tick, self, target.Pos);
+    }
+
+    /// <summary>
+    /// The ledger's assignment when it names <paramref name="self"/> as the kicker and the kick is open, else null. The oracle
+    /// runner (no layout) keeps the frozen per-class TS ledger; a layout run uses the party's, across classes.
+    /// </summary>
+    private static InterruptAssignment? AssignedKick(BotView view, ActorState self, EffectiveKit kit)
+    {
+        var tick = view.State.Tick;
+        var interruptId = kit.InterruptAbilityId!;
         InterruptAssignment? assignment;
         if (view.Layout is not null)
         {
@@ -202,8 +253,14 @@ public static class RoleShared
         {
             return null;
         }
-        return new CastCommand(tick, self.Id, interruptId, assignment.TargetId);
+        return assignment;
     }
+
+    /// <summary>The tier-one test of <see cref="Ledger.ResolvePartyInterrupt"/>: cooldown ended, off the GCD, in range.</summary>
+    private static bool CanPressInterrupt(BotView view, ActorState self, string interruptId, EffectiveKit kit, ActorState target) =>
+        Readiness.CooldownReadyTick(self, interruptId) <= view.State.Tick
+        && (Readiness.IsOffGcd(kit, interruptId) || self.GcdReadyTick <= view.State.Tick)
+        && Casting.RangeMm(self, target) <= InterruptRangeMm(view, interruptId);
 
     /// <summary>The interrupt's content range, mm; unbounded when the view carries no content registry.</summary>
     /// <param name="view">Bot view.</param>

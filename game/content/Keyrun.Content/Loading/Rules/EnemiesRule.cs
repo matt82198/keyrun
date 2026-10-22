@@ -24,6 +24,17 @@ internal sealed class EnemiesRule : IContentRule
                 // drawn from the target it would mark ground the cast never reaches; only a circle may anchor there.
                 if (step.Telegraph is { Anchor: TelegraphAnchor.Target, Shape: not TelegraphShape.Circle } anchored)
                     Fail(where + " script step \"" + step.Cast + "\" telegraph anchor \"target\" needs a circle (has " + anchored.Shape.ToString().ToLowerInvariant() + ")");
+                // SCRIPT-GATE (D66): exactly one condition, each one the sim can judge.
+                if (step.When is { } gate)
+                {
+                    string at = where + " script step \"" + step.Cast + "\" when";
+                    if ((gate.HasEffect is null) == (gate.HealthBelowBp is null))
+                        Fail(at + " must set exactly one of hasEffect and healthBelowBp");
+                    if (gate.HasEffect is { } effectId && !reg.Effects.ContainsKey(effectId))
+                        Fail(at + " hasEffect references unknown effect \"" + effectId + "\"");
+                    if (gate.HealthBelowBp is { } bp && (bp <= 0 || bp >= 10000))
+                        Fail(at + " healthBelowBp must be in 1..9999, got " + bp);
+                }
             }
             foreach (BreakBarDef bar in enemy.BreakBars ?? new ValueList<BreakBarDef>())
                 CheckOps(bar.OnEmpty, reg, where + " breakBar \"" + bar.Id + "\"", requireSetupClass: true);
