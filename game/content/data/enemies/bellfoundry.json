@@ -1,0 +1,131 @@
+[
+  {
+    "id": "bellfoundry.slagRam",
+    "name": "Slag Ram",
+    "maxHealth": 7000,
+    "role": "melee",
+    "speedMmPerTick": 207,
+    "abilities": ["slagRam.moltenCharge", "choir.meleeSwing"],
+    "script": [
+      { "at": "loop", "every": 240, "cast": "slagRam.moltenCharge",
+        "telegraph": { "shape": "line", "length": 9000, "width": 1600, "leadTicks": 50, "spansCast": true } },
+      { "at": 60, "every": 150, "cast": "choir.meleeSwing" }
+    ]
+  },
+  {
+    "id": "bellfoundry.tollingBell",
+    "name": "Drowned Bell",
+    "maxHealth": 3000,
+    "role": "caster",
+    "abilities": ["tollingBell.toll"],
+    "script": [
+      { "at": "loop", "every": 160, "cast": "tollingBell.toll",
+        "telegraph": { "shape": "circle", "radius": 6000, "leadTicks": 30, "spansCast": true } }
+    ]
+  },
+  {
+    "id": "bellfoundry.furnaceThrall",
+    "name": "Furnace Thrall",
+    "maxHealth": 5000,
+    "role": "melee",
+    "speedMmPerTick": 207,
+    "abilities": ["furnaceThrall.stokeCore", "furnaceThrall.slagBurst", "choir.meleeSwing"],
+    "script": [
+      { "at": 40, "every": 300, "cast": "furnaceThrall.stokeCore" },
+      { "at": 60, "every": 150, "cast": "choir.meleeSwing" },
+      { "at": "onDeath", "cast": "furnaceThrall.slagBurst", "when": { "hasEffect": "overheatedCore" },
+        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 40 } }
+    ]
+  },
+  {
+    "id": "bellfoundry.scaldHound",
+    "name": "Scald Hound",
+    "maxHealth": 2500,
+    "role": "melee",
+    "speedMmPerTick": 260,
+    "abilities": ["scaldHound.boilingBlood", "choir.meleeSwing"],
+    "script": [
+      { "at": "loop", "every": 60, "cast": "scaldHound.boilingBlood", "when": { "healthBelowBp": 3000 } },
+      { "at": 60, "every": 150, "cast": "choir.meleeSwing" }
+    ]
+  },
+  {
+    "id": "bellfoundry.brineMender",
+    "name": "Brine Mender",
+    "maxHealth": 5000,
+    "role": "caster",
+    "abilities": ["brineMender.bronzeWard"],
+    "script": [
+      { "at": 80, "every": 240, "cast": "brineMender.bronzeWard",
+        "telegraph": { "shape": "circle", "radius": 6000, "leadTicks": 60, "spansCast": true } }
+    ]
+  },
+  {
+    "id": "bellfoundry.ommet",
+    "name": "Foundry-Master Ommet",
+    "maxHealth": 30000,
+    "role": "boss",
+    "abilities": ["ommet.pourSlag", "ommet.temper"],
+    "script": [
+      { "at": "loop", "every": 160, "cast": "ommet.pourSlag",
+        "telegraph": { "shape": "cone", "radius": 4000, "angle1024": 200, "leadTicks": 40, "spansCast": true } },
+      { "at": 230, "every": 300, "cast": "ommet.temper" }
+    ]
+  },
+  {
+    "id": "bellfoundry.brineMother",
+    "name": "The Brine Mother",
+    "maxHealth": 32000,
+    "role": "boss",
+    "abilities": ["brineMother.undertow", "brineMother.boilingSurge", "brineMother.drowningHymn"],
+    "script": [
+      { "at": "loop", "every": 400, "cast": "brineMother.undertow",
+        "telegraph": { "shape": "circle", "radius": 25000, "leadTicks": 50, "spansCast": true } },
+      { "at": 450, "every": 400, "cast": "brineMother.boilingSurge",
+        "telegraph": { "shape": "circle", "radius": 4500, "leadTicks": 50, "spansCast": true } },
+      { "at": 200, "every": 200, "cast": "brineMother.drowningHymn", "when": { "healthBelowBp": 6000 },
+        "telegraph": { "shape": "circle", "radius": 25000, "leadTicks": 70, "spansCast": true } }
+    ]
+  },
+  {
+    "id": "bellfoundry.greatBell",
+    "name": "Old Sorrow, the Drowned Bell",
+    "maxHealth": 21000,
+    "role": "boss",
+    "abilities": ["greatBell.clangour", "greatBell.stillTheBell"],
+    "script": [
+      { "at": "loop", "every": 160, "cast": "greatBell.clangour",
+        "telegraph": { "shape": "cone", "radius": 4500, "angle1024": 220, "leadTicks": 40, "spansCast": true } },
+      { "at": "loop", "every": 600, "cast": "greatBell.stillTheBell",
+        "telegraph": { "shape": "circle", "radius": 4000, "leadTicks": 20, "spansCast": true } }
+    ],
+    "breakBars": [
+      { "id": "clapperBreak", "max": 100, "drainPerInterrupt": 50, "drainPerControl": 20,
+        "onEmpty": [{ "op": "applyEffect", "effectId": "stunned", "durationTicks": 100, "stacks": 1 }] }
+    ]
+  },
+  {
+    "id": "bellfoundry.clapperA",
+    "name": "Iron Clapper (A)",
+    "maxHealth": 7000,
+    "role": "elite",
+    "abilities": ["greatBell.peal"],
+    "breakBarId": "clapperBreak",
+    "script": [
+      { "at": "loop", "every": 400, "cast": "greatBell.peal",
+        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 10, "spansCast": true } }
+    ]
+  },
+  {
+    "id": "bellfoundry.clapperB",
+    "name": "Iron Clapper (B)",
+    "maxHealth": 7000,
+    "role": "elite",
+    "abilities": ["greatBell.peal"],
+    "breakBarId": "clapperBreak",
+    "script": [
+      { "at": 200, "every": 400, "cast": "greatBell.peal",
+        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 10, "spansCast": true } }
+    ]
+  }
+]
