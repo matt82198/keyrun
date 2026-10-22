@@ -341,7 +341,7 @@ param(
     [int]$WipeFrames = 41200,
     [int]$PingAt = 100,
     [int]$PingFrames = 900,
-    [int]$RecordFrames = 6600,
+    [int]$RecordFrames = 18000,  # BOSS-TEACHES (R-BOSS-1): run K's boss fight now ends at tick 4603 (was 691); was 6600
     [int]$YawAt = 60,
     [string]$YawTo = '1.5',
     [int]$YawFrames = 900,
