@@ -1159,6 +1159,13 @@ public partial class SimDriver : Node
         _bots?.Reset();
         _log?.Line(FormattableString.Invariant(
             $"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} dungeon={setup.Dungeon.Id} key={setup.Content.KeyLevel} clause={run.Encounter.Rules.ActiveClauseId ?? "none"} seed={Options.Seed} actors={run.State.Actors.Count}"));
+        if (run.Content.Layout is { } navLayout)
+        {
+            // R-PATH-1: one PATH line per path the sim's grid computes (a straight line that was blocked), so the capture
+            // log proves actors walk routes; a straight walk in sight prints nothing.
+            Keyrun.Sim.Nav.NavGrid.Of(navLayout).Observer = (id, goal, n) =>
+                _log?.Line(FormattableString.Invariant($"PATH actor={id} goal={goal.X},{goal.Z} waypoints={n}"));
+        }
         // CAMERA-VERTICAL proof line: the rig's mode, pitch (mrad) and zoom (mm) as it holds them at run start.
         var cameraView = CameraMode.For(Options.Camera);
         _log?.Line(_rig is { } rig
