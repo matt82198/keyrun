@@ -23,7 +23,7 @@
 param(
     [string[]]$Lines,
     [string]$LogPath,
-    [int]$Ticks = 7000
+    [int]$Ticks = 13000  # f-3dcc702c: pull to 100% forces puts the boss at tick 9746 and run_end at 12294 (was 7000)
 )
 $ErrorActionPreference = 'Stop'
 

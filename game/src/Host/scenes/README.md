@@ -131,7 +131,8 @@ budget as a parameter with the same default.
          proves the live-run call.
     Run C (pull 1, the three-seat bot party, lane 3H), twice with the same seed:
         -- --autorun --ticks <PartyTicks> --careless-seat <CarelessSeat>
-        (default 9000 since R-DOOR-1, was 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
+        (default 13000 since f-3dcc702c: pull to 100% forces puts the boss at tick 9746 and run_end at 12294 at key 2 seed 1;
+        9000 since R-DOOR-1, was 7000; the header said 3700, the value before lane TUNE-BOSS made the run reach the boss)
         (--careless-seat S@T:GROUP, CARELESS-SEAT, default 3@300:pair; Matt 2026-10-20, verbatim: "no a bad player will
         accidentally aggro more groups, just test it naturally", STATE.md D43: under PRESPAWN-AGGRO the Warden walks
         into every ring first, so no enemy ever picked a bot seat. Bot seat S (the Cinder) plays carelessly from run tick

@@ -33,7 +33,7 @@
 #>
 param(
     [int]$Ticks = 9800,
-    [int]$PartyTicks = 9000  # R-DOOR-1: the door at 100% makes the dungeon longer by design (was 7000)
+    [int]$PartyTicks = 13000  # f-3dcc702c: pull to 100% forces puts the boss at tick 9746 and run_end at 12294 (key 2 seed 1; was 9000)
 )
 $ErrorActionPreference = 'Stop'
 
