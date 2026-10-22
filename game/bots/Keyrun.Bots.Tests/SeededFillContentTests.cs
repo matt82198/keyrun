@@ -42,6 +42,24 @@ public sealed class SeededFillContentTests
             new[] { ("cantor-vigil", 400), ("hall-sentries", 240), ("warrior-remnant", 420) },
             optional.Select(o => (o.Id, o.Points)).OrderBy(o => o.Id, StringComparer.Ordinal).ToArray());
         Assert.Equal(reg.Forces.Required, SeededRoster.Params(reg).ForcesRequired);
+        // The branch target is the bar plus the biggest optional pack (420), so any one optional pack is skippable.
+        Assert.Equal(1420, SeededRoster.Params(reg).TargetPoints);
+    }
+
+    [Fact(DisplayName = "Seeded fill content: per seed every branch still reaches the bar with any one optional pack skipped")]
+    public void Any_one_optional_pack_is_skippable()
+    {
+        var reg = ContentLoader.Load();
+        foreach (var (seed, fill) in Fills(reg))
+        {
+            foreach (var br in fill.Branches)
+            {
+                var own = fill.Packs.Where(p => br.Rooms.Contains(p.RoomId)).ToList();
+                Assert.All(own.Where(p => p.PullIndex < 0), p => Assert.True(
+                    br.Points - p.Points >= reg.Forces.Required,
+                    $"seed {seed}: branch {br.Index} falls to {br.Points - p.Points} without {p.InstanceId}"));
+            }
+        }
     }
 
     [Fact(DisplayName = "Seeded fill content: per seed the dungeon carries more than 100 percent and each branch reaches the bar alone")]

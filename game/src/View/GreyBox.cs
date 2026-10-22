@@ -75,19 +75,31 @@ public partial class GreyBox : Node3D
         _gates.Clear();
         _built = layout;
 
-        var boxes = layout.Boxes.Select(b => b.Box).ToList();
-        for (var i = 0; i < layout.Boxes.Count; i++)
+        // D45: a seeded layout's other branch (content SideBoxes) is drawn beside the walked chain, never walked.
+        var shell = Driver?.Setup?.Layout;
+        var drawn = layout.Boxes.Select(b => (b.Id, b.Box, b.IsRoom))
+            .Concat((shell?.SideBoxes ?? new Keyrun.Content.ValueList<Keyrun.Content.LayoutBox>())
+                .Select(s => (s.Id, new Bounds(s.MinX, s.MaxX, s.MinZ, s.MaxZ), s.Kind == Keyrun.Content.LayoutBoxKind.Room)))
+            .ToList();
+        var boxes = drawn.Select(d => d.Item2).ToList();
+        foreach (var (id, box, isRoom) in drawn)
         {
-            var b = layout.Boxes[i];
-            var floor = Slab(b.Id + "-floor",
-                new Vector3(Mid(b.Box.MinX, b.Box.MaxX), -FloorThickness / 2, Mid(b.Box.MinZ, b.Box.MaxZ)),
-                new Vector3(Len(b.Box.MinX, b.Box.MaxX), FloorThickness, Len(b.Box.MinZ, b.Box.MaxZ)),
-                b.IsRoom ? RoomFloor : CorridorFloor);
-            if (FloorMaterial is not null && b.IsRoom)
+            var floor = Slab(id + "-floor",
+                new Vector3(Mid(box.MinX, box.MaxX), -FloorThickness / 2, Mid(box.MinZ, box.MaxZ)),
+                new Vector3(Len(box.MinX, box.MaxX), FloorThickness, Len(box.MinZ, box.MaxZ)),
+                isRoom ? RoomFloor : CorridorFloor);
+            if (FloorMaterial is not null && isRoom)
             {
                 floor.Material = FloorMaterial;
             }
             AddChild(floor);
+        }
+        if (shell is not null)
+        {
+            foreach (var arrow in Keyrun.Content.BranchDoors.Arrows(shell))
+            {
+                AddChild(DoorArrowView.Make(arrow));
+            }
         }
 
         var n = 0;

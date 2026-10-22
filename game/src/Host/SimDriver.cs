@@ -84,7 +84,7 @@ public sealed class TickAccumulator
 /// <summary>
 /// The arena's user arguments (after <c>--</c> on the Godot command line), in the style of Main.cs's
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
-/// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T|A@pullN+O|A@pullN.hpP+O</c>, <c>--joiner-key K</c>,
+/// <c>--seed N</c>, <c>--dungeon-seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T|A@pullN+O|A@pullN.hpP+O</c>, <c>--joiner-key K</c>,
 /// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
 /// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>, <c>--rotation N</c>,
 /// <c>--ready-hold F</c>.
@@ -158,6 +158,8 @@ public sealed class TickAccumulator
 /// human then answers ready (no key is pushed, so a recording is unchanged). 0 = answer at the pop.</param>
 /// <param name="Camera">CAMERA-VERTICAL (<c>--camera chase|vertical</c>, <see cref="CameraMode"/>): the CameraRig's
 /// starting preset, render-only. Chase (the default) is the unchanged follow camera; V flips it in play.</param>
+/// <param name="DungeonSeed">D45/D46 (<c>--dungeon-seed N</c>): play the seeded two-branch dungeon generated from N
+/// (<see cref="SeededLayout"/>) instead of the hand-built Hollow Vault; null (the default) keeps the hand layout.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -179,7 +181,8 @@ public sealed record ArenaOptions(
     CarelessSeatPlan? CarelessSeat = null,
     int? Rotation = null,
     int ReadyHold = 0,
-    CameraModeKind Camera = CameraModeKind.Chase)
+    CameraModeKind Camera = CameraModeKind.Chase,
+    long? DungeonSeed = null)
 {
     /// <summary>
     /// Default autorun length: 20 s, set when the lieutenant's first heal began at tick 196 at key 2, leaving room for
@@ -224,6 +227,7 @@ public sealed record ArenaOptions(
         CarelessSeatPlan? careless = null;
         var readyHold = 0;
         var camera = CameraModeKind.Chase;
+        long? dungeonSeed = null;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -251,6 +255,9 @@ public sealed record ArenaOptions(
                     break;
                 case "--pull":
                     pull = PositiveInt(args, ref i);
+                    break;
+                case "--dungeon-seed":
+                    dungeonSeed = PositiveInt(args, ref i);
                     break;
                 case "--seed":
                     seed = PositiveInt(args, ref i);
@@ -299,7 +306,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, dungeonSeed);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -595,6 +602,15 @@ public partial class SimDriver : Node
         {
             Options = ArenaOptions.Parse(OS.GetCmdlineUserArgs());
             Registry = ContentLoader.Load();
+            // D45/D46 (f-46043bc6): --dungeon-seed N plays the seeded two-branch dungeon (SeededLayout: graph, grid, fill,
+            // layout); the bots walk the branch the seed picks. Without it the run plays the hand-built Hollow Vault.
+            if (Options.DungeonSeed is { } dungeonSeed)
+            {
+                var seeded = SeededLayout.Build(Registry, dungeonSeed);
+                Registry = seeded.Registry;
+                GD.Print(FormattableString.Invariant(
+                    $"DUNGEON seeded seed={dungeonSeed} branch={seeded.Branch} walked={string.Join(",", seeded.Fill.Branches[seeded.Branch].Rooms.Select(SeededLayout.RoomBoxId))} side={string.Join(",", seeded.Fill.Branches[1 - seeded.Branch].Rooms.Select(SeededLayout.RoomBoxId))} pulls={string.Join(",", seeded.Registry.Dungeons[DungeonId].Pulls.Select(p => p.Id))} forces={seeded.Fill.Branches[seeded.Branch].Points}/{seeded.Fill.TotalPoints}"));
+            }
             // The weekly affix rotation (AffixWeek, Matt 2026-10-20 "lean into m+ design"): a live run takes the index
             // of the week since the last US reset (Tuesday 15:00 UTC), read from the UTC clock here in the host, never in
             // the sim, unless --rotation N pins it; a --replay-input run takes the index its log recorded, never the

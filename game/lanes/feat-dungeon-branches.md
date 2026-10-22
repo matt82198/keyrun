@@ -1,2 +1,2 @@
-feat/dungeon-branches: branch fill over the seeded two-branch graph (Choir opens both branches, Pair and Seed dealt one per branch by seed, optional packs to 120% per branch); content roster adapter (D45/D46, f-46043bc6)
-BUILDLOG: feat/dungeon-branches - BranchFill (sim) + SeededRoster (bots adapter) + BranchFillTests/SeededFillContentTests; view and bot route are the next PR
+feat/dungeon-branches (+ -view): seeded two-branch dungeon on screen - BranchFill (Choir opens both branches, Pair/Seed dealt by seed, packs to bar + biggest pack), SeededLayout (walked branch = route, other = SideBoxes, one-way doors), view shell + arrows, --dungeon-seed N (D45/D46, f-46043bc6)
+BUILDLOG: feat/dungeon-branches - fill PR #574; view+bots PR: SeededLayout/BranchDoors/DoorArrowView, Playtest seeds 1/2/4 timed at k2 (forces at boss 420 or 340 of 1000: bots skip optional packs)
