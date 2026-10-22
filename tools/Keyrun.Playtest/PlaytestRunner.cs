@@ -42,7 +42,8 @@ public sealed record PlaytestResult(Run Run, string Log, RunStats Stats, HostRun
 
 /// <summary>
 /// Plays one Hollow Vault run headlessly with the three host seats (Warden 1, Chanter 2, Cinder 3) all driven by bots,
-/// built exactly as the host builds a run (<see cref="HostRunSetup.Build"/>, then <see cref="BossRules.Arm"/>). The leader
+/// built through the host's assembly path (<see cref="HostRunSetup.Build"/>, then <see cref="HostRunFactory.Create"/>,
+/// which ends in <see cref="BossRules.Arm"/>; without the bot seats' default loadouts, as before). The leader
 /// (<see cref="Follow.Leader"/>, the lowest living seat) walks the route between fights (<see cref="Follow.LeadRoute"/>, the autorun Warden walk) and keeps only its casts
 /// in a fight. With no policy every seat is the scripted bot (<see cref="Bot.MakeBot"/> over
 /// <see cref="RoleSet.Default"/>, dial 80, bot PRNG from the seed), so the run is today's bot run byte for byte; with a
@@ -109,8 +110,13 @@ public static class PlaytestRunner
         var policy = options.Policy;
         var registry = policy is null ? content : WithTalents(content, policy);
         var setup = HostRunSetup.Build(registry, options.DungeonId, options.Key, HostRunSetup.Roster[0].ClassId, withBots: true);
-        var created = RunRoot.CreateRun(options.Seed, setup.Party, setup.Dungeon, setup.Content, null);
-        var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
+        // R7: HostRunFactory, the host's assembly path. No bot loadouts and no options record, as this runner always
+        // built its runs (RunRequest.BotLoadouts), so the playtest output is unchanged.
+        var run = HostRunFactory.Create(setup, new RunRequest(options.Seed, registry, HostRunSetup.Roster[0].ClassId)
+        {
+            BotLoadouts = false,
+            RotationOptions = false,
+        }).Run;
         var kits = KitRegistry.From(registry);
         var context = new PolicyContext();
 
