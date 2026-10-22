@@ -1,0 +1,2 @@
+- R-FORCES-COMPLETE-1 (f-8c50a787): a key completes only at 100% Enemy Forces AND the final boss dead; the rule is in RunWiring.CheckRunEnd and the header reads "Enemy Forces" while pending. Draft: ships after the bot-pull-to-100 lane.
+BUILDLOG: draft PR for R-FORCES-COMPLETE-1; measured k2 seed 1 autorun plateau 680/1000 (68%), 19 optional packs never pulled; 17 Playtest reds and ScoreboardLiveTests wait on the bot-pull lane.

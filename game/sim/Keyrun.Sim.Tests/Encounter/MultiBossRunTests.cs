@@ -153,4 +153,53 @@ public sealed class MultiBossRunTests
         Assert.Throws<ArgumentException>(() => BossRules.ArmAll(encounter, new[] { Config(First), Config(First) }));
         Assert.Throws<ArgumentException>(() => BossRules.ArmAll(encounter, Array.Empty<BossConfig>()));
     }
+
+    /// <summary>An enemy worth <see cref="TrashPoints"/> forces, the only forces source in these runs (the boss banks 0).</summary>
+    private const int Trash = 950;
+    private const int TrashPoints = 100;
+
+    /// <summary>
+    /// Adds the forces trash enemy (idle, at the boss spot) and a forces goal of <paramref name="required"/> points to the
+    /// run's dungeon (R-FORCES-COMPLETE-1, FINISH-NEEDS-FORCES). The trash is the only forces source; the boss banks 0.
+    /// </summary>
+    private static Run WithForces(Run run, int required)
+    {
+        run.State.Actors[Trash] = Keyrun.Sim.Combat.Actors.Create(Trash, ActorKind.Enemy, "trash.melee", ActorRole.None, Vec3.Zero, 100000, 0);
+        var table = new Dictionary<string, int>(StringComparer.Ordinal) { ["trash.melee"] = TrashPoints };
+        return run with { Dungeon = run.Dungeon with { ForcesGoal = new ForcesGoal(table, required) } };
+    }
+
+    [Fact(DisplayName = "R-FORCES-COMPLETE-1: the final boss dies below 100% forces, no run_end; the packs then reach 100% and run_end fires")]
+    public void Final_boss_below_full_forces_does_not_end_the_run()
+    {
+        var run = WithForces(Armed(First), TrashPoints);
+
+        var (boss, bossEvents) = Kill(run, First);
+
+        Assert.False(boss.State.Actors[First].Alive);
+        Assert.Null(boss.RunEnd.Result);
+        Assert.DoesNotContain(bossEvents, e => e.Type == "run_end");
+
+        var (end, packEvents) = Kill(boss, Trash);
+
+        Assert.Equal(RunResult.Timed, end.RunEnd.Result);
+        Assert.Single(packEvents, e => e.Type == "run_end");
+    }
+
+    [Fact(DisplayName = "R-FORCES-COMPLETE-1: forces reach 100% before the final boss, and the run still ends on the boss's death")]
+    public void Full_forces_before_the_final_boss_ends_the_run_on_the_boss_death()
+    {
+        var run = WithForces(Armed(First), TrashPoints);
+
+        var (packed, packEvents) = Kill(run, Trash);
+
+        Assert.True(packed.State.Actors[First].Alive);
+        Assert.Null(packed.RunEnd.Result);
+        Assert.DoesNotContain(packEvents, e => e.Type == "run_end");
+
+        var (end, bossEvents) = Kill(packed, First);
+
+        Assert.Equal(RunResult.Timed, end.RunEnd.Result);
+        Assert.Single(bossEvents, e => e.Type == "run_end");
+    }
 }
