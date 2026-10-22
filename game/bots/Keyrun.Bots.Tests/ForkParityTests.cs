@@ -280,6 +280,7 @@ public sealed class ForkParityTests
         C.CloudOp c => new S.CloudOp(c.EffectId, c.DurationTicks, c.RadiusMm),
         C.DamagePctOp d => new S.DamagePctOp(d.MaxHealthBp, d.School),
         C.PullOp p => new S.PullOp(p.DistanceMm),
+        C.DisplaceOp d => new S.DisplaceOp(d.DistanceMm, d.FreesBinds, d.TowardTarget),
         _ => throw new InvalidOperationException($"fork parity: {where} has an op the sim does not run ({op.GetType().Name})"),
     };
 
