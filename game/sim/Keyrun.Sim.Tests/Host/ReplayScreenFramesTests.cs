@@ -107,16 +107,17 @@ public sealed class ReplayScreenFramesTests
         }
         Assert.NotNull(dir);
         var log = InputLogDocument.Parse(File.ReadAllText(Path.Combine(dir!.FullName, EnterPingPath)), EnterPingPath);
-        var fired = Play(log, 4700);
+        var fired = Play(log, 5300);
         // Golden re-recorded 2026-10-21 on 24916b4b under the sim-tick recorder (R-CLOCK-2): Enter 0 -> 9, G 2 -> 11, Enter 694 -> 703, Enter 697 -> 706 (run starts on screen frame 9, so each run tick is +9 on the frame).
         // BOSS-TEACHES (R-BOSS-1, the Warden fight lasts 90-180 s): run K's run_end moved 691 -> 4603 (HudSceneRunsBKTests
-        // measures it headlessly), so the run-end Enters moved 703/706 -> 4615/4618 (sim ticks 4606/4609).
+        // measures it headlessly), so the run-end Enters moved 703/706 -> 4615/4618 (sim ticks 4606/4609). BOSS-CC-IMMUNE
+        // (the boss refuses Steam's blind and lands its hits): run_end 4603 -> 5170, Enters 5182/5185 (sim 5173/5176).
         var expected = new[]
         {
             new Fired("Enter", 9, false, 0),
             new Fired("G", 11, true, 2),
-            new Fired("Enter", 4615, true, 4606),
-            new Fired("Enter", 4618, true, 4609),
+            new Fired("Enter", 5182, true, 5173),
+            new Fired("Enter", 5185, true, 5176),
         };
         Assert.Equal(expected, fired);
     }
