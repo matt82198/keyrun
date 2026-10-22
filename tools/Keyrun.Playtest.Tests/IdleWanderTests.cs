@@ -83,7 +83,15 @@ public sealed class IdleWanderTests
                 var path = walk[id];
                 var moves = Enumerable.Range(1, path.Count - 1).Count(i => path[i] != path[i - 1]);
                 _out.WriteLine($"seed {seed} {g.Id} actor {id}: moved on {moves} of {path.Count - 1} ticks, farthest from ring centre {path.Max(p => Fixed.Isqrt(D2(p, g.Center)))} of {g.AggroMm} mm");
-                Assert.True(moves > 0, $"{g.Id} actor {id} never moved in {IdleTicks} idle ticks");
+                if (IdleWander.HoldsPost(Setup.Content, id))
+                {
+                    // A kickable caster holds its post (A_kickable_caster_holds_its_post); every other member walks.
+                    Assert.True(moves == 0, $"{g.Id} actor {id} holds its post but moved on {moves} idle ticks");
+                }
+                else
+                {
+                    Assert.True(moves > 0, $"{g.Id} actor {id} never moved in {IdleTicks} idle ticks");
+                }
                 for (var i = 0; i < path.Count; i++)
                 {
                     Assert.True(D2(path[i], g.Center) <= g.AggroMm * g.AggroMm, $"{g.Id} actor {id} left its aggro radius at tick {i + 1}: {path[i]} centre {g.Center} r {g.AggroMm}");
@@ -177,6 +185,33 @@ public sealed class IdleWanderTests
             }
         }
         return null;
+    }
+
+    // Regression (PR #636 pins R-PINS-1 and LOOSE-PICKUP): a wandering Cantor stood 450 mm farther from the Chanter than it
+    // does at rest, outside Silencing Rebuke's reach, so the ledger-named kicker could not kick the Mending; and its stroll
+    // flipped which loose Choir enemy was nearest to the Warden, so the Taunt went to the one hitting nobody while the one
+    // beating the Cinder was taunted too late. A caster that casts an interruptible ability holds its post: it never leaves
+    // its rest position while idle, and its pack mates still walk.
+    [Theory(DisplayName = "Idle wander: a caster with an interruptible cast holds its post at rest while the rest of its pack still walks")]
+    [MemberData(nameof(Seeds))]
+    public void A_kickable_caster_holds_its_post(long seed)
+    {
+        var (walk, _) = Idle(seed);
+        var holders = 0;
+        foreach (var g in Wanderers())
+        {
+            var posts = g.ActorIds.Where(id => IdleWander.HoldsPost(Setup.Content, id)).ToList();
+            holders += posts.Count;
+            foreach (var id in posts)
+            {
+                Assert.True(walk[id].Distinct().Count() == 1, $"seed {seed} {g.Id} actor {id} casts an interruptible ability and must hold its post, but it stood on {walk[id].Distinct().Count()} different spots");
+            }
+            if (posts.Count > 0 && posts.Count < g.ActorIds.Count)
+            {
+                Assert.Contains(g.ActorIds.Except(posts), id => walk[id].Distinct().Count() > 1);
+            }
+        }
+        Assert.True(holders >= 1, "the shipped Hollow Vault has a kickable caster in a wandering group: the check would be vacuous");
     }
 
     [Fact(DisplayName = "Idle wander: the same seed walks the same positions tick for tick, and the seed shapes the walk")]
