@@ -211,7 +211,7 @@ public sealed class HealerRole : IRole
         }
         if (RoleShared.Dist(target, self) > HealRangeMm)
         {
-            return Moves.MoveToward(tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(target.Pos)) is { } move ? new Command[] { move } : Array.Empty<Command>();
+            return PathMoves.Toward(view, tick, self, target.Pos) is { } move ? new Command[] { move } : Array.Empty<Command>();
         }
         return RoleShared.ReadyAndAffordable(self, abilityId, tick, kit)
             ? new Command[] { new CastCommand(tick, self.Id, abilityId, dispelId) }

@@ -4,6 +4,7 @@ using System.Linq;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
+using Keyrun.Sim.Nav;
 
 namespace Keyrun.Sim.Runs;
 
@@ -203,7 +204,9 @@ public static class RunRoot
             rulesConfig = rulesConfig with { Abilities = BossRules.CombatAbilities(armedBoss.Config, rulesConfig.Abilities) };
         }
         var rules = Rules.Make(rulesConfig);
-        var merged = commands.Concat(enc.Commands).ToList();
+        // R-PATH-1: on a layout run an enemy chase walks its grid path to its target, not a straight line into a wall.
+        var enemyCommands = layout is null ? enc.Commands : NavFollow.RouteChase(run.State, enc.Commands, NavGrid.Of(layout));
+        var merged = commands.Concat(enemyCommands).ToList();
         // BIBLE.md:156 Tide: floor patches drift with the telegraphs, before combat reads them this tick.
         var stepped = Tick.Step(Clauses.DriftFloorWindows(run.State, run.Encounter.Rules), merged, rules);
         events.AddRange(stepped.Events);
@@ -357,7 +360,7 @@ public static class RunRoot
                 continue;
             }
             var pre = run.State.Actors.TryGetValue(actor.Id, out var was) ? was.Pos : actor.Pos;
-            actor.Pos = Movement.ClampToWalkable(pre, actor.Pos, open);
+            actor.Pos = NavFollow.SlideOffObstacles(pre, Movement.ClampToWalkable(pre, actor.Pos, open), layout.Obstacles);
         }
 
         foreach (var actor in next.Actors.Values)
