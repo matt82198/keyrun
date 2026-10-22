@@ -11,15 +11,19 @@ namespace Keyrun.Sim.Runs;
 /// <summary>
 /// The composition root (sim/index.ts): wires the core tick loop, the combat StepRules and the encounter step into one
 /// <see cref="CreateRun"/> / <see cref="StepRun"/> pair, so a host (the Godot SimDriver, tests, the replay tool) never
-/// hand-wires the lanes. Every <see cref="StepRun"/> is addressed to the run's current tick, in this order:
+/// hand-wires the lanes. Every <see cref="StepRun"/> is addressed to the run's current tick and runs the phases of
+/// <see cref="RunPipeline"/> (one file each under <c>Run/Phases/</c>), in this order:
 /// <list type="number">
+/// <item>RUN-END-FREEZE: a finished run only advances its clock.</item>
 /// <item><see cref="EncounterStep.Step"/> on the pre-combat state: enemy casts, telegraphs, break-bar drains off this
 /// tick's caller commands, pull advance.</item>
 /// <item>Caller commands then enemy commands through <see cref="Tick.Step"/> with <see cref="Rules.Make"/> built from the
-/// content and the run's Clause (<see cref="RunWiring.RulesConfigOf"/>).</item>
-/// <item>Break-bar onEmpty patches; the next pull's spawn (with <c>pull_start</c>) when the index advanced.</item>
-/// <item>Echo spawns, releases (a layout run's dead seats respawn at the entrance, <see cref="Release"/>), targeting
-/// fixup, run-clock time for player deaths and wipe, run-end detection and <c>run_end</c>.</item>
+/// content and the run's Clause (<see cref="RunWiring.RulesConfigOf"/>), cached per content in <see cref="RunTables"/>.</item>
+/// <item>Break-bar onEmpty patches, immune-stun refusals, control stops, stagger stops, telegraph cancels.</item>
+/// <item>The next pull's spawn (with <c>pull_start</c>) when the index advanced, or the layout step.</item>
+/// <item>Echo spawns, the armed boss's death clearing its pull, releases (a layout run's dead seats respawn at the
+/// entrance, <see cref="Release"/>), targeting fixup, run-clock time for player deaths and wipe, run-end detection and
+/// <c>run_end</c>, the Seed loot award.</item>
 /// </list>
 /// </summary>
 public static class RunRoot
@@ -166,158 +170,9 @@ public static class RunRoot
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(commands);
-        var events = new List<SimEvent>();
-
-        // RUN-END-FREEZE: once run_end has fired the run is over. No rule, script, cast or death resolves any more, so
-        // an add left standing (a Sundered Twin when the boss dies) cannot take damage or die after the run record is
-        // written. The clock still advances exactly as Tick.Step advances it, so a host that keeps stepping stays in step.
-        if (run.RunEnd.Result is not null)
-        {
-            var frozen = run.State.Clone();
-            frozen.Tick += 1;
-            frozen.RunTimerTicks += 1;
-            return new RunStepResult(run with { State = frozen }, events);
-        }
-
-        Action<SimEvent> emit = events.Add;
-        var content = run.Content;
-
-        var wiring = new BreakBarWiring(
-            content.BreakBarSources ?? Array.Empty<BreakBarSource>(),
-            commands,
-            RunWiring.AbilityTagsOf(content.Abilities));
-        var layout = content.Layout;
-        var enc = EncounterStep.Step(
-            run.State,
-            run.Encounter,
-            run.Dungeon,
-            run.ActiveScripts ?? content.EnemyScripts,
-            emit,
-            wiring,
-            RunWiring.ScriptAbilitiesOf(content.Abilities));
-
-        // The run's Clause rides in its rules for exactly this step (clause-hooks.ts withEncounterRules).
-        var rulesConfig = RunWiring.RulesConfigOf(content, run.Encounter.Rules);
-        if (run.Encounter.Boss is { } armedBoss)
-        {
-            // LOCK-TELEGRAPH: an armed boss's Lock cast is a cast bar only; the boss rules own its shield and Window.
-            rulesConfig = rulesConfig with { Abilities = BossRules.CombatAbilities(armedBoss.Config, rulesConfig.Abilities) };
-        }
-        var rules = Rules.Make(rulesConfig);
-        // R-PATH-1: on a layout run an enemy chase walks its grid path to its target, not a straight line into a wall.
-        var enemyCommands = layout is null ? enc.Commands : NavFollow.RouteChase(run.State, enc.Commands, NavGrid.Of(layout));
-        if (layout is not null && Leash.EvadeMoves(run.State, NavGrid.Of(layout)) is { Count: > 0 } evades)
-        {
-            // AGGRO-CHASE leash: a pack that gave up the chase walks its grid path home.
-            enemyCommands = enemyCommands.Concat(evades).ToList();
-        }
-        var merged = commands.Concat(enemyCommands).ToList();
-        // BIBLE.md:156 Tide: floor patches drift with the telegraphs, before combat reads them this tick.
-        var stepped = Tick.Step(Clauses.DriftFloorWindows(run.State, run.Encounter.Rules), merged, rules);
-        events.AddRange(stepped.Events);
-
-        var nextState = RunWiring.ApplyBreakBarPatches(stepped.State, enc.EffectPatches, content.Effects);
-        if (content.CleaveMark is { } cleaveMark)
-        {
-            // R-BOSS-4: an unanswered Cleave marks every seat it hit other than its target (a stacking Cleaved). In place:
-            // this freshly stepped state is the run root's own.
-            CleaveMark.Apply(run.State, nextState, stepped.Events, cleaveMark, content.Effects, emit);
-        }
-
-        // STUN-IMMUNE-REFUSES (f-94749699): a stun-immune actor (the boss) takes no stun at all; every stun that landed
-        // on one this tick is refused with an "immune" event, before the stops and anything else read the state.
-        // BOSS-CC-IMMUNE: the same refusal covers every CC the boss is immune to (RunContent.ImmuneRefusedEffectIds).
-        nextState = ControlStops.RefuseImmuneStuns(
-            nextState, new ControlStops.StunRules(content.ImmuneRefusedEffectIds ?? content.StunEffectIds, content.StunImmuneClassIds, null), run.State.Tick, emit);
-
-        // STUN-STOPS-CAST (BIBLE s9.3): a stun, freeze or silence that landed this tick (in combat, or the Break bar's
-        // stagger just above) ends an interruptible cast, before the telegraph check below reads the casts. f-c63b43bf: a
-        // stun also ends a stunnable actor's uninterruptible cast (kick-immune is not stun-immune; the boss is stun-immune).
-        nextState = ControlStops.Apply(
-            run.State, nextState, content.StopEffectIds, content.Abilities, run.State.Tick, emit,
-            new ControlStops.StunRules(content.StunEffectIds, content.StunImmuneClassIds, enc.Staggered));
-
-        // f-8b3fff18 (STUN-STOPS-ENEMIES): the stagger stun lands now, so a staggered bar actor's cast that the
-        // stop above left (uninterruptible, or no host stop ids) ends here, before the telegraph check reads the casts.
-        nextState = RunWiring.StopCasts(nextState, enc.Staggered, emit);
-
-        // TELEGRAPH-CANCEL (BIBLE s3): a floor telegraph whose cast this tick's combat kicked, stopped or replaced is
-        // cancelled on this tick and never resolves (no telegraph_hit for a hit that cannot come).
-        var cancel = Telegraphs.CancelUnlanded(nextState, enc.Encounter.Telegraphs, run.State.Tick, emit, content.Abilities);
-        var nextEncounter = cancel.Cancelled.Count == 0 ? enc.Encounter : enc.Encounter with { Telegraphs = cancel.Telegraphs };
-        var activeScripts = run.ActiveScripts;
-        if (layout is null)
-        {
-            if (nextEncounter.PullIndex != run.Encounter.PullIndex)
-            {
-                nextState = RunWiring.MergeActors(nextState, Pulls.SpawnPull(run.Dungeon, nextEncounter.PullIndex, nextState.Tick, emit));
-                if (nextEncounter.PullIndex < run.Dungeon.Pulls.Count)
-                {
-                    nextEncounter = nextEncounter with { Engaged = nextEncounter.Engaged.Append(run.Dungeon.Pulls[nextEncounter.PullIndex].Id).ToList() };
-                }
-            }
-        }
-        else
-        {
-            var before = nextEncounter.Engaged.Count;
-            (nextState, nextEncounter) = StepLayout(layout, run, nextState, nextEncounter, emit, opts?.OpenSeats);
-            var newly = nextEncounter.Engaged.Skip(before).ToList();
-            if (newly.Count > 0)
-            {
-                // A pull or a pack (PATH-PACKS) runs its scripts on its own clock from its engage tick.
-                var groups = Aggro.GroupsOf(run.Dungeon, nextState.Tick, content.Packs, content.Layout, content.Patrols).Where(g => newly.Contains(g.Id)).Select(g => g.ActorIds).ToList();
-                activeScripts = OnEngageClock(activeScripts ?? content.EnemyScripts, content.EnemyScripts, groups, nextState.Tick, content.Abilities);
-            }
-        }
-        var echo = EchoSpawns.Step(nextEncounter, nextState, events, nextState.Tick, emit);
-        nextEncounter = echo.Encounter;
-        nextState = RunWiring.MergeActors(nextState, echo.Spawned);
-
-        // BOSS-DEATH-ENDS-ENCOUNTER (f-77fcfca4, Matt 2026-10-20: "boss death ends the encounter, adds despawn, like
-        // WoW"): the step the armed boss dies, its adds have just despawned above, so its pull is cleared on this same
-        // step rather than on the next step's pre-combat check, and run-end detection below sees the encounter over.
-        // Unarmed runs (every oracle trace) never take this path. The dungeon is passed as the encounter step above gets
-        // it: every pull is spawned from tick 0 (PRESPAWN-AGGRO), so no unspawned-pull view is needed.
-        if (nextEncounter.Boss is { } dyingBoss
-            && events.Any(e => e.Type == "death" && e.Get("actorId") is JsInt id && id.Value == dyingBoss.Config.BossActorId))
-        {
-            nextEncounter = Pulls.CheckPullAdvance(nextState, run.Dungeon, nextEncounter, run.State.Tick, emit);
-        }
-
-        // PATH-TO-BOSS (STATE.md D44): an open (abandoned or unfilled) seat is not in the run, so it never holds a wipe open.
-        var openSeats = opts?.OpenSeats;
-        // WIPE-IS-RELEASE (R-BACKFILL-2, layout runs): seats whose release delay is over respawn at the entrance before
-        // targeting and the wipe check read the party; this tick's dead seats get their respawn tick.
-        IReadOnlyDictionary<int, int> releases;
-        (nextState, releases) = Release.Step(run, nextState, openSeats, emit);
-
-        RunWiring.FixupTargeting(nextState);
-        nextEncounter = RunWiring.ApplyDeathsAndWipe(nextState, nextEncounter, events, nextState.Tick, emit, openSeats);
-
-        var runEnd = RunWiring.CheckRunEnd(
-            run.RunEnd, nextState, nextEncounter, run.Dungeon, nextState.Tick, opts?.AbandonRequested ?? false, emit, openSeats,
-            release: layout is not null);
-        if (runEnd.Result is RunResult result && run.RunEnd.Result is null)
-        {
-            if (result == RunResult.Depleted)
-            {
-                nextEncounter = nextEncounter with { Depleted = true };
-            }
-            emit(new SimEvent(nextState.Tick, "run_end", ("result", JsValue.Str(result.ToJs()))));
-        }
-
-        // SEED-LOOT-AWARD: the run root awards the Seed bonus itself (SeedLoot.cs summary: "the run root calls Observe
-        // once per tick with that tick's events").
-        var rewards = run.SeedRule is { } seedRule ? SeedLoot.Observe(run.Rewards, seedRule, events) : run.Rewards;
-        var next = new Run(nextState, nextEncounter, run.Dungeon, run.Content, runEnd)
-        {
-            Rewards = rewards,
-            SeedRule = run.SeedRule,
-            ActiveScripts = activeScripts,
-            Spawns = run.Spawns,
-            Releases = releases,
-        };
-        return new RunStepResult(next, events);
+        var ctx = new RunStepCtx(run, commands, opts, RunTables.Of(run.Content));
+        RunPipeline.Run(ctx);
+        return ctx.Result();
     }
 
     // SEED-PULL-TEACHES (STATE.md D27) and PRESPAWN-AGGRO (BIBLE section 9.1, "Scripts start at engage"): an engaged
@@ -327,7 +182,7 @@ public static class RunRoot
     // pack's swings never land in lockstep. Every other actor's script is kept as it is. An engaging member's script is
     // shifted from its content script (baseScripts), never from an already-shifted one, so a pack that leashed home and is
     // pulled again starts its clock afresh (AGGRO-CHASE); on a first engage the two are the same script.
-    private static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> OnEngageClock(
+    internal static IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> OnEngageClock(
         IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts, IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> baseScripts,
         IReadOnlyList<IReadOnlyList<int>> groups, int startTick, IReadOnlyDictionary<string, AbilityDef> abilities)
     {
@@ -362,7 +217,7 @@ public static class RunRoot
     /// (3) PRESPAWN-AGGRO (BIBLE section 9.1): every group whose aggro ring holds a living party member, or one of whose
     /// members took damage, engages (<see cref="Aggro"/>).
     /// </summary>
-    private static (SimState State, EncounterState Encounter) StepLayout(NavLayout layout, Run run, SimState next, EncounterState encounter, Action<SimEvent> emit, IReadOnlyList<int>? openSeats)
+    internal static (SimState State, EncounterState Encounter) StepLayout(NavLayout layout, Run run, SimState next, EncounterState encounter, Action<SimEvent> emit, IReadOnlyList<int>? openSeats)
     {
         var open = layout.OpenBoxes(run.Dungeon, encounter.PullIndex);
         foreach (var actor in next.Actors.Values)
