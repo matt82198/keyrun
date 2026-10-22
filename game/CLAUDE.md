@@ -82,6 +82,10 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
 - `.github/workflows/game.yml`: `game-test` (dotnet test), `game-e2e` (headless smoke, export, exported-exe smoke).
   Both are non-required until phase 4A.
 - `.github/workflows/tests.yml`: the required TS gate (`npm test` runs the oracle drift test).
+- Scene tests: `game-e2e` runs every `src/**/*SceneTest.ps1` by glob and requires `<Name>: PASS` from each; a new scene
+  test is wired by adding the file. The former `src/Host/HudSceneTest.ps1` is split into one file per run in
+  `src/Host/scenes/` (`HudRunA-SceneTest.ps1` to `HudRunN-SceneTest.ps1`, `HudSourceChecks-SceneTest.ps1`; check list in
+  its README.md). "HudSceneTest run X" or "check N" below means that run's file.
 
 Lanes do not edit the lane list below or BUILDLOG.md in their PR; each lane writes its own row file in game/lanes/ (see game/lanes/README.md) and a fold lane appends the rows here after the squash.
 
