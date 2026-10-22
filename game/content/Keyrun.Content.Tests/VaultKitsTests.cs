@@ -170,7 +170,8 @@ public sealed class VaultKitsTests
     {
         // BIBLE 9.3 is the Hollow Vault's kick economy; the Sunken Bellfoundry's own enemies (D66, enemies/bellfoundry.json)
         // carry their kicks below.
-        Assert.Equal(new[] { "Choral Mending", "Searing Hex", "Stoke", "Undertow" }, KickableNames(e => !e.Id.StartsWith("bellfoundry.", StringComparison.Ordinal)));
+        // R-PATROL-4 added the corridor patrol's interruptible Patrol Sweep, so the Hollow Vault now has these five.
+        Assert.Equal(new[] { "Choral Mending", "Patrol Sweep", "Searing Hex", "Stoke", "Undertow" }, KickableNames(e => !e.Id.StartsWith("bellfoundry.", StringComparison.Ordinal)));
     }
 
     [Fact(DisplayName = "D66 / R-SORROW-1: the Sunken Bellfoundry adds exactly nine kickable casts of its own")]
