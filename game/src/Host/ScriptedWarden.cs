@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Keyrun.Bots.Roles;
+using Keyrun.Bots;
 using Keyrun.Bots.Shared;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
@@ -47,6 +48,122 @@ public sealed class ScriptedWarden
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(into);
+        var start = into.Count;
+        SampleRotation(tick, run, into, openSeats);
+        if (run.State.Actors.TryGetValue(HostRunSetup.HumanId, out var me) && me.Alive)
+        {
+            ApplyFrontalAnswer(CleaveAnswer(run, me, tick), me.Id, into, start);
+        }
+    }
+
+    /// <summary>
+    /// CLEAVE-ANSWER: folds a <see cref="CleaveAnswer"/> into the commands one seat queued this tick from
+    /// <paramref name="start"/> on: Brace is added (off the GCD, ahead of whatever else he pressed), a sidestep replaces
+    /// every move he queued (the dodge wins, as the bots' danger dodge does).
+    /// </summary>
+    /// <param name="answer">The answer, or null.</param>
+    /// <param name="actorId">The Warden.</param>
+    /// <param name="into">The command list.</param>
+    /// <param name="start">The first index this seat wrote this tick.</param>
+    public static void ApplyFrontalAnswer(Command? answer, int actorId, List<Command> into, int start)
+    {
+        ArgumentNullException.ThrowIfNull(into);
+        switch (answer)
+        {
+            case CastCommand brace when !into.Skip(start).Any(c => c is CastCommand cc && cc.ActorId == actorId && cc.AbilityId == brace.AbilityId):
+                into.Insert(start, brace);
+                break;
+            case MoveCommand step:
+                for (var i = into.Count - 1; i >= start; i--)
+                {
+                    if (into[i].ActorId == actorId && into[i] is MoveCommand or DashCommand)
+                    {
+                        into.RemoveAt(i);
+                    }
+                }
+                into.Add(step);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// CLEAVE-ANSWER (BIBLE s3 "Boss hits are bigger by design and are telegraphed: that is Brace's job"; s9 "Cleave: a
+    /// slow frontal cone, readable from the boss's facing"; f-57c04b4a: once Tempo stopped dropping Cleaves, every one
+    /// landed and the unanswered Warden died before the Lock opened). While the armed boss's frontal telegraph (a cone
+    /// of a damage cast) is drawn over the Warden and he is not already Braced through its landing tick: Brace when it
+    /// is ready (its 60-tick buff covers the 40-tick bar), else the sidestep to the nearest point outside the cone (a
+    /// casting enemy does not turn, Encounter/Chase.cs, so the cone stays where it was drawn). Null when no frontal is
+    /// coming at him. The R-PATROL-3 trash Brace rule (two attackers, under half health) is unchanged: this is the
+    /// boss's telegraphed hit, a separate trigger.
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <param name="me">The Warden.</param>
+    /// <param name="tick">The pre-step tick.</param>
+    /// <returns>The Brace cast, the sidestep move, or null.</returns>
+    public static Command? CleaveAnswer(Run run, ActorState me, int tick)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        ArgumentNullException.ThrowIfNull(me);
+        if (run.Encounter.Boss is not { } boss || !run.Content.Abilities.TryGetValue(Defensive, out var brace))
+        {
+            return null;
+        }
+        var bossId = boss.Config.BossActorId;
+        var selfMm = PointMm.Of(me.Pos);
+        var frontals = run.Encounter.Telegraphs
+            .Where(t => t.SourceId == bossId && t.ResolvesTick > tick && t.Shape == "cone"
+                && run.Content.Abilities.TryGetValue(t.AbilityId, out var a) && a.Effects.Any(op => op is DamageOp)
+                && !Positioning.IsSpent(BotViews.ToBotTelegraph(t), run.State))
+            .ToList();
+        // Near the cone at all (its radius plus a stride): beyond that the frontal is no business of his.
+        if (!frontals.Any(t => Near(t, me.Pos)))
+        {
+            return null;
+        }
+        var lands = frontals.Max(t => t.ResolvesTick);
+        if (me.Effects.Exists(e => e.EffectId == BraceEffect && e.EndsTick > lands))
+        {
+            return null;
+        }
+        if (!frontals.Any(t => InFrontal(t, me.Pos)))
+        {
+            // Clear of the cone, unbraced: hold still until it lands, so the rotation's approach does not walk him back in.
+            return new MoveCommand(tick, me.Id, new Dir2(0, 0), me.Yaw);
+        }
+        if (Ready(me, brace, tick))
+        {
+            return new CastCommand(tick, me.Id, Defensive, me.Id);
+        }
+        var danger = frontals.Select(t => BotViews.ToBotTelegraph(t) with { Danger = true }).ToList();
+        var safe = Positioning.NearestSafePoint(selfMm, danger, 250, 40,
+            p => !frontals.Any(t => InFrontal(t, new Vec3(p.X, me.Pos.Y, p.Z))));
+        return safe is { } s ? Moves.MoveToward(tick, me.Id, selfMm, s) : null;
+    }
+
+    /// <summary>CLEAVE-ANSWER: the sidestep clears the drawn cone by this much angle (1/1024 turn, about 8 degrees a side).</summary>
+    private const int FrontalMarginAngle1024 = 48;
+
+    /// <summary>CLEAVE-ANSWER: and by this much radius, mm.</summary>
+    private const long FrontalMarginMm = 600;
+
+    // The sim's own cone test (Telegraphs.PointInCone) over the drawn cone grown by the margins, so a point the bots'
+    // float geometry calls safe on the edge is never one the integer resolve still hits.
+    private static bool InFrontal(Keyrun.Sim.Encounter.Telegraph t, Vec3 p) =>
+        Keyrun.Sim.Encounter.Telegraphs.PointInCone(t.Origin, t.Yaw, (t.Angle1024 ?? 0) + FrontalMarginAngle1024, (t.Radius ?? 0) + FrontalMarginMm, p);
+
+    private static bool Near(Keyrun.Sim.Encounter.Telegraph t, Vec3 p)
+    {
+        var r = (t.Radius ?? 0) + (2 * FrontalMarginMm);
+        var dx = p.X - t.Origin.X;
+        var dz = p.Z - t.Origin.Z;
+        return (dx * dx) + (dz * dz) <= r * r;
+    }
+
+    /// <summary>Brace's buff (content/data/abilities/warden.json, warden.brace applyEffect).</summary>
+    private const string BraceEffect = "braceSelf";
+
+    private void SampleRotation(int tick, Run run, List<Command> into, IReadOnlyList<int>? openSeats)
+    {
         var state = run.State;
         if (!state.Actors.TryGetValue(HostRunSetup.HumanId, out var me) || !me.Alive)
         {
