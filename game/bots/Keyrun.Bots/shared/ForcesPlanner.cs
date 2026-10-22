@@ -15,6 +15,12 @@ namespace Keyrun.Bots.Shared;
 /// <param name="Required">Points that fill the bar (100%).</param>
 public sealed record ForcesPlan(IReadOnlyDictionary<string, int> PointsByEnemy, int Required)
 {
+    /// <summary>
+    /// R-AOE-1 (c), f-c8ed3a62: the enemy class ids of role elite or boss. The tank never chain-pulls while one is engaged and
+    /// never pulls a group holding one (<see cref="ChainPull"/>). Empty when the plan was built without content.
+    /// </summary>
+    public IReadOnlySet<string> ChainBlocked { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
     /// <summary>The plan for <paramref name="registry"/>'s forces table, or null when content has none.</summary>
     /// <param name="registry">Content.</param>
     /// <returns>The plan, or null.</returns>
@@ -29,7 +35,11 @@ public sealed record ForcesPlan(IReadOnlyDictionary<string, int> PointsByEnemy, 
         {
             table[v.EnemyId] = v.Points;
         }
-        return new ForcesPlan(table, forces.Required);
+        var blocked = registry.Enemies.Values
+            .Where(e => e.Role is Keyrun.Content.EnemyRole.Elite or Keyrun.Content.EnemyRole.Boss)
+            .Select(e => e.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        return new ForcesPlan(table, forces.Required) { ChainBlocked = blocked };
     }
 }
 
@@ -44,6 +54,19 @@ public sealed record ForcesPlan(IReadOnlyDictionary<string, int> PointsByEnemy, 
 /// <param name="PullActorIds">The actor ids of every enemy in the dungeon's pulls.</param>
 public sealed record PullPlan(ForcesPlan Forces, IReadOnlyList<PackGroup> Packs, IReadOnlyList<int> PullActorIds)
 {
+    /// <summary>
+    /// R-AOE-1 (c), f-c8ed3a62: every aggro group the tank could chain into (the dungeon's pulls and the layout's packs; the
+    /// boss pulls and room-gated groups are left out), in <see cref="Aggro.GroupsOf"/> order. Empty unless built by
+    /// <see cref="Of"/>.
+    /// </summary>
+    public IReadOnlyList<AggroGroup> Groups { get; init; } = Array.Empty<AggroGroup>();
+
+    /// <summary>
+    /// R-AOE-1 (c) with R-PATROL-1: the run's patrol packs. The tank never chains along a path a still-idle patrol walks (a
+    /// patrol is a timing read, never a hidden add), see <see cref="ChainPull"/>. Empty when the run has none.
+    /// </summary>
+    public IReadOnlyList<PatrolPack> Patrols { get; init; } = Array.Empty<PatrolPack>();
+
     /// <summary>The plan for <paramref name="run"/>, or null when there is no forces table or the run has no packs.</summary>
     /// <param name="run">The run.</param>
     /// <param name="forces">The forces table, or null.</param>
@@ -55,7 +78,10 @@ public sealed record PullPlan(ForcesPlan Forces, IReadOnlyList<PackGroup> Packs,
         {
             return null;
         }
-        return new PullPlan(forces, packs, run.Dungeon.Pulls.SelectMany(p => p.Spawns).Select(s => (int)s.ActorId).ToList());
+        var groups = Aggro.GroupsOf(run.Dungeon, 0, packs, run.Content.Layout)
+            .Where(g => g.ActivateRoom is null && !Keyrun.Content.LayoutDef.IsBossPull(g.Id))
+            .ToList();
+        return new PullPlan(forces, packs, run.Dungeon.Pulls.SelectMany(p => p.Spawns).Select(s => (int)s.ActorId).ToList()) { Groups = groups, Patrols = run.Content.Patrols ?? Array.Empty<PatrolPack>() };
     }
 }
 

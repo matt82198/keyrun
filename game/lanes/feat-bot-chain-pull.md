@@ -1,0 +1,2 @@
+- feat-bot-chain-pull: the bot tank chain-pulls the next trash pack while the current one still lives (f-c8ed3a62, R-AOE-1 c)
+BUILDLOG: feat-bot-chain-pull: the lead tank walks at the next in-reach trash pack once the engaged enemies are at 40% health or less, with the party following, and never into an elite or boss; proved by BotChainPullTests (hollow-vault key 2 seed 1: pair engages before choir clears, no wipe, boss falls).

@@ -145,7 +145,18 @@ public static class Bot
         }
 
         var follow = avoid is null && !pingCommands.Any() ? Follow.FollowCommand(view, self) : null;
-        var travelling = follow is not null;
+        // R-AOE-1 (c), f-c8ed3a62: the bot tank in the lead seat chain-pulls the next pack while the current one is nearly dead
+        // (ChainPull). Skill-dial-free like every walk above; its casts stay and its role's own moves are dropped, as when
+        // travelling. The followers go with him through FollowCommand.
+        var chain = avoid is null && !pingCommands.Any() && view.Layout is { } chainLayout && view.PullPlan is { } chainPlan && Follow.LeaderOf(view)?.Id == self.Id
+            ? ChainPull.Move(tick, view.State, chainLayout, chainPlan, self)
+            : null;
+        if (chain is not null)
+        {
+            commands.Add(chain);
+        }
+
+        var travelling = follow is not null || chain is not null;
         // HEALER-TOPS-OFF (the WoW Mythic+ dungeon loop): between pulls a travelling healer still tops off a hurt ally
         // (its casts kept, its own moves dropped, through the same reaction delay and skill roll as a fight decision),
         // so the party never walks into the next pack hurt. Every other bot, and a healer with nobody hurt, only travels.

@@ -58,6 +58,21 @@ public sealed class ScriptedWarden
         SampleRotation(tick, run, into, openSeats);
         if (run.State.Actors.TryGetValue(HostRunSetup.HumanId, out var me) && me.Alive)
         {
+            // R-AOE-1 (c), f-c8ed3a62: the tank chain-pulls. ChainPull.Move is the one origin of the walk (the lead-seat bot and
+            // the headless playtest runner call it too); while it holds it replaces the moves he queued, his casts stay, and
+            // the cleave sidestep below still wins over it.
+            if (Follow.Leader(run.State)?.Id == me.Id && run.Content.Layout is { } layout && PullPlan.Of(run, Forces) is { } plan &&
+                ChainPull.Move(tick, run.State, layout, plan, me) is { } chain)
+            {
+                for (var i = into.Count - 1; i >= start; i--)
+                {
+                    if (into[i].ActorId == me.Id && into[i] is MoveCommand or DashCommand)
+                    {
+                        into.RemoveAt(i);
+                    }
+                }
+                into.Add(chain);
+            }
             ApplyFrontalAnswer(CleaveAnswer(run, me, tick), me.Id, into, start);
         }
     }
