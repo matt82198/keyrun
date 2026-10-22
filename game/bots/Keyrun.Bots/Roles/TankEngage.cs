@@ -28,6 +28,10 @@ public static class TankEngage
         return def.Range;
     }
 
+    /// <summary>The content definition of an ability (its damage effects and cooldown), or null when unknown.</summary>
+    private static Keyrun.Content.AbilityDef? AbilityOf(BotView view, string? abilityId) =>
+        abilityId is not null && view.Kits.Content is { } reg && reg.Abilities.TryGetValue(abilityId, out var def) ? def : null;
+
     /// <summary>tank-engage.ts reachMm: the shortest positive range among the rotation's abilities.</summary>
     private static long ReachMm(BotView view, EffectiveKit kit)
     {
@@ -80,7 +84,14 @@ public static class TankEngage
     /// <param name="actors">Actor table.</param>
     /// <param name="tank">The tank.</param>
     /// <returns>The enemy, or null.</returns>
-    public static ActorState? PickLooseEnemy(SortedDictionary<int, ActorState> actors, ActorState tank)
+    public static ActorState? PickLooseEnemy(SortedDictionary<int, ActorState> actors, ActorState tank) =>
+        LooseEnemies(actors, tank).FirstOrDefault();
+
+    /// <summary>The loose enemies in pickup order (R-TAUNT-4c seat HP, then R-TAUNT-3 row 1, distance, id); see <see cref="PickLooseEnemy"/>.</summary>
+    /// <param name="actors">Actor table.</param>
+    /// <param name="tank">The tank.</param>
+    /// <returns>Loose enemies, best first.</returns>
+    public static IEnumerable<ActorState> LooseEnemies(SortedDictionary<int, ActorState> actors, ActorState tank)
     {
         ArgumentNullException.ThrowIfNull(actors);
         ArgumentNullException.ThrowIfNull(tank);
@@ -89,10 +100,11 @@ public static class TankEngage
             // R-TAUNT-3 row 1 (design/THREAT-MODEL.md section 4; LOOSE-PICKUP): the enemy hurting its seat now (in melee reach of
             // the seat it is aimed at) comes before a nearer one standing off from its holder and hurting nobody, so where an idle
             // caster stands (a wander, a held post) never decides which enemy the Taunt goes to while a seat dies.
-            .OrderBy(a => HurtsItsSeat(actors, a) ? 0 : 1)
+            // R-TAUNT-4c: the enemy aimed at the lowest-HP non-tank seat goes first, so the opening taunt lands on it.
+            .OrderBy(a => SeatHealthKey(actors, a, tank.Id))
+            .ThenBy(a => HurtsItsSeat(actors, a) ? 0 : 1)
             .ThenBy(a => RoleShared.Dist(a, tank))
-            .ThenBy(a => a.Id)
-            .FirstOrDefault();
+            .ThenBy(a => a.Id);
     }
 
     /// <summary>
@@ -151,11 +163,68 @@ public static class TankEngage
         return PathMoves.Toward(view, view.State.Tick, self, target.Pos);
     }
 
-    // The loose-enemy taunt: a loose enemy inside taunt range with the taunt ready.
-    private static bool TauntFires(BotView view, ActorState self, EffectiveKit kit, double d)
+    /// <summary>
+    /// R-TAUNT-4c: the HP of the living non-tank player seat an enemy is aimed at (its holder, else its target), or
+    /// <see cref="long.MaxValue"/> when it is aimed at no such seat. The lowest key goes first.
+    /// </summary>
+    private static long SeatHealthKey(SortedDictionary<int, ActorState> actors, ActorState enemy, int tankId) =>
+        (enemy.HolderId ?? enemy.TargetId) is { } tid && tid != tankId && actors.TryGetValue(tid, out var seat) && seat.Kind == ActorKind.Player && seat.Alive
+            ? seat.Health
+            : long.MaxValue;
+
+    /// <summary>
+    /// R-TAUNT-4a: the damage the party commits to <paramref name="target"/> over <paramref name="windowTicks"/>: each living
+    /// player aimed at it contributes its kit's best damage per tick (the largest summed DamageOp over its cooldown or GCD) times the window.
+    /// The bot has no damage log, so this is the kit-derived estimate, not an observed rate.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="actors">Actor table.</param>
+    /// <param name="target">The enemy the taunt would be cast on.</param>
+    /// <param name="windowTicks">The taunt cooldown window in ticks.</param>
+    /// <returns>Committed damage over the window.</returns>
+    public static double CommittedDamage(BotView view, SortedDictionary<int, ActorState> actors, ActorState target, long windowTicks)
     {
+        double total = 0;
+        foreach (var seat in actors.Values)
+        {
+            if (seat.Kind != ActorKind.Player || !seat.Alive || seat.TargetId != target.Id)
+            {
+                continue;
+            }
+            var kit = view.Kits.ResolveKit(seat.ClassId, ClassKitView.Empty);
+            double bestPerTick = 0;
+            foreach (var abilityId in kit.Rotation)
+            {
+                if (AbilityOf(view, abilityId) is not { } def)
+                {
+                    continue;
+                }
+                long amount = def.Effects.OfType<Keyrun.Content.DamageOp>().Sum(e => (long)e.Amount);
+                if (amount <= 0)
+                {
+                    continue;
+                }
+                bestPerTick = Math.Max(bestPerTick, (double)amount / Math.Max(1, Math.Max(def.CooldownTicks, def.GcdTicks)));
+            }
+            total += bestPerTick * windowTicks;
+        }
+        return total;
+    }
+
+    /// <summary>
+    /// The loose-enemy taunt target: the first in-range enemy in <see cref="LooseEnemies"/> order (seat HP, hurting its seat,
+    /// distance, id). R-TAUNT-4a (doomed-enemy ordering) was removed by R-TAUNT-5 ship: it broke BotTankTakesHolderTests seed 3
+    /// and the tutorial Cinder run. Null when the taunt is not ready, has no ability id, or no loose enemy is in taunt range.
+    /// </summary>
+    private static ActorState? TauntTarget(BotView view, ActorState self, EffectiveKit kit)
+    {
+        if (string.IsNullOrEmpty(kit.TauntAbilityId) || !RoleShared.AbilityReady(self, kit.TauntAbilityId, view.State.Tick, kit))
+        {
+            return null;
+        }
         var tauntRange = RangeOf(view, kit.TauntAbilityId) ?? DefaultReachMm;
-        return PickLooseEnemy(view.State.Actors, self) is not null && !string.IsNullOrEmpty(kit.TauntAbilityId) && d <= tauntRange && RoleShared.AbilityReady(self, kit.TauntAbilityId, view.State.Tick, kit);
+        var inRange = LooseEnemies(view.State.Actors, self).Where(e => RoleShared.Dist(self, e) <= tauntRange).ToList();
+        return inRange.FirstOrDefault();
     }
 
     /// <summary>tank-engage.ts tankEngageCommands: null when there is nothing to engage.</summary>
@@ -182,12 +251,12 @@ public static class TankEngage
         }
         var d = RoleShared.Dist(self, target);
 
-        if (TauntFires(view, self, kit, d))
+        if (TauntTarget(view, self, kit) is { } tauntAt)
         {
-            // TauntFires is true only with a non-empty TauntAbilityId. DOOR-100 (R-DOOR-1): the taunt is off the GCD and
+            // TauntTarget is non-null only with a non-empty TauntAbilityId. DOOR-100 (R-DOOR-1): the taunt is off the GCD and
             // does not end the decision. A taunt the plan drops never goes on cooldown, so returning here on every tick
             // left an out-of-reach or in-reach tank with nothing but the taunt, standing on an engaged pack.
-            output.Add(new CastCommand(tick, self.Id, kit.TauntAbilityId!, target.Id));
+            output.Add(new CastCommand(tick, self.Id, kit.TauntAbilityId!, tauntAt.Id));
         }
 
         if (d > ReachMm(view, kit) - ReachMarginMm)
