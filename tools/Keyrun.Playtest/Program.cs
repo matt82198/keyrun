@@ -30,8 +30,9 @@ public static class Program
         "  playtest kit                                     every class button, from the game's data\n" +
         "  playtest run --player ID --policy FILE [--seed S] --out DIR [--ledger FILE] [--memory DIR] [--max-ticks T]\n" +
         "        plays the key the ledger holds for ID, records the ledger and ID's memory\n" +
-        "  playtest run [--key N] [--seed S] [--policy FILE] [--class ID] --out DIR [--max-ticks T]\n" +
-        "        an off-ledger run (no --player): nothing is recorded; --class is seat 1's class (default warden)\n" +
+        "  playtest run [--key N] [--seed S] [--policy FILE] [--class ID] [--dungeon ID] --out DIR [--max-ticks T]\n" +
+        "        an off-ledger run (no --player): nothing is recorded; --class is seat 1's class (default warden);\n" +
+        "        --dungeon is the dungeon id (default hollow-vault)\n" +
         "  playtest memory --player ID [--memory DIR]       what ID played, saw and learned\n" +
         "  playtest learn --player ID --lesson TEXT [--run N] [--memory DIR]\n" +
         "  playtest verify --player ID [--memory DIR]       re-check every receipt in ID's memory\n" +
@@ -124,7 +125,7 @@ public static class Program
 
     private static int Run(Dictionary<string, string> o)
     {
-        Only(o, "player", "key", "seed", "policy", "out", "ledger", "memory", "max-ticks", "class");
+        Only(o, "player", "key", "seed", "policy", "out", "ledger", "memory", "max-ticks", "class", "dungeon");
         if (!o.TryGetValue("out", out var outDir))
         {
             throw new ArgumentException("--out DIR is required");
@@ -136,6 +137,10 @@ public static class Program
 
         if (o.TryGetValue("player", out var player))
         {
+            if (o.ContainsKey("dungeon"))
+            {
+                throw new ArgumentException("--dungeon is for off-ledger runs (no --player)");
+            }
             var session = new SessionOptions(player, seed, outDir)
             {
                 PolicyPath = policyPath,
@@ -161,6 +166,14 @@ public static class Program
         var key =Int(o, "key", Keyrun.Sim.Runs.ScreenState.MinKey);
         var policy = policyPath is null ? null : PolicyReader.Load(policyPath, registry);
         var options = new PlaytestOptions(key, seed, policy) { MaxTicks = maxTicks, HumanClassId = classOpt ?? Keyrun.Host.Lobby.DefaultClassId };
+        if (o.TryGetValue("dungeon", out var dungeonId))
+        {
+            if (!registry.Dungeons.ContainsKey(dungeonId))
+            {
+                throw new ArgumentException($"--dungeon {dungeonId} is not a dungeon (one of {string.Join(", ", registry.Dungeons.Keys.OrderBy(k => k, StringComparer.Ordinal))})");
+            }
+            options = options with { DungeonId = dungeonId };
+        }
         var result = PlaytestRunner.Play(options, registry);
         Directory.CreateDirectory(outDir);
         var logPath = Path.Combine(outDir, "run.log").Replace('\\', '/');

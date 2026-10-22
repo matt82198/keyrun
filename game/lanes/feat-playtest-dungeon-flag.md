@@ -1,0 +1,2 @@
+- FEAT-PLAYTEST-DUNGEON-FLAG: the playtest CLI `run` takes `--dungeon <id>` (default hollow-vault) for off-ledger runs, and summary.json now carries `dungeon`, `forcesPoints`, `forcesRequired`, `forcesPercent` (from the sim's own Forces bar) and `kills` (dead enemy actors); finding f-3bec9ba9.
+BUILDLOG: FEAT-PLAYTEST-DUNGEON-FLAG: `--dungeon` selects a dungeon by id on the playtest CLI and summary.json reports forces and kills, so the Bellfoundry can be measured without an xUnit harness.
