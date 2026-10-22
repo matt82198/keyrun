@@ -73,12 +73,12 @@ public static class WalkGridGen
     }
 
     /// <summary>
-    /// The first row of a corridor's port on room <paramref name="r"/>: a branch room's centre row; on the entrance
+    /// The first row of a corridor's port on room <paramref name="r"/>: a branch room's centre row (a band wider than 3 cells is centred on it, so its walking row stays on the room's centre; the 2- and 3-cell grids are pinned byte-identical by SegmentedDungeonTests); on the entrance
     /// and the boss (shared by both branches), branch 0's corridor uses the top half of the wall and branch 1's the
     /// bottom half, so the two branches' corridors never touch.
     /// </summary>
     private static int PortRow(RoomNode n, RoomRect r, int otherLane, int corridorCells) =>
-        n.Kind == RoomKind.Trash ? r.CenterCz : otherLane == 0 ? r.MinCz + 1 : r.MaxCz - corridorCells;
+        n.Kind == RoomKind.Trash ? r.CenterCz - Math.Max(0, (corridorCells - 3) / 2) : otherLane == 0 ? r.MinCz + 1 : r.MaxCz - corridorCells;
 
     private static void Fill(byte[] cells, int width, int x0, int z0, int x1, int z1)
     {

@@ -302,7 +302,8 @@ public static class LayoutValidator
             if (!packIds.Add(pack.Id)) Fail("duplicate pack id \"" + pack.Id + "\"");
             if (pullOrder.Contains(pack.Id) || boxIds.Contains(pack.Id)) Fail(where + " reuses a pull or box id");
             LayoutBox? room = layout.Boxes.FirstOrDefault(b => b.Id == pack.Room);
-            if (room is null || room.Kind != LayoutBoxKind.Room) Fail(where + " stands in unknown room \"" + pack.Room + "\"");
+            // f-9607c9c0: a pack may stand in a corridor box too (trash in the halls); a pull still lives in a room only.
+            if (room is null) Fail(where + " stands in unknown box \"" + pack.Room + "\"");
             if (pack.Branch is not null && !boxIds.Contains(pack.Branch))
                 Fail(where + " branch \"" + pack.Branch + "\" is not a room in the layout");
             if (pack.AggroMm <= 0) Fail(where + " aggroMm must be positive, got " + pack.AggroMm);

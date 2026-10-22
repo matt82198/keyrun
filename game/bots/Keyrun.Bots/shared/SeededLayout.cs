@@ -49,10 +49,31 @@ public static class SeededLayout
 
     /// <summary>
     /// The generator params the run uses: 24 m rooms (a teaching pull stands 11.5 m from its door on the centre row, and
-    /// the side packs stand 9 m off it, so a teaching fight does not drift into a pack's ring) and 3 m corridors (the hand
-    /// corridors' width: the formation's 1 m side slots stay off the walls).
+    /// the side packs stand 9 m off it, so a teaching fight does not drift into a pack's ring) and 9 m corridors (f-9607c9c0,
+    /// Matt 2026-10-22 "the corridors are too narrow": three times the largest pack footprint the content ships, 2.7 m, so
+    /// three seats and a pack fit abreast; the formation's 1 m side slots stay off the walls).
     /// </summary>
-    public static readonly DungeonGenParams Params = DungeonGenParams.Default with { RoomCells = 24, CorridorCells = 3 };
+    public static readonly DungeonGenParams Params = DungeonGenParams.Default with { RoomCells = 24, CorridorCells = 9 };
+
+    /// <summary>
+    /// f-1232d0aa: a required pack or a teaching pull stands this far off its room's walking row (z), mm, alternating sides by
+    /// room: more than the largest pack footprint (2.7 m) from the room centre, and inside every pack's 4 m ring so walking
+    /// forward still pulls it. A player can pull it alone, or step round it.
+    /// </summary>
+    public const int OffsetMm = 3000;
+
+    /// <summary>A required pack stands this far from its room's west wall, mm: past the door, flanking the far exit.</summary>
+    public const int RequiredDepthMm = 14000;
+
+    // The side of the walking row a room's required pack or pull stands on: +1 or -1, alternating by room id.
+    private static int OffsetSide(int roomId) => roomId % 2 == 0 ? 1 : -1;
+
+    // A pack placed in a corridor stands mid-hall on its first leg (a cell in from the room it leaves), on the walking row.
+    private static C.LayoutPoint HallPoint(C.LayoutBox hall) => new()
+    {
+        X = Mid(hall.MinX + Params.CellMm, hall.MaxX),
+        Z = Mid(hall.MinZ, hall.MaxZ),
+    };
 
     /// <summary>
     /// Off-line pack slot offsets from a room's west wall (x) and centre row (z), mm, by fill slot: the four corners, then
@@ -192,12 +213,6 @@ public static class SeededLayout
     }
 
     /// <summary>
-    /// A pack on the walking line stands this far from its room's west wall, mm: the party's pass through the room meets its
-    /// ring (a required pack), with the ring's edge well past the doorway.
-    /// </summary>
-    public const int OnLineDepthMm = 12000;
-
-    /// <summary>
     /// R-MULTIBOSS-1: a multi-segment dungeon (<see cref="BuildSegmented"/>) as the run's content: <paramref name="reg"/> with its
     /// layout replaced by the seeded one, so the host's setup (HostRunSetup.Build) and the bots need no new rules. The layout is
     /// the walked chain (<see cref="SegmentWalk.Boxes"/>): the entrance, then per segment the walked branch's rooms and
@@ -257,23 +272,49 @@ public static class SeededLayout
         var walkedPacks = new List<C.LayoutPack>();
         var sidePacks = new List<C.LayoutPack>();
         var required = 0;
+        var neededPacks = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var p in d.Fill.Packs)
+        {
+            if (p.Branch == d.Branches[p.Segment] && required < reg.Forces.Required)
+            {
+                required += p.Points;
+                neededPacks.Add(p.InstanceId);
+            }
+        }
+        // f-9607c9c0: on every route some trash stands in a hall. Per (segment, branch) the pack of the branch's last room steps out
+        // into the corridor that leaves it (the hall is wide enough to fight in); on the walked branch only a required pack moves
+        // (a required pack in a hall is pulled in passing, an optional one could not be skipped there).
+        var inHall = new HashSet<string>(StringComparer.Ordinal);
+        for (var s = 0; s < graph.SegmentCount; s++)
+        {
+            for (var b = 0; b < RoomGraphGen.BranchCount; b++)
+            {
+                var pick = d.Fill.Packs.Where(p => p.Segment == s && p.Branch == b && (b != d.Branches[s] || neededPacks.Contains(p.InstanceId)))
+                    .OrderBy(p => d.Fill.Branches.Single(x => x.Segment == s && x.Branch == b).Rooms.ToList().IndexOf(p.RoomId))
+                    .LastOrDefault();
+                if (pick is not null)
+                {
+                    inHall.Add(pick.InstanceId);
+                }
+            }
+        }
         foreach (var p in d.Fill.Packs)
         {
             var roster = reg.Roster[p.PackId];
-            var onRoute = p.Branch == d.Branches[p.Segment];
-            var needed = onRoute && required < reg.Forces.Required;
-            if (needed)
-            {
-                required += p.Points;
-            }
+            var needed = neededPacks.Contains(p.InstanceId);
             var room = rooms[p.RoomId];
+            var hall = inHall.Contains(p.InstanceId) ? corridors[(p.RoomId, graph.Successors(p.RoomId).Single())][0] : null;
             var pack = new C.LayoutPack
             {
                 Id = p.InstanceId,
                 Name = roster.Name,
-                Room = room.Id,
+                Room = hall?.Id ?? room.Id,
                 Optional = !needed,
-                Center = needed ? new C.LayoutPoint { X = room.MinX + OnLineDepthMm, Z = Mid(room.MinZ, room.MaxZ) } : SlotPoint(room, p.Slot),
+                Center = hall is not null
+                    ? HallPoint(hall)
+                    : needed
+                        ? new C.LayoutPoint { X = room.MinX + RequiredDepthMm, Z = Mid(room.MinZ, room.MaxZ) + (OffsetSide(p.RoomId) * OffsetMm) }
+                        : SlotPoint(room, p.Slot),
                 AggroMm = roster.AggroMm,
                 Enemies = roster.Enemies,
                 Branch = FirstRoom(p.Segment, p.Branch),
@@ -330,7 +371,7 @@ public static class SeededLayout
         // The walked branch's teaching pulls hold their rooms; the boss holds the boss room.
         foreach (var p in fill.Packs.Where(p => p.Branch == branch && p.PullIndex >= 0))
         {
-            rooms[p.RoomId] = PullRoom(rooms[p.RoomId], p.PackId, OriginDepth(pullById[p.PackId]), null);
+            rooms[p.RoomId] = PullRoom(rooms[p.RoomId], p.PackId, OriginDepth(pullById[p.PackId]), null, originOffsetZ: OffsetSide(p.RoomId) * OffsetMm);
         }
         rooms[graph.BossId] = PullRoom(rooms[graph.BossId], C.LayoutDef.BossPullId, PullDepthMm, arena.AggroMm, doorZ);
 
@@ -345,10 +386,20 @@ public static class SeededLayout
         }
         route.Add(boxes[^1].Origin!);
 
-        var walkedPacks = fill.Packs.Where(p => p.Branch == branch && p.PullIndex < 0).Select(p => Pack(reg, p, rooms[p.RoomId], walked.Rooms[0])).ToList();
+        // f-9607c9c0: on each branch the last optional pack steps out into the hall that leaves its room. On the walked branch it is a
+        // required pack there (a hall pack cannot be skipped, so it is pulled in passing); on the other branch it stays optional.
+        C.LayoutBox? HallOf(FilledPack p) => corridors[(p.RoomId, graph.Successors(p.RoomId).Single())][0];
+        FilledPack? LastPack(DungeonBranch b) => fill.Packs.Where(p => p.Branch == b.Index && p.PullIndex < 0).OrderBy(p => b.Rooms.ToList().IndexOf(p.RoomId)).ThenBy(p => p.Slot).LastOrDefault();
+        var walkedHall = LastPack(walked);
+        var sideHall = LastPack(side);
+        var walkedPacks = fill.Packs.Where(p => p.Branch == branch && p.PullIndex < 0).Select(p => p == walkedHall
+            ? Pack(reg, p, rooms[p.RoomId], walked.Rooms[0]) with { Room = HallOf(p)!.Id, Center = HallPoint(HallOf(p)!), Optional = false }
+            : Pack(reg, p, rooms[p.RoomId], walked.Rooms[0])).ToList();
         var sidePacks = fill.Packs.Where(p => p.Branch != branch).Select(p => p.PullIndex >= 0
             ? PullAsPack(pullById[p.PackId], p, rooms[p.RoomId], side.Rooms[0])
-            : Pack(reg, p, rooms[p.RoomId], side.Rooms[0])).ToList();
+            : p == sideHall
+                ? Pack(reg, p, rooms[p.RoomId], side.Rooms[0]) with { Room = HallOf(p)!.Id, Center = HallPoint(HallOf(p)!) }
+                : Pack(reg, p, rooms[p.RoomId], side.Rooms[0])).ToList();
         var entrance = rooms[graph.EntranceId];
         var layout = new C.LayoutDef
         {
@@ -398,14 +449,15 @@ public static class SeededLayout
 
     // A pull room (LayoutValidator.CheckPullRoom): trigger = the room less 2000 mm from its west door; the spawns stand
     // PullDepthMm from the door on row z (the centre row, or the boss room's walked door row); the start 4500 mm in.
-    private static C.LayoutBox PullRoom(C.LayoutBox room, string pullId, int originDepth, int? aggroMm, int? originZ = null)
+    // originOffsetZ (f-1232d0aa) stands the spawns off that row, to a side; the start stays on it.
+    private static C.LayoutBox PullRoom(C.LayoutBox room, string pullId, int originDepth, int? aggroMm, int? originZ = null, int originOffsetZ = 0)
     {
         var z = originZ ?? Mid(room.MinZ, room.MaxZ);
         return room with
         {
             Pull = pullId,
             Trigger = new C.LayoutRect { MinX = room.MinX + C.LayoutValidator.TriggerInsetMm, MaxX = room.MaxX, MinZ = room.MinZ, MaxZ = room.MaxZ },
-            Origin = new C.LayoutPoint { X = room.MinX + originDepth, Z = z },
+            Origin = new C.LayoutPoint { X = room.MinX + originDepth, Z = z + originOffsetZ },
             Start = new C.LayoutPoint { X = room.MinX + StartDepthMm, Z = z },
             AggroMm = aggroMm,
         };
@@ -436,7 +488,7 @@ public static class SeededLayout
             Name = pull.Name,
             Room = room.Id,
             Optional = true,
-            Center = new C.LayoutPoint { X = room.MinX + depth + mx, Z = Mid(room.MinZ, room.MaxZ) + mz },
+            Center = new C.LayoutPoint { X = room.MinX + depth + mx, Z = Mid(room.MinZ, room.MaxZ) + mz + (OffsetSide(p.RoomId) * OffsetMm) },
             AggroMm = (int)Keyrun.Sim.Encounter.Pulls.DefaultAggroMm,
             Enemies = new C.ValueList<C.PullEnemy>(pull.Enemies.Select(e => e with { Spawn = new C.SpawnPoint { X = e.Spawn.X - mx, Z = e.Spawn.Z - mz } })),
             Branch = RoomBoxId(branchRoom),
