@@ -1,0 +1,29 @@
+{
+  "id": "scald-kennel",
+  "dungeon": "sunken-bellfoundry",
+  "name": "Scald Kennel",
+  "teaches": "spread the damage: a Hound below 30% boils over, so bring them down together",
+  "aggroMm": 4000,
+  "enemies": [
+    {
+      "enemyId": "bellfoundry.scaldHound",
+      "count": 5,
+      "spawn": {
+        "x": 0,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellows.keeper",
+      "count": 1,
+      "spawn": {
+        "x": 1500,
+        "z": 0
+      }
+    }
+  ],
+  "chainWith": [
+    "tolling-shift"
+  ],
+  "chainNote": "Chain with Tolling Shift (see there). Kick the Keeper's Stoke: Stoked Hounds that boil over are the wipe."
+}

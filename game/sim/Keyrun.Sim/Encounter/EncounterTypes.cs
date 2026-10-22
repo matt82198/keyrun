@@ -105,6 +105,12 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
     /// </summary>
     public bool TsCastReplace { get; init; }
 
+    /// <summary>
+    /// SCRIPT-GATE (D66; C#-only, never on an oracle setup): the step fires only while its caster meets this condition
+    /// (<see cref="Scripts.GateOpen"/>); null = always, the frozen-TS rule.
+    /// </summary>
+    public ScriptGate? When { get; init; }
+
     /// <summary>A <c>{at:"loop", every, cast}</c> step.</summary>
     public static ScriptStep Loop(int? every, string cast) => new(StepTrigger.Loop, cast) { Every = every };
 
@@ -114,6 +120,17 @@ public sealed record ScriptStep(StepTrigger Trigger, string Cast)
     /// <summary>A <c>{at:"onDeath", cast}</c> step.</summary>
     public static ScriptStep OnDeath(string cast) => new(StepTrigger.OnDeath, cast);
 }
+
+/// <summary>
+/// SCRIPT-GATE (D66, the Sunken Bellfoundry): a condition on a script step's caster. Exactly one is set (content
+/// validates it). <paramref name="HasEffect"/>: the caster carries that effect on the tick the step would fire (an onDeath
+/// step reads the effects the actor died with), so a Furnace Thrall bursts on death only if its Stoke Core was not
+/// kicked. <paramref name="HealthBelowBp"/>: the caster's health is below that share of its max, basis points, so a Scald
+/// Hound boils over below 30%.
+/// </summary>
+/// <param name="HasEffect">Effect id the caster must carry, or null.</param>
+/// <param name="HealthBelowBp">Health threshold, basis points of max health, or null.</param>
+public sealed record ScriptGate(string? HasEffect, int? HealthBelowBp);
 
 /// <summary>
 /// The encounter's minimal view of an ability (the fields of sim/combat/abilities.ts:46 AbilityDef that

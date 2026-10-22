@@ -1,0 +1,13 @@
+[
+  { "id": "resonance", "name": "Resonance", "maxStacks": 3,
+    "modifiers": { "damageDoneBp": 2000 }, "dispellableTag": "enrage" },
+  { "id": "overheatedCore", "name": "Overheated Core", "maxStacks": 1,
+    "modifiers": {}, "dispellableTag": null },
+  { "id": "slagBurn", "name": "Slag Burn", "maxStacks": 1,
+    "periodic": { "everyTicks": 20, "op": { "op": "damagePct", "maxHealthBp": 600, "school": "fire" } },
+    "modifiers": {}, "dispellableTag": null },
+  { "id": "boilingBlood", "name": "Boiling Blood", "maxStacks": 1,
+    "modifiers": { "damageDoneBp": 5000, "hasteBp": 3000 }, "dispellableTag": "enrage" },
+  { "id": "bronzeWard", "name": "Bronze Ward", "maxStacks": 1,
+    "modifiers": { "damageTakenBp": -5000 }, "dispellableTag": "magic" }
+]

@@ -31,5 +31,5 @@
   "classArmorBp": {
     "warden": 3500
   },
-  "stunImmuneEnemies": ["hollowWarden.boss"]
+  "stunImmuneEnemies": ["hollowWarden.boss", "bellfoundry.ommet", "bellfoundry.brineMother", "bellfoundry.greatBell"]
 }

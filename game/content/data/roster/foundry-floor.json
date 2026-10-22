@@ -1,0 +1,49 @@
+{
+  "id": "foundry-floor",
+  "dungeon": "sunken-bellfoundry",
+  "name": "Foundry Floor",
+  "teaches": "the whole crew in one pull: Bell first, kick the Core, sidestep the charge",
+  "aggroMm": 4500,
+  "enemies": [
+    {
+      "enemyId": "bellfoundry.slagRam",
+      "count": 1,
+      "spawn": {
+        "x": 0,
+        "z": 800
+      }
+    },
+    {
+      "enemyId": "bellfoundry.furnaceThrall",
+      "count": 1,
+      "spawn": {
+        "x": 0,
+        "z": -800
+      }
+    },
+    {
+      "enemyId": "bellfoundry.brineMender",
+      "count": 1,
+      "spawn": {
+        "x": 1500,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.tollingBell",
+      "count": 1,
+      "spawn": {
+        "x": 2000,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.scaldHound",
+      "count": 2,
+      "spawn": {
+        "x": -500,
+        "z": 0
+      }
+    }
+  ]
+}
