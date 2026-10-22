@@ -153,10 +153,18 @@ public sealed record Lobby
     /// <param name="classId">The human's class (<see cref="ClassFor"/>).</param>
     /// <param name="withBots">False for the solo seat.</param>
     /// <param name="rotationIndex">The affix rotation index.</param>
+    /// <param name="runSeed">
+    /// The run seed (f-416df6aa). Given, the setup is built as <see cref="DungeonPick.BuildSetup"/> builds it, so a
+    /// seed-generated dungeon is laid out from it. Null keeps the unseeded build, which fails closed for such a dungeon.
+    /// </param>
     /// <returns>The setup.</returns>
-    public static HostRunSetup SetupFor(C.ContentRegistry registry, QueueRequest request, string classId, bool withBots = true, int rotationIndex = 0)
+    public static HostRunSetup SetupFor(C.ContentRegistry registry, QueueRequest request, string classId, bool withBots = true, int rotationIndex = 0, long? runSeed = null)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (runSeed is { } seed)
+        {
+            return DungeonPick.BuildSetup(registry, request.DungeonId, seed, dungeonSeed: null, request.KeyLevel, classId, withBots, rotationIndex);
+        }
         return HostRunSetup.Build(registry, request.DungeonId, request.KeyLevel, classId, withBots, rotationIndex);
     }
 

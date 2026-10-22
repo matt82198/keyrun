@@ -1,0 +1,2 @@
+- FIX-LOBBY-SETUPFOR-DUNGEON-SEED: Lobby.SetupFor takes an optional run seed and, when given, builds through DungeonPick.BuildSetup, so sunken-bellfoundry builds (f-416df6aa); LobbySetupForTests proves it red on main and green after the fix; fastcheck -All PASS.
+BUILDLOG: FIX-LOBBY-SETUPFOR-DUNGEON-SEED: the lobby run-setup seam now passes the run seed for seed-generated dungeons, so the Bellfoundry no longer throws "pass dungeonSeed" from SetupFor.
