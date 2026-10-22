@@ -32,6 +32,7 @@ public sealed class RunCCarelessPairTests
     // longer by design, so the budget moves 7000 -> 9000 with the scene harness args; a Timed clear at 7847 is expected.
     private const int MaxTicks = 9000;
     private const int CarelessSeat = 3;
+    private const int E2eFixtureTicks = 3700; // game/fixtures/input/walk-kick.json run.ticks (E2eAssert.ps1)
     private const int CarelessFromTick = 300; // HudSceneTest $CarelessSeat '3@300:pair'
 
     private sealed record Drive(
@@ -54,9 +55,24 @@ public sealed class RunCCarelessPairTests
         /// ring, or a member's own aggro radius around that member (the rule that engages it, <see cref="EnemyAggro"/>).
         /// </summary>
         public bool CarelessInPairReach { get; init; }
+
+        /// <summary>The first tick a SPREAD or STACK call is up (<see cref="Keyrun.Hud.PingCalls.Calls"/>), or null.</summary>
+        public int? FirstPingTick { get; init; }
+
+        /// <summary>The tick of the party's third death (HudSceneTest's run C wipe index), or null.</summary>
+        public int? WipeTick { get; init; }
+
+        /// <summary>The Pair's pull_clear tick, or null.</summary>
+        public int? PairClear { get; init; }
+
+        /// <summary>The first interrupt of a Pair mark cast (pair.spreadMark or pair.stackCall), or null.</summary>
+        public int? MarkStoppedTick { get; init; }
     }
 
-    private static readonly Lazy<Drive> Driven = new(DriveRunC);
+    private static readonly Lazy<Drive> Driven = new(() => DriveRunC(carelessSeat: true));
+
+    /// <summary>E2eAssert.ps1's bot run: the default three-seat autorun with no careless seat (fixture walk-kick.json, 3700 ticks).</summary>
+    private static readonly Lazy<Drive> DefaultRun = new(() => DriveRunC(carelessSeat: false));
 
     private readonly ITestOutputHelper _output;
 
@@ -66,7 +82,7 @@ public sealed class RunCCarelessPairTests
 
     private static long Int(SimEvent e, string key) => ((JsInt)e.Get(key)!).Value;
 
-    private static Drive DriveRunC()
+    private static Drive DriveRunC(bool carelessSeat)
     {
         var registry = ContentLoader.Load();
         var setup = HostRunSetup.Build(registry, "hollow-vault", Key, "warden", withBots: true);
@@ -82,7 +98,9 @@ public sealed class RunCCarelessPairTests
         var pair = setup.Dungeon.Pulls.Single(p => p.Id == "pair");
         var pairIds = pair.Spawns.Select(s => s.ActorId).ToList();
         // As SimDriver's CarelessSeatPlan.For builds it for "3@300:pair".
-        var careless = new Dictionary<int, CarelessPlan> { [CarelessSeat] = new CarelessPlan(CarelessFromTick, pairIds) };
+        var careless = carelessSeat
+            ? new Dictionary<int, CarelessPlan> { [CarelessSeat] = new CarelessPlan(CarelessFromTick, pairIds) }
+            : new Dictionary<int, CarelessPlan>();
         var warden = new ScriptedWarden();
         var bots = new BotCommandSource(setup.BotActorIds, KitRegistry.From(registry), Seed, BotCommandSource.DefaultSkillDial, careless);
         var botSeats = setup.BotActorIds.Select(id => (long)id).ToHashSet();
@@ -96,6 +114,11 @@ public sealed class RunCCarelessPairTests
         var partyIds = party.Select(p => (long)p.Id).ToHashSet();
         var chanterSetupsOnEnemy = 0;
         var attunedCombos = 0;
+        int? firstPing = null;
+        int? wipe = null;
+        int? pairClear = null;
+        int? markStopped = null;
+        var partyDeaths = 0;
         while (run.State.Tick < MaxTicks && run.RunEnd.ResultTick is null)
         {
             var tick = run.State.Tick;
@@ -104,8 +127,24 @@ public sealed class RunCCarelessPairTests
             bots.Sample(tick, run, commands);
             var stepped = RunRoot.StepRun(run, commands);
             run = stepped.Run;
+            if (firstPing is null && Keyrun.Hud.PingCalls.Calls(run).Count > 0)
+            {
+                firstPing = run.State.Tick;
+            }
             foreach (var e in stepped.Events)
             {
+                if (e.Type == "death" && partyIds.Contains(Int(e, "actorId")) && ++partyDeaths == 3)
+                {
+                    wipe ??= e.Tick;
+                }
+                if (e.Type == "interrupt" && e.Get("abilityId") is JsString { Value: "pair.spreadMark" or "pair.stackCall" })
+                {
+                    markStopped ??= e.Tick;
+                }
+                if (e.Type == "pull_clear" && e.Get("pullId") is JsString { Value: "pair" })
+                {
+                    pairClear ??= e.Tick;
+                }
                 if (e.Type == "pull_clear" && ((JsString)e.Get("pullId")!).Value == "choir")
                 {
                     choirClear ??= e.Tick;
@@ -142,7 +181,47 @@ public sealed class RunCCarelessPairTests
             ChanterSetupsOnEnemy = chanterSetupsOnEnemy,
             AttunedCombos = attunedCombos,
             CarelessInPairReach = inReach,
+            FirstPingTick = firstPing,
+            WipeTick = wipe,
+            PairClear = pairClear,
+            MarkStoppedTick = markStopped,
         };
+    }
+
+    private void Print(string name, Drive d) =>
+        _output.WriteLine($"{name}: first ping={d.FirstPingTick?.ToString() ?? "none"} mark interrupted={d.MarkStoppedTick?.ToString() ?? "none"} wipe={d.WipeTick?.ToString() ?? "none"} " +
+            $"pair pull_start={d.PairEngage?.ToString() ?? "none"} pair pull_clear={d.PairClear?.ToString() ?? "none"} result={d.Result?.ToString() ?? "none"} endTick={d.EndTick}");
+
+    private static bool Before(int? tick, int? wipe) => tick is not null && (wipe is null || tick < wipe);
+
+    /// <summary>
+    /// HudSceneTest run C check 11 as re-derived by R-WARDEN-FILLER-1 (keyrun #540): before the party's third death,
+    /// either a SPREAD or STACK call is up (<see cref="Keyrun.Hud.PingCalls.Calls"/>, the Godot-free half of Hud/Pings.cs
+    /// that prints "HUD ping") or the party interrupts a Pair mark cast. With Strike as the filler, Sundered stays on the
+    /// Pair and the Cinder's Shatter (a 1 s stun) keeps landing: measured at seed 1 key 2, four Paired Warriors die before
+    /// their first Spread Mark (engage+400) and the Shatter at 2450 interrupts the last one's (main: first call 2206).
+    /// </summary>
+    [Fact(DisplayName = "Run C: a SPREAD or STACK call is up, or a Pair mark cast is interrupted, while the run is live (HudSceneTest run C check 11)")]
+    public void A_mark_call_or_a_stopped_mark_while_the_run_is_live()
+    {
+        var d = Driven.Value;
+        Print("run C", d);
+        Assert.True(
+            Before(d.FirstPingTick, d.WipeTick) || Before(d.MarkStoppedTick, d.WipeTick),
+            $"run C: no SPREAD or STACK call and no interrupted Pair mark before the wipe (pair pull_start {d.PairEngage}, result {d.Result?.ToString() ?? "none"} at {d.EndTick})");
+    }
+
+    /// <summary>
+    /// E2eAssert.ps1 check 6, the live call the scene suite still requires: the default three-seat autorun (no careless
+    /// seat) has a SPREAD or STACK call up before the party wipe and before run_end, inside the fixture's 3700 ticks.
+    /// </summary>
+    [Fact(DisplayName = "Default bot run (E2eAssert check 6): a SPREAD or STACK call is up while the run is live")]
+    public void The_default_bot_run_has_a_live_mark_call()
+    {
+        var d = DefaultRun.Value;
+        Print("default", d);
+        Assert.True(Before(d.FirstPingTick, d.WipeTick) && d.FirstPingTick < Math.Min(d.EndTick, E2eFixtureTicks),
+            $"the default bot run has no SPREAD or STACK call before the wipe and run_end inside {E2eFixtureTicks} ticks");
     }
 
     [Fact(DisplayName = "Run C with the bots' default gear: the Chanter opens Attuned on an enemy and a partner closes it (BIBLE s4 Setup -> Payoff)")]

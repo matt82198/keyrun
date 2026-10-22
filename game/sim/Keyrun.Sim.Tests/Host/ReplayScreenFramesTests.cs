@@ -112,12 +112,14 @@ public sealed class ReplayScreenFramesTests
         // BOSS-TEACHES (R-BOSS-1, the Warden fight lasts 90-180 s): run K's run_end moved 691 -> 4603 (HudSceneRunsBKTests
         // measures it headlessly), so the run-end Enters moved 703/706 -> 4615/4618 (sim ticks 4606/4609). BOSS-CC-IMMUNE
         // (the boss refuses Steam's blind and lands its hits): run_end 4603 -> 5170, Enters 5182/5185 (sim 5173/5176).
+        // R-LOCK-SETTER (#573, the bots' Lock setter is a damage seat whose Setup lands inside the Window, ahead of a
+        // Payoff): run K's boss fight changed, run_end 5170 -> 5200, Enters 5212/5215 (sim 5203/5206).
         var expected = new[]
         {
             new Fired("Enter", 9, false, 0),
             new Fired("G", 11, true, 2),
-            new Fired("Enter", 5182, true, 5173),
-            new Fired("Enter", 5185, true, 5176),
+            new Fired("Enter", 5212, true, 5203),
+            new Fired("Enter", 5215, true, 5206),
         };
         Assert.Equal(expected, fired);
     }
