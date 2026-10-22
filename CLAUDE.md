@@ -16,8 +16,8 @@ of it is `content/data/` (the frozen oracle root, see content/CLAUDE.md) and `te
 - **game/** - the Godot 4.7.2 .NET desktop game (D12, ENGINE-PLAN section 4). Read game/CLAUDE.md first.
   - **game/sim/** - Keyrun.Sim: pure net8.0 integer rules engine (no Godot reference), Keyrun.Sim.Tests (xUnit),
     oracle fixtures under Fixtures/oracle/. Parity contract: game/sim/ORACLE.md.
-  - **game/content/** - Keyrun.Content: JSON loader, validator and sim adapter (pure net8.0). The loader is PR #111
-    (open at the time of writing); check main before relying on it.
+  - **game/content/** - Keyrun.Content: JSON loader, validator and sim adapter (pure net8.0). The JSON loader,
+    validator and render-only models are on main (PR #111 merged; game/content/Keyrun.Content/ lists the files).
   - **game/src/**, **game/scenes/** - Godot views, HUD, input and the in-process sim host. Godot types live only here.
   - **game/bots/** - Keyrun.Bots, party AI, pure net8.0. Added in phase 3 (ENGINE-PLAN section 5).
 - **tools/godot/** - engine wrapper scripts (godot.ps1 / godot.sh resolve the binary and DOTNET_ROOT) and the

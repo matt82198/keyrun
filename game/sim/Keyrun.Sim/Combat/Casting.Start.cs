@@ -59,13 +59,9 @@ public static partial class Casting
         }
         Cooldowns.ConsumeCharge(actor, def, now);
         Cooldowns.StartGcd(actor, now, Riposte.GcdTicksFor(actor, def, now));
-        actor.CastId = def.Id;
-        actor.CastStartTick = now;
-        actor.CastEndsTick = now + HastedCastTicks(actor, def.CastTicks, rule, ctx, now);
-        actor.CastIsOverheat = overheat;
         // CAST-KEEPS-START-TARGET: a new cast starts unpinned; it resolves on the target set here unless a mid-cast
-        // SetTarget pins it. Mirrors casting.ts startCast.
-        ReleaseCastTarget(actor);
+        // SetTarget pins it. Mirrors casting.ts startCast. Written whole (R2), so no field of a replaced cast survives.
+        actor.Cast = new CastInFlight(def.Id, now, now + HastedCastTicks(actor, def.CastTicks, rule, ctx, now), overheat, null, false);
         if (targetId is not null)
         {
             actor.TargetId = targetId;

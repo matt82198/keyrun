@@ -4523,14 +4523,14 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 60,
+        "cooldownTicks": 30,
         "cost": {
           "amount": 0,
           "resource": "none"
         },
         "effects": [
           {
-            "amount": 130,
+            "amount": 80,
             "op": "damage",
             "school": "radiant"
           },
@@ -4544,9 +4544,7 @@
         "name": "Dissonance",
         "range": 25000,
         "shape": {
-          "angle1024": 120,
-          "kind": "cone",
-          "radius": 4000
+          "kind": "target"
         },
         "tags": [
           "payoff"
