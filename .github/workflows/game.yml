@@ -257,71 +257,42 @@ jobs:
           if ($code -ne 0) { throw "import.ps1 exited $code" }
           if ($out -notmatch '(?m)^IMPORT done files=\d+') { throw 'import.ps1 did not print IMPORT done' }
 
-      - name: SimDriver scene test (40 sim ticks headless, must print PASS)
+      # Module-boundary review slice S3: every game/src/**/*SceneTest.ps1 runs here, found by glob and never listed by
+      # name, sorted by path under game/src. Each must exit 0 and print "<Name>: PASS" (<Name> = the file's base name); a new
+      # scene test is wired by adding the file. Every test runs even after a failure, and the step fails at the end
+      # naming each failed test; finding no test at all fails the step. Each test's output goes to scene-logs/<Name>.log
+      # and each test's engine output to scene-logs/<Name>.engine.log (the HUD runs write it), uploaded on failure below.
+      # The two harnesses whose names do not end in SceneTest (NameplateDeclutterTest, CombatTextOverlapTest) keep
+      # their own steps below until they are renamed (NameplateDeclutterTest.ps1 is owned by open PR #528).
+      - name: Scene tests (every game/src/**/*SceneTest.ps1, each must print <Name> PASS)
         if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
-          $out = & ./game/src/Host/SimDriverSceneTest.ps1 2>&1 | Out-String
-          $code = $LASTEXITCODE
-          Write-Output $out
-          if ($code -ne 0) { throw "SimDriver scene test exited $code" }
-          if ($out -notmatch '(?m)^SimDriverSceneTest: PASS') { throw 'SimDriver scene test did not print PASS' }
-
-      - name: HUD scene test (run-end title, reward cards, recorded input, must print PASS)
-        if: steps.scope.outputs.code == 'true' && success()
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $out = & ./game/src/Host/HudSceneTest.ps1 2>&1 | Out-String
-          $code = $LASTEXITCODE
-          Write-Output $out
-          if ($code -ne 0) { throw "HUD scene test exited $code" }
-          if ($out -notmatch '(?m)^HudSceneTest: PASS') { throw 'HUD scene test did not print PASS' }
-
-      - name: Combat view scene test (must print PASS)
-        if: steps.scope.outputs.code == 'true' && success()
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $out = & ./game/src/Host/CombatViewSceneTest.ps1 2>&1 | Out-String
-          $code = $LASTEXITCODE
-          Write-Output $out
-          if ($code -ne 0) { throw "CombatView scene test exited $code" }
-          if ($out -notmatch '(?m)^CombatViewSceneTest: PASS') { throw 'CombatView scene test did not print PASS' }
-
-      - name: Screen scene test (between-runs screen, must print PASS)
-        if: steps.scope.outputs.code == 'true' && success()
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $out = & ./game/src/Hud/ScreenSceneTest.ps1 2>&1 | Out-String
-          $code = $LASTEXITCODE
-          Write-Output $out
-          if ($code -ne 0) { throw "Screen scene test exited $code" }
-          if ($out -notmatch '(?m)^ScreenSceneTest: PASS') { throw 'Screen scene test did not print PASS' }
-
-      - name: Progression save scene test (between-runs save/load across two launches, must print PASS)
-        if: steps.scope.outputs.code == 'true' && success()
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $out = & ./game/src/Hud/ProgressionSaveSceneTest.ps1 2>&1 | Out-String
-          $code = $LASTEXITCODE
-          Write-Output $out
-          if ($code -ne 0) { throw "ProgressionSaveSceneTest exited $code" }
-          if ($out -notmatch '(?m)^ProgressionSaveSceneTest: PASS') { throw 'ProgressionSave scene test did not print PASS' }
-
-      - name: Run-end bonus loot scene test (end-of-run panel, must print PASS)
-        if: steps.scope.outputs.code == 'true' && success()
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $out = & ./game/src/Hud/RunEndBonusSceneTest.ps1 2>&1 | Out-String
-          $code = $LASTEXITCODE
-          Write-Output $out
-          if ($code -ne 0) { throw "RunEndBonusSceneTest exited $code" }
-          if ($out -notmatch '(?m)^RunEndBonusSceneTest: PASS') { throw 'RunEndBonus scene test did not print PASS' }
+          New-Item -ItemType Directory -Force -Path scene-logs | Out-Null
+          $env:KEYRUN_SCENE_LOG_DIR = (Resolve-Path scene-logs).Path
+          $root = (Resolve-Path game/src).Path
+          $tests = @(Get-ChildItem -Path $root -Recurse -File -Filter '*SceneTest.ps1' |
+              Where-Object { $_.Name.EndsWith('SceneTest.ps1', [StringComparison]::Ordinal) } |
+              Sort-Object { $_.FullName.Substring($root.Length).Replace('\', '/') } -CaseSensitive)
+          if ($tests.Count -eq 0) { throw 'no game/src/**/*SceneTest.ps1 found: the scene test glob ran nothing' }
+          Write-Output "scene tests: $($tests.Count) found"
+          $tests | ForEach-Object { Write-Output "  $($_.FullName.Substring($root.Length + 1).Replace('\', '/'))" }
+          $failed = @()
+          foreach ($t in $tests) {
+            $name = $t.BaseName
+            Write-Output "::group::$name"
+            $out = & $t.FullName 2>&1 | Out-String
+            $code = $LASTEXITCODE
+            $out | Out-File -FilePath (Join-Path scene-logs "$name.log") -Encoding utf8
+            Write-Output $out
+            Write-Output '::endgroup::'
+            if ($code -ne 0) { $failed += "$name exited $code" }
+            elseif ($out -notmatch ('(?m)^' + [regex]::Escape($name) + ': PASS')) { $failed += "$name did not print '${name}: PASS'" }
+            else { Write-Output "scene test ok: ${name}: PASS" }
+          }
+          if ($failed.Count -gt 0) { throw ("scene tests failed ($($failed.Count) of $($tests.Count)): " + ($failed -join '; ')) }
+          Write-Output "scene tests: $($tests.Count) of $($tests.Count) printed PASS"
 
       - name: Nameplate declutter test (must print PASS)
         if: steps.scope.outputs.code == 'true' && success()
@@ -334,17 +305,6 @@ jobs:
           if ($code -ne 0) { throw "NameplateDeclutterTest exited $code" }
           if ($out -notmatch '(?m)^NameplateDeclutterTest: PASS') { throw 'NameplateDeclutter test did not print PASS' }
 
-      - name: Help hint scene test (must print PASS)
-        if: steps.scope.outputs.code == 'true' && success()
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $out = & ./game/src/Hud/HelpHintSceneTest.ps1 2>&1 | Out-String
-          $code = $LASTEXITCODE
-          Write-Output $out
-          if ($code -ne 0) { throw "HelpHintSceneTest exited $code" }
-          if ($out -notmatch '(?m)^HelpHintSceneTest: PASS') { throw 'HelpHintSceneTest did not print PASS' }
-
       - name: Combat text overlap test (1280x720 autorun, must print PASS)
         if: steps.scope.outputs.code == 'true' && success()
         shell: pwsh
@@ -356,37 +316,7 @@ jobs:
           if ($code -ne 0) { throw "CombatTextOverlapTest exited $code" }
           if ($out -notmatch '(?m)^CombatTextOverlapTest: PASS') { throw 'CombatTextOverlapTest did not print PASS' }
 
-      - name: KickReady scene test (HUD pip, ready-check cooldown lines, must print PASS)
-        if: steps.scope.outputs.code == 'true' && success()
-        continue-on-error: false
-        shell: pwsh
-        timeout-minutes: 12
-        run: |
-          $ErrorActionPreference = 'Continue'
-          New-Item -ItemType Directory -Force -Path scene-logs | Out-Null
-          $out = & ./game/src/Hud/KickReadySceneTest.ps1 2>&1 | Out-String
-          $code = $LASTEXITCODE
-          $out | Out-File -FilePath scene-logs/KickReadySceneTest.log -Encoding utf8
-          Write-Output $out
-          if ($code -ne 0) { throw "KickReadySceneTest exited $code" }
-          if ($out -notmatch '(?m)^KickReadySceneTest: PASS') { throw 'KickReadySceneTest did not print PASS' }
-
-      - name: GearVisual scene test (gear on the model, take slot, must print PASS)
-        if: steps.scope.outputs.code == 'true' && success()
-        continue-on-error: false
-        shell: pwsh
-        timeout-minutes: 12
-        run: |
-          $ErrorActionPreference = 'Continue'
-          New-Item -ItemType Directory -Force -Path scene-logs | Out-Null
-          $out = & ./game/src/View/GearVisualSceneTest.ps1 2>&1 | Out-String
-          $code = $LASTEXITCODE
-          $out | Out-File -FilePath scene-logs/GearVisualSceneTest.log -Encoding utf8
-          Write-Output $out
-          if ($code -ne 0) { throw "GearVisualSceneTest exited $code" }
-          if ($out -notmatch '(?m)^GearVisualSceneTest: PASS') { throw 'GearVisualSceneTest did not print PASS' }
-
-      - name: Upload KickReady and GearVisual scene logs on failure
+      - name: Upload scene test logs on failure
         if: failure() && steps.scope.outputs.code == 'true'
         uses: actions/upload-artifact@v4
         with:
