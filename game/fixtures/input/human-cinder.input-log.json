@@ -9,7 +9,7 @@
     { "tick": 7, "key": "Down", "pressed": true },
     { "tick": 12, "key": "Enter", "pressed": true },
     { "tick": 14, "key": "W", "pressed": true },
-    { "tick": 96, "key": "W", "pressed": false },
+    { "tick": 70, "key": "W", "pressed": false },
     { "tick": 98, "key": "Tab", "pressed": true },
     { "tick": 100, "key": "Tab", "pressed": true },
     { "tick": 104, "key": "G", "pressed": true },
