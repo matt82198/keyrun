@@ -240,7 +240,8 @@ pair combo, so there is always something to close even when the enemy Window was
 - **Deaths cost time, and a wipe is a release (D46, R-BACKFILL-2).** In the dungeon a death costs only time on the
   run clock, as in Mythic+. Each player death adds 300 ticks (15 s), and a full wipe adds 500 ticks more (STATE.md
   D46). That added time is the whole penalty and replaces nothing else. A wipe does not end the run: the dead seats
-  release and run back (section 9.1). The run ends only at the timer cap, the boss kill, or abandonment.
+  release and run back (section 9.1). The run ends only at completion (100% forces and the boss dead, in either
+  order; 9.5), the timer cap, or abandonment. (amended 2026-10-22: D44/D45/D46/R-FORCES-1)
 
 ### Chest tiers (defer to WoW Mythic+)
 
@@ -321,7 +322,8 @@ older line above contradicts one of them, that line is kept and marked "(superse
 - **A wipe is a release and a run-back, not a run end (2026-10-21).** Matt 2026-10-20: core dungeon loop defers to
   WoW Mythic+. Ruling R-BACKFILL-2, recorded 2026-10-21 07:15Z: dead seats respawn at the dungeon entrance after a
   release delay, the timer keeps running, and D46's time cost stands (+300 ticks per death, +500 per wipe). The run
-  ends only at the timer cap, the boss kill, or abandonment. This replaces the rule that a full wipe held for 100
+  ends only at completion (100% forces and the boss dead, in either order; 9.5), the timer cap, or abandonment
+  (amended 2026-10-22: D44/D45/D46/R-FORCES-1). This replaces the rule that a full wipe held for 100
   ticks finishes the run depleted (`RunWiring.cs:20` WipeGraceTicks, `:350-357`). Backfill is unchanged
   (R-BACKFILL-1, keyrun #425). Sim (code-lane values, not yet measured in run F): the release delay is 100 ticks
   (`RunWiring.ReleaseDelayTicks`) and the timer cap is twice par on the run clock (`Timer.CapParBp`), so a party
@@ -352,10 +354,10 @@ The map has no door between the Seed chamber and the boss (9.5). (amended 2026-1
   - **Scripts start at engage.** Every scripted timer of a group (a teaching pull's spread and stack, the Seed's
     opener, the boss's cleave) counts from its own engage tick, never from the run start or room entry. A group's
     first telegraph therefore always follows its engage, whatever tick the party arrives on.
-  - **Room lock-in (STATE.md D27) moves to engage.** A teaching pull's room gate shuts behind the party on the tick
-    that pull engages, not when someone steps through the door, and opens on its clear as before. The aggro radius
-    of a teaching pull lies inside its room, so the party is in the room when the gate shuts. Optional packs never
-    shut a gate.
+  - **No room gates or lock-ins (supersedes STATE.md D27).** Rooms are open. No gate shuts behind the party and
+    none waits on a clear. Packs are prespawned, and a pull starts when a pack aggroes. A party that leaves a pull's
+    reach drops it: the pack leashes home (R-AGGRO-1, #573). Each teaching pull keeps its lesson; the party has to
+    stand and fight it to learn it, not be locked in with it. (amended 2026-10-22: D44/D45/D46/R-FORCES-1)
   - **The teaching beats are unchanged.** The Choir still teaches the kick, and the Pair still teaches spread and
     stack. The Seed elite activates when the party enters its chamber, as WoW mini-bosses do (amended 2026-10-21, orchestrator ruling R6; Matt may overrule; the Seed is the one group that activates on room entry, sim constant Aggro.RoomActivatedPullIds = {"seed"}, PR #505; every other group engages on its aggro radius), and it drops its Window on death as before. The boss stands idle in the Warden arena with
     no door in front of it (9.5). It engages on its aggro radius like any group, and the Lock's 50% and 30-second
@@ -365,8 +367,9 @@ The map has no door between the Seed chamber and the boss (9.5). (amended 2026-1
     steps in, under the pull-size rule below. No POC pack is linked by default.
   - **Bots pull on purpose.** Bots path around the rings they mean to skip and step into the rings they mean to
     pull, with the tank first. They never engage a group by walking into it on the way somewhere else.
-- **Branching, no backtracking past a taken branch.** The Choir and Pair gates work as before: each opens when its
-  pull is cleared. At the Fork landing the party picks West or East. The first living party member to cross the
+- **Branching, no backtracking past a taken branch.** The Choir room and the Pair hall have no gates; the party
+  walks on whenever it chooses, and a pull it leaves leashes home (amended 2026-10-22: D44/D45/D46/R-FORCES-1).
+  At the Fork landing the party picks West or East. The first living party member to cross the
   threshold trigger of a branch's first room *seals* the branch. The doorway back into the Pair hall and the other
   branch's doorway close for the rest of the run, and so does the other branch's stair into the Seed chamber.
   Inside the taken branch every room stays open in both directions, and so does the stair between the branch and the
@@ -407,7 +410,8 @@ The map has no door between the Seed chamber and the boss (9.5). (amended 2026-1
   dungeon loop defers to WoW Mythic+. A dead seat releases and, after the release delay (value set by the code lane,
   100 ticks, to be measured in run F), respawns at the dungeon entrance. On a full wipe every seat does this. The run timer keeps
   running through the release and the run back, and D46's time cost is the only penalty (section 8). The run ends
-  only at the timer cap, the boss kill, or abandonment. **Forward-only still holds.** A respawned seat walks the
+  only at completion (9.5), the timer cap, or abandonment (amended 2026-10-22: D44/D45/D46/R-FORCES-1).
+  **Forward-only still holds.** A respawned seat walks the
   cleared path back to the party. Cleared groups stay dead, a sealed doorway stays shut, and no new pull spawns behind
   the party.
 - **What counts as a wipe.** A run wipes when no living seated player remains. Bots do not hold a run up on their
@@ -515,7 +519,7 @@ patches.
 
 ### 9.5 The boss door
 
-**No gates; the key completes on 100% forces and a dead boss.** There is no Hollow Door and no forces gate in the
+**No gates; the key completes on 100% forces and a dead boss.** There is no Hollow Door and no gate of any kind in the
 dungeon. Packs are prespawned, and a pull starts when a pack aggroes (9.1). The boss stands idle in the Warden
 arena and can be engaged at any time. A key completes on the first tick on which **both** Forces are at or above
 1000 points (100%) **and** the final boss is dead, in either order, as in WoW Mythic+. A party that kills the boss
