@@ -41,12 +41,15 @@ $stubText = @(
     'echo STUB start %*',
     'if "%STUB_SLEEP%"=="" set STUB_SLEEP=0',
     'if "%STUB_EXIT%"=="" set STUB_EXIT=0',
-    'powershell -NoProfile -NonInteractive -Command "$null=''%STUB_MARKER%''; Start-Sleep -Seconds %STUB_SLEEP%"',
+    'powershell -NoProfile -NonInteractive -Command "$null=''%STUB_MARKER%''; $until=(Get-Date).AddSeconds(%STUB_SLEEP%); while ((Get-Date) -lt $until -and -not (Test-Path -LiteralPath ''%STUB_GATE%'')) { Start-Sleep -Milliseconds 100 }"',
     'echo STUB end',
     'exit /b %STUB_EXIT%'
 )
 [IO.File]::WriteAllLines($stub, $stubText)
 $lockFile = Join-Path $work 'godot-launch.lock'
+# A stub that waits on a gate file ends early once the test creates it; this gate is never created (the stub then just
+# sleeps its STUB_SLEEP cap). It is never empty, because an empty STUB_GATE would make the stub's Test-Path fail.
+$neverGate = Join-Path $work 'never-released.gate'
 
 # godot.ps1 runs the .NET preflight (tools/godot/preflight.ps1) before the lock, so every launch here names a fixture
 # project (--path <absolute>) holding a fresh stand-in assembly; the real game/ tree is never consulted.
@@ -71,10 +74,11 @@ if ($env:KEYRUN_GODOT -ne $stub) { throw 'KEYRUN_GODOT is not the stub; refusing
 $failures = New-Object System.Collections.Generic.List[string]
 $markers = New-Object System.Collections.Generic.List[string]
 
-function Set-Stub([int]$sleep, [string]$marker, [int]$exit = 0) {
+function Set-Stub([int]$sleep, [string]$marker, [int]$exit = 0, [string]$gate = $neverGate) {
     $env:STUB_SLEEP = "$sleep"
     $env:STUB_EXIT = "$exit"
     $env:STUB_MARKER = $marker
+    $env:STUB_GATE = $gate
     if ($marker) { $markers.Add($marker) }
 }
 
@@ -138,17 +142,22 @@ $lockMsg = 'another Godot instance holds the launch lock'
 
 try {
     # ---- A: concurrent launches ------------------------------------------------------------------------------
-    Set-Stub 8 (New-Marker)
+    # The first launch holds the lock until this test releases its gate after the second launch has been judged. The
+    # lock window was a fixed 8 s stub sleep, but godot.ps1 spends its own cold-start time (preflight, then the C#
+    # compile in launch-lock.ps1) before the lock exists, so on a slow runner the second launch could land outside it.
+    $gateA1 = Join-Path $work 'release-a1.gate'
+    Set-Stub 120 (New-Marker) 0 $gateA1
     $a1 = Start-Launcher 'A1'
-    $held = Wait-For { Test-Path -LiteralPath $lockFile } 15
-    Check 'A.lock-file-appears' $held "no lock file at $lockFile while the first launch runs"
+    $held = Wait-For { Test-Path -LiteralPath $lockFile } 60
+    Check 'A.lock-file-appears' $held "no lock file at $lockFile within 60s while the first launch runs"
     Set-Stub 0 ''
     $a2 = Wait-Launcher (Start-Launcher 'A2') 30
     Check 'A.second-fails-fast' ((-not $a2.TimedOut) -and $a2.Seconds -lt 6) ("second launch took {0:N1}s timedOut={1}" -f $a2.Seconds, $a2.TimedOut)
     Check 'A.second-exits-nonzero' ($a2.Code -ne $null -and $a2.Code -ne 0) "second launch exit=$($a2.Code)"
     Check 'A.second-says-lock-held' ($a2.Text -match [regex]::Escape($lockMsg)) "second launch output: $($a2.Text.Trim())"
     Check 'A.second-did-not-run-stub' ($a2.Text -notmatch 'STUB start') 'second launch ran the binary'
-    $a1r = Wait-Launcher $a1 40
+    New-Item -ItemType File -Path $gateA1 | Out-Null
+    $a1r = Wait-Launcher $a1 60
     Check 'A.first-succeeds' ((-not $a1r.TimedOut) -and $a1r.Code -eq 0) "first launch exit=$($a1r.Code) timedOut=$($a1r.TimedOut)"
 
     # ---- C1: released after normal exit ------------------------------------------------------------------------
