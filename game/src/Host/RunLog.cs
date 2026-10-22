@@ -259,7 +259,7 @@ public sealed class CombatNarrator
             {
                 // R-PILE-10 (HudSceneTest check 8): name the target the cast started on, so a log reader can prove no
                 // cast starts on a dead player (Casting.StartCast sets TargetId; a mid-cast retarget pins CastTargetId).
-                var target = now.CastTargetPinned ? now.CastTargetId : now.TargetId;
+                var target = Casting.CastTargetOf(now);
                 lines.Add(FormattableString.Invariant(
                     $"CAST start actor={id} ability={castId} name=\"{Names.Ability(_registry, castId)}\" ends={now.CastEndsTick} target={(target is { } t ? t.ToString(System.Globalization.CultureInfo.InvariantCulture) : "none")}"));
             }
