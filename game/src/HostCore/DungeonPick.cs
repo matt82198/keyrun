@@ -46,6 +46,33 @@ public static class DungeonPick
         return id;
     }
 
+    /// <summary>
+    /// The layout seed for kit-only builds (a talent or Facet patch reads the setup's abilities, never its layout), so a
+    /// multi-segment dungeon builds without a run seed in hand.
+    /// </summary>
+    public const long KitSeed = 1;
+
+    /// <summary>
+    /// f-61f01ca3: the run setup for <paramref name="dungeonId"/>, the one call SimDriver builds a run through. A
+    /// multi-segment dungeon (the Sunken Bellfoundry, R-MULTIBOSS-1) is generated from a seed: <paramref name="dungeonSeed"/>
+    /// (<c>--dungeon-seed N</c>) when given, else the run's own <paramref name="runSeed"/> (<c>--seed N</c>), never a
+    /// constant; the hand-built Hollow Vault ignores both.
+    /// </summary>
+    /// <param name="registry">The content.</param>
+    /// <param name="dungeonId">The dungeon (<see cref="Resolve"/>d).</param>
+    /// <param name="runSeed">The run seed (<c>--seed</c>).</param>
+    /// <param name="dungeonSeed">The layout seed override (<c>--dungeon-seed</c>), or null.</param>
+    /// <param name="keyLevel">The key level.</param>
+    /// <param name="humanClassId">The human's class.</param>
+    /// <param name="withBots">False for the human's seat alone.</param>
+    /// <param name="rotationIndex">The affix rotation index.</param>
+    /// <returns>The setup.</returns>
+    public static HostRunSetup BuildSetup(C.ContentRegistry registry, string dungeonId, long runSeed, long? dungeonSeed, int keyLevel, string humanClassId, bool withBots = true, int rotationIndex = 0)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        return HostRunSetup.Build(registry, dungeonId, keyLevel, humanClassId, withBots, rotationIndex, dungeonSeed: dungeonSeed ?? runSeed);
+    }
+
     /// <summary>The id <paramref name="delta"/> places after <paramref name="current"/> in pick order, wrapping.</summary>
     /// <param name="registry">The content.</param>
     /// <param name="current">The id now picked.</param>
@@ -60,8 +87,9 @@ public static class DungeonPick
     }
 
     /// <summary>
-    /// True when the content lays out a map for <paramref name="id"/> (layout/ is for one dungeon; a seeded dungeon's rooms
-    /// come from the generator that has not landed, so <see cref="HostRunSetup.Build"/> refuses it). The pick still lists it.
+    /// True when a run can be laid out for <paramref name="id"/>: layout/ is the hand-built map of one dungeon, and a
+    /// multi-segment dungeon (the Sunken Bellfoundry) is generated, filled and laid out from its seed
+    /// (<see cref="HostRunSetup.Build"/>, R-MULTIBOSS-1; <see cref="BuildSetup"/> supplies the seed).
     /// </summary>
     /// <param name="registry">The content.</param>
     /// <param name="id">The dungeon id.</param>
@@ -69,7 +97,8 @@ public static class DungeonPick
     public static bool HasMap(C.ContentRegistry registry, string id)
     {
         ArgumentNullException.ThrowIfNull(registry);
-        return string.Equals(registry.Layout.Dungeon, id, StringComparison.Ordinal);
+        return string.Equals(registry.Layout.Dungeon, id, StringComparison.Ordinal)
+            || (registry.Dungeons.TryGetValue(id, out var def) && def.Segments.Count > 1);
     }
 
     /// <summary>What the pick shows: the dungeon's display name and its boss count (one per segment, the tutorial's one).</summary>

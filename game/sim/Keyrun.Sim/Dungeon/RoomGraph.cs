@@ -24,22 +24,28 @@ public enum RoomKind
 /// <param name="Layer">Depth from the entrance (0) to the boss (last); a branch room's layer is its depth in its branch.</param>
 /// <param name="Lane">The branch a trash room belongs to (0 or 1); 0 for the entrance and the boss.</param>
 /// <param name="Kind">Entrance, trash or boss.</param>
-public readonly record struct RoomNode(int Id, int Layer, int Lane, RoomKind Kind);
+/// <param name="Segment">
+/// The fork-and-boss segment the room belongs to (STATE.md D65): 0 for the entrance; a trash room's segment is the
+/// segment whose boss its branch reaches; a boss room is its own segment's boss (and the next segment's fork).
+/// </param>
+/// <param name="Branch">A trash room's branch within its segment (0 or 1, equal to <paramref name="Lane"/>); -1 for the entrance and bosses.</param>
+public readonly record struct RoomNode(int Id, int Layer, int Lane, RoomKind Kind, int Segment = 0, int Branch = -1);
 
 /// <summary>A one-way connection from a room to a deeper room (D45: forward-only).</summary>
 /// <param name="From">Room id.</param>
 /// <param name="To">Room id.</param>
 /// <param name="OneWayDoor">
-/// True on the entrance-to-branch edges: the door closes behind the party once the branch's first room is entered,
+/// True on the fork-to-branch edges (out of the entrance and out of every mid boss room): the door closes behind the party once the branch's first room is entered,
 /// so the entrance and the untaken branch are no longer reachable (BIBLE section 9, D45 "no backtracking"). The run
 /// enforces it at runtime in slice G6; the graph carries it so every consumer reads one fact.
 /// </param>
 public readonly record struct RoomEdge(int From, int To, bool OneWayDoor = false);
 
 /// <summary>
-/// A room DAG from one entrance to one boss room (stage 1 of the pipeline). Edges only point deeper, so the graph is
-/// forward-only and acyclic by construction; <see cref="RoomGraphGen"/> guarantees its shape: one fork right after
-/// the entrance into two branches of two or three rooms that converge on the boss.
+/// A room DAG from one entrance to the final boss room (stage 1 of the pipeline). Edges only point deeper, so the
+/// graph is forward-only and acyclic by construction; <see cref="RoomGraphGen"/> guarantees its shape: per segment,
+/// one fork (the entrance, then each mid boss room) into two branches of two or three rooms that converge on that
+/// segment's boss (STATE.md D45, D63, D65).
 /// </summary>
 public sealed class RoomGraph
 {
@@ -67,6 +73,7 @@ public sealed class RoomGraph
         }
         Nodes = nodes;
         Edges = edges;
+        BossRooms = nodes.Where(n => n.Kind == RoomKind.Boss).Select(n => n.Id).ToList();
         _succ = nodes.Select(n => (IReadOnlyList<int>)edges.Where(e => e.From == n.Id).Select(e => e.To).ToList()).ToArray();
         _pred = nodes.Select(n => (IReadOnlyList<int>)edges.Where(e => e.To == n.Id).Select(e => e.From).ToList()).ToArray();
     }
@@ -80,8 +87,20 @@ public sealed class RoomGraph
     /// <summary>The entrance room id (the single entrance node).</summary>
     public int EntranceId => Nodes.First(n => n.Kind == RoomKind.Entrance).Id;
 
-    /// <summary>The boss room id (the single boss node).</summary>
-    public int BossId => Nodes.First(n => n.Kind == RoomKind.Boss).Id;
+    /// <summary>The final boss room id (the last boss node; the only one when there is one segment).</summary>
+    public int BossId => BossRooms[BossRooms.Count - 1];
+
+    /// <summary>Rooms in the dungeon.</summary>
+    public int RoomCount => Nodes.Count;
+
+    /// <summary>Every boss room id, ascending: segment s's boss is <c>BossRooms[s]</c>, the last is <see cref="BossId"/>.</summary>
+    public IReadOnlyList<int> BossRooms { get; }
+
+    /// <summary>Fork-and-boss segments (one boss each).</summary>
+    public int SegmentCount => BossRooms.Count;
+
+    /// <summary>The fork that opens segment <paramref name="segment"/>: the entrance for 0, else the previous segment's boss.</summary>
+    public int SegmentEntry(int segment) => segment == 0 ? EntranceId : BossRooms[segment - 1];
 
     /// <summary>Layers from entrance to boss inclusive.</summary>
     public int LayerCount => Nodes.Max(n => n.Layer) + 1;

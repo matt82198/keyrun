@@ -149,11 +149,77 @@ public sealed record BossPostStep(BossState Boss, IReadOnlyList<ActorState> Spaw
 /// </summary>
 public static class BossRules
 {
+    /// <summary>
+    /// R-MULTIBOSS-1: arms <paramref name="encounter"/> with the boss rules of a multi-segment dungeon's bosses, in fight
+    /// order. The first boss is armed now; each later boss is queued (<see cref="EncounterState.NextBosses"/>) and armed in
+    /// its place the step the one before it dies (<see cref="Advance"/>), so a boss's rules (its adds, Break bar and Lock)
+    /// run from its own pull's engage to its own death. A one-boss list is exactly <see cref="Arm"/>. A longer list also
+    /// makes every boss death emit <c>boss_death</c> (<see cref="EncounterState.BossesArmed"/>).
+    /// </summary>
+    /// <param name="encounter">The encounter.</param>
+    /// <param name="configs">One config per boss, in the order the dungeon's boss pulls are fought.</param>
+    /// <returns>The armed encounter.</returns>
+    /// <exception cref="ArgumentException">An empty list, an invalid config (<see cref="Arm"/>), or an actor id (a boss or a
+    /// twin) used by two bosses.</exception>
+    public static EncounterState ArmAll(EncounterState encounter, IReadOnlyList<BossConfig> configs)
+    {
+        ArgumentNullException.ThrowIfNull(encounter);
+        ArgumentNullException.ThrowIfNull(configs);
+        if (configs.Count == 0)
+        {
+            throw new ArgumentException("arm at least one boss", nameof(configs));
+        }
+        foreach (var config in configs)
+        {
+            Validate(config);
+        }
+        var ids = configs.SelectMany(c => c.Twins.Select(t => t.ActorId).Append(c.BossActorId)).ToList();
+        if (ids.Distinct().Count() != ids.Count)
+        {
+            throw new ArgumentException("a boss or twin actor id is used by two bosses", nameof(configs));
+        }
+        return encounter with
+        {
+            Boss = new BossState(configs[0]),
+            NextBosses = configs.Skip(1).ToList(),
+            BossesArmed = configs.Count > 1 ? configs.Count : 0,
+            BossIndex = 0,
+        };
+    }
+
+    /// <summary>
+    /// R-MULTIBOSS-1: the armed boss has died. When bosses are queued the next one is armed in its place (its rules run from
+    /// now; its pull engages on its own aggro ring), else the encounter is returned unchanged (the last boss stays armed,
+    /// and its death ends the run through the pull index).
+    /// </summary>
+    /// <param name="encounter">The encounter whose armed boss died this step.</param>
+    /// <returns>The encounter with the next boss armed, or <paramref name="encounter"/>.</returns>
+    public static EncounterState Advance(EncounterState encounter)
+    {
+        ArgumentNullException.ThrowIfNull(encounter);
+        if (encounter.NextBosses.Count == 0)
+        {
+            return encounter;
+        }
+        return encounter with
+        {
+            Boss = new BossState(encounter.NextBosses[0]),
+            NextBosses = encounter.NextBosses.Skip(1).ToList(),
+            BossIndex = encounter.BossIndex + 1,
+        };
+    }
+
     /// <summary>Arms <paramref name="encounter"/> with the boss rules (call once, after <c>CreateRun</c>).</summary>
     /// <exception cref="ArgumentException">The bar's actors are not exactly the twins, or a twin id repeats or is the boss's.</exception>
     public static EncounterState Arm(EncounterState encounter, BossConfig config)
     {
         ArgumentNullException.ThrowIfNull(encounter);
+        Validate(config);
+        return encounter with { Boss = new BossState(config) };
+    }
+
+    private static void Validate(BossConfig config)
+    {
         ArgumentNullException.ThrowIfNull(config);
         var twinIds = config.Twins.Select(t => t.ActorId).ToList();
         if (twinIds.Distinct().Count() != twinIds.Count || twinIds.Contains(config.BossActorId))
@@ -168,7 +234,6 @@ public static class BossRules
         {
             throw new ArgumentException("lock window, repeat, fail threshold and enrage tempo must be positive, repeat longer than the window", nameof(config));
         }
-        return encounter with { Boss = new BossState(config) };
     }
 
     /// <summary>

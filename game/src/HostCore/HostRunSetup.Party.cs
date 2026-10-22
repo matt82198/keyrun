@@ -212,6 +212,33 @@ public sealed partial record HostRunSetup
     }
 
     /// <summary>
+    /// HUMAN-PLAY (D65/D66, "play any class"): when the human (actor <see cref="HumanId"/>) is not the tank, every bot seat
+    /// whose class has a travel slot (layout <c>formation</c>) starts at that slot behind the human instead of at its
+    /// roster spot. The roster spawn puts the Warden in front (x 0, the Chanter at -2100, the Cinder at -700), so a
+    /// Chanter or Cinder human leading from the start (D44: bots follow the lowest living seat) had the Warden walk back
+    /// through the human to reach its slot: actor bodies collide (run.json movement radiusMm), the two pushed head-on, and
+    /// a headless Cinder-led run stood in the Entrance until the timer cap. A human Warden's party (the tank leads) and a
+    /// solo seat are returned unchanged.
+    /// </summary>
+    /// <param name="layout">The content layout (its formation).</param>
+    /// <param name="party">The placed party, in actor id order.</param>
+    /// <returns>The party, bot seats moved to their formation slots when the human is not the tank.</returns>
+    public static IReadOnlyList<PartyMemberSpec> InFormation(C.LayoutDef layout, IReadOnlyList<PartyMemberSpec> party)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(party);
+        if (party.FirstOrDefault(p => p.Id == HumanId) is not { } human || human.Role == ActorRole.Tank || party.Count < 2)
+        {
+            return party;
+        }
+        return party.Select(p =>
+        {
+            var slot = p.Id == HumanId ? null : layout.Formation.FirstOrDefault(s => string.Equals(s.ClassId, p.ClassId, StringComparison.Ordinal));
+            return slot is null ? p : p with { Pos = new Vec3(human.Pos.X - slot.BehindMm, human.Pos.Y, human.Pos.Z + slot.SideMm) };
+        }).ToList();
+    }
+
+    /// <summary>
     /// input/slot-abilities.ts resolveSlotAbilities: each keybind slot to the class kit's ability, in ability-bar order
     /// (1-5 rotational, Q interrupt, E defensive, R utility, F movement). An empty slot throws.
     /// </summary>

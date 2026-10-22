@@ -111,7 +111,7 @@ public partial class Screen
         {
             return new HumanLoadout(null, talentIds, facets);
         }
-        var setup = HostRunSetup.Build(reg with { Abilities = Merge(reg.Abilities, patched) }, s.DungeonId, s.KeyLevel, lobby.ClassId, withBots: false);
+        var setup = HostRunSetup.Build(reg with { Abilities = Merge(reg.Abilities, patched) }, s.DungeonId, s.KeyLevel, lobby.ClassId, withBots: false, dungeonSeed: DungeonPick.KitSeed);
         var kit = patched.Keys.ToDictionary(id => id, id => setup.Content.Abilities[id], StringComparer.Ordinal);
         return new HumanLoadout(new Dictionary<int, IReadOnlyDictionary<string, Keyrun.Sim.Combat.AbilityDef>> { [setup.HumanActorId] = kit }, talentIds, facets);
     }

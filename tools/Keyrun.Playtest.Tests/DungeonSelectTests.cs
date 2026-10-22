@@ -62,11 +62,12 @@ public sealed class DungeonSelectTests
         }
     }
 
-    [Fact(DisplayName = "D65: only a dungeon the content lays out a map for can be queued; the Hollow Vault is that dungeon today")]
-    public void Only_the_laid_out_dungeon_has_a_map()
+    [Fact(DisplayName = "D65: both dungeons can be queued: the Hollow Vault has the hand-built map, the Bellfoundry a layout generated from its seed (#604)")]
+    public void Both_dungeons_have_a_map()
     {
         Assert.True(DungeonPick.HasMap(Registry, "hollow-vault"));
-        Assert.Equal(Registry.Layout.Dungeon == Bellfoundry, DungeonPick.HasMap(Registry, Bellfoundry));
+        Assert.True(DungeonPick.HasMap(Registry, Bellfoundry));
+        Assert.False(DungeonPick.HasMap(Registry, "no-such-dungeon"));
     }
 
     [Fact(DisplayName = "D65: the pre-run pick cycles the registry's dungeon ids, default first, wrapping both ways")]

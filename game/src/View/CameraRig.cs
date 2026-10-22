@@ -245,8 +245,10 @@ public partial class CameraRig : Node3D
         if (layout is not null && !ReferenceEquals(layout, _layout))
         {
             _layout = layout;
-            _walls = DungeonBuilder.OccluderBoxes(layout);
-            _boxes = new List<PlanBox>(DungeonBuilder.PlanBoxesOf(layout));
+            // D45: the same shell DungeonBuilder builds (route boxes plus a seeded layout's side branch), so occluder k
+            // here is wall piece k there.
+            _walls = DungeonBuilder.OccluderBoxes(layout, Driver?.Setup?.Layout);
+            _boxes = new List<PlanBox>(DungeonBuilder.PlanBoxesOf(layout, Driver?.Setup?.Layout));
             HeadDownTheRoute(layout);
         }
 

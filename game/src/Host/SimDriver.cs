@@ -222,6 +222,17 @@ public partial class SimDriver : Node
             Registry = ContentLoader.Load();
             // D65: an unknown --dungeon id stops the launch (ArgumentException naming the id and the known ones).
             SelectedDungeonId = DungeonPick.Resolve(Registry, Options.DungeonId);
+            // D45/D46 (f-46043bc6): --dungeon-seed N plays the seeded two-branch dungeon (SeededLayout: graph, grid, fill,
+            // layout); the bots walk the branch the seed picks. Without it the run plays the hand-built Hollow Vault.
+            // A multi-segment dungeon (the Sunken Bellfoundry, R-MULTIBOSS-1) is always seeded: DungeonPick.BuildSetup
+            // takes --dungeon-seed N, else --seed N, so this two-branch Hollow Vault rebuild is for the tutorial only.
+            if (Options.DungeonSeed is { } dungeonSeed && Registry.Dungeons[SelectedDungeonId].Segments.Count <= 1)
+            {
+                var seeded = SeededLayout.Build(Registry, dungeonSeed);
+                Registry = seeded.Registry;
+                GD.Print(FormattableString.Invariant(
+                    $"DUNGEON seeded seed={dungeonSeed} branch={seeded.Branch} walked={string.Join(",", seeded.Fill.Branches[seeded.Branch].Rooms.Select(SeededLayout.RoomBoxId))} side={string.Join(",", seeded.Fill.Branches[1 - seeded.Branch].Rooms.Select(SeededLayout.RoomBoxId))} pulls={string.Join(",", seeded.Registry.Dungeons[SelectedDungeonId].Pulls.Select(p => p.Id))} forces={seeded.Fill.Branches[seeded.Branch].Points}/{seeded.Fill.TotalPoints}"));
+            }
             // The weekly affix rotation (AffixWeek, Matt 2026-10-20 "lean into m+ design"): a live run takes the index
             // of the week since the last US reset (Tuesday 15:00 UTC), read from the UTC clock here in the host, never in
             // the sim, unless --rotation N pins it; a --replay-input run takes the index its log recorded, never the
@@ -231,7 +242,7 @@ public partial class SimDriver : Node
             RotationIndex = AffixWeek.ForRun(
                 _replayLog is not null, _replayLog?.RotationIndex, Options.Rotation, DateTime.UtcNow, AffixWeek.RotationLength(Registry.Clauses.Count),
                 writeMovie: Options.MovieDir is not null);
-            Setup = HostRunSetup.Build(Registry, SelectedDungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: RotationIndex);
+            Setup = DungeonPick.BuildSetup(Registry, SelectedDungeonId, Options.Seed, Options.DungeonSeed, Options.KeyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: RotationIndex);
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _player = GetNode<PlayerInput>(InputPath);
             _rig = GetNodeOrNull<CameraRig>(CameraRigPath);
@@ -416,7 +427,7 @@ public partial class SimDriver : Node
         var classId = Lobby.ClassFor(request, _screen?.CurrentLobby);
         if (Setup is null || Setup.Dungeon.Id != dungeonId || Setup.Content.KeyLevel != keyLevel || Setup.HumanClassId != classId)
         {
-            Setup = HostRunSetup.Build(registry, dungeonId, keyLevel, classId, withBots: !Options.Solo, rotationIndex: RotationIndex);
+            Setup = DungeonPick.BuildSetup(registry, dungeonId, Options.Seed, Options.DungeonSeed, keyLevel, classId, withBots: !Options.Solo, rotationIndex: RotationIndex);
         }
         var setup = Setup;
         // R7: the --pull N slice, StartFor, WithBotLoadouts, CreateRun, EngageStartPull and BossRules.Arm, in that order,
@@ -451,6 +462,9 @@ public partial class SimDriver : Node
         _bots?.Reset();
         _log?.Line(FormattableString.Invariant(
             $"RUN start autorun={(Options.Autorun ? 1 : 0)} ticks={Options.Ticks} hz={Tick.TickHz} dungeon={setup.Dungeon.Id} key={setup.Content.KeyLevel} clause={run.Encounter.Rules.ActiveClauseId ?? "none"} seed={Options.Seed} actors={run.State.Actors.Count}"));
+        // HUMAN-PLAY (D65/D66): who sits where, so a replay or a capture can tie seat 1 to the class the screen picked.
+        _log?.Line(FormattableString.Invariant(
+            $"RUN seats human={setup.HumanClassId} bots={(setup.BotActorIds.Count == 0 ? "none" : string.Join(",", setup.BotActorIds.Select(id => FormattableString.Invariant($"{id}:{party.First(p => p.Id == id).ClassId}"))))}"));
         if (run.Content.Layout is { } navLayout)
         {
             // R-PATH-1: one PATH line per path the sim's grid computes (a straight line that was blocked), so the capture
