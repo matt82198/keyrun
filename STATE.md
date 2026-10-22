@@ -24,36 +24,35 @@ abilities, a boss. Mechanics like interrupts, but be more creative than blizzard
 class max, 10 total keybinds should be plenty for rotation, movement, utility... the goal is class synergy." No art
 assets; pure POC.
 
-## Current state (checkpoint 2026-10-18)
-- Main tip: 36feb7e (#174 squash, HOST-HEADING). Prior main tips: cfa40b9 (#173), 8ffe1e3 (#172), f72c738 (#171), 581212d (#170), 9df96ef (#169), 6ae14a1 (#168 docs), 30f5708 (#167), 10de063 (#106), 56c5686 (#105), b54eb40 (#104 docs), 2c8f8ea (#102), 54e69c5 (#99), 00e4ebb (#98).
-- Merged today since the 23:30Z checkpoint: #101 99836b0 (window ring labels + payoff-ready key glow + ping context + aimed spot ping); #102 2c8f8ea (bots/src/roles/shared.ts inLull, tank-pressure.ts).
-- MERGED 99f39a2: #103 feat/status-chips-downed-net-casts (status chips STUNNED/TAUNTED/BRACED from snapshot effects, DOWNED tag, dash trail, telegraph base opacity 0.15->0.4, net self-target fix via server/src/human-casts.ts, server cast/cast_failed/gcd events, joined carries display info).
-- Phase: 3 rows 3A-3J all MERGED on main (2026-10-18, verified per PR, see NEXT STEPS). PHASE 3 EXIT NOT RECORDED. D10
-  verdict (2026-10-18): FOURTH pass PARTIAL, PHASE 3 EXIT NOT-MET (Phase 3 block, FOURTH-PASS ORACLE VERDICT). It supersedes
-  the third pass NOT-MET, the second pass MET-WITH-TUNING-GAP and the first pass NOT-MET (DECISIONS AND OBSERVATIONS (d)).
-  Why: #158 (D14) lets an autorun reach and clear the boss, but no human-played run to the boss is measured, and only that
-  closes Phase 3 exit. Phase 5 "Matt playing" is the acceptance test; not yet reached. Phase 4 (TS deletion) stays blocked on D10.
-- Earlier landed (unchanged): #92 e3f622e, #95 e56955c, #97 08b9611, #98 00e4ebb, #99 54e69c5.
-- Test count on 2c8f8ea: not restated in this checkpoint (not sourced for this head).
-- NEXT (supersedes the status in NEXT STEPS item 1; rewritten 2026-10-18 from BUILDLOG.md and git log -15):
-  Merged since the 23:55Z checkpoint: #104 b54eb40 (checkpoint docs); #105 56c5686 (SPREAD/STACK telegraph floor
-  labels with countdown, render/telegraph-label.ts); #106 10de063 (sim-host scaleStep keeps `every`, so recurring
-  STACK calls fire during The Pair; server/src/content-setup.ts ported identically). BUILDLOG.md has no line for
-  #104-#106; these come from git log and the commit bodies.
-  Earlier 2026-10-17 merges (BUILDLOG-recorded): #98 00e4ebb (named ability bar, cast projections, actor tags,
-  objective line, GCD dim, hit flash); #101 99836b0 (window ring labels, payoff key glow, ping context, aimed spot
-  ping); #102 2c8f8ea (tank banks GCD in a lull); #103 99f39a2 (status chips, DOWNED tag, dash trail, telegraph
-  contrast 0.15->0.4, ?net=1 cast parity).
-  BIBLE-vs-client gap ladder, remaining:
-  - Slack delta (needs hud-wiring.ts prevSnapshot; deferred in #103 per decision 6 below).
-  - Cast-bar ability names (ladder rung 7): in the #101 lane scope but not in its merged title; confirm on main before
-    ticking it. Proof: boss bar reads "Cleave".
-  - Class silhouettes and legend overlay: no BUILDLOG line either way; treat as not started.
-  - Open from the ladder: boss Slam cast bar unnamed; Lock ring with no shield; boss-bar.ts has no phase field;
-    window ring colour is time-only; setupClass never rendered; capsules have no names on the non-#98 path.
-  - Balance: 3 of 4 bots die in pull 2 at key 2; with hz=60 the party is mostly DOWNED (see OBSERVATIONS). Tuning is
-    Matt's call; bring the numbers, not a tuned constant.
-  - Then NEXT STEPS below in Matt's priority.
+## Current state (2026-10-22, main 73b706c0)
+WHY: the 2026-10-18 note here was four days stale. This replaces it with main as of #560, from `git log ed8ad21f..73b706c0` and gh.
+The full 2026-10-18 text is in git history (this file at 73b706c0).
+- Main: 73b706c0 (#560, 2026-10-22 00:56Z). Previous recency point: ed8ad21f (#508, CHECKPOINT 2026-10-21 21:12Z below).
+- Main is RED on game-test until #569 lands (clip row, scoreboard denominator, boss refuses blind).
+  #569 required checks all pass at 01:35Z; non-required balance fails. Auto-merge armed.
+- Merged since ed8ad21f (50 PRs), by area:
+  - Game loop: #505 Seed activates on room entry (KF3); #514 key sets the Clause (R1); #516 pick-of-three code deleted;
+    #518 Queue readout branches (B57, B58); #512 Ascension card on the run-end panel (U10); #515 taunt never roots the tank.
+  - Dungeon and packs: #502 Hall Sentries optional (G5); #511 LayoutPack.Branch; #517 per-branch forces totals;
+    #513 packs.json retired (R7); #537 skip bar (R-PACKS-1); #538 vault kits (S1); #528 corridor-2 patrol;
+    #533 teaching pulls pinned to BIBLE s9; #536 pack build slices doc.
+  - Sim: #551 integer A* pathing for bots and enemy chase (R-PATH-1); #561 boss fight 90-180 s (R-BOSS-1);
+    #539 telegraphs anchor on the caster's target; #560 TelegraphDraw record; #559 no dominated Cadence fork.
+  - View and HUD: #519 #523 #531 KF1 strike cue; #522 telegraph palette (R8); #530 seats line off the bar; #541 party
+    bodies opaque; #543 --camera chase|vertical and V; #544 per-ability CC0 clips with ANIM lines; #545 scoreboard kills; #526 GEAR lines for the Warden only.
+  - Refactor and deletion: #553 TypeScript tree deleted (phase 4A); #547 Casting partials; #550 SimEvent views;
+    #554 directory loader (unwired); #556 Screen partials; #557 one file per validator rule.
+  - Tests, CI, tools, docs: #503 #507 #509 #527 #529 #532 #534 #535; #504 #521 #524 #525 #548 #549.
+- Armed queue behind #569: #570 #568 #567 #566 #564 #563 #562 #558; merge-forward (DIRTY) #555 #540 #542.
+- Unarmed, waiting on Matt: #546 (Mythic+ dungeon plan), #552 (seeded dungeon architecture, D46).
+- Matt's product gaps (2026-10-21), status on main:
+  - Ability animations: landed #544. Pathing: landed #551. Boss length and teaching: landed #561.
+  - Party solid: landed #541. Vertical camera for captures: landed #543.
+  - Pulling and aggro range: packs engage on aggro radius (Aggro.cs); pull feel not judged by Matt yet.
+  - Non-linear rooms: not built; route is one path (layout.json route, 9 points). D45, D46, #552 unarmed.
+  - Pack diversity: vault kits landed #538; pack links #564 armed.
+  - Landed means merged code, not accepted. Acceptance is Matt's played run (D10, D15).
+- Row files: 50 in game/lanes/ wait for a fold lane into BUILDLOG.md and the game/CLAUDE.md lane list.
 
 ## Locked decisions
 - D1 **Stack**: TypeScript for sim, content, client, bots, server; Vitest; esbuild; Three.js for the 3D client; no engine.
