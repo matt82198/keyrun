@@ -46,7 +46,11 @@ public sealed class MitigateThroughLedgerKickTests
     // test places the boss mid-cleave itself is not on the trajectory; the event-derived tick is what counts.
     // R-DECLUTTER-1 merge (main 1f8fed7f, #515 taunt and kick, #537): the probe on this tree puts the first boss cleave
     // telegraph at 7480 (resolves 7520, the run ends Timed at 7903), so the event-derived tick is 7491 (11 ticks in).
-    private const int Tick = 7491;
+    // AGGRO-CHASE re-derivation (f-f0c886eb; a measurement by a probe on this tree, the assertions are unchanged): the Choir
+    // aggroes on its members' own radius at tick 51 and runs at the party, so the kick-plan run's Choir clears at 7644, the
+    // boss pull runs 9106-12387 and the run ends Timed at 12388. The first boss cleave telegraphs at 9262 and resolves at
+    // 9302 (the run's own state at 9273 has the boss casting hollowWarden.cleave, start 9262, end 9302), so 11 ticks in is 9273.
+    private const int Tick = 9273;
     private const int Boss = 900;
     private const int CleaveTicks = 40;
 

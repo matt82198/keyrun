@@ -147,7 +147,8 @@ public static class Follow
 
     /// <summary>
     /// True when the party's leader (<see cref="Leader"/>) has stood in the Entrance box (box 0) past
-    /// <see cref="IdleLeaderTicks"/> with no engaged enemy alive, and another living player seat exists to take the lead.
+    /// <see cref="IdleLeaderTicks"/> with no living engaged enemy inside the Entrance (a fight the bots pulled elsewhere keeps
+    /// the hand-over, AGGRO-CHASE), and another living player seat exists to take the lead.
     /// A human who never walks would otherwise hold every bot at the Entrance forever: the lead is the lowest living seat,
     /// and the bots only walk the route when that seat is a bot (<see cref="LeadCommand"/>). Stateless: it reads the view
     /// only (tick, positions, the layout), never the human's input.

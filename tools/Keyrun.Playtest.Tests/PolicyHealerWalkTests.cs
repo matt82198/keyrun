@@ -74,13 +74,21 @@ namespace Keyrun.Playtest.Tests;
 /// 351 - 342 + 1 = 10 (the healer itself takes the same six one-tick steps, 346-351, about 1.0 m). The run's other
 /// walk (boss pull, 8307-8312) is the later one.
 /// </para>
+/// <para>
+/// AGGRO-CHASE re-pin (f-f0c886eb; a measurement, the assertions are unchanged): the Choir now aggroes on each member's own
+/// 8000 mm radius (run.json enemyAggro) and runs at the party, so the kick-plan run's Choir engages at tick 51, not 76, and
+/// the fight sits where the melee met the tank. Measured on this tree by playing seed 1 key 2 (kick plan, the runner's
+/// own loop, Timed at 12388) and testing the scene (tank under 70%, the tank is the triage target, the heal pick is a
+/// single Move) on every tick: it holds on exactly ticks 325-338 and on no earlier tick, so the pin is 325 and the window
+/// is 338 - 325 + 1 = 14.
+/// </para>
 /// </summary>
 public sealed class PolicyHealerWalkTests
 {
     private const string KickPlan = "{\"mitigate\": [\"warden\"], \"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"cinder\", \"chanter\", \"warden\"]}]}";
     private const int Chanter = 2;
-    private const int Tick = 342; // R-BOTS-18: the measured walk's first tick (was 545, R-BOTS-11; 9452 before that)
-    private const int WalkLastTick = 351; // R-BOTS-18: the measured walk's last step (the trace above); 352 casts Hymn (was 550)
+    private const int Tick = 325; // AGGRO-CHASE: the measured walk's first tick (was 342, R-BOTS-18; 545, R-BOTS-11; 9452 before that)
+    private const int WalkLastTick = 338; // AGGRO-CHASE: the measured walk's last step (was 351, R-BOTS-18; 550 before)
     private const int Window = WalkLastTick - Tick + 1;
 
     [Fact(DisplayName = "R-PILE-8 guard: the pinned scene exists at its tick (the tank under 70% is the triage target and the heal pick walks)")]

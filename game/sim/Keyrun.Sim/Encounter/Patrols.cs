@@ -103,6 +103,8 @@ public static class Patrols
                 var actor = Pulls.SpawnActor(spawn);
                 actor.Idle = true;
                 actor.Pos = MemberAt(patrol, spawn, 0);
+                // AGGRO-CHASE: an idle enemy's home is where it stands (Leash keeps it current as the patrol walks).
+                actor.Home = actor.Pos;
                 actors.Add(actor);
             }
         }
