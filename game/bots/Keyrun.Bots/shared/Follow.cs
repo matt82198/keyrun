@@ -29,7 +29,11 @@ public static class NavLayouts
             .Select(b => new NavTrigger(b.Pull!, new Bounds(b.Trigger!.MinX, b.Trigger.MaxX, b.Trigger.MinZ, b.Trigger.MaxZ)))
             .ToList();
         var route = layout.Route.Select(p => new Vec3(p.X, 0, p.Z)).ToList();
-        return new NavLayout(boxes, triggers, route);
+        // R-BRANCH-WALK-1 (D45): the untaken branch is walkable too; it stays off the route (NavLayout.SideBoxes).
+        var side = layout.SideBoxes
+            .Select(b => new NavBox(b.Id, new Bounds(b.MinX, b.MaxX, b.MinZ, b.MaxZ), b.Kind == C.LayoutBoxKind.Room, b.Gate))
+            .ToList();
+        return new NavLayout(boxes, triggers, route) { SideBoxes = side };
     }
 
     /// <summary>
