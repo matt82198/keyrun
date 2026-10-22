@@ -5,14 +5,6 @@ namespace Keyrun.Sim.Combat;
 
 public static partial class Casting
 {
-    private static void ClearCast(ActorState actor)
-    {
-        actor.CastId = null;
-        actor.CastStartTick = null;
-        actor.CastEndsTick = null;
-        actor.CastIsOverheat = false;
-    }
-
     /// <summary>sim/combat/casting.ts:89-93 stopcast: emits "cast_stopped" and clears the cast; no-op when idle.</summary>
     /// <param name="actor">The caster.</param>
     /// <param name="emit">Event sink.</param>
@@ -24,8 +16,7 @@ public static partial class Casting
             return;
         }
         emit(new SimEvent(tick, "cast_stopped", ("actorId", JsValue.Int(actor.Id)), ("abilityId", JsValue.Str(actor.CastId))));
-        ClearCast(actor);
-        ReleaseCastTarget(actor);
+        End(actor, CastEnd.Stopped);
     }
 
     /// <summary>
@@ -48,8 +39,7 @@ public static partial class Casting
         }
         var school = Abilities.AbilitySchool(castDef);
         var abilityId = target.CastId;
-        ClearCast(target);
-        ReleaseCastTarget(target);
+        End(target, CastEnd.Interrupted);
         target.Effects.Add(new EffectInstance
         {
             EffectId = LockoutEffectId(school),
