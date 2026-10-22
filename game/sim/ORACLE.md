@@ -5,7 +5,9 @@ PURPOSE: this artifact exists to freeze the TypeScript sim's exact behaviour as 
 The TS sim (sim/, bots/src/, content/, frozen at main `6e1548d`) is the reference. The fixtures in
 `game/sim/Keyrun.Sim.Tests/Fixtures/oracle/` record what it does. The C# port (Keyrun.Sim, Keyrun.Bots,
 Keyrun.Content) is correct when it reproduces those fixtures exactly. Parity means EQUAL, not winning:
-the traces record whatever the TS does, including wipes.
+the traces record whatever the TS does, including wipes. The port reached that parity; the C# gates now take each
+trace as INPUT and assert the named properties it protects (section 10), so a C# bot or rules change that keeps
+them re-records nothing. `tools/Keyrun.Replay` still reports tick-for-tick parity on demand.
 
 - Generator (reference implementation of this spec): `tests/oracle/format.ts` (format), `tests/oracle/traces.ts`
   (scenarios), `tests/oracle/vectors.ts` (vectors), `tests/oracle/generate.ts` (manifest and I/O).
@@ -51,7 +53,7 @@ t=<tick>;pull=<pullIndex>;slack=<slackTicks>;a=<actor>|<actor>|...
   Rendered as 8 lowercase hex digits, zero-padded. Test vectors: `""` -> `811c9dc5`, `"a"` -> `e40c292c`,
   `"foobar"` -> `bf9cf968`.
 - Record hash `h`: FNV-1a 32 over the projection line's ASCII bytes, with no newline.
-- Trace hash (`traceHash` in the header and in manifest.json): FNV-1a 32 over the concatenation of every
+- Trace hash (`traceHash` in the trace header; manifest.json no longer repeats it, section 10): FNV-1a 32 over the concatenation of every
   record's projection line, each followed by one `\n` (0x0a), in record order starting at t=0. That is the same
   as one FNV state chained across the lines.
 - The TS `hashState` (sim/core/state.ts:118, FNV over JS JSON text) is NOT part of the oracle and is not
@@ -81,9 +83,10 @@ Tick semantics: record t=0 is the state `createRun` returns, before any step. Re
 tick count. Bot runs stop after the first step whose `run.runEnd.result` is non-null (that step's `e` holds the
 `run_end` event), or at tick 24000.
 
-Recommended C# check: replay the setup, compute each tick's projection, and compare `h`. At the first
-mismatch, report `t`, the expected and actual line (or the nearest earlier `p`), and that record's `e`.
-Compare events by parsing the JSON or by re-rendering it canonically.
+Diagnostic C# parity check (`tools/Keyrun.Replay`, reported, not a gate): replay the setup, compute each tick's
+projection, and compare `h`. At the first mismatch, report `t`, the expected and actual line (or the nearest earlier
+`p`), and that record's `e`. Compare events by parsing the JSON or by re-rendering it canonically. The gating C#
+check is section 10.
 
 ## 4. Setup file `<setup>.setup.json`
 
@@ -112,7 +115,7 @@ Floats appear only in `botprng.vectors.json` `value`.
 | `bots-hv-k10-s7.trace.jsonl` | same at key 10, seed 7 | 6985, `timed` at t6984 | `b947e653` |
 | `content-pull.setup.json`, `scripted-pull.setup.json`, `hollow-vault-k2.setup.json`, `hollow-vault-k10.setup.json` | createRun inputs (section 4) | | |
 | `fixed.vectors.json`, `atan.vectors.json`, `prng.vectors.json`, `botprng.vectors.json`, `intdiv.vectors.json` | section 7 | about 10k each | |
-| `manifest.json` | sizes and FNV of every file, trace summaries, `loadContent()` counts, per-file frozen-source hashes (one per line) | | |
+| `manifest.json` | sizes and FNV of every file, trace summaries with each trace's named properties (section 10), `loadContent()` counts, per-file frozen-source hashes (one per line) | | |
 
 Observed facts the C# side should expect:
 - Seeds 7 and 11 at key 2 give byte-identical record bodies (only the header differs). At skill dial 100 neither
@@ -194,3 +197,34 @@ fails `oracle.test.ts` and names each added, removed or changed path, because th
 different lines and merge without a conflict.
 Behaviour drift also shows as a byte diff in the trace or vector it hits. The failure message names the file,
 line and column.
+
+## 10. Named properties: what each trace protects
+
+Each `manifest.json` `traces[]` entry carries `properties`: a list of `{name, why, assert}`. `why` names the PR or
+ruling that created or re-recorded the trace for that property. The list is hand-authored; `tests/oracle/generate.ts`
+carries it through a re-record unchanged and never writes it. The manifest no longer repeats `traceHash`.
+
+The C# gates take a trace as INPUT and assert its properties over a C# run. They never compare a run with the TS
+recording, and they never pin a whole-trace hash:
+- `TraceReplayTests` (Keyrun.Sim.Tests): the setup, seed and recorded caller commands through RunRoot
+  (`Keyrun.Tools.Replay.TraceRecorder`). Every property must hold. The committed fixture must also show its own
+  properties, except `turnsWhenDue`, which needs every tick's full line.
+- `RolesOracleTraceTests` (Keyrun.Bots.Tests): the setup and seed, with the C# bots generating every command until
+  the run ends or tick 24000. Every property must hold. How far the run still matches the TS recording is printed,
+  not asserted.
+- `EncounterTraceTests`: the encounter lane alone must reproduce every encounter event of the C# RunRoot run on
+  every tick. It compares the lane with the C# run, never with the TS recording.
+- One whole-trace determinism check: bots-hv-k10-s7 replayed twice in-process gives the same run tick for tick,
+  with the same trace hash. It compares the run with itself, so it pins no content.
+
+Assertion kinds (`Keyrun.Tools.Replay.OracleProperties`): `count` (min/max), `sequence` (ordered steps), `ticks`
+(exact tick list), `every` (each match also has fields), `precededBy` (an earlier matching event, same fields),
+`leaves` (an actor leaves its first projected position), `turnsWhenDue` (a targeted cast decided while not facing
+the target carries a move in the same batch), `sameRecordsAs` (the same run as another trace) and `all`. Any kind
+may carry `requires`: a match that must occur at least once, checked after the assertion holds. A match filters event
+or command fields. A scalar must be equal. An array means one of for a scalar field and equal for an array field.
+`{"min","max"}` is an integer range.
+
+A property states a rule, not one recording. Pin a tick only where the scenario's own script fixes it (scripted-pull's
+cleave schedule). A red property is a regression: fix the behaviour, or change the property only together with the
+ruling that changed what the trace protects.

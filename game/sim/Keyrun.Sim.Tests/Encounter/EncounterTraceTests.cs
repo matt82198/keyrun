@@ -9,7 +9,12 @@ using Xunit.Abstractions;
 namespace Keyrun.Sim.Tests.Encounter;
 
 /// <summary>
-/// Oracle parity of the encounter lane against the frozen TS traces (ORACLE.md), without the combat lanes.
+/// The encounter lane alone, without the combat lanes, reproduces the encounter events of the full C# run root over each
+/// oracle trace's inputs (ORACLE.md section 10). The run replayed is the C# one (<see cref="Keyrun.Tools.Replay.TraceRecorder"/>:
+/// the trace's setup, seed and recorded caller commands through RunRoot), never the TS recording, so a rules change
+/// moves both sides together and no fixture is re-recorded; what each trace must show is asserted as its named
+/// properties (TraceReplayTests, RolesOracleTraceTests). Every record of the C# run carries its full projection, so every
+/// tick is exact.
 ///
 /// sim/index.ts:137 stepRun calls stepEncounter (:148) on run.state (tick t-1) BEFORE combat, so every encounter
 /// event in record t is a pure function of state t-1: the scripts (scripts.ts), the telegraph registry
@@ -123,7 +128,7 @@ public sealed class EncounterTraceTests
             kv => kv.Value with { CastTicks = abilityJson.Get(kv.Key) is JsObject ao && ao.Get("castTicks") is JsInt ct ? (int)ct.Value : 0 },
             StringComparer.Ordinal);
         var keyLevel = OracleRun.KeyLevel(setup);
-        var records = OracleRun.Records(trace);
+        var records = OracleRun.RecordsOf(Keyrun.Tools.Replay.TraceRecorder.RecordFile(OracleFixtures.PathOf(trace + ".trace.jsonl")));
         var tally = new Tally();
 
         // ... and each enemy's cast in flight on every tick, not only on the full lines (this replay runs no combat):
@@ -315,86 +320,41 @@ public sealed class EncounterTraceTests
         return tally;
     }
 
+    // No pinned per-trace counts: each count was a property of one TS recording and moved on every re-record. The replay
+    // above already compares every encounter event of every tick with the full C# run's; these guards only make a
+    // vacuous pass visible. What each trace must show (the scripted schedule, the pull order, the Seed's one deathBloom)
+    // is stated once, as named properties in manifest.json.
+
     [Fact]
-    public void Scripted_pull_telegraph_schedule_and_hits_match_the_oracle_every_tick()
+    public void Scripted_pull_telegraph_schedule_and_hits_match_the_csharp_run_every_tick()
     {
         var t = Replay("scripted-pull");
         Assert.Equal(600, t.Records);
-        Assert.Equal(6, t.Telegraphs);
-        Assert.Equal(5, t.Hits);
-        Assert.Equal(6, t.ExactTelegraphs); // telegraphs at 60, 160, ... sit on projection ticks
+        Assert.True(t.Telegraphs > 0 && t.Hits > 0, "the scripted cleave drew and resolved nothing");
+        Assert.Equal(t.Telegraphs, t.ExactTelegraphs); // every tick is exact: origin, yaw and hit lists compared byte for byte
+        Assert.Equal(t.Hits, t.ExactHits);
     }
 
     [Fact]
-    public void Content_pull_emits_no_encounter_events_like_the_oracle()
+    public void Content_pull_emits_no_encounter_events_like_the_csharp_run()
     {
         var t = Replay("content-pull");
         Assert.Equal(400, t.Records);
         Assert.Equal(0, t.Telegraphs + t.Hits + t.PullEvents);
     }
 
-    // exactTelegraphs / exactHits: how many fell right after a projection tick, where origin, yaw and the hit list
-    // are compared byte for byte. Since the 2026-10-18 content tuning (STATE.md D14) the bot traces clear the dungeon
-    // and neither key has a telegraph on a projection tick (origins are covered by scripted-pull); each of their
-    // 9 / 13 is still compared on tick, caster, cast, shape, lead, resolvesTick and geometry (SLAM-TELEGRAPH B1 added
-    // one slam telegraph to each trace: 8 / 12 before; on k2 that telegraph lands right after a projection tick, so
-    // k2 now has one exact, byte-for-byte telegraph, where it had none). KF3-SEED-ENGAGE: the Seed now walks to the party
-    // and casts seed.lash; the re-recorded traces carry 11 / 14 telegraphs (was 9 / 13), k2 10 hits (was 9), k10 14 hits
-    // (was 13) with 3 exact (was 2), measured by this replay against the regenerated oracle.
     [Theory]
-    // SLAM-TELEGRAPH Pair leadTicks 140 re-record: k2 was 13, 12, 7, 0, 0, 1 and k10 was 14, 14, 7, 0, 0, 3; the new
-    // values are tallied from the re-recorded TS traces with this replay's rules (the same tally reproduces the old ones).
-    // Merged with QUENCH-REFUND (main: k2 13, 12, 7, 0, 0, 1; k10 14, 13, 7, 0, 0, 2) and re-recorded on the merged
-    // tree: the same tally of the merged traces gives the SLAM-TELEGRAPH rows below unchanged (it reproduces both
-    // parents' rows from their own traces).
-    // ENEMY-ENGAGE (in-reach chasers turn to face their target) merged with SLAM-TELEGRAPH and re-recorded on the merged
-    // tree: the same tally gives the SLAM-TELEGRAPH rows unchanged (ENEMY-ENGAGE alone: k2 12, 12, 7, 0, 0, 1; k10
-    // 14, 14, 7, 0, 0, 3; the tally reproduces both parents' committed rows from their own traces).
-    // HOLDER-LOCK D30 merged with SLAM-TELEGRAPH + QUENCH-REFUND, re-recorded on the merged tree and tallied the same
-    // way (that tally reproduced main's rows 12, 12, 7, 0, 1, 1 / 16, 16, 7, 0, 0, 3 and the HOLDER-LOCK PR's rows
-    // 11, 11, 7, 0, 0, 1 / 15, 15, 7, 0, 0, 3 from their own traces; the HOLDER-LOCK branch then committed
-    // k2 12, 12, 7, 0, 0, 1 / k10 14, 13, 7, 0, 0, 1).
-    // HOLDER-LOCK D30 merged with INTEGRATE-PLAYABLE CAST-DEFERRAL, re-recorded on the merged tree (ORACLE_WRITE=1) and
-    // measured by this replay: k2-s7 / k2-s11 telegraphs=12 (exact 0) hits=12 (exact 1); k10-s7 telegraphs=17 (exact 0)
-    // hits=15 (exact 1), records=2026.
-    // HOLDER-LOCK D30 (PR #307) merged with PR #370 SPELL-QUEUE + ZERO-GCD (main 7fb46645), re-recorded on the merged tree
-    // (ORACLE_WRITE=1) and measured by this replay: k2-s7 / k2-s11 records=1600 telegraphs=8 (exact 1) hits=8 (exact 1);
-    // k10-s7 records=2198 telegraphs=15 (exact 0) hits=15 (exact 3), the same rows as main's below (the HOLDER-LOCK
-    // merge 6b057907 rows were k2 12, 12, 7, 0, 0, 1 / k10 17, 15, 7, 0, 0, 1). On this trace telegraph 7 (seed.lash,
-    // drawn at 1723 by a Seed walking toward the party) resolves at 1740 on an exact tick, so the replay now registers
-    // the oracle's origin/yaw for telegraphs drawn between projections (see Replay).
-    // D-ORACLE-BLIND-PARITY re-record (#362: healer press, Mending 6000, TS blind port; zero splits): k2-s7 and k2-s11
-    // were 12, 12, 7, 0, 1, 1 and k10-s7 19, 18, 7, 0, 0, 2; measured by this replay against the regenerated oracle
-    // (k2 records 1475, k10 1836): #362 alone k2 11, 11, 7, 0, 1, 0; k10 13, 13, 7, 0, 0, 1.
-    // ZERO-GCD + NO-PRESS-MID-CAST (f-80b5cf16) merged with ENEMY-ENGAGE and re-recorded on the merged tree, measured by
-    // this replay (ZERO-GCD + NO-PRESS-MID-CAST alone: k2 10, 10, 7, 0, 0, 0; k10 15, 14, 7, 0, 0, 3; main: k2 12, 12,
-    // 7, 0, 1, 1; k10 16, 16, 7, 0, 0, 3).
-    // SPELL-QUEUE (PR #370: bots press in the last 8 ticks of their own cast; Combat/SpellQueue.cs) re-recorded, measured
-    // by this replay: k2 was 10, 10, 7, 0, 0, 0 (now 8, 8, 7, 0, 1, 1); k10 unchanged.
-    // PR #370 merged with INTEGRATE-PLAYABLE (#396) and re-recorded on the merged tree (ORACLE_WRITE=1), measured by
-    // this replay: the k2 traces are byte-identical to PR #370's own, so the k2 rows are PR #370's (main alone: k2 12,
-    // 12, 7, 0, 1, 1); k10 PR #370 alone 15, 15, 7, 0, 0, 3, main alone 19, 18, 7, 0, 0, 2.
-    // PILE-FOLLOWUP (main 026bca17 with #423/#424, #425, #426, death-cancels-casts and R-DEADCAST-1's TS fix merged on
-    // the PILE-INT tree) re-recorded once with ORACLE_WRITE=1: k2 traces 36715d32 timed@1407, k10 346e3c22 timed@1855.
-    // Measured by this replay: k2 rows unchanged (9, 9, 7, 0, 0, 0); k10 no divergence with #424, row 13, 13, 7, 0, 0, 1.
-    // PILE-INT (R-PILE-INT: #307 c99d4a94 + #362 d80b8233 + #364 e7e2092b + setup-lesson e60d840b + #326 f79b304b merged onto main 8f131464) re-recorded on the integrated tree with ORACLE_WRITE=1: k2 traces c777e2f2 timed@1407, k10 eca7f962
-    // timed@1855. Measured by this replay: the k2 rows below pass unchanged (9, 9, 7, 0, 0, 0); the k10 row first
-    // diverges at t=1789 (the replay draws the slam telegraph at 1788, the oracle does not), so its row is not re-measured.
-    // MERGE-362 (#362 merged with CADENCE-SETUP #415 and #344, re-recorded on the merged tree with ORACLE_WRITE=1;
-    // k2 traces 2dc1cb67 timed@1407, k10 736f595c timed@1955), measured by this replay: see each row's MERGE-362 note.
-    [InlineData("bots-hv-k2-s7", 4, 4, 7, 0, 1, 0)] // PAIR-MARKS (pair marks: caster circles removed, marked-player rings are the telegraph; BIBLE s3, s9 The Pair) re-record, traces 071c3e1a timed@1503 (was 8b954c9c timed@1504): measured by this replay: records=1503 telegraphs=4 (exact 1) hits=4 (exact 0) pullEvents=7 depleted=0; was 12, 12, 7, 0, 1, 0. R-SEED-1a (f-244d102b, regenerated trace 8b954c9c): measured by this replay: records=1504 telegraphs=12 (exact 1) hits=12 (exact 0); was 10, 9, 7, 0, 1, 1. R-BOTS-18 on #449 (one re-derivation with the R-BOTS-17 oracle re-record on #449 merged with main 0f6a8989: in Mend the Chanter presses the Payoff on the fight's first idle GCD only, then the Refrain into Ward; k2 traces 65b83a06 timed@1709, k10 34681a6e timed@1855). Measured by this replay: records=1709 telegraphs=10 (exact 1) hits=9 (exact 1) pullEvents=7 depleted=0; was 11, 11, 7, 0, 1, 1. R-ANTHEM-1 (f-7d5df7f9) + R-ENCORE-1 re-record (k2 0b577722 timed@1565): was 8, 8, 7, 0, 0, 0; measured by this replay: telegraphs=11 (exact 1) hits=11 (exact 1), and the trace holds 11 telegraph and 11 telegraph_hit events. RETARGET-FIZZLE re-record (R-RETARGET-1, f-f1ab879b; k2 46f7aef4 timed@1423): was 9, 9, 7, 0, 0, 0; the trace holds 8 telegraph and 8 telegraph_hit events, measured by this replay. MERGE-362 re-record: was 7, 7, 7, 0, 0, 1 on main (#362 alone 11, 11, 7, 0, 1, 0); measured by this replay on the 2dc1cb67 trace: telegraphs=9 (exact 0) hits=9 (exact 0). CADENCE-SETUP (f-b31e8f34) re-record: was 8, 8, 7, 0, 1, 1 (measured by this replay: telegraphs=7 (exact 0) hits=7 (exact 1)). DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k2-s11", 4, 4, 7, 0, 1, 0)] // PAIR-MARKS (pair marks: caster circles removed, marked-player rings are the telegraph; BIBLE s3, s9 The Pair) re-record, traces 071c3e1a timed@1503 (was 8b954c9c timed@1504): measured by this replay: records=1503 telegraphs=4 (exact 1) hits=4 (exact 0) pullEvents=7 depleted=0; was 12, 12, 7, 0, 1, 0. R-SEED-1a (f-244d102b, regenerated trace 8b954c9c): measured by this replay: records=1504 telegraphs=12 (exact 1) hits=12 (exact 0); was 10, 9, 7, 0, 1, 1. R-BOTS-18 on #449 (one re-derivation with the R-BOTS-17 oracle re-record on #449 merged with main 0f6a8989: in Mend the Chanter presses the Payoff on the fight's first idle GCD only, then the Refrain into Ward; k2 traces 65b83a06 timed@1709, k10 34681a6e timed@1855). Measured by this replay: records=1709 telegraphs=10 (exact 1) hits=9 (exact 1) pullEvents=7 depleted=0; was 11, 11, 7, 0, 1, 1. R-ANTHEM-1 (f-7d5df7f9) + R-ENCORE-1 re-record (k2 0b577722 timed@1565): was 8, 8, 7, 0, 0, 0; measured by this replay: telegraphs=11 (exact 1) hits=11 (exact 1), and the trace holds 11 telegraph and 11 telegraph_hit events. RETARGET-FIZZLE re-record (R-RETARGET-1, f-f1ab879b; k2 46f7aef4 timed@1423): was 9, 9, 7, 0, 0, 0; the trace holds 8 telegraph and 8 telegraph_hit events, measured by this replay. MERGE-362 re-record: was 7, 7, 7, 0, 0, 1 on main (#362 alone 11, 11, 7, 0, 1, 0); measured by this replay on the 2dc1cb67 trace: telegraphs=9 (exact 0) hits=9 (exact 0). CADENCE-SETUP (f-b31e8f34) re-record: was 8, 8, 7, 0, 1, 1 (measured by this replay: telegraphs=7 (exact 0) hits=7 (exact 1)). DEAD-CASTER-TELEGRAPH re-record: was 11, 10, 7, 0, 1, 1 (measured by this replay)
-    [InlineData("bots-hv-k10-s7", 6, 5, 7, 0, 0, 1)] // PAIR-MARKS (pair marks: caster circles removed, marked-player rings are the telegraph; BIBLE s3, s9 The Pair) re-record, traces 43fc39e6 timed@1868 (was 167a3b93 timed@1842): measured by this replay: records=1868 telegraphs=6 (exact 0) hits=5 (exact 1) pullEvents=7 depleted=0; was 12, 12, 7, 0, 0, 1. LINE-TELEGRAPH (seed.lash circle->line, BIBLE s3) re-record, traces 167a3b93 timed@1842 (was 9c4709e8 timed@1865): measured by this replay: records=1843 telegraphs=12 (exact 0) hits=12 (exact 1) pullEvents=7 depleted=0; was 13, 12, 7, 0, 0, 1. R-SEED-1a (f-244d102b, regenerated trace 9c4709e8): measured by this replay: records=1865 telegraphs=13 (exact 0) hits=12 (exact 1); was 12, 12, 7, 0, 0, 1. R-BOTS-18 on #449 (one re-derivation with the R-BOTS-17 oracle re-record on #449 merged with main 0f6a8989: in Mend the Chanter presses the Payoff on the fight's first idle GCD only, then the Refrain into Ward; k2 traces 65b83a06 timed@1709, k10 34681a6e timed@1855). Measured by this replay: records=1855 telegraphs=12 (exact 0) hits=12 (exact 1) pullEvents=7 depleted=0; was 20, 20, 7, 0, 0, 1. R-ANTHEM-1 (f-7d5df7f9) + R-ENCORE-1 re-record (k10 45af272e timed@2045): was 17, 17, 7, 0, 0, 1; measured by this replay: telegraphs=20 (exact 0) hits=20 (exact 1), and the trace holds 20 telegraph and 20 telegraph_hit events. RETARGET-FIZZLE re-record (R-RETARGET-1, f-f1ab879b; k10 eba9e2a3 timed@1989): was 13, 13, 7, 0, 0, 1; the trace holds 17 telegraph and 17 telegraph_hit events, measured by this replay. PILE-FOLLOWUP re-record (R-PILE-6 + R-DEADCAST-1; k10 346e3c22 timed@1855): was 17, 17, 7, 0, 0, 2 (never re-measured by PILE-INT: its replay diverged at t=1789, the phantom-busy ledger #424 fixes). With #424 merged the replay matches every tick; measured by this replay: on PILE-INT's eca7f962 trace telegraphs=13 (exact 0) hits=13 (exact 1), and on the re-recorded 346e3c22 trace the same, records=1855. MERGE-362 re-record: was 13, 12, 7, 0, 0, 2 on main (#362 alone 13, 13, 7, 0, 0, 1). CADENCE-SETUP (f-b31e8f34) re-record, R-415-C: was 15, 15, 7, 0, 0, 3 (measured by this replay on the aa65cde8 trace once EncounterCastLedger tracks the slam begun at 2065: telegraphs=13 (exact 0) hits=12 (exact 2); the trace holds 13 telegraph and 12 telegraph_hit events; the run ends at 2074). MERGE-370 re-record: was 19, 18, 7, 0, 0, 2 on main (measured by this replay on the merged trace: telegraphs=15 hits=15 exact 0 / 3; the same as PR #370 alone). INTEGRATE-PLAYABLE CAST-DEFERRAL re-record: was 16, 16, 7, 0, 0, 2 (measured by this replay: telegraphs=19 (exact 0) hits=18 (exact 2); held boss casts re-draw their telegraph when issued). INTEGRATE-PLAYABLE #325 re-fold re-record: was 17, 17, 7, 0, 0, 3 (measured by this replay: telegraphs=16 (exact 0) hits=16 (exact 2); the run now ends at 2071, before the 2126 cleave). INTEGRATE-PLAYABLE re-record (integrated tree, e19bc046 traces): was 16, 15, 7, 0, 0, 2, tallied by this replay from the recorded trace; SLAM-CIRCLE-HITS re-record (slam circle + CHASE-AREA-REACH): was 16, 16, 7, 0, 0, 3 (measured by this replay against the regenerated oracle); k2 rows unchanged
-    public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_oracle_every_tick(
-        string trace, int telegraphs, int hits, int pullEvents, int depleted, int exactTelegraphs, int exactHits)
+    [InlineData("bots-hv-k2-s7")]
+    [InlineData("bots-hv-k2-s11")]
+    [InlineData("bots-hv-k10-s7")]
+    public void Hollow_vault_warden_script_pulls_seed_and_slack_match_the_csharp_run_every_tick(string trace)
     {
         var t = Replay(trace);
-        Assert.Equal(telegraphs, t.Telegraphs);
-        Assert.Equal(hits, t.Hits);
-        Assert.Equal(pullEvents, t.PullEvents);
-        Assert.Equal(depleted, t.Depleted);
+        Assert.True(t.Records > 0 && t.Projections == t.Records + 1, $"{trace}: every record must be synced from its full line");
+        Assert.True(t.Telegraphs > 0 && t.Hits > 0, $"{trace}: no script telegraph was drawn and resolved");
+        Assert.True(t.PullEvents > 0, $"{trace}: no pull advanced");
         Assert.Equal(1, t.OnDeathCasts); // the Seed's deathBloom, exactly once
-        Assert.Equal(exactTelegraphs, t.ExactTelegraphs);
-        Assert.Equal(exactHits, t.ExactHits);
+        Assert.Equal(t.Telegraphs, t.ExactTelegraphs);
+        Assert.Equal(t.Hits, t.ExactHits);
     }
 }

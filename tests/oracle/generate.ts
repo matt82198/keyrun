@@ -4,7 +4,8 @@
  * game/sim/Keyrun.Sim.Tests/Fixtures/oracle/ (ORACLE_FIXTURE_DIR).
  *
  * manifest.json records, per file, its byte size and FNV-1a 32 over its bytes; per trace, its
- * trace hash, record count, final tick and run result; the loadContent() counts lane 1D compares
+ * record count, final tick, run result and the hand-authored named properties it protects (carried
+ * from the committed manifest, never generated: ORACLE.md section 10); the loadContent() counts lane 1D compares
  * against; and `frozenSources`, one FNV-1a 32 per frozen TypeScript source file the fixtures were
  * generated from (CR stripped so a CRLF checkout hashes like an LF one; *.md files excluded, since
  * documentation under a frozen root never changes behaviour). Any other edit under those paths
@@ -16,7 +17,7 @@
  *   - Re-record (deliberately, with a reason in the PR): `ORACLE_WRITE=1 npx vitest run tests/oracle`
  *   - In code: `writeFixtures(dir)` / `buildFixtures()`.
  */
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadContent } from "@content/index";
@@ -106,6 +107,20 @@ function contentCounts(): Record<string, number> {
   };
 }
 
+/**
+ * The hand-authored named properties each trace protects (game/sim/ORACLE.md section 10), read from the committed
+ * manifest.json: the generator never writes them, it carries them through a re-record unchanged. The C# side asserts
+ * them over its own runs instead of comparing whole-trace hashes, so a manifest re-record must never drop them.
+ */
+export function committedProperties(dir: string = ORACLE_FIXTURE_DIR): Record<string, unknown> {
+  const path = join(dir, "manifest.json");
+  if (!existsSync(path)) return {};
+  const committed = JSON.parse(readFileSync(path, "utf8")) as { traces?: { name: string; properties?: unknown }[] };
+  const out: Record<string, unknown> = {};
+  for (const t of committed.traces ?? []) if (t.properties !== undefined) out[t.name] = t.properties;
+  return out;
+}
+
 /** Every generated fixture file, filename -> exact text (LF line endings, trailing newline). */
 export function buildFixtures(): Record<string, string> {
   const files: Record<string, string> = { ...buildVectors() };
@@ -123,16 +138,19 @@ export function buildFixtures(): Record<string, string> {
     const bytes = enc.encode(files[name]!);
     listing[name] = { bytes: bytes.length, fnv: hex(fnvBytes(bytes)) };
   }
+  const properties = committedProperties();
   const manifest = {
     kind: "keyrun-oracle-manifest",
     version: ORACLE_VERSION,
     source: { sha: SOURCE_SHA, frozenRoots: FROZEN_ROOTS, frozenSources: frozenSourceHashes() },
     contentCounts: contentCounts(),
+    // No traceHash here: the C# runs assert each trace's named properties, not its hash (ORACLE.md section 10);
+    // the trace header still carries the recording's traceHash as part of the fixture format.
     traces: traces.map((t) => ({
       name: t.name,
       trace: t.traceFile,
       setup: t.setupFile,
-      traceHash: t.traceHash,
+      properties: properties[t.name],
       records: t.records,
       finalTick: t.finalTick,
       result: t.result,
