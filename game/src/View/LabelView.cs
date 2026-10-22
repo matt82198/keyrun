@@ -570,7 +570,10 @@ public partial class LabelView : Node3D
         for (var ci = 0; ci < crowds.Count; ci++)
         {
             var c = crowds[ci];
-            if (c.Members.Count < 2)
+            // IDLE-PACKS: an idle pack's five same-name plates are one label whose Folded holds all five actor ids, so the
+            // crowd counts actors (Folded), not labels; a single plate's label folds only itself (count 1).
+            var actors = c.Members.Sum(m => _shown[m].Folded.Count);
+            if (actors < 2)
             {
                 continue;
             }
@@ -579,7 +582,7 @@ public partial class LabelView : Node3D
             var drawn = _drawn.Count(d => d.Crowd == ci);
             var mark = _drawn.Any(d => d.Crowd == ci && d.Targeted && d.Text.StartsWith("> ", StringComparison.Ordinal));
             var line = FormattableString.Invariant(
-                $"HUD platecrowd name=\"{name}\" crowd={c.Members.Count} drawn={drawn} target={(target ? 1 : 0)} marked={(target && mark ? 1 : 0)}");
+                $"HUD platecrowd name=\"{name}\" crowd={actors} drawn={drawn} target={(target ? 1 : 0)} marked={(target && mark ? 1 : 0)}");
             if (_crowdLogged.Add(line))
             {
                 HudNodes.Proof(Driver, line);
