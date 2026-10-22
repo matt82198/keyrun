@@ -171,6 +171,7 @@ if ($selected.Contains($Bots)) {
 $secs = [int]$sw.Elapsed.TotalSeconds
 if ($failed.Count) {
     Write-Output "fastcheck: FAIL tests in $($failed -join ', ') after ${secs}s$suites"
+    Write-Output 'a failing gate''s message is a lookup key in docs/CI-CATALOG.md; apply the recipe once, do not retry the gate'
     exit 1
 }
 Write-Output "fastcheck: PASS in ${secs}s$suites$(if ($balanceRed) { ' (balance red, reported)' })"
