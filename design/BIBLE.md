@@ -277,9 +277,10 @@ timer rules above.
     reading, not a Matt decision, so it is open to removal under the direction above.
   - The key range and par stay an open `[DECIDE]` (section 12).
 
-Three teaching pulls, optional trash packs on two branching paths, an enemy-forces bar, and a boss behind a door
-the bar opens. Each teaching pull still teaches one thing. The packs and the bar make route choice and pull size
-the run's standing decision against the timer (research/01:29-33, research/06:42-46, research/06:55-59).
+Three teaching pulls, optional trash packs on two branching paths, an enemy-forces bar, and a boss; the key
+completes when the bar is full and the boss is dead (9.5). Each teaching pull still teaches one thing. The packs and
+the bar make route choice and pull size the run's standing decision against the timer (research/01:29-33,
+research/06:42-46, research/06:55-59). (amended 2026-10-22: D44/D45/D46/R-FORCES-1)
 
 **Decision (Matt, 2026-10-20).** The earlier shape, "three pulls and a boss, forward-only", was judged too thin.
 Matt, verbatim: "the room design is just super lame... it does not even look fun... there is so much more to
@@ -332,8 +333,10 @@ older line above contradicts one of them, that line is kept and marked "(superse
 Entrance -> Choir room (pull 1) -> Pair hall (pull 2) -> Fork landing
   West: Undercroft Steps (W1) -> Bellows Hall (W2, hazard)                              -> Seed chamber (pull 3)
   East: Reading Gallery (E1) + Cantor's Loft alcove (E2) -> Sluice Gallery (E3, hazard) -> Seed chamber (pull 3)
-Seed chamber -> Hollow Door -> Warden arena (boss)
+Seed chamber -> Warden arena (boss)
 ```
+
+The map has no door between the Seed chamber and the boss (9.5). (amended 2026-10-22: D44/D45/D46/R-FORCES-1)
 
 - **Everything is prespawned with an aggro distance.** **Decision (Matt, 2026-10-20), recorded verbatim:**
   "everything should be prespawned with an aggro distance". Every enemy group exists from the run's first tick,
@@ -354,9 +357,9 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
     of a teaching pull lies inside its room, so the party is in the room when the gate shuts. Optional packs never
     shut a gate.
   - **The teaching beats are unchanged.** The Choir still teaches the kick, and the Pair still teaches spread and
-    stack. The Seed elite activates when the party enters its chamber, as WoW mini-bosses do (amended 2026-10-21, orchestrator ruling R6; Matt may overrule; the Seed is the one group that activates on room entry, sim constant Aggro.RoomActivatedPullIds = {"seed"}, PR #505; every other group engages on its aggro radius), and it drops its Window on death as before. The boss stands idle in the Warden arena behind
-    the Hollow Door (9.5). It can only be engaged once the door is open, and the Lock's 50% and 30-second rhythm
-    counts from its own fight.
+    stack. The Seed elite activates when the party enters its chamber, as WoW mini-bosses do (amended 2026-10-21, orchestrator ruling R6; Matt may overrule; the Seed is the one group that activates on room entry, sim constant Aggro.RoomActivatedPullIds = {"seed"}, PR #505; every other group engages on its aggro radius), and it drops its Window on death as before. The boss stands idle in the Warden arena with
+    no door in front of it (9.5). It engages on its aggro radius like any group, and the Lock's 50% and 30-second
+    rhythm counts from its own fight. (amended 2026-10-22: D44/D45/D46/R-FORCES-1)
   - **Linked groups chain-pull.** Content may link groups. A link is drawn on the floor as a dashed line between
     their rings, and engaging one engages the others. A linked pair is a chain pull the party can see before it
     steps in, under the pull-size rule below. No POC pack is linked by default.
@@ -370,6 +373,10 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
   Seed chamber. A party that skipped too much can walk back to a pack it skipped in its own branch. That walk is a
   time cost the party chose, not a softlock. Nothing reopens a sealed doorway. The walk back is paid for on the
   run timer, so a skip is a gamble against par, and a skip that falls short costs the party its own time.
+- **Never linear.** Forward-only, no backtracking past a taken branch, still holds, but the dungeon is never one
+  corridor: there is one fork after the entrance into two branches that meet at the boss (in the Hollow Vault they
+  rejoin at the Seed chamber, the last room before the boss). The party picks the route and which packs to pull, and
+  each teaching pull still teaches one thing. (amended 2026-10-22: D44/D45/D46/R-FORCES-1)
 - **Optional packs do not gate.** A pack stands beside the walking line with its **aggro ring** drawn on the floor:
   a grey dashed ring at the pack's aggro radius (4000 mm by default). It is not a danger shape, so it never reads as
   a telegraph. The pack engages by the prespawn rule above.
@@ -386,15 +393,16 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
 - **Zero downtime means stakes, not spawns.** **Clarification (Matt, 2026-10-20), recorded verbatim:** "when i say
   0 downtime, i mean the high stakes m+ introduces, not literally spawning enemies on the player". No moment of the
   run is free, because one continuous timer runs against par from the first tick (section 8), so every pull and
-  every walk spends the same clock as the boss (research/06:64-71). The forces bar must be filled before the Hollow
-  Door (9.5), so every skip, chain pull and walk back is a choice made against that clock (research/01:29-34). A death
+  every walk spends the same clock as the boss (research/06:64-71). The forces bar must be full for the key to
+  complete (9.5), so every skip, chain pull and walk back is a choice made against that clock (research/01:29-34).
+  (amended 2026-10-22: D44/D45/D46/R-FORCES-1) A death
   or a wipe costs time on the run clock (D46), and a slow or greedy route costs par and can leave the key untimed
   (section 8). Walking between packs is
   normal and is part of the route decision. No rule here limits walking distance or puts enemies on the party.
 - **What an optional pack pays.** Fellowship's trash pays nothing (research/09:60-61). Here, every optional pack
-  killed adds Ash to the run's bank, shown on the run-end panel. A run that opens the Hollow Door at 110% forces or
-  more raises one of the three end-of-run options by one tier, never past 10. That overflow upgrade is the reward
-  for pulling more than the bar needs, against the timer.
+  killed adds Ash to the run's bank, shown on the run-end panel. Forces past 100% pay nothing more: the 110%
+  overflow upgrade is removed, because there is no Hollow Door and forces past 100% do nothing else (9.5). The reward
+  for an optional pack is its Ash and the forces it adds toward completion. (amended 2026-10-22: D44/D45/D46/R-FORCES-1)
 - **A wipe is a release and a run-back, not a run end.** **Ruling (Matt, 2026-10-21, R-BACKFILL-2):** the core
   dungeon loop defers to WoW Mythic+. A dead seat releases and, after the release delay (value set by the code lane,
   100 ticks, to be measured in run F), respawns at the dungeon entrance. On a full wipe every seat does this. The run timer keeps
@@ -402,6 +410,10 @@ Seed chamber -> Hollow Door -> Warden arena (boss)
   only at the timer cap, the boss kill, or abandonment. **Forward-only still holds.** A respawned seat walks the
   cleared path back to the party. Cleared groups stay dead, a sealed doorway stays shut, and no new pull spawns behind
   the party.
+- **What counts as a wipe.** A run wipes when no living seated player remains. Bots do not hold a run up on their
+  own: they follow the lowest-numbered living seat, so a party of bots with no living seated player is wiped. The run
+  ends at completion (9.5: 100% forces and the boss dead, in either order), the timer cap, or abandonment; a boss kill
+  short of 100% does not end it. (amended 2026-10-22: D44/D45/D46/R-FORCES-1)
 - **Backfill** (section 10): a joiner arrives at the next teaching pull or pack engage, inside the party's taken
   branch. The release rule above does not change this (R-BACKFILL-1, keyrun #425).
 
@@ -503,11 +515,13 @@ patches.
 
 ### 9.5 The boss door
 
-The corridor from the Seed chamber to the Warden arena ends at the **Hollow Door**, the gate the Seed's clear used
-to open on its own. It now opens on the first tick on which **both** the Seed pull is cleared **and** Forces are at
-or above 1000 points (100%). While it is shut, the door shows the bar and the shortfall ("Forces 87%"). A party that
-clears the Seed short of 100% walks back into its own branch for a skipped pack. Forces past 100% are shown (for
-example 104%) and do nothing else. The fight beyond the door is unchanged.
+**No gates; the key completes on 100% forces and a dead boss.** There is no Hollow Door and no forces gate in the
+dungeon. Packs are prespawned, and a pull starts when a pack aggroes (9.1). The boss stands idle in the Warden
+arena and can be engaged at any time. A key completes on the first tick on which **both** Forces are at or above
+1000 points (100%) **and** the final boss is dead, in either order, as in WoW Mythic+. A party that kills the boss
+short of 100% has not finished: the timer keeps running while it walks back for packs, and the key completes on the
+pack kill that reaches 100%. The key is **timed** only if that completion tick is inside par. Forces past 100% are
+shown (for example 104%) and do nothing else. The fight itself is unchanged. (amended 2026-10-22: D44/D45/D46/R-FORCES-1)
 
 ### 9.6 The teaching pulls (unchanged lessons)
 
@@ -528,6 +542,15 @@ example 104%) and do nothing else. The fight beyond the door is unchanged.
    Only a **Combo** closes it (any pair; the boss's Window accepts any Payoff from a class other than whichever
    Setup last tagged it — so the party must alternate who sets and who pays). Fail three Locks and the boss enrages
    into a Tempo spike, not an instant wipe. Each failed Lock adds one Tempo stack at once (ruled R-LOCK-1, 2026-10-21, as WoW does with stacking boss buffs); the third stack is the enrage.
+
+### 9.7 Dungeons generate by seed, then fill
+
+Everything except the dungeon is reusable, data-driven parts. A dungeon is built in two steps. **Generate:** a seed
+arranges reusable rooms and corridors into a layout that keeps the 9.1 shape (forward-only, one fork after the
+entrance into two branches that meet at the boss). **Fill:** a fill step then places the teaching pulls, in order,
+and the optional packs from a pack roster. The total forces on offer are above 100% on every route, so routing and
+skips matter (9.2). The Hollow Vault above is one such arrangement. Rare edge cases wait until one full run is
+testable. (amended 2026-10-22: D44/D45/D46/R-FORCES-1)
 
 ## 10. The screen, the queue, and being chill (research/08, /09)
 
@@ -586,7 +609,9 @@ release and a run-back, not a run end (sections 8 and 9.1).
 **Keyrun's own judgment**: Windows and Combos as the synergy core; the six named pair-combos; the three classes'
 loops and kits; the Clause carried by the key; Slack instead of flat death penalties; Tempo as the key's scaling axis; the Lock
 as the boss's combo gate; the ten-key table including the ping; the branch seal (no backtracking past a taken
-branch); the forces point table; hazards as environment casters that hit enemies too; the Hollow Door rule.
+branch); the forces point table; hazards as environment casters that hit enemies too. The Hollow Door rule is replaced by the
+completion rule (9.5: 100% forces and the boss dead, in either order), and dungeons generate by seed (9.7).
+(amended 2026-10-22: D44/D45/D46/R-FORCES-1)
 
 `[DECIDE]` for Matt: the three class identities and names; the combo effects table; key range and par time; whether
 Ascension is visible to other players or private.
