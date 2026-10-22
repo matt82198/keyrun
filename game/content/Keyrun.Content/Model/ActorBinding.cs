@@ -195,6 +195,10 @@ public sealed class ActorBinding
         new ActorBindingRow("vault.hound", "Skeleton_Minion.glb", 2166, 831, 0xC0B8B0, Array.Empty<string>(),
             ActorClips.Skeleton, Folder: SkeletonsFolder),
 
+        // Vault Patroller (R-PATROL-4, the corridor patrol's Patrol Sweep caster): Skeleton Warrior washed the colour of its cone.
+        new ActorBindingRow("vault.patroller", "Skeleton_Warrior.glb", 2590, 695, 0xC8A878, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
         // Ash Hexer: robed Skeleton Mage, violet (Searing Hex).
         new ActorBindingRow("ash.hexer", "Skeleton_Mage.glb", 2630, 684, 0xC090F0, Array.Empty<string>(),
             ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
