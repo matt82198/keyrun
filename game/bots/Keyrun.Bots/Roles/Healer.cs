@@ -156,8 +156,12 @@ public sealed class HealerRole : IRole
         {
             return new Command[] { kick };
         }
+        if (BreakBarKick.Command(view, self, kit) is { } barKick)
+        {
+            return new Command[] { barKick };
+        }
 
-        var party = actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != self.Id).ToList();
+        var party =actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != self.Id).ToList();
         var escapeOpts = party.Count > 0
             ? new FloorEscapeOptions { KeepNear = new KeepNear(RoleShared.Centroid(party), HealRangeMm) }
             : new FloorEscapeOptions();
@@ -187,13 +191,24 @@ public sealed class HealerRole : IRole
                 // CADENCE-SETUP (f-b31e8f34): nobody under the threshold, so open a Setup for a ready Payoff partner;
                 // BOTS-FIVE-BUTTONS (f-45e27a2d): no Setup to open, so close a Window, Refrain into Ward, or cast the
                 // damaging Payoff (HealerIdle); D-HEALER-DOWNTIME: none of those, so press a non-heal rotation button.
+                // BOSS-TEACHES (R-BOSS-1): with nobody to heal, a Setup into the boss's Lock comes first.
+                var lockSetup = LockAnswer.SetupCommand(view, self, kit);
+                if (lockSetup.Count > 0)
+                {
+                    return lockSetup;
+                }
                 var setup = HealerSetup.SetupCommands(view, self, kit);
-                if (setup.Count > 0)
+                if (setup.Count > 0 && !LockAnswer.Holds(view, self, setup))
                 {
                     return setup;
                 }
                 var idle = HealerIdle.IdleCommands(view, self, kit, MendVerseValue);
-                return idle.Count > 0 ? idle : PressCommands(view, self, kit);
+                if (idle.Count > 0 && !LockAnswer.Holds(view, self, idle))
+                {
+                    return idle;
+                }
+                var press = PressCommands(view, self, kit);
+                return LockAnswer.Holds(view, self, press) ? Array.Empty<Command>() : press;
             }
             // BOTS-FIVE-BUTTONS: someone needs healing while the stance sits in Ward, so Refrain back to Mend first
             // (its Mend burst heals on the swap) before the shape-aware heal.
