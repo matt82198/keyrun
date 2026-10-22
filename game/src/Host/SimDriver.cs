@@ -110,6 +110,7 @@ public partial class SimDriver : Node
     private bool _cameraBaselined;
     private bool _yawPressed;
     private int _readyHoldWait;
+    private bool _talentsLogged;
     private bool _done;
 
     /// <summary>The PlayerInput node.</summary>
@@ -426,8 +427,18 @@ public partial class SimDriver : Node
             Queued = request,
             Progression = _screen?.Progression,
             StartPull = Options.StartPull,
+            Talents = Options.Talents,
         });
         Run = run;
+        if (!_talentsLogged)
+        {
+            // f-a3de0a01: each --talent pick, once per launch, after the factory accepted it (a bad pick exits 1 above).
+            _talentsLogged = true;
+            foreach (var talent in Options.Talents)
+            {
+                _log?.Line(talent.ProofLine());
+            }
+        }
         _backfill = BackfillState.Empty;
         // A pull engaged at creation (a --pull N start) drops its pull_start (see below): it started at the run's first tick.
         // A health-relative plan (f-0fd3e6fb) still waits for that pull's health to fall.
