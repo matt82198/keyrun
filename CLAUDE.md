@@ -26,9 +26,8 @@ of it is `content/data/` (the frozen oracle root, see content/CLAUDE.md) and `te
   export-template installer (install-templates.ps1, SHA512-verified).
   Fail closed (preflight.ps1, tests screens-preflight-test.ps1 + launch-lock-test.ps1 H + import-cache-test.ps1): exit 6 = no dotnet / missing or stale game assembly / import cache missing or import failed, nothing launched (godot.ps1 and screens.ps1); exit 7 = screens.ps1 run log never written (boot-scene-only run); exit 9 = screens.ps1 run had an actor on the capsule fallback; exit 10 = screens.ps1 model gate not evaluated (run log stayed locked; frames and mp4 kept, test screens-log-lock-test.ps1 K3).
   Every fresh keyrun worktree starts with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/setup-worktree.ps1` (Debug build, then the one-time Godot import when the cache is missing; prints `SETUP done build=ok import=<ran|cached> files=<n>`).
-- **.github/workflows/game.yml** - owns the required checks `game-test` (dotnet test game/Keyrun.sln), `game-e2e`
-  (headless smoke and export) and `game-gate`; `balance` is non-required. **.github/workflows/tests.yml** owns the
-  required checks `test` (`npx vitest run tests/lanes`) and `e2e`. The required check `e2e` currently has no suite behind
+- **Required checks on main (branch protection, five total): `test`, `e2e`, `game-test`, `game-gate`, `game-e2e`.** A red game check (`game-test`, `game-gate` or `game-e2e`) blocks merge. `balance` is non-required.
+- **.github/workflows/game.yml** owns `game-test` (dotnet test game/Keyrun.sln), `game-e2e` (headless smoke and export) and `game-gate`. **.github/workflows/tests.yml** owns `test` (`npx vitest run tests/lanes`) and `e2e`. The required check `e2e` currently has no suite behind
   it: its one step fails only if a TypeScript e2e suite directory returns, and otherwise it passes.
 - **content/data/** - the frozen oracle root: the JSON game content that the C# loader embeds (one csproj glob,
   game/content/Keyrun.Content/Keyrun.Content.csproj). It stays verbatim. See content/CLAUDE.md.
