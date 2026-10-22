@@ -459,7 +459,7 @@ public partial class LabelView : Node3D
         projected.Sort((a, b) => a.Depth.CompareTo(b.Depth));
 
         // IDLE-PACKS (f-1bf2dace): an idle pack draws one label at its centre; an engaged pack's members keep one label
-        // each; a label whose box would leave the viewport is hidden, not clamped (IdlePackLabels.Plan).
+        // each; an idle pack label whose box would leave the viewport is hidden, not clamped (IdlePackLabels.Plan).
         var labels = IdlePackLabels.Plan(
             projected.Select(p => new IdlePackMember(p.Plate.Id, p.Plate.BaseName, p.Plate.ClassId, true, p.Anchor.X, p.Anchor.Y, p.Plate.PackId)).ToList(),
             _engagedPacks, NoPackNames, width, height, s => (int)Math.Ceiling(HudNodes.Width(s, NameFont)), NameFont);
@@ -572,7 +572,7 @@ public partial class LabelView : Node3D
             var c = crowds[ci];
             // IDLE-PACKS: an idle pack's five same-name plates are one label whose Folded holds all five actor ids, so the
             // crowd counts actors (Folded), not labels; a single plate's label folds only itself (count 1).
-            var actors = c.Members.Sum(m => _shown[m].Folded.Count);
+            var actors = c.Members.Sum(m => _shown[m].Folded.Count); // == IdlePackLabels.CrowdSize over the crowd's labels
             if (actors < 2)
             {
                 continue;

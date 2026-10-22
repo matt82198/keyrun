@@ -111,10 +111,43 @@ public sealed class IdlePackLabelsTests
         Assert.Empty(IdlePackLabels.Plan(edge, new HashSet<string>(), new Dictionary<string, string>(),
             Width, Height, Measure, TextHeight));
 
-        // An engaged single enemy whose box rises above y=0 is hidden the same way.
-        var top = new List<IdlePackMember> { Member(30, "Choir Acolyte", "enemy.choir.acolyte", null, 500, 5) };
+        // An idle pack whose box rises above y=0 is hidden the same way.
+        var top = new List<IdlePackMember>
+        {
+            Member(30, "Choir Cantor", "enemy.choir.lieutenant", "top", 500, 5),
+            Member(31, "Choir Acolyte", "enemy.choir.acolyte", "top", 500, 5),
+        };
         Assert.Empty(IdlePackLabels.Plan(top, new HashSet<string>(), new Dictionary<string, string>(),
             Width, Height, Measure, TextHeight));
+    }
+
+    // Five Paired Warriors on one spot (the NameplateDeclutter "Pair"), all in one pack.
+    private static List<IdlePackMember> Pair(string? pack) =>
+        Enumerable.Range(0, 5).Select(i => Member(100 + i, "Paired Warrior", "enemy.pair.melee", pack, 900, 600)).ToList();
+
+    [Fact]
+    public void IdlePair_IsOneLabel_AndTheCrowdProofCountsFiveActors()
+    {
+        // NameplateDeclutterTest case c reads "HUD platecrowd ... crowd>=2"; LabelView.LogCrowds prints crowd=CrowdSize.
+        var labels = IdlePackLabels.Plan(Pair("pair"), new HashSet<string>(), new Dictionary<string, string>(),
+            Width, Height, Measure, TextHeight);
+
+        var label = Assert.Single(labels);
+        Assert.Equal(5, IdlePackLabels.CrowdSize(new[] { label }));
+    }
+
+    [Fact]
+    public void EngagedPair_NearTheTopEdge_StillDrawsItsPlates_SoThePlateCrowdFoldsThem()
+    {
+        // Engaged (or pack-less) plates are folded by HudDeclutter.PlateCrowds and clamped by PlateStack.Layout as on main;
+        // only an idle pack's single label is edge-hidden. Hiding these dropped the Pair crowd the declutter proof reads.
+        var top = Enumerable.Range(0, 5).Select(i => Member(200 + i, "Paired Warrior", "enemy.pair.melee", null, 900, 5)).ToList();
+
+        var labels = IdlePackLabels.Plan(top, new HashSet<string>(), new Dictionary<string, string>(),
+            Width, Height, Measure, TextHeight);
+
+        Assert.Equal(5, labels.Count);
+        Assert.Equal(5, IdlePackLabels.CrowdSize(labels));
     }
 
     [Fact]

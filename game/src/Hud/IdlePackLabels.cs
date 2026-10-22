@@ -92,8 +92,9 @@ public static class IdlePackLabels
             }
             if (m.PackId is not { } packId || engagedPacks.Contains(packId))
             {
-                AddIfInside(result, new IdlePackLabel(m.Name, m.X, m.Y, false, m.Id, new[] { m.Id }, m.PackId),
-                    width, height, textWidth, fontSize);
+                // A per-actor label is never edge-hidden: HudDeclutter.PlateCrowds folds same-name plates and PlateStack.Layout
+                // clamps what is left, exactly as before idle packs; only an idle pack's one label is edge-hidden (below).
+                result.Add(new IdlePackLabel(m.Name, m.X, m.Y, false, m.Id, new[] { m.Id }, m.PackId));
                 continue;
             }
             if (!emitted.Add(packId))
@@ -119,6 +120,19 @@ public static class IdlePackLabels
                 width, height, textWidth, fontSize);
         }
         return result;
+    }
+
+    /// <summary>
+    /// The crowd size the "HUD platecrowd ... crowd=C" proof line reports (NameplateDeclutterTest case c): the actors the
+    /// crowd's labels stand for. An idle pack's one label folds all its living members, so it counts them all; a per-actor
+    /// label counts one.
+    /// </summary>
+    /// <param name="crowdLabels">The labels of one same-name crowd.</param>
+    /// <returns>The number of actors the labels fold.</returns>
+    public static int CrowdSize(IEnumerable<IdlePackLabel> crowdLabels)
+    {
+        ArgumentNullException.ThrowIfNull(crowdLabels);
+        return crowdLabels.Sum(l => l.ActorIds.Count);
     }
 
     /// <summary>
