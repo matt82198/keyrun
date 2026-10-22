@@ -63,4 +63,73 @@ public sealed class ObjectiveTrashTests
         Assert.DoesNotContain("1 of 1 remain", task, StringComparison.Ordinal);
         Assert.Equal(living, remaining);
     }
+
+    /// <summary>Runs one playtest and returns the objective line at the first observed tick that satisfies <paramref name="when"/>.</summary>
+    private static ObjectiveLine? FirstLineWhen(string dungeonId, Func<int, Run, bool> when, ContentRegistry reg)
+    {
+        ObjectiveLine? found = null;
+        var options = new PlaytestOptions(2, 1, null)
+        {
+            DungeonId = dungeonId,
+            Observe = (tick, run, _) =>
+            {
+                if (found is null && when(tick, run))
+                {
+                    found = ObjectiveModel.Build(run, reg);
+                }
+            },
+        };
+        PlaytestRunner.Play(options, reg);
+        return found;
+    }
+
+    [Fact(DisplayName = "Bellfoundry segment 1 trash header reads \"Segment 1/3: toward <segment 1 boss>\", never \"Pull 1/3\" of the boss")]
+    public void Header_during_segment_one_trash_names_the_segment_and_its_boss()
+    {
+        var reg = ContentLoader.Load();
+        var line = FirstLineWhen(Dungeon, (tick, run) =>
+        {
+            if (run.Encounter.PullIndex < 0 || run.Encounter.PullIndex >= run.Dungeon.Pulls.Count)
+            {
+                return false;
+            }
+            var pull = run.Dungeon.Pulls[run.Encounter.PullIndex];
+            if (!LayoutDef.IsBossPull(pull.Id) || run.Encounter.Engaged.Contains(pull.Id, StringComparer.Ordinal))
+            {
+                return false;
+            }
+            return Aggro.GroupsOf(run.Dungeon, tick, run.Content.Packs, run.Content.Layout, run.Content.Patrols)
+                .Any(g => g.PullIndex < 0 && run.Encounter.Engaged.Contains(g.Id, StringComparer.Ordinal));
+        }, reg);
+
+        Assert.NotNull(line);
+        Assert.Equal(ObjectiveFocus.Pack, line!.Focus);
+        Assert.Equal("Segment 1/3: toward " + reg.Enemies["bellfoundry.ommet"].Name, line.Title);
+    }
+
+    [Fact(DisplayName = "Bellfoundry segment 1 boss header reads \"Boss 1/3: <segment 1 boss>\" while that boss is the pull")]
+    public void Header_during_segment_one_boss_names_the_boss()
+    {
+        var reg = ContentLoader.Load();
+        var line = FirstLineWhen(Dungeon, (tick, run) =>
+            run.Encounter.PullIndex >= 0
+            && run.Encounter.PullIndex < run.Dungeon.Pulls.Count
+            && run.Dungeon.Pulls[run.Encounter.PullIndex].Id == "boss-s1"
+            && run.Encounter.Engaged.Contains("boss-s1", StringComparer.Ordinal), reg);
+
+        Assert.NotNull(line);
+        Assert.Equal(ObjectiveFocus.Pull, line!.Focus);
+        Assert.Equal("Boss 1/3: " + reg.Enemies["bellfoundry.ommet"].Name, line.Title);
+    }
+
+    [Fact(DisplayName = "Hollow Vault header is unchanged: \"Pull 1/4  <first pull name>\" on the single-boss tutorial")]
+    public void Header_on_hollow_vault_keeps_the_pull_wording()
+    {
+        var reg = ContentLoader.Load();
+        var vault = reg.Dungeons["hollow-vault"];
+        var line = FirstLineWhen("hollow-vault", (tick, run) => run.Encounter.PullIndex == 0, reg);
+
+        Assert.NotNull(line);
+        Assert.Equal("Pull 1/" + (vault.Pulls.Count + 1) + "  " + vault.Pulls[0].Name, line!.Title);
+    }
 }
