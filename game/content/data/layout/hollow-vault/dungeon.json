@@ -52,6 +52,11 @@
       "classId": "cinder",
       "behindMm": 2500,
       "sideMm": 1000
+    },
+    {
+      "classId": "warden",
+      "behindMm": 2000,
+      "sideMm": 0
     }
   ]
 }

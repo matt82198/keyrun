@@ -80,6 +80,9 @@ public partial class PlayerInput : Node, ICommandSource
     // True while the right mouse button is held (mouselook), from its press and release events.
     private bool _rightHeld;
 
+    // The unit a left click picked this frame (the mouseover at the click), sent as a target command on the next sample.
+    private int? _clickTarget;
+
     private CameraRig? Rig { get; set; }
 
     private SimDriver? Driver { get; set; }
@@ -187,6 +190,10 @@ public partial class PlayerInput : Node, ICommandSource
             case InputEventKey { Pressed: true, Echo: false } key when Binds.ActionFor(key.PhysicalKeycode) is { } action:
                 _pending.Add(action);
                 break;
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } when Mouseover is { } clicked:
+                // HUMAN-PLAY (WoW): left click on a unit (its body or its plate) makes it the target.
+                _clickTarget = clicked;
+                break;
             case InputEventMouseButton { ButtonIndex: MouseButton.Right } button:
                 // MOUSEOVER: hold right mouse to look, release to free the cursor.
                 SetMouselook(button.Pressed);
@@ -248,6 +255,14 @@ public partial class PlayerInput : Node, ICommandSource
     // player-commands.ts computePlayerCommands order: target cycles, then casts (moves were added first).
     private void SampleActions(int tick, Run run, List<Command> into)
     {
+        if (_clickTarget is { } clicked)
+        {
+            _clickTarget = null;
+            if (run.State.Actors.TryGetValue(SimDriver.WardenId, out var self) && run.State.Actors.TryGetValue(clicked, out var unit) && unit.Alive)
+            {
+                into.Add(new TargetCommand(tick, self.Id, clicked));
+            }
+        }
         if (_pending.Count == 0 || !run.State.Actors.TryGetValue(SimDriver.WardenId, out var me))
         {
             _pending.Clear();
@@ -256,7 +271,7 @@ public partial class PlayerInput : Node, ICommandSource
         var cycles = _pending.Count(a => a == KeyAction.TargetCycle);
         if (cycles > 0)
         {
-            var enemies = run.State.Actors.Values.Where(a => a.Kind == ActorKind.Enemy).ToList();
+            var enemies = TabTargeting.Candidates(run.State, me);
             var target = me.TargetId;
             for (var i = 0; i < cycles; i++)
             {

@@ -22,6 +22,14 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
     /// <summary>The dungeon (the POC has one).</summary>
     public string DungeonId { get; init; } = "hollow-vault";
 
+    /// <summary>
+    /// Seat 1's class (D65/D66, HUMAN-PLAY): the class the host's human picks on the Character tab. Seat 1 takes that
+    /// class's roster slot and the two other roster classes fill seats 2 and 3 in roster order
+    /// (<see cref="HostRunSetup.BuildParty"/>), so the party is always one of each role. Default: the Warden, the run this
+    /// runner always played.
+    /// </summary>
+    public string HumanClassId { get; init; } = HostRunSetup.Roster[0].ClassId;
+
     /// <summary>Hard stop, ticks; a run still going is "unfinished". Default: twice par.</summary>
     public int? MaxTicks { get; init; }
 
@@ -47,7 +55,8 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
 public sealed record PlaytestResult(Run Run, string Log, RunStats Stats, HostRunSetup Setup, C.ContentRegistry Registry);
 
 /// <summary>
-/// Plays one Hollow Vault run headlessly with the three host seats (Warden 1, Chanter 2, Cinder 3) all driven by bots,
+/// Plays one Hollow Vault run headlessly with the three host seats (Warden 1, Chanter 2, Cinder 3 by default; seat 1 is
+/// <see cref="PlaytestOptions.HumanClassId"/> and the other two classes follow in roster order) all driven by bots,
 /// built through the host's assembly path (<see cref="HostRunSetup.Build"/>, then <see cref="HostRunFactory.Create"/>,
 /// which ends in <see cref="BossRules.Arm"/>; without the bot seats' default loadouts, as before). The leader
 /// (<see cref="Follow.Leader"/>, the lowest living seat) walks the route between fights (<see cref="Follow.LeadRoute"/>, the autorun Warden walk) and keeps only its casts
@@ -116,10 +125,10 @@ public static class PlaytestRunner
         var policy = options.Policy;
         var registry = policy is null ? content : WithTalents(content, policy);
         // R-MULTIBOSS-1: the run seed also generates a multi-segment dungeon's layout (the Sunken Bellfoundry); the Hollow Vault ignores it.
-        var setup = HostRunSetup.Build(registry, options.DungeonId, options.Key, HostRunSetup.Roster[0].ClassId, withBots: true, dungeonSeed: options.Seed);
+        var setup = HostRunSetup.Build(registry, options.DungeonId, options.Key, options.HumanClassId, withBots: true, dungeonSeed: options.Seed);
         // R7: HostRunFactory, the host's assembly path. No bot loadouts and no options record, as this runner always
         // built its runs (RunRequest.BotLoadouts), so the playtest output is unchanged.
-        var run = HostRunFactory.Create(setup, new RunRequest(options.Seed, registry, HostRunSetup.Roster[0].ClassId)
+        var run = HostRunFactory.Create(setup, new RunRequest(options.Seed, registry, options.HumanClassId)
         {
             BotLoadouts = false,
             RotationOptions = false,

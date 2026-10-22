@@ -61,7 +61,8 @@ public sealed class HallSentriesTests
         foreach (var r in new[] { Play(KickPlan), Play(null) })
         {
             var sentries = Sentries(r);
-            Assert.Equal(5, sentries.Count);
+            // R-PINS-1: a pack of several sentries (the loops below are vacuous on an empty or one-member pack), not the literal 5.
+            Assert.True(sentries.Count >= 2, $"the Hall Sentries are a pack of several; content gave {sentries.Count}");
             Assert.DoesNotContain($"\"packId\":\"{HallPackId}\"", r.Log);
             var swings = FirstSwings(r.Log, sentries);
             Assert.True(swings.Values.All(t => t < 0), "a Hall Sentry swung on the default route: " + string.Join(", ", swings.Select(kv => $"{kv.Key}@{kv.Value}")));
@@ -75,7 +76,7 @@ public sealed class HallSentriesTests
         foreach (var r in new[] { PullingHallPack(KickPlan), PullingHallPack(null) })
         {
             var members = Sentries(r);
-            Assert.Equal(5, members.Count);
+            Assert.True(members.Count >= 2, $"the Hall Sentries are a pack of several; content gave {members.Count}");
             var dead = DeadIn(r.Log);
             var alive = members.Where(id => !dead.Contains(id)).ToList();
             Assert.True(alive.Count == 0,

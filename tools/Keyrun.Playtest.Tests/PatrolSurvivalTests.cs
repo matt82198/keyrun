@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Keyrun.Content;
 using Keyrun.Host;
@@ -9,7 +10,8 @@ namespace Keyrun.Playtest.Tests;
 
 /// <summary>
 /// R-PATROL-3 (ruling on PR #528; core loop defers to WoW; BIBLE test 3 "no run ruined by one mistake" is the acceptance).
-/// Two checks on the corridor-2 patrol (the two choir.melee members, actor ids 519 and 520):
+/// Two checks on the corridor-2 patrol (the members of the "corridor-patrol" patrol pack, read from the run's content;
+/// R-PINS-1: no hard-coded actor ids, which shift whenever a pack is added before the patrol):
 /// (1) the run F trajectory, where the healer seat is abandoned mid pull 1 and nothing refills it before pull 2: the Warden
 /// must finish the patrol alive, as a tank does against two trash mobs with one DPS in WoW;
 /// (2) the default three-seat party: the patrol still engages and the Warden loses at least a quarter of its max health to it
@@ -18,8 +20,16 @@ namespace Keyrun.Playtest.Tests;
 public sealed class PatrolSurvivalTests
 {
     private const int WardenId = 1;
-    private const long FirstPatrolActorId = 519;
-    private const long LastPatrolActorId = 520;
+    private const string PatrolPackId = "corridor-patrol";
+
+    /// <summary>The patrol pack's member actor ids as the run's own content places them (R-PINS-1: not a hard-coded id range).</summary>
+    private static HashSet<long> PatrolMembers()
+    {
+        var setup = HostRunSetup.Build(ContentLoader.Load(), "hollow-vault", 2, "warden", withBots: true);
+        var members = setup.Content.Patrols!.Single(p => p.Id == PatrolPackId).Spawns.Select(s => (long)s.ActorId).ToHashSet();
+        Assert.True(members.Count >= 2, $"the {PatrolPackId} patrol must be a pull of at least two members; content gave {members.Count}");
+        return members;
+    }
 
     private static long ActorOf(SimEvent e, string field) => e.Get(field) is JsInt { Value: var v } ? v : -1;
 
@@ -28,8 +38,11 @@ public sealed class PatrolSurvivalTests
     {
         var run = HostBackfillRunTests.Arena(HostBackfillRunTests.BackfillTicks, SeatAbandonPlan.Parse(HostBackfillRunTests.AbandonSeat), joinerKey: null);
         var deaths = run.Events.Where(x => x.Event.Type == "death").Select(x => (Tick: x.Event.Tick, Actor: ActorOf(x.Event, "actorId"))).ToList();
-        var patrolDeaths = deaths.Where(d => d.Actor is >= FirstPatrolActorId and <= LastPatrolActorId).ToList();
-        Assert.Equal(2, patrolDeaths.Count);
+        var members = PatrolMembers();
+        var patrolDeaths = deaths.Where(d => members.Contains(d.Actor)).ToList();
+        // Every patrol member dies (R-PINS-1: the pack's own size, not a literal 2): the patrol was fought to the end, so
+        // "the Warden outlived it" below is about the whole patrol and cannot pass because the patrol never engaged.
+        Assert.Equal(members.Count, patrolDeaths.Select(d => d.Actor).Distinct().Count());
         var lastPatrolDeath = patrolDeaths.Max(d => d.Tick);
         var wardenDeath = deaths.Where(d => d.Actor == WardenId).Select(d => (int?)d.Tick).FirstOrDefault();
         Assert.True(wardenDeath is null || wardenDeath > lastPatrolDeath,
@@ -74,19 +87,20 @@ public sealed class PatrolSurvivalTests
     [Fact(DisplayName = "Patrol survival (R-PATROL-3 guard, R-PINS-1): the patrol engages, hits the Warden, and the Warden survives it")]
     public void Default_party_engages_the_patrol_which_hits_the_warden_and_he_survives_it()
     {
+        var members = PatrolMembers();
         var run = HostBackfillRunTests.Arena(HostBackfillRunTests.BackfillTicks, null, joinerKey: null);
         Assert.Contains(run.Events, x => x.Event.Type == "pack_engage" && x.Event.Get("packId") is JsString { Value: "corridor-patrol" });
         var taken = run.Events
             .Where(x => x.Event.Type == "damage" && ActorOf(x.Event, "targetId") == WardenId
-                        && ActorOf(x.Event, "sourceId") is >= FirstPatrolActorId and <= LastPatrolActorId)
+                        && members.Contains(ActorOf(x.Event, "sourceId")))
             .Sum(x => ActorOf(x.Event, "healthDamage"));
         // R-PINS-1 (R-ORACLE-1 applied, ruling on #573), replacing R-PATROL-3c's single-seed floor of 80 damage (the 22-raw
         // sweep measured 87 on main; the aggro-chase trajectory with #540's filler measures 50): the property this guard is
         // for, the patrol stays a real pull. It engages, its hits land on the Warden, and he survives it.
         Assert.True(taken > 0, "the patrol never damaged the Warden: it is not a real pull");
         var deaths = run.Events.Where(x => x.Event.Type == "death").Select(x => (Tick: x.Event.Tick, Actor: ActorOf(x.Event, "actorId"))).ToList();
-        var patrolDeaths = deaths.Where(d => d.Actor is >= FirstPatrolActorId and <= LastPatrolActorId).ToList();
-        Assert.Equal(2, patrolDeaths.Count);
+        var patrolDeaths = deaths.Where(d => members.Contains(d.Actor)).ToList();
+        Assert.Equal(members.Count, patrolDeaths.Select(d => d.Actor).Distinct().Count());
         var last = patrolDeaths.Max(d => d.Tick);
         Assert.DoesNotContain(deaths, d => d.Actor == WardenId && d.Tick <= last);
         Assert.True(WardenHealthAt(run, last) > 0, $"the Warden had {WardenHealthAt(run, last)} health at the last patrol death (tick {last})");
