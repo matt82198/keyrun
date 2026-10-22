@@ -138,6 +138,6 @@ public sealed class ReferenceTests
         }
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(112, refs.Checked); // vacuity guard: exact ref count from the JSON (+1: the Sunken Bellfoundry's boss; +4: the four segment bosses, Hollow Vault 1 and Bellfoundry 3; +28: the 28 member groups of its 11 roster packs, D66; was 79)
+        Assert.Equal(119, refs.Checked); // vacuity guard: exact ref count from the JSON (+7: one Scald Hound member group in each of the seven roster packs grown to 5-8 mobs, D66 big pulls; +1: the Sunken Bellfoundry's boss; +4: the four segment bosses, Hollow Vault 1 and Bellfoundry 3; +28: the 28 member groups of its 11 roster packs, D66; was 79)
     }
 }
