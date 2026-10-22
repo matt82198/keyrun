@@ -1,0 +1,23 @@
+{
+  "id": "choir-room",
+  "kind": "room",
+  "minX": 10000,
+  "maxX": 26000,
+  "minZ": -8000,
+  "maxZ": 8000,
+  "pull": "choir",
+  "trigger": {
+    "minX": 12000,
+    "maxX": 26000,
+    "minZ": -8000,
+    "maxZ": 8000
+  },
+  "origin": {
+    "x": 21500,
+    "z": 0
+  },
+  "start": {
+    "x": 14500,
+    "z": 0
+  }
+}

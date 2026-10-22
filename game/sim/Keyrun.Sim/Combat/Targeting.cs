@@ -128,7 +128,21 @@ public static class Targeting
     /// <param name="def">The ability.</param>
     /// <param name="affinity">The ability's affinity (affinity.ts abilityAffinity).</param>
     /// <returns>The actors it applies to.</returns>
-    public static List<ActorState> ResolveTargets(SimState state, ActorState actor, AbilityDef def, Affinity affinity)
+    public static List<ActorState> ResolveTargets(SimState state, ActorState actor, AbilityDef def, Affinity affinity) =>
+        ResolveTargetsOn(state, actor, def, affinity, Casting.CastTargetOf(actor));
+
+    /// <summary>
+    /// <see cref="ResolveTargets"/> with the "target" shape resolving on
+    /// <paramref name="castTargetId"/> (an ended cast's <see cref="Casting.TargetOfEnded"/>,
+    /// R2) instead of the actor's live cast.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <param name="actor">The caster.</param>
+    /// <param name="def">The ability.</param>
+    /// <param name="affinity">The ability's affinity (affinity.ts abilityAffinity).</param>
+    /// <param name="castTargetId">The target the cast resolves on, or null.</param>
+    /// <returns>The actors it applies to.</returns>
+    public static List<ActorState> ResolveTargetsOn(SimState state, ActorState actor, AbilityDef def, Affinity affinity, int? castTargetId)
     {
         var shape = def.Shape;
         if (shape.Kind == ShapeKind.Self)
@@ -139,7 +153,7 @@ public static class Targeting
         {
             // CAST-KEEPS-START-TARGET (f-bd8fbbb1): the cast's start target, not a mid-cast retarget (Casting.SetTarget).
             // KF3 Seed spawn gate: a dormant enemy (Encounter/Aggro.cs room-activated group, not yet entered) is no target.
-            if (Casting.CastTargetOf(actor) is int tid && state.Actors.TryGetValue(tid, out var t) && t.Alive && !t.Dormant && Casting.RangeMm(actor, t) <= def.Range)
+            if (castTargetId is int tid && state.Actors.TryGetValue(tid, out var t) && t.Alive && !t.Dormant && Casting.RangeMm(actor, t) <= def.Range)
             {
                 return new List<ActorState> { t };
             }

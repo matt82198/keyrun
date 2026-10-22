@@ -1,162 +1,116 @@
 # Keyrun
 
-Keyrun is a proof-of-concept co-op dungeon game for Windows desktop, built in Godot 4.7.2 .NET with C#. Its loop is
-"Screen -> Queue -> Dungeon (timed, one boss) -> End-of-run choice of three -> Screen" ([design/BIBLE.md](design/BIBLE.md), section 1).
-Each class is limited to five rotational abilities and ten keybinds in total ([design/BIBLE.md](design/BIBLE.md), section 2).
+Keyrun is a co-op dungeon game for Windows desktop: the Mythic+ loop from World of Warcraft with the world taken
+away. You open one screen, pick a key, press Queue, run a timed dungeon with one boss, choose one of three rewards,
+and land back on the screen. There are no quests, no shop and no open world ([design/BIBLE.md](design/BIBLE.md),
+section 1). It is a proof of concept, built in Godot
+4.7.2 .NET with C#.
 
-Keyrun is also Aesop's live demo. [Aesop](https://github.com/matt82198/aesop) is a multi-agent orchestration kernel for
-autonomous software development. Aesop's lanes built this game end to end, for a person who does not make games. The
-build diary runs from 2026-09-18 ([BUILDLOG.md](BUILDLOG.md), first entry) to 2026-10-19. Every decision, research brief,
-plan, lane and contract that produced the game is linked below.
+Keyrun is built by [Aesop](https://github.com/matt82198/aesop) (npm `@matt82198/aesop`). Nobody on the project, the
+person directing it or the model doing the work, had made a game before. The rules in the design bible came from
+reading (the eleven briefs in [research/](research/)), the code came from Aesop's loop, and every decision, with who
+made it and why, is on record in [STATE.md](STATE.md).
 
-## Status
+## The game
 
-Proof of concept, in the engine rebuild.
+**Three tests.** Every design decision has to pass all three ([design/BIBLE.md](design/BIBLE.md), section 0):
+depth and difficulty (real decisions on five buttons, keys hard because of what enemies do, not how much health
+they have); a high key inside a minute; and strangers chill by default (no shareable score, no run ruined by one
+mistake, backfill instead of abandonment, pings instead of typing).
 
-- The game is a 3D run in the Hollow Vault: one class (the Warden) with a bot party, three pulls and a boss ([design/BIBLE.md](design/BIBLE.md), section 9).
-- D10 (MVP = 3D gameplay) is open until Matt plays one complete run end to end. No human-played run is recorded yet ([STATE.md](STATE.md), D10).
-- Open items, named in the pinned INTENT block: KF1 (combat animation reads badly), KF2 (bots idle in the first room), KF3 (the Seed elite spawns on entry and the bots cheese it), and the untelegraphed boss and Twins slams ([STATE.md](STATE.md), lines 3-24).
+**Ten keys.** Five rotational abilities, then interrupt (Q), defensive (E), class utility (R), movement (F) and ping
+(G). WASD and mouse-look are the body and do not count (section 2).
 
-## What Aesop did here
+**Combat.** Cast bars are the enemy's language: every dangerous enemy action is a cast with a visible bar and a
+floor telegraph, read by shape plus colour, never colour alone. The sim is integer math at 20 Hz, and an interrupt
+resolves by its intended tick, never by arrival order (section 3).
 
-1. **Research (2026-09-18).** Eleven cited briefs, each ending in a verdict. Format: [research/CLAUDE.md](research/CLAUDE.md).
-   - [01 - What makes WoW Mythic+ fun, and what do its players hate?](research/01-mythic-plus-anatomy.md)
-   - [02 - What do other co-op dungeon/instance games do better than WoW's Mythic+?](research/02-other-dungeon-runners.md)
-   - [03 - Ability & Class Design](research/03-ability-and-class-design.md)
-   - [04 - Talent Trees](research/04-talent-trees.md)
-   - [05 - Gear Progression](research/05-gear-progression.md)
-   - [06 - Encounter and Boss Design](research/06-encounter-and-boss-design.md)
-   - [07 - How should the sim and netcode be built for a 5-player co-op ability game?](research/07-sim-and-netcode.md)
-   - [08 - Character & Queue Screen](research/08-character-and-queue-screen.md)
-   - [09 - Fellowship precedent](research/09-fellowship-precedent.md)
-   - [10 - Is the genre cooked?](research/10-market-is-the-genre-cooked.md)
-   - [11 - 20 Hz vs 30 Hz on the real playable: measuring D9](research/11-tick-rate-measurement.md) (raw results: [tick-rate-results.json](research/tick-rate-results.json) and [tick-rate-results-real-worker.json](research/tick-rate-results-real-worker.json))
-2. **The design bible (2026-09-18).** [design/BIBLE.md](design/BIBLE.md) was written from the eleven briefs and Matt's decisions D1 to D9. Section 0 holds the three tests every decision must pass.
-3. **The engine plan.** [design/ENGINE-PLAN.md](design/ENGINE-PLAN.md) first targeted a TypeScript browser first paint. D12 moved the game to Godot 4.7.2 .NET with C# ([STATE.md](STATE.md), D12). The TypeScript simulation is kept as the parity oracle ([game/sim/ORACLE.md](game/sim/ORACLE.md)).
-4. **The art plan.** [design/ART-PLAN.md](design/ART-PLAN.md) section 8 lays out the "Look and route" phase as a ladder of ten lanes. The ladder is recorded complete in [STATE.md](STATE.md) (STATE-R9 checkpoint). Art is CC0 packs only (D17, [game/assets/ATTRIBUTION.md](game/assets/ATTRIBUTION.md)).
-5. **The decision log.** [STATE.md](STATE.md) holds D1 to D26 with the wording and provenance of each decision. The pinned INTENT block at its top (lines 3-24) is re-read before every lane is judged; it landed with [PR #183](https://github.com/matt82198/keyrun/pull/183).
-6. **The lane ledger.** [game/CLAUDE.md](game/CLAUDE.md) has one row per lane: what the lane shipped and its PR number.
-7. **The build diary.** [BUILDLOG.md](BUILDLOG.md) is append-only. Each entry gives WHY and WHAT for one lane or checkpoint.
-8. **The contract.** Every lane ran under [LANE-CONTRACT.md](https://github.com/matt82198/aesop/blob/main/LANE-CONTRACT.md) in the Aesop repo.
-9. **The proof discipline.** D15 says visible work is judged from frames and video before its row closes ([STATE.md](STATE.md), D15). The frames below are from the runs, and each was viewed before it was added.
+**Synergy.** Synergy is a timing game between two people. A Setup ability opens a three-second Window on a target;
+a different class's Payoff landing inside it fires a named Combo (Shatter, Steam, Anthem and three more). Three
+starter classes: the Warden (anchor), the Cinder (detonator) and the Chanter (conductor) (sections 4 and 5).
 
-![Pull 1 of 4, The Choir: Choir Cantor and Acolytes in the Hollow Vault](docs/screens/choir-pull-1.png)
+**The dungeon.** The Hollow Vault holds three teaching pulls and a boss (section 9):
+
+- The Choir: a caster whose four-second heal must be kicked.
+- The Pair: spread when marked, then stack when called. You learn to read shapes.
+- The Seed: an elite that teaches the boss's core rule with nothing at stake.
+- The Hollow Warden: Cleave, the Sundered Twins, and the Lock, a Window on the boss that only a Combo closes.
+
+Inside the dungeon, WoW Mythic+ is the reference: a timer with par, an enemy-forces bar, optional packs and a patrol,
+and a time cost for each death.
+
+**Gear.** Five slots (Weapon, Armor, Charm, Ring, Keystone), with tier capped at 10. Every run ends with a choice of
+one of three, and on a clear at least one of the three is an upgrade. Ash is banked every run and buys only
+cosmetics and titles (section 7).
 
 ![Pull 4 of 4: The Hollow Warden and a Sundered Twin, with the Cinder's Flare cast bar](docs/screens/warden-arena-twins.png)
 
-![The Lock: a pink ring on the floor during the boss pull (view-only, D26)](docs/screens/lock-ring-boss-pull.png)
+## Where it stands (2026-10-22)
 
-![HUD: party frames, the ten-key bar and the Momentum bar](docs/screens/hud-party-and-keys.png)
+- Built: the full loop from screen to queue, dungeon, choice of three and back. You play the Warden with a Chanter
+  and a Cinder bot party. Bots and enemies path with integer A* inside the sim, each ability plays its own animation
+  clip, and the boss fight is tuned to run 90 to 180 seconds at key 2.
+- Planned: branching rooms and seeded dungeons (decisions D45 and D46; the route is one path today) and a wider pack
+  roster. The plans are in open PRs.
+- The milestone is a run Matt plays end to end and judges by feel (D10). Open work: [STATE.md](STATE.md), [BACKLOG.md](BACKLOG.md).
 
-## The game today
+## What Keyrun gave back to Aesop
 
-- **Keybinds.** WASD and mouse-look are the body and are not keybinds. The ten keybinds are 1 to 5 (rotation), Q (interrupt), E (defensive), R (class utility), F (movement) and G (ping) ([design/BIBLE.md](design/BIBLE.md), section 2).
-- **Classes.** Three starter classes: the Warden (the anchor), the Cinder (the detonator) and the Chanter (the conductor) ([design/BIBLE.md](design/BIBLE.md), section 5).
-- **Dungeon.** The Hollow Vault has three pulls and a boss. The Choir teaches the kick ledger, the Pair teaches reading shape, and the Seed teaches the boss's core rule with no stakes. The boss is the Hollow Warden: Cleave, The Sundered Twins and The Lock ([design/BIBLE.md](design/BIBLE.md), section 9; [content/data/dungeons/hollow-vault.json](content/data/dungeons/hollow-vault.json)). The HUD counts the boss as pull 4 of 4.
-- **Four pulls.** The four pulls are the three pulls and the boss, shown as pull 1/4 to 4/4 in the HUD (see the frames above).
-- **The Lock.** Shown as a view-only ring on the Hollow Warden ([STATE.md](STATE.md), D26; [game/CLAUDE.md](game/CLAUDE.md), LOCK-VIEW row).
-- **Bots and backfill.** The bot party is in [game/bots/](game/bots/). Backfill and the queue are in the 3G and 3J rows of [game/CLAUDE.md](game/CLAUDE.md).
-- **Art.** CC0 asset packs only, listed in [game/assets/ATTRIBUTION.md](game/assets/ATTRIBUTION.md) (D17).
-- **Shipped lanes.** Each lane and its PR is in [game/CLAUDE.md](game/CLAUDE.md).
+Each gap the game exposed in Aesop became a written rule or a gate there:
 
-## Run (desktop build)
+- **Purpose pin** ([LANE-CONTRACT.md](https://github.com/matt82198/aesop/blob/main/LANE-CONTRACT.md) 9b): every
+  build dispatch says what the artifact is for, after five feature lanes went to the throwaway browser client as if
+  it were the game.
+- **A CI contract for game lanes** (LANE-CONTRACT "CI contract (keyrun)"; aesop PRs #1247 to #1259): job times,
+  scene-test budgets, hook-safe shell shapes, push form, worktree collisions and stub-first reds, each from a Keyrun
+  lane hand-back.
+- **Row files for shared logs** (LANE-CONTRACT 8c): five Keyrun PRs went DIRTY because each one appended to the same
+  build log. Lanes now write a two-line row file, and a fold lane merges the rows.
+- **Push early** (LANE-CONTRACT 8d): an integration branch reached 154 commits over 15 hours with no push. A lane
+  now pushes and opens a draft PR within 20 minutes of its first commit.
+- **Lanes never launch the game**: parallel lanes launched Godot again and again until the machine froze. Only the
+  orchestrator launches it, one instance at a time.
+- **The product comes first**: machinery work is refused while the game has due findings and too few lanes, and the
+  orchestrator may not sit idle with a thin fleet while open work exists.
+- **Briefs built from disk**: each dispatch carries the current main sha and the locked rulings, read from the
+  repo, so a lane does not start from a stale premise.
+- **Crash recovery with no lost work**: STATE.md and BUILDLOG.md checkpoints with the reason at every safe boundary
+  ([docs/CHECKPOINTING.md](https://github.com/matt82198/aesop/blob/main/docs/CHECKPOINTING.md)), one worktree per
+  lane so a killed session leaves branches, not loss, and a compaction step that rehydrates intent and open findings
+  from disk. Keyrun forced this by losing intent across context resets (the pinned INTENT block in STATE.md).
+- **Building ahead of the human's gates**: inside stated bounds the orchestrator decides and reports, with four hard
+  stops (deploys, spending, deletes, external messages). This came from Keyrun work stalling while it waited on
+  Matt. Work that needs his call lands as an unarmed PR (for example #546, the Mythic+ dungeon plan, and #552, the
+  seeded dungeon architecture), and the fleet keeps moving on everything else.
 
-The real game is the Godot 4.7.2 .NET desktop build in `game/` (C#, decision D12 in [STATE.md](STATE.md)). Requires
-Godot 4.7.2 .NET and the .NET 8 SDK (8.0.x).
+Aesop is a small package, and each domain it runs in pushes it toward determinism there: judgment calls that went
+wrong once become gates and receipts.
+
+## Build, run, test
+
+Requires Godot 4.7.2 .NET and the .NET 8 SDK. A fresh checkout or worktree needs one setup pass, which builds the
+solution and imports the assets:
 
 ```
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/setup-worktree.ps1
 dotnet build game/Keyrun.sln
-dotnet test game/Keyrun.sln
-tools/godot/godot.ps1 --headless --path game --build-solutions --quit
-tools/godot/godot.ps1 --headless --path game --export-release "Windows Desktop" ../build/keyrun.exe
+tools/godot/godot.ps1 --path game
+tools/godot/godot.ps1 --path game '--' --autorun --ticks 7000 --key 2 --seed 1
 ```
 
-**Fresh checkout or worktree.** A new checkout or worktree fails its first Godot/C# build until the solution build has run once there. Before that run, make `dotnet` resolvable: put the .NET 8 SDK folder on `PATH`, or set `DOTNET_ROOT` to it (`tools/godot/godot.ps1` falls back to `%USERPROFILE%\.dotnet` when `DOTNET_ROOT` is unset). Then run this once:
+The third line plays the game. The fourth plays a scripted run with the bot party; add `--camera vertical` for the
+top-down view (V toggles it in play). `--record-input PATH` and `--replay-input PATH` record a run and replay it at
+the same seed and key ([game/fixtures/input/](game/fixtures/input/)).
 
-```
-tools/godot/godot.ps1 --headless --path game --build-solutions --quit
-```
+Tests: `dotnet test game/Keyrun.sln` (sim, content, bots and playtest suites; CI job `game-test`), the per-step lane check
+`tools/fastcheck.ps1`, and `npx vitest run tests/lanes` (the row-file gate). Scene tests and the exported build run
+in CI as `game-e2e`.
 
-The export lands at `build/keyrun.exe` (the `build/` folder is gitignored). The Godot binary path is resolved by
-`tools/godot/godot.ps1`, or set `KEYRUN_GODOT`. The engine plan and phase status are in
-[design/ENGINE-PLAN.md](design/ENGINE-PLAN.md); the build's domain notes are in [game/CLAUDE.md](game/CLAUDE.md).
+## Read further
 
-## Record and replay a run
-
-A run's keys and camera yaw can be recorded from an interactive launch and replayed later at the same seed and key. The log is `keyrun.input-log/2`; camera pitch is not recorded. Build first:
-
-```
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/godot.ps1 --headless --path game --build-solutions --quit
-```
-
-Play a run and record it (the log is written at each run end and at quit):
-
-```
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/godot.ps1 --path game '--' --record-input game/fixtures/input/my-run.input-log.json --log build/my-run.txt
-```
-
-Replay the same log with `--replay-input` in place of `--record-input`, on the same path. A replay at a different seed or key is refused. Both flags are interactive only and are ignored under `--autorun`. Example logs are in [game/fixtures/input/](game/fixtures/input/).
-
-## Retired TypeScript browser client (first paint, parity oracle only)
-
-This client is retired. It is kept only as the parity oracle until ENGINE-PLAN phase 4 deletes it; it is not the product
-([design/ENGINE-PLAN.md](design/ENGINE-PLAN.md), section 5, phase 4).
-
-Requires Node.js and npm.
-
-```
-npm ci
-npm run dev
-```
-
-`npm run dev` builds the client, watches for changes and serves on port 8791. Open:
-
-http://localhost:8791/client/index.html?key=5&dungeon=hollow-vault&class=warden
-
-### Network path (in progress)
-
-In a second terminal, start the game server:
-
-```
-npm run server
-```
-
-It listens on port 8792. Then open:
-
-http://localhost:8791/client/index.html?net=1&key=5&dungeon=hollow-vault&class=warden
-
-The client connects to `ws://127.0.0.1:8792` by default.
-
-## Test
-
-Game tests (C#):
-
-```
-dotnet test game/Keyrun.sln
-```
-
-Retired TypeScript oracle tests:
-
-```
-npm test
-```
-
-The last line of output is the Vitest summary, for example:
-
-```
-      Tests  880 passed (880)
-```
-
-## Open work
-
-Open items are tracked in [STATE.md](STATE.md) (NEXT STEPS, and the INTENT block at lines 3-24) and [BACKLOG.md](BACKLOG.md).
-Combo effects and numbers are not decided yet ([design/BIBLE.md](design/BIBLE.md), section 4).
-
-## How to read this repo
-
-- Start at [CLAUDE.md](CLAUDE.md). It is the domain map and navigation only. Workers read exactly one domain CLAUDE.md each (the rule is stated in CLAUDE.md, "Domain map").
-- For the engine, read [game/CLAUDE.md](game/CLAUDE.md) first. For the design, read [design/BIBLE.md](design/BIBLE.md). For the research, read [research/CLAUDE.md](research/CLAUDE.md).
-- The record of how the game was built is [STATE.md](STATE.md) (decisions), [BUILDLOG.md](BUILDLOG.md) (diary) and [game/CLAUDE.md](game/CLAUDE.md) (lane ledger).
+[design/BIBLE.md](design/BIBLE.md) (what the game is), [research/](research/) (the briefs it came from),
+[STATE.md](STATE.md) (decisions and rulings), [BUILDLOG.md](BUILDLOG.md) (the build diary), [CLAUDE.md](CLAUDE.md)
+(the domain map) and [game/CLAUDE.md](game/CLAUDE.md) (the engine, with one row per lane).
 
 ## Licence
 

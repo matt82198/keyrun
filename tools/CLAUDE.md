@@ -23,7 +23,7 @@ Hands; PlaytestSession plays the ledger's key (game/playtest/ledger.json), requi
 game/playtest/players/ID.json (PlaytesterMemory: runs, recap lines, lessons that cite a run, SHA-256 receipts of the
 summary and plan). KeyLedger: timed +1/+2/+3 (par, 80%, 60%), untimed stays. No policy at all (off-ledger) is the
 scripted party, byte-identical to the host bot run (NoPolicyParityTests). HostBackfillRunTests steps HudSceneTest
-runs F and G without Godot (game/src/Host/ScriptedWarden.cs and BotCommandSource.cs linked, Backfill.Step every tick)
+runs F and G (game/src/Host/scenes/HudRun{F,G}-SceneTest.ps1) without Godot (game/src/Host/ScriptedWarden.cs and BotCommandSource.cs linked, Backfill.Step every tick)
 and holds HudSceneTest's -AbandonSeat default, so a change that moves the Choir clear fails in game-test. Both projects are in game/Keyrun.sln, so
 game-test runs them; they read sim/content/bots public APIs only and never edit them.
 

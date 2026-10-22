@@ -199,7 +199,24 @@ public static class Windows
     /// <param name="def">The completed ability.</param>
     /// <param name="ctx">Tables, registry and hooks.</param>
     /// <param name="emit">Event sink.</param>
-    public static void ApplyWindowsAndCombos(SimState state, ActorState actor, AbilityDef def, WindowsContext ctx, Action<SimEvent> emit)
+    public static void ApplyWindowsAndCombos(SimState state, ActorState actor, AbilityDef def, WindowsContext ctx, Action<SimEvent> emit) =>
+        ApplyWindowsAndCombosAt(state, actor, def, Casting.CastTargetOf(actor), ctx, emit);
+
+    /// <summary>
+    /// <see cref="ApplyWindowsAndCombos(SimState, ActorState, AbilityDef, WindowsContext, Action{SimEvent})"/> for a
+    /// cast that has already ended (R2): its targets resolve on <paramref name="ended"/>'s pinned start target
+    /// (CAST-KEEPS-START-TARGET), so the pin no longer has to outlive the cast on the actor.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <param name="actor">The caster.</param>
+    /// <param name="def">The completed ability.</param>
+    /// <param name="ended">The cast <see cref="Casting.CompleteCast"/> ended, or null (resolves on the current target).</param>
+    /// <param name="ctx">Tables, registry and hooks.</param>
+    /// <param name="emit">Event sink.</param>
+    public static void ApplyWindowsAndCombos(SimState state, ActorState actor, AbilityDef def, CastInFlight? ended, WindowsContext ctx, Action<SimEvent> emit) =>
+        ApplyWindowsAndCombosAt(state, actor, def, Casting.TargetOfEnded(actor, ended), ctx, emit);
+
+    private static void ApplyWindowsAndCombosAt(SimState state, ActorState actor, AbilityDef def, int? castTargetId, WindowsContext ctx, Action<SimEvent> emit)
     {
         ArgumentNullException.ThrowIfNull(def);
         ArgumentNullException.ThrowIfNull(ctx);
@@ -207,7 +224,7 @@ public static class Windows
         {
             return;
         }
-        ApplyWindowsAndCombosTo(state, actor, def, Targeting.ResolveTargets(state, actor, def, Affinities.Of(def, ctx.Effects)), ctx, emit);
+        ApplyWindowsAndCombosOn(state, actor, def, Targeting.ResolveTargetsOn(state, actor, def, Affinities.Of(def, ctx.Effects), castTargetId), castTargetId, ctx, emit);
     }
 
     /// <summary>
@@ -224,7 +241,10 @@ public static class Windows
     /// <param name="ctx">Tables, registry and hooks.</param>
     /// <param name="emit">Event sink.</param>
     /// <exception cref="ArgumentException">A combo op names a table other than "combos" or "fieldCombos".</exception>
-    public static void ApplyWindowsAndCombosTo(SimState state, ActorState actor, AbilityDef def, IReadOnlyList<ActorState> targets, WindowsContext ctx, Action<SimEvent> emit)
+    public static void ApplyWindowsAndCombosTo(SimState state, ActorState actor, AbilityDef def, IReadOnlyList<ActorState> targets, WindowsContext ctx, Action<SimEvent> emit) =>
+        ApplyWindowsAndCombosOn(state, actor, def, targets, Casting.CastTargetOf(actor), ctx, emit);
+
+    private static void ApplyWindowsAndCombosOn(SimState state, ActorState actor, AbilityDef def, IReadOnlyList<ActorState> targets, int? castTargetId, WindowsContext ctx, Action<SimEvent> emit)
     {
         ArgumentNullException.ThrowIfNull(def);
         ArgumentNullException.ThrowIfNull(targets);
@@ -239,7 +259,7 @@ public static class Windows
             }
             if (multi && w.OnTarget && w.Self != true)
             {
-                foreach (var dest in MultiTargetRecipients(actor, targets))
+                foreach (var dest in MultiTargetRecipients(castTargetId, targets))
                 {
                     OpenWindow(state, actor, w, ctx.Floor, emit, dest);
                 }
@@ -279,16 +299,15 @@ public static class Windows
     /// (squared XZ distance, ties to the lower id), up to <see cref="MultiTargetCount"/> in total. "Adjacent" means
     /// nearest to the primary; fewer targets give fewer recipients.
     /// </summary>
-    /// <param name="actor">The caster.</param>
+    /// <param name="castTarget">The target the caster's cast resolves on (<see cref="Casting.TargetOfEnded"/>), or null.</param>
     /// <param name="targets">Resolved targets, in id order.</param>
     /// <returns>Recipients, primary first.</returns>
-    internal static IReadOnlyList<ActorState> MultiTargetRecipients(ActorState actor, IReadOnlyList<ActorState> targets)
+    internal static IReadOnlyList<ActorState> MultiTargetRecipients(int? castTarget, IReadOnlyList<ActorState> targets)
     {
         if (targets.Count == 0)
         {
             return targets;
         }
-        var castTarget = Casting.CastTargetOf(actor);
         var primary = targets.FirstOrDefault(t => castTarget is int tid && t.Id == tid) ?? targets[0];
         var rest = targets
             .Where(t => t.Id != primary.Id)
