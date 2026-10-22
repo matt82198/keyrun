@@ -31,10 +31,11 @@
     "speedMmPerTick": 207,
     "abilities": ["furnaceThrall.stokeCore", "furnaceThrall.slagBurst", "choir.meleeSwing"],
     "script": [
-      { "at": 40, "every": 300, "cast": "furnaceThrall.stokeCore" },
+      { "at": 40, "every": 300, "cast": "furnaceThrall.stokeCore",
+        "telegraph": { "shape": "circle", "radius": 1500, "leadTicks": 80, "spansCast": true } },
       { "at": 60, "every": 150, "cast": "choir.meleeSwing" },
       { "at": "onDeath", "cast": "furnaceThrall.slagBurst", "when": { "hasEffect": "overheatedCore" },
-        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 40 } }
+        "telegraph": { "shape": "circle", "radius": 3000, "leadTicks": 40, "spansCast": true } }
     ]
   },
   {
@@ -45,7 +46,8 @@
     "speedMmPerTick": 260,
     "abilities": ["scaldHound.boilingBlood", "choir.meleeSwing"],
     "script": [
-      { "at": "loop", "every": 60, "cast": "scaldHound.boilingBlood", "when": { "healthBelowBp": 3000 } },
+      { "at": "loop", "every": 60, "cast": "scaldHound.boilingBlood", "when": { "healthBelowBp": 3000 },
+        "telegraph": { "shape": "circle", "radius": 2000, "leadTicks": 30, "spansCast": true } },
       { "at": 60, "every": 150, "cast": "choir.meleeSwing" }
     ]
   },
@@ -61,6 +63,65 @@
     ]
   },
   {
+    "id": "bellfoundry.slagHexer",
+    "name": "Slag Hexer",
+    "maxHealth": 6000,
+    "role": "caster",
+    "abilities": ["slagHexer.moltenBrand"],
+    "script": [
+      { "at": "loop", "every": 200, "cast": "slagHexer.moltenBrand",
+        "telegraph": { "shape": "circle", "radius": 1200, "leadTicks": 50, "spansCast": true, "anchor": "target" } }
+    ]
+  },
+  {
+    "id": "bellfoundry.ingotBrute",
+    "name": "Ingot Brute",
+    "maxHealth": 6000,
+    "role": "melee",
+    "speedMmPerTick": 207,
+    "abilities": ["ingotBrute.anvilDrop", "choir.meleeSwing"],
+    "script": [
+      { "at": "loop", "every": 200, "cast": "ingotBrute.anvilDrop",
+        "telegraph": { "shape": "circle", "radius": 2500, "leadTicks": 50, "spansCast": true } },
+      { "at": 60, "every": 150, "cast": "choir.meleeSwing" }
+    ]
+  },
+  {
+    "id": "bellfoundry.slagWhelp",
+    "name": "Slag Whelp",
+    "maxHealth": 1200,
+    "role": "melee",
+    "speedMmPerTick": 260,
+    "abilities": ["slagWhelp.sparkLunge", "choir.meleeSwing"],
+    "script": [
+      { "at": "loop", "every": 150, "cast": "slagWhelp.sparkLunge",
+        "telegraph": { "shape": "line", "length": 4000, "width": 1200, "leadTicks": 30, "spansCast": true } },
+      { "at": 60, "every": 150, "cast": "choir.meleeSwing" }
+    ]
+  },
+  {
+    "id": "bellfoundry.pitTender",
+    "name": "Casting-Pit Tender",
+    "maxHealth": 6000,
+    "role": "caster",
+    "abilities": ["pitTender.fanTheCoals"],
+    "script": [
+      { "at": "loop", "every": 240, "cast": "pitTender.fanTheCoals", "target": "self",
+        "telegraph": { "shape": "circle", "radius": 4000, "leadTicks": 70, "spansCast": true } }
+    ]
+  },
+  {
+    "id": "bellfoundry.knellSinger",
+    "name": "Knell Singer",
+    "maxHealth": 6000,
+    "role": "caster",
+    "abilities": ["knellSinger.dirge"],
+    "script": [
+      { "at": "loop", "every": 180, "cast": "knellSinger.dirge",
+        "telegraph": { "shape": "line", "length": 6000, "width": 1400, "leadTicks": 60, "spansCast": true } }
+    ]
+  },
+  {
     "id": "bellfoundry.ommet",
     "name": "Foundry-Master Ommet",
     "maxHealth": 30000,
@@ -69,7 +130,8 @@
     "script": [
       { "at": "loop", "every": 160, "cast": "ommet.pourSlag",
         "telegraph": { "shape": "cone", "radius": 4000, "angle1024": 200, "leadTicks": 40, "spansCast": true } },
-      { "at": 230, "every": 300, "cast": "ommet.temper" }
+      { "at": 230, "every": 300, "cast": "ommet.temper",
+        "telegraph": { "shape": "circle", "radius": 2500, "leadTicks": 80, "spansCast": true } }
     ]
   },
   {
@@ -80,11 +142,11 @@
     "abilities": ["brineMother.undertow", "brineMother.boilingSurge", "brineMother.drowningHymn"],
     "script": [
       { "at": "loop", "every": 400, "cast": "brineMother.undertow",
-        "telegraph": { "shape": "circle", "radius": 25000, "leadTicks": 50, "spansCast": true } },
+        "telegraph": { "shape": "circle", "radius": 27500, "leadTicks": 50, "spansCast": true } },
       { "at": 450, "every": 400, "cast": "brineMother.boilingSurge",
         "telegraph": { "shape": "circle", "radius": 4500, "leadTicks": 50, "spansCast": true } },
       { "at": 200, "every": 200, "cast": "brineMother.drowningHymn", "when": { "healthBelowBp": 6000 },
-        "telegraph": { "shape": "circle", "radius": 25000, "leadTicks": 70, "spansCast": true } }
+        "telegraph": { "shape": "cone", "radius": 6000, "angle1024": 340, "leadTicks": 70, "spansCast": true } }
     ]
   },
   {
@@ -92,12 +154,12 @@
     "name": "Old Sorrow, the Drowned Bell",
     "maxHealth": 21000,
     "role": "boss",
-    "abilities": ["greatBell.clangour", "greatBell.stillTheBell"],
+    "abilities": ["greatBell.clangour", "greatBell.resonance"],
     "script": [
       { "at": "loop", "every": 160, "cast": "greatBell.clangour",
         "telegraph": { "shape": "cone", "radius": 4500, "angle1024": 220, "leadTicks": 40, "spansCast": true } },
-      { "at": "loop", "every": 600, "cast": "greatBell.stillTheBell",
-        "telegraph": { "shape": "circle", "radius": 4000, "leadTicks": 20, "spansCast": true } }
+      { "at": "loop", "every": 600, "cast": "greatBell.resonance",
+        "telegraph": { "shape": "circle", "radius": 3500, "leadTicks": 60, "spansCast": true } }
     ],
     "breakBars": [
       { "id": "clapperBreak", "max": 100, "drainPerInterrupt": 50, "drainPerControl": 20,

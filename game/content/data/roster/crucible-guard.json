@@ -2,11 +2,11 @@
   "id": "crucible-guard",
   "dungeon": "sunken-bellfoundry",
   "name": "Crucible Guard",
-  "teaches": "turn the Brutes' Crushing Slam away, and kick the Ward that makes them unbreakable",
+  "teaches": "step out of the Brutes' Anvil Drop ring, and kick the Ward that makes them unbreakable",
   "aggroMm": 4000,
   "enemies": [
     {
-      "enemyId": "vault.brute",
+      "enemyId": "bellfoundry.ingotBrute",
       "count": 2,
       "spawn": {
         "x": 0,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "enemyId": "ash.hexer",
+      "enemyId": "bellfoundry.slagHexer",
       "count": 1,
       "spawn": {
         "x": 1500,

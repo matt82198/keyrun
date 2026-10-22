@@ -237,6 +237,28 @@ public sealed class ActorBinding
         new ActorBindingRow("bellfoundry.brineMender", "Skeleton_Mage.glb", 2630, 684, 0x90E8E0, Array.Empty<string>(),
             ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
 
+        // R-SORROW-1 (D66) Bellfoundry-owned kinds that replace the five Hollow Vault kinds its packs used to field: the
+        // same CC0 skeletons, each tinted toward its own cast's telegraph colour.
+        // Slag Hexer: robed Skeleton Mage, ember (Molten Brand).
+        new ActorBindingRow("bellfoundry.slagHexer", "Skeleton_Mage.glb", 2630, 684, 0xE08050, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
+        // Ingot Brute: Skeleton Warrior, cooling-ingot bronze (Anvil Drop).
+        new ActorBindingRow("bellfoundry.ingotBrute", "Skeleton_Warrior.glb", 2590, 695, 0xB89870, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
+        // Slag Whelp: the small bare Skeleton Minion, glowing slag orange (Spark Lunge).
+        new ActorBindingRow("bellfoundry.slagWhelp", "Skeleton_Minion.glb", 2166, 831, 0xE8A070, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
+        // Casting-Pit Tender: robed Skeleton Mage, coal gold (Fan the Coals).
+        new ActorBindingRow("bellfoundry.pitTender", "Skeleton_Mage.glb", 2630, 684, 0xE8C060, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
+        // Knell Singer: robed Skeleton Mage, drowned verdigris (Drowned Dirge).
+        new ActorBindingRow("bellfoundry.knellSinger", "Skeleton_Mage.glb", 2630, 684, 0x70C8B0, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
         // Foundry-Master Ommet (segment 1 boss): a Skeleton Warrior at 1.7x the head line, molten bronze.
         new ActorBindingRow("bellfoundry.ommet", "Skeleton_Warrior.glb", 2590, 1181, 0xE09050, Array.Empty<string>(),
             ActorClips.Skeleton, TargetHeightMm: HeadLineMm * 17 / 10, Folder: SkeletonsFolder, Boss: true),
