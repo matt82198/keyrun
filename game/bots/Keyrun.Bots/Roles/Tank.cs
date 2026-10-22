@@ -30,7 +30,15 @@ public sealed class TankRole : IRole
     {
         var tick = view.State.Tick;
         var healthPct = (double)self.Health / self.MaxHealth;
-        var pressured = healthPct < DefensiveThresholdPct || TankPressure.UnderPackPressure(view, self);
+        // TAKE-THE-PACK-FIRST (R-BOTTANK-LEASH-1, f-2f6982e9): a pack aimed at another player is loose, and its TargetId still
+        // names the tank (the sim's default), so UnderPackPressure read it as three attackers and the Warden spent the ticks
+        // before the taunt on casts (Brace, then Bulwark's cast time) while the pack hit the party. A healthy tank takes the
+        // loose pack first; the pressure casts resume once he holds it.
+        if (healthPct >= DefensiveThresholdPct && TankEngage.PickLooseEnemy(view.State.Actors, self) is not null)
+        {
+            return new List<Command>();
+        }
+        var pressured =healthPct < DefensiveThresholdPct || TankPressure.UnderPackPressure(view, self);
         if (!string.IsNullOrEmpty(kit.DefensiveAbilityId) && pressured && RoleShared.AbilityReady(self, kit.DefensiveAbilityId, tick, kit))
         {
             return new List<Command> { new CastCommand(tick, self.Id, kit.DefensiveAbilityId) };
