@@ -46,6 +46,13 @@ public sealed record HostRunSetup(
     /// </summary>
     public static readonly IReadOnlyList<string> StunEffectIds = new[] { "stunned" };
 
+    /// <summary>
+    /// BOSS-CC-IMMUNE (R-BOSS-1 follow-up; WoW: bosses are immune to crowd control): what a stunImmuneEnemies actor
+    /// refuses on landing, the stun plus Steam's <c>blinded</c> (its carrier misses every hit). Before this the boss was
+    /// blinded for most of its fight and missed 31 of 48 hits, so a seat standing in its Cleave was barely hurt.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ImmuneRefusedEffectIds = new[] { "stunned", "blinded" };
+
     /// <summary>content-dungeon.ts:38 PULL_ACTOR_ID_START.</summary>
     public const int PullActorIdStart = 100;
 
@@ -197,6 +204,7 @@ public sealed record HostRunSetup(
             StopEffectIds = StopEffectIds,
             StunEffectIds = StunEffectIds,
             StunImmuneClassIds = run.StunImmuneEnemies.ToList(),
+            ImmuneRefusedEffectIds = ImmuneRefusedEffectIds,
             Marks = MarkRulesOf(run.PairMarks),
         }.WithMovement(movement);
 
