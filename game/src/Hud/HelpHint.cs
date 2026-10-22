@@ -7,7 +7,7 @@ using Keyrun.Sim.Core;
 namespace Keyrun.Hud;
 
 /// <summary>
-/// The controls hint (Arena.tscn <c>Hud/Help</c>, "Hollow Vault - WASD move, ... Esc frees the mouse") as a run-start
+/// The controls hint (Arena.tscn <c>Hud/Help</c>, "&lt;dungeon name&gt; - WASD move, ..." built by <see cref="HelpLine"/>) as a run-start
 /// cue rather than a permanent banner (lane HUD-TEXT-OVERLAYS, finding f-6917dd70: "reduce screen clutter"). It is
 /// fully visible when a run starts, holds for <see cref="HoldTicks"/> of run time, or until the human Warden's first
 /// completed cast (the first ability press), then fades over <see cref="FadeTicks"/> and stays faded for the rest of
@@ -91,6 +91,11 @@ public partial class HelpHint : Label
         _shown = 0;
         _fadeShown = null;
         _gone = false;
+        // f-caa537fc: the line names the run's dungeon. The scene carries no text of its own.
+        if (_driver?.Registry is { } registry)
+        {
+            Text = HelpLine.For(registry, _driver.SelectedDungeonId);
+        }
         SetAlpha(1f);
         Proof(FormattableString.Invariant(
             $"HUD help shown tick={_driver?.Run?.State.Tick ?? 0} alpha={Modulate.A:0.00} hold={HoldTicks} fade={FadeTicks}"));
