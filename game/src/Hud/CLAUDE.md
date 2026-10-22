@@ -6,7 +6,7 @@
 
 - `Screen.cs` - constants, fields, public properties, OpenFrom/OpenFirst/Open/Close, _Ready/_ExitTree/_Process.
 - `Screen.Input.cs` - key and mouse input, tab switching: _UnhandledInput, _GuiInput, SelectTab, ToggleTalents, HandleKey, TabKey, StepKey.
-- `Screen.TabCharacter.cs` - Character tab: class pick, the character sheet (pure `Host/CharacterSheet.cs`: key, Ascension, the five slots by name), kit and Ascension: PickClass, Sheet, ProofSheet, DrawSheet, CycleClass, ClassIds, ClassName, ClassSlots, Abilities, DrawClasses, DrawAscension, DrawKit.
+- `Screen.TabCharacter.cs` - Character tab: class pick, the character sheet (pure `HostCore/CharacterSheet.cs`: key, Ascension, the five slots by name), kit and Ascension: PickClass, Sheet, ProofSheet, DrawSheet, CycleClass, ClassIds, ClassName, ClassSlots, Abilities, DrawClasses, DrawAscension, DrawKit.
 - `Screen.TabBuild.cs` - Build tab: talent picks, respec, save and proof lines: PickTalent, RespecTalents, SaveTalents, ChoicesText, TalentClassName, TalentAbilityName, ClauseText, HandleTalentKey, TalentsFor, ProofTalentMarks, ProofTalents.
 - `Screen.TabKey.cs` - Key tab (and the summary and Queue box the Queue tab shares): ProofKeyBand, ClauseIds, DrawSummary, DrawKeyNote, DrawKey, AffixLine, DrawQueue.
 - `Screen.TabQueue.cs` - Queue tab: the seats the Queue fills (`CharacterSheet.Seats`): QueueSeats, ProofSeats, DrawSeats.
