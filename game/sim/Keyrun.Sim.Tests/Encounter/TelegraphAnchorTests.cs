@@ -8,9 +8,10 @@ namespace Keyrun.Sim.Tests.Encounter;
 
 /// <summary>
 /// TELEGRAPH-ANCHOR (finding f-ebb50027; BIBLE section 3 "shape plus colour, drawn ahead of resolution", BIBLE 9.3
-/// Searing Hex "circle under the target"): a target-anchored script telegraph is drawn, and resolved, at the caster's
-/// current target, in integer mm; on a tick the caster has no living target it is not drawn at all, because a shape
-/// at the caster would be a lie about where the cast lands.
+/// Searing Hex "circle under the target"): a target-anchored script telegraph is drawn, and resolved, under the player
+/// its cast takes on the draw tick (ScriptTarget, the same pick the cast command makes), in integer mm; when no living
+/// player is there for the cast to take it is not drawn at all, because a shape at the caster would be a lie about
+/// where the cast lands.
 /// </summary>
 public sealed class TelegraphAnchorTests
 {
@@ -53,15 +54,30 @@ public sealed class TelegraphAnchorTests
     }
 
     [Fact]
-    public void No_target_means_no_telegraph_never_one_at_the_caster()
+    public void A_caster_with_no_target_yet_draws_under_the_player_its_cast_will_take()
     {
+        // The cast still starts (ScriptTarget picks the player), so drawing nothing would be an untelegraphed landing.
         var r = Scripts.StepEnemyScripts(StateAt(60, targetId: null), HexScripts(anchorTarget: true));
-        Assert.Empty(r.TelegraphEvents);
-        Assert.Empty(r.TelegraphCastStarts);
+        Assert.Equal(TargetPos, OriginOf(Assert.Single(r.TelegraphEvents)));
     }
 
     [Fact]
-    public void A_dead_target_means_no_telegraph()
+    public void A_dead_current_target_draws_under_the_player_the_cast_retargets_to()
+    {
+        // In play (EveryEnemyAbilityTelegraphedTests, ash.hexer solo at key 2): the Hexer's target died, its next Searing
+        // Hex started on the next player, and the old rule (the caster's current target) drew nothing for it.
+        var caster = EncounterTestKit.Actor(1, ActorKind.Enemy, new Vec3(-500, 0, 250));
+        caster.TargetId = 2;
+        var next = new Vec3(-2000, 0, 1000);
+        var state = EncounterTestKit.State(60, caster,
+            EncounterTestKit.Actor(2, ActorKind.Player, TargetPos, alive: false),
+            EncounterTestKit.Actor(3, ActorKind.Player, next));
+        var r = Scripts.StepEnemyScripts(state, HexScripts(anchorTarget: true));
+        Assert.Equal(next, OriginOf(Assert.Single(r.TelegraphEvents)));
+    }
+
+    [Fact]
+    public void No_living_player_for_the_cast_means_no_telegraph_never_one_at_the_caster()
     {
         var r = Scripts.StepEnemyScripts(StateAt(60, targetId: 2, targetAlive: false), HexScripts(anchorTarget: true));
         Assert.Empty(r.TelegraphEvents);
