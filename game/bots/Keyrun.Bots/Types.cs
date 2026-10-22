@@ -110,4 +110,10 @@ public sealed record BotView(SimState State, IReadOnlyList<BotTelegraph> Telegra
     /// on to the boss (<see cref="Shared.ForcesPlanner"/>); null leaves the walk as it was.
     /// </summary>
     public Shared.PullPlan? PullPlan { get; init; }
+
+    /// <summary>
+    /// The deciding seat's filler casts, least recently cast first (<see cref="BotMemory.FillerHistory"/>), set by the bot
+    /// runner before role dispatch. <see cref="Roles.Fillers.ArrangeFillers"/> casts the least recently cast ready filler.
+    /// </summary>
+    public IReadOnlyList<string> FillerHistory { get; init; } = Array.Empty<string>();
 }
