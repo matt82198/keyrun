@@ -49,6 +49,13 @@ public sealed record LayoutDef
     /// its ring at the tick's point. Empty when the key is absent.
     /// </summary>
     public ValueList<LayoutPatrol> Patrols { get; init; } = new();
+
+    /// <summary>
+    /// D45 (seeded two-branch dungeons): the rooms and corridors of the branch the route does not walk, drawn beside the
+    /// route boxes (the fork is visible) and holding that branch's packs. Never part of the route: <see cref="Boxes"/> and
+    /// <see cref="Route"/> stay the walked chain. Empty for the hand-built Hollow Vault (the key is never in its files).
+    /// </summary>
+    public ValueList<LayoutBox> SideBoxes { get; init; } = new();
 }
 
 /// <summary>
@@ -117,6 +124,12 @@ public sealed record LayoutBox
 
     /// <summary>The pull whose clear opens this box (a corridor out of that pull's room), or null = always open.</summary>
     public string? Gate { get; init; }
+
+    /// <summary>
+    /// D45 one-way door: true for the corridor box a branch begins with (RoomEdge.OneWayDoor, forward-only, BIBLE s9). The
+    /// view draws the door as one-way (an arrow pointing +x, into the branch). False for every hand-built box.
+    /// </summary>
+    public bool OneWay { get; init; }
 
     /// <summary>A pull room's trigger: the room box shrunk 2000 mm from its entry door. Pull rooms only.</summary>
     public LayoutRect? Trigger { get; init; }

@@ -70,6 +70,36 @@ public static class Scripts
     }
 
     /// <summary>
+    /// SCRIPT-GATE (D66; C#-only): true when <paramref name="actor"/> meets <paramref name="step"/>'s
+    /// <see cref="ScriptStep.When"/> on <paramref name="tick"/> (always, with no gate). <see cref="ScriptGate.HasEffect"/>:
+    /// an instance of that effect still running (<c>EndsTick &gt; tick</c>); a dead actor keeps the effects it died with,
+    /// so an onDeath step reads them. <see cref="ScriptGate.HealthBelowBp"/>: <c>health * 10000 &lt; maxHealth * bp</c>,
+    /// integer only. A gated step that is closed neither casts nor draws its telegraph.
+    /// </summary>
+    /// <param name="step">The step.</param>
+    /// <param name="actor">Its caster.</param>
+    /// <param name="tick">The tick judged.</param>
+    /// <returns>True when the step may fire.</returns>
+    public static bool GateOpen(ScriptStep step, ActorState actor, int tick)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        ArgumentNullException.ThrowIfNull(actor);
+        if (step.When is not { } gate)
+        {
+            return true;
+        }
+        if (gate.HasEffect is { } effectId && !actor.Effects.Exists(e => e.EffectId == effectId && e.EndsTick > tick))
+        {
+            return false;
+        }
+        if (gate.HealthBelowBp is { } bp && actor.Health * Tempo.BpDenom >= actor.MaxHealth * bp)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>
     /// SEED-PULL-TEACHES (C#-only, layout runs; STATE.md D27): <paramref name="step"/> on a clock that starts at
     /// <paramref name="originTick"/>, the tick its pull started. A loop of period E fires at origin + k*E (k &gt;= 1),
     /// a numeric <c>at</c> at origin + at (+ k*every); onDeath is unchanged, and origin 0 returns the step itself, so a
@@ -203,7 +233,7 @@ public static class Scripts
         for (var j = 0; j < script.Count && !gcdStarted; j++)
         {
             var s = script[j];
-            if (s.Trigger == StepTrigger.OnDeath || !FiresAt(s, fireTick))
+            if (s.Trigger == StepTrigger.OnDeath || !FiresAt(s, fireTick) || !GateOpen(s, actor, state.Tick))
             {
                 continue;
             }
@@ -260,6 +290,13 @@ public static class Scripts
             _busyUntil = actor.CastId is not null && actor.CastEndsTick is { } ends && ends > state.Tick ? ends : state.Tick;
         }
 
+        // TEMPO-LOOP-CLAMP: the cast is off cooldown (charges, GCD) on t, judged on this call's state plus the casts this
+        // queue has already started ahead of the real clock.
+        private bool CooldownAllows(string cast, AbilityDef def, int t) =>
+            Cooldowns.IsAbilityReady(_actor, def, t)
+            && !(_readyAt.TryGetValue(cast, out var ready) && ready > t)
+            && !(def.GcdTicks > 0 && _gcdUntil > t);
+
         /// <summary>Steps still waiting after the last <see cref="Advance"/>, in firing order.</summary>
         public List<int> Pending { get; private set; }
 
@@ -274,7 +311,8 @@ public static class Scripts
             for (var j = 0; j < _script.Count; j++)
             {
                 var s = _script[j];
-                if (s.Trigger != StepTrigger.OnDeath && !s.TsCastReplace && FiresAt(s, t) && !queue.Contains(j))
+                // SCRIPT-GATE: judged on this call's state, for the tick due and for the look-ahead ticks alike.
+                if (s.Trigger != StepTrigger.OnDeath && !s.TsCastReplace && FiresAt(s, t) && GateOpen(s, _actor, _state.Tick) && !queue.Contains(j))
                 {
                     queue.Add(j);
                 }
@@ -291,6 +329,16 @@ public static class Scripts
                 var s = _script[j];
                 _abilities.TryGetValue(s.Cast, out var ability);
                 var def = ability?.Def;
+                if (def is not null && !CooldownAllows(s.Cast, def, t))
+                {
+                    // TEMPO-LOOP-CLAMP (f-57c04b4a, BIBLE s0 test 1): a step never fires its cast before the cast's
+                    // cooldown allows it. A loop whose period Tempo (the key, or the boss's Lock stacks) shrank below
+                    // the cooldown, or a step a busy caster pushed late so that its next fire comes early, waits for
+                    // the cooldown instead of issuing a cast combat refuses not_ready and losing a whole period: the
+                    // effective interval is max(loop, cooldown).
+                    waiting.Add(j);
+                    continue;
+                }
                 var starts = ability is not null
                     ? WillStart(_state, _actorId, _actor, s, ability, _abilities, t)
                         && !(_readyAt.TryGetValue(s.Cast, out var ready) && ready > t)
@@ -480,6 +528,11 @@ public static class Scripts
                         continue;
                     }
                     fired.Add(step.Cast);
+                    // SCRIPT-GATE: a death step is judged once, on the first call that sees the actor dead.
+                    if (!GateOpen(step, actor, tick))
+                    {
+                        continue;
+                    }
                     var deathCast = CastCommandFor(state, actorId, actor, step, abil);
                     if (deathCast is not null)
                     {
@@ -513,7 +566,7 @@ public static class Scripts
                     }
                     continue;
                 }
-                var issuedNow = FiresAt(step, tick) && fire!(step);
+                var issuedNow = FiresAt(step, tick) && GateOpen(step, actor, tick) && fire!(step);
                 if (step.Telegraph is not { } tg)
                 {
                     continue;

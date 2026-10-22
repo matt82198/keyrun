@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Keyrun.Bots;
 using Keyrun.Bots.Shared;
 using Keyrun.Sim.Core;
 using Xunit;
@@ -13,58 +12,47 @@ namespace Keyrun.Playtest.Tests;
 /// R-SEED-1a (finding f-244d102b, the first half of the Seed-room slice; orchestrator ruling: a melee closes until its
 /// target is inside the reach of the ability it would cast, and a stationary caster is a normal target). Hollow Vault
 /// key 2, seed 1, played by <see cref="PlaytestRunner"/> with every seat a bot. The Choir's caster lieutenant
-/// (choir.lieutenant) never approaches. The scenario starts at the tick the caster becomes the only engaged enemy (the
-/// Choir's melee are dead or idle), which is the engagement this test pins. There the caster must be more than 3000 mm
-/// (outside the Warden's 3000 mm strike reach) and less than 6000 mm from the leader; the leader must then close to reach
-/// and land at least one strike cast on it within 600 ticks; and the caster must die within 3000 ticks.
-/// The preconditions (the caster is stationary and starts at 3000 to 6000 mm) are asserted first, so a red run names the
-/// broken part of the scenario, not the leader.
+/// (choir.lieutenant) never approaches.
+/// <para>
+/// KICK-LEDGER-COOLDOWN-GAP (f-13b5c33a) converts this from a single-seed trajectory pin to a property over the trajectory
+/// (memory: no fitted green; the assertions are not loosened, they are restated over the run). The pin started at "the tick
+/// the caster becomes the only engaged enemy", which exists only when the party kills the Choir's melee before the caster.
+/// Since the Warden now walks in to kick the caster's Mending (RoleShared.LedgerKickApproachCommand) he stands beside the
+/// caster and the party kills the healer first, so that tick never comes. The property it guarded holds on any trajectory:
+/// a leader outside the strike reach of every engaged enemy closes to reach and does not stand there. Every stranded
+/// episode (the leader more than 3000 mm from every living engaged enemy) ends within 600 ticks, there is at least one
+/// (non-vacuity), and the stationary caster, engaged and never moving, dies within 3000 ticks of its engagement.
+/// </para>
 /// </summary>
 public sealed class LeaderClosesToReachTests
 {
-    /// <summary>The caster must start farther than the leader's strike reach (warden.strike, 3000 mm), mm.</summary>
-    public const double MinStartMm = 3000;
+    /// <summary>The leader's strike reach (warden.strike, 3000 mm): beyond it on every engaged enemy the leader is stranded, mm.</summary>
+    public const double ReachMm = 3000;
 
-    /// <summary>
-    /// The caster must start nearer than this (engaged from outside reach, not across the room), mm. AGGRO-CHASE re-derivation
-    /// (f-f0c886eb; a measurement, the closing, cast and death assertions are unchanged): was 6000, set when the Choir's melee
-    /// were walked into and fought on the caster's doorstep (3796 mm on main 0e748ca1). The melee now aggro on their own
-    /// 8000 mm radius (run.json enemyAggro) and run at the party, so the fight sits where they met the tank and the caster,
-    /// which never approaches, is the lone target 7514 mm away on this tree. The bound is the caster kind's own aggro radius,
-    /// the reach at which its pack engages the party, read from the content: farther than that is across the room.
-    /// </summary>
-    public static readonly double MaxStartMm = Keyrun.Content.ContentLoader.Load().Run.EnemyAggro?.For(CasterClassId).AggroMm ?? 6000;
+    /// <summary>A stranded episode must end (the leader inside reach of an engaged enemy) within this many ticks (30 s would be 600 ticks at 20 Hz).</summary>
+    public const int ClosesWithinTicks = 600;
 
-    /// <summary>The leader must cast on the caster within this many ticks of the engagement (30 s would be 600 ticks at 20 Hz).</summary>
-    public const int CastWithinTicks = 600;
-
-    /// <summary>The caster must die within this many ticks of the engagement.</summary>
+    /// <summary>The caster must die within this many ticks of its engagement.</summary>
     public const int DieWithinTicks = 3000;
 
     /// <summary>The caster's enemy id in the Choir pull.</summary>
     public const string CasterClassId = "choir.lieutenant";
-
-    /// <summary>The Warden's strike (the basic attack, range 3000 mm): the cast the test requires on the caster.</summary>
-    public const string StrikeAbilityId = "warden.strike";
 
     private const int MaxTicks = 12000;
 
     private sealed class Probe
     {
         public int CasterId = -1;
-        public int LeaderId = -1;
-        public int EngageTick = -1;
-        public double StartMm = -1;
-        public Vec3 StartPos;
-        public bool Moved;
-        public int FirstCastTick = -1;
-        public int DeathTick = -1;
+        public int CasterEngagedTick = -1;
+        public int CasterDeathTick = -1;
+        public bool CasterMoved;
+        public Vec3 CasterStart;
+        public int StrandedSince = -1;
+        public readonly List<(int Start, int End)> Episodes = new();
         public readonly List<string> Log = new();
     }
 
-    private sealed record Tally(int EngageTick, double StartMm, bool Moved, int FirstCastTick, int DeathTick, List<string> Log);
-
-    private static readonly Lazy<Tally> Driven = new(Drive);
+    private static readonly Lazy<Probe> Driven = new(Drive);
 
     private readonly ITestOutputHelper _output;
 
@@ -79,20 +67,21 @@ public sealed class LeaderClosesToReachTests
         return Math.Sqrt((dx * dx) + (dz * dz));
     }
 
-    private static Tally Drive()
+    private static Probe Drive()
     {
         var probe = new Probe();
         var options = new PlaytestOptions(2, 1, null)
         {
             MaxTicks = MaxTicks,
-            Observe = (tick, run, commands) => Observe(probe, tick, run, commands),
+            Observe = (tick, run, _) => Observe(probe, tick, run),
         };
         PlaytestRunner.Play(options);
-        return new Tally(probe.EngageTick, probe.StartMm, probe.Moved, probe.FirstCastTick, probe.DeathTick, probe.Log);
+        return probe;
     }
 
-    private static void Observe(Probe probe, int tick, Keyrun.Sim.Runs.Run run, IReadOnlyList<Command> commands)
+    private static void Observe(Probe probe, int tick, Keyrun.Sim.Runs.Run run)
     {
+        var state = run.State;
         if (probe.CasterId < 0)
         {
             var spawn = run.Dungeon.Pulls.Where(p => p.Id == "choir").SelectMany(p => p.Spawns).FirstOrDefault(s => s.ClassId == CasterClassId);
@@ -102,61 +91,61 @@ public sealed class LeaderClosesToReachTests
             }
             probe.CasterId = spawn.ActorId;
         }
-        var state = run.State;
-        if (!state.Actors.TryGetValue(probe.CasterId, out var caster) || Follow.Leader(state) is not { } leader)
+        if (Follow.Leader(state) is not { } leader)
         {
             return;
         }
-        probe.LeaderId = leader.Id;
-        if (probe.EngageTick < 0)
+        var engaged = state.Actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle).ToList();
+        if (engaged.Count > 0 && engaged.All(e => DistMm(leader.Pos, e.Pos) > ReachMm))
         {
-            var engaged = state.Actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle).Select(a => a.Id).ToList();
-            if (engaged.Count == 1 && engaged[0] == probe.CasterId)
+            if (probe.StrandedSince < 0)
             {
-                probe.EngageTick = tick;
-                probe.StartMm = DistMm(leader.Pos, caster.Pos);
-                probe.StartPos = caster.Pos;
-                probe.Log.Add($"{tick} engaged: the caster {caster.Id} is the only engaged enemy, at ({caster.Pos.X},{caster.Pos.Z}); leader {leader.Id} at ({leader.Pos.X},{leader.Pos.Z}), {probe.StartMm:F0} mm");
+                probe.StrandedSince = tick;
             }
+        }
+        else if (probe.StrandedSince >= 0)
+        {
+            probe.Episodes.Add((probe.StrandedSince, tick));
+            probe.Log.Add($"{tick} leader {leader.Id} back inside strike reach after being stranded since {probe.StrandedSince} ({tick - probe.StrandedSince} ticks)");
+            probe.StrandedSince = -1;
+        }
+        if (!state.Actors.TryGetValue(probe.CasterId, out var caster))
+        {
             return;
         }
-        if (caster.Alive && (caster.Pos.X != probe.StartPos.X || caster.Pos.Z != probe.StartPos.Z))
+        if (probe.CasterEngagedTick < 0 && caster.Alive && !caster.Idle)
         {
-            probe.Moved = true;
+            probe.CasterEngagedTick = tick;
+            probe.CasterStart = caster.Pos;
+            probe.Log.Add($"{tick} the caster {caster.Id} is engaged at ({caster.Pos.X},{caster.Pos.Z}); leader {leader.Id} at ({leader.Pos.X},{leader.Pos.Z}), {DistMm(leader.Pos, caster.Pos):F0} mm");
         }
-        if (probe.DeathTick < 0 && !caster.Alive)
+        if (probe.CasterEngagedTick >= 0 && caster.Alive && (caster.Pos.X != probe.CasterStart.X || caster.Pos.Z != probe.CasterStart.Z))
         {
-            probe.DeathTick = tick;
+            probe.CasterMoved = true;
+        }
+        if (probe.CasterEngagedTick >= 0 && probe.CasterDeathTick < 0 && !caster.Alive)
+        {
+            probe.CasterDeathTick = tick;
             probe.Log.Add($"{tick} caster {caster.Id} dead");
-        }
-        var cast = commands.OfType<CastCommand>().FirstOrDefault(c => c.ActorId == leader.Id && c.TargetId == probe.CasterId && c.AbilityId == StrikeAbilityId);
-        if (cast is not null && probe.FirstCastTick < 0)
-        {
-            probe.FirstCastTick = tick;
-            probe.Log.Add($"{tick} leader {leader.Id} casts {cast.AbilityId} on caster {probe.CasterId}, {DistMm(leader.Pos, caster.Pos):F0} mm");
-        }
-        if ((tick - probe.EngageTick) % 100 == 0)
-        {
-            probe.Log.Add($"{tick} sample leader ({leader.Pos.X},{leader.Pos.Z}) caster ({caster.Pos.X},{caster.Pos.Z}) {DistMm(leader.Pos, caster.Pos):F0} mm");
         }
     }
 
-    [Fact(DisplayName = "R-SEED-1a: a leader engaged with a stationary caster outside its strike reach closes to reach, casts on it within 600 ticks, and the caster dies within 3000")]
-    public void Leader_closes_to_reach_and_strikes_a_stationary_caster()
+    [Fact(DisplayName = "R-SEED-1a: a leader outside the strike reach of every engaged enemy closes to reach within 600 ticks, and the stationary caster dies within 3000 of its engagement")]
+    public void Leader_closes_to_reach_and_the_stationary_caster_dies()
     {
         var t = Driven.Value;
         foreach (var line in t.Log)
         {
             _output.WriteLine(line);
         }
-        _output.WriteLine($"R-SEED-1a engageTick={t.EngageTick} startMm={t.StartMm:F0} moved={t.Moved} firstCastTick={t.FirstCastTick} deathTick={t.DeathTick}");
-        Assert.True(t.EngageTick >= 0, "the Choir's caster lieutenant was never the only engaged enemy");
-        Assert.True(t.StartMm > MinStartMm && t.StartMm < MaxStartMm,
-            $"precondition: the caster starts {t.StartMm:F0} mm from the leader at engagement (want {MinStartMm}..{MaxStartMm}, outside the 3000 mm strike reach)");
-        Assert.False(t.Moved, "precondition: the caster moved; it is not the stationary caster this test pins");
-        Assert.True(t.FirstCastTick >= t.EngageTick && t.FirstCastTick <= t.EngageTick + CastWithinTicks,
-            $"the leader's first {StrikeAbilityId} on the caster was at tick {t.FirstCastTick} (want {t.EngageTick}..{t.EngageTick + CastWithinTicks}); it never closed to reach and struck");
-        Assert.True(t.DeathTick >= 0 && t.DeathTick <= t.EngageTick + DieWithinTicks,
-            $"the caster died at tick {t.DeathTick} (want within {DieWithinTicks} of engagement {t.EngageTick})");
+        _output.WriteLine($"R-SEED-1a episodes={string.Join(",", t.Episodes.Select(e => $"{e.Start}..{e.End}"))} stillStranded={t.StrandedSince} casterEngaged={t.CasterEngagedTick} casterDeath={t.CasterDeathTick} moved={t.CasterMoved}");
+        Assert.True(t.Episodes.Count > 0, "the leader was never outside the strike reach of every engaged enemy; the closing check would be vacuous");
+        var slow = t.Episodes.Where(e => e.End - e.Start > ClosesWithinTicks).ToList();
+        Assert.True(slow.Count == 0, "the leader stood outside every engaged enemy's strike reach for more than " + ClosesWithinTicks + " ticks: " + string.Join(", ", slow.Select(e => $"{e.Start}..{e.End}")));
+        Assert.True(t.StrandedSince < 0, $"the leader was still outside every engaged enemy's strike reach at the end of the run (since {t.StrandedSince})");
+        Assert.True(t.CasterEngagedTick >= 0, "the Choir's caster lieutenant was never engaged");
+        Assert.False(t.CasterMoved, "precondition: the caster moved; it is not the stationary caster this test pins");
+        Assert.True(t.CasterDeathTick >= 0 && t.CasterDeathTick <= t.CasterEngagedTick + DieWithinTicks,
+            $"the caster died at tick {t.CasterDeathTick} (want within {DieWithinTicks} of its engagement {t.CasterEngagedTick})");
     }
 }
