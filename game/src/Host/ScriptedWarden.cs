@@ -30,7 +30,7 @@ public sealed class ScriptedWarden
     /// <summary>The lieutenant's class id.</summary>
     public const string LieutenantClass = "choir.lieutenant";
 
-    private static readonly string[] Rotation = { "warden.vigil", "warden.reckoning", "warden.guardBreak", "warden.strike" };
+    private static readonly string[] Rotation = { "warden.reckoning", "warden.vigil", "warden.guardBreak", "warden.strike" };
 
     private const string Kick = "warden.shieldBash";
     private const string Defensive = "warden.brace";
@@ -318,7 +318,13 @@ public sealed class ScriptedWarden
             }
             // R-AOE-1 (cooldowns): Reckoning spends the Momentum Vigil (the shield) is waiting on, so while Vigil is about to
             // come off cooldown it is held, as the bot tank holds its sustain reserve (TankPressure.PressureRotation).
-            if (id == Spender && VigilComesOffCooldownWithin(me, tick, ReckoningVigilGuardTicks))
+            if (id == Spender && ShieldWanted(run, me) && VigilComesOffCooldownWithin(me, tick, ReckoningVigilGuardTicks))
+            {
+                continue;
+            }
+            // R-AOE-2: on trash Vigil (50 Momentum, no damage) is for a hurt Warden, not a timer: with Guard Break a spammable
+            // builder the Momentum goes to Reckoning (400 damage) until the Warden is below three quarters health.
+            if (id == Sustain && !ShieldWanted(run, me))
             {
                 continue;
             }
@@ -327,7 +333,7 @@ public sealed class ScriptedWarden
             // The cleave is the alternate global: it follows a Strike (R-WARDEN-FILLER-1: Strike is the filler, one in every two
             // globals at least), so a cooldown that comes ready never takes two globals running from the filler.
             if (id == PayoffBuilder && !InBossPull(run) && !PayoffCloses(run, me, def, target, tick)
-                && !(CleavesTwo(run, me, def, target) && !WouldBeDenied(run, me, def, target, tick) && tick - _lastStrikeTick < CleaveAfterStrikeTicks))
+                && !(CleavesTwo(run, me, def, target) && !WouldBeDenied(run, me, def, target, tick) && !_lastBuilderWasCleave))
             {
                 continue;
             }
@@ -344,6 +350,11 @@ public sealed class ScriptedWarden
                 if (id == Filler)
                 {
                     _lastStrikeTick = tick;
+                    _lastBuilderWasCleave = false;
+                }
+                else if (id == PayoffBuilder)
+                {
+                    _lastBuilderWasCleave = true;
                 }
                 return;
             }
@@ -351,6 +362,13 @@ public sealed class ScriptedWarden
     }
 
     private int _lastStrikeTick = int.MinValue / 2;
+
+    /// <summary>
+    /// R-AOE-2: the two builders alternate. Guard Break is a spammable filler (cooldown 0), so the cadence that keeps Strike
+    /// (the Setup the party's Payoffs need, R-WARDEN-FILLER-1) one build global in every two is "the last builder was Strike",
+    /// not "a Strike within N ticks": a Vigil or Bulwark global between two builders must not cost the cleave its turn.
+    /// </summary>
+    private bool _lastBuilderWasCleave;
 
     /// <summary>R-AOE-1: a Guard Break that closes no Window (a plain cleave) waits for a Strike within this many ticks before it.</summary>
     internal const int CleaveAfterStrikeTicks = 45;
@@ -531,6 +549,9 @@ public sealed class ScriptedWarden
     private const string GroupMitigationEffect = "braced";
     private const string Spender = "warden.reckoning";
     private const string Sustain = "warden.vigil";
+
+    /// <summary>R-AOE-2: the boss pull always wants the Vigil shield; trash wants it once the Warden is under three quarters health.</summary>
+    private static bool ShieldWanted(Run run, ActorState me) => InBossPull(run) || me.Health * 4 < me.MaxHealth * 3;
 
     /// <summary>R-AOE-1: Reckoning waits when Vigil is ready or comes off cooldown within this many ticks.</summary>
     internal const int ReckoningVigilGuardTicks = 60;

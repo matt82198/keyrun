@@ -107,8 +107,8 @@ public sealed class AoeRotationKitTests
         Assert.True(failures.Count == 0, "a bot spams or skips buttons: " + string.Join(" | ", failures));
     }
 
-    [Fact(DisplayName = "AoE kit: every playable class has a shaped AoE rotational, and every rotational but at most one filler has a cooldown")]
-    public void Every_class_has_an_aoe_rotational_and_cooldowns()
+    [Fact(DisplayName = "AoE kit: every playable class has a shaped AoE rotational, and no AoE builder has a cooldown (R-AOE-2, R-AOE-3)")]
+    public void Every_class_has_an_aoe_rotational_and_no_aoe_builder_has_a_cooldown()
     {
         var reg = Run.Value.Registry;
         foreach (var cls in new[] { "warden", "chanter", "cinder" })
@@ -117,8 +117,12 @@ public sealed class AoeRotationKitTests
             var ids = new[] { rot.Rot1, rot.Rot2, rot.Rot3, rot.Rot4, rot.Rot5 };
             var defs = ids.Select(id => reg.Abilities[id]).ToList();
             Assert.True(defs.Any(IsShapedAoeDamage), cls + " has no shaped AoE damage rotational");
-            var fillers = defs.Where(d => d.CooldownTicks == 0).Select(d => d.Id).ToList();
-            Assert.True(fillers.Count <= 1, cls + " has " + fillers.Count + " rotationals without a cooldown: " + string.Join(",", fillers));
+            // R-AOE-2: an AoE builder (a shaped AoE rotational that costs nothing and generates resource) is a spammable
+            // filler bound by cast cadence, so it never has a cooldown; AoE arrives by shape and spread margin.
+            var cooledBuilders = defs
+                .Where(d => IsShapedAoeDamage(d) && d.Cost.Amount == 0 && d.Effects.OfType<ResourceOp>().Any(r => r.Delta > 0) && d.CooldownTicks > 0)
+                .Select(d => d.Id + "=" + d.CooldownTicks).ToList();
+            Assert.True(cooledBuilders.Count == 0, cls + " has AoE builders with a cooldown: " + string.Join(",", cooledBuilders));
         }
     }
 }
