@@ -42,15 +42,15 @@ public partial class Screen
                 }
             }
         }
-        else if (Tab == LobbyTab.Play && l.Queue.HasPoint(click.Position))
+        else if (Tab == LobbyTab.Queue && l.Queue.HasPoint(click.Position))
         {
             Queue();
         }
-        else if (Tab == LobbyTab.Play && l.KeyDown.HasPoint(click.Position))
+        else if (Tab == LobbyTab.Key && l.KeyDown.HasPoint(click.Position))
         {
             StepKey(-1);
         }
-        else if (Tab == LobbyTab.Play && l.KeyUp.HasPoint(click.Position))
+        else if (Tab == LobbyTab.Key && l.KeyUp.HasPoint(click.Position))
         {
             StepKey(1);
         }
@@ -90,8 +90,8 @@ public partial class Screen
         }
     }
 
-    /// <summary>Opens the Build tab, or goes back to Play from it (T). Only while the screen is up.</summary>
-    public void ToggleTalents() => SelectTab(Tab == LobbyTab.Build ? LobbyTab.Play : LobbyTab.Build);
+    /// <summary>Opens the Build tab, or goes back to Character from it (T). Only while the screen is up.</summary>
+    public void ToggleTalents() => SelectTab(Tab == LobbyTab.Build ? LobbyTab.Character : LobbyTab.Build);
 
     // Returns true when the key was the screen's (Enter is not consumed, so the host's restart still sees it).
     private bool HandleKey(Key key)
@@ -115,6 +115,12 @@ public partial class Screen
             case Key.Down when Tab == LobbyTab.Character:
                 CycleClass(1);
                 return true;
+            case Key.Up when Tab == LobbyTab.Gear:
+                CycleSelected(-1);
+                return true;
+            case Key.Down when Tab == LobbyTab.Gear:
+                CycleSelected(1);
+                return true;
             case Key.Left or Key.Minus or Key.KpSubtract:
                 StepKey(-1);
                 return true;
@@ -122,7 +128,7 @@ public partial class Screen
                 StepKey(1);
                 return true;
             case Key.Tab:
-                CycleSelected();
+                CycleSelected(1);
                 return true;
             case Key.R:
                 Reroll();
@@ -135,7 +141,7 @@ public partial class Screen
         }
     }
 
-    // The tab bar's keys work on every tab: Q and E step along the bar, F1-F3 jump to a tab.
+    // The tab bar's keys work on every tab: Q and E step along the bar, F1-F5 jump to a tab (Lobby.Tabs order).
     private bool TabKey(Key key)
     {
         if (_lobby is not { } lobby)
@@ -150,14 +156,8 @@ public partial class Screen
             case Key.E:
                 SelectTab(lobby.CycleTab(1).Tab);
                 return true;
-            case Key.F1:
-                SelectTab(LobbyTab.Character);
-                return true;
-            case Key.F2:
-                SelectTab(LobbyTab.Build);
-                return true;
-            case Key.F3:
-                SelectTab(LobbyTab.Play);
+            case >= Key.F1 and <= Key.F5:
+                SelectTab(Lobby.Tabs[(int)(key - Key.F1)]);
                 return true;
             default:
                 return false;
