@@ -8,7 +8,7 @@ using Keyrun.Sim.Runs;
 
 namespace Keyrun.Hud;
 
-/// <summary>The between-runs lobby screen (Character, Build and Play tabs); its lane history and design
+/// <summary>The one pre-run screen (Character, Gear, Build, Key and Queue tabs, f-08279d82); its lane history and design
 /// summary is in game/src/Hud/CLAUDE.md, and the members are split across Screen.*.cs partials by tab and concern.</summary>
 public partial class Screen : Control
 {
@@ -43,16 +43,19 @@ public partial class Screen : Control
     private static readonly Color Dim = new(0.58f, 0.53f, 0.45f, 1f);
     private static readonly Color Warn = new(1f, 0.6f, 0.5f);
 
-    // The tab bar: three tabs from this x in the title row.
+    // The tab bar: five tabs from this x in the title row.
     private const float TabsLeft = 200;
     private const float TabWidth = 150;
 
     // The autorun script: one key per frame once the run has ended (keys 1, R, R, R, Right, then the talent panel
-    // T, 1, Down, 2, Backspace, 1, T, then Enter). The Key band does not pick a Clause (BIBLE s8, R1: the key sets it).
+    // T, 1, Down, 2, Backspace, 1, T, then the Gear, Key and Queue tabs F2, F4, F5, then Enter). The Key band does not
+    // pick a Clause (BIBLE s8, R1: the key sets it). SCREEN-TABS (f-08279d82): the tab walk is what
+    // game/src/Host/scenes/ScreenTabs-SceneTest.ps1 reads; no key in it changes the gear, the key or the build.
     private static readonly Key[] AutorunKeys =
     {
         Key.Key1, Key.R, Key.R, Key.R, Key.Right,
         Key.T, Key.Key1, Key.Down, Key.Key2, Key.Backspace, Key.Key1, Key.T,
+        Key.F2, Key.F4, Key.F5,
         Key.Enter,
     };
 
@@ -75,8 +78,8 @@ public partial class Screen : Control
     /// <summary>True while the talent panel is up: the Build tab of the open screen.</summary>
     public bool TalentsOpen => IsOpen && _lobby?.Tab == LobbyTab.Build;
 
-    /// <summary>The open tab (Play before the first open).</summary>
-    public LobbyTab Tab => _lobby?.Tab ?? LobbyTab.Play;
+    /// <summary>The open tab (Character before the first open; every open lands on Character).</summary>
+    public LobbyTab Tab => _lobby?.Tab ?? LobbyTab.Character;
 
     /// <summary>The human's class for the next Queue (the Character tab's pick).</summary>
     public string ClassId => _lobby?.ClassId ?? SimDriver.HumanClassId;
@@ -237,7 +240,9 @@ public partial class Screen : Control
             ProofItem(slot);
         }
         ProofGear();
+        ProofSheet();
         ProofKeyBand();
+        ProofSeats();
         Proof($"SCREEN queue caption=\"{QueueCaption}\"");
         // Measured at the design viewport (project.godot 1280x720): headless runs have a tiny dummy window.
         var design = DesignSize();

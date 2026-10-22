@@ -7,17 +7,26 @@ using C = Keyrun.Content;
 
 namespace Keyrun.Host;
 
-/// <summary>The three tabs of the between-runs screen, in the order the tab bar draws them.</summary>
+/// <summary>
+/// The five tabs of the one pre-run screen, in the order the tab bar draws them (f-08279d82, D10 MVP line: Character,
+/// Gear, Key and Queue, with the talent forks on Build).
+/// </summary>
 public enum LobbyTab
 {
-    /// <summary>The class pick and the five gear slots with tier (BIBLE s5, s7).</summary>
+    /// <summary>The class pick, the key, Ascension marks and the five equipped slots with tier and Facet (BIBLE s5, s7).</summary>
     Character = 0,
 
-    /// <summary>The chosen class's talent forks (BIBLE s6).</summary>
-    Build = 1,
+    /// <summary>The five gear slots in detail: tier (capped at 10), Facet, crafting charges and reroll (BIBLE s7).</summary>
+    Gear = 1,
 
-    /// <summary>The key, its Clause and the Queue button (BIBLE s8, s10).</summary>
-    Play = 2,
+    /// <summary>The chosen class's talent forks (BIBLE s6).</summary>
+    Build = 2,
+
+    /// <summary>The key stepper, its affixes, its Clause, the readiness line and the last-three-runs strip (BIBLE s8, s10).</summary>
+    Key = 3,
+
+    /// <summary>The seats the queue fills and the Queue button (BIBLE s10).</summary>
+    Queue = 4,
 }
 
 /// <summary>
@@ -34,7 +43,7 @@ public sealed record Lobby
     public const string DefaultClassId = "warden";
 
     /// <summary>The tabs in draw order.</summary>
-    public static readonly IReadOnlyList<LobbyTab> Tabs = new[] { LobbyTab.Character, LobbyTab.Build, LobbyTab.Play };
+    public static readonly IReadOnlyList<LobbyTab> Tabs = new[] { LobbyTab.Character, LobbyTab.Gear, LobbyTab.Build, LobbyTab.Key, LobbyTab.Queue };
 
     private Lobby(LobbyTab tab, string classId, C.TalentPicks talents, ScreenState key)
     {
@@ -80,7 +89,7 @@ public sealed record Lobby
         Open(registry, progression, dungeonId, clauseIds, keyLevel, 0, ScreenState.NoClauseStartKey, classId);
 
     /// <summary>
-    /// Opens the screen on the Play tab, unlocked, at <paramref name="keyLevel"/>, as <paramref name="classId"/> with that
+    /// Opens the screen on the Character tab, unlocked, at <paramref name="keyLevel"/>, as <paramref name="classId"/> with that
     /// class's saved build restored from <paramref name="progression"/> (a pick the content no longer has is dropped).
     /// </summary>
     /// <param name="registry">The content.</param>
@@ -110,7 +119,7 @@ public sealed record Lobby
             throw new InvalidOperationException($"lobby: unknown class \"{classId}\"");
         }
         var key = ScreenState.Open(dungeonId, clauseIds, keyLevel, rotationIndex, clauseStartKey);
-        return new Lobby(LobbyTab.Play, cls.Id, C.TalentPicks.Restore(cls, progression.Talents), key);
+        return new Lobby(LobbyTab.Character, cls.Id, C.TalentPicks.Restore(cls, progression.Talents), key);
     }
 
     /// <summary>The classes the Character tab offers: the host roster's classes that content defines, in roster order.</summary>
@@ -273,9 +282,9 @@ public sealed record Lobby
     }
 
     /// <summary>
-    /// Back on the screen after <paramref name="run"/> ended (the s1 loop's last arrow): the Play tab, unlocked, at the
+    /// Back on the screen after <paramref name="run"/> ended (the s1 loop's last arrow): the Character tab, unlocked, at the
     /// key the run moved to (<see cref="KeyMove.ForRun"/>: a timed run raises it, any other end keeps it), class and build
-    /// kept, so the next Queue is one press. A run that has not ended returns this lobby.
+    /// kept, so the next Queue is one press (Enter queues from any tab). A run that has not ended returns this lobby.
     /// </summary>
     /// <param name="run">The run.</param>
     /// <returns>The lobby.</returns>
@@ -285,11 +294,11 @@ public sealed record Lobby
         return KeyMove.ForRun(run) is { } move ? Reopen(move.To) : this;
     }
 
-    /// <summary>The screen reopened at <paramref name="keyLevel"/>: Play tab, unlocked, the key's Clause read from that key (R1: no pick).</summary>
+    /// <summary>The screen reopened at <paramref name="keyLevel"/>: Character tab, unlocked, the key's Clause read from that key (R1: no pick).</summary>
     /// <param name="keyLevel">The key.</param>
     /// <returns>The lobby.</returns>
     public Lobby Reopen(int keyLevel) =>
-        this with { Tab = LobbyTab.Play, Key = ScreenState.Open(Key.DungeonId, Key.ClauseIds, keyLevel, Key.RotationIndex, Key.ClauseStartKey) };
+        this with { Tab = LobbyTab.Character, Key = ScreenState.Open(Key.DungeonId, Key.ClauseIds, keyLevel, Key.RotationIndex, Key.ClauseStartKey) };
 
     private Lobby WithKey(ScreenState next) => ReferenceEquals(next, Key) ? this : this with { Key = next };
 }

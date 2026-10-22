@@ -15,7 +15,7 @@ public sealed class ContentCountTests
         ContentRegistry reg = ContentLoader.Load();
 
         Assert.Equal(46, reg.Abilities.Count); // 46 since R-PATROL-3b added choir.patrolSwing to abilities/patrol.json (was 45 with VAULT-KITS (S1) and its five BIBLE 9.3 vault casts in abilities/vault.json, was 40; 40 since SEED-LOCK-TEACHES added seed.lock, was 39)
-        Assert.Equal(28, reg.Effects.Count); // 28 since VAULT-KITS (S1) added searingHex, cinders, stoked, rooted and drenched in effects/vault.json (was 23; 23 since R-PILE-7e added chorusEcho, Encore's echo, was 22)
+        Assert.Equal(29, reg.Effects.Count); // 29 since R-BOSS-4 added cleaved in effects/vault.json; 28 since VAULT-KITS (S1) added searingHex, cinders, stoked, rooted and drenched in effects/vault.json (was 23; 23 since R-PILE-7e added chorusEcho, Encore's echo, was 22)
         Assert.Equal(3, reg.Classes.Count);
         Assert.Equal(13, reg.Combos.Count);
         Assert.Equal(13, reg.Enemies.Count); // 13 since VAULT-KITS (S1) added the five BIBLE 9.3 vault enemies in enemies/vault.json (was 8; 8 since PATH-PACKS added hall.sentry, was 7; STATE.md D49)

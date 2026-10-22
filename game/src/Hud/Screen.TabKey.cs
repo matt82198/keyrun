@@ -44,7 +44,7 @@ public partial class Screen
     private IReadOnlyList<string> ClauseIds() =>
         _driver?.Registry is { } reg ? reg.Clauses.Select(kv => kv.Key).ToList() : Array.Empty<string>();
 
-    // Play tab, left: who is queueing and what the last run moved.
+    // Key and Queue tabs, left: who is queueing and what the last run moved.
     private void DrawSummary(Rect2 r)
     {
         Band(r, "Character");
@@ -68,6 +68,22 @@ public partial class Screen
             HudNodes.Text(this, new Vector2(x + 6, y), keyLabel, BodyFont, Gold);
             HudNodes.Text(this, new Vector2(x + 32, y), Clip(name, r.Size.X - 60, BodyFont), BodyFont, Parchment);
             y += 24;
+        }
+    }
+
+    // Key tab, right: what Enter does at this key, so the Key tab says the next step without the Queue tab open.
+    private void DrawKeyNote(Rect2 r, ScreenState state)
+    {
+        Band(r, "Next");
+        var inner = r.Size.X - 28;
+        var y = r.Position.Y + 58;
+        var text = state.Locked
+            ? FormattableString.Invariant($"Queued at key {state.KeyLevel}.")
+            : FormattableString.Invariant($"Enter queues at key {state.KeyLevel}. The Queue tab (F5) shows the seats it fills.");
+        foreach (var line in Wrap(text, inner, BodyFont, 4))
+        {
+            HudNodes.Text(this, new Vector2(r.Position.X + 14, y), line, BodyFont, state.Locked ? Calm : Parchment);
+            y += 18;
         }
     }
 

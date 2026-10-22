@@ -228,4 +228,11 @@ public sealed record LayoutPack
     /// layout when set.
     /// </summary>
     public string? Branch { get; init; }
+
+    /// <summary>
+    /// N1 PACK-LINKS (BIBLE section 9.1 chain pulls, the WoW Mythic+ linked pack): the ids of other layout packs or
+    /// patrols that engage with this one on the same tick, in either direction. Empty by default. Each must name another
+    /// pack or a patrol, never this pack, a pull or a box, and at most once.
+    /// </summary>
+    public ValueList<string> Links { get; init; } = new();
 }

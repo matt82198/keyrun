@@ -10,5 +10,7 @@
   { "id": "rooted", "name": "Rooted", "maxStacks": 1,
     "modifiers": { "movementBp": -10000 }, "dispellableTag": null },
   { "id": "drenched", "name": "Drenched", "maxStacks": 1,
-    "modifiers": { "movementBp": -3000 }, "dispellableTag": "magic" }
+    "modifiers": { "movementBp": -3000 }, "dispellableTag": "magic" },
+  { "id": "cleaved", "name": "Cleaved", "maxStacks": 5,
+    "modifiers": { "damageTakenBp": 2500 }, "dispellableTag": null }
 ]
