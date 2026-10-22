@@ -341,6 +341,11 @@ public static class Follow
             var hold = HoldPoint(layout, high);
             return Distance2(self.Pos, hold) <= ArriveMm * ArriveMm ? null : PathMoves.Along(tick, self, layout, hold);
         }
+        // f-7aa25aa6: count to 100 before the boss, as LeadRoute does for the scripted leader (one ForcesPlanner).
+        if (view.PullPlan is { } pulls && ForcesPlanner.NextPackPoint(view.State, layout, pulls, self) is { } pack)
+        {
+            return PathMoves.Along(tick, self, layout, pack);
+        }
         return WalkRoute(tick, self, layout);
     }
 

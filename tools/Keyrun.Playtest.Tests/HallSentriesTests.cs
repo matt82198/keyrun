@@ -33,8 +33,10 @@ public sealed class HallSentriesTests
 
     private const string HallPackId = "hall-sentries";
 
+    // f-7aa25aa6: a policy run now pulls to 100% by default (it engages these sentries, the most forces per health), so the
+    // walking-line route this helper stands for is the run with the pull plan off, as the scripted case in the same test is.
     private static PlaytestResult Play(string? policyJson) =>
-        PlaytestRunner.Play(new PlaytestOptions(2, 1, policyJson is null ? null : PolicyReader.Parse(policyJson, Registry)), Registry);
+        PlaytestRunner.Play(new PlaytestOptions(2, 1, policyJson is null ? null : PolicyReader.Parse(policyJson, Registry)) { PullToForces = false }, Registry);
 
     private static IReadOnlyList<int> Sentries(PlaytestResult r) =>
         r.Setup.Content.Packs!.Single(p => p.Id == HallPackId).Spawns.Select(s => s.ActorId).ToList();

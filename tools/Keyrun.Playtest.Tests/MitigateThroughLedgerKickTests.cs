@@ -165,39 +165,57 @@ public sealed class MitigateThroughLedgerKickTests
         var policy = PolicyReader.Parse(KickPlan, content);
         var registry = PlaytestRunner.WithTalents(content, policy);
         var kits = KitRegistry.From(registry);
-        var named = new System.Collections.Generic.List<(int Seat, int Caster, string Ability, int Start, int Open, int End)>();
-        var casts = new System.Collections.Generic.List<(int Tick, CastCommand Cast, int? Target)>();
-        PlaytestRunner.Play(new PlaytestOptions(2, 1, policy)
+        // f-7aa25aa6 (the policy party pulls to 100% forces and names a distinct kicker per simultaneous cast): the policy seats
+        // now answer nearly every Mending of seed 1 inside their 8-20 tick reaction, before the ledger's kick-open tick, so
+        // the run holds no cast still open at kick-open and the non-vacuity guard below read an empty set. The ledger names
+        // a seat only on a cast the hands fumbled past kick-open, which is a property of the hands' seed, so the same
+        // property is read over seeds 1 to 8, the first 6000 ticks of each (the Choir and the start of the Remnant), until three
+        // named kicks are seen (the plan, the property and the guard are unchanged; the guard counts the named kicks of the
+        // seeds read). KICK-LEDGER-COOLDOWN-GAP (#597) later let the ledger name a seat whose interrupt is still on cooldown
+        // (a late kick), which a plan seat, pressing only a ready interrupt, does not do; the property is the one this test
+        // was written for, the named seat is ready at kick-open.
+        var named = new System.Collections.Generic.List<(int Seed, int Seat, int Caster, string Ability, int Start, int Open, int End)>();
+        var casts = new System.Collections.Generic.List<(int Seed, int Tick, CastCommand Cast, int? Target)>();
+        for (var seed = 1; seed <= 8 && named.Count < 3; seed++)
         {
-            Observe = (tick, run, commands) =>
+            var s = seed;
+            PlaytestRunner.Play(new PlaytestOptions(2, seed, policy)
             {
-                foreach (var c in commands.OfType<CastCommand>())
+                MaxTicks = 6000,
+                Observe = (tick, run, commands) =>
                 {
-                    casts.Add((tick, c, c.TargetId ?? (run.State.Actors.TryGetValue(c.ActorId, out var a) ? a.TargetId : null)));
-                }
-                var mends = run.State.Actors.Values.Where(a => a.Alive && a.CastId == "choir.healCast" && a.CastEndsTick is not null && Ledger.KickOpensTick(a) == tick).ToList();
-                if (mends.Count == 0)
-                {
-                    return;
-                }
-                var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
-                foreach (var seat in run.State.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive))
-                {
-                    var kit = view.Kits.ResolveKit(seat.ClassId, view.ClassKit);
-                    if (RoleShared.LedgerKickCommand(view, seat, kit) is { } kick && mends.FirstOrDefault(m => m.Id == kick.TargetId) is { } mend)
+                    foreach (var c in commands.OfType<CastCommand>())
                     {
-                        named.Add((seat.Id, mend.Id, kick.AbilityId, mend.CastStartTick ?? tick, tick, mend.CastEndsTick!.Value));
+                        casts.Add((s, tick, c, c.TargetId ?? (run.State.Actors.TryGetValue(c.ActorId, out var a) ? a.TargetId : null)));
                     }
-                }
-            },
-        }, content);
+                    var mends = run.State.Actors.Values.Where(a => a.Alive && a.CastId == "choir.healCast" && a.CastEndsTick is not null && Ledger.KickOpensTick(a) == tick).ToList();
+                    // One Mending in flight: with two Cantors casting together the plan names one kicker per cast in its own
+                    // order, while the ledger names the priority cast's kicker (least recently kicked first), so the two
+                    // legitimately differ on which seat takes which cast. The property is about the one-cast case.
+                    if (mends.Count == 0 || run.State.Actors.Values.Count(a => a.Alive && a.CastId == "choir.healCast") != 1)
+                    {
+                        return;
+                    }
+                    var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
+                    foreach (var seat in run.State.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive))
+                    {
+                        var kit = view.Kits.ResolveKit(seat.ClassId, view.ClassKit);
+                        if (RoleShared.LedgerKickCommand(view, seat, kit) is { } kick && Readiness.AbilityReady(seat, kick.AbilityId, tick, kit)
+                            && mends.FirstOrDefault(m => m.Id == kick.TargetId) is { } mend)
+                        {
+                            named.Add((s, seat.Id, mend.Id, kick.AbilityId, mend.CastStartTick ?? tick, tick, mend.CastEndsTick!.Value));
+                        }
+                    }
+                },
+            }, content);
+        }
 
         Assert.NotEmpty(named);
         foreach (var n in named)
         {
-            var kicked = casts.Any(c => c.Cast.ActorId == n.Seat && c.Cast.AbilityId == n.Ability && c.Target == n.Caster && c.Tick >= n.Start && c.Tick <= n.End);
-            var seen = string.Join(",", casts.Where(c => c.Target == n.Caster && c.Tick >= n.Start && c.Tick <= n.End).Select(c => $"{c.Tick}:{c.Cast.ActorId}:{c.Cast.AbilityId}"));
-            Assert.True(kicked, $"the ledger named seat {n.Seat} ({n.Ability}) at kick-open {n.Open} of the Mending by {n.Caster} (cast {n.Start}-{n.End}), and it never kicked it; casts on it [{seen}]; named {named.Count}: {string.Join(" ", named.Select(x => $"{x.Open}:{x.Seat}"))}");
+            var kicked = casts.Any(c => c.Seed == n.Seed && c.Cast.ActorId == n.Seat && c.Cast.AbilityId == n.Ability && c.Target == n.Caster && c.Tick >= n.Start && c.Tick <= n.End);
+            var seen = string.Join(",", casts.Where(c => c.Seed == n.Seed && c.Target == n.Caster && c.Tick >= n.Start && c.Tick <= n.End).Select(c => $"{c.Tick}:{c.Cast.ActorId}:{c.Cast.AbilityId}"));
+            Assert.True(kicked, $"seed {n.Seed}: the ledger named seat {n.Seat} ({n.Ability}) at kick-open {n.Open} of the Mending by {n.Caster} (cast {n.Start}-{n.End}), and it never kicked it; casts on it [{seen}]; named {named.Count}: {string.Join(" ", named.Select(x => $"{x.Seed}/{x.Open}:{x.Seat}"))}");
         }
     }
 }

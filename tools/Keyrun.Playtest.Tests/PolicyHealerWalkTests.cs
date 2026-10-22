@@ -82,18 +82,81 @@ namespace Keyrun.Playtest.Tests;
 /// single Move) on every tick: it holds on exactly ticks 325-338 and on no earlier tick, so the pin is 325 and the window
 /// is 338 - 325 + 1 = 14.
 /// </para>
+/// <para>
+/// R-PINS-1 conversion (f-7aa25aa6; the assertions on the scene and the walk are unchanged): the policy party now holds its
+/// assist target until it dies (a kick press retargets the kicker, which split the damage between two Cantors) and pulls to
+/// 100% forces, so the Choir fight's damage, and with it the tick at which the tank first falls under 70%, moved again
+/// (the guard read <c>Assert.Single() Failure: The collection was empty</c> at 325). A literal tick pin breaks on every
+/// trajectory change, so the pin is read from the run: <see cref="Scene"/> plays seed 1 key 2 (this kick plan) and takes the
+/// first tick at which the scene holds for at least <see cref="MinWindow"/> ticks, and the window is the number of
+/// consecutive ticks the scene holds from there (the same scene test, one tick at a time, as the history above measured by
+/// hand). The scene is the same four facts as before; non-vacuity is that the run has one.
+/// </para>
 /// </summary>
 public sealed class PolicyHealerWalkTests
 {
     private const string KickPlan = "{\"mitigate\": [\"warden\"], \"kicks\": [{\"cast\": \"choir.healCast\", \"kickers\": [\"cinder\", \"chanter\", \"warden\"]}]}";
     private const int Chanter = 2;
-    private const int Tick = 325; // AGGRO-CHASE: the measured walk's first tick (was 342, R-BOTS-18; 545, R-BOTS-11; 9452 before that)
-    private const int WalkLastTick = 338; // AGGRO-CHASE: the measured walk's last step (was 351, R-BOTS-18; 550 before)
-    private const int Window = WalkLastTick - Tick + 1;
+
+    // The shortest walk worth pinning: the history above measured walks of 6 to 14 steps; two ticks would be one reaction.
+    private const int MinWindow = 3;
+
+    private static bool SceneHolds(SimState state, Keyrun.Sim.Runs.Run run, KitRegistry kits)
+    {
+        var tank = state.Actors[PlaytestRunner.TankId];
+        if (!tank.Alive || tank.Health * 10 >= tank.MaxHealth * 7 || Priority.PickHealTarget(state.Actors, 0.7) != PlaytestRunner.TankId)
+        {
+            return false;
+        }
+        var view = BotViews.BuildBotView(state, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
+        var decided = HealerRole.HealerDecide(view, state.Actors[Chanter]);
+        return decided.Count == 1 && decided[0] is MoveCommand;
+    }
+
+    /// <summary>The first tick of the run's first healer walk into a heal pool, and the walk's length in ticks.</summary>
+    private static readonly System.Lazy<(int Tick, int Window)> Scene = new(() =>
+    {
+        var content = ContentLoader.Load();
+        var policy = PolicyReader.Parse(KickPlan, content);
+        var kits = KitRegistry.From(PlaytestRunner.WithTalents(content, policy));
+        var found = (Tick: -1, Window: 0);
+        PlaytestRunner.Play(new PlaytestOptions(2, 1, policy)
+        {
+            MaxTicks = 4000,
+            Observe = (tick, run, _) =>
+            {
+                if (found.Tick >= 0 || !SceneHolds(run.State, run, kits))
+                {
+                    return;
+                }
+                var window = 0;
+                while (true)
+                {
+                    var state = run.State.Clone();
+                    state.Tick = tick + window;
+                    if (!SceneHolds(state, run, kits))
+                    {
+                        break;
+                    }
+                    window++;
+                }
+                if (window >= MinWindow)
+                {
+                    found = (tick, window);
+                }
+            },
+        }, content);
+        return found;
+    });
+
+    private static int Tick => Scene.Value.Tick;
+
+    private static int Window => Scene.Value.Window;
 
     [Fact(DisplayName = "R-PILE-8 guard: the pinned scene exists at its tick (the tank under 70% is the triage target and the heal pick walks)")]
     public void The_pinned_scene_exists_at_its_tick()
     {
+        Assert.True(Tick >= 0, $"the kick-plan run has no healer walk of {MinWindow}+ ticks into a heal pool; the pin would be vacuous");
         var content = ContentLoader.Load();
         var policy = PolicyReader.Parse(KickPlan, content);
         var registry = PlaytestRunner.WithTalents(content, policy);

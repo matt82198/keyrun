@@ -34,8 +34,9 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
     /// <summary>
     /// Finding f-3dcc702c (WoW: plan the count, pull to 100, then boss): the leader pulls the layout's packs until the Enemy
     /// Forces bar is full before it walks to the boss, as the host autorun Warden does. False restores the old walk past
-    /// every optional pack (a control for tests). Null (the default) is true for the scripted party (no policy) and false
-    /// for a policy run: a playtester's policy owns its pulls, and a pull plan in a policy is a follow-up.
+    /// every optional pack (a control for tests). Null (the default) is true, for the scripted party and for a policy run
+    /// alike (f-7aa25aa6: a finish needs 100% forces, so a playtester's party counts the bar too; the plan is the leader's
+    /// travel, the policy still owns kicks, targets and defensives).
     /// </summary>
     public bool? PullToForces { get; init; }
 
@@ -164,7 +165,7 @@ public static class PlaytestRunner
         {
             var tick = run.State.Tick;
             context.PullId = PullIdOf(run);
-            var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout };
+            var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout, PullPlan = PullPlan.Of(run, forces) };
             var batch = Bot.RunBots(view, bots, mem, prng);
             mem = batch.Memories;
             prng = batch.Prng;

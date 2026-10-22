@@ -34,6 +34,32 @@ public sealed record ForcesPlan(IReadOnlyDictionary<string, int> PointsByEnemy, 
 }
 
 /// <summary>
+/// What a leader bot reads to count the bar (finding f-7aa25aa6): the forces table, the layout's packs and the enemy ids of
+/// the dungeon's own pulls (the pulls the party fights anyway). It rides on <see cref="BotView.PullPlan"/>, so a bot in the
+/// lead seat (<see cref="Follow.LeadCommand"/>), which sees only the view, plans exactly as the scripted Warden does from the
+/// run (<see cref="ForcesPlanner.NextPackPoint(Keyrun.Sim.Runs.Run, ForcesPlan, ActorState)"/>).
+/// </summary>
+/// <param name="Forces">The forces table.</param>
+/// <param name="Packs">The layout's packs.</param>
+/// <param name="PullActorIds">The actor ids of every enemy in the dungeon's pulls.</param>
+public sealed record PullPlan(ForcesPlan Forces, IReadOnlyList<PackGroup> Packs, IReadOnlyList<int> PullActorIds)
+{
+    /// <summary>The plan for <paramref name="run"/>, or null when there is no forces table or the run has no packs.</summary>
+    /// <param name="run">The run.</param>
+    /// <param name="forces">The forces table, or null.</param>
+    /// <returns>The plan, or null.</returns>
+    public static PullPlan? Of(Keyrun.Sim.Runs.Run run, ForcesPlan? forces)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (forces is null || run.Content.Packs is not { } packs)
+        {
+            return null;
+        }
+        return new PullPlan(forces, packs, run.Dungeon.Pulls.SelectMany(p => p.Spawns).Select(s => (int)s.ActorId).ToList());
+    }
+}
+
+/// <summary>
 /// Finding f-3dcc702c (WoW Mythic+: plan the count, pull to 100, then boss). The scripted leader counts the forces bar the
 /// way a key group does: the teaching pulls on the line are committed (the party fights them anyway), so the optional packs
 /// only have to make up the difference, and the group picks the packs that give the most forces per health to chew through
@@ -60,11 +86,32 @@ public static class ForcesPlanner
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(leader);
-        if (run.Content.Layout is not { } layout || run.Content.Packs is not { } packs || plan.Required <= 0)
+        return run.Content.Layout is { } layout && PullPlan.Of(run, plan) is { } pulls
+            ? NextPackPoint(run.State, layout, pulls, leader)
+            : null;
+    }
+
+    /// <summary>
+    /// <see cref="NextPackPoint(Keyrun.Sim.Runs.Run, ForcesPlan, ActorState)"/> for a caller that holds the bot's read model
+    /// (<see cref="BotView.PullPlan"/>) instead of the run: the same pick, the same rules, one implementation.
+    /// </summary>
+    /// <param name="state">The state.</param>
+    /// <param name="layout">The layout.</param>
+    /// <param name="pulls">The packs, the dungeon's pull enemies and the forces table.</param>
+    /// <param name="leader">The leader.</param>
+    /// <returns>The pack's centre, or null.</returns>
+    public static Vec3? NextPackPoint(SimState state, NavLayout layout, PullPlan pulls, ActorState leader)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(pulls);
+        ArgumentNullException.ThrowIfNull(leader);
+        var plan = pulls.Forces;
+        var packs = pulls.Packs;
+        if (plan.Required <= 0)
         {
             return null;
         }
-        var state = run.State;
         if (Forces.Read(state, plan.PointsByEnemy, plan.Required).Full)
         {
             return null;
@@ -72,9 +119,9 @@ public static class ForcesPlanner
         // Committed: banked, plus every living enemy the party fights anyway (the dungeon's pulls) or is already fighting
         // (an engaged pack). The idle packs are the choice.
         long committed = Forces.Points(state, plan.PointsByEnemy);
-        foreach (var spawn in run.Dungeon.Pulls.SelectMany(p => p.Spawns))
+        foreach (var actorId in pulls.PullActorIds)
         {
-            committed += LivePoints(state, plan, spawn.ActorId);
+            committed += LivePoints(state, plan, actorId);
         }
         var pending = new List<(PackGroup Pack, int Order, long Points, long Health)>();
         for (var i = 0; i < packs.Count; i++)
