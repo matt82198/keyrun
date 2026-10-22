@@ -122,6 +122,26 @@ public static class Backfill
     }
 
     /// <summary>
+    /// <see cref="SeatCommands"/>, plus a stopcast for every open seat whose actor still has a cast in flight. An empty
+    /// seat never acts (HudSceneTest run F check 23), and a cast begun before the leave would otherwise complete after it:
+    /// keyrun #540 CI, "chanter.cadence" (castTicks 20) completed at 1593 one tick after seat 2 left at 1592. WoW drops a
+    /// disconnected player's cast the same way.
+    /// </summary>
+    /// <param name="state">The book.</param>
+    /// <param name="run">The run about to step (read only).</param>
+    /// <param name="commands">This tick's commands.</param>
+    /// <returns>The kept commands with the open seats' stopcasts appended.</returns>
+    private static IReadOnlyList<Command> OpenSeatCommands(BackfillState state, Run run, IReadOnlyList<Command> commands)
+    {
+        var kept = SeatCommands(state, commands);
+        var stops = state.Open
+            .Where(s => run.State.Actors.TryGetValue(s.ActorId, out var a) && a.CastId is not null)
+            .Select(s => (Command)new StopCastCommand(run.State.Tick, s.ActorId))
+            .ToList();
+        return stops.Count == 0 ? kept : kept.Concat(stops).ToList();
+    }
+
+    /// <summary>
     /// One run tick with backfill: steps the run on the seat-filtered commands, then, when the step started a pull
     /// and the run has not ended, gives each open seat abandoned before that pull the next admitted queue request.
     /// </summary>
@@ -138,7 +158,7 @@ public static class Backfill
         ArgumentNullException.ThrowIfNull(commands);
         ArgumentNullException.ThrowIfNull(queue);
 
-        var applied = SeatCommands(state, commands);
+        var applied = OpenSeatCommands(state, run, commands);
         // STATE.md D27: an open seat's idle actor never holds a layout pull back.
         var stepOpts = state.Open.Count == 0
             ? opts
