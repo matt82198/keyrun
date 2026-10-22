@@ -29,11 +29,19 @@ public sealed record PullHeader(int Number, int Total, string Name)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(dungeon);
-        var total = dungeon.Pulls.Count + 1;
+        // R-MULTIBOSS-1 (f-82f89359): a multi-segment dungeon has a boss pull per segment (boss-s1, boss-s2, ..., boss), each
+        // named for its segment's boss and numbered after the trash pulls; every other dungeon has the one boss pull.
+        var bossIds = LayoutDef.BossPullIds(dungeon);
+        var total = dungeon.Pulls.Count + bossIds.Count;
         var index = dungeon.Pulls.Select(p => p.Id).ToList().IndexOf(pullId);
         if (index >= 0)
         {
             return new PullHeader(index + 1, total, dungeon.Pulls[index].Name);
+        }
+        var bossAt = dungeon.Segments.Count > 1 ? bossIds.ToList().IndexOf(pullId) : -1;
+        if (bossAt >= 0 && registry.Enemies.TryGetValue(dungeon.Segments[bossAt].Boss.EnemyId, out var segmentBoss))
+        {
+            return new PullHeader(dungeon.Pulls.Count + bossAt + 1, total, segmentBoss.Name);
         }
         if (pullId == BossPullId && registry.Enemies.TryGetValue(dungeon.Boss.EnemyId, out var boss))
         {

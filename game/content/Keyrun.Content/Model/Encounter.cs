@@ -160,6 +160,27 @@ public sealed record ScriptStep
 
     /// <summary>Optional target-selection override.</summary>
     public ScriptTarget? Target { get; init; }
+
+    /// <summary>
+    /// SCRIPT-GATE (D66, the Sunken Bellfoundry): a condition on the caster the step needs to fire, or null (always).
+    /// C#-only; the frozen TS has no gate.
+    /// </summary>
+    public ScriptGate? When { get; init; }
+}
+
+/// <summary>
+/// SCRIPT-GATE (D66): a script step fires only while its caster meets this condition. Exactly one field is set
+/// (<see cref="ContentValidator"/>). <see cref="HasEffect"/>: the caster carries that effect (an onDeath step reads the
+/// effects it died with), so a death burst can depend on a cast the party failed to kick. <see cref="HealthBelowBp"/>:
+/// the caster's health is below that share of its max, basis points, so an enemy can enrage below 30%.
+/// </summary>
+public sealed record ScriptGate
+{
+    /// <summary>An effect id the caster must carry, or null.</summary>
+    public string? HasEffect { get; init; }
+
+    /// <summary>Health threshold, basis points of max health (1..9999): the step fires only below it; or null.</summary>
+    public int? HealthBelowBp { get; init; }
 }
 
 /// <summary>A Break bar shared by several enemies (Sundered Twins, BIBLE.md section 9).</summary>
@@ -279,7 +300,38 @@ public sealed record DungeonDef : IContentItem
     /// <summary>Trash pulls in order.</summary>
     public required ValueList<PullDef> Pulls { get; init; }
 
-    /// <summary>Boss encounter.</summary>
+    /// <summary>Boss encounter (the final boss: the last segment's).</summary>
+    public required BossEncounter Boss { get; init; }
+
+    /// <summary>
+    /// D65/D67: true for the tutorial (the Hollow Vault: hand-placed teaching pulls, one boss); false for a seeded
+    /// dungeon, which needs at least <see cref="MinSegmentsPastTutorial"/> segments.
+    /// </summary>
+    public required bool Tutorial { get; init; }
+
+    /// <summary>
+    /// D65: the segments in route order (entrance, fork, boss, fork, boss, ...). Each ends at its boss; the last
+    /// segment's boss is <see cref="Boss"/>. The generator lays one segment per entry (DungeonGenParams.Segments).
+    /// </summary>
+    public required ValueList<DungeonSegment> Segments { get; init; }
+
+    /// <summary>
+    /// D46: the pack roster the fill step deals from, by id: <see cref="RosterPack"/> ids of this dungeon, or (the
+    /// tutorial) its hand-placed layout pack ids.
+    /// </summary>
+    public required ValueList<string> PackPool { get; init; }
+
+    /// <summary>Matt 2026-10-22, verbatim: "any dungeon past tutorial should have 3 bosses" "min".</summary>
+    public const int MinSegmentsPastTutorial = 3;
+}
+
+/// <summary>One segment of a dungeon (D65): a fork into branches that meet at this segment's boss.</summary>
+public sealed record DungeonSegment
+{
+    /// <summary>Segment id, unique in its dungeon (e.g. <c>s1</c>).</summary>
+    public required string Id { get; init; }
+
+    /// <summary>The boss the segment ends at.</summary>
     public required BossEncounter Boss { get; init; }
 }
 

@@ -36,10 +36,25 @@ public partial class AbilityBar
     private (int Slot, PixelRect Box, List<(string Text, int Font, Color Color)> Lines)? _tip;
     private string? _lastTipLine;
 
-    /// <summary>The themed display name of an ability, through the one resolver (Names.Ability via the driver).</summary>
+    // True once the pointer has moved at least once this session. Until then the cursor position is the engine's
+    // default (0,0), not a real hover, so the hover path must not read it (headless runs have no pointer at all).
+    private bool _pointerMoved;
+
+    /// <summary>Records that the pointer has moved, which arms the hover path.</summary>
+    /// <param name="event">The input event.</param>
+    public override void _Input(InputEvent @event)
+    {
+        if (@event is InputEventMouseMotion)
+        {
+            _pointerMoved = true;
+        }
+    }
+
+    /// <summary>The themed display name of an ability (ability-text.json), else its content name.</summary>
     /// <param name="abilityId">The ability id.</param>
     /// <returns>The name.</returns>
-    private string SlotName(string abilityId) => Driver!.AbilityName(abilityId);
+    private string SlotName(string abilityId) =>
+        AbilityText()?.NameOr(abilityId, Driver!.AbilityName(abilityId)) ?? Driver!.AbilityName(abilityId);
 
     private AbilityTextTable? AbilityText()
     {
@@ -103,7 +118,7 @@ public partial class AbilityBar
             index = SlotIndex(setup, _holdAction);
             by = "hold";
         }
-        if (index < 0 && Input.MouseMode == Input.MouseModeEnum.Visible)
+        if (index < 0 && _pointerMoved && Input.MouseMode == Input.MouseModeEnum.Visible)
         {
             var m = GetLocalMousePosition();
             for (var i = 0; i < setup.Slots.Count; i++)

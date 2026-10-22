@@ -195,6 +195,10 @@ public sealed class ActorBinding
         new ActorBindingRow("vault.hound", "Skeleton_Minion.glb", 2166, 831, 0xC0B8B0, Array.Empty<string>(),
             ActorClips.Skeleton, Folder: SkeletonsFolder),
 
+        // Vault Patroller (R-PATROL-4, the corridor patrol's Patrol Sweep caster): Skeleton Warrior washed the colour of its cone.
+        new ActorBindingRow("vault.patroller", "Skeleton_Warrior.glb", 2590, 695, 0xC8A878, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
         // Ash Hexer: robed Skeleton Mage, violet (Searing Hex).
         new ActorBindingRow("ash.hexer", "Skeleton_Mage.glb", 2630, 684, 0xC090F0, Array.Empty<string>(),
             ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
@@ -210,6 +214,68 @@ public sealed class ActorBinding
         // Drowned Chorister: robed Skeleton Mage, sea green (Undertow).
         new ActorBindingRow("drowned.chorister", "Skeleton_Mage.glb", 2630, 684, 0x80E0C0, Array.Empty<string>(),
             ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
+        // D66 the Sunken Bellfoundry (game/content/data/enemies/bellfoundry.json): the same CC0 skeletons (D17, no new
+        // art), each tinted toward its station (molten bronze, brine, ember) and sized by role.
+        // Slag Ram: a bulky Skeleton Warrior at 1.15x, molten orange (Molten Charge's line).
+        new ActorBindingRow("bellfoundry.slagRam", "Skeleton_Warrior.glb", 2590, 799, 0xF09060, Array.Empty<string>(),
+            ActorClips.Skeleton, TargetHeightMm: HeadLineMm * 115 / 100, Folder: SkeletonsFolder),
+
+        // Drowned Bell: the robed Skeleton Mage, its hat the bell's crown, washed old bronze.
+        new ActorBindingRow("bellfoundry.tollingBell", "Skeleton_Mage.glb", 2630, 684, 0xD0C090, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Raise" }, Folder: SkeletonsFolder),
+
+        // Furnace Thrall: the bare Skeleton Minion, ember red-orange (its Overheated Core).
+        new ActorBindingRow("bellfoundry.furnaceThrall", "Skeleton_Minion.glb", 2166, 831, 0xFF9050, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
+        // Scald Hound: the Skeleton Minion, scalded pink.
+        new ActorBindingRow("bellfoundry.scaldHound", "Skeleton_Minion.glb", 2166, 831, 0xF0C0A0, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
+        // Brine Mender: the robed Skeleton Mage, pale brine (Bronze Ward is a kick).
+        new ActorBindingRow("bellfoundry.brineMender", "Skeleton_Mage.glb", 2630, 684, 0x90E8E0, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
+        // R-SORROW-1 (D66) Bellfoundry-owned kinds that replace the five Hollow Vault kinds its packs used to field: the
+        // same CC0 skeletons, each tinted toward its own cast's telegraph colour.
+        // Slag Hexer: robed Skeleton Mage, ember (Molten Brand).
+        new ActorBindingRow("bellfoundry.slagHexer", "Skeleton_Mage.glb", 2630, 684, 0xE08050, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
+        // Ingot Brute: Skeleton Warrior, cooling-ingot bronze (Anvil Drop).
+        new ActorBindingRow("bellfoundry.ingotBrute", "Skeleton_Warrior.glb", 2590, 695, 0xB89870, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
+        // Slag Whelp: the small bare Skeleton Minion, glowing slag orange (Spark Lunge).
+        new ActorBindingRow("bellfoundry.slagWhelp", "Skeleton_Minion.glb", 2166, 831, 0xE8A070, Array.Empty<string>(),
+            ActorClips.Skeleton, Folder: SkeletonsFolder),
+
+        // Casting-Pit Tender: robed Skeleton Mage, coal gold (Fan the Coals).
+        new ActorBindingRow("bellfoundry.pitTender", "Skeleton_Mage.glb", 2630, 684, 0xE8C060, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
+        // Knell Singer: robed Skeleton Mage, drowned verdigris (Drowned Dirge).
+        new ActorBindingRow("bellfoundry.knellSinger", "Skeleton_Mage.glb", 2630, 684, 0x70C8B0, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
+        // Foundry-Master Ommet (segment 1 boss): a Skeleton Warrior at 1.7x the head line, molten bronze.
+        new ActorBindingRow("bellfoundry.ommet", "Skeleton_Warrior.glb", 2590, 1181, 0xE09050, Array.Empty<string>(),
+            ActorClips.Skeleton, TargetHeightMm: HeadLineMm * 17 / 10, Folder: SkeletonsFolder, Boss: true),
+
+        // The Brine Mother (segment 2 boss): a robed Skeleton Mage at 1.8x, sea green.
+        new ActorBindingRow("bellfoundry.brineMother", "Skeleton_Mage.glb", 2630, 1232, 0x70D0C0, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Raise" }, TargetHeightMm: HeadLineMm * 18 / 10, Folder: SkeletonsFolder, Boss: true),
+
+        // Old Sorrow, the Drowned Bell (final boss): a Skeleton Warrior at 2x, verdigris bronze.
+        new ActorBindingRow("bellfoundry.greatBell", "Skeleton_Warrior.glb", 2590, 1390, 0xC8B070, Array.Empty<string>(),
+            ActorClips.Skeleton, TargetHeightMm: HeadLineMm * 2, Folder: SkeletonsFolder, Boss: true),
+
+        // Iron Clappers: Skeleton Minions at 1.15x, told apart by tint (gold and steel blue), as the Twins are.
+        new ActorBindingRow("bellfoundry.clapperA", "Skeleton_Minion.glb", 2166, 956, 0xD8C080, Array.Empty<string>(),
+            ActorClips.Skeleton, TargetHeightMm: HeadLineMm * 115 / 100, Folder: SkeletonsFolder),
+        new ActorBindingRow("bellfoundry.clapperB", "Skeleton_Minion.glb", 2166, 956, 0xA0C8D8, Array.Empty<string>(),
+            ActorClips.Skeleton, TargetHeightMm: HeadLineMm * 115 / 100, Folder: SkeletonsFolder),
 
         // The Hollow Warden: the player's own Knight at 1.9x its native height, washed a pale cold steel (hollow; BOSS-
         // READABILITY: the 0x50505C dark tint rendered it near-black on the stone floor), with the two-handed sword

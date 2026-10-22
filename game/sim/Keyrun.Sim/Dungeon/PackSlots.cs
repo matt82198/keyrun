@@ -42,7 +42,7 @@ public static class PackSlots
         var quotas = new List<RoomQuota>();
         foreach (var n in trash)
         {
-            var branchRooms = trash.Count(m => m.Lane == n.Lane);
+            var branchRooms = trash.Count(m => m.Segment == n.Segment && m.Lane == n.Lane);
             var quota = (int)IntMath.CeilDiv((2L * p.ForcesRequired) + maxPack, branchRooms);
             var slotCount = (int)Math.Min(MaxSlotsPerRoom, IntMath.CeilDiv(quota, minPack));
             if ((long)slotCount * maxPack < quota)

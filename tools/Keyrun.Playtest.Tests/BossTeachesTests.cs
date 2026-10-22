@@ -92,6 +92,18 @@ public sealed class BossTeachesTests
         /// <summary>R-PINS-1: staggers with at least one party drain (a kick or control cast on a Twin) in their window.</summary>
         public int StaggersAnswered { get; init; }
 
+        /// <summary>R-BOSS-4: <c>cleaved</c> events fired in the boss fight (one per stack laid), on any seat.</summary>
+        public int CleavedEvents { get; init; }
+
+        /// <summary>R-BOSS-4: the highest stack count any <c>cleaved</c> event reported in the boss fight.</summary>
+        public int MaxCleavedStacks { get; init; }
+
+        /// <summary>R-BOSS-4: <c>cleaved</c> events that landed on the Warden seat (the boss's tank); must stay zero.</summary>
+        public int CleavedOnTank { get; init; }
+
+        /// <summary>R-BOSS-4: <c>cleaved</c> events on the careless seat (zero when no seat ignores the Cleave).</summary>
+        public int CarelessCleaved { get; init; }
+
         public int? Ticks => Start is { } s && Clear is { } c ? c - s : null;
 
         /// <summary>Boss pull ticks so far: to the clear, else to where the drive stopped.</summary>
@@ -101,7 +113,7 @@ public sealed class BossTeachesTests
             $"BOSS start={Start?.ToString() ?? "-"} clear={Clear?.ToString() ?? "-"} ticks={Ticks?.ToString() ?? "-"} wipe={WipeTick?.ToString() ?? "-"} " +
             $"cleaves={Cleaves} cleavesAnswered={CleavesAnswered} staggers={Staggers} staggersAnswered={StaggersAnswered} staggersTwoPerson={StaggersTwoPerson} " +
             $"locksOpened={LocksOpened} locksBroken={LocksBroken} locksFailed={LocksFailed} carelessDeaths={CarelessDeaths} bossHp={BossHealthAtEnd} endTick={EndTick} " +
-            $"carelessAliveTicks={CarelessAliveTicks} partyDeaths={PartyDeaths} penaltyTicks={PenaltyTicks} clock={ClockTicks} par={ParTicks} result={Result} key=\"{KeyLine}\" bossMisses={BossMisses}";
+            $"cleavedEvents={CleavedEvents} maxCleavedStacks={MaxCleavedStacks} cleavedOnTank={CleavedOnTank} carelessCleaved={CarelessCleaved} carelessAliveTicks={CarelessAliveTicks} partyDeaths={PartyDeaths} penaltyTicks={PenaltyTicks} clock={ClockTicks} par={ParTicks} result={Result} key=\"{KeyLine}\" bossMisses={BossMisses}";
     }
 
     /// <summary>
@@ -131,6 +143,7 @@ public sealed class BossTeachesTests
         int? fightStart = null, fightClear = null, wipe = null;
         int cleaves = 0, cleavesAnswered = 0, staggers = 0, staggersAnswered = 0, staggersTwo = 0, locksOpened = 0, locksBroken = 0, locksFailed = 0, carelessDeaths = 0, carelessAlive = 0, bossMisses = 0;
         var drainers = new HashSet<int>();
+        int cleavedEvents = 0, maxCleavedStacks = 0, cleavedOnTank = 0, carelessCleaved = 0;
         for (var i = 0; i < DriveCapTicks && run.RunEnd.Result is null && wipe is null; i++)
         {
             var tick = run.State.Tick;
@@ -187,6 +200,18 @@ public sealed class BossTeachesTests
                             cleavesAnswered++;
                         }
                         break;
+                    case "cleaved" when fightStart is not null:
+                        cleavedEvents++;
+                        if (ignoreCleaveSeat is { } marked && Int(e, "actorId") == marked)
+                        {
+                            carelessCleaved++;
+                        }
+                        maxCleavedStacks = Math.Max(maxCleavedStacks, (int)(Int(e, "stacks") ?? 0));
+                        if (Int(e, "actorId") == WardenId)
+                        {
+                            cleavedOnTank++;
+                        }
+                        break;
                     case "stagger" when Str(e, "barId") == TwinsBar:
                         staggers++;
                         if (drainers.Count >= 1)
@@ -235,6 +260,10 @@ public sealed class BossTeachesTests
             run.RunEnd.Result?.ToJs() ?? "none", key?.Line ?? "-", key?.Tier ?? -1, bossMisses)
         {
             StaggersAnswered = staggersAnswered,
+            CleavedEvents = cleavedEvents,
+            MaxCleavedStacks = maxCleavedStacks,
+            CleavedOnTank = cleavedOnTank,
+            CarelessCleaved = carelessCleaved,
         };
     }
 
@@ -296,5 +325,39 @@ public sealed class BossTeachesTests
         Assert.True(f.Ticks > MaxFightTicks, $"ignoring the Cleave still killed the Warden inside {MaxFightTicks} ticks: {f}");
         Assert.True(answered.KeyTier >= 1 && f.KeyTier < answered.KeyTier,
             $"the careless key result \"{f.KeyLine}\" is no worse than the answered \"{answered.KeyLine}\": {f}");
+    }
+
+    /// <summary>
+    /// R-BOSS-4 / f-6adaa92a: the careless tier loss is a property of the mechanism, not of a pacing gap. An unanswered Cleave
+    /// stacks Cleaved on the seat it hits, so the careless seat gathers stacks while the answered run lays at most the stray one its bots let through, and the
+    /// careless key tier is strictly lower. No tick count or death count is asserted here (the tests above keep those); this
+    /// one fails when the Cleaved mechanism is absent.
+    /// </summary>
+    [Fact(DisplayName = "R-BOSS-4: the careless seat gathers Cleaved stacks and a strictly lower key tier, the answered run barely any")]
+    public void Careless_seat_ends_with_cleaved_stacks_and_a_lower_tier_the_careful_run_has_none()
+    {
+        var answered = DriveRun();
+        var careless = DriveRun(ignoreCleaveSeat: CarelessSeat);
+        _output.WriteLine("answered " + answered);
+        _output.WriteLine("careless " + careless);
+        var unanswered = careless.Cleaves - careless.CleavesAnswered;
+        Assert.True(unanswered >= 2, $"the careless seat stood in {unanswered} Cleaves, need 2: {careless}");
+        // The mechanism, by count: every stack is one unanswered Cleave that hit a living non-target seat. The careless seat
+        // collects several; the answered run lays no more than the Cleaves its own bots failed to answer (the bot healer is
+        // clipped once on this seed) and strictly fewer than the careless run; the tank (the cast's target) never gains one.
+        Assert.True(careless.CarelessCleaved >= 3, $"the careless seat gained {careless.CarelessCleaved} Cleaved stacks, need 3: {careless}");
+        Assert.True(answered.CleavedEvents <= answered.Cleaves - answered.CleavesAnswered,
+            $"the answered run laid {answered.CleavedEvents} Cleaved stacks from {answered.Cleaves - answered.CleavesAnswered} unanswered Cleaves: {answered}");
+        Assert.True(answered.CleavedEvents + 2 <= careless.CleavedEvents,
+            $"Cleaved stacks laid: answered {answered.CleavedEvents}, careless {careless.CleavedEvents}; need a margin of 2: {careless}");
+        Assert.True(careless.CleavedEvents <= careless.Cleaves - careless.CleavesAnswered,
+            $"{careless.CleavedEvents} Cleaved stacks from only {careless.Cleaves - careless.CleavesAnswered} unanswered Cleaves: {careless}");
+        Assert.Equal(0, careless.CleavedOnTank);
+        Assert.Equal(0, answered.CleavedOnTank);
+        // What the stacks cost: deaths that add to the run clock, so the tier falls with a clock margin, not a tick gap.
+        Assert.True(careless.PenaltyTicks > answered.PenaltyTicks && careless.ClockTicks > answered.ClockTicks,
+            $"the careless run paid no clock for its Cleaved seat: {careless} vs {answered}");
+        Assert.True(answered.KeyTier >= 1 && careless.KeyTier < answered.KeyTier,
+            $"the careless key result \"{careless.KeyLine}\" is no worse than the answered \"{answered.KeyLine}\": {careless}");
     }
 }

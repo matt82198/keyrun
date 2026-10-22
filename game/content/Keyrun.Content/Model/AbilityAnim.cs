@@ -52,6 +52,13 @@ public static class AbilityAnim
         // wind up a punch for its whole bar.
         ["pair.spreadMark"] = "Spellcast_Shoot",
         ["pair.stackCall"] = "Spellcast_Raise",
+        // D66: the Sunken Bellfoundry's casts on punch rows that are spells, not strikes (a core stoked, a heal, a Lock).
+        ["furnaceThrall.stokeCore"] = "Spellcast_Raise",
+        // R-SORROW-1: the Thrall's Slag Burst and the Hound's Boiling Blood became casts on punch rows; both are spells.
+        ["furnaceThrall.slagBurst"] = "Spellcast_Raise",
+        ["scaldHound.boilingBlood"] = "Spellcast_Raise",
+        ["ommet.temper"] = "Spellcast_Raise",
+        ["greatBell.resonance"] = "Spellcast_Raise",
         // Bulwark is a cast shield wall, not a strike: the Block pose for the bar, then the raise as it lands.
         ["warden.bulwark"] = "Spellcast_Raise",
         ["seed.slam"] = "1H_Melee_Attack_Jump_Chop",

@@ -1,0 +1,37 @@
+{
+  "id": "bellows-shift",
+  "dungeon": "sunken-bellfoundry",
+  "name": "Bellows Shift",
+  "teaches": "two kicks a round: Fan the Coals and Stoke Core, and you choose which goes through",
+  "aggroMm": 4000,
+  "enemies": [
+    {
+      "enemyId": "bellfoundry.pitTender",
+      "count": 2,
+      "spawn": {
+        "x": 1500,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.furnaceThrall",
+      "count": 2,
+      "spawn": {
+        "x": 0,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.scaldHound",
+      "count": 1,
+      "spawn": {
+        "x": -1200,
+        "z": 0
+      }
+    }
+  ],
+  "chainWith": [
+    "furnace-stokers"
+  ],
+  "chainNote": "Chain with Furnace Stokers (see there)."
+}

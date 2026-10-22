@@ -1,0 +1,37 @@
+{
+  "id": "slag-haulers",
+  "dungeon": "sunken-bellfoundry",
+  "name": "Slag Haulers",
+  "teaches": "stand beside the tank, never behind it: a Molten Charge runs through the tank and on",
+  "aggroMm": 4000,
+  "enemies": [
+    {
+      "enemyId": "bellfoundry.slagRam",
+      "count": 2,
+      "spawn": {
+        "x": 0,
+        "z": 800
+      }
+    },
+    {
+      "enemyId": "bellfoundry.furnaceThrall",
+      "count": 2,
+      "spawn": {
+        "x": 0,
+        "z": -800
+      }
+    },
+    {
+      "enemyId": "bellfoundry.scaldHound",
+      "count": 2,
+      "spawn": {
+        "x": -1200,
+        "z": 0
+      }
+    }
+  ],
+  "chainWith": [
+    "pour-line"
+  ],
+  "chainNote": "Chain with Pour Line: five Rams' charges in one lane. The tank backs the whole crew against a wall so every line ends in stone; the Thralls' Stoke Cores are the only kicks."
+}

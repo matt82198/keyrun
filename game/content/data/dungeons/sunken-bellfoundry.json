@@ -1,0 +1,29 @@
+{
+  "id": "sunken-bellfoundry",
+  "name": "The Sunken Bellfoundry",
+  "parTicks": 24000,
+  "pulls": [],
+  "boss": {
+    "enemyId": "bellfoundry.greatBell",
+    "mechanics": ["clangour", "iron-clappers", "resonance"]
+  },
+  "tutorial": false,
+  "segments": [
+    {
+      "id": "s1",
+      "boss": { "enemyId": "bellfoundry.ommet", "mechanics": ["pour-slag", "temper"] }
+    },
+    {
+      "id": "s2",
+      "boss": { "enemyId": "bellfoundry.brineMother", "mechanics": ["undertow-and-surge", "drowning-hymn"] }
+    },
+    {
+      "id": "s3",
+      "boss": { "enemyId": "bellfoundry.greatBell", "mechanics": ["clangour", "iron-clappers", "resonance"] }
+    }
+  ],
+  "packPool": [
+    "slag-haulers", "pour-line", "tolling-shift", "scald-kennel", "furnace-stokers", "bellows-shift",
+    "brine-chapel", "drowned-choir", "crucible-guard", "ash-and-brine", "foundry-floor"
+  ]
+}

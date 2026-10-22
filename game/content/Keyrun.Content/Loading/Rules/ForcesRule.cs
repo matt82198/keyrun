@@ -51,6 +51,21 @@ internal sealed class ForcesRule : IContentRule
             foreach (PullEnemy member in pack.Enemies)
                 earners.Add(member.EnemyId);
 
+        // R-PATROL-4: a layout patrol's members earn too (LayoutValidator checks each has a value).
+        foreach (LayoutPatrol patrol in reg.Layout.Patrols)
+            foreach (PullEnemy member in patrol.Enemies)
+                earners.Add(member.EnemyId);
+
+        // D46/D66: a seeded dungeon's roster pack members earn too, and each must carry a value (R-PACKS-7: forces ship
+        // with the packs that place them, so the fill prices a roster pack from its members alone).
+        foreach (RosterPack pack in reg.Roster.Values)
+            foreach (PullEnemy member in pack.Enemies)
+            {
+                if (!valued.Contains(member.EnemyId))
+                    Fail("roster pack \"" + pack.Id + "\" enemy \"" + member.EnemyId + "\" has no forces value");
+                earners.Add(member.EnemyId);
+            }
+
         foreach (ForcesValue value in forces.Values)
             if (value.Points > 0 && !earners.Contains(value.EnemyId))
                 Fail("enemy \"" + value.EnemyId + "\" is worth " + value.Points + " forces but is in no pull or pack");

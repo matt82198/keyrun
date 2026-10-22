@@ -12,10 +12,10 @@ namespace Keyrun.Host;
 /// <summary>
 /// The arena's user arguments (after <c>--</c> on the Godot command line), in the style of Main.cs's
 /// <c>--smoke</c>: <c>--autorun</c>, <c>--ticks N</c>, <c>--log FILE</c>, <c>--write-movie DIR</c>, <c>--key N</c>,
-/// <c>--seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T|A@pullN+O|A@pullN.hpP+O</c>, <c>--joiner-key K</c>,
+/// <c>--seed N</c>, <c>--dungeon-seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T|A@pullN+O|A@pullN.hpP+O</c>, <c>--joiner-key K</c>,
 /// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
 /// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>, <c>--rotation N</c>,
-/// <c>--ready-hold F</c>, <c>--talent SEAT:TALENT</c>.
+/// <c>--ready-hold F</c>, <c>--talent SEAT:TALENT</c>, <c>--dungeon ID</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -86,9 +86,14 @@ namespace Keyrun.Host;
 /// human then answers ready (no key is pushed, so a recording is unchanged). 0 = answer at the pop.</param>
 /// <param name="Camera">CAMERA-VERTICAL (<c>--camera chase|vertical</c>, <see cref="CameraMode"/>): the CameraRig's
 /// starting preset, render-only. Chase (the default) is the unchanged follow camera; V flips it in play.</param>
+/// <param name="DungeonSeed">D45/D46 (<c>--dungeon-seed N</c>): play the seeded two-branch dungeon generated from N
+/// (<see cref="Keyrun.Bots.Shared.SeededLayout"/>) instead of the hand-built Hollow Vault; null (the default) keeps the hand layout.</param>
 /// <param name="TalentPicks">Finding f-a3de0a01 (<c>--talent SEAT:TALENT</c>, repeatable, <see cref="SeatTalent"/>): seat SEAT,
 /// bot or human, plays every run with that talent picked (<see cref="RunRequest.Talents"/>), logged
 /// <c>TALENT seat=S id=T</c> once. A seat not in the party or a talent its class lacks stops the launch. Null = none.</param>
+/// <param name="DungeonId">D65 / f-61f01ca3 (<c>--dungeon ID</c>, <see cref="DungeonPick"/>): the dungeon the launch's CLI run and
+/// the pre-run screen start on. An id the registry lacks stops the launch (<see cref="DungeonPick.Resolve"/>). Null = the
+/// default, <see cref="DungeonPick.DefaultId"/>.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -111,7 +116,9 @@ public sealed record ArenaOptions(
     int? Rotation = null,
     int ReadyHold = 0,
     CameraModeKind Camera = CameraModeKind.Chase,
-    IReadOnlyList<SeatTalent>? TalentPicks = null)
+    long? DungeonSeed = null,
+    IReadOnlyList<SeatTalent>? TalentPicks = null,
+    string? DungeonId = null)
 {
     /// <summary>The <c>--talent</c> picks in flag order (empty when none).</summary>
     public IReadOnlyList<SeatTalent> Talents => TalentPicks ?? Array.Empty<SeatTalent>();
@@ -159,7 +166,9 @@ public sealed record ArenaOptions(
         CarelessSeatPlan? careless = null;
         var readyHold = 0;
         var camera = CameraModeKind.Chase;
+        long? dungeonSeed = null;
         var talents = new List<SeatTalent>();
+        string? dungeon = null;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -187,6 +196,9 @@ public sealed record ArenaOptions(
                     break;
                 case "--pull":
                     pull = PositiveInt(args, ref i);
+                    break;
+                case "--dungeon-seed":
+                    dungeonSeed = PositiveInt(args, ref i);
                     break;
                 case "--seed":
                     seed = PositiveInt(args, ref i);
@@ -224,6 +236,9 @@ public sealed record ArenaOptions(
                 case SeatTalent.Flag:
                     talents.Add(SeatTalent.Parse(Value(args, ref i)));
                     break;
+                case DungeonPick.Flag:
+                    dungeon = Value(args, ref i);
+                    break;
                 case CameraMode.Flag:
                     camera = CameraMode.Parse(Value(args, ref i));
                     break;
@@ -238,7 +253,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, talents);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, dungeonSeed, talents, dungeon);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)

@@ -52,7 +52,32 @@ public static class ContentLoader
         VaultAbilitiesFile,
         VaultEffectsFile,
         VaultEnemiesFile,
+        FoundryAbilitiesFile,
+        FoundryEffectsFile,
+        FoundryEnemiesFile,
+        FoundryDungeonFile,
     };
+
+    /// <summary>
+    /// D66 (the second dungeon, the Sunken Bellfoundry): its five new trash kinds' and three bosses' casts
+    /// (game/content/data/abilities/bellfoundry.json; C#-only, the root abilities JSON is a frozen oracle).
+    /// </summary>
+    public const string FoundryAbilitiesFile = Abilities + "bellfoundry.json";
+
+    /// <summary>D66: the Sunken Bellfoundry's auras (game/content/data/effects/bellfoundry.json).</summary>
+    public const string FoundryEffectsFile = Effects + "bellfoundry.json";
+
+    /// <summary>D66: the Sunken Bellfoundry's enemies and bosses (game/content/data/enemies/bellfoundry.json).</summary>
+    public const string FoundryEnemiesFile = Enemies + "bellfoundry.json";
+
+    /// <summary>D65/D66: the Sunken Bellfoundry's dungeon definition (game/content/data/dungeons/sunken-bellfoundry.json).</summary>
+    public const string FoundryDungeonFile = "dungeons/sunken-bellfoundry.json";
+
+    /// <summary>
+    /// The seeded dungeons' pack rosters (D46), one <see cref="RosterPack"/> per file, read whole (R-LOADER-1): a new
+    /// pack is a new file, never a list edit.
+    /// </summary>
+    public const string RosterRoot = "roster/";
 
     /// <summary>
     /// C#-only vault casts (game/content/data/abilities/vault.json, same logical root; FORCES-ROUTE-PLAN slice S1
@@ -145,7 +170,7 @@ public static class ContentLoader
     /// The directories read whole (<see cref="PerKindContent.DirectoriesFor"/>): any JSON file in them loads without a
     /// <see cref="Files"/> entry. Every other file must be listed (the frozen content/data entries stay an explicit list).
     /// </summary>
-    public static IReadOnlyList<string> Directories { get; } = PerKindContent.DirectoriesFor(LayoutDungeon);
+    public static IReadOnlyList<string> Directories { get; } = PerKindContent.DirectoriesFor(LayoutDungeon).Append(RosterRoot).ToArray();
 
     /// <summary>
     /// C#-only run config (game/content/data/run.json, embedded under the same logical root): walk
@@ -191,11 +216,13 @@ public static class ContentLoader
                 ReadArray<AbilityDef>(source, Abilities + "chanter.json"),
                 ReadArray<AbilityDef>(source, Abilities + "enemies.json"),
                 ReadArray<AbilityDef>(source, Abilities + PatrolAbilitiesFile),
-                ReadArray<AbilityDef>(source, VaultAbilitiesFile)),
+                ReadArray<AbilityDef>(source, VaultAbilitiesFile),
+                ReadArray<AbilityDef>(source, FoundryAbilitiesFile)),
             Effects = ById("effect",
                 ReadArray<EffectDef>(source, Effects + "player.json"),
                 ReadArray<EffectDef>(source, Effects + "enemy.json"),
-                ReadArray<EffectDef>(source, VaultEffectsFile)),
+                ReadArray<EffectDef>(source, VaultEffectsFile),
+                ReadArray<EffectDef>(source, FoundryEffectsFile)),
             Classes = ById("class",
                 ReadOne<ClassDef>(source, Classes + "warden.json"),
                 ReadOne<ClassDef>(source, Classes + "cinder.json"),
@@ -207,8 +234,12 @@ public static class ContentLoader
                 ReadArray<EnemyDef>(source, Enemies + "seed.json"),
                 ReadArray<EnemyDef>(source, Enemies + "hollow-warden.json"),
                 ReadArray<EnemyDef>(source, TrashEnemiesFile),
-                ReadArray<EnemyDef>(source, VaultEnemiesFile)),
-            Dungeons = ById("dungeon", ReadOne<DungeonDef>(source, "dungeons/hollow-vault.json")),
+                ReadArray<EnemyDef>(source, VaultEnemiesFile),
+                ReadArray<EnemyDef>(source, FoundryEnemiesFile)),
+            Dungeons = ById("dungeon",
+                ReadOne<DungeonDef>(source, "dungeons/hollow-vault.json"),
+                ReadOne<DungeonDef>(source, FoundryDungeonFile)),
+            Roster = ById("roster pack", ContentDirectory.Under(source, RosterRoot).Select(p => ReadOne<RosterPack>(source, p)[0]).ToArray()),
             Clauses = ById("clause", ReadArray<ClauseDef>(source, "clauses.json")),
             Facets = ById("facet",
                 ReadArray<FacetDef>(source, Facets + "warden.json"),

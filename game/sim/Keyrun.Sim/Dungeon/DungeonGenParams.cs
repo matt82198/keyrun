@@ -14,6 +14,16 @@ public sealed record DungeonGenParams
     // The graph's shape (one fork, two branches of two or three rooms) is a contract, not a tunable:
     // RoomGraphGen.BranchCount, MinBranchRooms and MaxBranchRooms (STATE.md D63).
 
+    /// <summary>The most segments one dungeon can chain.</summary>
+    public const int MaxSegments = 8;
+
+    /// <summary>
+    /// How many fork-and-boss segments the dungeon chains (STATE.md D65): 1 is the tutorial shape (entrance, fork,
+    /// boss); S chains entrance, fork, boss 1, fork, boss 2, ..., final boss, each mid boss room the next fork.
+    /// Each branch of each segment is a seeded 2 or 3 rooms (D63).
+    /// </summary>
+    public int Segments { get; init; } = 1;
+
     /// <summary>A room's side, in cells (square rooms). At least 10, so six pack slots fit.</summary>
     public int RoomCells { get; init; } = 12;
 
@@ -38,7 +48,7 @@ public sealed record DungeonGenParams
         {
             throw new ArgumentException("dungeon params: two corridors must fit side by side in a room wall");
         }
-        if (RoomCells < 10 || RowGapCells < 1 || CorridorCells < 1 || CellMm <= 0 || ForcesRequired <= 0)
+        if (RoomCells < 10 || RowGapCells < 1 || CorridorCells < 1 || CellMm <= 0 || ForcesRequired <= 0 || Segments < 1 || Segments > MaxSegments)
         {
             throw new ArgumentException("dungeon params out of range");
         }

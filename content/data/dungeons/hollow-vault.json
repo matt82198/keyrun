@@ -1,7 +1,7 @@
 {
   "id": "hollow-vault",
   "name": "Hollow Vault",
-  "parTicks": 14400,
+  "parTicks": 13100,
   "pulls": [
     {
       "id": "choir", "name": "The Choir", "teaches": "the kick ledger",
@@ -26,5 +26,16 @@
   "boss": {
     "enemyId": "hollowWarden.boss",
     "mechanics": ["cleave", "sundered-twins", "the-lock"]
-  }
+  },
+  "tutorial": true,
+  "segments": [
+    {
+      "id": "s1",
+      "boss": {
+        "enemyId": "hollowWarden.boss",
+        "mechanics": ["cleave", "sundered-twins", "the-lock"]
+      }
+    }
+  ],
+  "packPool": ["cantor-vigil", "hall-sentries", "warrior-remnant"]
 }

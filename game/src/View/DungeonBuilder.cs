@@ -128,10 +128,19 @@ public partial class DungeonBuilder : Node3D
         _cut.Clear();
         _built = layout;
 
-        var boxes = PlanBoxesOf(layout);
-        var route = RouteOf(layout);
+        // D45: a seeded layout's other branch (content SideBoxes) is part of the shell, so both exits read at the entrance.
+        var shell = Driver?.Setup?.Layout;
+        var boxes = PlanBoxesOf(layout, shell);
+        var route = RouteOf(layout, shell);
         _theme ??= ThemeLoader.Load();
         var plan = DungeonPlan.Build(boxes, route, _theme);
+        if (shell is not null)
+        {
+            foreach (var arrow in BranchDoors.Arrows(shell))
+            {
+                AddChild(DoorArrowView.Make(arrow));
+            }
+        }
 
         var placed = new List<KitPiece>();
         placed.AddRange(plan.Floor.Select(Tile));
@@ -213,32 +222,40 @@ public partial class DungeonBuilder : Node3D
 
         GD.Print($"DUNGEON built boxes={boxes.Count} tiles={plan.Floor.Count} walls={plan.WallPieces.Count} " +
                  $"frames={plan.DoorFrames.Count} props={plan.Props.Count} decor={plan.WallDecor.Count} gates={plan.Gates.Count} " +
-                 $"lights={plan.Lights.Count} instances={placed.Count} multimeshes={multimeshes} themed={string.Join(",", _theme.Rooms.Select(r => r.Id))}");
+                 $"lights={plan.Lights.Count} instances={placed.Count} multimeshes={multimeshes} themed={string.Join(",", _theme.Rooms.Select(r => r.Id))} " +
+                 $"side={BranchDoors.SideBoxes(shell).Count} oneway={(shell is null ? 0 : BranchDoors.Arrows(shell).Count)}");
     }
 
-    /// <summary>The run layout's boxes as <see cref="DungeonPlan"/> reads them (mm), in route order.</summary>
+    /// <summary>
+    /// The run layout's boxes as <see cref="DungeonPlan"/> reads them (mm), in route order, then (D45) the content
+    /// layout's side branch (<see cref="BranchDoors.SideBoxes"/>), drawn but never walked.
+    /// </summary>
     /// <param name="layout">The run's layout.</param>
+    /// <param name="shell">The content layout the run was built from (its side boxes), or null for the route alone.</param>
     /// <returns>Plan boxes.</returns>
-    public static IReadOnlyList<PlanBox> PlanBoxesOf(NavLayout layout) =>
+    public static IReadOnlyList<PlanBox> PlanBoxesOf(NavLayout layout, LayoutDef? shell = null) =>
         layout.Boxes.Select(b => new PlanBox(b.Id, b.IsRoom,
             checked((int)b.Box.MinX), checked((int)b.Box.MaxX), checked((int)b.Box.MinZ), checked((int)b.Box.MaxZ),
-            b.GatePullId is not null)).ToList();
+            b.GatePullId is not null)).Concat(BranchDoors.SideBoxes(shell)).ToList();
 
-    /// <summary>The run layout's route points (mm), one per box.</summary>
+    /// <summary>The run layout's route points (mm), one per box, then one per side box (<see cref="BranchDoors.SidePoints"/>).</summary>
     /// <param name="layout">The run's layout.</param>
+    /// <param name="shell">The content layout the run was built from, or null for the route alone.</param>
     /// <returns>Route points.</returns>
-    public static IReadOnlyList<(int X, int Z)> RouteOf(NavLayout layout) =>
-        layout.Route.Select(p => (checked((int)p.X), checked((int)p.Z))).ToList();
+    public static IReadOnlyList<(int X, int Z)> RouteOf(NavLayout layout, LayoutDef? shell = null) =>
+        layout.Route.Select(p => (checked((int)p.X), checked((int)p.Z))).Concat(BranchDoors.SidePoints(shell)).ToList();
 
     /// <summary>
     /// The solid boxes the camera keeps out of and cuts away (CAMERA-FEEL): every wall piece, then every door-frame
-    /// pillar, in the plan's order (occluder k here is occluder k in <see cref="CutAway"/>).
+    /// pillar, in the plan's order (occluder k here is occluder k in <see cref="CutAway"/>), over the same boxes the shell
+    /// is built from (pass the same <paramref name="shell"/>).
     /// </summary>
     /// <param name="layout">The run's layout.</param>
+    /// <param name="shell">The content layout the run was built from, or null for the route alone.</param>
     /// <returns>Wall and pillar boxes, mm.</returns>
-    public static IReadOnlyList<WallBox> OccluderBoxes(NavLayout layout)
+    public static IReadOnlyList<WallBox> OccluderBoxes(NavLayout layout, LayoutDef? shell = null)
     {
-        var boxes = PlanBoxesOf(layout);
+        var boxes = PlanBoxesOf(layout, shell);
         return DungeonPlan.WallBoxes(boxes).Concat(DungeonPlan.FrameBoxes(boxes)).ToList();
     }
 

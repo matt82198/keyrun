@@ -60,8 +60,13 @@ public sealed class AbilityAnimTests
         var casts = StrikeCasts();
         var names = casts.Select(c => c.Ability).Distinct().OrderBy(s => s, StringComparer.Ordinal).ToList();
         // vault.crushingSlam joined with VAULT-KITS (S1): the Vault Brute's BIBLE 9.3 melee cast, a strike, not a spell.
+        // D66 the Sunken Bellfoundry: the Slag Ram's charge, Ommet's Pour Slag, Old Sorrow's Clangour and the Clappers' Peal.
         Assert.Equal(
-            new[] { "hollowWarden.cleave", "hollowWarden.slam", "seed.lash", "seed.slam", "twins.slam", "vault.crushingSlam" },
+            new[]
+            {
+                "choir.patrolSweep", "greatBell.clangour", "greatBell.peal", "hollowWarden.cleave", "hollowWarden.slam", "ingotBrute.anvilDrop", "ommet.pourSlag", "seed.lash",
+                "seed.slam", "slagRam.moltenCharge", "slagWhelp.sparkLunge", "twins.slam", "vault.crushingSlam",
+            },
             names);
         foreach (var (enemy, ability, clip, castTicks) in casts)
         {

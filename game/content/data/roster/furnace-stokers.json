@@ -1,0 +1,37 @@
+{
+  "id": "furnace-stokers",
+  "dungeon": "sunken-bellfoundry",
+  "name": "Furnace Stokers",
+  "teaches": "kick Stoke Core, or each Thrall bursts in slag where it dies",
+  "aggroMm": 4000,
+  "enemies": [
+    {
+      "enemyId": "bellfoundry.furnaceThrall",
+      "count": 3,
+      "spawn": {
+        "x": 0,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.brineMender",
+      "count": 1,
+      "spawn": {
+        "x": 1500,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.scaldHound",
+      "count": 1,
+      "spawn": {
+        "x": -1200,
+        "z": 0
+      }
+    }
+  ],
+  "chainWith": [
+    "bellows-shift"
+  ],
+  "chainNote": "Chain with Bellows Shift: five Stoke Cores, two Fan the Coals and a Bronze Ward cast inside one pull. Three kickers cannot stop them all: kick the Ward and the Tenders, then drag every Overheated Thrall out of the group before it dies."
+}

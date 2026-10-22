@@ -90,7 +90,8 @@ public static class AbilityClipTable
         // Enemies (KayKit Skeletons; the boss is the Knight with a two-handed sword).
         new("choir.meleeSwing", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
         new("choir.patrolSwing", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
-        new("choir.healCast", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("choir.patrolSweep", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
+        new("choir.healCast",AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
         new("pair.meleeSwing", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
         new("pair.spreadMark", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),
         new("pair.stackCall", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
@@ -107,6 +108,26 @@ public static class AbilityClipTable
         new("bellows.stoke", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
         new("drowned.undertow", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),
         new("vault.crushingSlam", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
+        // D66 the Sunken Bellfoundry (skeleton rows): its melee casts strike, its casters' casts are spells.
+        new("slagRam.moltenCharge", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
+        new("tollingBell.toll", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("furnaceThrall.stokeCore", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("furnaceThrall.slagBurst", AbilityAnimKind.Spell, "Spellcast_Raise"),
+        new("scaldHound.boilingBlood", AbilityAnimKind.Spell, "Spellcast_Raise"),
+        new("brineMender.bronzeWard", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("ommet.pourSlag", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
+        new("ommet.temper", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("brineMother.undertow", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),
+        new("brineMother.boilingSurge", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("brineMother.drowningHymn", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("greatBell.clangour", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
+        new("greatBell.resonance", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("slagHexer.moltenBrand", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),
+        new("ingotBrute.anvilDrop", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
+        new("slagWhelp.sparkLunge", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
+        new("pitTender.fanTheCoals", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("knellSinger.dirge", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),
+        new("greatBell.peal", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
     };
 
     private static readonly Dictionary<string, AbilityClipRow> ById = Index(AllRows);

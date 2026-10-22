@@ -1,0 +1,37 @@
+{
+  "id": "drowned-choir",
+  "dungeon": "sunken-bellfoundry",
+  "name": "Drowned Choir",
+  "teaches": "the Dirge drags you into the Bell's ring: walk back out",
+  "aggroMm": 4500,
+  "enemies": [
+    {
+      "enemyId": "bellfoundry.knellSinger",
+      "count": 3,
+      "spawn": {
+        "x": 1500,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.tollingBell",
+      "count": 1,
+      "spawn": {
+        "x": 0,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.scaldHound",
+      "count": 1,
+      "spawn": {
+        "x": -1200,
+        "z": 0
+      }
+    }
+  ],
+  "chainWith": [
+    "brine-chapel"
+  ],
+  "chainNote": "Chain with Brine Chapel (see there)."
+}

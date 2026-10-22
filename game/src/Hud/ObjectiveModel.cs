@@ -57,7 +57,7 @@ public static class ObjectiveModel
         ArgumentNullException.ThrowIfNull(run);
         var pulls = run.Dungeon.Pulls;
         var content = registry is not null && registry.Dungeons.TryGetValue(run.Dungeon.Id, out var d) ? d : null;
-        var contentIds = content is null ? pulls.Select(p => p.Id).ToList() : content.Pulls.Select(p => p.Id).Append("boss").ToList();
+        var contentIds = content is null ? pulls.Select(p => p.Id).ToList() : content.Pulls.Select(p => p.Id).Concat(LayoutDef.BossPullIds(content)).ToList();
         var total = contentIds.Count;
         var index = run.Encounter.PullIndex;
         if (index >= pulls.Count)

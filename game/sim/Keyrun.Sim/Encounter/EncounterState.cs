@@ -88,6 +88,21 @@ public sealed record EncounterState
     public BossState? Boss { get; init; }
 
     /// <summary>
+    /// R-MULTIBOSS-1: the bosses still to fight after <see cref="Boss"/>, in order (<see cref="BossRules.ArmAll"/>); each is
+    /// armed in <see cref="Boss"/>'s place when the one before it dies. Empty on every run armed with one boss.
+    /// </summary>
+    public IReadOnlyList<BossConfig> NextBosses { get; init; } = Array.Empty<BossConfig>();
+
+    /// <summary>
+    /// R-MULTIBOSS-1: how many bosses <see cref="BossRules.ArmAll"/> armed when it armed more than one, else 0. Above 1 every
+    /// boss death emits <c>boss_death</c>; 0 (every one-boss run, the Hollow Vault) emits none, so its event stream is unchanged.
+    /// </summary>
+    public int BossesArmed { get; init; }
+
+    /// <summary>R-MULTIBOSS-1: the 0-based fight-order index of <see cref="Boss"/> among the armed bosses.</summary>
+    public int BossIndex { get; init; }
+
+    /// <summary>
     /// The encounter createRun builds (sim/index.ts:106-117): empty registries, pull 0, a full Slack bank for the
     /// key (<see cref="Timer.InitialSlackTicks"/>), not depleted, nextTelegraphId 1.
     /// </summary>

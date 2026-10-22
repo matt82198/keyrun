@@ -1,0 +1,33 @@
+{
+  "id": "ash-and-brine",
+  "dungeon": "sunken-bellfoundry",
+  "name": "Ash and Brine",
+  "teaches": "cleanse the Brand, kick the Ward, peel the Whelps off the healer",
+  "aggroMm": 4000,
+  "enemies": [
+    {
+      "enemyId": "bellfoundry.slagHexer",
+      "count": 2,
+      "spawn": {
+        "x": 1500,
+        "z": 0
+      }
+    },
+    {
+      "enemyId": "bellfoundry.brineMender",
+      "count": 1,
+      "spawn": {
+        "x": 1500,
+        "z": 800
+      }
+    },
+    {
+      "enemyId": "bellfoundry.slagWhelp",
+      "count": 2,
+      "spawn": {
+        "x": 0,
+        "z": 0
+      }
+    }
+  ]
+}

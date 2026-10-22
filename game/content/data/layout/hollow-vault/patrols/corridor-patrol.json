@@ -10,7 +10,7 @@
       }
     },
     {
-      "enemyId": "choir.melee",
+      "enemyId": "vault.patroller",
       "count": 1,
       "spawn": {
         "x": 0,
