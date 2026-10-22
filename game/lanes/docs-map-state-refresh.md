@@ -1,0 +1,2 @@
+- DOCS-MAP-STATE-REFRESH game/CLAUDE.md, the root Domain map and STATE.md INTENT rewritten to main 3bb6eed5: seed.lash line (#485, #486), D44 boss door and room gate removed (#515, 6c6746bb), KF2 Choir kick re-captured (kf2-kick-1f8fed7f), TelegraphAnchor pending #539, 109 uncovered game source files named; docs only.
+BUILDLOG: docs/map-state-refresh refreshes the game/CLAUDE.md lane rows, the root Domain map and the STATE.md INTENT to what main does today (D44 gate removal, seed.lash line, KF2 kick), and names the 109 game source files that had no row; docs only.

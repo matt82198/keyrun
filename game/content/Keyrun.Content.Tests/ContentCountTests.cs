@@ -38,16 +38,22 @@ public sealed class ContentCountTests
         // melee set, ruling R9/R10) is C#-only too, so 27 -> 28. palette.json (the render palette for telegraph and floor
         // colours, feat-telegraph-palette) is C#-only too, so 28 -> 29. VAULT-KITS (FORCES-ROUTE-PLAN slice S1, BIBLE 9.3)
         // adds the C#-only abilities/vault.json, effects/vault.json and enemies/vault.json, so 29 -> 32. R-PATROL-3b adds
-        // abilities/patrol.json, so 32 -> 33. Merged history: 33 embedded files, 19 TS-loaded.
+        // abilities/patrol.json, so 32 -> 33. Merged history: 33 listed files, 19 TS-loaded.
+        // R-LOADER-1: layout.json and forces.json became the per-kind heads layout/hollow-vault/dungeon.json and
+        // forces/hollow-vault.json (still listed, so 33 stays 33); the rooms, packs, patrols and forces values are one file
+        // each under ContentLoader.Directories and are loaded without a list entry, so they are not in this inventory.
         string[] csharpOnly =
         {
-            "run.json", "layout.json", "theme.json", "combo-riders.json", "forces.json", "hazards.json",
+            "run.json", "layout/hollow-vault/dungeon.json", "theme.json", "combo-riders.json", "forces/hollow-vault.json", "hazards.json",
             "gear.json", "enemies/hall.json", "melee-abilities.json", "palette.json",
             "abilities/vault.json", "effects/vault.json", "enemies/vault.json", "abilities/patrol.json",
         };
-        Assert.Equal(33, embedded.Length);
-        Assert.Equal(19, embedded.Count(p => !csharpOnly.Contains(p)));
-        Assert.Equal(embedded, loaded);
+        bool UnderDirectory(string p) => ContentLoader.Directories.Any(d => p.StartsWith(d, System.StringComparison.Ordinal));
+        string[] listedEmbedded = embedded.Where(p => !UnderDirectory(p)).ToArray();
+        Assert.Equal(33, listedEmbedded.Length);
+        Assert.Equal(19, listedEmbedded.Count(p => !csharpOnly.Contains(p)));
+        Assert.Equal(listedEmbedded, loaded);
+        Assert.Contains(embedded, UnderDirectory);
     }
 
     [Fact]

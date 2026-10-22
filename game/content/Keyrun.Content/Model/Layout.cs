@@ -3,8 +3,9 @@ using System.Runtime.Serialization;
 namespace Keyrun.Content;
 
 /// <summary>
-/// The dungeon's walkable layout (game/content/data/layout.json, logical path <c>layout.json</c>; C#-only like
-/// run.json, so the frozen TS oracle root content/ never changes). STATE.md D18, design/ART-PLAN.md section 3: the
+/// The dungeon's walkable layout (game/content/data/layout/hollow-vault/: dungeon.json plus one file per room, pack and
+/// patrol in rooms/, packs/ and patrols/, assembled in ordinal path order by <see cref="PerKindContent.AssembleLayout"/>,
+/// ruling R-LOADER-1; C#-only like run.json, so the frozen oracle root content/ never changes). STATE.md D18, design/ART-PLAN.md section 3: the
 /// Hollow Vault is an ordered chain of rooms and corridors, each an XZ box in mm, that overlap at their doorways. Each
 /// pull lives in its own room, spawns when a party member first stands in that room's trigger box, and the corridor
 /// out of a room opens when the room's pull clears (forward-only, BIBLE s9). The route runs along +x.
