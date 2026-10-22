@@ -1,0 +1,23 @@
+{
+  "id": "pair-hall",
+  "kind": "room",
+  "minX": 32000,
+  "maxX": 56000,
+  "minZ": -6000,
+  "maxZ": 6000,
+  "pull": "pair",
+  "trigger": {
+    "minX": 34000,
+    "maxX": 56000,
+    "minZ": -6000,
+    "maxZ": 6000
+  },
+  "origin": {
+    "x": 38500,
+    "z": 0
+  },
+  "start": {
+    "x": 36500,
+    "z": 0
+  }
+}

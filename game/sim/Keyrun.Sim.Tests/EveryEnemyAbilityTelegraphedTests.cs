@@ -201,11 +201,15 @@ public sealed class EveryEnemyAbilityTelegraphedTests
             }
             spawned.Add(("boss", StrOf(((JsObject)d.Get("boss")!).Get("enemyId"))!));
         }
-        var layout = (JsObject)JsValue.Parse(File.ReadAllText(Path.Combine(Root, "game", "content", "data", "layout.json")));
-        if (layout.Get("packs") is JsArray packs)
+        // R-LOADER-1: one file per pack and patrol under game/content/data/layout/hollow-vault/.
+        string layoutDir = Path.Combine(Root, "game", "content", "data", "layout", "hollow-vault");
+        foreach (string kind in new[] { "packs", "patrols" })
         {
-            foreach (var pack in packs.Items.Cast<JsObject>())
+            string dir = Path.Combine(layoutDir, kind);
+            if (!Directory.Exists(dir)) continue;
+            foreach (string file in Directory.GetFiles(dir, "*.json", SearchOption.AllDirectories).OrderBy(p => p, StringComparer.Ordinal))
             {
+                var pack = (JsObject)JsValue.Parse(File.ReadAllText(file));
                 spawned.AddRange(((JsArray)pack.Get("enemies")!).Items.Cast<JsObject>().Select(e => ($"pack {Id(pack)}", StrOf(e.Get("enemyId"))!)));
             }
         }
