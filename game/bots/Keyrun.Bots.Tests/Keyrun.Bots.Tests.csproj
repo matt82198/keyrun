@@ -51,6 +51,13 @@
     <Compile Include="../../src/Host/BotCommandSource.cs" Link="Host/BotCommandSource.cs" />
     <Compile Include="../../src/Host/ScriptedWarden.cs" Link="Host/ScriptedWarden.cs" />
     <Compile Include="../../src/Host/CastTargeting.cs" Link="Host/CastTargeting.cs" />
+    <!--
+      HUD-SCOREBOARD-LIVE: the scoreboard's readings are Godot-free (the run clock, the pull header model, forces and the
+      kill count), so they are compiled in here and read off the default host run (ScoreboardLiveTests).
+    -->
+    <Compile Include="../../src/Hud/SlackReading.cs" Link="Hud/SlackReading.cs" />
+    <Compile Include="../../src/Hud/ObjectiveModel.cs" Link="Hud/ObjectiveModel.cs" />
+    <Compile Include="../../src/Hud/Scoreboard.cs" Link="Hud/Scoreboard.cs" />
   </ItemGroup>
 
 </Project>

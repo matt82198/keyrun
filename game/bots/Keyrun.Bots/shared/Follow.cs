@@ -223,8 +223,8 @@ public static class Follow
         {
             return null;
         }
-        var next = NextPoint(layout, self.Pos, goal);
-        return Moves.MoveToward(tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(next));
+        // R-PATH-1: the computed grid path (walls and props), not the box-chain doorway point (NextPoint).
+        return PathMoves.Along(tick, self, layout, goal);
     }
 
     /// <summary>
@@ -245,7 +245,7 @@ public static class Follow
         var target = layout.Route[Math.Max(0, high)];
         return Distance2(self.Pos, target) <= ArriveMm * ArriveMm
             ? null
-            : Moves.MoveToward(tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(target));
+            : PathMoves.Along(tick, self, layout, target);
     }
 
     /// <summary>
@@ -285,7 +285,7 @@ public static class Follow
             var hold = HoldPoint(layout, high);
             return Distance2(self.Pos, hold) <= ArriveMm * ArriveMm
                 ? null
-                : Moves.MoveToward(tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(hold));
+                : PathMoves.Along(tick, self, layout, hold);
         }
         return WalkRoute(tick, self, layout);
     }
@@ -325,7 +325,7 @@ public static class Follow
             !NavLayout.PartyInside(view.State, room.Box))
         {
             var hold = HoldPoint(layout, high);
-            return Distance2(self.Pos, hold) <= ArriveMm * ArriveMm ? null : Moves.MoveToward(tick, self.Id, PointMm.Of(self.Pos), PointMm.Of(hold));
+            return Distance2(self.Pos, hold) <= ArriveMm * ArriveMm ? null : PathMoves.Along(tick, self, layout, hold);
         }
         return WalkRoute(tick, self, layout);
     }

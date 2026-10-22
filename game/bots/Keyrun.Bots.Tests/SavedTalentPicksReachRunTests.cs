@@ -54,7 +54,7 @@ public sealed class SavedTalentPicksReachRunTests
         var setup = RunSetup.Load(Path.Combine(dir, trace.SetupFile), trace.Seed);
         var actor = setup.Party.First(p => p.ClassId == "warden").Id;
         var kit = restored.Resolve(reg.Abilities).ToDictionary(kv => kv.Key, kv => ForkParityTests.ToSim(kv.Value), StringComparer.Ordinal);
-        var state = ScreenState.Open("hollow-vault", setup.Content.Clauses!.Keys.ToList(), 2);
+        var state = ScreenState.Open("hollow-vault", setup.Content.Clauses!.Keys.ToList(), 2, 0, ScreenState.NoClauseStartKey);
         var (_, request) = state.Queue(new Dictionary<int, IReadOnlyDictionary<string, S.AbilityDef>> { [actor] = kit });
         Assert.NotNull(request);
         var run = RunRoot.CreateRun(setup.Seed, setup.Party, setup.Dungeon, setup.Content, request!.ToRunOptions());

@@ -9,11 +9,11 @@ the traces record whatever the TS does, including wipes. The port reached that p
 trace as INPUT and assert the named properties it protects (section 10), so a C# bot or rules change that keeps
 them re-records nothing. `tools/Keyrun.Replay` still reports tick-for-tick parity on demand.
 
-- Generator (reference implementation of this spec): `tests/oracle/format.ts` (format), `tests/oracle/traces.ts`
-  (scenarios), `tests/oracle/vectors.ts` (vectors), `tests/oracle/generate.ts` (manifest and I/O).
-- Drift guard: `tests/oracle/oracle.test.ts`. It runs inside `npm test` (the required `test` check, about 2 s).
-  It regenerates every fixture into a temp directory and asserts each one is byte-identical to the committed copy.
-- Re-record (only for a deliberate, explained change): `ORACLE_WRITE=1 npx vitest run tests/oracle`.
+- The TS generator (`tests/oracle/*.ts`) and its drift guard were deleted with the TS tree (#553). The fixtures are
+  now frozen inputs: nothing regenerates them, and no gate needs them regenerated. A future re-record is a C# or
+  `tools/Keyrun.Replay` concern; it rewrites only the trace/setup files and their `files` bytes/fnv entries and must
+  leave `traces[].properties` untouched (section 10). A re-record that drops a trace's properties fails
+  `TraceReplayTests` ("manifest.json states no property"); one whose new trace breaks a property fails the same gates.
 - Fixture bytes: ASCII, LF line endings, trailing newline. `Fixtures/oracle/.gitattributes` pins `eol=lf`, so a
   Windows `core.autocrlf=true` checkout keeps the bytes the hashes cover.
 
@@ -191,18 +191,16 @@ Mutation evidence (2026-10-18, lane 1B):
 over the path, byte length and bytes of every non-`.md` file under `sim/`, `bots/src/`, `content/`,
 `client/src/sim-host/`, `client/src/input/`, `tests/sim/golden/` and `tests/sim/integration/fixtures.ts`
 (except `tests/sim/golden/content-pull.json`, a generated output that `golden.test.ts` checks against live
-content). CR bytes are stripped, so CRLF and LF checkouts hash the same. Any edit there, comments included,
-fails `oracle.test.ts` and names each added, removed or changed path, because the fixtures claim to come from
-6e1548d. The manifest is written one member per line, so two PRs that edit different source files change
-different lines and merge without a conflict.
-Behaviour drift also shows as a byte diff in the trace or vector it hits. The failure message names the file,
-line and column.
+content). CR bytes are stripped, so CRLF and LF checkouts hash the same. It records what the fixtures were
+generated from; since the TS tree and `oracle.test.ts` were deleted (#553) no gate recomputes it, and editing
+content/data no longer re-records anything. `FormatParityTests` still checks every fixture file's bytes and fnv.
 
 ## 10. Named properties: what each trace protects
 
 Each `manifest.json` `traces[]` entry carries `properties`: a list of `{name, why, assert}`. `why` names the PR or
-ruling that created or re-recorded the trace for that property. The list is hand-authored; `tests/oracle/generate.ts`
-carries it through a re-record unchanged and never writes it. The manifest no longer repeats `traceHash`.
+ruling that created or re-recorded the trace for that property. The list is hand-authored and is the only
+source of what a trace protects (no generator writes it); a re-record must keep it byte for byte, and the gates fail
+if a trace loses it. The manifest no longer repeats `traceHash`.
 
 The C# gates take a trace as INPUT and assert its properties over a C# run. They never compare a run with the TS
 recording, and they never pin a whole-trace hash:

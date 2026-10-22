@@ -57,6 +57,8 @@
 .PARAMETER GodotArgs
   Arguments for Godot, split on whitespace, paths relative to the repo root.
   Default is the run C autorun: pull 1 party, key 2, seed 1, 7000 ticks.
+  Add "--camera vertical" after the "--" for the high-pitch top-down camera (default chase); the run log then holds
+  one "CAMERA mode=vertical pitch=-1200 dist=16500" line per run start.
 
 .PARAMETER Name
   Prefix for the frame files and the mp4 name.

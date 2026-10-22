@@ -50,7 +50,7 @@ public partial class CastBarView : Control
     private static readonly Color DoneColor = new(0.35f, 0.85f, 0.4f, 1f);
 
     private readonly List<Ending> _endings = new();
-    private readonly Dictionary<int, int> _castLogged = new();
+    private CastProofLog _castProof = new();
     private readonly Dictionary<int, int> _labelLogged = new();
     private readonly List<Bar> _bars = new();
     private readonly List<PixelRect> _rects = new();
@@ -362,32 +362,26 @@ public partial class CastBarView : Control
     private void OnRunStarted()
     {
         _endings.Clear();
-        _castLogged.Clear();
+        _castProof = new CastProofLog();
         _labelLogged.Clear();
     }
 
-    // HUD-DECLUTTER proof (autorun only): one "HUD castbar actor=A kind=player|enemy where=frame|overhead ability=X"
-    // line per cast start, the placement Layout uses (HudDeclutter.OverheadCast).
+    // HUD-DECLUTTER proof (autorun only): "HUD castbar actor=A kind=player|enemy where=frame|overhead ability=X" and, for a
+    // cast that draws on a unit frame, "HUD unitframe cast ..." -- both from one placement decision per step (CastProofLog,
+    // R-DECLUTTER-1), so a retarget mid-cast logs the new placement and the two lines always describe the same moment.
     private void LogCastStarts()
     {
         if (Driver is null || !Driver.Options.Autorun)
         {
             return;
         }
-        var unitFrames = Frames();
-        foreach (var (id, actor) in Driver.State.Actors)
+        var run = Driver.Run;
+        foreach (var line in _castProof.Observe(
+            Driver.State,
+            Driver.Setup?.HumanActorId ?? SimDriver.WardenId,
+            castId => run is not null && run.Content.Abilities.TryGetValue(castId, out var def) && def.Interruptible))
         {
-            if (!actor.Alive || actor.CastId is not { } castId || actor.CastStartTick is not { } start)
-            {
-                continue;
-            }
-            if (_castLogged.TryGetValue(id, out var last) && last == start)
-            {
-                continue;
-            }
-            _castLogged[id] = start;
-            HudNodes.Proof(Driver, FormattableString.Invariant(
-                $"HUD castbar actor={id} kind={HudDeclutter.Side(actor)} where={HudDeclutter.CastPlacement(actor, unitFrames)} ability={castId}"));
+            HudNodes.Proof(Driver, line);
         }
     }
 
