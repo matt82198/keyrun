@@ -120,7 +120,12 @@ public static class AbilityClipTable
         new("brineMother.boilingSurge", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
         new("brineMother.drowningHymn", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
         new("greatBell.clangour", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
-        new("greatBell.stillTheBell", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("greatBell.resonance", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("slagHexer.moltenBrand", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),
+        new("ingotBrute.anvilDrop", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
+        new("slagWhelp.sparkLunge", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
+        new("pitTender.fanTheCoals", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("knellSinger.dirge", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),
         new("greatBell.peal", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
     };
 
