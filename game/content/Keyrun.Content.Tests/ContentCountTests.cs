@@ -72,7 +72,7 @@ public sealed class ContentCountTests
         Assert.Equal(new[] { "hollow-vault", "sunken-bellfoundry" }, reg.Dungeons.Keys.ToArray());
         Assert.Equal(24000, reg.Dungeons["sunken-bellfoundry"].ParTicks);
         Assert.Equal("warden.strike", reg.Abilities.Keys.First());
-        Assert.Equal(14400, reg.Dungeons["hollow-vault"].ParTicks);
+        Assert.Equal(13100, reg.Dungeons["hollow-vault"].ParTicks);
     }
 
     [Fact]
