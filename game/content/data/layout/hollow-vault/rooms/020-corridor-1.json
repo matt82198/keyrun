@@ -1,0 +1,8 @@
+{
+  "id": "corridor-1",
+  "kind": "corridor",
+  "minX": 5000,
+  "maxX": 11000,
+  "minZ": -1500,
+  "maxZ": 1500
+}

@@ -1,0 +1,8 @@
+{
+  "required": 1000,
+  "route": {
+    "dungeonId": "hollow-vault",
+    "forkAfterPull": "pair",
+    "rejoinPull": "seed"
+  }
+}

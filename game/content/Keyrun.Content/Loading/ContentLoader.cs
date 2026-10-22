@@ -9,11 +9,14 @@ namespace Keyrun.Content;
 /// <summary>
 /// Loads every content kind from the verbatim content/data JSON into a typed, validated
 /// <see cref="ContentRegistry"/>: the C# mirror of content/index.ts <c>loadContent()</c>, reading
-/// the same 19 files in the same order, plus the C#-only run.json, layout.json, theme.json (theme.json is read by ThemeLoader), combo-riders.json
-/// and the forces + route files (forces.json, hazards.json; packs live in layout.json, ruling R7), the trash enemies (enemies/hall.json) and the BIBLE 9.3 vault kits
-/// (abilities/vault.json, effects/vault.json, enemies/vault.json). Fails closed with <see cref="ContentLoadException"/> on
+/// the same 19 files in the same order, plus the C#-only run.json, theme.json (theme.json is read by ThemeLoader), combo-riders.json,
+/// hazards.json, the trash enemies (enemies/hall.json) and the BIBLE 9.3 vault kits (abilities/vault.json, effects/vault.json,
+/// enemies/vault.json), and the per-kind directories (ruling R-LOADER-1): layout/hollow-vault/ (dungeon.json plus one file
+/// per room, pack and patrol; packs live in the layout, ruling R7) and forces/ (hollow-vault.json plus one file per enemy
+/// value), read in ordinal path order by <see cref="PerKindContent"/>. Fails closed with <see cref="ContentLoadException"/> on
 /// any unknown property, missing required field, null in a non-optional field, non-integer
-/// number, unknown enum or op, duplicate id, unresolved cross-reference, or unlisted/missing file.
+/// number, unknown enum or op, duplicate id, unresolved cross-reference, or a missing file or one neither listed in
+/// <see cref="Files"/> nor under one of <see cref="Directories"/>.
 /// </summary>
 public static class ContentLoader
 {
@@ -92,11 +95,15 @@ public static class ContentLoader
     /// <summary>C#-only gear table (game/content/data/gear.json; BIBLE section 7 "Five slots", "Tier is power").</summary>
     public const string GearFile = "gear.json";
 
+    /// <summary>The dungeon whose per-kind layout and forces directories the loader assembles (ruling R-LOADER-1).</summary>
+    public const string LayoutDungeon = "hollow-vault";
+
     /// <summary>
-    /// C#-only forces table and route (game/content/data/forces.json; BIBLE section 9.2): the bar's size, every
-    /// enemy's points and the fork and rejoin pulls.
+    /// C#-only forces bar size and route (game/content/data/forces/hollow-vault.json; BIBLE section 9.2): the bar's size
+    /// and the fork and rejoin pulls. Every enemy's points live one per file in forces/values/ (R-LOADER-1), so a new
+    /// forces value is a new file, never a list edit.
     /// </summary>
-    public const string ForcesFile = "forces.json";
+    public const string ForcesFile = PerKindContent.ForcesRoot + LayoutDungeon + ".json";
 
     /// <summary>C#-only room hazards (game/content/data/hazards.json; BIBLE section 9.4).</summary>
     public const string HazardsFile = "hazards.json";
@@ -120,10 +127,17 @@ public static class ContentLoader
     public const string PaletteFile = "palette.json";
 
     /// <summary>
-    /// C#-only dungeon layout (game/content/data/layout.json, same logical root): rooms, corridors, pull triggers,
-    /// gates and the route (STATE.md D18). Not read by the frozen TS loadContent.
+    /// C#-only dungeon layout head (game/content/data/layout/hollow-vault/dungeon.json, same logical root): the start,
+    /// route and formation (STATE.md D18). The rooms, packs and patrols live one per file beside it in rooms/, packs/ and
+    /// patrols/ (R-LOADER-1), so a new room, pack or patrol is a new file, never a list edit.
     /// </summary>
-    public const string LayoutFile = "layout.json";
+    public const string LayoutFile = PerKindContent.LayoutRoot + LayoutDungeon + "/dungeon.json";
+
+    /// <summary>
+    /// The directories read whole (<see cref="PerKindContent.DirectoriesFor"/>): any JSON file in them loads without a
+    /// <see cref="Files"/> entry. Every other file must be listed (the frozen content/data entries stay an explicit list).
+    /// </summary>
+    public static IReadOnlyList<string> Directories { get; } = PerKindContent.DirectoriesFor(LayoutDungeon);
 
     /// <summary>
     /// C#-only run config (game/content/data/run.json, embedded under the same logical root): walk
@@ -193,9 +207,9 @@ public static class ContentLoader
                 ReadArray<FacetDef>(source, Facets + "cinder.json"),
                 ReadArray<FacetDef>(source, Facets + "chanter.json")),
             Run = ReadOne<RunConfig>(source, RunFile)[0],
-            Layout = ReadOne<LayoutDef>(source, LayoutFile)[0],
+            Layout = PerKindContent.AssembleLayout(source, LayoutDungeon),
             ComboRiders = ById("combo rider", ReadArray<ComboRider>(source, ComboRidersFile)),
-            Forces = ReadOne<ForcesTable>(source, ForcesFile)[0],
+            Forces = PerKindContent.AssembleForces(source, LayoutDungeon),
             Hazards = ById("hazard", ReadArray<HazardDef>(source, HazardsFile)),
             Gear = ById("gear item", ReadArray<GearItemDef>(source, GearFile)),
             MeleeAbilities = new ValueList<string>(ReadArray<string>(source, MeleeAbilitiesFile)),
@@ -205,15 +219,7 @@ public static class ContentLoader
         return registry;
     }
 
-    private static void CheckFileSet(IContentSource source)
-    {
-        var present = new HashSet<string>(source.Paths.Where(p => p.EndsWith(".json", StringComparison.Ordinal)), StringComparer.Ordinal);
-        foreach (string file in Files)
-            if (!present.Contains(file)) throw new ContentLoadException("content: missing file \"" + file + "\"");
-        foreach (string file in present.OrderBy(p => p, StringComparer.Ordinal))
-            if (!Files.Contains(file, StringComparer.Ordinal))
-                throw new ContentLoadException("content: unlisted file \"" + file + "\" (add it to ContentLoader.Files and content/index.ts)");
-    }
+    private static void CheckFileSet(IContentSource source) => ContentFileSet.Check(source, Files, Directories);
 
     private static T[] ReadArray<T>(IContentSource source, string path)
         where T : class
