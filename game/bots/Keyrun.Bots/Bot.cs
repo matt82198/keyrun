@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Keyrun.Bots.Shared;
 using Keyrun.Sim.Core;
+using Keyrun.Sim.Nav;
 
 namespace Keyrun.Bots;
 
@@ -60,8 +61,13 @@ public static class Bot
             DecideForActor(_roles, view, memory, actorId, prng, pings ?? Array.Empty<PingEvent>());
     }
 
-    /// <summary>bot.ts dangerAvoidCommand: a move to the nearest safe point when inside an active danger telegraph.</summary>
-    private static MoveCommand? DangerAvoidCommand(BotView view, ActorState self)
+    /// <summary>
+    /// bot.ts dangerAvoidCommand: a move to the nearest safe point when inside an active danger telegraph. On a layout run
+    /// (LINE-DODGE, finding f-e17e190c) the safe point must be walkable and the move walks the sim's path to it: the sim
+    /// clamps every actor into its open boxes after each tick, so a straight move into a wall leaves the seat inside the
+    /// telegraph. Off a layout run (every oracle run) the straight move is unchanged.
+    /// </summary>
+    public static MoveCommand? DangerAvoidCommand(BotView view, ActorState self)
     {
         var tick = view.State.Tick;
         var selfMm = PointMm.Of(self.Pos);
@@ -70,6 +76,15 @@ public static class Bot
         if (!Positioning.IsInAnyDanger(selfMm, active))
         {
             return null;
+        }
+        if (view.Layout is { } layout)
+        {
+            var grid = NavGrid.Of(layout);
+            var walkable = Positioning.NearestSafePoint(
+                selfMm,
+                active,
+                extraCheck: p => grid.Walkable(new Vec3(p.X, self.Pos.Y, p.Z)));
+            return walkable is null ? null : PathMoves.Along(tick, self, layout, new Vec3(walkable.Value.X, self.Pos.Y, walkable.Value.Z));
         }
         var safe = Positioning.NearestSafePoint(selfMm, active);
         return safe is null ? null : Moves.MoveToward(tick, self.Id, selfMm, safe.Value);
