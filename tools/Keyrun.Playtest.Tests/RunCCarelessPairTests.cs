@@ -156,10 +156,11 @@ public sealed class RunCCarelessPairTests
                 {
                     pairEngage = e.Tick;
                     carelessAt = run.State.Actors[CarelessSeat].Pos;
-                    // The members engaged on this tick's post-combat positions (they had stood idle), so these are where they saw it.
+                    // The members engaged on this tick's post-combat positions (they had stood idle), so these are where they saw it;
+                    // a wandering member sees from where it stands at rest (IDLE-WANDER: ActorState.WanderAnchor), not from its stroll.
                     var seat = carelessAt.Value;
                     inReach = Aggro.InRing(seat, Pulls.RingCenter(pair), pair.AggroMm) ||
-                        pairIds.Any(id => run.State.Actors[id] is { AggroMm: { } r } m && Aggro.InRing(seat, m.Pos, r));
+                        pairIds.Any(id => run.State.Actors[id] is { AggroMm: { } r } m && Aggro.InRing(seat, m.WanderAnchor ?? m.Pos, r));
                 }
                 else if (e.Type == "damage" && pairSet.Contains(Int(e, "sourceId")) && botSeats.Contains(Int(e, "targetId")) && Int(e, "healthDamage") > 0)
                 {

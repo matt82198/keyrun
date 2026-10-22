@@ -58,6 +58,21 @@ public sealed class ScriptedWarden
         SampleRotation(tick, run, into, openSeats);
         if (run.State.Actors.TryGetValue(HostRunSetup.HumanId, out var me) && me.Alive)
         {
+            // R-AOE-1 (c), f-c8ed3a62: the tank chain-pulls. ChainPull.Move is the one origin of the walk (the lead-seat bot and
+            // the headless playtest runner call it too); while it holds it replaces the moves he queued, his casts stay, and
+            // the cleave sidestep below still wins over it.
+            if (Follow.Leader(run.State)?.Id == me.Id && run.Content.Layout is { } layout && PullPlan.Of(run, Forces) is { } plan &&
+                ChainPull.Move(tick, run.State, layout, plan, me) is { } chain)
+            {
+                for (var i = into.Count - 1; i >= start; i--)
+                {
+                    if (into[i].ActorId == me.Id && into[i] is MoveCommand or DashCommand)
+                    {
+                        into.RemoveAt(i);
+                    }
+                }
+                into.Add(chain);
+            }
             ApplyFrontalAnswer(CleaveAnswer(run, me, tick), me.Id, into, start);
         }
     }
@@ -240,7 +255,11 @@ public sealed class ScriptedWarden
         // R-307-C item 2 (HOLDER-LOCK D30): an enemy another living player holds is taunted back. PILE-INT merge: #326's
         // LOOSE-PICKUP above taunts an enemy aimed at another seat; this holder check runs only when that one did not
         // already queue the Taunt this tick, so the two rules never press it twice.
-        if (!tauntInRange && LooseEnemy(state, me, abilities[Taunt], tick) is { } held)
+        // R-TAUNT-3 (design/THREAT-MODEL.md section 4): never spend Taunt on a quiet enemy while a damaging one exists; the
+        // walk at the damaging one above is the answer. Here the Cantor, in reach and hurting nobody, took the Taunt while an
+        // Acolyte beating the Cinder stood 44 mm outside it, and the Cinder died to that Acolyte (LOOSE-PICKUP).
+        if (!tauntInRange && LooseEnemy(state, me, abilities[Taunt], tick) is { } held
+            && !(loose is not null && TankEngage.HurtsItsSeat(state.Actors, loose) && !TankEngage.HurtsItsSeat(state.Actors, held)))
         {
             into.Add(new CastCommand(tick, me.Id, Taunt, held.Id));
         }

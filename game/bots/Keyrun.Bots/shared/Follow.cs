@@ -437,6 +437,12 @@ public static class Follow
         }
         if (AnyLivingEnemy(view.State))
         {
+            // R-AOE-1 (c), f-c8ed3a62: the tank is chain-pulling the next pack, so the party goes with him to its slot behind
+            // him (its casts stay: Bot.cs keeps a travelling bot's casts) instead of holding the room he is leaving.
+            if (view.PullPlan is { } chainPlan && ChainPull.Intent(view.State, layout, chainPlan, leader) is not null)
+            {
+                return WalkTo(view.State.Tick, self, layout, slot);
+            }
             // KF2c (design/BIBLE.md sections 4 and 9: the party lands every pull together): in a fight the bot first
             // closes into the room the leader fights in, past the doorway overlap, then its role takes over. A doorway
             // or the previous corridor is not "in the room".

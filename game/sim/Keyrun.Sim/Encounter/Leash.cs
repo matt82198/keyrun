@@ -43,7 +43,7 @@ public static class Leash
         {
             if (a.Kind == ActorKind.Enemy && a.Alive && a.Idle && !a.Evading)
             {
-                a.Home = a.Pos;
+                a.Home = a.WanderAnchor ?? a.Pos;
             }
         }
 
@@ -97,6 +97,9 @@ public static class Leash
                 a.Threat.Clear();
                 a.Idle = true;
                 a.Evading = true;
+                // IDLE-WANDER: the pack walks home to its anchor (Home), then wanders again from where it resets.
+                a.WanderAnchor = null;
+                a.WanderLoop = null;
             }
             engaged = engaged.Where(id => !string.Equals(id, g.Id, StringComparison.Ordinal)).ToList();
             emit(GroupEvent(tick, "pack_evade", g.Id, living));

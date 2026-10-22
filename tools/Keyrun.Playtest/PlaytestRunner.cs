@@ -206,7 +206,17 @@ public static class PlaytestRunner
                     var kickWalk = policy is null
                         ? RoleShared.LedgerKickApproachCommand(view, leader, view.Kits.ResolveKit(leader.ClassId, view.ClassKit))
                         : null;
-                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && !Equals(c, approach) && !Equals(c, kickWalk));
+                    // R-AOE-1 (c), f-c8ed3a62: the tank chain-pulls. ChainPull.Move is the one origin of that walk (the lead-seat bot
+                    // and the host's scripted Warden call it too); while it holds it replaces every other move the leader queued
+                    // but the dodge, and the leader's casts stay.
+                    var chain = view.PullPlan is { } chainPlan && view.Layout is { } chainLayout
+                        ? ChainPull.Move(tick, run.State, chainLayout, chainPlan, leader)
+                        : null;
+                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && (chain is not null || (!Equals(c, approach) && !Equals(c, kickWalk))));
+                    if (chain is not null)
+                    {
+                        commands.Add(chain);
+                    }
                 }
             }
 

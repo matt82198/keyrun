@@ -17,7 +17,7 @@ Every decision in this document passes all three or it is out:
 
 ## 1. The loop
 
-Screen → Queue → Dungeon (timed, one boss) → End-of-run choice of three → Screen. Target run length for the POC
+Screen → Queue → Dungeon (timed, one boss) → Completion roll (one roll per player, which can give nothing; it replaces the end-of-run choice of three, design/PROGRESSION-PIVOT.md s3) → Screen. (R-PIVOT-1, 2026-10-22) Target run length for the POC
 dungeon is 12 minutes at par; a session is "one more run" sized. The screen dwell for a returning player is under
 15 seconds (research/08). Nothing exists outside this loop in the POC: no world, no quests, no shop, no stash.
 
@@ -95,6 +95,11 @@ Tests: tools/Keyrun.Playtest.Tests/TankSurvivabilityTests.cs.
 
 This is the design's centre and the answer to "more creative than Blizzard": synergy is not a buff you press,
 it is a *timing game between two people*.
+
+Synergy also has a second axis: the party's toolkit played against the dungeon's own systems (leash, aggro and aggro
+drops, telegraph geometry, routes and skips). Those systems are deterministic, documented and exploitable on purpose,
+so at high keys the best line is often a toolkit sequence that moves the dungeon, as in Mythic+. This section stays
+axis one, and design/DUNGEON-SYNERGY.md is axis two (R-SYNERGY-1, 2026-10-22).
 
 - **Setup abilities open a Window.** Certain abilities tag their target (or a floor patch) with a **Window**: a
   visible ring that lasts 3 seconds (60 ticks). Each class has exactly two Setup abilities among its five.
@@ -186,20 +191,33 @@ pair combo, so there is always something to close even when the enemy Window was
 - **Facets change function** (Diablo IV's lesson — research/05): a Facet retags an ability's Window, adds a
   second Payoff to a neutral ability, changes a floor patch's shape, or alters the resource loop. Facets are the
   chase; numbers are just the tier.
-- **End of every run: choose one of three** (a vault-lite, per run, not per week — research/01): the options are
-  shown with their Facet text and tier; there is never a trap choice (research/05). **Decision (Matt, 2026-10-20),
-  recorded verbatim:** "vault = every run". The per-run cadence stands, and the weekly vault of research/05:9-11 is
-  rejected.
+- **End of every completed run: one roll per player.** Every player in a completed run rolls once on the completion
+  table; the roll can give nothing, there is no loot cap and no trading, and a timed completion rolls on a better
+  table than a depleted one (design/PROGRESSION-PIVOT.md s2). (R-PIVOT-1, 2026-10-22) **Ruling (Matt, 2026-10-22),
+  recorded verbatim:** "gear will be dropped by completion. There is no guaranteed improvement at the end of every
+  dungeon, its still RNG, its just that everyone gets a chance to roll instead of wow loot cap and trading garbage lol".
+  The choice of three this replaces, and Matt's 2026-10-20 "vault = every run" behind it, are history (superseded,
+  R-PIVOT-1, 2026-10-22). A drop is shown with its Facet text and tier, and there is never a trap choice
+  (research/05). The weekly vault of research/05:9-11 stays rejected.
 - **Every clear moves something visible.** **Decision (Matt, 2026-10-20), recorded verbatim:** "rewards = keep
   Tier-10 cap, cosmetic Ash, no public score, but every clear moves something visible: choose-one-of-three always
   includes an upgrade or Ascension progress, plus private last-3-runs strip". So at least one of the three options on
   every clear is a strict upgrade for the character: a higher tier in some slot, or a Facet the character does not
   own yet. At the cap, that option is Ascension progress instead. Fellowship's top complaint was that most drops
-  upgrade nothing (research/09:60-62). The private **last-3-runs strip** is on the screen (section 10).
+  upgrade nothing (research/09:60-62). The private **last-3-runs strip** is on the screen (section 10). The upgrade
+  guarantee above is superseded: no roll is a guaranteed upgrade, and what every completion still moves is its Ash,
+  its roll line on the strip, one ability-tree point until the class's trees are full, and at the cap an Ascension
+  mark (design/PROGRESSION-PIVOT.md s2.5). (R-PIVOT-1, 2026-10-22)
 - **Loot quality comes from the key level.** **Decision (Matt, 2026-10-20), as relayed:** loot quality comes from
   the key level, and a +2 or +3 pays by moving the key up 2 or 3 levels. The tiers offered at the end of a run rise
-  with the key it was run at. A fast clear's reward is the higher key it earns, not a bigger chest. Choose one of
-  three, the Tier-10 cap and cosmetic Ash all stay.
+  with the key it was run at. A fast clear's reward is the higher key it earns, not a bigger chest. The completion
+  roll's tier band rises with the key, and the Tier-10 cap and cosmetic Ash stay. (R-PIVOT-1, 2026-10-22)
+- **Abilities grow by improvement trees.** Each of a class's five rotational abilities has its own four-node tree (rank,
+  enhancement, its section 6 fork, rank; Diablo II skill levels, Diablo III runes and the Diablo IV skill tree), unlocked
+  by tree points from completions and by the highest key completed, never by a score; Q, E, R and F have none, the
+  ten-keybind budget is unchanged, and respec stays free (design/PROGRESSION-PIVOT.md s1). (R-PIVOT-1, 2026-10-22)
+  **Ruling (Matt, 2026-10-22), recorded verbatim:** "the initial abilities will be like diablo... abilities will have
+  improvement trees, unlocked by progression".
 - **Crafting is two charges per item**: reroll the Facet from that slot's listed pool, twice, then it is what it is
   (Last Epoch scaled down — research/05).
 - **Every run banks Ash, win or lose** (Hades — research/05). Ash buys only cosmetics and titles.

@@ -273,6 +273,7 @@ public sealed partial record HostRunSetup(
             Layout = nav,
             Packs = packs,
             Patrols = patrols,
+            IdleWander = true,
             StopEffectIds = StopEffectIds,
             StunEffectIds = StunEffectIds,
             StunImmuneClassIds = run.StunImmuneEnemies.ToList(),

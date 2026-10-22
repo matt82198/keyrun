@@ -387,6 +387,17 @@ public sealed class PolicyBot : IBot
             {
                 continue;
             }
+            // LEDGER-IS-THE-CONTRACT (BIBLE s3: interrupts resolve by intended tick with a fixed tiebreak): once the kick is
+            // open, a seat the party ledger names for this cast (least recently kicked, ready, in range) and the plan lists
+            // as a kicker presses it, even while the plan's first kicker is still inside its reaction (seed 6: the ledger
+            // named the Chanter at 287 and the Cinder, first in the plan, pressed at 291).
+            if (view.Layout is not null && order.Contains(self.ClassId, StringComparer.Ordinal) &&
+                Keyrun.Bots.Roles.RoleShared.LedgerKickCommand(view, self, kit) is { } ledgerKick && ledgerKick.TargetId == enemy.Id)
+            {
+                KickPresses++;
+                _kickAt[(enemy.Id, enemy.CastStartTick!.Value)] = tick + 1;
+                return ledgerKick;
+            }
             var kicker = KickerFor(view, enemy, order, claimed);
             if (kicker is { } named)
             {

@@ -1,0 +1,2 @@
+- NAME: fix-bellfoundry-cinder-freeze: NavGrid.FindPath paced a walker between the start-cell centre and the point past it (f-fa9da3ca), so the cinder froze after boss 1
+BUILDLOG: NAME: fix-bellfoundry-cinder-freeze: Bellfoundry autorun replica reproduced the freeze headlessly (boss 1 dies at 7114, cinder ping-pongs between 154821,14726 and 154991,14670); NavGrid corner-side rule fixes it, run reaches the final boss
