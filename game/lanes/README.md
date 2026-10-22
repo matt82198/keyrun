@@ -1,3 +1,5 @@
+A failing gate's message is a lookup key in docs/CI-CATALOG.md; apply the recipe once, do not retry the gate.
+
 # game/lanes - one row file per lane
 
 A lane never edits the game/CLAUDE.md lane list or BUILDLOG.md in its PR, because parallel lanes collide on those two files. Each lane instead writes `game/lanes/<branch-with-slashes-as-dashes>.md`, for example `game/lanes/chore-lane-row-files.md` for branch `chore/lane-row-files`.
