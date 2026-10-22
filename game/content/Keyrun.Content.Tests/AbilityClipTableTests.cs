@@ -144,10 +144,36 @@ public sealed class AbilityClipTableTests
     [Fact]
     public void Anim_line_has_the_capture_shape()
     {
-        Assert.Equal("ANIM actor=3 clip=Spellcast_Shoot ability=cinder.flare",
-            AbilityClipTable.AnimLine(3, "Spellcast_Shoot", "cinder.flare"));
-        Assert.Equal("ANIM actor=100 clip=Death_C_Skeletons ability=-",
-            AbilityClipTable.AnimLine(100, "Death_C_Skeletons", null));
+        Assert.Equal("ANIM actor=3 clip=Spellcast_Shoot ability=cinder.flare at=112",
+            AbilityClipTable.AnimLine(3, "Spellcast_Shoot", "cinder.flare", 112));
+        Assert.Equal("ANIM actor=100 clip=Death_C_Skeletons ability=- at=640",
+            AbilityClipTable.AnimLine(100, "Death_C_Skeletons", null, 640));
+    }
+
+    [Fact]
+    public void Every_release_plays_at_least_the_readable_minimum_on_its_model()
+    {
+        // ANIMS-READABLE-2: the clip's own length from where the view starts it (an instant's SwingStartMs, a wound-up
+        // swing's contact), at ReleaseHold's stretched rate, lasts at least ReleaseHold.MinReleaseMs of screen time.
+        var owned = Owned();
+        Assert.True(owned.Count >= 40, "vacuity guard: too few owned abilities");
+        var bad = new List<string>();
+        foreach (var (owner, ability) in owned)
+        {
+            var row = ActorBinding.Default.For(owner);
+            var release = AbilityClipTable.ReleaseClip(ability, row.Clips.Act);
+            var lengthMs = LengthsMs(row)[release];
+            foreach (var woundUp in new[] { false, true })
+            {
+                var start = AbilityAnim.ResolveStartMs(release, woundUp);
+                var shownMs = (lengthMs - start) * 1000 / ReleaseHold.SpeedPermille(start, lengthMs);
+                if (shownMs < ReleaseHold.MinReleaseMs - 1)
+                {
+                    bad.Add(ability + " " + release + " from " + start + " of " + lengthMs + " ms shows " + shownMs);
+                }
+            }
+        }
+        Assert.True(bad.Count == 0, string.Join("; ", bad));
     }
 
     private static readonly Dictionary<string, HashSet<string>> Cache = new(StringComparer.Ordinal);
@@ -168,6 +194,28 @@ public sealed class AbilityClipTableTests
             }
             return set;
         }
+    }
+
+    // Each animation's length in ms: the largest keyframe time over its channels' input accessors.
+    private static Dictionary<string, int> LengthsMs(ActorBindingRow row)
+    {
+        var data = File.ReadAllBytes(Path.Combine(AssetsRoot(), row.Folder, row.ModelFile!));
+        var len = BitConverter.ToInt32(data, 12);
+        using var doc = JsonDocument.Parse(new ReadOnlyMemory<byte>(data, 20, len));
+        var accessors = doc.RootElement.GetProperty("accessors");
+        var map = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var a in doc.RootElement.GetProperty("animations").EnumerateArray())
+        {
+            var samplers = a.GetProperty("samplers");
+            var max = 0.0;
+            foreach (var ch in a.GetProperty("channels").EnumerateArray())
+            {
+                var input = samplers[ch.GetProperty("sampler").GetInt32()].GetProperty("input").GetInt32();
+                max = Math.Max(max, accessors[input].GetProperty("max")[0].GetDouble());
+            }
+            map[a.GetProperty("name").GetString()!] = (int)Math.Round(max * 1000.0);
+        }
+        return map;
     }
 
     private static string AssetsRoot()
