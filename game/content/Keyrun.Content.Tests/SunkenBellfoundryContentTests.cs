@@ -59,7 +59,7 @@ public sealed class SunkenBellfoundryContentTests
     {
         var hv = Reg.Dungeons["hollow-vault"];
         Assert.True(hv.Tutorial);
-        Assert.Equal(14400, hv.ParTicks);
+        Assert.Equal(13100, hv.ParTicks);
         var segment = Assert.Single(hv.Segments);
         Assert.Equal(hv.Boss, segment.Boss);
         Assert.Equal(Reg.Layout.Packs.Select(p => p.Id).OrderBy(p => p, StringComparer.Ordinal), hv.PackPool.OrderBy(p => p, StringComparer.Ordinal));

@@ -24,6 +24,9 @@ public sealed class NavGrid
     /// <summary>Segment sampling step for the line-of-sight test, mm (half a cell).</summary>
     public const long SightStepMm = 250;
 
+    /// <summary>A walker this near its start cell's centre counts as standing on it (one walk step of 180 mm and a margin), mm.</summary>
+    public const long WaypointReachMm = 250;
+
     /// <summary>Orthogonal step cost (octile metric: 10 straight, 14 diagonal).</summary>
     public const int StraightCost = 10;
 
@@ -315,7 +318,21 @@ public sealed class NavGrid
         var path = new List<Vec3>(ahead.Count + 2) { start };
         if (from < 0)
         {
-            path.Add(CenterOf(sc) with { Y = start.Y });
+            // Walk at the start cell's centre first. A walker already within a step of it would pass the centre this tick, and
+            // from the far side (a different cell, sight sampled at other points) the same centre was the next waypoint
+            // again, so it paced between the two for good (f-bellfoundry-route-red, the Sunken Bellfoundry's first boss
+            // entrance). It walks on instead to the point WaypointReachMm past the centre toward the first corner: that lies
+            // on the centre-to-corner line, which the pull cleared by the planning clearance, and it is progress each tick.
+            var center = CenterOf(sc) with { Y = start.Y };
+            var cx = center.X - start.X;
+            var cz = center.Z - start.Z;
+            var pastCentre = center;
+            if ((cx * cx) + (cz * cz) <= WaypointReachMm * WaypointReachMm && ahead[0] != center)
+            {
+                var along = Fixed.NormaliseTo(new Vec3(ahead[0].X - center.X, 0, ahead[0].Z - center.Z), WaypointReachMm);
+                pastCentre = new Vec3(center.X + along.X, start.Y, center.Z + along.Z);
+            }
+            path.Add(pastCentre);
             from = 0;
         }
         for (var k = from; k < ahead.Count; k++)
