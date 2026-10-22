@@ -166,7 +166,8 @@ public static class Tempo
     public static ScriptStep ScaleStep(ScriptStep step, int keyLevel, Func<string, int> castFloorTicks)
     {
         ArgumentNullException.ThrowIfNull(castFloorTicks);
-        var scaled = ScaleStep(step, keyLevel);
+        // SCRIPT-GATE (D66): the frozen-TS rebuild drops every field it does not know; the C#-only gate rides along.
+        var scaled = ScaleStep(step, keyLevel) with { When = step.When };
         if (scaled.Every is not { } every)
         {
             return scaled;

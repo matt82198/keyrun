@@ -115,4 +115,10 @@ public sealed record ContentRegistry
     /// Every id names a loaded ability. Empty when a registry is built by hand.
     /// </summary>
     public ValueList<string> MeleeAbilities { get; init; } = new();
+
+    /// <summary>
+    /// The seeded dungeons' pack rosters by pack id (game/content/data/roster/*.json, one pack per file; D46). Empty when
+    /// a registry is built by hand.
+    /// </summary>
+    public ValueMap<RosterPack> Roster { get; init; } = new();
 }

@@ -26,5 +26,16 @@
   "boss": {
     "enemyId": "hollowWarden.boss",
     "mechanics": ["cleave", "sundered-twins", "the-lock"]
-  }
+  },
+  "tutorial": true,
+  "segments": [
+    {
+      "id": "s1",
+      "boss": {
+        "enemyId": "hollowWarden.boss",
+        "mechanics": ["cleave", "sundered-twins", "the-lock"]
+      }
+    }
+  ],
+  "packPool": ["cantor-vigil", "hall-sentries", "warrior-remnant"]
 }

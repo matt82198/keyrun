@@ -123,8 +123,13 @@ public sealed partial record HostRunSetup(
     /// <see cref="Roster"/> slot. False for the human's seat alone.</param>
     /// <param name="rotationIndex">The host's affix rotation index (BIBLE s8: the ISO week, passed in so the setup stays
     /// deterministic). Its parity picks Fortified or Tyrannical on keys 5-9 (plan M5).</param>
+    /// <param name="bossEnemyId">
+    /// D66 boss arena: the boss enemy to stand in the dungeon's boss arena instead of the dungeon's own boss, or null (the
+    /// dungeon's boss). Lets a boss of a dungeon with no laid-out map yet (the Sunken Bellfoundry, whose rooms the seeded
+    /// generator places) be fought, and measured against R-BOSS-1, in the tutorial's arena with the real party and bots.
+    /// </param>
     /// <returns>The setup.</returns>
-    public static HostRunSetup Build(C.ContentRegistry registry, string dungeonId, int keyLevel, string humanClassId, bool withBots = true, int rotationIndex = 0)
+    public static HostRunSetup Build(C.ContentRegistry registry, string dungeonId, int keyLevel, string humanClassId, bool withBots = true, int rotationIndex = 0, string? bossEnemyId = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         if (keyLevel < 1)
@@ -142,7 +147,11 @@ public sealed partial record HostRunSetup(
 
         var affixTable = AffixTableOf(registry.Run.Affixes);
         var affixes = Affixes.AffixesFor(affixTable, keyLevel, rotationIndex);
-        var bossEnemy = Enemy(registry, dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss");
+        var bossEnemy = Enemy(registry, bossEnemyId ?? dungeonDef.Boss.EnemyId, $"dungeon \"{dungeonDef.Id}\" boss");
+        if (bossEnemy.Role != C.EnemyRole.Boss)
+        {
+            throw new InvalidOperationException($"run setup: boss \"{bossEnemy.Id}\" has role {bossEnemy.Role}, not boss");
+        }
         var abilities = ScaleEnemyDamage(
             registry,
             dungeonDef,
@@ -153,7 +162,7 @@ public sealed partial record HostRunSetup(
         var effects = registry.Effects.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
         var (combos, fieldCombos) = ContentCombos.ToComboTables(registry.Combos.Values, registry.Classes.Keys.ToList(), registry.ComboRiders);
         var (dungeon, scripts) = ToSimDungeon(
-            registry, dungeonDef, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false), Affixes.HealthBp(affixTable, affixes, bossSide: true));
+            registry, dungeonDef, bossEnemy, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: false), Affixes.HealthBp(affixTable, affixes, bossSide: true));
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
         var boss = BuildBossConfig(registry, bossEnemy, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: true));
 

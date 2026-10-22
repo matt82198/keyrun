@@ -124,7 +124,8 @@ public static class EncounterStep
         var abilityTags = breakBarWiring?.AbilityTags ?? NoTags;
         foreach (var source in sources)
         {
-            if (!breakBars.ContainsKey(source.Id) &&
+            // D66: a boss with no adds arms an empty bar (HostRunSetup.BuildBossConfig); a bar nobody shares is never made.
+            if (!breakBars.ContainsKey(source.Id) && source.ActorIds.Count > 0 &&
                 source.ActorIds.All(id => state.Actors.TryGetValue(id, out var a) && a.Alive))
             {
                 breakBars[source.Id] = BreakBar.Create(source.Max, source.ActorIds);

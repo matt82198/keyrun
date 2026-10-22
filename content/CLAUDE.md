@@ -35,12 +35,18 @@ beside this folder was removed in PR #553; the C# loader and validator now live 
   Lock boss-pseudo-class combos (`lock-warden`/`lock-cinder`/`lock-chanter`), and one field combo
   for The Seed's floor Window (`seedbloom-field`).
 - `data/enemies/{choir,pair,seed,hollow-warden}.json`  -  `EnemyDef[]` per Hollow Vault pull/boss.
-- `data/dungeons/hollow-vault.json`  -  the one `DungeonDef`.
+- `data/dungeons/hollow-vault.json`  -  the tutorial's `DungeonDef` (D67: `tutorial: true`, one segment).
 - `data/facets/{warden,cinder,chanter}.json`  -  `FacetDef[]`, gear Facets per class.
 - `data/clauses.json`  -  `ClauseDef[]`: Echo, Tide, Hush, Pact.
 - `data/TUNING.md`  -  every placeholder number, table form, marked `// TUNE`.
 - C#-only content with no TS counterpart lives in `game/content/data/`, which the same loader reads under the
   `content/data/` logical namespace.
+- D65/D66: every `DungeonDef` carries `tutorial`, `segments` (one boss each, the last is `boss`) and `packPool`. The
+  second dungeon, the Sunken Bellfoundry, is `game/content/data/dungeons/sunken-bellfoundry.json` (theme in the `.md`
+  beside it), its kits are `{abilities,effects,enemies}/bellfoundry.json`, and its roster packs are one file each under
+  `game/content/data/roster/` (no placement: the seeded fill places them; forces are the members' values).
+- SCRIPT-GATE (D66): a script step may carry `when: {"hasEffect": id}` or `when: {"healthBelowBp": bp}`; it fires only
+  while its caster meets it (an onDeath step reads the effects the enemy died with). C#-only.
 
 ## Rules
 1. Content is data. No sim logic, no randomness, no ticks advanced here  -  `content/data/` only
