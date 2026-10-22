@@ -100,6 +100,14 @@ public sealed record RunContent
     public IReadOnlyList<string>? StunImmuneClassIds { get; init; }
 
     /// <summary>
+    /// BOSS-CC-IMMUNE (R-BOSS-1 follow-up; WoW: a boss is immune to crowd control): the effects an actor in
+    /// <see cref="StunImmuneClassIds"/> refuses on landing (<see cref="ControlStops.RefuseImmuneStuns"/>), each with an
+    /// "immune" event. Null = <see cref="StunEffectIds"/> alone (the stun). The host adds Steam's <c>blinded</c>: a blinded
+    /// boss missed 31 of its 48 hits in the default boss fight, so its Cleave threatened no one.
+    /// </summary>
+    public IReadOnlyList<string>? ImmuneRefusedEffectIds { get; init; }
+
+    /// <summary>
     /// The Pair's spread and stack mark rules (<see cref="PairMarks"/>), or null for none. Null on every oracle run; a
     /// host builds it from content (game/content/data/run.json pairMarks).
     /// </summary>
