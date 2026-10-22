@@ -73,7 +73,7 @@ public sealed class SunkenBellfoundryBossTests
         Assert.Equal((0, 0), f.Locks);
     }
 
-    [Fact(DisplayName = "R-BOSS-1: Old Sorrow lasts 90-180 s at key 2; Clangour turned away, the Clappers staggered by two seats and the Bell stilled, each at least twice")]
+    [Fact(DisplayName = "R-BOSS-1 / R-SORROW-1: Old Sorrow lasts 90-180 s at key 2; Clangour turned away, the Clappers staggered by two seats and Resonance kicked or ridden out")]
     public void Great_bell_fight_lasts_the_window_and_teaches_all_three_mechanics()
     {
         var f = BossArena.Drive("bellfoundry.greatBell");
@@ -84,10 +84,16 @@ public sealed class SunkenBellfoundryBossTests
         AssertBand(f, "Old Sorrow");
         Assert.True(clang.Answered >= 2, $"Clangour answered {clang.Answered} of {clang.Landed}");
         Assert.True(twoSeat >= 2, $"Clappers staggered by two seats {twoSeat} times (of {staggers})");
-        Assert.True(broken >= 2, $"the Bell stilled {broken} times (of {opened} Locks)");
+        // R-SORROW-1 item 1: Still the Bell (the Lock) is gone; Resonance is a kick, cast at least three times and answered by a kick at least once.
+        var resonanceKicked = f.Kicked("greatBell.resonance");
+        var resonanceLanded = f.Landed("greatBell.resonance");
+        _output.WriteLine($"resonance kicked={resonanceKicked} landed={resonanceLanded}");
+        Assert.True(resonanceKicked >= 1, $"Resonance kicked {resonanceKicked} times ({resonanceLanded} landed)");
+        Assert.True(resonanceKicked + resonanceLanded >= 3, $"Resonance cast {resonanceKicked + resonanceLanded} times");
+        Assert.Equal((0, 0), f.Locks);
         Assert.Equal(new[] { "bellfoundry.clapperA", "bellfoundry.clapperB" }, f.Setup.Boss.Twins.Select(t => t.ClassId));
         Assert.Equal("clapperBreak", f.Setup.Boss.TwinsBar.Id);
-        Assert.Equal(new[] { "greatBell.stillTheBell" }, f.Setup.Boss.SuppressedBossCasts);
+        Assert.Empty(f.Setup.Boss.SuppressedBossCasts); // no Lock ability, so nothing is suppressed
     }
 
     [Fact(DisplayName = "D66 boss arena: the Hollow Warden's armed rules are unchanged by the generalised boss config")]
