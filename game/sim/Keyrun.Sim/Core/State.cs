@@ -386,6 +386,19 @@ public sealed class ActorState
     public Vec3? Home { get; set; }
 
     /// <summary>
+    /// IDLE-WANDER (C#-only, layout runs with <c>RunContent.IdleWander</c>; f-c1044aa4): where this idle enemy stands at rest
+    /// (its spot in its pack when the wander began). Its personal sight and assist radii are measured from here, never from
+    /// where it wandered to, so wandering wakes no pack earlier than standing still. Null = not wandering (every oracle run).
+    /// </summary>
+    public Vec3? WanderAnchor { get; set; }
+
+    /// <summary>IDLE-WANDER: the tick the wander began (the loop is read at the ticks since). Meaningful only with <see cref="WanderAnchor"/>.</summary>
+    public int WanderEpoch { get; set; }
+
+    /// <summary>IDLE-WANDER: the pack's closed loop of offsets (an immutable value shared by the pack's members), or null.</summary>
+    public Encounter.IdleWander.Loop? WanderLoop { get; set; }
+
+    /// <summary>
     /// AGGRO-CHASE: true while the actor walks back to <see cref="Home"/> after its group leashed. An evading enemy is idle
     /// (no script, no chase), and nothing engages its group (no ring, damage or assist) until every member is home.
     /// </summary>

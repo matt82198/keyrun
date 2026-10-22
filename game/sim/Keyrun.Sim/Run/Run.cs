@@ -252,6 +252,12 @@ public static class RunRoot
         // R-DOOR-3 / STATE.md D44 ("no gates, just path to boss with packs"): nothing gates the boss pull. The Hollow Door
         // (BossDoor.Admit) is not applied on the forward route; the Forces bar is a run-completion condition (plan #536 S8).
         var groups = Aggro.GroupsOf(run.Dungeon, next.Tick, run.Content.Packs, layout, run.Content.Patrols);
+        if (run.Content.IdleWander)
+        {
+            // IDLE-WANDER: un-engaged packs and pulls (never a patrol, which keeps its route) walk inside their own ring.
+            var patrolIds = (run.Content.Patrols ?? Array.Empty<PatrolPack>()).Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
+            IdleWander.Step(next, groups.Where(g => !patrolIds.Contains(g.Id)).ToList(), encounter, NavGrid.Of(layout));
+        }
         // AGGRO-CHASE leash: evaders that reached home reset, and a pack dragged past its leash gives up, before the aggro
         // check (an evading pack engages on nothing).
         encounter = Leash.Step(next, encounter, groups, run.Content.BaseSpeedMmPerTick, emit);
