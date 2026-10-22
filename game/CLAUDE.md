@@ -8,6 +8,7 @@ Domain CLAUDE.md for the engine build. Decision: STATE.md D12; plan: design/ENGI
 - `project.godot`, `Keyrun.csproj`, `Keyrun.sln`, `export_presets.cfg` - Godot project and export preset "Windows Desktop".
 - `scenes/` - Godot scenes (text .tscn). `src/` - Godot C# (Boot, Host, View, Hud). Godot types live only here.
 - `sim/Keyrun.Sim/` - the deterministic integer rules engine, pure net8.0, no Godot reference.
+- `sim/Keyrun.Sim/Dungeon/` - the seeded dungeon generator (RoomGraphGen, WalkGridGen, PackSlots, PackFiller, DungeonPipeline); plan of record `design/ARCHITECTURE.md` (STATE.md D63); gate `sim/Keyrun.Sim.Tests/Dungeon/SeededDungeonTests.cs`.
 - `sim/Keyrun.Sim.Tests/` - xUnit tests, PurityTests, and `Fixtures/oracle/` (parity data from lane 1B).
 - `sim/ORACLE.md` - the parity contract: trace format, vector fixtures, which TS commit is the reference.
 - `content/Keyrun.Content/` - JSON loader, validator and sim adapter (pure net8.0). Lane 1D, PR #111.
