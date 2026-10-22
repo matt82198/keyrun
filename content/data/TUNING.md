@@ -4,7 +4,7 @@ Usage: every number below is placeholder tuning, not a balance claim. `// TUNE` 
 inline in JSON, so this file is the single marker: **every number in every file under
 `content/data/` is `// TUNE`** unless it is a structural id/count (tick constants, tag strings,
 window ids). Ticks are 20 Hz (50 ms); GCD is fixed at 30 ticks (1.5 s) for every class per
-BIBLE.md D4. Player health 2000, Choir trash health 6000, Pair 1200, Seed 3000, boss health 5000
+BIBLE.md D4. Player health 2000, Choir trash health 6000, Pair 1200, Seed 3000, boss health 27000 (R-BOSS-1)
 (Hollow Warden; tuned 2026-10-18 per Matt, was 60000; see the Dungeon section).
 
 ## Abilities (all `// TUNE`)
@@ -62,7 +62,8 @@ BIBLE.md Sec 9). Control effects: stunned 20 (Charge)/40 (Cold Snap deep freeze)
 empty), silenced 40, blinded 80, chill 60. Shields/mitigation are `damageTakenBp`: braced -1500,
 bracedSelf -3000, braceSelf -4000, ashenSkin -3500, aegisShield -3500, wardShield -3000, wardPulse
 -2000, lockShield -10000 (effectively immune for 3 s). Break bar (Sundered Twins): max 100,
-drains 34/interrupt, 20/control (~3 interrupts to break).
+drains 50/interrupt, 20/control: two kicks from two seats break it (R-BOSS-1 "the two-person timing", was 34,
+~3 interrupts).
 
 ### Floor Window catch radii (mm, `// TUNE`, window-radius-field backlog item)
 
@@ -85,8 +86,11 @@ dmg 80, hymn-field heal 60.
 ## Dungeon
 
 `parTicks` 14400 (12 min at 20 Hz, per BIBLE.md Sec 1). Choir trash 6000 hp; Pair 1200 hp; Seed 3000 hp;
-Hollow Warden boss 5000 hp; Sundered Twins 1000 hp each (tuned 2026-10-18 per Matt, STATE.md D14: was Pair/Seed
-6000, boss 60000, Twins 6000, so that the bot-party autorun reaches and clears the boss).
+Hollow Warden boss 27000 hp; Sundered Twins 3000 hp each (BOSS-TEACHES, ruling R-BOSS-1, 2026-10-21: at key 2 the
+default bot party's Warden fight lasts 90-180 s with the Cleave, two Twins staggers and two Locks each answered at
+least twice, measured 2644 ticks / 132 s by tools/Keyrun.Playtest.Tests/BossTeachesTests.cs; was boss 5000, Twins
+1000, a 585-tick / 29 s fight with one failed Lock and no stagger. Before that, tuned 2026-10-18 per Matt, STATE.md
+D14: was Pair/Seed 6000, boss 60000, Twins 6000, so that the bot-party autorun reaches and clears the boss).
 Enemy script cadences (tuned 2026-10-18 per Matt): `pair.meleeSwing` at 60 every 150 (was loop every 40);
 `hollowWarden.slam` loop every 300 (was 60); `twins.slam` loop every 400 (was 60); `hollowWarden.cleave` stays
 loop every 160. The ability cooldown columns above are unchanged.
@@ -97,10 +101,10 @@ Boss and elite slams (values as the data files hold them; `abilities/enemies.jso
   cooldownTicks 100; script `loop every 100` with telegraph circle radius 2000, leadTicks 20, `spansCast: true`.
   `seed.lash` (script `at: 50, every: 200`, telegraph circle radius 1500, leadTicks 20) and `hollowWarden.cleave`
   (telegraph cone radius 4000, angle1024 200, leadTicks 40) also carry `spansCast: true`.
-- `hollowWarden.slam` (The Hollow Warden, boss, 5000 hp): target shape, `range` 3000, damage 150 physical, castTicks 10,
+- `hollowWarden.slam` (The Hollow Warden, boss, 27000 hp): target shape, `range` 3000, damage 150 physical, castTicks 10,
   cooldownTicks 60; script `loop every 300` (see cadences above) with telegraph circle radius 3000, leadTicks 10,
   `spansCast: true`.
-- `twins.slam` (Sundered Twin A, elite, 1000 hp; Twin B shares the ability): target shape, `range` 3000, damage 90
+- `twins.slam` (Sundered Twin A, elite, 3000 hp; Twin B shares the ability): target shape, `range` 3000, damage 90
   physical, castTicks 10, cooldownTicks 60; script `loop every 400` (see cadences above) with telegraph circle
   radius 3000, leadTicks 10, `spansCast: true` (both Twins' scripts).
 

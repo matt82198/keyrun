@@ -215,8 +215,9 @@ public static class RunRoot
 
         // STUN-IMMUNE-REFUSES (f-94749699): a stun-immune actor (the boss) takes no stun at all; every stun that landed
         // on one this tick is refused with an "immune" event, before the stops and anything else read the state.
+        // BOSS-CC-IMMUNE: the same refusal covers every CC the boss is immune to (RunContent.ImmuneRefusedEffectIds).
         nextState = ControlStops.RefuseImmuneStuns(
-            nextState, new ControlStops.StunRules(content.StunEffectIds, content.StunImmuneClassIds, null), run.State.Tick, emit);
+            nextState, new ControlStops.StunRules(content.ImmuneRefusedEffectIds ?? content.StunEffectIds, content.StunImmuneClassIds, null), run.State.Tick, emit);
 
         // STUN-STOPS-CAST (BIBLE s9.3): a stun, freeze or silence that landed this tick (in combat, or the Break bar's
         // stagger just above) ends an interruptible cast, before the telegraph check below reads the casts. f-c63b43bf: a

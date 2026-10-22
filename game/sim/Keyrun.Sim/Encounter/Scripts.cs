@@ -8,15 +8,19 @@ namespace Keyrun.Sim.Encounter;
 
 /// <summary>One call's output (scripts.ts:118 StepEnemyScriptsResult).</summary>
 /// <param name="Commands">Casts (then chase moves) for the caller to feed to combat this tick.</param>
-/// <param name="TelegraphEvents">"telegraph" events announced this tick.</param>
+/// <param name="Draws">TELEGRAPH-DRAW: the telegraphs drawn this tick, in emission order.</param>
 /// <param name="FiredOnDeath">The fire-once map carried forward plus this call's onDeath casts; pass it back next call.</param>
-public sealed record StepEnemyScriptsResult(IReadOnlyList<Command> Commands, IReadOnlyList<SimEvent> TelegraphEvents, IReadOnlyDictionary<int, IReadOnlyList<string>> FiredOnDeath)
+public sealed record StepEnemyScriptsResult(IReadOnlyList<Command> Commands, IReadOnlyList<TelegraphDraw> Draws, IReadOnlyDictionary<int, IReadOnlyList<string>> FiredOnDeath)
 {
+    /// <summary>The "telegraph" events announced this tick: a projection of <see cref="Draws"/>, in the same order.</summary>
+    public IReadOnlyList<SimEvent> TelegraphEvents => Draws.Select(d => d.ToEvent()).ToList();
+
     /// <summary>
-    /// TELEGRAPH-CANCEL: for each of <see cref="TelegraphEvents"/>, in the same order, the tick its cast is due to start
-    /// when the telegraph spans that cast (<see cref="TelegraphSpec.SpansCast"/>), else null. Empty = none spans a cast.
+    /// TELEGRAPH-CANCEL: for each of <see cref="Draws"/>, in the same order, the tick its cast is due to start when the
+    /// telegraph spans that cast (<see cref="TelegraphSpec.SpansCast"/>), else null: a projection of
+    /// <see cref="TelegraphDraw.CastStartTick"/>.
     /// </summary>
-    public IReadOnlyList<int?> TelegraphCastStarts { get; init; } = Array.Empty<int?>();
+    public IReadOnlyList<int?> TelegraphCastStarts => Draws.Select(d => d.CastStartTick).ToList();
 
     /// <summary>
     /// CAST-FINISH: actor id to the steps still waiting for the actor's cast to land, in firing order; pass it back
@@ -138,51 +142,6 @@ public static class Scripts
         var phase = IntMath.FloorDiv((long)member * every, members);
         var at = step.Trigger == StepTrigger.Loop ? every : step.AtTick;
         return step with { Trigger = StepTrigger.AtTick, AtTick = (int)(at + phase) };
-    }
-
-    // scripts.ts:99 telegraphEventAt: {tick, type, actorId, cast, shape, leadTicks, resolvesTick, origin, yaw,
-    // radius?, angle1024?, length?, width?}.
-    // TELEGRAPH-ANCHOR (finding f-ebb50027, BIBLE s3 "never a lie about where"): a TelegraphSpec.AnchorTarget telegraph's
-    // origin is the caster's current target's position (integer mm), and with no living target on this tick it is not
-    // drawn (null): a shape at the caster would tell the party the wrong ground.
-    private static SimEvent? TelegraphEventAt(SimState state, int tick, int actorId, ActorState actor, string cast, TelegraphSpec tg)
-    {
-        var origin = actor.Pos;
-        if (tg.AnchorTarget)
-        {
-            if (actor.TargetId is not { } targetId || !state.Actors.TryGetValue(targetId, out var target) || !target.Alive)
-            {
-                return null;
-            }
-            origin = target.Pos;
-        }
-        var fields = new List<(string, JsValue)>
-        {
-            ("actorId", JsValue.Int(actorId)),
-            ("cast", JsValue.Str(cast)),
-            ("shape", JsValue.Str(tg.Shape)),
-            ("leadTicks", JsValue.Int(tg.LeadTicks)),
-            ("resolvesTick", JsValue.Int(tick + tg.LeadTicks)),
-            ("origin", JsValue.Vec(origin)),
-            ("yaw", JsValue.Int(actor.Yaw)),
-        };
-        if (tg.Radius is { } r)
-        {
-            fields.Add(("radius", JsValue.Int(r)));
-        }
-        if (tg.Angle1024 is { } a)
-        {
-            fields.Add(("angle1024", JsValue.Int(a)));
-        }
-        if (tg.Length is { } l)
-        {
-            fields.Add(("length", JsValue.Int(l)));
-        }
-        if (tg.Width is { } w)
-        {
-            fields.Add(("width", JsValue.Int(w)));
-        }
-        return new SimEvent(tick, "telegraph", fields.ToArray());
     }
 
     // scripts.ts:126 castCommand: null when the target resolution blocks it.
@@ -416,8 +375,7 @@ public static class Scripts
         var nextPending = new SortedDictionary<int, List<int>>();
         var tick = state.Tick;
         var commands = new List<Command>();
-        var telegraphEvents = new List<SimEvent>();
-        var castStarts = new List<int?>();
+        var draws = new List<TelegraphDraw>();
         var nextFired = new SortedDictionary<int, List<string>>();
         if (firedOnDeath is not null)
         {
@@ -494,10 +452,9 @@ public static class Scripts
                     {
                         // A held spansCast cast starts now, so its re-drawn shape resolves on the tick it lands.
                         var spans = htg.SpansCast && hasCast;
-                        if (TelegraphEventAt(state, tick, actorId, actor, step.Cast, spans ? htg with { LeadTicks = issued!.CastTicks } : htg) is { } hev)
+                        if (TelegraphDraw.At(state, tick, actorId, actor, step, spans ? htg with { LeadTicks = issued!.CastTicks } : htg, abil, spans ? tick : null) is { } hd)
                         {
-                            telegraphEvents.Add(hev);
-                            castStarts.Add(spans ? tick : null);
+                            draws.Add(hd);
                         }
                     }
                     return true;
@@ -527,10 +484,9 @@ public static class Scripts
                     if (deathCast is not null)
                     {
                         commands.Add(deathCast);
-                        if (step.Telegraph is { } dtg && TelegraphEventAt(state, tick, actorId, actor, step.Cast, dtg) is { } dev)
+                        if (step.Telegraph is { } dtg && TelegraphDraw.At(state, tick, actorId, actor, step, dtg, abil, null) is { } dd)
                         {
-                            telegraphEvents.Add(dev);
-                            castStarts.Add(null);
+                            draws.Add(dd);
                         }
                     }
                     continue;
@@ -550,10 +506,9 @@ public static class Scripts
                         var qlead = spans > 0 ? Math.Max(qtg.LeadTicks, spans) : qtg.LeadTicks;
                         var startTick = tick + qlead - spans;
                         if (queuedStarts.Contains((i, startTick))
-                            && TelegraphEventAt(state, tick, actorId, actor, step.Cast, qtg with { LeadTicks = qlead }) is { } qev)
+                            && TelegraphDraw.At(state, tick, actorId, actor, step, qtg with { LeadTicks = qlead }, abil, spans > 0 ? startTick : null) is { } qd)
                         {
-                            telegraphEvents.Add(qev);
-                            castStarts.Add(spans > 0 ? startTick : null);
+                            draws.Add(qd);
                         }
                     }
                     continue;
@@ -575,10 +530,9 @@ public static class Scripts
                         ? issuedNow && CastHeldAt(state, actorId, actor, script, abil, fireTick, tick) == i
                         : CastHeldAt(state, actorId, actor, script, abil, fireTick, FreeTick(actorId, actor, tick, issuedUntil, nextHeld, abil)) == i;
                     if (FiresAt(step, fireTick) && kept
-                        && TelegraphEventAt(state, tick, actorId, actor, step.Cast, tg with { LeadTicks = lead }) is { } sev)
+                        && TelegraphDraw.At(state, tick, actorId, actor, step, tg with { LeadTicks = lead }, abil, fireTick) is { } sd)
                     {
-                        telegraphEvents.Add(sev);
-                        castStarts.Add(fireTick);
+                        draws.Add(sd);
                     }
                 }
                 else if (FiresAt(step, tick + tg.LeadTicks)
@@ -589,10 +543,9 @@ public static class Scripts
                     // ability's cooldown (the Seed's slam at key 2: every 98, cooldown 100), and without this every
                     // second telegraph announced a cast that combat refused not_ready. A frozen-TS replay
                     // (TelegraphSpec.TsUnchecked) keeps the TS rule its oracle trace recorded.
-                    if (TelegraphEventAt(state, tick, actorId, actor, step.Cast, tg) is { } tev)
+                    if (TelegraphDraw.At(state, tick, actorId, actor, step, tg, abil, null) is { } td)
                     {
-                        telegraphEvents.Add(tev);
-                        castStarts.Add(null);
+                        draws.Add(td);
                     }
                 }
             }
@@ -609,6 +562,6 @@ public static class Scripts
         {
             pendingOut[kv.Key] = kv.Value;
         }
-        return new StepEnemyScriptsResult(commands, telegraphEvents, fired2) { TelegraphCastStarts = castStarts, PendingSteps = pendingOut, DeferredCasts = nextHeld };
+        return new StepEnemyScriptsResult(commands, draws, fired2) { PendingSteps = pendingOut, DeferredCasts = nextHeld };
     }
 }

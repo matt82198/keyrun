@@ -1,0 +1,2 @@
+- ABILITY-ANIMS AbilityClipTable maps all 45 content abilities (player and enemy) to a release clip and cast loop the owning KayKit model ships; AbilityClipPlayer writes `ANIM actor=N clip=X ability=Y` to the run log per clip start; AbilityClipTableTests reads each .glb's animation list.
+BUILDLOG: ABILITY-ANIMS every ability now plays its own CC0 clip and the capture log carries one ANIM line per clip start; the kf2 mp4 is a 1 fps slideshow of 46 stills, so motion can only be proven from those log lines, not the video.
