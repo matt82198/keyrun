@@ -1,13 +1,13 @@
 # Playing Keyrun: the tutorial as any class
 
-<!-- Sources: tools/play.ps1 (launch, switches -Record and -Hours), tools/godot/godot.ps1 (Godot path, .NET root, KEYRUN_USER_ARGS), game/src/Host/ArenaOptions.cs (every flag the game reads), game/src/Host/PlayerInput.cs (keys), game/src/Hud/Screen.Input.cs and Screen.TabCharacter.cs (screen keys), game/src/Hud/Queue.cs (Group found), game/src/Hud/RunEndPanel.cs (choice of three), game/src/HostCore/Lobby.cs and HostRunSetup.cs (classes), design/BIBLE.md s9 (dungeon). Verified against main 66d19216 plus PR #592. -->
+<!-- Sources: tools/play.ps1 (launch, switches -Record and -Hours), tools/godot/godot.ps1 (Godot path, .NET root, KEYRUN_USER_ARGS), game/src/Host/ArenaOptions.cs (the flags), game/src/Host/PlayerInput.cs (keys), game/src/Hud/Screen.Input.cs and Screen.TabCharacter.cs (screen keys), game/src/Hud/Queue.cs (Group found), game/src/Hud/RunEndPanel.cs (choice of three), game/src/HostCore/Lobby.cs and HostRunSetup.cs (classes), design/BIBLE.md s9 (dungeon). Verified against main 1497ee4f (PR #592 merged) and the branch merge of it. -->
 
 This page tells you how to play the tutorial dungeon, Hollow Vault at key 2, as Warden, Chanter or Cinder.
 The launch is one command for every class. The class is picked in the game.
 
 ## Prerequisites
 
-- **`tools/play.ps1` is in PR #592 (feat/human-play-path), not yet on main.** This page describes that script. Until #592 merges, the command below does not exist on main.
+- **`tools/play.ps1` is on main** (PR #592, merged as 1497ee4f).
 - **.NET SDK.** The launcher uses `DOTNET_ROOT` if set, else `C:\Users\Mattt\.dotnet` when `dotnet.exe` is there, else `dotnet` on PATH. <!-- tools/play.ps1:32-43 -->
 - **Godot 4.7.2 .NET console binary.** The wrapper uses `$env:KEYRUN_GODOT` if set, else
   `%LOCALAPPDATA%\Microsoft\WinGet\Packages\GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.7.2-stable_mono_win64\Godot_v4.7.2-stable_mono_win64_console.exe`.
@@ -53,7 +53,7 @@ From `KeyBinds.ClientDefaults` (game/src/Host/PlayerInput.cs:324-337, the port o
 | Hold right mouse | Mouselook (cursor captured); release frees the cursor | PlayerInput.cs:197-199 |
 | V | Flip the camera preset | game/content/Keyrun.Content/Model/CameraMode.cs, View/CameraRig.cs:196 |
 
-The class's ability in each slot (`game/content/data/classes/<class>.json` and `game/content/data/abilities/<class>.json`, display names from `name`; key-to-slot mapping at `game/src/HostCore/HostRunSetup.Party.cs:253-261`):
+The class's ability in each slot (`content/data/classes/<class>.json` and `content/data/abilities/<class>.json`, display names from `name`; key-to-slot mapping at `game/src/HostCore/HostRunSetup.Party.cs:253-261`):
 
 | Key | Warden | Chanter | Cinder |
 |---|---|---|---|
@@ -91,24 +91,25 @@ Each run ends with three cards. Each shows its slot, tier and Facet text (RunEnd
 
 ## Other dungeons
 
-**No dungeon flag exists.** `SimDriver.DungeonId` is the constant `"hollow-vault"` (game/src/Host/SimDriver.cs:69), and `ArenaOptions.Parse` reads no dungeon option (game/src/Host/ArenaOptions.cs:139-242). `--dungeon-seed` does not exist either. The second dungeon is in the content registry: `sunken-bellfoundry` landed with #595 (main 78d396e9; the test game/content/Keyrun.Content.Tests/ContentCountTests.cs:72 lists it beside hollow-vault). Nothing selects it yet. Choosing a dungeon by a flag is not in code, and this page does not name one. Until a flag lands, the play command above plays Hollow Vault only.
+**No flag selects a dungeon by id.** `SimDriver.DungeonId` is the constant `"hollow-vault"` (game/src/Host/SimDriver.cs:69), and `ArenaOptions.Parse` has no dungeon-id option. `--dungeon-seed N` (above) changes the layout of the Hollow Vault run from a seed; it does not pick another dungeon. The content registry also holds the C#-only `sunken-bellfoundry` (game/content/Keyrun.Content.Tests/ContentCountTests.cs:70), and nothing selects it yet. This page names no other dungeon until a selector lands. The play command above plays Hollow Vault, hand layout, unless `KEYRUN_USER_ARGS` adds `--dungeon-seed`.
 
 ## Flags the game reads but play.ps1 does not pass
 
-`play.ps1` passes only `--camera vertical --log <file>` (plus `--record-input` under `-Record`). Any other `ArenaOptions` flag needs `KEYRUN_USER_ARGS`. `tools/godot/godot.ps1` appends that variable's whitespace-split value after `--` on every launch (godot.ps1:~79-83), so it reaches play.ps1 too:
+`play.ps1` passes only `--camera vertical --log <file>` (plus `--record-input` under `-Record`). Any other `ArenaOptions` flag needs `KEYRUN_USER_ARGS`. `tools/godot/godot.ps1` appends that variable's whitespace-split value after `--` on every launch (godot.ps1:80-84), so it reaches play.ps1 too:
 
 ```powershell
 $env:KEYRUN_USER_ARGS = '--key 3 --seed 7'
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/play.ps1
 ```
 
-Flags that exist in ArenaOptions.cs (lines 14-18, 167-233):
+The player-facing flags in ArenaOptions.cs (Parse, lines 167-240). The rest of that switch (`--ticks`, `--pull`, `--press-*`, `--abandon-seat`, `--careless-seat`, `--joiner-key`, `--ready-hold`, `--bots-hold`, `--requeue`, `--write-movie`, `--replay-input`) drives scripted proof runs and is not covered here:
 
 | Flag | Meaning |
 |---|---|
 | `--key N` | Starting key level. Default 2. The Key tab can still move it. The floor is 2 (ScreenState.cs:62). |
 | `--seed N` | Run seed. Default 1. |
-| `--talent SEAT:TALENT` | Pick a talent for a seat, repeatable, e.g. `--talent 1:rend` (SeatTalents.cs:23-40). |
+| `--dungeon-seed N` | Plays a seeded two-branch dungeon generated from N (SeededLayout) in place of the hand-built Hollow Vault layout. The seed picks the branch the bots walk. It is a seed, not a dungeon id. (ArenaOptions.cs:195, SimDriver.cs:217-224) |
+| `--talent SEAT:TALENT` | Pick a talent for a seat, repeatable, e.g. `--talent 1:rend` for a Warden run. Seat ids are fixed: Warden 1, Chanter 2, Cinder 3. Talent ids are in `content/data/classes/<class>.json`. (SeatTalents.cs:12-40). |
 | `--rotation N` | Pin the weekly affix rotation (`AffixWeek.ParseOverride`). |
 | `--camera chase\|vertical` | Starting camera preset (CameraMode.cs:34). play.ps1 uses vertical. |
 | `--solo` | Only your seat, no bots. `--autorun` is scripted and not for play. |
