@@ -8,9 +8,8 @@
          phase=filling" line after the boss_add_spawn EVENTs, and every breakbar line names that one bar B (one bar,
          shared, never one per twin);
       b. it fills as the sim value rises: every line's fill equal to (max - current) * 1000 / max, the filling lines of
-         each fill cycle rising at later ticks, and at least one cycle showing a fill above 0 before its break
-         (R-BOSS-1, #561: 50 per interrupt on a 100 bar, so a cycle has one partial fill, 500; it was "at least two
-         filling lines above 0 before the first break" under 34 per interrupt);
+         each fill cycle rising at later ticks (R-BREAKBAR-1: 50 per kick on a 100 bar, two kicks on one tick break it
+         in one step; the drop per kick and the one-kick fill=500 line are proven by BreakBarSceneReplicaTests);
       Since R-BOSS-1 the bots kick the Twins at once, so the bar may break in the step it appears: a asks for an empty
       filling line after the spawn, not that the first line is empty.
       c. it flashes full on break: a stagger EVENT for bar B, then a "fill=1000 phase=broken" line at a later tick;
@@ -68,11 +67,14 @@ function Get-BreakBarFailures([string[]]$all) {
         $want = if ($b.Phase -eq 'broken') { 1000 } elseif ($b.Max -le 0) { 0 } else { [int][math]::Floor(($b.Max - [math]::Min($b.Current, $b.Max)) * 1000 / $b.Max) }
         if ($b.Fill -ne $want) { $out.Add("break-bar b: fill $($b.Fill) is not the sim value (want $want): '$($b.Line)'") }
     }
-    # R-BOSS-1 (#561) set twinsBreak to 50 per interrupt on a 100 bar (was 34): a fill cycle is exactly two interrupts,
-    # so it shows at most one filling value above 0 (500) before the break. The old "at least two filling lines above
-    # 0 before the first break" was the 34-per-interrupt shape (three interrupts, two partial fills) and no R-BOSS-1 bar
-    # can print it. Kept: within every cycle (empty line to broken line) the filling lines rise, and at least one cycle
-    # shows a partial fill above 0 before its break, so the bar visibly fills rather than only flipping to broken.
+    # R-BREAKBAR-1 / R-ORACLE-1 (2026-10-22): twinsBreak drains 50 per interrupt-tagged kick at a Twin on a 100 bar, so
+    # two kicks on one tick drain it in one step (BIBLE s9: draining the shared bar fast is the point). The old "at
+    # least one cycle shows a fill above 0 before its break" held only while the bots' kicks happened to land on
+    # different ticks in the seed-1 run (#569 moved them onto one tick) and is retired. Kept here: every line is the
+    # sim's value (above) and within every cycle (empty line to broken line) the filling lines rise. The named
+    # properties the run log cannot show (it carries no command targets or ability tags) are proven headless by
+    # tools/Keyrun.Playtest.Tests/BreakBarSceneReplicaTests.cs: every step's bar drop is 50 per kick (plus
+    # DrainPerControl per control cast), and one kick shows a "fill=500 phase=filling" line on the boss frame.
     $cycles = New-Object System.Collections.Generic.List[object]
     $cycle = New-Object System.Collections.Generic.List[object]
     foreach ($b in $bars) {
@@ -80,8 +82,6 @@ function Get-BreakBarFailures([string[]]$all) {
         if ($b.Fill -eq 0) { $cycle = New-Object System.Collections.Generic.List[object]; continue }
         $cycle.Add($b)
     }
-    $partialCycles = @($cycles | Where-Object { $_.Count -ge 1 }).Count
-    if ($partialCycles -lt 1) { $out.Add("break-bar b: no filling line above 0 before any break ($($cycles.Count) break(s) seen): the bar only flips to broken") }
     foreach ($rising in $cycles) {
         for ($k = 1; $k -lt $rising.Count; $k++) {
             if ($rising[$k].Fill -le $rising[$k - 1].Fill -or $rising[$k].Tick -le $rising[$k - 1].Tick) {
