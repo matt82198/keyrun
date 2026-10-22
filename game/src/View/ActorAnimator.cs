@@ -26,7 +26,9 @@ namespace Keyrun.View;
 /// animator (<see cref="TryCreate"/> returns null), so it
 /// keeps its static pose. ABILITY-ANIMS: every content ability has its own release and cast loop
 /// (<see cref="AbilityClipTable"/> via <see cref="AbilityClipPlayer"/>), and each ability, flinch or death clip start
-/// writes <c>ANIM actor=N clip=X ability=Y</c> to the run log.
+/// writes <c>ANIM actor=N clip=X ability=Y at=T</c> to the run log. ANIMS-READABLE-2 (<see cref="ReleaseHold"/>): a
+/// release shows for at least 300 ms before a chained cast's pose or wind-up takes the body back, a clip with less left
+/// is slowed, and every ability one step resolved plays in turn.
 /// </summary>
 public sealed class ActorAnimator
 {
@@ -56,6 +58,10 @@ public sealed class ActorAnimator
     private readonly AbilityClipPlayer _abilities;
     private readonly Dictionary<string, string?> _castLoops = new(StringComparer.Ordinal);
     private string? _castAbility;
+    // ANIMS-READABLE-2: where the playing release started (ms into its clip; its window is ReleaseHold.EndsMs from here)
+    // and the abilities one step resolved after the first, played in turn once each release has shown.
+    private int _releaseStartMs;
+    private readonly Queue<string> _queued = new();
 
     private ActorAnimator(AnimationPlayer player, ActorClips clips, int scalePermille, Action<string>? log)
     {
@@ -144,9 +150,10 @@ public sealed class ActorAnimator
                 if (_death is not null)
                 {
                     GD.Print(AnimRule.ViewLine(now.Id, _death, tick) + " kind=Death");
-                    _abilities.Started(now.Id, _death, null);
+                    _abilities.Started(now.Id, _death, null, tick);
                 }
             }
+            _queued.Clear();
             return;
         }
         if (_dead)
@@ -155,9 +162,36 @@ public sealed class ActorAnimator
             _player.Stop();
         }
 
+        // ANIMS-READABLE-2: every ability this step resolved for this actor, in order. The first releases now; the rest
+        // queue and release in turn once the playing release has shown for ReleaseHold.MinReleaseMs (a cast and the
+        // instant fired on its resolve, Flare then Cold Snap, used to draw only the first).
+        string? resolvedId = null;
+        var queuedStart = false;
+        if (newTick && AbilityClipPlayer.Resolved(now.Id, events) is { Count: > 0 } resolvedAll)
+        {
+            _queued.Clear();
+            resolvedId = resolvedAll[0];
+            for (var i = 1; i < resolvedAll.Count; i++)
+            {
+                _queued.Enqueue(resolvedAll[i]);
+            }
+        }
+        else if (ReleaseHold.NextQueuedNow(_queued.Count, PlayingKind(), InReleaseNow()))
+        {
+            resolvedId = _queued.Dequeue();
+            queuedStart = true;
+        }
+        // A release still inside its window holds the body over a cast that started meanwhile (the next cast's pose or
+        // its strike wind-up waits; the wind-up is posed from sim time, so it resumes at the right point).
+        if (resolvedId is null && now.CastId is not null && ReleaseHold.HoldsOffWindup(PlayingKind(), InReleaseNow()))
+        {
+            return;
+        }
+
         // KF1-WINDUP: a cast whose swing has a measured contact frame plays that swing's wind-up (a strike for its whole
         // bar, a spell for its release window), posed from sim time each frame so contact lands on the resolve frame.
-        if (now.CastId is string castId && now.CastStartTick is int castStart && now.CastEndsTick is int castEnds)
+        // ANIMS-READABLE-2: not on a frame that releases an ability (the release plays first).
+        if (resolvedId is null && now.CastId is string castId && now.CastStartTick is int castStart && now.CastEndsTick is int castEnds)
         {
             var name = AbilityClipPlayer.ReleaseName(castId, _rowAct);
             var windClip = AbilityClip(name);
@@ -178,7 +212,7 @@ public sealed class ActorAnimator
                     _player.Play(windClip, windBlend);
                     GD.Print(FormattableString.Invariant(
                         $"ANIM windup actor={now.Id} tick={tick} clip={windClip} ability={castId} ends={castEnds} from={pose.ClipMs} speed={pose.SpeedPermille}"));
-                    _abilities.Started(now.Id, windClip, castId);
+                    _abilities.Started(now.Id, windClip, castId, tick);
                 }
                 _windup = windClip;
                 _oneShot = null;
@@ -193,19 +227,16 @@ public sealed class ActorAnimator
         _windup = null;
 
         // COMBAT-ANIM: the clip choice is AnimRule's (Keyrun.Content, pure); this only gathers the facts and plays.
-        var playing = _oneShot is not null && _player.IsPlaying() && _player.CurrentAnimation == _oneShot
-            ? _oneShotKind
-            : AnimClip.None;
+        var playing = PlayingKind();
         // KF1-WINDUP, ABILITY-ANIMS: the swing is the resolved ability's own clip (AbilityClipTable), else the row's.
-        var resolvedId = AbilityClipPlayer.Resolved(now.Id, events);
         var actName = AbilityClipPlayer.ReleaseName(resolvedId, _rowAct);
         var actClip = AbilityClip(actName);
-        var released = actClip is not null && AnimRule.Resolved(now.Id, Pairs(events));
+        var released = actClip is not null && resolvedId is not null;
         // ABILITY-ANIMS: the cast bar shows the ability's own loop (a spell's Spellcasting, Bulwark's Block), else the row's.
         _castAbility = now.CastId;
         var facts = new AnimFacts(
             Alive: true,
-            NewTick: newTick,
+            NewTick: newTick || queuedStart,
             Moving: speedMps > MoveSpeedMps,
             Casting: now.CastId is not null && CastLoop() is not null,
             Acted: actClip is not null && (released || now.GcdReadyTick > before.GcdReadyTick),
@@ -214,8 +245,8 @@ public sealed class ActorAnimator
             Playing: playing,
             // KF1-READABLE: a release plays over the cast it chains into, for its window, then the cast pose resumes.
             Released: released,
-            InRelease: playing == AnimClip.Act &&
-                AnimRule.InRelease(_oneShotAct, (int)(_player.CurrentAnimationPosition * 1000.0)));
+            // ANIMS-READABLE-2: the window runs at least ReleaseHold.MinReleaseMs from where the release started.
+            InRelease: playing == AnimClip.Act && InReleaseNow());
 
         // KF1-SPAWN-HOLD: the spawn rise holds only while the body stands still with nothing else to show
         // (HoldAnim.KeepsRise); a chaser, caster or swinger cuts it with a longer blend instead of sliding a half-buried
@@ -249,11 +280,19 @@ public sealed class ActorAnimator
                 var from = decision.Clip == AnimClip.Act
                     ? AbilityAnim.ResolveStartMs(actName, woundUp is not null && woundUp == clip) / 1000f
                     : 0f;
+                var speedPermille = 1000; // a one-shot's contact frame is timed at its own rate (AnimRule.SwingStartMs)
                 if (decision.Clip == AnimClip.Act)
                 {
                     _oneShotAct = actName;
+                    // ANIMS-READABLE-2: the release window counts from here, and a clip with less than
+                    // ReleaseHold.MinReleaseMs left is slowed to last that long (never cut).
+                    _releaseStartMs = (int)(from * 1000f);
+                    if (_player.GetAnimation(clip) is { } releaseAnim)
+                    {
+                        speedPermille = ReleaseHold.SpeedPermille(_releaseStartMs, (int)(releaseAnim.Length * 1000f));
+                    }
                 }
-                _player.SpeedScale = 1f; // a one-shot's contact frame is timed at its own rate (AnimRule.SwingStartMs)
+                _player.SpeedScale = speedPermille / 1000f;
                 _player.Play(clip, blend);
                 _player.Seek(from, true);
                 // Proof line (like ACTOR): which one-shot started, on whom, on which tick, from where in the clip.
@@ -262,7 +301,7 @@ public sealed class ActorAnimator
                 // ABILITY-ANIMS proof: a swing names the ability it resolves, a flinch the cast its kick cut.
                 _abilities.Started(now.Id, clip, decision.Clip == AnimClip.Act
                     ? resolvedId
-                    : AbilityClipPlayer.Kicked(now.Id, events));
+                    : AbilityClipPlayer.Kicked(now.Id, events), tick);
             }
             return;
         }
@@ -271,7 +310,7 @@ public sealed class ActorAnimator
         if (decision.Clip == AnimClip.Cast && next is not null && !(_player.CurrentAnimation == next && _player.IsPlaying()))
         {
             GD.Print(AnimRule.ViewLine(now.Id, next, tick) + " kind=Cast");
-            _abilities.Started(now.Id, next, now.CastId);
+            _abilities.Started(now.Id, next, now.CastId, tick);
         }
         // KF1-GAIT: the run or walk loop steps at the body's speed, so the planted foot stays still on the floor.
         _player.SpeedScale = next is not null && next == _move
@@ -319,18 +358,14 @@ public sealed class ActorAnimator
         return clip;
     }
 
-    // One step's events as (type, actorId) pairs for AnimRule.Resolved.
-    private static IEnumerable<(string Type, int? ActorId)> Pairs(IReadOnlyList<SimEvent>? events)
-    {
-        if (events is null)
-        {
-            yield break;
-        }
-        foreach (var e in events)
-        {
-            yield return (e.Type, e.Get("actorId") is JsInt id ? (int)id.Value : null);
-        }
-    }
+    // The one-shot still playing from an earlier frame, or None.
+    private AnimClip PlayingKind() =>
+        _oneShot is not null && _player.IsPlaying() && _player.CurrentAnimation == _oneShot ? _oneShotKind : AnimClip.None;
+
+    // ANIMS-READABLE-2: true while the playing release is inside its window (ReleaseHold.EndsMs from where it started).
+    private bool InReleaseNow() =>
+        PlayingKind() == AnimClip.Act &&
+        ReleaseHold.InRelease(_oneShotAct, _releaseStartMs, (int)(_player.CurrentAnimationPosition * 1000.0));
 
     // One step's events as (type, targetId) pairs for AnimRule.Kicked.
     private static IEnumerable<(string Type, int? TargetId)> Targets(IReadOnlyList<SimEvent>? events)
