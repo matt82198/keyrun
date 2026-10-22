@@ -25,7 +25,7 @@ summary and plan). KeyLedger: timed +1/+2/+3 (par, 80%, 60%), untimed stays. No 
 scripted party, byte-identical to the host bot run (NoPolicyParityTests). HostBackfillRunTests steps HudSceneTest
 runs F and G (game/src/Host/scenes/HudRun{F,G}-SceneTest.ps1) without Godot (game/src/Host/ScriptedWarden.cs and BotCommandSource.cs linked, Backfill.Step every tick)
 and holds HudSceneTest's -AbandonSeat default, so a change that moves the Choir clear fails in game-test. Both projects are in game/Keyrun.sln, so
-game-test runs them; they read sim/content/bots public APIs only and never edit them.
+game-test runs them; they read the game/sim, game/content and game/bots public APIs only and never edit them.
 
 ## tools/fastcheck.ps1
 Per-step lane check: incremental `dotnet build game/Keyrun.sln`, then `dotnet test --no-build` for only the test
@@ -45,19 +45,9 @@ dirs; no cwd pollution).
   The diff uses `--no-renames` so a move out of `game/` still reports its game-side path (`RenameBypassTest`). An
   empty or all-zero base (first push, `github.event.before` zeros) is treated as all paths changed, so the gate
   requires game-e2e success instead of crashing. A missing head or an unknown sha exits 2 (fail closed).
-- **e2e_wait_ratchet.py** - enforcement for escape `e2e-window-ping-flake`. Scans every source file under
-  `tests/client/e2e/**` (nested directories included) and counts EXECUTED wall-clock waits per file: `sleep(`,
-  `waitForTimeout(`, `delay(`, `pause(`, `wait(`, any `setTimeout(` (bare, namespaced, or raw `new Promise`), any alias
-  of `setTimeout` (an import under another name, or `const x = setTimeout`), and any local helper whose body waits on
-  the clock. Comments and string literals are blanked before counting. Each count is compared to
-  `e2e-wait-baseline.json`: a count may not rise and a new file may not add a wait. The fix is `waitForFunction` on
-  exposed state with a bounded timeout. Exit 0 pass, 1 fail, 2 cannot evaluate (missing or invalid baseline, `total`
-  not equal to the sum of `counts`, or no e2e specs found; fails closed). Wired as a step in the `e2e` job of
-  `.github/workflows/tests.yml` before `npm run test:e2e`. Tests live in `test_e2e_wait_ratchet.py`:
-  `EscapeReproductionTest` (the original escape), `RawTimerBypassTest`, `AliasedWaitBypassTest` (nested directories,
-  helpers) and `CommentAndStringTest`. The root cause is the tick-based PingRateLimiter silently dropping a G press;
-  `window-ping.e2e.ts` now re-presses G within a bounded attempt loop and holds no wall-clock wait, so its baseline
-  is 0.
+- **e2e_wait_ratchet.py** - kept as a tool, not wired. It was the enforcement for escape `e2e-window-ping-flake`
+  and scanned the `*.e2e.ts` Playwright suite of the TypeScript client, which PR #553 removed. No workflow
+  runs it now (`.github/workflows/tests.yml` `e2e` has no suite behind it). Its tests are `test_e2e_wait_ratchet.py`.
 - The export/build steps in game.yml carry `timeout-minutes: 12` so a stall fails visibly instead of consuming the
   30-minute job timeout. The root cause (Godot child-process lifetime keeping the step open) is NOT fixed by this
   guard; it only makes the stall fail visibly and blocks merge.
