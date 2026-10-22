@@ -25,7 +25,7 @@ public sealed class LobbyTabsTests
     private static readonly ContentRegistry Registry = ContentLoader.Load();
 
     private static Lobby Fresh(Progression? p = null, int key = 2) =>
-        Lobby.Open(Registry, p ?? Progression.Start(1), Dungeon, Registry.Clauses.Keys.ToList(), key);
+        Lobby.Open(Registry, p ?? Progression.Start(1), Dungeon, Registry.Clauses.Keys.ToList(), key, 0, ScreenState.NoClauseStartKey);
 
     [Fact(DisplayName = "Lobby: opens on Play as the Warden, unlocked, at the asked key")]
     public void Opens_on_play_as_the_default_class()

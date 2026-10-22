@@ -45,7 +45,7 @@ public sealed class QueuedTalentLoadoutTests
         var setup = Setup();
         var baseDef = setup.Content.Abilities[Ability];
         var talented = baseDef with { CooldownTicks = baseDef.CooldownTicks + 120, Cost = baseDef.Cost with { Amount = baseDef.Cost.Amount + 7 } };
-        var state = ScreenState.Open(Dungeon, ClauseIds(setup), 3);
+        var state = ScreenState.Open(Dungeon, ClauseIds(setup), 3, 0, ScreenState.NoClauseStartKey);
 
         var (locked, request) = state.Queue(Loadout(WardenId(setup), talented));
 
@@ -62,7 +62,7 @@ public sealed class QueuedTalentLoadoutTests
     {
         var setup = Setup();
         var baseDef = setup.Content.Abilities[Ability];
-        var state = ScreenState.Open(Dungeon, ClauseIds(setup), 3);
+        var state = ScreenState.Open(Dungeon, ClauseIds(setup), 3, 0, ScreenState.NoClauseStartKey);
 
         var (_, request) = state.Queue();
 
@@ -78,7 +78,7 @@ public sealed class QueuedTalentLoadoutTests
     {
         var setup = Setup();
         var empty = new Dictionary<int, IReadOnlyDictionary<string, AbilityDef>>();
-        var (_, request) = ScreenState.Open(Dungeon, ClauseIds(setup), 3).Queue(empty);
+        var (_, request) = ScreenState.Open(Dungeon, ClauseIds(setup), 3, 0, ScreenState.NoClauseStartKey).Queue(empty);
 
         Assert.Null(request!.ToRunOptions().Loadouts);
         Assert.Same(setup.Content.Abilities, CreateQueued(setup, request).Content.Abilities);
@@ -89,7 +89,7 @@ public sealed class QueuedTalentLoadoutTests
     {
         var setup = Setup();
         var talented = setup.Content.Abilities[Ability] with { CooldownTicks = 999 };
-        var (locked, _) = ScreenState.Open(Dungeon, ClauseIds(setup), 3).Queue();
+        var (locked, _) = ScreenState.Open(Dungeon, ClauseIds(setup), 3, 0, ScreenState.NoClauseStartKey).Queue();
 
         var (again, request) = locked.Queue(Loadout(WardenId(setup), talented));
 
@@ -123,7 +123,7 @@ public sealed class QueuedTalentLoadoutTests
     [Fact(DisplayName = "Talent picks: the queued talented cooldown refuses the second cast in combat; no pick lands all three")]
     public void Queued_talent_changes_combat()
     {
-        var state = ScreenState.Open(Dungeon, new[] { "echo", "tide", "hush", "pact" }, 3);
+        var state = ScreenState.Open(Dungeon, new[] { "echo", "tide", "hush", "pact" }, 3, 0, ScreenState.NoClauseStartKey);
         var (_, plain) = state.Queue();
         var (_, talented) = state.Queue(Loadout(1, BaseZap with { CooldownTicks = 250 }));
 
