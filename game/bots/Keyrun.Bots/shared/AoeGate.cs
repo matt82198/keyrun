@@ -102,7 +102,7 @@ public static class AoeGate
     public static bool IsFiller(AbilityDef def)
     {
         ArgumentNullException.ThrowIfNull(def);
-        return def.CooldownTicks == 0 && def.Cost.Amount == 0;
+        return def.CooldownTicks == 0 && def.Cost.Amount == 0 && !IsShapedAoeDamage(def);
     }
 
     /// <summary>Enemies within this distance of the current target are one cluster (a pack standing together), mm.</summary>

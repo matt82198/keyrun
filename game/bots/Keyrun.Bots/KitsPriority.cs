@@ -37,7 +37,7 @@ public static class KitPriority
     /// no cost. It is always ready, so it goes LAST in the priority list and fills every global no other button can.
     /// </summary>
     internal static bool IsFiller(AbilityDef def, string resource) =>
-        def.CooldownTicks == 0 && KitResources.CostAmount(def, resource) == 0;
+        def.CooldownTicks == 0 && KitResources.CostAmount(def, resource) == 0 && !Keyrun.Bots.Shared.AoeGate.IsShapedAoeDamage(def);
 
     /// <summary>kit-priority.ts tier: cost-paying finishers 0, Payoffs 1, Setups 2, everything else 3, the filler 4 (R-AOE-1).</summary>
     private static int Tier(AbilityDef def, string resource)

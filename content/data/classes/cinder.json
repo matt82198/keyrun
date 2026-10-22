@@ -122,7 +122,7 @@
         {
           "id": "efficient",
           "name": "Efficient",
-          "text": "Much faster cast that hits harder and banks extra Heat; has a shorter cooldown.",
+          "text": "Much faster cast that hits harder and banks extra Heat; adds a short cooldown.",
           "patch": {
             "castTicks": 10,
             "cooldownTicks": 40,

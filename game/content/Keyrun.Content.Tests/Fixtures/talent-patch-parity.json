@@ -3015,7 +3015,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 45,
+        "cooldownTicks": 0,
         "cost": {
           "amount": 0,
           "resource": "none"
@@ -3059,7 +3059,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 45,
+        "cooldownTicks": 0,
         "cost": {
           "amount": 0,
           "resource": "none"
@@ -3521,7 +3521,7 @@
       "ability": {
         "castTicks": 30,
         "charges": 1,
-        "cooldownTicks": 45,
+        "cooldownTicks": 0,
         "cost": {
           "amount": 0,
           "resource": "none"
@@ -3567,7 +3567,7 @@
       "ability": {
         "castTicks": 30,
         "charges": 1,
-        "cooldownTicks": 45,
+        "cooldownTicks": 0,
         "cost": {
           "amount": 0,
           "resource": "none"
