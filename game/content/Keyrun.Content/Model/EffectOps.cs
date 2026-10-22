@@ -40,6 +40,23 @@ public sealed record PullOp : EffectOp
     public required int DistanceMm { get; init; }
 }
 
+/// <summary>
+/// <c>{"op":"displace"}</c>: C#-only (TOOLKIT-CONTRACT lane L2) movement of the CASTER by <see cref="DistanceMm"/>, along
+/// its facing or, with <see cref="TowardTarget"/>, toward the cast's target and never past it; clamped to the arena and
+/// walkable space by the run. No oracle content carries it.
+/// </summary>
+public sealed record DisplaceOp : EffectOp
+{
+    /// <summary>Distance, mm.</summary>
+    public required int DistanceMm { get; init; }
+
+    /// <summary>True also removes rooted and slowed from the caster.</summary>
+    public bool FreesBinds { get; init; }
+
+    /// <summary>True moves toward the cast's target instead of along the facing.</summary>
+    public bool TowardTarget { get; init; }
+}
+
 /// <summary><c>{"op":"heal"}</c>: restore <see cref="Amount"/> health.</summary>
 public sealed record HealOp : EffectOp
 {
