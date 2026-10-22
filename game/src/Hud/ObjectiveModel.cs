@@ -28,15 +28,24 @@ public enum ObjectiveFocus
 /// <param name="Remaining">Enemies of this pull still alive; once complete, enemies still alive anywhere in the run.</param>
 /// <param name="Count">Enemies the pull spawned; once complete, enemies the run spawned.</param>
 /// <param name="Complete">True once the pull index is past the last pull (the run is cleared).</param>
-public sealed record ObjectiveLine(int Number, int Total, string PullId, string Name, int Remaining, int Count, bool Complete, ObjectiveFocus Focus = ObjectiveFocus.Pull)
+/// <param name="Focus">What the task line counts (f-c5fb7b31).</param>
+/// <param name="Segment">1-based segment of a multi-segment dungeon's boss pull (R-MULTIBOSS-1), or 0 for every other pull.</param>
+/// <param name="Segments">Segments in the dungeon when <paramref name="Segment"/> is set, else 0.</param>
+public sealed record ObjectiveLine(int Number, int Total, string PullId, string Name, int Remaining, int Count, bool Complete, ObjectiveFocus Focus = ObjectiveFocus.Pull, int Segment = 0, int Segments = 0)
 {
     /// <summary>
     /// The line a player reads: "Pull 1/4  The Choir" (<see cref="PullHeader.Title"/>; the content <c>teaches</c> note
-    /// is designer intent and is never shown).
+    /// is designer intent and is never shown). On a multi-segment route the segment's boss pull reads "Boss k/n: &lt;boss&gt;"
+    /// while the boss is the pull, and "Segment k/n: toward &lt;boss&gt;" while trash of that segment is what is fought
+    /// (WoW M+ names the boss as the objective only at the boss; the trash objective is forces).
     /// </summary>
     public string Title => Complete
         ? FormattableString.Invariant($"{Name} cleared")
-        : new PullHeader(Number, Total, Name).Title;
+        : Segment > 0
+            ? Focus == ObjectiveFocus.Pull
+                ? FormattableString.Invariant($"Boss {Segment}/{Segments}: {Name}")
+                : FormattableString.Invariant($"Segment {Segment}/{Segments}: toward {Name}")
+            : new PullHeader(Number, Total, Name).Title;
 
     /// <summary>
     /// The task under it: "Defeat the pull: 3 of 3 remain", or "Defeat the pack" while an engaged trash pack is what
@@ -99,6 +108,10 @@ public static class ObjectiveModel
             number = index + 1;
         }
         var name = content is not null && PullHeader.Of(registry!, content, pull.Id) is { } header ? header.Name : pull.Id;
+        // R-MULTIBOSS-1: a segment's boss pull is the segment (k of n) whether the party fights its trash or the boss.
+        var bossAt = content is not null && content.Segments.Count > 1 ? LayoutDef.BossPullIds(content).ToList().IndexOf(pull.Id) : -1;
+        var segment = bossAt + 1;
+        var segments = bossAt >= 0 ? content!.Segments.Count : 0;
         var ids = pull.Spawns.Select(s => s.ActorId).ToHashSet();
         var remaining = run.State.Actors.Values.Count(a => ids.Contains(a.Id) && a.Alive && a.Kind == ActorKind.Enemy);
         // An actor not spawned yet is still owed: count the spawns the state does not hold yet.
@@ -116,14 +129,14 @@ public static class ObjectiveModel
             var engagedLiving = engaged.SelectMany(g => g.ActorIds).Count(id => IsLivingEnemy(run, id));
             if (engagedLiving > 0)
             {
-                return new ObjectiveLine(number, total, pull.Id, name, engagedLiving, engagedSpawned, false, ObjectiveFocus.Pack);
+                return new ObjectiveLine(number, total, pull.Id, name, engagedLiving, engagedSpawned, false, ObjectiveFocus.Pack, segment, segments);
             }
             if (trash.SelectMany(g => g.ActorIds).Any(id => IsLivingEnemy(run, id)))
             {
-                return new ObjectiveLine(number, total, pull.Id, name, remaining, ids.Count, false, ObjectiveFocus.Hidden);
+                return new ObjectiveLine(number, total, pull.Id, name, remaining, ids.Count, false, ObjectiveFocus.Hidden, segment, segments);
             }
         }
-        return new ObjectiveLine(number, total, pull.Id, name, remaining, ids.Count, false);
+        return new ObjectiveLine(number, total, pull.Id, name, remaining, ids.Count, false, ObjectiveFocus.Pull, segment, segments);
     }
 
     private static bool IsLivingEnemy(Run run, int actorId) =>

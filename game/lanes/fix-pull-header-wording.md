@@ -1,0 +1,2 @@
+- FIX-PULL-HEADER-WORDING: on a multi-segment route the objective header reads "Segment k/n: toward <boss>" while a segment's trash is fought and "Boss k/n: <boss>" while that segment's boss is the pull, with the Hollow Vault's "Pull 1/4  The Choir" unchanged (f-6dc7ab02).
+BUILDLOG: FIX-PULL-HEADER-WORDING: the Bellfoundry header no longer reads "Pull 1/3  <boss>" over a trash pack; ObjectiveLine.Title now words a segment's boss pull as Segment k/n while trash is fought and Boss k/n while the boss is fought, and the single-boss Hollow Vault header is unchanged.
