@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Keyrun.Sim.Core;
+using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Runs;
 
 namespace Keyrun.Playtest;
@@ -64,6 +66,7 @@ public static class Summary
             }
             w.WriteNumber("key", options.Key);
             w.WriteNumber("seed", options.Seed);
+            w.WriteString("dungeon", options.DungeonId);
             w.WriteString("policy", header.PolicyPath);
             w.WriteString("policyReason", options.Policy?.Reason);
             w.WriteString("result", outcome.Label);
@@ -81,6 +84,13 @@ public static class Summary
             w.WriteBoolean("depleted", run.Encounter.Depleted);
             var lost = run.RunEnd.Result is not null && run.Encounter.PullIndex < run.Dungeon.Pulls.Count ? PlaytestRunner.PullIdOf(run) : null;
             w.WriteString("lostOnPull", lost);
+
+            // Enemy Forces (the sim's own bar, Forces.Read) and kills (dead enemy actors, the same state the bar reads).
+            var forces = run.Dungeon.ForcesGoal is { } goal ? goal.Read(run.State) : new ForcesReading(0, 0);
+            w.WriteNumber("forcesPoints", forces.Points);
+            w.WriteNumber("forcesRequired", forces.Required);
+            w.WriteNumber("forcesPercent", forces.PercentBp / 100.0);
+            w.WriteNumber("kills", run.State.Actors.Values.Count(a => a.Kind == ActorKind.Enemy && !a.Alive));
 
             w.WriteStartArray("pulls");
             foreach (var p in stats.Pulls)
