@@ -81,7 +81,8 @@ public static class LayoutValidator
             Fail("box 0 \"" + first.Id + "\" must be a room with no pull and no gate (the party's start)");
         if (!Inside(first, layout.Start)) Fail("start is outside box 0 \"" + first.Id + "\"");
 
-        var pullOrder = dungeon.Pulls.Select(p => p.Id).Append(LayoutDef.BossPullId).ToList();
+        // R-MULTIBOSS-1: one boss pull per segment (LayoutDef.BossPullIds), each in exactly one room, in fight order.
+        var pullOrder = dungeon.Pulls.Select(p => p.Id).Concat(LayoutDef.BossPullIds(dungeon)).ToList();
         var roomOfPull = new Dictionary<string, int>(System.StringComparer.Ordinal);
         for (int k = 0; k < boxes.Count; k++)
         {
@@ -215,7 +216,7 @@ public static class LayoutValidator
             LayoutPoint origin = room.Origin ?? throw Error("pull room \"" + room.Id + "\" has no spawn origin");
             if (room.Pull == pullOrder[0]) choirRoom = room;
             long cx = origin.X, cz = origin.Z;
-            if (room.Pull != LayoutDef.BossPullId)
+            if (!LayoutDef.IsBossPull(room.Pull))
             {
                 PullDef pull = dungeon.Pulls.First(p => p.Id == room.Pull);
                 long sx = 0, sz = 0, n = 0;
@@ -333,7 +334,7 @@ public static class LayoutValidator
                     Fail("required " + where + " ring (" + pack.AggroMm + " mm) never meets the walking line");
                 if (!SegmentClears(layout.Start, layout.Start, pack.Center, pack.AggroMm))
                     Fail("required " + where + " ring holds the start (a run would start in a fight)");
-                if (room!.Pull == LayoutDef.BossPullId)
+                if (LayoutDef.IsBossPull(room!.Pull))
                     Fail("required " + where + " stands in the boss's room");
             }
         }
@@ -404,7 +405,7 @@ public static class LayoutValidator
         if (room.AggroMm is { } aggro && aggro <= 0) Fail(where + " aggroMm must be positive");
 
         IEnumerable<LayoutPoint> spawns;
-        if (room.Pull == LayoutDef.BossPullId)
+        if (LayoutDef.IsBossPull(room.Pull))
         {
             spawns = new[] { origin };
         }

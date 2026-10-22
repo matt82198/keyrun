@@ -15,6 +15,35 @@ public sealed record LayoutDef
     /// <summary>The pull id the host gives the boss pull (HostRunSetup appends the content boss as pull "boss").</summary>
     public const string BossPullId = "boss";
 
+    /// <summary>
+    /// R-MULTIBOSS-1: the prefix of an earlier segment's boss pull id in a multi-segment dungeon (<c>boss-s1</c>); the
+    /// final segment's boss keeps <see cref="BossPullId"/>, so everything keyed to "boss" still means the final boss.
+    /// </summary>
+    public const string BossPullPrefix = "boss-";
+
+    /// <summary>True for <see cref="BossPullId"/> and for an earlier segment's boss pull (<see cref="BossPullPrefix"/>).</summary>
+    /// <param name="pullId">A pull id.</param>
+    public static bool IsBossPull(string? pullId) =>
+        pullId is not null && (string.Equals(pullId, BossPullId, System.StringComparison.Ordinal) || pullId.StartsWith(BossPullPrefix, System.StringComparison.Ordinal));
+
+    /// <summary>
+    /// The boss pull ids of <paramref name="dungeon"/> in fight order (R-MULTIBOSS-1): one per segment of a multi-segment
+    /// dungeon (<c>boss-&lt;segment id&gt;</c> for each but the last, then <see cref="BossPullId"/>), else just
+    /// <see cref="BossPullId"/>.
+    /// </summary>
+    /// <param name="dungeon">The dungeon.</param>
+    /// <returns>The ids, first fight first.</returns>
+    public static System.Collections.Generic.IReadOnlyList<string> BossPullIds(DungeonDef dungeon)
+    {
+        System.ArgumentNullException.ThrowIfNull(dungeon);
+        if (dungeon.Segments.Count <= 1)
+        {
+            return new[] { BossPullId };
+        }
+        return System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(
+            dungeon.Segments, (s, i) => i == dungeon.Segments.Count - 1 ? BossPullId : BossPullPrefix + s.Id));
+    }
+
     /// <summary>The dungeon this layout belongs to.</summary>
     public required string Dungeon { get; init; }
 

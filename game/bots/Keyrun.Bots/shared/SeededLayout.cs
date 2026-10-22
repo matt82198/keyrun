@@ -188,6 +188,113 @@ public static class SeededLayout
         return new SegmentedDungeon(dungeonId, graph, grid, fill, branches, Walk(graph, grid, branches));
     }
 
+    /// <summary>
+    /// A pack on the walking line stands this far from its room's west wall, mm: the party's pass through the room meets its
+    /// ring (a required pack), with the ring's edge well past the doorway.
+    /// </summary>
+    public const int OnLineDepthMm = 12000;
+
+    /// <summary>
+    /// R-MULTIBOSS-1: a multi-segment dungeon (<see cref="BuildSegmented"/>) as the run's content: <paramref name="reg"/> with its
+    /// layout replaced by the seeded one, so the host's setup (HostRunSetup.Build) and the bots need no new rules. The layout is
+    /// the walked chain (<see cref="SegmentWalk.Boxes"/>): the entrance, then per segment the walked branch's rooms and
+    /// corridors up to that segment's boss room. Each boss room holds its boss pull (<see cref="C.LayoutDef.BossPullIds"/>:
+    /// "boss-s1", "boss-s2", then "boss"), the arena's size in z and, for the final boss, in x. The walked branch's packs are
+    /// required packs on the walking line (the party pulls each as it walks through, so the forces bar fills on the way to the
+    /// last boss); the untaken branches' packs are optional packs off the line, beside the route. The dungeon's own pulls
+    /// stay empty (trash is packs). The walked chain obeys every layout invariant (<see cref="C.LayoutValidator"/>, fail closed).
+    /// </summary>
+    /// <param name="reg">Loaded content (the hand layout supplies the formation and the boss arena's size and ring).</param>
+    /// <param name="dungeonId">A multi-segment dungeon, e.g. "sunken-bellfoundry".</param>
+    /// <param name="seed">The run seed.</param>
+    /// <returns>The content with the seeded layout.</returns>
+    /// <exception cref="C.ContentLoadException">The seeded layout breaks a layout invariant.</exception>
+    /// <exception cref="InvalidOperationException">An unknown dungeon or a grid that does not cut into boxes.</exception>
+    public static C.ContentRegistry ArmSegmented(C.ContentRegistry reg, string dungeonId, long seed)
+    {
+        ArgumentNullException.ThrowIfNull(reg);
+        var d = BuildSegmented(reg, dungeonId, seed);
+        var dungeon = reg.Dungeons[dungeonId];
+        var bossPulls = C.LayoutDef.BossPullIds(dungeon);
+        var hand = reg.Layout;
+        var arena = hand.Boxes.First(b => string.Equals(b.Pull, C.LayoutDef.BossPullId, StringComparison.Ordinal));
+        var graph = d.Graph;
+        var corridors = Corridors(graph, d.Grid);
+        var chain = d.Walk.Chain.ToList();
+
+        var rooms = new Dictionary<int, C.LayoutBox>();
+        foreach (var n in graph.Nodes)
+        {
+            if (n.Kind != RoomKind.Boss)
+            {
+                rooms[n.Id] = RoomBox(d.Grid, n, null, 0);
+                continue;
+            }
+            // The boss fills its segment's arena: the room widened to the arena's depth (z; x too for the final boss, which has
+            // no corridor out), centred on the row of the walked door in, and a pull room whose spawns stand 11.5 m from it.
+            var segment = graph.BossRooms.ToList().IndexOf(n.Id);
+            var door = corridors[(chain[chain.IndexOf(n.Id) - 1], n.Id)][^1];
+            var doorZ = Mid(door.MinZ, door.MaxZ);
+            rooms[n.Id] = PullRoom(RoomBox(d.Grid, n, arena, doorZ, widenX: segment == graph.SegmentCount - 1), bossPulls[segment], PullDepthMm, arena.AggroMm, doorZ);
+        }
+
+        var walk = Walk(graph, d.Grid, d.Branches, n => rooms[n.Id]);
+        var boxes = walk.Boxes;
+        var route = new List<C.LayoutPoint>();
+        for (var k = 0; k + 1 < boxes.Count; k++)
+        {
+            route.Add(DoorPoint(boxes[k], boxes[k + 1]));
+        }
+        route.Add(boxes[^1].Origin!);
+
+        // The first room of each (segment, branch): the box id a pack's Branch names.
+        string FirstRoom(int segment, int branch) => RoomBoxId(d.Fill.Branches.Single(b => b.Segment == segment && b.Branch == branch).Rooms[0]);
+        // The walked branch's packs are required, in route order, until the forces bar is covered (the party pulls what the
+        // bar needs); every pack past that point, and every untaken branch's pack, is an optional pack beside the route.
+        var walkedPacks = new List<C.LayoutPack>();
+        var sidePacks = new List<C.LayoutPack>();
+        var required = 0;
+        foreach (var p in d.Fill.Packs)
+        {
+            var roster = reg.Roster[p.PackId];
+            var onRoute = p.Branch == d.Branches[p.Segment];
+            var needed = onRoute && required < reg.Forces.Required;
+            if (needed)
+            {
+                required += p.Points;
+            }
+            var room = rooms[p.RoomId];
+            var pack = new C.LayoutPack
+            {
+                Id = p.InstanceId,
+                Name = roster.Name,
+                Room = room.Id,
+                Optional = !needed,
+                Center = needed ? new C.LayoutPoint { X = room.MinX + OnLineDepthMm, Z = Mid(room.MinZ, room.MaxZ) } : SlotPoint(room, p.Slot),
+                AggroMm = roster.AggroMm,
+                Enemies = roster.Enemies,
+                Branch = FirstRoom(p.Segment, p.Branch),
+            };
+            (needed ? walkedPacks : sidePacks).Add(pack);
+        }
+
+        var entrance = rooms[graph.EntranceId];
+        var layout = new C.LayoutDef
+        {
+            Dungeon = dungeonId,
+            Start = new C.LayoutPoint { X = entrance.MinX + StartDepthMm, Z = Mid(entrance.MinZ, entrance.MaxZ) },
+            Boxes = new C.ValueList<C.LayoutBox>(boxes),
+            Route = new C.ValueList<C.LayoutPoint>(route),
+            Packs = new C.ValueList<C.LayoutPack>(walkedPacks.Concat(sidePacks)),
+            Formation = hand.Formation,
+            SideBoxes = new C.ValueList<C.LayoutBox>(walk.SideBoxes),
+        };
+        var armed = reg with { Layout = layout };
+        // Fail closed: the walked chain obeys every layout invariant (the side branches are drawn, never walked or validated).
+        C.LayoutValidator.Check(armed with { Layout = layout with { Packs = new C.ValueList<C.LayoutPack>(walkedPacks), SideBoxes = new() } });
+        return armed;
+    }
+
     /// <summary>Generates, fills and lays out the dungeon for <paramref name="seed"/>.</summary>
     /// <param name="reg">Loaded content (its hand-built layout supplies the formation and the boss arena's size and ring).</param>
     /// <param name="seed">The run seed.</param>
@@ -266,7 +373,7 @@ public static class SeededLayout
     // fight needs the space), anchored on its west wall and centred on the walked door's row (doorZ) while still holding
     // its grid cells, so both branches' doors stay on its wall and the walk in is straight along +x, like the hand route
     // (the formation stands behind the leader along -x, so a diagonal turn at the door would put a slot in the wall).
-    private static C.LayoutBox RoomBox(WalkGrid grid, RoomNode n, C.LayoutBox? arena, int doorZ)
+    private static C.LayoutBox RoomBox(WalkGrid grid, RoomNode n, C.LayoutBox? arena, int doorZ, bool widenX = true)
     {
         var r = grid.Rooms[n.Id];
         var c = grid.CellMm;
@@ -276,7 +383,10 @@ public static class SeededLayout
         var maxZ = (int)(grid.OriginZ + ((long)(r.MaxCz + 1) * c));
         if (arena is not null)
         {
-            maxX = Math.Max(maxX, minX + (arena.MaxX - arena.MinX));
+            if (widenX)
+            {
+                maxX = Math.Max(maxX, minX + (arena.MaxX - arena.MinX));
+            }
             var half = (arena.MaxZ - arena.MinZ) / 2;
             (minZ, maxZ) = (Math.Min(minZ, doorZ - half), Math.Max(maxZ, doorZ + half));
         }

@@ -52,7 +52,9 @@ public sealed partial record HostRunSetup
     /// <see cref="MaxBossAdds"/>, an onEmpty op is not applyEffect, or the boss has more than one Lock ability or a Lock
     /// without exactly one window and one applyEffect op.</exception>
     /// <param name="twinHealthBp">Tyrannical's health on the adds, bp (plan M5: "the boss and its adds"); 10000 for none.</param>
-    public static BossConfig BuildBossConfig(C.ContentRegistry registry, C.EnemyDef boss, int keyLevel, int twinHealthBp = 10000)
+    /// <param name="bossActorId">R-MULTIBOSS-1: the boss actor's id (<see cref="BossActorIdOf"/>); its adds take the ids after it.
+    /// Default <see cref="BossActorId"/>, so the Hollow Vault's Twins stay 901 and 902.</param>
+    public static BossConfig BuildBossConfig(C.ContentRegistry registry, C.EnemyDef boss, int keyLevel, int twinHealthBp = 10000, int bossActorId = BossActorId)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(boss);
@@ -76,7 +78,7 @@ public sealed partial record HostRunSetup
                 throw new InvalidOperationException($"run setup: {where} bar \"{bar.Id}\" is shared by {twinDefs.Count} enemies, expected 1 to {MaxBossAdds} adds");
             }
             twins = twinDefs.Select((def, i) => new BossTwinSpec(
-                TwinActorIdStart + i,
+                bossActorId + 1 + i,
                 def.Id,
                 Affixes.ScaleHealth(Tempo.ScaleHealth(def.MaxHealth, keyLevel), twinHealthBp),
                 AddOffsets[i],
@@ -97,7 +99,7 @@ public sealed partial record HostRunSetup
         }
         if (locks.Count == 0)
         {
-            return new BossConfig(BossActorId, twins, twinsBar)
+            return new BossConfig(bossActorId, twins, twinsBar)
             {
                 LockThresholdBp = 0,
                 SuppressedBossCasts = Array.Empty<string>(),
@@ -111,7 +113,7 @@ public sealed partial record HostRunSetup
         {
             throw new InvalidOperationException($"run setup: Lock \"{lockAbility.Id}\" needs one window op and one applyEffect op (has {window.Count} and {shield.Count})");
         }
-        return new BossConfig(BossActorId, twins, twinsBar)
+        return new BossConfig(bossActorId, twins, twinsBar)
         {
             LockWindowTicks = window[0].DurationTicks,
             ShieldEffectId = shield[0].EffectId,

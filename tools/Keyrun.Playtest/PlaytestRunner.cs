@@ -115,7 +115,8 @@ public static class PlaytestRunner
         var content = baseRegistry ?? C.ContentLoader.Load();
         var policy = options.Policy;
         var registry = policy is null ? content : WithTalents(content, policy);
-        var setup = HostRunSetup.Build(registry, options.DungeonId, options.Key, HostRunSetup.Roster[0].ClassId, withBots: true);
+        // R-MULTIBOSS-1: the run seed also generates a multi-segment dungeon's layout (the Sunken Bellfoundry); the Hollow Vault ignores it.
+        var setup = HostRunSetup.Build(registry, options.DungeonId, options.Key, HostRunSetup.Roster[0].ClassId, withBots: true, dungeonSeed: options.Seed);
         // R7: HostRunFactory, the host's assembly path. No bot loadouts and no options record, as this runner always
         // built its runs (RunRequest.BotLoadouts), so the playtest output is unchanged.
         var run = HostRunFactory.Create(setup, new RunRequest(options.Seed, registry, HostRunSetup.Roster[0].ClassId)

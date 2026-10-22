@@ -49,7 +49,7 @@ public static class NavLayouts
         {
             var room = RoomOf(layout, pull.Id);
             var origin = room.Origin!;
-            var boss = string.Equals(pull.Id, C.LayoutDef.BossPullId, StringComparison.Ordinal);
+            var boss = C.LayoutDef.IsBossPull(pull.Id); // R-MULTIBOSS-1: "boss" and an earlier segment's "boss-<segment>"
             var spawns = pull.Spawns.Select(s => s with
             {
                 Pos = boss ? new Vec3(origin.X, s.Pos.Y, origin.Z) : new Vec3(origin.X + s.Pos.X, s.Pos.Y, origin.Z + s.Pos.Z),
