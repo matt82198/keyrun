@@ -30,8 +30,10 @@ game-test runs them; they read the game/sim, game/content and game/bots public A
 ## tools/fastcheck.ps1
 Per-step lane check: incremental `dotnet build game/Keyrun.sln`, then `dotnet test --no-build` for only the test
 projects the path table at the top of the script maps the diff (vs `git merge-base origin/main HEAD`, plus uncommitted
-and untracked files) to. Fails closed: an unmapped path, a git failure or an empty diff runs all three projects. Exit
-nonzero on any build error or test failure. A speed tool for lanes only; CI game-test still runs the full solution.
+and untracked files) to. Fails closed: an unmapped path, a git failure or an empty diff runs all four projects (Content,
+Sim, Bots, Playtest: every test project in game/Keyrun.sln, as CI game-test runs). The summary line lists each suite's
+passed count, e.g. `fastcheck: PASS in 99s (Content 946, Sim 1477, Bots 364, Playtest 218)`. Exit nonzero on any
+build error or test failure. A speed tool for lanes only; CI game-test still runs the full solution.
 
 ## tools/ci/
 Stdlib-only CI guards. Tests: `python -m unittest discover -s tools/ci -p "test_*.py"` (fixtures live in tempfile
@@ -44,7 +46,13 @@ dirs; no cwd pollution).
   blocks merge of game-path PRs. Escape-reproduction tests live in `test_game_gate.py` (`EscapeReproductionTest`).
   The diff uses `--no-renames` so a move out of `game/` still reports its game-side path (`RenameBypassTest`). An
   empty or all-zero base (first push, `github.event.before` zeros) is treated as all paths changed, so the gate
-  requires game-e2e success instead of crashing. A missing head or an unknown sha exits 2 (fail closed).
+  requires game-e2e success instead of crashing. A missing head or an unknown sha exits 2 (fail closed). Each
+  `--require name=result` (game.yml passes changes, game-test, game-e2e) must be `success`, so a skipped required job
+  fails the gate (`RequiredJobsTest`); game-gate also runs both gate test files first.
+- **docs_scope.py** - the Game workflow's one docs-only decision, run by its `changes` job; writes `code=true|false`.
+  Docs: STATE.md, BUILDLOG.md, docs/**, design/**, research/**, game/lanes/*.md, and *.md outside tools/, game/,
+  bots/, client/, .github/. A docs-only PR runs game-test and game-e2e as pass-throughs on ubuntu-latest (no Windows
+  runner queue). An unresolvable base or empty diff is code; an unknown sha exits 2. Tests: `test_docs_scope.py`.
 - **e2e_wait_ratchet.py** - kept as a tool, not wired. It was the enforcement for escape `e2e-window-ping-flake`
   and scanned the `*.e2e.ts` Playwright suite of the TypeScript client, which PR #553 removed. No workflow
   runs it now (`.github/workflows/tests.yml` `e2e` has no suite behind it). Its tests are `test_e2e_wait_ratchet.py`.
