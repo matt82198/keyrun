@@ -56,7 +56,7 @@
     "effects": [
       {
         "op": "damage",
-        "amount": 100,
+        "amount": 130,
         "school": "physical"
       },
       {

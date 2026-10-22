@@ -109,7 +109,7 @@ public static class AoeGate
     public const long ClusterMm = 3000;
 
     /// <summary>A cluster-mate must out-health the current target by at least this much to take the single-target press, hp.</summary>
-    public const long SpreadMarginHp = 350;
+    public const long SpreadMarginHp = 250;
 
     /// <summary>
     /// R-AOE-1 "kill most of them at the same time": the enemy a single-target damage press should land on. Shaped AoE
