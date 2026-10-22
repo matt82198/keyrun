@@ -105,7 +105,18 @@ public sealed class ForkParityNoiseStudyTests
         return copy;
     }
 
-    [Theory(DisplayName = "fork parity noise study > a sibling worse by 3 sd on one axis is red through the parity failure path; worse by 1 sd is not")]
+    /// <summary>Base with the same axis made worse by <paramref name="sigmas"/> sd in every run listed.</summary>
+    private static IReadOnlyList<RunMeasures> WorseIn(string axis, double sigmas, params int[] runs)
+    {
+        var copy = Base.ToArray();
+        foreach (var run in runs)
+        {
+            copy[run] = WorseBy(axis, sigmas, run)[run];
+        }
+        return copy;
+    }
+
+    [Theory(DisplayName = "fork parity noise study > a sibling worse by 3 sd on one axis in two scenarios is red through the parity failure path; in one scenario, or by 1 sd, it is not (f-bee3bf93)")]
     [InlineData("clear")]
     [InlineData("deaths")]
     [InlineData("combos")]
@@ -114,16 +125,63 @@ public sealed class ForkParityNoiseStudyTests
         var known = new Dictionary<string, string>();
         for (var run = 0; run < Base.Length; run++)
         {
-            var three = WorseBy(axis, 3, run);
+            var other = (run + 1) % Base.Length;
+            var three = WorseIn(axis, 3, run, other);
             Assert.True(ForkParityTests.Dominates(Base, three));
             var red = ForkParityTests.DominanceFailures(new[] { Double("double.worse", ("sharp", Base), ("dull", three)) }, known, NoiseTolerance.Measured);
             Assert.Single(red);
             Assert.StartsWith("double.worse:dull is dominated by sharp beyond noise", red[0]);
             Assert.Contains(axis + " ", red[0]);
 
-            var one = WorseBy(axis, 1, run);
+            // One scenario beyond the noise is not a pattern (f-bee3bf93): it is recorded, never red.
+            var lone = WorseIn(axis, 3, run);
+            Assert.True(ForkParityTests.Dominates(Base, lone));
+            Assert.Empty(ForkParityTests.DominanceFailures(new[] { Double("double.lone", ("sharp", Base), ("dull", lone)) }, known, NoiseTolerance.Measured));
+
+            var one = WorseIn(axis, 1, run, other);
             Assert.True(ForkParityTests.Dominates(Base, one));
             Assert.Empty(ForkParityTests.DominanceFailures(new[] { Double("double.noise", ("sharp", Base), ("dull", one)) }, known, NoiseTolerance.Measured));
+        }
+    }
+
+    /// <summary>
+    /// f-bee3bf93: chanter.dissonance amplify vs discord on #601 f5fc3f08. Discord is at least as good everywhere, but the
+    /// k2 margins are inside the tolerance and only hv-k10-s7 combos (26 > 21) is beyond it: one scenario, so no gate.
+    /// </summary>
+    [Fact(DisplayName = "fork parity noise study > amplify vs discord on #601 (one beyond-noise scenario of three) does not gate")]
+    public void Lone_beyond_noise_margin_does_not_gate()
+    {
+        var amplify = new[] { new RunMeasures(2873, 1, 93, "timed"), new RunMeasures(2506, 0, 93, "timed"), new RunMeasures(3050, 0, 106, "timed") };
+        var discord = new[] { new RunMeasures(2624, 1, 113, "timed"), new RunMeasures(2318, 0, 108, "timed"), new RunMeasures(2930, 0, 132, "timed") };
+        var none = new Dictionary<string, string>();
+        Assert.True(ForkParityTests.Dominates(discord, amplify));
+        Assert.Empty(ForkParityTests.DominanceFailures(new[] { Double("chanter.dissonance", ("amplify", amplify), ("discord", discord)) }, none, NoiseTolerance.Measured));
+        Assert.False(ForkParityMargins.DominatesBeyondNoise(discord, amplify, NoiseTolerance.Measured));
+        // The margin itself is real: with a second beyond-noise scenario (k2-s7 combos 93 + 22) it gates.
+        var twice = new[] { discord[0] with { Combos = 93 + 22 }, discord[1], discord[2] };
+        Assert.NotEmpty(ForkParityTests.DominanceFailures(new[] { Double("chanter.dissonance", ("amplify", amplify), ("discord", twice)) }, none, NoiseTolerance.Measured));
+    }
+
+    [Fact(DisplayName = "fork parity noise study > the seed dump writes one row per option per seed per key, and only when a path is given")]
+    public void Seed_dump_has_one_row_per_option_per_seed()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "fork-parity-seeddump-" + Guid.NewGuid().ToString("N") + ".tsv");
+        try
+        {
+            var plain = ForkParityNoiseStudy.Run(2, new string('a', 40), null);
+            Assert.False(File.Exists(path));
+            var dumped = ForkParityNoiseStudy.Run(2, new string('a', 40), path);
+            Assert.Equal(plain, dumped); // the dump never changes the study
+            var rows = File.ReadAllLines(path).Where(l => l.Length > 0 && !l.StartsWith('#')).ToList();
+            var registry = ForkParityTests.Registry.Value;
+            var options = registry.Classes.Values.SelectMany(c => c.Talents).Sum(f => f.Options.Count) + 1; // + base
+            Assert.Equal(2 * 2 * options, rows.Count);
+            Assert.All(rows, r => Assert.Equal(6, r.Split('\t').Length));
+            Assert.Contains(rows, r => r.StartsWith("k2\tbase\t1\t", StringComparison.Ordinal));
+        }
+        finally
+        {
+            File.Delete(path);
         }
     }
 }

@@ -37,7 +37,7 @@ public partial class Screen
         // R1: the band reads the Clause from the same rotation index and content clauseStartKey the run is built with,
         // as the Key tab does (Screen.cs Lobby.Open), so the reopened key never shows a Clause the run does not carry.
         var clauseStartKey = _driver.Registry is { } reg ? reg.Run.Affixes.ClauseStartKey : ScreenState.NoClauseStartKey;
-        var to = ScreenState.Open(SimDriver.DungeonId, ClauseIds(), move.To, _driver.RotationIndex, clauseStartKey).KeyLevel;
+        var to = ScreenState.Open(_driver.SelectedDungeonId, ClauseIds(), move.To, _driver.RotationIndex, clauseStartKey).KeyLevel;
         if (_lobby is { } lobby)
         {
             _lobby = lobby.ReturnFrom(_driver.Run);

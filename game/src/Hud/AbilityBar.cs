@@ -23,6 +23,8 @@ namespace Keyrun.Hud;
 /// ability=ID icon=PATH tex=WxH" line per slot when a run's setup arrives (HudSceneTest check 40). Lane CHARGE-COOLDOWN:
 /// a multi-charge ability shows its ready charges in the corner and reads on cooldown only with none ready, counting
 /// down to the NEXT charge (<see cref="ChargeReadout"/>, the sim's own charge timestamp), not to the last one.
+/// Slots name abilities by their themed display name (game/content/data/ability-text.json), and a hovered or held slot
+/// shows a tooltip generated from content (AbilityBar.Tooltip.cs, Matt 2026-10-22).
 /// </summary>
 public partial class AbilityBar : Control
 {
@@ -87,6 +89,10 @@ public partial class AbilityBar : Control
     /// <param name="event">The input event.</param>
     public override void _UnhandledInput(InputEvent @event)
     {
+        if (!_scripted && @event is InputEventKey { Echo: false } held && KeyInput?.Binds.ActionFor(held.PhysicalKeycode) is { } heldAction)
+        {
+            TrackHold(held, heldAction); // the tooltip's key hold (AbilityBar.Tooltip.cs); the event is not consumed
+        }
         if (_scripted || @event is not InputEventKey { Pressed: true, Echo: false } key || KeyInput?.Binds.ActionFor(key.PhysicalKeycode) is not { } action)
         {
             return;
@@ -118,6 +124,7 @@ public partial class AbilityBar : Control
     public override void _Process(double delta)
     {
         RefreshIcons();
+        UpdateTooltip(delta);
         if (Driver?.Options.Autorun == true)
         {
             PrintRangeTint();
@@ -277,7 +284,7 @@ public partial class AbilityBar : Control
             var gcd = def.GcdTicks > 0 && me.GcdReadyTick > now ? Mathf.Clamp((float)(me.GcdReadyTick - now) / def.GcdTicks, 0f, 1f) : 0f;
             var shortResource = def.Cost.Resource != "none" && me.Resource < def.Cost.Amount;
             var outOfRange = OutOfRange(run, me, def);
-            DrawSlot(font, rect, key, Driver.AbilityName(def.Id), shortResource ? 0.45f : 1f, outOfRange, false, icon, cdFraction > 0f ? CooldownIconAlpha : 1f);
+            DrawSlot(font, rect, key, SlotName(def.Id), shortResource ? 0.45f : 1f, outOfRange, false, icon, cdFraction > 0f ? CooldownIconAlpha : 1f);
             if (cdFraction > 0f)
             {
                 DrawRect(new Rect2(rect.Position, new Vector2(rect.Size.X, rect.Size.Y * cdFraction)), CooldownShade);
@@ -309,6 +316,7 @@ public partial class AbilityBar : Control
             var errorRect = new Rect2(origin.X, origin.Y - 44 - 34, width, 30);
             DrawCentered(font, errorRect, Keyrun.Content.RangeReadout.ErrorText, 20, ToColor(Keyrun.Content.AbilitySlotLook.OutOfRangeTint).Lightened(0.25f));
         }
+        DrawTooltip(font);
     }
 
     // Lane RANGE-READOUT: the range glyph, a double-headed distance arrow in the slot's bottom-left corner (the
@@ -380,6 +388,10 @@ public partial class AbilityBar : Control
         var lines = words.Length == 2 && font.GetStringSize(name, HorizontalAlignment.Left, -1, NameFont).X > rect.Size.X - 8
             ? words
             : new[] { name };
+        if (Array.Exists(lines, l => font.GetStringSize(l, HorizontalAlignment.Left, -1, NameFont).X > rect.Size.X - 8))
+        {
+            lines = new[] { Keyrun.Content.AbilityTextTable.Initials(name) }; // too narrow: the display name's initials
+        }
         for (var i = 0; i < lines.Length; i++)
         {
             var y = rect.End.Y - 8 - ((lines.Length - 1 - i) * (NameFont + 2));

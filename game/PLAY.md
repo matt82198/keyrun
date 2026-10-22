@@ -20,8 +20,8 @@ The launch is one command for every class. The class is picked in the game.
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/play.ps1
 ```
 
-`tools/play.ps1` takes two switches only: `-Record` (also writes the session's keys to `play-<stamp>.input-log.json`) and `-Hours`. <!-- tools/play.ps1:23-26 -->
-It has no class, key, dungeon or seed parameter.
+`tools/play.ps1` takes three switches: `-Record` (also writes the session's keys to `play-<stamp>.input-log.json`), `-Hours` and `-Dungeon` (a dungeon id, default `hollow-vault`). <!-- tools/play.ps1:26-30 -->
+It has no class, key or seed parameter.
 
 | Class | Launch line | Pick on the Character tab |
 |---|---|---|
@@ -91,7 +91,7 @@ Each run ends with three cards. Each shows its slot, tier and Facet text (RunEnd
 
 ## Other dungeons
 
-**No flag selects a dungeon by id.** `SimDriver.DungeonId` is the constant `"hollow-vault"` (game/src/Host/SimDriver.cs:69), and `ArenaOptions.Parse` has no dungeon-id option. `--dungeon-seed N` (above) changes the layout of the Hollow Vault run from a seed; it does not pick another dungeon. The content registry also holds the C#-only `sunken-bellfoundry` (game/content/Keyrun.Content.Tests/ContentCountTests.cs:70), and nothing selects it yet. This page names no other dungeon until a selector lands. The play command above plays Hollow Vault, hand layout, unless `KEYRUN_USER_ARGS` adds `--dungeon-seed`.
+**The Sunken Bellfoundry.** Start it with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/play.ps1 -Dungeon sunken-bellfoundry`. The script passes `--dungeon sunken-bellfoundry` to the game (`ArenaOptions.DungeonId`, `DungeonPick.Resolve`), and the pre-run screen opens on that dungeon; an id the content lacks stops the launch and lists the known ids. The Bellfoundry has three bosses, one per segment, and the run ends only when the last one dies (R-MULTIBOSS-1). Its rooms are generated from a seed: the run seed (`--seed N`, default 1) unless `--dungeon-seed N` is given, so the same seed always lays out the same dungeon. Without `-Dungeon` the play command plays the Hollow Vault, hand layout, unless `KEYRUN_USER_ARGS` adds `--dungeon-seed`.
 
 ## Flags the game reads but play.ps1 does not pass
 
@@ -108,7 +108,8 @@ The player-facing flags in ArenaOptions.cs (Parse, lines 167-240). The rest of t
 |---|---|
 | `--key N` | Starting key level. Default 2. The Key tab can still move it. The floor is 2 (ScreenState.cs:62). |
 | `--seed N` | Run seed. Default 1. |
-| `--dungeon-seed N` | Plays a seeded two-branch dungeon generated from N (SeededLayout) in place of the hand-built Hollow Vault layout. The seed picks the branch the bots walk. It is a seed, not a dungeon id. (ArenaOptions.cs:195, SimDriver.cs:217-224) |
+| `--dungeon ID` | The dungeon to play, `hollow-vault` (default) or `sunken-bellfoundry`; `play.ps1 -Dungeon` passes it. (ArenaOptions.cs, DungeonPick.cs) |
+| `--dungeon-seed N` | Plays a seeded two-branch dungeon generated from N (SeededLayout) in place of the hand-built Hollow Vault layout. The seed picks the branch the bots walk. For the Bellfoundry it overrides `--seed` as the layout seed. It is a seed, not a dungeon id. (ArenaOptions.cs, SimDriver.cs) |
 | `--talent SEAT:TALENT` | Pick a talent for a seat, repeatable, e.g. `--talent 1:rend` for a Warden run. Seat ids are fixed: Warden 1, Chanter 2, Cinder 3. Talent ids are in `content/data/classes/<class>.json`. (SeatTalents.cs:12-40). |
 | `--rotation N` | Pin the weekly affix rotation (`AffixWeek.ParseOverride`). |
 | `--camera chase\|vertical` | Starting camera preset (CameraMode.cs:34). play.ps1 uses vertical. |

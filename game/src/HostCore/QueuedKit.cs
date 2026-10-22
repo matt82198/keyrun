@@ -41,7 +41,7 @@ public static class QueuedKit
         // each Facet's GearPatch on this kit from the progression; a Facet applied here as well (the Screen did, before
         // this) ran twice, so an appended op such as Chilling Bash's slow played two times per cast.
         var talented = talents is { Count: > 0 } picks ? picks.Resolve(registry.Abilities) : new C.ValueMap<C.AbilityDef>();
-        var setup = HostRunSetup.Build(registry with { Abilities = Merge(registry.Abilities, talented) }, state.DungeonId, state.KeyLevel, classId, withBots: false);
+        var setup = HostRunSetup.Build(registry with { Abilities = Merge(registry.Abilities, talented) }, state.DungeonId, state.KeyLevel, classId, withBots: false, dungeonSeed: DungeonPick.KitSeed);
         IReadOnlyDictionary<int, IReadOnlyDictionary<string, AbilityDef>>? loadouts = talented.Count == 0
             ? null
             : new Dictionary<int, IReadOnlyDictionary<string, AbilityDef>>

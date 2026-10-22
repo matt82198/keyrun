@@ -39,6 +39,9 @@ internal static class ForkParityNoiseStudy
     /// <summary>The environment variable that makes the study run and rewrite the file.</summary>
     public const string StudyVariable = "KEYRUN_FORKPARITY_NOISESTUDY";
 
+    /// <summary>The environment variable naming a file that receives every seed's per-option measures (f-bee3bf93).</summary>
+    public const string SeedDumpVariable = "KEYRUN_FORKPARITY_SEEDDUMP";
+
     /// <summary>The study file, next to ForkParity.margins.txt.</summary>
     public const string FileName = "fork-parity-noise.json";
 
@@ -161,8 +164,22 @@ internal static class ForkParityNoiseStudy
     }
 
     /// <summary>Runs the study over seeds 1..<paramref name="seeds"/> and renders the study file.</summary>
-    public static string Run(int seeds, string mainSha)
+    /// <param name="seeds">Seeds 1..seeds per key.</param>
+    /// <param name="mainSha">The sha the study records.</param>
+    /// <param name="seedDumpPath">When set (default: the <see cref="SeedDumpVariable"/> environment variable), the per-seed
+    /// per-option measures are also written there as tab-separated rows "key option seed clear deaths combos" (f-bee3bf93).
+    /// The returned study text is the same either way.</param>
+    public static string Run(int seeds, string mainSha, string? seedDumpPath = null)
     {
+        seedDumpPath ??= Environment.GetEnvironmentVariable(SeedDumpVariable);
+        var dump = new StringBuilder("# key\toption\tseed\tclear\tdeaths\tcombos\n");
+        void Dump(string key, string option, IReadOnlyList<RunMeasures> runs)
+        {
+            for (var i = 0; i < runs.Count; i++)
+            {
+                dump.Append(string.Create(CultureInfo.InvariantCulture, $"{key}\t{option}\t{i + 1}\t{runs[i].ClearTick}\t{runs[i].Deaths}\t{runs[i].Combos}\n"));
+            }
+        }
         var registry = ForkParityTests.Registry.Value;
         using var stream = new MemoryStream();
         using (var w = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
@@ -191,6 +208,7 @@ internal static class ForkParityNoiseStudy
                 w.WriteNumber("medianBaseClear", medianBase);
                 w.WriteStartObject("options");
                 WriteStats(w, "base", baseRuns);
+                Dump(key, "base", baseRuns);
                 var pairSds = new List<(string Name, double[] Mean, double[] Sd)>();
                 foreach (var cls in registry.Classes.Values)
                 {
@@ -201,6 +219,7 @@ internal static class ForkParityNoiseStudy
                         foreach (var (id, runs) in options)
                         {
                             WriteStats(w, fork.AbilityId + ":" + id, runs);
+                            Dump(key, fork.AbilityId + ":" + id, runs);
                         }
                         for (var i = 0; i < options.Count; i++)
                         {
@@ -251,6 +270,10 @@ internal static class ForkParityNoiseStudy
             w.WriteNumber("combos", tol.Combos);
             w.WriteEndObject();
             w.WriteEndObject();
+        }
+        if (!string.IsNullOrEmpty(seedDumpPath))
+        {
+            File.WriteAllText(seedDumpPath, dump.ToString());
         }
         return Encoding.UTF8.GetString(stream.ToArray()).Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
     }

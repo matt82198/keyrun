@@ -57,7 +57,7 @@ public sealed class ReferenceTests
             if (e.Periodic is not null) CheckOps(new[] { e.Periodic.Op }, refs, "effect " + e.Id);
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(31, refs.Checked); // vacuity guard: exact ref count from the JSON (+6: the resonance, overheatedCore, slagBurn, boilingBlood, bronzeWard and lockShield applyEffects of abilities/bellfoundry.json, D66; was 25;+4: the searingHex, cinders, stoked and rooted applyEffects of abilities/vault.json, VAULT-KITS S1; was 21)
+        Assert.Equal(34, refs.Checked); // vacuity guard: exact ref count from the JSON (+3: R-SORROW-1 adds the moltenBrand, fannedCoals, stunned (Resonance) and drenched (Drowned Dirge) applyEffects and drops lockShield with Still the Bell; was 31;+6: the resonance, overheatedCore, slagBurn, boilingBlood, bronzeWard and lockShield applyEffects of abilities/bellfoundry.json, D66; was 25;+4: the searingHex, cinders, stoked and rooted applyEffects of abilities/vault.json, VAULT-KITS S1; was 21)
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class ReferenceTests
         }
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(91, refs.Checked); // vacuity guard: exact ref count from the JSON (+4: vault.patroller 2 abilities and 2 script steps, R-PATROL-4; was 87;+39: the ten enemies/bellfoundry.json entries, 20 abilities, 16 script steps, the clapperBreak onEmpty and the two Clappers' breakBarId, D66; was 48;+2: seed.lash ability and script step, KF3; +2: seed.lock ability and script step, SEED-LOCK-TEACHES; +2: hall.sentry ability and script step, PATH-PACKS, STATE.md D49; +14: the five enemies/vault.json kits, 7 abilities and 7 script steps, VAULT-KITS S1)
+        Assert.Equal(105, refs.Checked); // vacuity guard: exact ref count from the JSON (+4: vault.patroller 2 abilities and 2 script steps, R-PATROL-4; was 101;+14: the five Bellfoundry-owned mob kinds' seven abilities and seven script steps, R-SORROW-1; was 87;+39: the ten enemies/bellfoundry.json entries, 20 abilities, 16 script steps, the clapperBreak onEmpty and the two Clappers' breakBarId, D66; was 48;+2: seed.lash ability and script step, KF3; +2: seed.lock ability and script step, SEED-LOCK-TEACHES; +2: hall.sentry ability and script step, PATH-PACKS, STATE.md D49; +14: the five enemies/vault.json kits, 7 abilities and 7 script steps, VAULT-KITS S1)
     }
 
     [Fact]

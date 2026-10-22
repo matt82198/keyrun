@@ -125,7 +125,9 @@ public sealed class SunkenBellfoundryMobTests
     public void Furnace_thrall_bursts_on_death_unless_its_core_was_kicked()
     {
         var kick = Reg.Abilities.Values.First(a => a.Id.StartsWith("cinder.", System.StringComparison.Ordinal) && a.Effects.Any(o => o is C.InterruptOp)).Id;
-        Run Thrall() => Arena(new[] { new Mob(100, "bellfoundry.furnaceThrall", 0, 0) }, tank: (0, 1500), healer: (8000, 8000), damage: (1500, 0));
+        // R-SORROW-1 item 3: Slag Burst is a 40-tick cast now (a corpse bar runs on), so a second, far Bell keeps the pull open (a lone
+        // Thrall death clears the pull and ends the run on the next tick) and the burst is judged at tick 250, not 210.
+        Run Thrall() => Arena(new[] { new Mob(100, "bellfoundry.furnaceThrall", 0, 0), new Mob(101, "bellfoundry.tollingBell", 30000, 0) }, tank: (0, 1500), healer: (8000, 8000), damage: (1500, 0));
 
         // Uncovered: Stoke Core lands, the Thrall is Overheated; killed, it bursts and the player beside it burns.
         var (hot, _) = StepTo(Thrall(), 200);
@@ -133,7 +135,7 @@ public sealed class SunkenBellfoundryMobTests
         var thrall = hot.State.Actors[100];
         thrall.Health = 0;
         thrall.Alive = false;
-        var (burst, burstEvents) = StepTo(hot, 210);
+        var (burst, burstEvents) = StepTo(hot, 250);
         Assert.Contains(burstEvents, e => e.Type == "cast_complete" && e.Get("abilityId") is JsString { Value: "furnaceThrall.slagBurst" });
         Assert.True(Has(burst, Damage, "slagBurn"), "the player beside the burst does not burn");
         Assert.False(Has(burst, Healer, "slagBurn"), "the player far from the burst burns");
@@ -156,7 +158,7 @@ public sealed class SunkenBellfoundryMobTests
         var coldThrall = cold.State.Actors[100];
         coldThrall.Health = 0;
         coldThrall.Alive = false;
-        var (quiet, quietEvents) = StepTo(cold, 210);
+        var (quiet, quietEvents) = StepTo(cold, 250);
         Assert.DoesNotContain(quietEvents, e => e.Type == "cast_complete" && e.Get("abilityId") is JsString { Value: "furnaceThrall.slagBurst" });
         Assert.False(Has(quiet, Damage, "slagBurn"));
     }
