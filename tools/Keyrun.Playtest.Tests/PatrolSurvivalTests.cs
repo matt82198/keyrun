@@ -33,18 +33,17 @@ public sealed class PatrolSurvivalTests
         var lastPatrolDeath = patrolDeaths.Max(d => d.Tick);
         var wardenDeath = deaths.Where(d => d.Actor == WardenId).Select(d => (int?)d.Tick).FirstOrDefault();
         Assert.True(wardenDeath is null || wardenDeath > lastPatrolDeath,
+            // (a death on the last patrol death's own tick counts as not finishing it: strictly after)
             $"the Warden died at tick {wardenDeath} before the patrol was dead (last patrol death {lastPatrolDeath})");
 
-        // R-PATROL-3b: the Warden finishes the patrol with at least 10% of its max health (40 of 400) left.
+        // R-PINS-1 (R-ORACLE-1 applied, ruling on #573), replacing R-PATROL-3b's single-seed floor of 40 HP (main stood at 42,
+        // the aggro-chase trajectory at 22): the property this test is for, the Warden finishes the patrol alive. No death
+        // event for him up to the last patrol death, and health above 0 at it.
         var hp = WardenHealthAt(run, lastPatrolDeath);
-        Assert.True(hp >= MinHealthLeft, $"the Warden had {hp} of {WardenMaxHealth} health at the last patrol death (tick {lastPatrolDeath}); want at least {MinHealthLeft}");
+        Assert.True(hp > 0, $"the Warden had {hp} of {WardenMaxHealth} health at the last patrol death (tick {lastPatrolDeath}); want him alive");
     }
 
     private const long WardenMaxHealth = 400;
-    private const long MinHealthLeft = 40;
-
-    /// <summary>R-PATROL-3c: the three-seat guard floor, 20% of the Warden's max health (was a quarter, 100).</summary>
-    private const long GuardMinHealthDamage = 80;
 
     /// <summary>The Warden's health at <paramref name="tick"/>: full at the start, less each health damage it takes, plus each heal (capped at max), in event order.</summary>
     private static long WardenHealthAt(HostBackfillRunTests.ArenaRun run, int tick)
@@ -72,8 +71,8 @@ public sealed class PatrolSurvivalTests
         return hp;
     }
 
-    [Fact(DisplayName = "Patrol survival (R-PATROL-3 guard, R-PATROL-3c floor 20%): the patrol engages and the Warden loses at least 20% of its max health to it")]
-    public void Default_party_engages_the_patrol_and_the_warden_loses_a_quarter_of_its_health()
+    [Fact(DisplayName = "Patrol survival (R-PATROL-3 guard, R-PINS-1): the patrol engages, hits the Warden, and the Warden survives it")]
+    public void Default_party_engages_the_patrol_which_hits_the_warden_and_he_survives_it()
     {
         var run = HostBackfillRunTests.Arena(HostBackfillRunTests.BackfillTicks, null, joinerKey: null);
         Assert.Contains(run.Events, x => x.Event.Type == "pack_engage" && x.Event.Get("packId") is JsString { Value: "corridor-patrol" });
@@ -81,10 +80,15 @@ public sealed class PatrolSurvivalTests
             .Where(x => x.Event.Type == "damage" && ActorOf(x.Event, "targetId") == WardenId
                         && ActorOf(x.Event, "sourceId") is >= FirstPatrolActorId and <= LastPatrolActorId)
             .Sum(x => ActorOf(x.Event, "healthDamage"));
-        // R-PATROL-3c: the floor is 20% of max health (80 of 400), not a quarter. WHY: BIBLE test 1 says a key is hard because
-        // of what enemies do, not how much health they have; the 22-raw sweep measured 87 here (raw 23 gives 92, raw 24 gives 95),
-        // and the survival floor (42 Warden HP at the last patrol death) rules out more raw chip damage. Depth comes from a
-        // telegraphed patrol cast in a later slice.
-        Assert.True(taken >= GuardMinHealthDamage, $"the Warden took {taken} health damage from the patrol, under {GuardMinHealthDamage} (20% of its 400 max)");
+        // R-PINS-1 (R-ORACLE-1 applied, ruling on #573), replacing R-PATROL-3c's single-seed floor of 80 damage (the 22-raw
+        // sweep measured 87 on main; the aggro-chase trajectory with #540's filler measures 50): the property this guard is
+        // for, the patrol stays a real pull. It engages, its hits land on the Warden, and he survives it.
+        Assert.True(taken > 0, "the patrol never damaged the Warden: it is not a real pull");
+        var deaths = run.Events.Where(x => x.Event.Type == "death").Select(x => (Tick: x.Event.Tick, Actor: ActorOf(x.Event, "actorId"))).ToList();
+        var patrolDeaths = deaths.Where(d => d.Actor is >= FirstPatrolActorId and <= LastPatrolActorId).ToList();
+        Assert.Equal(2, patrolDeaths.Count);
+        var last = patrolDeaths.Max(d => d.Tick);
+        Assert.DoesNotContain(deaths, d => d.Actor == WardenId && d.Tick <= last);
+        Assert.True(WardenHealthAt(run, last) > 0, $"the Warden had {WardenHealthAt(run, last)} health at the last patrol death (tick {last})");
     }
 }

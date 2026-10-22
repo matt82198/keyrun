@@ -31,5 +31,24 @@
   "classArmorBp": {
     "warden": 3500
   },
-  "stunImmuneEnemies": ["hollowWarden.boss", "bellfoundry.ommet", "bellfoundry.brineMother", "bellfoundry.greatBell"]
+  "stunImmuneEnemies": ["hollowWarden.boss", "bellfoundry.ommet", "bellfoundry.brineMother", "bellfoundry.greatBell"],
+  "enemyScriptAt": {
+    "pair.melee": { "pair.spreadMark": 80, "pair.stackCall": 280 }
+  },
+  "cleaved": {
+    "abilityId": "hollowWarden.cleave",
+    "effectId": "cleaved",
+    "durationTicks": 400
+  },
+  "enemyAggro": {
+    "aggroMm": 8000,
+    "assistMm": 3000,
+    "leashMm": 30000,
+    "kinds": {
+      "hollowWarden.boss": { "aggroMm": 0, "assistMm": 0, "leashMm": 0 },
+      "bellfoundry.ommet": { "aggroMm": 0, "assistMm": 0, "leashMm": 0 },
+      "bellfoundry.brineMother": { "aggroMm": 0, "assistMm": 0, "leashMm": 0 },
+      "bellfoundry.greatBell": { "aggroMm": 0, "assistMm": 0, "leashMm": 0 }
+    }
+  }
 }

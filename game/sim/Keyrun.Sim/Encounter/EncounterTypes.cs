@@ -173,6 +173,15 @@ public sealed record PullSpawn(int ActorId, string ClassId, Vec3 Pos, int Yaw, l
 
     /// <summary>Copied onto ActorState only when present.</summary>
     public long? ChaseMarginMm { get; init; }
+
+    /// <summary>AGGRO-CHASE: the enemy's own aggro radius (<see cref="ActorState.AggroMm"/>), mm; null = the group ring only.</summary>
+    public long? AggroMm { get; init; }
+
+    /// <summary>AGGRO-CHASE: the enemy's assist radius (<see cref="ActorState.AssistMm"/>), mm; null = never assists.</summary>
+    public long? AssistMm { get; init; }
+
+    /// <summary>AGGRO-CHASE: the enemy's leash distance (<see cref="ActorState.LeashMm"/>), mm; null = never leashes.</summary>
+    public long? LeashMm { get; init; }
 }
 
 /// <summary>One pull (sim/encounter/pulls.ts:28 PullDef).</summary>

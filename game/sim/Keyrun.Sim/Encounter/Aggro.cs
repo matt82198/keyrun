@@ -142,24 +142,31 @@ public static class Aggro
                 }
                 continue;
             }
-            if (players.Any(p => InRing(p.Pos, g.Center, g.AggroMm)) || g.ActorIds.Any(id => TookDamage(before, after, id)))
+            if (EnemyAggro.Evading(after, g))
+            {
+                // AGGRO-CHASE leash: a pack walking home engages on nothing until every member is back (Leash).
+                continue;
+            }
+            if (players.Any(p => InRing(p.Pos, g.Center, g.AggroMm)) || g.ActorIds.Any(id => TookDamage(before, after, id)) ||
+                EnemyAggro.SeesPlayer(after, g, players))
             {
                 hit.Add(g.Id);
             }
         }
-        // Links chain-pull: symmetric and transitive.
-        var changed = hit.Count > 0;
+        // Links chain-pull (symmetric and transitive) and AGGRO-CHASE assist (an idle enemy within its assist radius of an
+        // engaged enemy, or of a member of a group engaging this tick, brings its group in: the body pull), to a fixpoint.
+        var changed = hit.Count > 0 || EnemyAggro.AnyAssister(after);
         while (changed)
         {
             changed = false;
             foreach (var g in groups)
             {
-                if (hit.Contains(g.Id) || Pulls.IsEngaged(encounter, g.Id))
+                if (hit.Contains(g.Id) || Pulls.IsEngaged(encounter, g.Id) || g.ActorIds.Count == 0 || EnemyAggro.Evading(after, g))
                 {
                     continue;
                 }
                 var linked = g.Links.Any(hit.Contains) || groups.Any(o => hit.Contains(o.Id) && o.Links.Contains(g.Id, StringComparer.Ordinal));
-                if (linked)
+                if (linked || (g.ActivateRoom is null && EnemyAggro.Assisted(after, g, groups, hit)))
                 {
                     hit.Add(g.Id);
                     changed = true;
