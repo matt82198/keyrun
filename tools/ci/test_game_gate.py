@@ -179,5 +179,44 @@ class FailClosedTest(unittest.TestCase):
                                              "--e2e-result", "success", "--repo", repo]), 2)
 
 
+class RequiredJobsTest(unittest.TestCase):
+    """game-gate --require: a required Game job that was skipped, failed or cancelled fails the
+    gate even on a non-game diff. A skipped required check counts as success for branch
+    protection, so the gate is what keeps a skipped game-test from passing a code PR."""
+
+    def test_skipped_game_test_on_code_pr_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, base, head = _pr_fixture(tmp, {"server/index.ts": "export const e = 5;\n"})
+            for result in ("skipped", "failure", "cancelled", ""):
+                rc = game_gate.main(["--base", base, "--head", head, "--e2e-result", "success",
+                                     "--require", "changes=success",
+                                     "--require", "game-test=%s" % result,
+                                     "--require", "game-e2e=success", "--repo", repo])
+                self.assertEqual(rc, 1, result)
+
+    def test_failed_changes_job_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, base, head = _pr_fixture(tmp, {"README.md": "docs\n"})
+            rc = game_gate.main(["--base", base, "--head", head, "--e2e-result", "skipped",
+                                 "--require", "changes=failure",
+                                 "--require", "game-test=skipped",
+                                 "--require", "game-e2e=skipped", "--repo", repo])
+            self.assertEqual(rc, 1)
+
+    def test_docs_only_pass_throughs_succeed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, base, head = _pr_fixture(tmp, {"README.md": "docs\n"})
+            rc = game_gate.main(["--base", base, "--head", head, "--e2e-result", "success",
+                                 "--require", "changes=success",
+                                 "--require", "game-test=success",
+                                 "--require", "game-e2e=success", "--repo", repo])
+            self.assertEqual(rc, 0)
+
+    def test_malformed_require_fails(self):
+        self.assertFalse(game_gate.evaluate_required(["game-test"])[0])
+        self.assertFalse(game_gate.evaluate_required(["=success"])[0])
+        self.assertTrue(game_gate.evaluate_required([])[0])
+
+
 if __name__ == "__main__":
     unittest.main()
