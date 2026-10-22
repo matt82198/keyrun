@@ -18,8 +18,9 @@ public sealed class TauntThriftTests
     private static ActorState Warden() =>
         Actor(id: 2, classId: "warden", role: ActorRole.Tank, health: 400, maxHealth: 400, maxResource: 100);
 
-    private static ActorState Seat(int id, long z, long health) =>
-        Actor(id: id, classId: "cinder", role: ActorRole.Damage, health: health, maxHealth: health, maxResource: 100, z: z);
+    // A party seat that is actually hitting the enemy it is aimed at (TargetId): the committed-damage estimate counts it.
+    private static ActorState Seat(int id, long z, long health, int? targetId) =>
+        Actor(id: id, classId: "cinder", role: ActorRole.Damage, health: health, maxHealth: health, maxResource: 100, z: z, targetId: targetId);
 
     private static ActorState Enemy(int id, long z, int targetId, long health) =>
         Actor(id: id, kind: ActorKind.Enemy, classId: "choir.melee", role: ActorRole.None, z: z, health: health, maxHealth: health,
@@ -31,18 +32,32 @@ public sealed class TauntThriftTests
         return TankRole.TankDecide(ViewOf(10, RealKits, null, actors), tank).ToList();
     }
 
-    [Fact(DisplayName = "Warden taunt thrift R-TAUNT-4a > does not taunt an enemy whose remaining HP is below the party's committed damage over the taunt window")]
-    public void NoTauntOnEnemyThatDiesInWindow()
+    [Fact(DisplayName = "Warden taunt thrift R-TAUNT-5 > with two loose enemies in range, the taunt goes to the one the party does not kill in the window (doomed is an ordering key)")]
+    public void TauntPrefersNonDoomedLooseEnemy()
+    {
+        // Enemy 100 is nearer the tank, has 1 HP and is aimed at the Cinder seat, so the party kills it inside the window.
+        // Enemy 101 is healthy and farther. Without the doomed ordering key, the nearer doomed enemy would be taunted.
+        var cmds = Decide(
+            Warden(),
+            Seat(3, 4000, 250, targetId: 100),
+            Enemy(100, 1000, targetId: 3, health: 1),
+            Enemy(101, 2500, targetId: 3, health: 6720));
+        Assert.Contains(new CastCommand(10, 2, "warden.taunt", 101), cmds);
+        Assert.DoesNotContain(new CastCommand(10, 2, "warden.taunt", 100), cmds);
+    }
+
+    [Fact(DisplayName = "Warden taunt thrift R-TAUNT-5 > a single doomed loose enemy in range is still taunted (doomed is never a veto)")]
+    public void SingleDoomedLooseEnemyStillTaunted()
     {
         // One enemy with 1 HP aimed at the Cinder seat: the party's committed damage over the 160-tick window is far above 1.
-        var cmds = Decide(Warden(), Seat(3, 4000, 250), Enemy(100, 2000, targetId: 3, health: 1));
-        Assert.DoesNotContain(new CastCommand(10, 2, "warden.taunt", 100), cmds);
+        var cmds = Decide(Warden(), Seat(3, 4000, 250, targetId: 100), Enemy(100, 2000, targetId: 3, health: 1));
+        Assert.Contains(new CastCommand(10, 2, "warden.taunt", 100), cmds);
     }
 
     [Fact(DisplayName = "Warden taunt thrift R-TAUNT-4a > still taunts a healthy loose enemy inside taunt range (control)")]
     public void TauntsHealthyLooseEnemy()
     {
-        var cmds = Decide(Warden(), Seat(3, 4000, 250), Enemy(100, 2000, targetId: 3, health: 6720));
+        var cmds = Decide(Warden(), Seat(3, 4000, 250, targetId: 100), Enemy(100, 2000, targetId: 3, health: 6720));
         Assert.Contains(new CastCommand(10, 2, "warden.taunt", 100), cmds);
     }
 
@@ -52,8 +67,8 @@ public sealed class TauntThriftTests
         // Enemy 100 is nearer the tank and hurts the 250-HP seat; enemy 101 hurts the 100-HP seat. The lowest-HP seat wins.
         var cmds = Decide(
             Warden(),
-            Seat(3, 4000, 250),
-            Seat(4, 5000, 100),
+            Seat(3, 4000, 250, targetId: 100),
+            Seat(4, 5000, 100, targetId: 101),
             Enemy(100, 1000, targetId: 3, health: 6720),
             Enemy(101, 2500, targetId: 4, health: 6720));
         Assert.Contains(new CastCommand(10, 2, "warden.taunt", 101), cmds);
