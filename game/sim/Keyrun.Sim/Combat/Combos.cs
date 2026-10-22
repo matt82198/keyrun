@@ -143,7 +143,7 @@ public static class Combos
             switch (op)
             {
                 case DamageOp d:
-                    Mitigation.DealDamage(state.Tick, source, target, d.Amount, effectDefs, emit, source.Id, weighting);
+                    Mitigation.DealDamage(state.Tick, source, target, d.Amount, effectDefs, emit, source.Id, weighting, d.School);
                     break;
                 case HealOp h:
                     if (target.Kind == source.Kind)
