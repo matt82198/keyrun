@@ -357,8 +357,10 @@ public static class RunWiring
     /// <param name="emit">Event sink.</param>
     /// <param name="openSeats">Abandoned or unfilled seats' actor ids (<see cref="StepRunOpts.OpenSeats"/>), or null.</param>
     /// <param name="release">True on a layout run: a wipe releases instead of ending the run, and the timer cap ends it.</param>
+    /// <param name="forces">The Enemy Forces bar, or null for none. With a bar the cleared pulls end the run only once the bar
+    /// is full (R-FORCES-COMPLETE-1): a final boss killed below 100% leaves the run going until the packs fill it.</param>
     /// <returns>The next terminal state.</returns>
-    public static RunEndState CheckRunEnd(RunEndState prev, SimState state, EncounterState encounter, DungeonDef dungeon, int tick, bool abandonRequested, Action<SimEvent> emit, IReadOnlyList<int>? openSeats = null, bool release = false)
+    public static RunEndState CheckRunEnd(RunEndState prev, SimState state, EncounterState encounter, DungeonDef dungeon, int tick, bool abandonRequested, Action<SimEvent> emit, IReadOnlyList<int>? openSeats = null, bool release = false, RunForces? forces = null)
     {
         ArgumentNullException.ThrowIfNull(prev);
         ArgumentNullException.ThrowIfNull(state);
@@ -368,7 +370,7 @@ public static class RunWiring
         {
             return prev;
         }
-        if (encounter.PullIndex >= dungeon.Pulls.Count)
+        if (encounter.PullIndex >= dungeon.Pulls.Count && (forces is null || Forces.Read(state, forces.PointsByEnemy, forces.Required).Full))
         {
             return new RunEndState(Timer.FinishRun(encounter, tick, true, emit), tick, prev.WipeStartTick);
         }

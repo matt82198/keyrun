@@ -15,7 +15,7 @@ internal static class RunEndPhase
         var nextState = c.State;
         var runEnd = RunWiring.CheckRunEnd(
             run.RunEnd, nextState, c.Encounter, run.Dungeon, nextState.Tick, opts?.AbandonRequested ?? false, c.Emit, opts?.OpenSeats,
-            release: run.Content.Layout is not null);
+            release: run.Content.Layout is not null, forces: run.Content.ForcesBar);
         if (runEnd.Result is RunResult result && run.RunEnd.Result is null)
         {
             if (result == RunResult.Depleted)

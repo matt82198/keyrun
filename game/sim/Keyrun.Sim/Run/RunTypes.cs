@@ -28,6 +28,35 @@ public sealed record PartyMemberSpec(int Id, string ClassId, ActorRole Role, Vec
 }
 
 /// <summary>
+/// The Enemy Forces bar a run must fill (R-FORCES-COMPLETE-1). Banked by <see cref="Encounter.Forces.Points"/> over the
+/// run's dead enemies, so a bar fills only by enemy deaths. An enemy with no entry in the table (the boss included) banks 0.
+/// </summary>
+public sealed record RunForces
+{
+    /// <summary>The enemy id to forces value table.</summary>
+    public IReadOnlyDictionary<string, int> PointsByEnemy { get; }
+
+    /// <summary>Points that fill the bar (100%).</summary>
+    public int Required { get; }
+
+    /// <summary>Fails closed on a null table or a non-positive requirement.</summary>
+    /// <param name="pointsByEnemy">Enemy id to forces value.</param>
+    /// <param name="required">Points that fill the bar; must be positive.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pointsByEnemy"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="required"/> is not positive.</exception>
+    public RunForces(IReadOnlyDictionary<string, int> pointsByEnemy, int required)
+    {
+        ArgumentNullException.ThrowIfNull(pointsByEnemy);
+        if (required <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(required), required, "the forces bar requirement must be positive");
+        }
+        PointsByEnemy = pointsByEnemy;
+        Required = required;
+    }
+}
+
+/// <summary>
 /// The data a run needs beyond the party and dungeon (sim/run-types.ts:39 RunContent): combat definitions for
 /// <see cref="Rules"/>, the enemy scripts for the encounter lane, and the pacing knobs that seed the initial
 /// <see cref="EncounterState"/>. Content never comes from a content-package reference: the host passes it in.
@@ -60,6 +89,13 @@ public sealed record RunContent
 
     /// <summary>Par, ticks; null = 24000 (index.ts:112).</summary>
     public int? ParTicks { get; init; }
+
+    /// <summary>
+    /// The Enemy Forces bar the run must fill besides the final boss's death (R-FORCES-COMPLETE-1, WoW Mythic+: a key
+    /// completes at 100% forces AND the last boss dead, in either order). Null = no bar: the run ends on the final boss's
+    /// death alone, as every oracle run does. A host sets it from forces.json.
+    /// </summary>
+    public RunForces? ForcesBar { get; init; }
 
     /// <summary>Base encounter rules; null = <see cref="Clauses.DefaultEncounterRules"/> for the key (run-options.ts:93).</summary>
     public EncounterRules? EncounterRules { get; init; }

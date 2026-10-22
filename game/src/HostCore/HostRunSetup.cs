@@ -247,6 +247,7 @@ public sealed partial record HostRunSetup(
             Marks = MarkRulesOf(run.PairMarks),
             // R-BOSS-4: an unanswered Cleave stacks Cleaved on each seat it hits other than its target.
             CleaveMark = run.Cleaved is { } cleaved ? new CleaveMarkRule(cleaved.AbilityId, cleaved.EffectId, cleaved.DurationTicks) : null,
+            ForcesBar = ForcesBarOf(registry),
         }.WithMovement(movement);
 
         // HUMAN-PLAY (D65/D66): a party whose human is not the tank starts in its travel formation behind the human.
@@ -264,6 +265,26 @@ public sealed partial record HostRunSetup(
                 kv => kv.Key,
                 kv => (IReadOnlyDictionary<string, AbilityDef>)kv.Value.Abilities.ToDictionary(a => a.Key, a => ToSim(a.Value), StringComparer.Ordinal)),
         };
+    }
+
+    /// <summary>
+    /// R-FORCES-COMPLETE-1 (WoW Mythic+): the run's Enemy Forces bar from forces.json. A key completes only once the bar is
+    /// full AND the final boss is dead, so the run keeps going after a final boss killed below 100%.
+    /// </summary>
+    /// <param name="registry">The validated content.</param>
+    /// <returns>The bar, or null when content has no forces table.</returns>
+    private static RunForces? ForcesBarOf(C.ContentRegistry registry)
+    {
+        if (registry.Forces is not { } forces)
+        {
+            return null;
+        }
+        var table = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var v in forces.Values)
+        {
+            table[v.EnemyId] = v.Points;
+        }
+        return new RunForces(table, forces.Required);
     }
 
     /// <summary>

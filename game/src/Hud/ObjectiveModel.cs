@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Keyrun.Content;
 using Keyrun.Sim.Core;
+using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Runs;
 
 namespace Keyrun.Hud;
@@ -60,12 +61,18 @@ public static class ObjectiveModel
         var contentIds = content is null ? pulls.Select(p => p.Id).ToList() : content.Pulls.Select(p => p.Id).Append("boss").ToList();
         var total = contentIds.Count;
         var index = run.Encounter.PullIndex;
+        // Count the enemies the sim still holds alive, never claim zero: a Sundered Twin can outlive the boss pull and stays
+        // alive (frozen by RUN-END-FREEZE, Run.StepRun).
+        var standing = run.State.Actors.Values.Count(a => a.Alive && a.Kind == ActorKind.Enemy);
+        var enemies = run.State.Actors.Values.Count(a => a.Kind == ActorKind.Enemy);
+        if (index >= pulls.Count && ForcesPending(run))
+        {
+            // R-FORCES-COMPLETE-1: the final boss is dead but the Enemy Forces bar is not full, so the key is not complete. The
+            // header names the bar and the enemies still standing, never "done".
+            return new ObjectiveLine(total, total, "forces", "Enemy Forces", standing, enemies, false);
+        }
         if (index >= pulls.Count)
         {
-            // Cleared: the boss pull spawns only the boss, so a Sundered Twin can outlive it and stays alive (frozen
-            // by RUN-END-FREEZE, Run.StepRun). Count the enemies the sim still holds alive, never claim zero.
-            var standing = run.State.Actors.Values.Count(a => a.Alive && a.Kind == ActorKind.Enemy);
-            var enemies = run.State.Actors.Values.Count(a => a.Kind == ActorKind.Enemy);
             return new ObjectiveLine(total, total, "done", content?.Name ?? run.Dungeon.Id, standing, enemies, true);
         }
         var pull = pulls[index];
@@ -81,4 +88,15 @@ public static class ObjectiveModel
         remaining += ids.Count(id => !run.State.Actors.ContainsKey(id));
         return new ObjectiveLine(number, total, pull.Id, name, remaining, ids.Count, false);
     }
+
+    /// <summary>
+    /// True while the run is still open with every pull cleared and the Enemy Forces bar short of full (R-FORCES-COMPLETE-1):
+    /// the key completes only when the bar fills, so the header must not read "done" before then.
+    /// </summary>
+    /// <param name="run">The run.</param>
+    /// <returns>True when the header must say the bar is still pending.</returns>
+    private static bool ForcesPending(Run run) =>
+        run.RunEnd.Result is null
+        && run.Content.ForcesBar is { } bar
+        && !Forces.Read(run.State, bar.PointsByEnemy, bar.Required).Full;
 }
