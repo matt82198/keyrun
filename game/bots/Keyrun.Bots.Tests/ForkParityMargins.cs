@@ -52,9 +52,19 @@ internal static class ForkParityMargins
         (int)((long)Math.Max(clearA, clearB) * tolerance.ClearBp / 10000);
 
     /// <summary>
+    /// The fewest scenarios in which a dominance must exceed the noise before it gates (finding f-bee3bf93). One
+    /// scenario is not a pattern: all-runs dominance plus ONE beyond-tolerance margin let within-tolerance drift in the
+    /// other scenarios flip the verdict (chanter.dissonance amplify vs discord: #601 only erased amplify's
+    /// within-tolerance k2 lead; the lone beyond-tolerance margin, hv-k10-s7 combos 26 > 21, was identical on main and on
+    /// #601, and the 32-seed study puts every pair mean inside one sd of zero). The tolerances themselves are untouched.
+    /// </summary>
+    public const int MinScenariosBeyondNoise = 2;
+
+    /// <summary>
     /// When <paramref name="a"/> dominates <paramref name="b"/> (<see cref="ForkParityTests.Dominates"/>), the margins
-    /// that exceed <paramref name="tolerance"/>, as "run measure margin > tolerance"; empty when a does not dominate b or
-    /// dominates it only inside the noise.
+    /// that exceed <paramref name="tolerance"/>, as "run measure margin > tolerance", provided they fall in at least
+    /// <see cref="MinScenariosBeyondNoise"/> distinct scenarios; empty when a does not dominate b, dominates it only
+    /// inside the noise, or exceeds the noise in a single scenario.
     /// </summary>
     public static IReadOnlyList<string> Excess(Measures a, Measures b, NoiseTolerance tolerance, IReadOnlyList<string> runNames)
     {
@@ -63,6 +73,7 @@ internal static class ForkParityMargins
         {
             return excess;
         }
+        var scenarios = new HashSet<int>();
         for (var i = 0; i < a.Count; i++)
         {
             var (clear, deaths, combos) = Margin(a[i], b[i]);
@@ -70,22 +81,26 @@ internal static class ForkParityMargins
             if (clear > clearTol)
             {
                 excess.Add(string.Create(CultureInfo.InvariantCulture, $"{runNames[i]} clear {clear} > {clearTol}"));
+                scenarios.Add(i);
             }
             if (deaths > tolerance.Deaths)
             {
                 excess.Add(string.Create(CultureInfo.InvariantCulture, $"{runNames[i]} deaths {deaths} > {tolerance.Deaths}"));
+                scenarios.Add(i);
             }
             if (combos > tolerance.Combos)
             {
                 excess.Add(string.Create(CultureInfo.InvariantCulture, $"{runNames[i]} combos {combos} > {tolerance.Combos}"));
+                scenarios.Add(i);
             }
         }
-        return excess;
+        return scenarios.Count >= MinScenariosBeyondNoise ? excess : new List<string>();
     }
 
     /// <summary>
     /// True when <paramref name="a"/> dominates <paramref name="b"/> by the bible's rule (at least as good on every
-    /// measure of every run, strictly better on one) AND at least one of those margins exceeds the noise tolerance.
+    /// measure of every run, strictly better on one) AND margins beyond the noise tolerance appear in at least
+    /// <see cref="MinScenariosBeyondNoise"/> scenarios.
     /// </summary>
     public static bool DominatesBeyondNoise(Measures a, Measures b, NoiseTolerance tolerance) =>
         Excess(a, b, tolerance, Enumerable.Range(0, a.Count).Select(i => "run " + i).ToList()).Count > 0;
