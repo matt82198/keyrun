@@ -78,7 +78,9 @@ public static class PlaytestSession
         var policy = PolicyReader.Load(options.PolicyPath, content);
 
         var playOptions = new PlaytestOptions(key, options.Seed, policy) { MaxTicks = options.MaxTicks };
-        var result = PlaytestRunner.Play(playOptions, content);
+        Directory.CreateDirectory(options.OutDir);
+        using var receipts = new Keyrun.Bots.Shared.JsonlBotReceiptSink(Path.Combine(options.OutDir, "bot-receipts.jsonl"));
+        var result = PlaytestRunner.Play(playOptions with { Receipts = receipts }, content);
         Directory.CreateDirectory(options.OutDir);
         var logPath = Path.Combine(options.OutDir, "run.log").Replace('\\', '/');
         var summaryPath = Path.Combine(options.OutDir, "summary.json").Replace('\\', '/');

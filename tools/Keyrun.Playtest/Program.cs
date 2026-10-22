@@ -174,8 +174,9 @@ public static class Program
             }
             options = options with { DungeonId = dungeonId };
         }
-        var result = PlaytestRunner.Play(options, registry);
         Directory.CreateDirectory(outDir);
+        using var receipts = new Keyrun.Bots.Shared.JsonlBotReceiptSink(Path.Combine(outDir, "bot-receipts.jsonl"));
+        var result = PlaytestRunner.Play(options with { Receipts = receipts }, registry);
         var logPath = Path.Combine(outDir, "run.log").Replace('\\', '/');
         var summaryPath = Path.Combine(outDir, "summary.json").Replace('\\', '/');
         File.WriteAllText(logPath, result.Log);
