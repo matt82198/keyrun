@@ -527,47 +527,800 @@
     {
       "finalTick": 400,
       "name": "content-pull",
+      "properties": [
+        {
+          "assert": {
+            "kind": "sequence",
+            "steps": [
+              {
+                "comboId": "shatter",
+                "payoffActorId": 302,
+                "setupActorId": 301,
+                "type": "combo"
+              },
+              {
+                "comboId": "forge",
+                "payoffActorId": 304,
+                "setupActorId": 303,
+                "type": "combo"
+              },
+              {
+                "comboId": "anthem",
+                "payoffActorId": 301,
+                "setupActorId": 305,
+                "type": "combo"
+              }
+            ]
+          },
+          "name": "three-cross-class-combos-close-in-order",
+          "why": "lane 1B golden (#110, tests/sim/golden/build-content-pull.ts): each class's Setup is closed by another class's Payoff: shatter warden->cinder, forge cinder->warden, anthem chanter->warden"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "type": [
+                "telegraph",
+                "telegraph_hit",
+                "pull_clear",
+                "pull_start",
+                "stagger",
+                "echo_spawn",
+                "depleted"
+              ]
+            },
+            "max": 0
+          },
+          "name": "no-encounter-events",
+          "why": "lane 2C (EncounterTraceTests): the content-pull golden runs the Choir pull with no script telegraph, pull advance, stagger, echo or depletion"
+        }
+      ],
       "records": 401,
       "result": null,
       "setup": "content-pull.setup.json",
-      "trace": "content-pull.trace.jsonl",
-      "traceHash": "45f59113"
+      "trace": "content-pull.trace.jsonl"
     },
     {
       "finalTick": 600,
       "name": "scripted-pull",
+      "properties": [
+        {
+          "assert": {
+            "kind": "ticks",
+            "match": {
+              "actorId": 11,
+              "cast": "cleave",
+              "leadTicks": 40,
+              "type": "telegraph"
+            },
+            "ticks": [
+              60,
+              160,
+              260,
+              360,
+              460,
+              560
+            ]
+          },
+          "name": "scripted-cleave-telegraphs-on-schedule",
+          "why": "lane 1B golden (#110, tests/sim/golden/scripted-pull.json): actor 11's scripted cleave is telegraphed 40 ticks ahead every 100 ticks (EncounterTraceTests: 6 telegraphs, at 60, 160, ...)"
+        },
+        {
+          "assert": {
+            "kind": "ticks",
+            "match": {
+              "actorIds": [
+                2
+              ],
+              "type": "telegraph_hit"
+            },
+            "ticks": [
+              100,
+              200,
+              300,
+              400,
+              500
+            ]
+          },
+          "name": "each-cleave-resolves-on-its-tick-and-hits-actor-2",
+          "why": "lane 1B golden (#110): each cleave telegraph resolves leadTicks later and hits actor 2 (EncounterTraceTests: 5 hits in 600 ticks)"
+        }
+      ],
       "records": 601,
       "result": null,
       "setup": "scripted-pull.setup.json",
-      "trace": "scripted-pull.trace.jsonl",
-      "traceHash": "014e427d"
+      "trace": "scripted-pull.trace.jsonl"
     },
     {
       "finalTick": 2497,
       "name": "bots-hv-k2-s7",
+      "properties": [
+        {
+          "assert": {
+            "kind": "sequence",
+            "steps": [
+              {
+                "pullId": "choir",
+                "type": "pull_clear"
+              },
+              {
+                "pullId": "pair",
+                "type": "pull_clear"
+              },
+              {
+                "pullId": "seed",
+                "type": "pull_clear"
+              },
+              {
+                "pullId": "boss",
+                "type": "pull_clear"
+              },
+              {
+                "result": "timed",
+                "type": "run_end"
+              }
+            ]
+          },
+          "name": "party-clears-every-pull-in-order-and-times",
+          "why": "D14 (#158): the boss and the Pair were tuned so the autorun party reaches and clears the boss; every bots-hv re-record since (#189 to #515) kept the four pull clears and the result timed"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "abilityId": "choir.healCast",
+              "type": "cast_complete"
+            },
+            "max": 0,
+            "requires": {
+              "abilityId": "choir.healCast",
+              "targetId": 102,
+              "type": "interrupt"
+            }
+          },
+          "name": "choir-mending-never-completes",
+          "why": "lane 1B (#110) kick ledger (shared.ts ledgerKickCommand) and BOT-KICK-TIMING / CROSS-CLASS-KICK-ORDER (#449): Choral Mending is the Choir's 80-tick must-kick heal; QUENCH-REFUND (#283) pays the Cinder only when its kick lands"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "abilityId": "choir.healCast",
+              "sourceId": 1,
+              "targetId": 102,
+              "type": "interrupt"
+            },
+            "min": 1
+          },
+          "name": "warden-kicks-the-casting-lieutenant",
+          "why": "R-WARDEN-KICK-1 (#515): the Warden's Shield Bash goes to the casting choir.lieutenant (actor 102); in the oracle runner the per-class ledger (#110) gives the Warden its own kick on the lieutenant's Choral Mending"
+        },
+        {
+          "assert": {
+            "by": {
+              "type": "telegraph"
+            },
+            "kind": "precededBy",
+            "match": {
+              "abilityId": [
+                "seed.slam",
+                "hollowWarden.slam"
+              ],
+              "type": "cast_complete"
+            },
+            "min": 1,
+            "same": {
+              "abilityId": "cast",
+              "actorId": "actorId"
+            }
+          },
+          "name": "slams-are-telegraphed-first",
+          "why": "SLAM-TELEGRAPH B1 (#189) and SLAM-TELEGRAPH (#313): the boss and Seed slams are telegraphed casts; every slam that lands was drawn on the floor by its caster first"
+        },
+        {
+          "assert": {
+            "actorId": 108,
+            "kind": "leaves"
+          },
+          "name": "seed-engages-the-party",
+          "why": "KF3-SEED-ENGAGE (#195): the Seed walks to the party instead of casting from its spawn"
+        },
+        {
+          "assert": {
+            "has": {
+              "actorId": 108,
+              "length": 1500,
+              "shape": "line",
+              "width": 1200
+            },
+            "kind": "every",
+            "match": {
+              "cast": "seed.lash",
+              "type": "telegraph"
+            },
+            "min": 0
+          },
+          "name": "seed-lash-telegraph-is-a-line",
+          "why": "seed.lash telegraph (#486): a lash is drawn as the caster-to-target line, length 1500, width 1200, never the old caster-centred circle"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "cast": [
+                "pair.spreadMark",
+                "pair.stackCall"
+              ],
+              "type": "telegraph"
+            },
+            "max": 0,
+            "requires": {
+              "abilityId": [
+                "pair.spreadMark",
+                "pair.stackCall"
+              ],
+              "type": "cast_complete"
+            }
+          },
+          "name": "pair-marks-draw-no-caster-telegraph",
+          "why": "pair marks (#489): the caster-centred circles were removed; the ring on the marked player is the telegraph, so no spreadMark or stackCall cast draws a telegraph"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "abilityId": "seed.deathBloom",
+              "actorId": 108,
+              "type": "cast_complete"
+            },
+            "max": 1,
+            "min": 1
+          },
+          "name": "seed-blooms-once-on-death",
+          "why": "the Seed's onDeath cast (seed.deathBloom) completes exactly once in the step it dies (EncounterTraceTests onDeathCasts == 1, lane 2C and every re-record since)"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "setupActorId": 2,
+              "targetId": {
+                "min": 100
+              },
+              "type": "combo",
+              "windowId": "attuned"
+            },
+            "min": 1
+          },
+          "name": "healer-opens-attuned-on-an-enemy",
+          "why": "CADENCE-SETUP (#415, f-b31e8f34): the healer opens Attuned on a damage partner's enemy, so an Attuned combo closes on an enemy (Attuned combos over the seeded bot runs 0 -> 25)"
+        },
+        {
+          "assert": {
+            "kind": "all",
+            "of": [
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "warden.strike",
+                  "actorId": 1,
+                  "type": "cast_complete"
+                },
+                "min": 1
+              },
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "cinder.emberBolt",
+                  "actorId": [
+                    3,
+                    4,
+                    5
+                  ],
+                  "type": "cast_complete"
+                },
+                "min": 1
+              },
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "chanter.refrain",
+                  "actorId": 2,
+                  "type": "cast_complete"
+                },
+                "min": 1
+              },
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "chanter.dissonance",
+                  "actorId": 2,
+                  "type": "cast_complete"
+                },
+                "min": 1
+              }
+            ]
+          },
+          "name": "every-seat-presses-its-five-buttons",
+          "why": "BOTS-FIVE-BUTTONS (#449): before it the k2 bot runs never cast warden.strike, cinder.emberBolt, chanter.refrain or chanter.dissonance"
+        },
+        {
+          "assert": {
+            "command": {
+              "abilityId": "warden.taunt",
+              "actorId": 1,
+              "kind": "cast"
+            },
+            "kind": "turnsWhenDue",
+            "min": 0
+          },
+          "name": "taunt-never-roots-the-tank",
+          "why": "R-TAUNT-1 (#515): a taunt never ends the tank's decision; the re-record moved only t=944, where the tank, not facing its taunt target, turns in the same batch as its taunt. A rule over every due taunt tick (min 0): a run whose taunts all land already facing holds it trivially, so a timeline shift never reds it; the recorded k2 runs have one due tick, t=944"
+        }
+      ],
       "records": 2498,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
-      "trace": "bots-hv-k2-s7.trace.jsonl",
-      "traceHash": "3775e588"
+      "trace": "bots-hv-k2-s7.trace.jsonl"
     },
     {
       "finalTick": 2497,
       "name": "bots-hv-k2-s11",
+      "properties": [
+        {
+          "assert": {
+            "kind": "sequence",
+            "steps": [
+              {
+                "pullId": "choir",
+                "type": "pull_clear"
+              },
+              {
+                "pullId": "pair",
+                "type": "pull_clear"
+              },
+              {
+                "pullId": "seed",
+                "type": "pull_clear"
+              },
+              {
+                "pullId": "boss",
+                "type": "pull_clear"
+              },
+              {
+                "result": "timed",
+                "type": "run_end"
+              }
+            ]
+          },
+          "name": "party-clears-every-pull-in-order-and-times",
+          "why": "D14 (#158): the boss and the Pair were tuned so the autorun party reaches and clears the boss; every bots-hv re-record since (#189 to #515) kept the four pull clears and the result timed"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "abilityId": "choir.healCast",
+              "type": "cast_complete"
+            },
+            "max": 0,
+            "requires": {
+              "abilityId": "choir.healCast",
+              "targetId": 102,
+              "type": "interrupt"
+            }
+          },
+          "name": "choir-mending-never-completes",
+          "why": "lane 1B (#110) kick ledger (shared.ts ledgerKickCommand) and BOT-KICK-TIMING / CROSS-CLASS-KICK-ORDER (#449): Choral Mending is the Choir's 80-tick must-kick heal; QUENCH-REFUND (#283) pays the Cinder only when its kick lands"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "abilityId": "choir.healCast",
+              "sourceId": 1,
+              "targetId": 102,
+              "type": "interrupt"
+            },
+            "min": 1
+          },
+          "name": "warden-kicks-the-casting-lieutenant",
+          "why": "R-WARDEN-KICK-1 (#515): the Warden's Shield Bash goes to the casting choir.lieutenant (actor 102); in the oracle runner the per-class ledger (#110) gives the Warden its own kick on the lieutenant's Choral Mending"
+        },
+        {
+          "assert": {
+            "by": {
+              "type": "telegraph"
+            },
+            "kind": "precededBy",
+            "match": {
+              "abilityId": [
+                "seed.slam",
+                "hollowWarden.slam"
+              ],
+              "type": "cast_complete"
+            },
+            "min": 1,
+            "same": {
+              "abilityId": "cast",
+              "actorId": "actorId"
+            }
+          },
+          "name": "slams-are-telegraphed-first",
+          "why": "SLAM-TELEGRAPH B1 (#189) and SLAM-TELEGRAPH (#313): the boss and Seed slams are telegraphed casts; every slam that lands was drawn on the floor by its caster first"
+        },
+        {
+          "assert": {
+            "actorId": 108,
+            "kind": "leaves"
+          },
+          "name": "seed-engages-the-party",
+          "why": "KF3-SEED-ENGAGE (#195): the Seed walks to the party instead of casting from its spawn"
+        },
+        {
+          "assert": {
+            "has": {
+              "actorId": 108,
+              "length": 1500,
+              "shape": "line",
+              "width": 1200
+            },
+            "kind": "every",
+            "match": {
+              "cast": "seed.lash",
+              "type": "telegraph"
+            },
+            "min": 0
+          },
+          "name": "seed-lash-telegraph-is-a-line",
+          "why": "seed.lash telegraph (#486): a lash is drawn as the caster-to-target line, length 1500, width 1200, never the old caster-centred circle"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "cast": [
+                "pair.spreadMark",
+                "pair.stackCall"
+              ],
+              "type": "telegraph"
+            },
+            "max": 0,
+            "requires": {
+              "abilityId": [
+                "pair.spreadMark",
+                "pair.stackCall"
+              ],
+              "type": "cast_complete"
+            }
+          },
+          "name": "pair-marks-draw-no-caster-telegraph",
+          "why": "pair marks (#489): the caster-centred circles were removed; the ring on the marked player is the telegraph, so no spreadMark or stackCall cast draws a telegraph"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "abilityId": "seed.deathBloom",
+              "actorId": 108,
+              "type": "cast_complete"
+            },
+            "max": 1,
+            "min": 1
+          },
+          "name": "seed-blooms-once-on-death",
+          "why": "the Seed's onDeath cast (seed.deathBloom) completes exactly once in the step it dies (EncounterTraceTests onDeathCasts == 1, lane 2C and every re-record since)"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "setupActorId": 2,
+              "targetId": {
+                "min": 100
+              },
+              "type": "combo",
+              "windowId": "attuned"
+            },
+            "min": 1
+          },
+          "name": "healer-opens-attuned-on-an-enemy",
+          "why": "CADENCE-SETUP (#415, f-b31e8f34): the healer opens Attuned on a damage partner's enemy, so an Attuned combo closes on an enemy (Attuned combos over the seeded bot runs 0 -> 25)"
+        },
+        {
+          "assert": {
+            "kind": "all",
+            "of": [
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "warden.strike",
+                  "actorId": 1,
+                  "type": "cast_complete"
+                },
+                "min": 1
+              },
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "cinder.emberBolt",
+                  "actorId": [
+                    3,
+                    4,
+                    5
+                  ],
+                  "type": "cast_complete"
+                },
+                "min": 1
+              },
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "chanter.refrain",
+                  "actorId": 2,
+                  "type": "cast_complete"
+                },
+                "min": 1
+              },
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "chanter.dissonance",
+                  "actorId": 2,
+                  "type": "cast_complete"
+                },
+                "min": 1
+              }
+            ]
+          },
+          "name": "every-seat-presses-its-five-buttons",
+          "why": "BOTS-FIVE-BUTTONS (#449): before it the k2 bot runs never cast warden.strike, cinder.emberBolt, chanter.refrain or chanter.dissonance"
+        },
+        {
+          "assert": {
+            "command": {
+              "abilityId": "warden.taunt",
+              "actorId": 1,
+              "kind": "cast"
+            },
+            "kind": "turnsWhenDue",
+            "min": 0
+          },
+          "name": "taunt-never-roots-the-tank",
+          "why": "R-TAUNT-1 (#515): a taunt never ends the tank's decision; the re-record moved only t=944, where the tank, not facing its taunt target, turns in the same batch as its taunt. A rule over every due taunt tick (min 0): a run whose taunts all land already facing holds it trivially, so a timeline shift never reds it; the recorded k2 runs have one due tick, t=944"
+        },
+        {
+          "assert": {
+            "kind": "sameRecordsAs",
+            "trace": "bots-hv-k2-s7"
+          },
+          "name": "seed-changes-nothing-at-skill-100",
+          "why": "lane 1B (#110, ORACLE.md section 6): at skill dial 100 neither the run seed nor the bot PRNG seed changes anything projected or emitted; R-TAUNT-1 (#515) re-record: s11 is byte-identical to s7 in its record bodies"
+        }
+      ],
       "records": 2498,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
-      "trace": "bots-hv-k2-s11.trace.jsonl",
-      "traceHash": "3775e588"
+      "trace": "bots-hv-k2-s11.trace.jsonl"
     },
     {
       "finalTick": 3029,
       "name": "bots-hv-k10-s7",
+      "properties": [
+        {
+          "assert": {
+            "kind": "sequence",
+            "steps": [
+              {
+                "pullId": "choir",
+                "type": "pull_clear"
+              },
+              {
+                "pullId": "pair",
+                "type": "pull_clear"
+              },
+              {
+                "pullId": "seed",
+                "type": "pull_clear"
+              },
+              {
+                "pullId": "boss",
+                "type": "pull_clear"
+              },
+              {
+                "result": "timed",
+                "type": "run_end"
+              }
+            ]
+          },
+          "name": "party-clears-every-pull-in-order-and-times",
+          "why": "D14 (#158): the boss and the Pair were tuned so the autorun party reaches and clears the boss; every bots-hv re-record since (#189 to #515) kept the four pull clears and the result timed"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "abilityId": "choir.healCast",
+              "type": "cast_complete"
+            },
+            "max": 0,
+            "requires": {
+              "abilityId": "choir.healCast",
+              "targetId": 102,
+              "type": "interrupt"
+            }
+          },
+          "name": "choir-mending-never-completes",
+          "why": "lane 1B (#110) kick ledger (shared.ts ledgerKickCommand) and BOT-KICK-TIMING / CROSS-CLASS-KICK-ORDER (#449): Choral Mending is the Choir's 80-tick must-kick heal; QUENCH-REFUND (#283) pays the Cinder only when its kick lands"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "abilityId": "choir.healCast",
+              "sourceId": 1,
+              "targetId": 102,
+              "type": "interrupt"
+            },
+            "min": 1
+          },
+          "name": "warden-kicks-the-casting-lieutenant",
+          "why": "R-WARDEN-KICK-1 (#515): the Warden's Shield Bash goes to the casting choir.lieutenant (actor 102); in the oracle runner the per-class ledger (#110) gives the Warden its own kick on the lieutenant's Choral Mending"
+        },
+        {
+          "assert": {
+            "by": {
+              "type": "telegraph"
+            },
+            "kind": "precededBy",
+            "match": {
+              "abilityId": [
+                "seed.slam",
+                "hollowWarden.slam"
+              ],
+              "type": "cast_complete"
+            },
+            "min": 1,
+            "same": {
+              "abilityId": "cast",
+              "actorId": "actorId"
+            }
+          },
+          "name": "slams-are-telegraphed-first",
+          "why": "SLAM-TELEGRAPH B1 (#189) and SLAM-TELEGRAPH (#313): the boss and Seed slams are telegraphed casts; every slam that lands was drawn on the floor by its caster first"
+        },
+        {
+          "assert": {
+            "actorId": 108,
+            "kind": "leaves"
+          },
+          "name": "seed-engages-the-party",
+          "why": "KF3-SEED-ENGAGE (#195): the Seed walks to the party instead of casting from its spawn"
+        },
+        {
+          "assert": {
+            "has": {
+              "actorId": 108,
+              "length": 1500,
+              "shape": "line",
+              "width": 1200
+            },
+            "kind": "every",
+            "match": {
+              "cast": "seed.lash",
+              "type": "telegraph"
+            },
+            "min": 0
+          },
+          "name": "seed-lash-telegraph-is-a-line",
+          "why": "seed.lash telegraph (#486): a lash is drawn as the caster-to-target line, length 1500, width 1200, never the old caster-centred circle"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "cast": [
+                "pair.spreadMark",
+                "pair.stackCall"
+              ],
+              "type": "telegraph"
+            },
+            "max": 0,
+            "requires": {
+              "abilityId": [
+                "pair.spreadMark",
+                "pair.stackCall"
+              ],
+              "type": "cast_complete"
+            }
+          },
+          "name": "pair-marks-draw-no-caster-telegraph",
+          "why": "pair marks (#489): the caster-centred circles were removed; the ring on the marked player is the telegraph, so no spreadMark or stackCall cast draws a telegraph"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "abilityId": "seed.deathBloom",
+              "actorId": 108,
+              "type": "cast_complete"
+            },
+            "max": 1,
+            "min": 1
+          },
+          "name": "seed-blooms-once-on-death",
+          "why": "the Seed's onDeath cast (seed.deathBloom) completes exactly once in the step it dies (EncounterTraceTests onDeathCasts == 1, lane 2C and every re-record since)"
+        },
+        {
+          "assert": {
+            "kind": "count",
+            "match": {
+              "setupActorId": 2,
+              "targetId": {
+                "min": 100
+              },
+              "type": "combo",
+              "windowId": "attuned"
+            },
+            "min": 1
+          },
+          "name": "healer-opens-attuned-on-an-enemy",
+          "why": "CADENCE-SETUP (#415, f-b31e8f34): the healer opens Attuned on a damage partner's enemy, so an Attuned combo closes on an enemy (Attuned combos over the seeded bot runs 0 -> 25)"
+        },
+        {
+          "assert": {
+            "kind": "all",
+            "of": [
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "warden.strike",
+                  "actorId": 1,
+                  "type": "cast_complete"
+                },
+                "min": 1
+              },
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "cinder.emberBolt",
+                  "actorId": [
+                    3,
+                    4,
+                    5
+                  ],
+                  "type": "cast_complete"
+                },
+                "min": 1
+              },
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "chanter.refrain",
+                  "actorId": 2,
+                  "type": "cast_complete"
+                },
+                "min": 1
+              },
+              {
+                "kind": "count",
+                "match": {
+                  "abilityId": "chanter.dissonance",
+                  "actorId": 2,
+                  "type": "cast_complete"
+                },
+                "min": 1
+              }
+            ]
+          },
+          "name": "every-seat-presses-its-five-buttons",
+          "why": "BOTS-FIVE-BUTTONS (#449): before it the k2 bot runs never cast warden.strike, cinder.emberBolt, chanter.refrain or chanter.dissonance"
+        }
+      ],
       "records": 3030,
       "result": "timed",
       "setup": "hollow-vault-k10.setup.json",
-      "trace": "bots-hv-k10-s7.trace.jsonl",
-      "traceHash": "47d9e737"
+      "trace": "bots-hv-k10-s7.trace.jsonl"
     }
   ],
   "version": 1
