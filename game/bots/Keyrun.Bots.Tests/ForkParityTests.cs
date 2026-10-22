@@ -33,30 +33,25 @@ namespace Keyrun.Bots.Tests;
 /// "combo" events (higher is better).</para>
 /// <para>Dominance: option A dominates sibling B when A is at least as good as B on every measure and strictly better
 /// on at least one. Every ordered pair of options of every fork is checked.</para>
-/// <para>NOISE TOLERANCE (finding f-e3daed76, R-PILE-7): a dominance gates only when at least one of A's margins over B
-/// EXCEEDS <see cref="NoiseTolerance.Measured"/>: clear 715 bp of the slower clear tick in that run, deaths 0, combos 3.
-/// A dominance whose every margin is inside the tolerance is printed ("DOMINATED WITHIN NOISE") and recorded, never red:
+/// <para>NOISE TOLERANCE (findings f-e3daed76, f-8ae6250a): a dominance gates only when at least one of A's margins over B
+/// EXCEEDS <see cref="NoiseTolerance.Measured"/> (clear in bp of the slower clear tick in that run, deaths, combos). A
+/// dominance whose every margin is inside the tolerance is printed ("DOMINATED WITHIN NOISE") and recorded, never red:
 /// the runs are chaotic, so any behaviour change moves every option's measures, and a balance oracle pinned to main's
-/// exact dynamics went red on every behaviour PR (#307: hymn staccato dominated by 2 combos on equal clears; #362:
-/// surge and discord). Why those numbers: the tolerance is one standard deviation of seed noise. At dial 90 the seed
-/// decides every bot mistake, so each seed is a different trajectory through the same content, the same kind of
-/// perturbation a behaviour PR makes; the hv runs this check uses (base kit 1407/0/43, 1478/0/42, 1855/1/59) all sit
-/// inside that seed spread (key 2: clear 1402..1664, key 10: 1782..2238). Over seeds 1..12, for each of the 24 measured
-/// sibling pairs the per-seed margin's standard deviation was taken; its median is clear 90.4 ticks (615 bp) at key 2
-/// and 132.1 ticks (715 bp) at key 10, deaths 0.52 and 0.45, combos 3.59 and 3.85. The larger key, floored to each
-/// measure's grain, is the tolerance (one death is beyond 0.52; four combos is beyond 3.85, three is not). A real
-/// dominance still blocks: <see cref="ForkParityMarginsTests.A_deliberately_dominated_fork_is_red"/> drives a test-double
-/// fork through the same failure path this check asserts on.</para>
+/// exact dynamics went red on every behaviour PR (#307: hymn staccato dominated by 2 combos on equal clears; #362: surge
+/// and discord). The tolerance is not a constant: it is 2 x the measured seed noise, read from the checked-in study
+/// game/bots/Keyrun.Bots.Tests/fork-parity-noise.json (<see cref="ForkParityNoiseStudy"/> has the rule, why k = 2, and
+/// the re-run command; the check is red when the file is missing or incomplete). A real dominance still blocks:
+/// <see cref="ForkParityNoiseStudyTests.Three_sigma_dominance_gates_one_sigma_does_not"/> drives a sibling worse by 3 sd
+/// through the same failure path this check asserts on.</para>
 /// <para>MARGINS FILE: every sibling pair's per-run measures, margins and verdict are recorded in
 /// game/bots/Keyrun.Bots.Tests/ForkParity.margins.txt (format in its header). The check prints margin drift beyond the
 /// tolerance since the recording but never fails on it; it fails only when the recorded pair set differs from the
 /// measured one (a fork or option added, removed or renamed). RE-BASELINE (after a content retune, a fork change, or when
 /// the drift lines say margins moved): run
-/// <c>KEYRUN_FORKPARITY_REBASELINE=1 dotnet test game/bots/Keyrun.Bots.Tests --filter "FullyQualifiedName~ForkParity"</c>.
-/// It rewrites the file and re-measures the noise sweep into its header (about a minute); commit the file in its own
-/// commit and say why in the PR. If the re-measured paired-margin sd has moved past <see cref="NoiseTolerance.Measured"/>,
-/// re-derive the tolerance by the rule above in the same PR, with the header as the evidence; never widen it to pass a
-/// change.</para>
+/// <c>KEYRUN_FORKPARITY_REBASELINE=1 dotnet test game/bots/Keyrun.Bots.Tests --filter "FullyQualifiedName~ForkParityTests"</c>.
+/// It rewrites the file with the study's summary in its header; commit it in its own commit and say why in the PR. When
+/// a behaviour change may have moved the noise itself, re-run the study (<see cref="ForkParityNoiseStudy"/>) in its own
+/// PR, never in the PR whose red it would clear.</para>
 /// <para> Two siblings that measure identically on
 /// every measure of every run are red too (finding f-8476dbf4): neither dominates, but a player cannot tell them apart,
 /// so the fork is not a decision. A fork whose options all measure identically is the separate unmeasured case
@@ -131,15 +126,15 @@ public sealed class ForkParityTests
             string.Create(CultureInfo.InvariantCulture, $"clear {ClearTick} ({Result}) deaths {Deaths} combos {Combos}");
     }
 
-    private sealed record Scenario(string Name, RunSetup Setup, long Seed, int Dial, int MaxTicks);
+    internal sealed record Scenario(string Name, RunSetup Setup, long Seed, int Dial, int MaxTicks);
 
-    private static readonly Lazy<C.ContentRegistry> Registry = new(() => C.ContentLoader.Load());
+    internal static readonly Lazy<C.ContentRegistry> Registry = new(() => C.ContentLoader.Load());
 
     private static readonly Lazy<KitRegistry> Kits = new(() => KitRegistry.From(Registry.Value));
 
     private static readonly Lazy<IReadOnlyList<Scenario>> Loaded = new(() => Scenarios.Select(LoadScenario).ToList());
 
-    private static Scenario LoadScenario((string Name, string SetupFile, long Seed, int Dial) s) =>
+    internal static Scenario LoadScenario((string Name, string SetupFile, long Seed, int Dial) s) =>
         new(s.Name, RunSetup.Load(Path.Combine(RolesOracleTraceTests.OracleDir(), s.SetupFile), s.Seed), s.Seed, s.Dial, 24000);
 
     /// <summary>
@@ -152,7 +147,7 @@ public sealed class ForkParityTests
     /// <param name="onStep">Optional observer of each step's events (diagnostic tests only; never changes the run).</param>
     /// <param name="beforeStep">Optional observer of the run just before each step (never changes the run).</param>
     /// <param name="afterStep">Optional observer of the run and the step's events just after each step (never changes the run).</param>
-    private static RunMeasures Measure(Scenario scenario, string? classId, S.AbilityDef? talented, Action<IReadOnlyList<SimEvent>>? onStep = null, Action<Run>? beforeStep = null, Action<Run, IReadOnlyList<SimEvent>>? afterStep = null)
+    internal static RunMeasures Measure(Scenario scenario, string? classId, S.AbilityDef? talented, Action<IReadOnlyList<SimEvent>>? onStep = null, Action<Run>? beforeStep = null, Action<Run, IReadOnlyList<SimEvent>>? afterStep = null)
     {
         var setup = scenario.Setup;
         var options = setup.Options ?? new RunOptions();
@@ -715,7 +710,8 @@ public sealed class ForkParityTests
 
     /// <summary>
     /// Checks the run's margins against the checked-in ForkParity.margins.txt. With
-    /// KEYRUN_FORKPARITY_REBASELINE=1 the file is rewritten first, with the noise sweep re-measured into its header.
+    /// KEYRUN_FORKPARITY_REBASELINE=1 the file is rewritten first, with the noise study's summary (fork-parity-noise.json)
+    /// in its header.
     /// Red only when the recorded pair set differs from the measured one (a fork or option was added, removed or
     /// renamed: re-baseline). Margin drift is printed, never red: margins move on every behaviour change.
     /// </summary>
@@ -724,7 +720,8 @@ public sealed class ForkParityTests
         var path = ForkParityMargins.FilePath(RolesOracleTraceTests.OracleDir());
         if (Environment.GetEnvironmentVariable(ForkParityMargins.RebaselineVariable) == "1")
         {
-            File.WriteAllText(path, ForkParityMargins.Render(lines, NoiseTolerance.Measured, MeasureNoise()));
+            var study = File.ReadAllText(ForkParityNoiseStudy.FilePath(RolesOracleTraceTests.OracleDir()));
+            File.WriteAllText(path, ForkParityMargins.Render(lines, NoiseTolerance.Measured, ForkParityNoiseStudy.HeaderLines(study)));
             _output.WriteLine("REBASELINED " + path);
         }
         Assert.True(File.Exists(path), $"{path} is missing: run the fork parity tests with {ForkParityMargins.RebaselineVariable}=1 once");
@@ -735,68 +732,5 @@ public sealed class ForkParityTests
         }
         var changes = ForkParityMargins.PairSetChanges(recorded, lines);
         Assert.True(changes.Count == 0, $"ForkParity.margins.txt records a different set of sibling pairs; re-baseline with {ForkParityMargins.RebaselineVariable}=1:\n" + string.Join("\n", changes));
-    }
-
-    /// <summary>
-    /// The noise sweep behind <see cref="NoiseTolerance.Measured"/>: every fork option and the base kit over
-    /// <see cref="NoiseSeeds"/> seeds at dial 90 (where the seed decides each bot's mistakes, so each seed is a different
-    /// trajectory through the same content) at keys 2 and 10. Per key: the base kit's spread, and the median over all
-    /// sibling pairs of the population standard deviation of the pair's per-seed margin. Run only when re-baselining.
-    /// </summary>
-    private static IReadOnlyList<string> MeasureNoise()
-    {
-        var registry = Registry.Value;
-        var lines = new List<string>();
-        foreach (var (key, file) in new[] { ("k2", "hollow-vault-k2.setup.json"), ("k10", "hollow-vault-k10.setup.json") })
-        {
-            var sweep = Enumerable.Range(1, NoiseSeeds).Select(seed => LoadScenario(("noise", file, seed, 90))).ToList();
-            var baseRuns = sweep.Select(s => Measure(s, null, null)).ToList();
-            var sds = new List<double>[] { new(), new(), new() };
-            foreach (var cls in registry.Classes.Values)
-            {
-                foreach (var fork in cls.Talents)
-                {
-                    var baseDef = registry.Abilities[fork.AbilityId];
-                    var options = fork.Options.Select(o => sweep.Select(s => Measure(s, cls.Id, ToSim(C.TalentPicks.ApplyPatch(baseDef, o.Patch)))).ToList()).ToList();
-                    for (var i = 0; i < options.Count; i++)
-                    {
-                        for (var j = i + 1; j < options.Count; j++)
-                        {
-                            var m = options[i].Zip(options[j], ForkParityMargins.Margin).ToList();
-                            if (m.All(x => x == (0, 0, 0)))
-                            {
-                                continue; // an unmeasured fork: both options run identically on every seed
-                            }
-                            sds[0].Add(PopulationSd(m.Select(x => (double)x.Clear)));
-                            sds[1].Add(PopulationSd(m.Select(x => (double)x.Deaths)));
-                            sds[2].Add(PopulationSd(m.Select(x => (double)x.Combos)));
-                        }
-                    }
-                }
-            }
-            var clears = baseRuns.Select(r => r.ClearTick).OrderBy(x => x).ToList();
-            var medianClear = Median(clears.Select(x => (double)x));
-            lines.Add(string.Create(CultureInfo.InvariantCulture,
-                $"{key} base kit, dial 90, seeds 1..{NoiseSeeds}: clear {clears[0]}..{clears[^1]} (median {medianClear:0}, sd {PopulationSd(clears.Select(x => (double)x)):0.0}), deaths {baseRuns.Min(r => r.Deaths)}..{baseRuns.Max(r => r.Deaths)}, combos {baseRuns.Min(r => r.Combos)}..{baseRuns.Max(r => r.Combos)}"));
-            lines.Add(string.Create(CultureInfo.InvariantCulture,
-                $"{key} paired margin sd, median over {sds[0].Count} sibling pairs: clear {Median(sds[0]):0.0} ticks ({Median(sds[0]) * 10000 / medianClear:0} bp of the median base clear), deaths {Median(sds[1]):0.00}, combos {Median(sds[2]):0.00}"));
-        }
-        return lines;
-    }
-
-    /// <summary>Seeds in the re-baseline noise sweep.</summary>
-    private const int NoiseSeeds = 12;
-
-    private static double PopulationSd(IEnumerable<double> values)
-    {
-        var v = values.ToList();
-        var mean = v.Average();
-        return Math.Sqrt(v.Sum(x => (x - mean) * (x - mean)) / v.Count);
-    }
-
-    private static double Median(IEnumerable<double> values)
-    {
-        var v = values.OrderBy(x => x).ToList();
-        return v.Count % 2 == 1 ? v[v.Count / 2] : (v[v.Count / 2 - 1] + v[v.Count / 2]) / 2;
     }
 }
