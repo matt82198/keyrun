@@ -245,19 +245,9 @@ public sealed class PolicyBot : IBot
         return role.Decide(view with { State = state }, copy);
     }
 
-    // bot.ts dangerAvoidCommand, gated by the plan.
-    private static MoveCommand? DangerAvoid(BotView view, ActorState self)
-    {
-        var tick = view.State.Tick;
-        var selfMm = PointMm.Of(self.Pos);
-        var active = view.Telegraphs.Where(t => t.Danger && t.ResolvesTick > tick && !Positioning.IsSpent(t, view.State)).ToList();
-        if (!Positioning.IsInAnyDanger(selfMm, active))
-        {
-            return null;
-        }
-        var safe = Positioning.NearestSafePoint(selfMm, active);
-        return safe is null ? null : Moves.MoveToward(tick, self.Id, selfMm, safe.Value);
-    }
+    // bot.ts dangerAvoidCommand, gated by the plan. The one shared implementation (Bot.DangerAvoidCommand), so the
+    // playtest seat and the scripted runner leave a telegraph the same way, walkable-aware on a layout run.
+    private static MoveCommand? DangerAvoid(BotView view, ActorState self) => Bot.DangerAvoidCommand(view, self);
 
     private bool HeldHere(string abilityId) =>
         _policy.Hold.TryGetValue(abilityId, out var pulls) && !pulls.Contains(_context.PullId, StringComparer.Ordinal);
