@@ -148,7 +148,7 @@ public sealed class CameraNearFadeTests
         Assert.Equal(Opaque, CameraNearFade.ScreenHeightCapPermille(FadeRole.Self, 900));
     }
 
-    // ENEMY-BODY-STABLE: one entry point for the view. An enemy is opaque under every rule; party bodies keep the min of rules.
+    // ENEMY-BODY-STABLE: one entry point for the view. An enemy is opaque under every rule, and so is every party body (PARTY-SOLID below).
     [Fact]
     public void An_enemy_at_1000_mm_is_drawn_opaque()
     {
@@ -174,31 +174,30 @@ public sealed class CameraNearFadeTests
         Assert.Equal(Opaque, CameraNearFade.AppliedPermille(FadeRole.Enemy, 1000, false, 900));
     }
 
-    [Fact]
-    public void A_party_body_near_the_lens_keeps_the_distance_rule()
+    // PARTY-SOLID (Matt 2026-10-21, capture kf2-kick-1f8fed7f/kf2-011-t012s: the Warden and the Chanter drawn
+    // semi-transparent in the first room with no geometry between the camera and them, "i want to be able to see my
+    // party"): every party body, the seated player's own model (Self) and every bot (Ally), is drawn fully opaque during
+    // combat whatever its distance to the lens, its occlusion of the pivot or its screen height. The pure rules above
+    // still rate those inputs (the CAMERA log line reports them); none of them reaches the drawn alpha.
+    public static TheoryData<FadeRole, int, bool, int> PartyCombatFrames() => new()
     {
-        // The distance rule at 1 m is 240; no occlusion and no screen-height cap apply.
-        Assert.Equal(240, CameraNearFade.AppliedPermille(FadeRole.Ally, 1000, false, 0));
-    }
+        // role, lens-to-chest mm, occludes the pivot, screen height permille
+        { FadeRole.Self, 0, false, 0 },       // the lens pressed into the Warden
+        { FadeRole.Self, 1000, false, 0 },    // the boom clamped by a wall, 1 m out (was 240)
+        { FadeRole.Self, 3500, false, 900 },  // the Warden at a short boom, filling the frame (was 715)
+        { FadeRole.Ally, 0, false, 0 },       // a bot against the lens
+        { FadeRole.Ally, 1000, false, 0 },    // a bot 1 m out (was 240)
+        { FadeRole.Ally, 4000, true, 0 },     // a bot between the lens and the Warden (was 250)
+        { FadeRole.Ally, 8000, true, 0 },     // a bot on the sight line past the near rule (was 250)
+        { FadeRole.Ally, 8000, false, 340 },  // a bot drawn taller than a third of the viewport (was 250)
+        { FadeRole.Ally, 4000, true, 900 },   // every rule at once
+    };
 
-    [Fact]
-    public void A_party_body_on_the_sight_line_takes_the_party_fade_at_the_boom_distance()
+    [Theory]
+    [MemberData(nameof(PartyCombatFrames))]
+    public void A_party_body_is_drawn_fully_opaque_during_combat(FadeRole role, int distanceMm, bool occludes, int screenHeight)
     {
-        Assert.Equal(PartyFade.FadedPermille, CameraNearFade.AppliedPermille(FadeRole.Ally, 8000, true, 0));
-    }
-
-    [Fact]
-    public void A_party_body_taller_than_a_third_of_the_viewport_is_capped_in_applied()
-    {
-        Assert.Equal(PartyFade.FadedPermille, CameraNearFade.AppliedPermille(FadeRole.Ally, 8000, false, 340));
-        Assert.Equal(Opaque, CameraNearFade.AppliedPermille(FadeRole.Ally, 8000, false, 320));
-    }
-
-    [Fact]
-    public void The_players_own_model_keeps_the_distance_rule_and_is_never_capped()
-    {
-        Assert.Equal(240, CameraNearFade.AppliedPermille(FadeRole.Self, 1000, false, 0));
-        Assert.Equal(Opaque, CameraNearFade.AppliedPermille(FadeRole.Self, 8000, false, 900));
+        Assert.Equal(Opaque, CameraNearFade.AppliedPermille(role, distanceMm, occludes, screenHeight));
     }
 
     [Fact]
