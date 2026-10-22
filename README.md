@@ -32,7 +32,7 @@ Proof of concept, in the engine rebuild.
    - [10 - Is the genre cooked?](research/10-market-is-the-genre-cooked.md)
    - [11 - 20 Hz vs 30 Hz on the real playable: measuring D9](research/11-tick-rate-measurement.md) (raw results: [tick-rate-results.json](research/tick-rate-results.json) and [tick-rate-results-real-worker.json](research/tick-rate-results-real-worker.json))
 2. **The design bible (2026-09-18).** [design/BIBLE.md](design/BIBLE.md) was written from the eleven briefs and Matt's decisions D1 to D9. Section 0 holds the three tests every decision must pass.
-3. **The engine plan.** [design/ENGINE-PLAN.md](design/ENGINE-PLAN.md) first targeted a TypeScript browser first paint. D12 moved the game to Godot 4.7.2 .NET with C# ([STATE.md](STATE.md), D12). The TypeScript simulation is kept as the parity oracle ([game/sim/ORACLE.md](game/sim/ORACLE.md)).
+3. **The engine plan.** [design/ENGINE-PLAN.md](design/ENGINE-PLAN.md) first targeted a TypeScript browser first paint. D12 moved the game to Godot 4.7.2 .NET with C# ([STATE.md](STATE.md), D12). The TypeScript tree was removed in PR #553. The oracle fixtures recorded from it stay in `game/sim/Keyrun.Sim.Tests/Fixtures/oracle/` ([game/sim/ORACLE.md](game/sim/ORACLE.md)).
 4. **The art plan.** [design/ART-PLAN.md](design/ART-PLAN.md) section 8 lays out the "Look and route" phase as a ladder of ten lanes. The ladder is recorded complete in [STATE.md](STATE.md) (STATE-R9 checkpoint). Art is CC0 packs only (D17, [game/assets/ATTRIBUTION.md](game/assets/ATTRIBUTION.md)).
 5. **The decision log.** [STATE.md](STATE.md) holds D1 to D26 with the wording and provenance of each decision. The pinned INTENT block at its top (lines 3-24) is re-read before every lane is judged; it landed with [PR #183](https://github.com/matt82198/keyrun/pull/183).
 6. **The lane ledger.** [game/CLAUDE.md](game/CLAUDE.md) has one row per lane: what the lane shipped and its PR number.
@@ -97,36 +97,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/godot.ps1 --path
 
 Replay the same log with `--replay-input` in place of `--record-input`, on the same path. A replay at a different seed or key is refused. Both flags are interactive only and are ignored under `--autorun`. Example logs are in [game/fixtures/input/](game/fixtures/input/).
 
-## Retired TypeScript browser client (first paint, parity oracle only)
-
-This client is retired. It is kept only as the parity oracle until ENGINE-PLAN phase 4 deletes it; it is not the product
-([design/ENGINE-PLAN.md](design/ENGINE-PLAN.md), section 5, phase 4).
-
-Requires Node.js and npm.
-
-```
-npm ci
-npm run dev
-```
-
-`npm run dev` builds the client, watches for changes and serves on port 8791. Open:
-
-http://localhost:8791/client/index.html?key=5&dungeon=hollow-vault&class=warden
-
-### Network path (in progress)
-
-In a second terminal, start the game server:
-
-```
-npm run server
-```
-
-It listens on port 8792. Then open:
-
-http://localhost:8791/client/index.html?net=1&key=5&dungeon=hollow-vault&class=warden
-
-The client connects to `ws://127.0.0.1:8792` by default.
-
 ## Test
 
 Game tests (C#):
@@ -135,16 +105,17 @@ Game tests (C#):
 dotnet test game/Keyrun.sln
 ```
 
-Retired TypeScript oracle tests:
+Per-step lane check (incremental build of `game/Keyrun.sln`, then only the test projects the diff can affect; the full
+solution still runs in CI as `game-test`):
 
 ```
-npm test
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/fastcheck.ps1
 ```
 
-The last line of output is the Vitest summary, for example:
+Lane row-file gate (the only Vitest suite left; the TypeScript suites were removed in PR #553):
 
 ```
-      Tests  880 passed (880)
+npx vitest run tests/lanes
 ```
 
 ## Open work
