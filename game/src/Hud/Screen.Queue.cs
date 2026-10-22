@@ -20,6 +20,13 @@ public partial class Screen
         // Lobby.Queue, which adds the class): the talent kit and the gear stats, never the Facets (finding f-494ea8ef:
         // the host's RunStart.Of applies each Facet once from the progression; a Facet-patched kit on the request was
         // patched a second time).
+        // D65: a dungeon the content lays out no map for cannot be built (HostRunSetup.Build); the screen says so.
+        if (!lobby.Locked && !DungeonPick.HasMap(reg, lobby.Key.DungeonId))
+        {
+            _status = FormattableString.Invariant($"{lobby.Key.DungeonId} has no map yet.");
+            Proof(FormattableString.Invariant($"SCREEN queue refused dungeon={lobby.Key.DungeonId} reason=no-map"));
+            return;
+        }
         var loadout = lobby.Locked ? null : RunLoadout(withFacets: true);
         var (locked, request) = lobby.Queue(reg, _progression);
         _lobby = locked;

@@ -54,6 +54,10 @@ public partial class Screen
         {
             StepKey(1);
         }
+        else if (Tab == LobbyTab.Key && DungeonRow(l.Key) is var dungeonRow && dungeonRow.HasPoint(click.Position))
+        {
+            CycleDungeon(click.Position.X < dungeonRow.GetCenter().X ? -1 : 1);
+        }
         AcceptEvent();
     }
 
@@ -114,6 +118,12 @@ public partial class Screen
                 return true;
             case Key.Down when Tab == LobbyTab.Character:
                 CycleClass(1);
+                return true;
+            case Key.Up when Tab == LobbyTab.Key:
+                CycleDungeon(-1);
+                return true;
+            case Key.Down when Tab == LobbyTab.Key:
+                CycleDungeon(1);
                 return true;
             case Key.Up when Tab == LobbyTab.Gear:
                 CycleSelected(-1);

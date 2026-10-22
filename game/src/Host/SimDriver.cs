@@ -66,7 +66,13 @@ public partial class SimDriver : Node
     public const int WardenId = 1;
 
     /// <summary>The dungeon played.</summary>
-    public const string DungeonId = "hollow-vault";
+    public const string DungeonId = DungeonPick.DefaultId;
+
+    /// <summary>
+    /// D65 / f-61f01ca3: the dungeon this launch plays, <c>--dungeon ID</c> resolved against the content
+    /// (<see cref="DungeonPick.Resolve"/>); <see cref="DungeonId"/>, the default, until content loads.
+    /// </summary>
+    public string SelectedDungeonId { get; private set; } = DungeonId;
 
     /// <summary>
     /// The human's class for a run with no queued class (the CLI, <c>--autorun</c> and <c>--solo</c> runs); a queued run
@@ -214,6 +220,8 @@ public partial class SimDriver : Node
         {
             Options = ArenaOptions.Parse(OS.GetCmdlineUserArgs());
             Registry = ContentLoader.Load();
+            // D65: an unknown --dungeon id stops the launch (ArgumentException naming the id and the known ones).
+            SelectedDungeonId = DungeonPick.Resolve(Registry, Options.DungeonId);
             // The weekly affix rotation (AffixWeek, Matt 2026-10-20 "lean into m+ design"): a live run takes the index
             // of the week since the last US reset (Tuesday 15:00 UTC), read from the UTC clock here in the host, never in
             // the sim, unless --rotation N pins it; a --replay-input run takes the index its log recorded, never the
@@ -223,7 +231,7 @@ public partial class SimDriver : Node
             RotationIndex = AffixWeek.ForRun(
                 _replayLog is not null, _replayLog?.RotationIndex, Options.Rotation, DateTime.UtcNow, AffixWeek.RotationLength(Registry.Clauses.Count),
                 writeMovie: Options.MovieDir is not null);
-            Setup = HostRunSetup.Build(Registry, DungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: RotationIndex);
+            Setup = HostRunSetup.Build(Registry, SelectedDungeonId, Options.KeyLevel, HumanClassId, withBots: !Options.Solo, rotationIndex: RotationIndex);
             _log = new RunLog(Options.LogPath, Options.Autorun, Registry);
             _player = GetNode<PlayerInput>(InputPath);
             _rig = GetNodeOrNull<CameraRig>(CameraRigPath);
@@ -400,7 +408,7 @@ public partial class SimDriver : Node
     private void StartRun(QueueRequest? request)
     {
         var registry = Registry ?? throw new InvalidOperationException("SimDriver started a run before content loaded");
-        var dungeonId = request?.DungeonId ?? DungeonId;
+        var dungeonId = request?.DungeonId ?? SelectedDungeonId;
         var keyLevel = request?.KeyLevel ?? Options.KeyLevel;
         // LOBBY-TABS: the class picked on the screen's Character tab builds the party (the human takes that class's
         // roster seat, bots fill the other two); a CLI run (no request) plays the default Warden. The class is read from
