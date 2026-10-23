@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Keyrun.Bots;
+using Keyrun.Bots.Guides;
 using Keyrun.Bots.Roles;
 using Keyrun.Bots.Shared;
 using Keyrun.Host;
@@ -159,6 +160,9 @@ public static class PlaytestRunner
             Talents = options.Talents,
         }).Run;
         var kits = KitRegistry.From(registry);
+        // G2.4 K3b: a guided plan loads the playtester guides (embedded in Keyrun.Content from game/content/data/guides/),
+        // failing closed here when none is loaded. A blind plan and the scripted party load nothing.
+        var guides = policy is not null && mode == Keyrun.Bots.Shared.PlaytesterMode.Guided ? LoadGuides(registry) : null;
         var context = new PolicyContext();
         var forces = (options.PullToForces ?? true) ? ForcesPlan.Of(registry) : null;
 
@@ -174,7 +178,7 @@ public static class PlaytestRunner
             }
             else
             {
-                var pb = new PolicyBot(policy, context, registry, options.Seed, p.Id, TankId);
+                var pb = new PolicyBot(policy, context, registry, options.Seed, p.Id, TankId, guides);
                 policyBots[p.Id] = pb;
                 bots[p.Id] = pb;
             }
@@ -184,7 +188,7 @@ public static class PlaytestRunner
         var prng = Skill.SeedPrng(options.Seed);
         var maxTicks = options.MaxTicks ?? (2 * (setup.Content.ParTicks ?? 24000));
         var log = new StringBuilder();
-        var stats = new RunStats(registry, setup.Party);
+        var stats = new RunStats(registry, setup.Party, kits);
 
         while (run.State.Tick < maxTicks && run.RunEnd.ResultTick is null)
         {
@@ -243,7 +247,9 @@ public static class PlaytestRunner
             foreach (var c in commands)
             {
                 var seatClass = run.State.Actors.TryGetValue(c.ActorId, out var seat) ? seat.ClassId : string.Empty;
-                receipts.Record(Keyrun.Bots.Shared.BotReceipt.Of(tick, seatClass, c, Reasons.Of(c).Why, mode));
+                var reason = Reasons.Of(c);
+                var receiptReason = reason.RuleId.StartsWith("guide:", StringComparison.Ordinal) ? reason.RuleId : reason.Why;
+                receipts.Record(Keyrun.Bots.Shared.BotReceipt.Of(tick, seatClass, c, receiptReason, mode));
             }
             stats.ObserveCommands(commands);
             options.Observe?.Invoke(tick, run, commands);
@@ -261,6 +267,26 @@ public static class PlaytestRunner
             stats.NoteHands(id, pb.LateKicks, pb.DodgeMoves);
         }
         return new PlaytestResult(run, log.ToString(), stats, setup, registry);
+    }
+
+    /// <summary>
+    /// The playtester guides a guided plan plays from: game/content/data/guides/warden.json, read from the embedded content
+    /// (Keyrun.Content embeds content/data/**/*.json, so the Playtest project reaches it through its ProjectReference). Fails
+    /// closed with a plan-load message when the Warden guide is absent.
+    /// </summary>
+    /// <param name="registry">The content (the ability ids a guide press must name).</param>
+    /// <returns>The loaded guides.</returns>
+    public static GuideSet LoadGuides(C.ContentRegistry registry)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        const string path = "guides/warden.json";
+        var source = C.EmbeddedContentSource.Instance;
+        if (!source.Paths.Contains(path, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException("guided plan: no playtester guide is loaded (game/content/data/guides/warden.json is not embedded in Keyrun.Content); use mode \"blind\" to play the scripted roles");
+        }
+        var text = Encoding.UTF8.GetString(source.Read(path));
+        return GuideSet.Parse(text, registry.Abilities.Keys.ToHashSet(StringComparer.Ordinal));
     }
 
     // pull.restHealthPct: the leader waits while any living seat is under the threshold.

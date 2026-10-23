@@ -50,7 +50,8 @@ public sealed class PolicyPlayTests
     {
         static int Pressed(PlaytestResult r, string id) =>
             r.Stats.CastsBySeat.TryGetValue(1, out var casts) && casts.TryGetValue(id, out var n) ? n : 0;
-        var bare = Play("{}");
+        // R-GUIDE-2: a bare plan is guided by default; this control pins the scripted tank.
+        var bare = Play("{\"mode\": \"blind\"}");
         var mitigating = Play("{\"mitigate\": [\"warden\"]}");
         Assert.Equal(0, Pressed(bare, "warden.brace"));
         Assert.Equal(0, Pressed(bare, "warden.bulwark"));
