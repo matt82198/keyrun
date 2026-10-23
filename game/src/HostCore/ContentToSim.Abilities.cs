@@ -58,6 +58,28 @@ public sealed partial record HostRunSetup
         return Abilities.LineShape(s.Length ?? 0, width);
     }
 
+    /// <summary>
+    /// The production ability adapter as a public seam (R-K4-17, the oracle setup writer): one registry ability as the
+    /// sim's <see cref="AbilityDef"/>, the same mapping every run setup uses. Behaviour is unchanged.
+    /// </summary>
+    /// <param name="a">The registry ability.</param>
+    /// <returns>The sim ability.</returns>
+    public static AbilityDef ToSimAbility(C.AbilityDef a) => ToSim(a);
+
+    /// <summary>
+    /// The production effect adapter as a public seam (R-K4-17, the oracle setup writer). Behaviour is unchanged.
+    /// </summary>
+    /// <param name="e">The registry effect.</param>
+    /// <returns>The sim effect.</returns>
+    public static EffectDef ToSimEffect(C.EffectDef e) => ToSim(e);
+
+    /// <summary>
+    /// The production clause adapter as a public seam (R-K4-17, the oracle setup writer). Behaviour is unchanged.
+    /// </summary>
+    /// <param name="c">The registry clause.</param>
+    /// <returns>The sim clause.</returns>
+    public static Keyrun.Sim.Encounter.ClauseDef ToSimClause(C.ClauseDef c) => ToSim(c);
+
     private static ShapeKind ToSim(C.ShapeKind k) => k switch
     {
         C.ShapeKind.Target => ShapeKind.Target,
