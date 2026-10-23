@@ -68,7 +68,7 @@ The class's ability in each slot (`content/data/classes/<class>.json` and `conte
 | F | Charge | Glide | Blink |
 
 **Screen keys** (before and between runs, `game/src/Hud/Screen.Input.cs:97-141`):
-Up/Down pick a class on Character (Screen.TabCharacter.cs:107); Left/Right or `-`/`+` step the key level (Screen.cs:167-176); **Q/E** or **F1** to **F5** move between tabs (Screen.Input.cs:145-165); **T** opens talents; **Tab** cycles the selected item (Screen.Input.cs:130-132).
+Up/Down pick a class on Character (Screen.TabCharacter.cs:107); on the Key tab Up/Down (or a click on the "< name >" row under the run strip) pick the dungeon by name and the run uses that pick (Lobby.NextDungeon, Screen.TabKey.cs CycleDungeon); Left/Right or `-`/`+` step the key level (Screen.cs:167-176); **Q/E** or **F1** to **F5** move between tabs (Screen.Input.cs:145-165); **T** opens talents; **Tab** cycles the selected item (Screen.Input.cs:130-132).
 At the end of a run, keys **1, 2, 3** take one of the three cards (RunEndPanel.cs:459-469), and **Enter** returns to the screen (RunEndPanel.cs:336).
 
 ## What the tutorial teaches
