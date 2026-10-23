@@ -109,7 +109,7 @@ public sealed class RoomThemeTests
         Assert.Contains(pair.Props, p => p.Piece == "table_medium_broken");
         Assert.Contains(pair.Props, p => p.Piece == "crates_stacked");
         Assert.Contains(pair.Props, p => p.Piece == "barrel_small_stack");
-        Assert.Contains(pair.Decor!, d => d.Piece == "banner_shield_red" && d.Side == WallSide.MaxX);
+        Assert.Contains(pair.Decor!, d => d.Piece == "banner_shield_red" && d.Side == WallSide.MaxZ);
         Assert.True(pair.Decor!.Count(d => d.Piece == "torch_mounted" && d.Side == WallSide.MinZ) >= 2);
         Assert.True(pair.Decor!.Count(d => d.Piece == "torch_mounted" && d.Side == WallSide.MaxZ) >= 2);
         var seed = Room(theme, "seed-chamber");
