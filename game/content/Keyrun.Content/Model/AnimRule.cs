@@ -130,11 +130,29 @@ public static class AnimRule
     }
 
     /// <summary>
-    /// Where the swing one-shot starts, in ms into <paramref name="clip"/>, on the tick its ability resolves:
-    /// <see cref="SwingLeadMs"/> before contact, so the blow lands with the sim's hit; 0 for a clip with no known contact.
+    /// R-ANIM-2 (b): where the swing one-shot starts, in ms into <paramref name="clip"/>, on the tick its ability resolves.
+    /// Always 0: the clip starts at frame 0 on the resolve tick, as WoW plays an instant. The hit presentation waits for
+    /// the contact frame instead (<see cref="HitPresentationDelayMs"/>); the sim damage tick is unchanged.
     /// </summary>
-    public static int SwingStartMs(string clip) =>
-        ContactMs(clip) is int contact ? Math.Max(0, contact - SwingLeadMs) : 0;
+    public static int SwingStartMs(string clip)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        return 0;
+    }
+
+    /// <summary>R-ANIM-2 (b): the longest the hit presentation (spark, body flash, floating damage) waits for contact, in ms.</summary>
+    public const int HitPresentationCapMs = 300;
+
+    /// <summary>
+    /// R-ANIM-2 (b): how long the hit presentation of a resolved attack on <paramref name="clip"/> waits after the resolve
+    /// tick, in ms: the clip's contact frame, capped at <see cref="HitPresentationCapMs"/>. Presentation only; the sim
+    /// damage tick is not moved. A clip with no known contact waits 0 ms.
+    /// </summary>
+    public static int HitPresentationDelayMs(string clip)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        return Math.Min(ContactMs(clip) ?? 0, HitPresentationCapMs);
+    }
 
     /// <summary>
     /// The hit flash strength in permille: 1000 on the frame a health drop lands, fading to 0 over

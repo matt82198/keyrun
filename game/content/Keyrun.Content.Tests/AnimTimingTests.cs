@@ -31,13 +31,16 @@ public sealed class AnimTimingTests
     [InlineData("Unarmed_Melee_Attack_Kick", 400)]
     [InlineData("Spellcast_Shoot", 300)]
     [InlineData("Spellcast_Raise", 600)]
-    public void Swing_lands_its_blow_within_two_ticks_of_the_hit(string clip, int contactMs)
+    public void Hit_presentation_waits_for_contact_capped_at_300ms(string clip, int contactMs)
     {
+        // R-ANIM-2 (b) replaces the old 100 ms lead (the blow was pinned to within two ticks of the hit). The clip now
+        // starts at frame 0 on the resolve tick, and the hit presentation (spark, flash, floating damage) waits for the
+        // contact frame, capped at 300 ms: HitPresentationDelayMs = min(contact, 300). The sim damage tick does not move.
         Assert.Equal(contactMs, AnimRule.ContactMs(clip));
-        var start = AnimRule.SwingStartMs(clip);
-        var lag = contactMs - start; // ms from the hit tick to the drawn contact
-        Assert.InRange(lag, 0, 2 * TickMs);
-        Assert.True(start > 0, $"{clip}: a swing from frame 0 lands {contactMs} ms after the damage number");
+        Assert.Equal(0, AnimRule.SwingStartMs(clip));
+        var delay = AnimRule.HitPresentationDelayMs(clip);
+        Assert.Equal(Math.Min(contactMs, 300), delay);
+        Assert.True(delay <= contactMs, $"{clip}: presentation at {delay} ms leads contact at {contactMs} ms");
     }
 
     [Fact]
