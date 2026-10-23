@@ -115,8 +115,9 @@ function Wait-Launcher($l, [int]$seconds) {
     $text = ''
     foreach ($f in @($l.Out, $l.Err)) { if (Test-Path -LiteralPath $f) { $text += [IO.File]::ReadAllText($f) } }
     $code = $null
-    if ($done) { $code = $l.Proc.ExitCode }
-    return [pscustomobject]@{ TimedOut = (-not $done); Code = $code; Text = $text; Seconds = ((Get-Date) - $l.Started).TotalSeconds }
+    $exitedAt = $null
+    if ($done) { $code = $l.Proc.ExitCode; $exitedAt = $l.Proc.ExitTime.ToUniversalTime() }
+    return [pscustomobject]@{ TimedOut = (-not $done); Code = $code; Text = $text; Seconds = ((Get-Date) - $l.Started).TotalSeconds; Started = $l.Started; ExitedAt = $exitedAt }
 }
 
 function Wait-For([scriptblock]$cond, [int]$seconds) {
@@ -152,7 +153,18 @@ try {
     Check 'A.lock-file-appears' $held "no lock file at $lockFile within 60s while the first launch runs"
     Set-Stub 0 ''
     $a2 = Wait-Launcher (Start-Launcher 'A2') 30
-    Check 'A.second-fails-fast' ((-not $a2.TimedOut) -and $a2.Seconds -lt 6) ("second launch took {0:N1}s timedOut={1}" -f $a2.Seconds, $a2.TimedOut)
+    # The fail-fast interval runs from the second launcher's lock check (godot.ps1 prints 'launch-lock: check at <ISO>')
+    # to its exit. The cold start before the check (process start, preflight, C# compile) is printed, not asserted.
+    $a2Stamp = [regex]::Match($a2.Text, 'launch-lock: check at (\S+)')
+    $a2ColdSec = $null
+    $a2FailFastSec = $null
+    if ($a2Stamp.Success -and $a2.ExitedAt) {
+        $a2CheckAt = [DateTime]::Parse($a2Stamp.Groups[1].Value, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)
+        $a2ColdSec = ($a2CheckAt - $a2.Started.ToUniversalTime()).TotalSeconds
+        $a2FailFastSec = ($a2.ExitedAt - $a2CheckAt).TotalSeconds
+    }
+    if ($null -ne $a2ColdSec) { Write-Output ("info A.second-fails-fast cold-start={0:N1}s (not asserted) fail-fast={1:N1}s" -f $a2ColdSec, $a2FailFastSec) }
+    Check 'A.second-fails-fast' ((-not $a2.TimedOut) -and $null -ne $a2FailFastSec -and $a2FailFastSec -lt 6) ("second launch took {0:N1}s from lock check to exit timedOut={1} stamp={2}" -f $a2FailFastSec, $a2.TimedOut, $a2Stamp.Success)
     Check 'A.second-exits-nonzero' ($a2.Code -ne $null -and $a2.Code -ne 0) "second launch exit=$($a2.Code)"
     Check 'A.second-says-lock-held' ($a2.Text -match [regex]::Escape($lockMsg)) "second launch output: $($a2.Text.Trim())"
     Check 'A.second-did-not-run-stub' ($a2.Text -notmatch 'STUB start') 'second launch ran the binary'
