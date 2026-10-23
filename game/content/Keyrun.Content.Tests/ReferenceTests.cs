@@ -57,7 +57,7 @@ public sealed class ReferenceTests
             if (e.Periodic is not null) CheckOps(new[] { e.Periodic.Op }, refs, "effect " + e.Id);
 
         Assert.True(refs.Missing.Count == 0, Report(refs));
-        Assert.Equal(34, refs.Checked); // vacuity guard: exact ref count from the JSON (+3: R-SORROW-1 adds the moltenBrand, fannedCoals, stunned (Resonance) and drenched (Drowned Dirge) applyEffects and drops lockShield with Still the Bell; was 31;+6: the resonance, overheatedCore, slagBurn, boilingBlood, bronzeWard and lockShield applyEffects of abilities/bellfoundry.json, D66; was 25;+4: the searingHex, cinders, stoked and rooted applyEffects of abilities/vault.json, VAULT-KITS S1; was 21)
+        Assert.Equal(36, refs.Checked); // vacuity guard: exact ref count from the JSON (+2 = chanter.glide removeEffect rooted, slowed (R-TOOLKIT-3); +3: R-SORROW-1 adds the moltenBrand, fannedCoals, stunned (Resonance) and drenched (Drowned Dirge) applyEffects and drops lockShield with Still the Bell; was 31;+6: the resonance, overheatedCore, slagBurn, boilingBlood, bronzeWard and lockShield applyEffects of abilities/bellfoundry.json, D66; was 25;+4: the searingHex, cinders, stoked and rooted applyEffects of abilities/vault.json, VAULT-KITS S1; was 21)
     }
 
     [Fact]

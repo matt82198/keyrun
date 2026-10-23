@@ -24,10 +24,12 @@ public sealed class ToolkitRuleTests
 
         Assert.NotEmpty(gaps);
         Assert.All(gaps, g => Assert.Equal("class", g.Subject));
-        Assert.Contains(gaps, g => g.Id == "cinder" && g.Code == "mobility-moves-caster");
-        Assert.Contains(gaps, g => g.Id == "warden" && g.Code == "mobility-moves-caster");
-        Assert.DoesNotContain(gaps, g => g.Id == "chanter" && g.Code == "mobility-moves-caster");
-        Assert.Contains(gaps, g => g.Id == "chanter" && g.Code == "defensive-external");
+        // Exact set (R-TOOLKIT-3): derived by running ToolkitRule.ClassGaps on the real content after the S2 ability and
+        // ToolkitRule changes (design/toolkit-gaps/class-gaps.json is regenerated from the same report). Only
+        // warden.charge still removes no slow or root.
+        Assert.Equal(
+            new[] { "warden/mobility-frees-binds" },
+            gaps.Select(g => g.Id + "/" + g.Code).OrderBy(s => s, StringComparer.Ordinal).ToArray());
         Assert.DoesNotContain(gaps, g => g.Code is "defensive-missing" or "utility-missing");
     }
 

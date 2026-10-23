@@ -392,6 +392,10 @@ public class CinderHeatOverheatTests
         "resource" => new ResourceOp(o.GetProperty("delta").GetInt64()),
         "payoff" => new PayoffOp(),
         "interrupt" => new InterruptOp(),
+        "displace" => new DisplaceOp(
+            o.GetProperty("distanceMm").GetInt64(),
+            o.TryGetProperty("freesBinds", out var fb) && fb.GetBoolean(),
+            o.TryGetProperty("towardTarget", out var tt) && tt.GetBoolean()),
         "window" => new WindowOp(
             o.GetProperty("windowId").GetString()!,
             o.GetProperty("durationTicks").GetInt32(),
