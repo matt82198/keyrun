@@ -138,7 +138,7 @@ public static class Bot
         // KICK-LEDGER-COOLDOWN-GAP (finding f-13b5c33a, the WoW kick rotation: a melee kicker walks in to reach the caster):
         // when the party ledger names this seat to kick a cast its interrupt cannot reach yet, it walks at the caster. Every
         // tick and skill-dial-free like the walks above (the reaction delay would leave it a third of its speed, and the
-        // ledger's landing estimate is at full speed). Inert in the oracle runner (no layout).
+        // ledger's landing estimate is at full speed). Also in the oracle runner (no layout): a straight walk, KICK-APPROACH-NO-LAYOUT.
         if (avoid is null && !pingCommands.Any() && Roles.RoleShared.LedgerKickApproachCommand(view, self, Roles.RoleShared.KitOf(view, self.ClassId)) is { } kickWalk)
         {
             commands.Add(Reasons.Tag(kickWalk, "bot:kick-approach"));
