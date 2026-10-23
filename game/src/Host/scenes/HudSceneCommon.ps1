@@ -85,6 +85,8 @@ function Get-RotationIndexText([string]$path) {
     return $null
 }
 function Remove-RotationIndexLine([string]$text) { return $text -replace '(?m)^  "rotationIndex": [0-9]+,\n', '' }
+# Scene anchors are derived headlessly at rotation 0, so every autorun scene launch pins --rotation 0: a live run takes the week's
+# index from the UTC clock (SimDriver.cs:240-245, AffixWeek.ForRun), which made a scene result depend on the week it ran in.
 
 # ---- Run-end titles (lane 3C-d), applied to each autorun's own lines (runs A-G) -----------------------------------
 # A cleared run keeps the clear title; an uncleared depleted run is the timer cap's, "Out of time" (R-BACKFILL-2, BIBLE

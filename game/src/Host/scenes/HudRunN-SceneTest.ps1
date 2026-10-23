@@ -2,7 +2,7 @@
 .SYNOPSIS
   HUD scene run N (check 41, lane TINT-RUNOVER): a non-clear run end with a living out-of-range target; three-seat
   party, key 2.
-  -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (no --joiner-key)
+  -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (no --joiner-key; lane S1, R-K4-13 (c))
 
 .DESCRIPTION
   Split from the former game/src/Host/HudSceneTest.ps1 (module-boundary review slice S3). The check text, the abandon
@@ -11,8 +11,17 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    [int]$TintTicks = 8500,
-    [string]$TintAbandon = '2@300'
+    # Lane S1 (R-K4-13 (c)): the seat abandon at 2@300 ends depleted at 6900 with no far living hostile while live, so the
+    # no-abandon run was used. 2@2400 (seed 1, key 2, bots on) ends depleted at 11279 with a living hostile 3651 mm away
+    # at tick 1468 (before the abandon fires), and is the smallest anchor change found that does both. 2@900 has no far
+    # hostile; 2@1500 has one but ends depleted only at 22300 (measured before the lane S1 Forces parity change). Derivation:
+    # HudRunOverTintTests Candidates[0].
+    # Lane S1 premise (scratchpad/lanes/s1-hudrunN-premise.log): key 2 clears hollow-vault on this tree, so the scene now
+    # passes --key 3 (ArenaOptions.cs:194-196, SimDriver.cs:245). Headless seed 1, key 3, abandon 2@2400, bots on, the scene's
+    # Forces plan (SimDriver.cs:254-258): ResultTick 12900 = CapTicks 26200 - PenaltyTicks 13300, Depleted, uncleared, at the
+    # timer cap. 13100 = 12900 + 200, a 200-tick margin past that end. Derivation: HudRunOverTintTests Run_N_ends_depleted_*.
+    [int]$TintTicks = 13100,
+    [string]$TintAbandon = '2@2400'
 )
 $SceneName = 'HudRunN-SceneTest'
 . (Join-Path $PSScriptRoot 'HudSceneCommon.ps1')
@@ -24,7 +33,7 @@ function Invoke-Arena([int]$n, [string[]]$extra) {
     # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
     $guard = (3 * $n) + 240
     $ErrorActionPreference = 'Continue'
-    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n @extra 2>&1 | Out-String
+    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n --rotation 0 @extra 2>&1 | Out-String
     $rc = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     Assert-GodotFound $rc $text
@@ -32,7 +41,8 @@ function Invoke-Arena([int]$n, [string[]]$extra) {
 }
 
 # ---- Run N (lane TINT-RUNOVER, check 41): the range tint is off once a non-clear run has ended -------------------
-$tintN = Invoke-Arena $TintTicks @('--abandon-seat', $TintAbandon)
+# --key 3: lane S1 premise (s1-hudrunN-premise.log); key 2 clears on this tree, key 3 ends at the timer cap.
+$tintN = Invoke-Arena $TintTicks @('--key', '3', '--abandon-seat', $TintAbandon)
 Write-SceneLog 'N' $tintN.Lines
 $tintRun = @(FirstRun $tintN.Lines)
 if ($tintN.Code -ne 0) { $failures.Add("run N: godot exited $($tintN.Code) (expected 0)") }
@@ -50,7 +60,7 @@ foreach ($l in @($tintLive, $tintEnd) + $tintOver) {
     if ($l) { Write-Output $l }
 }
 
-Complete-Scene "tintTicks=$TintTicks tintAbandon=$TintAbandon"
+Complete-Scene "tintTicks=$TintTicks"
 } finally {
     Exit-KeyrunLaunchLock $launchLock
 }

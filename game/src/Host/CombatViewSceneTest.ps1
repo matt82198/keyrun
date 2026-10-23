@@ -37,7 +37,7 @@ $failures = New-Object System.Collections.Generic.List[string]
 $ErrorActionPreference = 'Continue'
 # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
 $guardFrames = (3 * $Ticks) + 240
-$out = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guardFrames '--' --autorun --ticks $Ticks --log $logFile --solo 2>&1 | Out-String
+$out = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guardFrames '--' --autorun --ticks $Ticks --rotation 0 --log $logFile --solo 2>&1 | Out-String
 $code = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 
