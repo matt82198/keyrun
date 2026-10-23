@@ -120,6 +120,11 @@ public static class Summary
             }
             w.WriteEndArray();
 
+            // The time-to-learn fields: the first seat interrupt, and the first tick by which the party's earliest seat has cast
+            // its whole rotation (null when no seat has, or none interrupted).
+            WriteOptional(w, "firstKickTick", stats.FirstKickTick);
+            WriteOptional(w, "firstFullRotationTick", stats.FirstFullRotationTick);
+
             WriteCounts(w, "interruptibleCastsResolved", stats.InterruptibleResolved);
             WriteCounts(w, "castsInterrupted", stats.Interrupted);
 

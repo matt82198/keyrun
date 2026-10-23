@@ -28,7 +28,7 @@ public sealed record Policy
 
     /// <summary>
     /// The playtester mode (design/PLAYTESTER-GUIDE.md section 1; G2.4, K3a): "guided" or "blind". Left out, the plan is
-    /// guided: every plan written before the field existed is a guide plan, so it keeps its balance meaning.
+    /// guided when the plan has no policy knob section (R-GUIDE-2 a), blind when it has one; an explicit field always wins.
     /// </summary>
     public PlaytesterMode Mode { get; init; } = PlaytesterMode.Guided;
 
@@ -147,7 +147,7 @@ public static class PolicyReader
                 Utility = root.TryGetProperty("utility", out var u) ? ClassList(u, "utility", registry) : Array.Empty<string>(),
                 Hold = root.TryGetProperty("hold", out var h) ? Hold(h, registry) : new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal),
                 Focus = root.TryGetProperty("focus", out var f) ? Focus(f, registry) : Array.Empty<string>(),
-                Mode = root.TryGetProperty("mode", out var mode) ? ModeOf(mode) : PlaytesterMode.Guided,
+                Mode = root.TryGetProperty("mode", out var mode) ? ModeOf(mode) : DefaultMode(root),
             };
             if (root.TryGetProperty("dodge", out var dodge))
             {
@@ -160,6 +160,22 @@ public static class PolicyReader
             }
             return policy;
         }
+    }
+
+    /// <summary>
+    /// R-GUIDE-2 (a): a plan with no explicit mode is Blind when it carries any policy knob section (every field but
+    /// reason and mode), and Guided otherwise. An explicit mode always wins (see <see cref="ModeOf"/>).
+    /// </summary>
+    private static PlaytesterMode DefaultMode(JsonElement root)
+    {
+        foreach (var p in root.EnumerateObject())
+        {
+            if (p.Name is not ("reason" or "mode"))
+            {
+                return PlaytesterMode.Blind;
+            }
+        }
+        return PlaytesterMode.Guided;
     }
 
     // K3a: the mode is exactly "guided" or "blind". Anything else (a case change, a number, null) is a plan error, refused.
