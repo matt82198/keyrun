@@ -125,7 +125,9 @@ public partial class Screen
             return;
         }
         _store = new ProgressionStore(dir);
-        _progression = _store.Load(seed);
+        // f-6ee6bccf: the screen's first-draw class (no lobby exists yet, so ClassId is the HumanClassId default that
+        // Lobby.Open uses); the v1 save's history migrates to it.
+        _progression = _store.Load(seed, SimDriver.HumanClassId);
         _ratingStore = new PrivateRatingStore(dir);
         _rating = _ratingStore.Load();
         Proof(FormattableString.Invariant(
