@@ -44,6 +44,7 @@ public static class Reasons
         ["bot:chain-pull"] = "chain-pull the next pack",
         ["bot:tank-approach"] = "approach the engaged pack",
         ["bot:healer-top-off"] = "top off a hurt ally between pulls",
+        ["bot:cast-face"] = "turn to face the target before the cast starts",
         // Shared interrupt and floor answers that every role runs first.
         ["tank:ledger-kick"] = "interrupt the cast the ledger names",
         ["tank:floor-escape"] = "leave a floor patch",

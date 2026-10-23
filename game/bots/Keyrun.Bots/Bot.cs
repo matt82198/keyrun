@@ -259,7 +259,8 @@ public static class Bot
         {
             var memory = memories.TryGetValue(id, out var m) ? m : BotMemory.Default();
             var result = bots[id].Decide(view, memory, id, nextPrng, live);
-            commands.AddRange(result.Commands);
+            // R-FACING-2 (b): a targeted cast is preceded by the seat's turn to its target (CastFacing).
+            commands.AddRange(CastFacing.Apply(result.Commands, view.State));
             nextMemories[id] = result.Memory;
             nextPrng = result.Prng;
         }
