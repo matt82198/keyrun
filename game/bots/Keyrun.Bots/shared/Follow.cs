@@ -568,4 +568,50 @@ public static class Follow
         var dz = a.Z - b.Z;
         return (dx * dx) + (dz * dz);
     }
+
+    /// <summary>BOT-RESPAWN-RETURN: the leader counts as back with the party within this XZ distance of a living seat or an engaged enemy, mm.</summary>
+    public const long ReturnReachMm = 5000;
+
+    /// <summary>
+    /// BOT-RESPAWN-RETURN (R-PATH-5 (k), WoW: a released player runs back to the pull and rejoins): the living party seat
+    /// nearest <paramref name="me"/> when <paramref name="me"/> is farther than <see cref="ReturnReachMm"/> on XZ from every
+    /// living other player seat and every engaged (alive, not idle) enemy; null when any of them is within reach or when no
+    /// other player lives. Reads the state only; the caller walks the nav path to the seat.
+    /// </summary>
+    /// <param name="me">The leader.</param>
+    /// <param name="state">The state.</param>
+    /// <returns>The nearest living seat, or null.</returns>
+    public static ActorState? ReturnSeat(ActorState me, SimState state)
+    {
+        ArgumentNullException.ThrowIfNull(me);
+        ArgumentNullException.ThrowIfNull(state);
+        const long reachSq = ReturnReachMm * ReturnReachMm;
+        ActorState? nearest = null;
+        var best = long.MaxValue;
+        foreach (var a in state.Actors.Values)
+        {
+            if (a.Id == me.Id || !a.Alive)
+            {
+                continue;
+            }
+            var d = Distance2(me.Pos, a.Pos);
+            if (a.Kind == ActorKind.Player)
+            {
+                if (d <= reachSq)
+                {
+                    return null;
+                }
+                if (d < best)
+                {
+                    best = d;
+                    nearest = a;
+                }
+            }
+            else if (a.Kind == ActorKind.Enemy && !a.Idle && d <= reachSq)
+            {
+                return null;
+            }
+        }
+        return nearest;
+    }
 }
