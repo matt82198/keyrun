@@ -1,100 +1,129 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using Keyrun.Bots.Shared;
 using Keyrun.Content;
 using Keyrun.Playtest;
+using Keyrun.Sim.Core;
+using Keyrun.Sim.Dungeon;
 using Keyrun.Sim.Encounter;
+using Keyrun.Sim.Runs;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Keyrun.Playtest.Tests;
 
 /// <summary>
-/// The seeded two-branch dungeon played headless (D45/D46, f-46043bc6): the run's layout is generated from the seed
-/// (RoomGraphGen, WalkGridGen, BranchFill through <see cref="SeededLayout"/>), the autorun party (lowest living seat
-/// leads, D44) walks the branch the seed picks and clears it to the boss. Seed 1 and a seed that picks the other branch,
-/// both at key 2: each run is timed, kills the boss and enters only its own branch's rooms.
+/// The seeded segmented dungeon played headless (STATE.md D45/D46/D65, R-MULTIBOSS-1, PROOF receipt for R-K6-2): for seeds 1
+/// to 5 and each branch of segment 0, the leader is forced onto that branch (<see cref="PlaytestOptions.LeaderBranch"/>),
+/// and the run must (a) reach the final boss within par, and (b) keep every bot seat within follow range of the leader at
+/// the fork tick, the first tick the leader stands in the walked branch's first room (D44: the lowest living seat leads,
+/// the others follow). Data-driven: one case per seed x branch.
 /// </summary>
 public sealed class SeededBranchRunTests
 {
-    private readonly ITestOutputHelper _out;
+    /// <summary>The segmented dungeon (the Sunken Bellfoundry, D65/D67): the seeded layout's model on main.</summary>
+    private const string Dungeon = "sunken-bellfoundry";
 
-    public SeededBranchRunTests(ITestOutputHelper output) => _out = output;
+    /// <summary>The seeds the receipt covers.</summary>
+    private static readonly long[] Seeds = { 1, 2, 3, 4, 5 };
 
-    /// <summary>The first seed from 2 up whose bot branch differs from seed 1's.</summary>
-    internal static long OtherBranchSeed()
+    /// <summary>Seed x branch cases: every branch of segment 0 is led for each seed.</summary>
+    public static TheoryData<long, int> SeedBranchCases()
     {
-        var one = SeededLayout.BotBranch(1);
-        for (long s = 2; s < 1000; s++)
+        var data = new TheoryData<long, int>();
+        foreach (var seed in Seeds)
         {
-            if (SeededLayout.BotBranch(s) != one)
+            for (var branch = 0; branch < RoomGraphGen.BranchCount; branch++)
             {
-                return s;
+                data.Add(seed, branch);
             }
         }
-        throw new InvalidOperationException("no seed picks the other branch");
+        return data;
     }
 
-    /// <summary>The first seed whose walked branch teaches the Seed (its second pull), so both second lessons are played.</summary>
-    internal static long SeedBranchSeed()
+    [Theory(DisplayName = "Seeded branches (key 2, seeds 1-5, each branch led): the party reaches the boss within par")]
+    [MemberData(nameof(SeedBranchCases))]
+    public void Leader_on_branch_reaches_boss_within_par(long seed, int branch)
     {
-        var reg = ContentLoader.Load();
-        for (long s = 1; s < 1000; s++)
-        {
-            var g = Keyrun.Sim.Dungeon.RoomGraphGen.Generate(s, SeededLayout.Params);
-            var fill = Keyrun.Sim.Dungeon.BranchFill.Fill(s, g, SeededRoster.Teaching(reg), SeededRoster.Optional(reg), SeededRoster.Params(reg));
-            if (fill.Branches[SeededLayout.BotBranch(s)].SecondPull == "seed")
-            {
-                return s;
-            }
-        }
-        throw new InvalidOperationException("no seed walks the Seed's branch");
-    }
-
-    [Fact(DisplayName = "Seeded branches (key 2, the first seed whose branch teaches the Seed): the party clears it to the boss within par")]
-    public void Seed_branch_clears_within_par() => ClearsItsBranch(SeedBranchSeed());
-
-    [Fact(DisplayName = "Seeded branches: two seeds pick different branches")]
-    public void Two_seeds_pick_different_branches()
-    {
-        var other = OtherBranchSeed();
-        Assert.NotEqual(SeededLayout.BotBranch(1), SeededLayout.BotBranch(other));
-        Assert.InRange(SeededLayout.BotBranch(1), 0, 1);
-        Assert.InRange(SeededLayout.BotBranch(other), 0, 1);
-    }
-
-    [Fact(DisplayName = "Seeded branches (key 2, seed 1): the party clears its branch to the boss within par")]
-    public void Seed_one_clears_its_branch_within_par() => ClearsItsBranch(1);
-
-    [Fact(DisplayName = "Seeded branches (key 2, the other-branch seed): the party clears the other branch to the boss within par")]
-    public void Other_seed_clears_the_other_branch_within_par() => ClearsItsBranch(OtherBranchSeed());
-
-    private void ClearsItsBranch(long seed)
-    {
-        var seeded = SeededLayout.Build(ContentLoader.Load(), seed);
-        var result = PlaytestRunner.Play(new PlaytestOptions(2, seed, null), seeded.Registry);
-        var events = result.Log.Split('\n')
-            .Where(line => line.StartsWith("E ", StringComparison.Ordinal))
-            .Select(line => JsonDocument.Parse(line.AsSpan(2).ToString()).RootElement)
-            .ToList();
-        var forces = seeded.Registry.Forces;
-        var table = forces.Values.ToDictionary(v => v.EnemyId, v => v.Points, StringComparer.Ordinal);
-        var reading = Forces.Read(result.Run.State, table, forces.Required);
-        var entered = events.Where(e => Str(e, "type") == "room_enter").Select(e => Str(e, "roomId") ?? Str(e, "room") ?? string.Empty).Distinct().ToList();
-        var cleared = events.Where(e => Str(e, "type") == "pull_clear").Select(e => Str(e, "pullId")).ToList();
-        _out.WriteLine($"seed {seed}: branch {seeded.Branch} rooms [{string.Join(",", seeded.Fill.Branches[seeded.Branch].Rooms)}] result {result.Run.RunEnd.Result} at {result.Run.RunEnd.ResultTick} of par {seeded.Registry.Dungeons["hollow-vault"].ParTicks}; pulls cleared [{string.Join(",", cleared)}]; forces {reading.Points}/{reading.Required}; rooms entered [{string.Join(",", entered)}]");
+        var (result, _, _) = PlayLed(seed, branch);
 
         Assert.Equal(RunResult.Timed, result.Run.RunEnd.Result);
-        Assert.Contains(LayoutDef.BossPullId, cleared);
-        Assert.True(result.Run.RunEnd.ResultTick <= seeded.Registry.Dungeons["hollow-vault"].ParTicks, $"seed {seed}: ended at {result.Run.RunEnd.ResultTick}");
-        var side = seeded.Registry.Layout.SideBoxes.Select(b => b.Id).ToHashSet(StringComparer.Ordinal);
-        Assert.NotEmpty(side);
-        Assert.DoesNotContain(entered, side.Contains);
-        Assert.All(seeded.Fill.Branches[seeded.Branch].Rooms, r => Assert.Contains(SeededLayout.RoomBoxId(r), entered));
+        Assert.NotNull(result.Run.RunEnd.ResultTick);
+        var par = result.Setup.Content.ParTicks;
+        Assert.NotNull(par);
+        Assert.True(
+            result.Run.RunEnd.ResultTick <= par,
+            $"seed {seed} branch {branch}: ended at tick {result.Run.RunEnd.ResultTick}, par {par}");
     }
 
-    private static string? Str(JsonElement e, string name) =>
-        e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+    [Theory(DisplayName = "Seeded branches (key 2, seeds 1-5, each branch led): every bot seat is within follow range of the leader at the fork")]
+    [MemberData(nameof(SeedBranchCases))]
+    public void Bots_follow_the_leader_at_the_fork(long seed, int branch)
+    {
+        var (_, fork, seats) = PlayLed(seed, branch);
+
+        Assert.True(fork.Tick >= 0, $"seed {seed} branch {branch}: the leader never reached the walked branch's first room");
+        Assert.NotEmpty(seats);
+        foreach (var (seatId, gapMm) in seats)
+        {
+            Assert.True(
+                gapMm <= ChainPull.PartyLeashMm,
+                $"seed {seed} branch {branch} tick {fork.Tick}: seat {seatId} stands {gapMm} mm from the leader (follow range {ChainPull.PartyLeashMm} mm)");
+        }
+    }
+
+    /// <summary>
+    /// Plays the segmented dungeon for <paramref name="seed"/> with the leader forced onto <paramref name="branch"/> of segment 0,
+    /// and records the fork tick (the leader's first tick in the walked branch's first room) and every living bot seat's
+    /// distance to the leader at that tick.
+    /// </summary>
+    private static (PlaytestResult Result, ForkRecord Fork, List<(int SeatId, double GapMm)> Seats) PlayLed(long seed, int branch)
+    {
+        var reg = ContentLoader.Load();
+        var segmented = SeededLayout.BuildSegmented(reg, Dungeon, seed);
+        var armed = SeededLayout.ArmSegmented(reg, Dungeon, seed);
+        var firstRoom = SeededLayout.RoomBoxId(
+            segmented.Fill.Branches.Single(b => b.Segment == 0 && b.Branch == branch).Rooms[0]);
+        var fork = new ForkRecord(-1);
+        var seats = new List<(int, double)>();
+        var options = new PlaytestOptions(2, seed, null)
+        {
+            DungeonId = Dungeon,
+            LeaderBranch = branch,
+            Observe = (tick, run, _) =>
+            {
+                if (fork.Tick >= 0 || run.Content.Layout is not { } layout)
+                {
+                    return;
+                }
+                var leader = Follow.Leader(run.State);
+                if (leader is null)
+                {
+                    return;
+                }
+                var box = layout.BoxIndexAt(leader.Pos);
+                if (box < 0 || layout.Boxes[box].Id != firstRoom)
+                {
+                    return;
+                }
+                fork.Tick = tick;
+                foreach (var seat in run.State.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != leader.Id))
+                {
+                    var dx = (double)(seat.Pos.X - leader.Pos.X);
+                    var dz = (double)(seat.Pos.Z - leader.Pos.Z);
+                    seats.Add((seat.Id, Math.Sqrt((dx * dx) + (dz * dz))));
+                }
+            },
+        };
+        var result = PlaytestRunner.Play(options, armed);
+        return (result, fork, seats);
+    }
+
+    /// <summary>The fork tick, set by the observer (-1 until the leader enters the walked branch).</summary>
+    private sealed class ForkRecord
+    {
+        public ForkRecord(int tick) => Tick = tick;
+
+        public int Tick { get; set; }
+    }
 }

@@ -30,6 +30,13 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
     /// </summary>
     public string HumanClassId { get; init; } = HostRunSetup.Roster[0].ClassId;
 
+    /// <summary>
+    /// R-K6-2 (a seeded segmented dungeon, <see cref="DungeonId"/>): the branch (0 or 1) the leader walks in every segment, so a
+    /// playtest can force the party onto the other branch. The bots follow the leader seat (D44). Null (the default) keeps the
+    /// seeded pick (<c>SeededLayout.BotBranches</c>); a hand-built dungeon ignores it.
+    /// </summary>
+    public int? LeaderBranch { get; init; }
+
     /// <summary>Hard stop, ticks; a run still going is "unfinished". Default: twice par.</summary>
     public int? MaxTicks { get; init; }
 
@@ -142,7 +149,7 @@ public static class PlaytestRunner
         var mode = policy?.Mode ?? Keyrun.Bots.Shared.PlaytesterMode.Guided;
         var registry = policy is null ? content : WithTalents(content, policy);
         // R-MULTIBOSS-1: the run seed also generates a multi-segment dungeon's layout (the Sunken Bellfoundry); the Hollow Vault ignores it.
-        var setup = HostRunSetup.Build(registry, options.DungeonId, options.Key, options.HumanClassId, withBots: true, dungeonSeed: options.Seed);
+        var setup = HostRunSetup.Build(registry, options.DungeonId, options.Key, options.HumanClassId, withBots: true, dungeonSeed: options.Seed, leaderBranch: options.LeaderBranch);
         // R7: HostRunFactory, the host's assembly path. No bot loadouts and no options record, as this runner always
         // built its runs (RunRequest.BotLoadouts), so the playtest output is unchanged.
         var run = HostRunFactory.Create(setup, new RunRequest(options.Seed, registry, options.HumanClassId)

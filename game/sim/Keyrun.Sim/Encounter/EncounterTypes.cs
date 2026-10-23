@@ -200,6 +200,13 @@ public sealed record PullDef(string Id, IReadOnlyList<PullSpawn> Spawns)
 
     /// <summary>Group ids (pulls or packs) that engage with this one, a chain pull (BIBLE section 9.1, links).</summary>
     public IReadOnlyList<string> Links { get; init; } = System.Array.Empty<string>();
+
+    /// <summary>
+    /// D45 (the player chooses the route): the branch this pull stands on in a seeded two-branch dungeon, or null for a
+    /// pull every route plays (the boss, every hand-built pull). Once the party engages a pull of one branch, the
+    /// other branch's pulls are skipped as the pull index reaches them (<see cref="Pulls.CheckPullAdvance"/>).
+    /// </summary>
+    public string? Branch { get; init; }
 }
 
 /// <summary>A dungeon as the encounter sees it (sim/encounter/pulls.ts:33 DungeonDef).</summary>
