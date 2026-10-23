@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -256,7 +257,7 @@ public static class ContentLoader
                 ReadOne<DungeonDef>(source, "dungeons/hollow-vault.json"),
                 ReadOne<DungeonDef>(source, FoundryDungeonFile)),
             Roster = ById("roster pack", ContentDirectory.Under(source, RosterRoot).Select(p => ReadOne<RosterPack>(source, p)[0]).ToArray()),
-            Trees = ById("tree node", ContentDirectory.Under(source, TreesRoot).Select(p => ReadOne<TreeFileDef>(source, p)[0].Nodes.ToArray()).ToArray()),
+            Trees = ById("tree node", ContentDirectory.Under(source, TreesRoot).Select(p => ReadTreeFile(source, p)).ToArray()),
             Clauses = ById("clause", ReadArray<ClauseDef>(source, "clauses.json")),
             Facets = ById("facet",
                 ReadArray<FacetDef>(source, Facets + "warden.json"),
@@ -279,6 +280,36 @@ public static class ContentLoader
     }
 
     private static void CheckFileSet(IContentSource source) => ContentFileSet.Check(source, Files, Directories);
+
+    /// <summary>
+    /// Reads one class's tree file (ABILITY-TREES s5.1; R-TREES-6 (d), (e)). <see cref="TreesRule.Validate"/> runs first
+    /// and fails the load on its first error; the typed read then consumes the shipped <c>edit</c> and <c>optionsFrom</c>
+    /// keys directly into <see cref="TreeNodeDef"/>.
+    /// </summary>
+    /// <param name="source">The content source.</param>
+    /// <param name="path">The tree file path, e.g. <c>trees/warden.json</c>.</param>
+    /// <returns>The file's nodes in file order.</returns>
+    /// <exception cref="ContentLoadException">The file fails Validate, is not JSON, or names no nodes array.</exception>
+    private static TreeNodeDef[] ReadTreeFile(IContentSource source, string path)
+    {
+        ReadOnlySpan<byte> bytes = source.Read(path);
+        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) bytes = bytes.Slice(3);
+        string text = Encoding.UTF8.GetString(bytes);
+
+        IReadOnlyList<string> errors = TreesRule.Validate(text);
+        if (errors.Count > 0) throw new ContentLoadException("content: " + path + ": " + errors[0]);
+
+        try
+        {
+            TreeFileDef file = JsonSerializer.Deserialize<TreeFileDef>(bytes, Options)
+                ?? throw new ContentLoadException("content: " + path + " is JSON null");
+            return file.Nodes.Select(n => n.ToDef()).ToArray();
+        }
+        catch (JsonException ex)
+        {
+            throw new ContentLoadException("content: " + path + " " + (ex.Path ?? "$") + ": " + ex.Message, ex);
+        }
+    }
 
     private static T[] ReadArray<T>(IContentSource source, string path)
         where T : class

@@ -1,0 +1,5 @@
+{
+  "nodes": [
+    { "id": "warden.strike.fixtureRank", "classId": "warden", "abilityId": "warden.strike", "kind": "rank", "minKey": 0, "requires": [], "name": "Fixture Rank", "text": "Edit-less fixture node for the TreesRule.Validate load test." }
+  ]
+}
