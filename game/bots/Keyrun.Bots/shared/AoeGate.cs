@@ -41,14 +41,27 @@ public static class AoeGate
     /// <param name="def">The shaped AoE ability.</param>
     /// <param name="targetId">The cast's target, or null.</param>
     /// <returns>The enemy count in the shape.</returns>
-    public static int EnemiesInShape(BotView view, ActorState self, AbilityDef def, int? targetId)
+    public static int EnemiesInShape(BotView view, ActorState self, AbilityDef def, int? targetId) =>
+        CountInShape(view, self, def, targetId, idle: false);
+
+    /// <summary>
+    /// The living enemies <paramref name="def"/> would hit from <paramref name="self"/> at <paramref name="targetId"/>, counted
+    /// over the engaged enemies (<paramref name="idle"/> false) or over the idle and dormant ones (<paramref name="idle"/> true).
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">The caster.</param>
+    /// <param name="def">The shaped AoE ability.</param>
+    /// <param name="targetId">The cast's target, or null.</param>
+    /// <param name="idle">True to count the idle or dormant enemies, false to count the engaged ones.</param>
+    /// <returns>The enemy count in the shape.</returns>
+    private static int CountInShape(BotView view, ActorState self, AbilityDef def, int? targetId, bool idle)
     {
         ArgumentNullException.ThrowIfNull(view);
         var state = view.State;
         ArgumentNullException.ThrowIfNull(self);
         ArgumentNullException.ThrowIfNull(def);
         var enemies = state.Actors.Values
-            .Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle && !a.Dormant)
+            .Where(a => a.Kind == ActorKind.Enemy && a.Alive && (idle ? a.Idle || a.Dormant : !a.Idle && !a.Dormant))
             .ToList();
         var shape = def.Shape;
         switch (shape.Kind)
@@ -92,10 +105,13 @@ public static class AoeGate
         return rotation
             .Where(id => !reg.Abilities.TryGetValue(id, out var def)
                 || !IsShapedAoeDamage(def)
-                // R-AOE-2: a spammable Payoff builder (Guard Break) is also the button that closes a Window for a Combo, so it
-                // stays in the rotation at one enemy; dropping it left the boss fight with no Payoff presses at all.
-                || (def.CooldownTicks == 0 && KitPriority.HasTag(def, KitPriority.PayoffTag))
-                || EnemiesInShape(view, self, def, targetId) >= MinEnemies)
+                // R-TARGET-1 (a): a shaped AoE whose shape holds an idle or dormant enemy is vetoed outright, so a bot never
+                // damages an unengaged pack; the single-target fallback takes the press.
+                || (CountInShape(view, self, def, targetId, idle: true) == 0
+                    // R-AOE-2: a spammable Payoff builder (Guard Break) is also the button that closes a Window for a Combo, so it
+                    // stays in the rotation at one enemy; dropping it left the boss fight with no Payoff presses at all.
+                    && ((def.CooldownTicks == 0 && KitPriority.HasTag(def, KitPriority.PayoffTag))
+                        || EnemiesInShape(view, self, def, targetId) >= MinEnemies)))
             .ToList();
     }
 
