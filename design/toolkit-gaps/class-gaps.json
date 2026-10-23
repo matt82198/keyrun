@@ -1,11 +1,6 @@
 {
-  "count": 6,
+  "count": 1,
   "gaps": [
-    { "subject": "class", "id": "chanter", "code": "defensive-external", "file": "content/data/classes/chanter.json", "detail": "healer defensive chanter.aegis is shape self; a healer's defensive must be able to target an ally" },
-    { "subject": "class", "id": "chanter", "code": "mobility-frees-binds", "file": "content/data/classes/chanter.json", "detail": "movement button chanter.glide removes no slow or root" },
-    { "subject": "class", "id": "cinder", "code": "mobility-frees-binds", "file": "content/data/classes/cinder.json", "detail": "movement button cinder.blink removes no slow or root" },
-    { "subject": "class", "id": "cinder", "code": "mobility-moves-caster", "file": "content/data/classes/cinder.json", "detail": "movement button cinder.blink applies no speed effect of +5000 bp and no displacement (the sim has no displace op yet)" },
-    { "subject": "class", "id": "warden", "code": "mobility-frees-binds", "file": "content/data/classes/warden.json", "detail": "movement button warden.charge removes no slow or root" },
-    { "subject": "class", "id": "warden", "code": "mobility-moves-caster", "file": "content/data/classes/warden.json", "detail": "movement button warden.charge applies no speed effect of +5000 bp and no displacement (the sim has no displace op yet)" }
+    { "subject": "class", "id": "warden", "code": "mobility-frees-binds", "file": "content/data/classes/warden.json", "detail": "movement button warden.charge removes no slow or root" }
   ]
 }
