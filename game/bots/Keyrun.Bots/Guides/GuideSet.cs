@@ -8,11 +8,13 @@ using Keyrun.Sim.Core;
 
 namespace Keyrun.Bots.Guides;
 
-/// <summary>What a guide condition reads: the bot view, the deciding seat, and its effective kit.</summary>
+/// <summary>What a guide condition reads: the bot view, the deciding seat, its effective kit, and the casts its kicks section lists.</summary>
 /// <param name="View">The bot view of this tick.</param>
 /// <param name="Self">The deciding seat.</param>
 /// <param name="Kit">The seat's effective kit.</param>
-public sealed record GuideContext(BotView View, ActorState Self, EffectiveKit Kit);
+/// <param name="ListedKicks">The cast ids the guide's kicks section lists; the ledger kick is filtered to these. Null (the
+/// default, for callers outside a guided tank role) leaves the ledger kick unfiltered.</param>
+public sealed record GuideContext(BotView View, ActorState Self, EffectiveKit Kit, IReadOnlySet<string>? ListedKicks = null);
 
 /// <summary>One guide rotation entry: a press, the condition under which the guide wants it, and the quoted reason.</summary>
 /// <param name="Id">The entry id; a receipt's reason is <c>guide:&lt;class&gt;:&lt;Id&gt;</c>.</param>
@@ -21,10 +23,25 @@ public sealed record GuideContext(BotView View, ActorState Self, EffectiveKit Ki
 /// <param name="Reason">The guide's quoted reason; never empty.</param>
 public sealed record GuideRule(string Id, string Press, Func<GuideContext, bool> When, string Reason);
 
-/// <summary>One class's guide: its class id and its rotation in priority order.</summary>
+/// <summary>One kicks-section row (s3.3): a cast the ledger may kick, and the classes that kick it, in order.</summary>
+/// <param name="Cast">The cast ability id.</param>
+/// <param name="Order">The kicking classes, in priority order.</param>
+/// <param name="Reason">The guide's quoted reason; never empty.</param>
+public sealed record GuideKick(string Cast, IReadOnlyList<string> Order, string Reason);
+
+/// <summary>One telegraphs-section row (s3.4): how a seat answers a named telegraph, and the fallback cast when it cannot.</summary>
+/// <param name="Cast">The telegraph id the guide names.</param>
+/// <param name="Response">The answer: faceAway, stepOut, spread, stack, dragIntoHazard or take.</param>
+/// <param name="Fallback">The ability to cast when the answer is not possible, or null.</param>
+/// <param name="Reason">The guide's quoted reason; never empty.</param>
+public sealed record GuideTelegraph(string Cast, string Response, string? Fallback, string Reason);
+
+/// <summary>One class's guide: its class id, its rotation in priority order, and its kicks and telegraphs sections.</summary>
 /// <param name="ClassId">The class the guide plays.</param>
 /// <param name="Rotation">The rotation entries, first castable and holding entry wins.</param>
-public sealed record BotGuide(string ClassId, IReadOnlyList<GuideRule> Rotation);
+/// <param name="Kicks">The kicks section; empty when the guide has none.</param>
+/// <param name="Telegraphs">The telegraphs section; empty when the guide has none.</param>
+public sealed record BotGuide(string ClassId, IReadOnlyList<GuideRule> Rotation, IReadOnlyList<GuideKick> Kicks, IReadOnlyList<GuideTelegraph> Telegraphs);
 
 /// <summary>
 /// The per-class playtester guides (design/PLAYTESTER-GUIDE.md section 4). A guide file is
@@ -82,8 +99,8 @@ public sealed class GuideSet
             var when = ParseWhen(RequireProperty(row, "when", rw), rw, abilityIds, press);
             rules.Add(new GuideRule(id, press, when, reason));
         }
-        ValidateSections(root, where, abilityIds);
-        return new GuideSet(new Dictionary<string, BotGuide>(StringComparer.Ordinal) { [classId] = new BotGuide(classId, rules) });
+        var (kicks, telegraphs) = ParseSections(root, where, abilityIds);
+        return new GuideSet(new Dictionary<string, BotGuide>(StringComparer.Ordinal) { [classId] = new BotGuide(classId, rules, kicks, telegraphs) });
     }
 
     /// <summary>The guide for <paramref name="classId"/>; a Guided seat with no guide fails here, at plan load.</summary>
@@ -164,20 +181,23 @@ public sealed class GuideSet
             : throw Fail(where, $"'{p.Name}' must be a non-empty string");
 
     /// <summary>
-    /// Validates the kicks (s3.3), telegraphs (s3.4) and never (s3.5) sections in the s4 shape. They are checked at load
-    /// but not yet consumed: GuidedWardenRole does not read them in this slice, so the rotation alone drives behaviour.
+    /// Parses the kicks (s3.3) and telegraphs (s3.4) sections, which the guided tank role consumes, and validates the
+    /// never (s3.5) section, which is checked at load only. Any malformed row throws.
     /// </summary>
-    private static void ValidateSections(JsonElement root, string where, IReadOnlySet<string> abilityIds)
+    private static (List<GuideKick> Kicks, List<GuideTelegraph> Telegraphs) ParseSections(JsonElement root, string where, IReadOnlySet<string> abilityIds)
     {
-        if (root.TryGetProperty("kicks", out var kicks))
+        var kicks = new List<GuideKick>();
+        var telegraphs = new List<GuideTelegraph>();
+        if (root.TryGetProperty("kicks", out var kickRows))
         {
-            foreach (var row in ArrayOf(kicks, "kicks", where).EnumerateArray())
+            foreach (var row in ArrayOf(kickRows, "kicks", where).EnumerateArray())
             {
                 var rw = $"{where} kick";
                 RequireObject(row, rw);
                 RejectUnknownKeys(row, rw, "cast", "order", "reason");
-                RequireString(row, "cast", rw);
-                RequireString(row, "reason", rw);
+                var cast = RequireString(row, "cast", rw);
+                var reason = RequireString(row, "reason", rw);
+                var order = new List<string>();
                 var classes = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var c in RequireArray(row, "order", rw).EnumerateArray())
                 {
@@ -186,31 +206,35 @@ public sealed class GuideSet
                     {
                         throw Fail(rw, "'order' holds a class id that is empty or repeated");
                     }
+                    order.Add(id);
                 }
+                kicks.Add(new GuideKick(cast, order, reason));
             }
         }
-        if (root.TryGetProperty("telegraphs", out var telegraphs))
+        if (root.TryGetProperty("telegraphs", out var telegraphRows))
         {
-            foreach (var row in ArrayOf(telegraphs, "telegraphs", where).EnumerateArray())
+            foreach (var row in ArrayOf(telegraphRows, "telegraphs", where).EnumerateArray())
             {
                 var rw = $"{where} telegraph";
                 RequireObject(row, rw);
                 RejectUnknownKeys(row, rw, "cast", "response", "fallback", "reason");
-                RequireString(row, "cast", rw);
-                RequireString(row, "reason", rw);
+                var cast = RequireString(row, "cast", rw);
+                var reason = RequireString(row, "reason", rw);
                 var response = RequireString(row, "response", rw);
                 if (!Responses.Contains(response, StringComparer.Ordinal))
                 {
                     throw Fail(rw, $"response '{response}' is not one of {string.Join(", ", Responses)}");
                 }
+                string? fallback = null;
                 if (row.TryGetProperty("fallback", out _))
                 {
-                    var fallback = RequireString(row, "fallback", rw);
+                    fallback = RequireString(row, "fallback", rw);
                     if (!abilityIds.Contains(fallback))
                     {
                         throw Fail(rw, $"fallback '{fallback}' is not an ability in content");
                     }
                 }
+                telegraphs.Add(new GuideTelegraph(cast, response, fallback, reason));
             }
         }
         if (root.TryGetProperty("never", out var never))
@@ -229,6 +253,27 @@ public sealed class GuideSet
                 _ = ParseWhen(RequireProperty(row, "when", rw), rw, abilityIds, press);
             }
         }
+        return (kicks, telegraphs);
+    }
+
+    /// <summary>
+    /// The ledger kick (<see cref="RoleShared.LedgerKickCommand"/>) filtered to the guide's kicks section: the kick goes out
+    /// only when the caster's cast in flight is a cast the section lists. The kickDuty and castTicksLeftAtMost conditions read
+    /// this same filtered kick, so the rotation never presses a kick the section does not list.
+    /// </summary>
+    internal static CastCommand? ListedKickCommand(GuideContext ctx)
+    {
+        var kick = RoleShared.LedgerKickCommand(ctx.View, ctx.Self, ctx.Kit);
+        if (kick is null || ctx.ListedKicks is null)
+        {
+            return kick;
+        }
+        return kick is { TargetId: { } casterId }
+            && ctx.View.State.Actors.TryGetValue(casterId, out var caster)
+            && caster.Cast is { } cast
+            && ctx.ListedKicks.Contains(cast.AbilityId)
+                ? kick
+                : null;
     }
 
     /// <summary>The Warden's kill target (s3.2 row 7): its current target when that is the engage target (the party's focus, else the lowest-health enemy it holds).</summary>
@@ -279,11 +324,11 @@ public sealed class GuideSet
                     throw Fail(where, "'kickDuty' must be true or false");
                 }
                 var wantKick = p.Value.ValueKind == JsonValueKind.True;
-                return ctx => (RoleShared.LedgerKickCommand(ctx.View, ctx.Self, ctx.Kit) is not null) == wantKick;
+                return ctx => (ListedKickCommand(ctx) is not null) == wantKick;
             case "castTicksLeftAtMost":
                 // The ledger's kick target (RoleShared.LedgerKickCommand names the caster): its cast ticks left.
                 var castWindow = IntOf(p.Value, p.Name, where);
-                return ctx => RoleShared.LedgerKickCommand(ctx.View, ctx.Self, ctx.Kit) is { TargetId: { } casterId }
+                return ctx => ListedKickCommand(ctx) is { TargetId: { } casterId }
                     && ctx.View.State.Actors.TryGetValue(casterId, out var caster)
                     && caster.Cast is { } cast
                     && cast.EndsTick - ctx.View.State.Tick <= castWindow;
