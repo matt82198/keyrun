@@ -319,9 +319,9 @@
     "gcdTicks": 0,
     "cooldownTicks": 300,
     "charges": 1,
-    "range": 0,
+    "range": 25000,
     "shape": {
-      "kind": "self"
+      "kind": "target"
     },
     "interruptible": false,
     "tags": [
@@ -388,6 +388,14 @@
         "effectId": "gliding",
         "durationTicks": 60,
         "stacks": 1
+      },
+      {
+        "op": "removeEffect",
+        "effectId": "rooted"
+      },
+      {
+        "op": "removeEffect",
+        "effectId": "slowed"
       }
     ],
     "cost": {

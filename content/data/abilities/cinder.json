@@ -281,8 +281,9 @@
     ],
     "effects": [
       {
-        "op": "resource",
-        "delta": 0
+        "op": "displace",
+        "distanceMm": 8000,
+        "freesBinds": true
       }
     ],
     "cost": {

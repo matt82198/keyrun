@@ -59,3 +59,10 @@ dirs; no cwd pollution).
 - The export/build steps in game.yml carry `timeout-minutes: 12` so a stall fails visibly instead of consuming the
   30-minute job timeout. The root cause (Godot child-process lifetime keeping the step open) is NOT fixed by this
   guard; it only makes the stall fail visibly and blocks merge.
+
+## Files with no row (paths relative to tools/)
+
+- `Keyrun.Playtest/PolicyBot.cs` - the policy seat (IBot): does only what the plan says, reading the run context the runner gives each tick.
+- `Keyrun.Playtest/Policy.cs` - the playtester plan record and its parser: pull ids, Mode (guided or blind), talents, dodge and kick assignments; an unknown or malformed field is refused (PolicyException).
+- `Keyrun.Playtest/Summary.cs` - the summary header record: who played and where the run files went.
+- `Keyrun.Replay/OracleProperties.cs` - one named property an oracle trace protects (manifest.json traces[].properties, game/sim/ORACLE.md section 10).

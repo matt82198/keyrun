@@ -142,6 +142,35 @@ public sealed class AbilityClipTableTests
     }
 
     [Fact]
+    public void Rotation_abilities_of_one_class_never_share_a_release_clip()
+    {
+        // ABILITY-ANIMS-DISTINCT (Matt 2026-10-19 "combat animation reads badly"): two rotation abilities of one class
+        // that resolve on the same clip look identical on screen. Mobility, defensive, interrupt and utility slots are
+        // exempt (one mobility or defensive clip per class is fine).
+        Assert.True(Reg.Classes.Count >= 3, "vacuity guard: content loaded too few classes");
+        var clashes = new List<string>();
+        foreach (var c in Reg.Classes.Values.OrderBy(c => c.Id, StringComparer.Ordinal))
+        {
+            var s = c.Abilities;
+            var rot = new[] { s.Rot1, s.Rot2, s.Rot3, s.Rot4, s.Rot5 };
+            Assert.True(rot.Distinct(StringComparer.Ordinal).Count() == 5, c.Id + ": rotation slots repeat an ability");
+            var rowAct = ActorBinding.Default.For(c.Id).Clips.Act;
+            var release = rot.Select(id => (Id: id, Clip: AbilityClipTable.ReleaseClip(id, rowAct))).ToList();
+            for (var i = 0; i < release.Count; i++)
+            {
+                for (var j = i + 1; j < release.Count; j++)
+                {
+                    if (release[i].Clip == release[j].Clip)
+                    {
+                        clashes.Add($"{c.Id}: {release[i].Id} and {release[j].Id} both release {release[i].Clip}");
+                    }
+                }
+            }
+        }
+        Assert.True(clashes.Count == 0, string.Join("; ", clashes));
+    }
+
+    [Fact]
     public void Anim_line_has_the_capture_shape()
     {
         Assert.Equal("ANIM actor=3 clip=Spellcast_Shoot ability=cinder.flare at=112",

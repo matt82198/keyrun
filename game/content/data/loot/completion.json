@@ -1,0 +1,5 @@
+{
+  "dropBpTimed": 6000,
+  "dropBpDepleted": 3500,
+  "slots": ["weapon", "armor", "charm", "ring", "keystone"]
+}

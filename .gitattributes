@@ -24,3 +24,7 @@
 *.exe binary
 *.dll binary
 *.pck binary
+
+# Oracle fixtures are byte-hashed (STATE.md D28, R-ORACLE-1): exempt from git text conversion so no platform changes their bytes
+game/sim/Keyrun.Sim.Tests/Fixtures/oracle/** -text
+*.trace.jsonl -text
