@@ -47,6 +47,7 @@ public static class ContentLoader
         ForcesFile,
         HazardsFile,
         GearFile,
+        CompletionFile,
         TrashEnemiesFile,
         MeleeAbilitiesFile,
         VaultAbilitiesFile,
@@ -120,6 +121,9 @@ public static class ContentLoader
 
     /// <summary>C#-only gear table (game/content/data/gear.json; BIBLE section 7 "Five slots", "Tier is power").</summary>
     public const string GearFile = "gear.json";
+
+    /// <summary>C#-only completion roll table (game/content/data/loot/completion.json; R-ROLL-1, BIBLE s1).</summary>
+    public const string CompletionFile = "loot/completion.json";
 
     /// <summary>The dungeon whose per-kind layout and forces directories the loader assembles (ruling R-LOADER-1).</summary>
     public const string LayoutDungeon = "hollow-vault";
@@ -257,9 +261,12 @@ public static class ContentLoader
             Forces = PerKindContent.AssembleForces(source, LayoutDungeon),
             Hazards = ById("hazard", ReadArray<HazardDef>(source, HazardsFile)),
             Gear = ById("gear item", ReadArray<GearItemDef>(source, GearFile)),
+            Completion = ReadOne<CompletionTable>(source, CompletionFile)[0],
             MeleeAbilities = new ValueList<string>(ReadArray<string>(source, MeleeAbilitiesFile)),
         };
 
+        // R-ROLL-1: completion.json is checked here, not in ContentRules, which pins the rule list (ContentRulesRegistryTests).
+        CompletionTable.Check(registry.Completion);
         ContentValidator.Validate(registry);
         return registry;
     }
