@@ -74,13 +74,13 @@ public static class IdleWander
         ArgumentNullException.ThrowIfNull(grid);
         foreach (var g in groups)
         {
-            if (IsBossGroup(g.Id) || g.ActivateRoom is not null || g.ActorIds.Count == 0 || Pulls.IsEngaged(encounter, g.Id) || EnemyAggro.Evading(state, g))
+            if (IsBossGroup(g.Id) || g.ActorIds.Count == 0 || Pulls.IsEngaged(encounter, g.Id) || EnemyAggro.Evading(state, g))
             {
                 continue;
             }
             var members = g.ActorIds
                 .Select(id => state.Actors.TryGetValue(id, out var a) ? a : null)
-                .Where(a => a is { Kind: ActorKind.Enemy, Alive: true, Idle: true, Dormant: false, Evading: false, CastId: null })
+                .Where(a => a is { Kind: ActorKind.Enemy, Alive: true, Idle: true, Evading: false, CastId: null })
                 .Select(a => a!)
                 .ToList();
             if (members.Count == 0)

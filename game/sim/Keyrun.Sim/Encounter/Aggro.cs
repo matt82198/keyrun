@@ -14,52 +14,18 @@ namespace Keyrun.Sim.Encounter;
 /// <param name="Center">Where the aggro ring stands this tick, mm.</param>
 /// <param name="AggroMm">Aggro radius, mm.</param>
 /// <param name="Links">Groups that engage with this one.</param>
-/// <param name="ActivateRoom">KF3 Seed spawn gate: when set, the group is dormant (see <see cref="ActorState.Dormant"/>) and
-/// engages only on the first tick a living party member stands inside this room box, ignoring its aggro ring and any
-/// damage. Null for every other group.</param>
-public sealed record AggroGroup(string Id, int PullIndex, IReadOnlyList<int> ActorIds, Vec3 Center, long AggroMm, IReadOnlyList<string> Links, Combat.Bounds? ActivateRoom = null);
+public sealed record AggroGroup(string Id, int PullIndex, IReadOnlyList<int> ActorIds, Vec3 Center, long AggroMm, IReadOnlyList<string> Links);
 
 /// <summary>
 /// PRESPAWN-AGGRO (C#-only, layout runs; BIBLE section 9.1): every group stands idle from tick 0 and engages, whole,
 /// on the first tick a living party member is within its aggro radius (inclusive, integer squared distance in XZ), or
 /// when any member takes damage (from the party or a hazard), and a linked group engages with it. A pull's engage
 /// emits its <c>pull_start</c>; a pack's emits <c>pack_engage {packId, actorIds}</c>. Integers only, no randomness.
-/// KF3 Seed spawn gate (BIBLE section 9.6; finding f-70c82aca): a group in <see cref="RoomActivatedPullIds"/> is dormant
-/// until a party member stands inside its room, and only the room engages it, never its ring or a cast from outside.
+/// R-SEED-2 (2026-10-22): there is no room-activation mode; the Seed (a prespawned enemy, D44) engages by this same rule
+/// on its own aggro radius, like every other enemy.
 /// </summary>
 public static class Aggro
 {
-    /// <summary>
-    /// The pulls that wait for the party to enter their room instead of engaging on their aggro ring (KF3 Seed spawn gate;
-    /// the Mythic+ rule that a pull is inert until the party reaches its area). Only the Seed: its room is the layout's
-    /// seed-chamber. A pull named here with no room in the layout keeps the ring rule.
-    /// </summary>
-    public static readonly IReadOnlySet<string> RoomActivatedPullIds = new HashSet<string>(StringComparer.Ordinal) { "seed" };
-
-    /// <summary>
-    /// KF3 Seed spawn gate: marks every actor of a room-activated pull (that the layout gives a room) as dormant, on a
-    /// layout run's freshly spawned state. Mutates <paramref name="state"/> in place (the run root owns it).
-    /// </summary>
-    /// <param name="state">The state the pulls were spawned into.</param>
-    /// <param name="dungeon">The dungeon.</param>
-    /// <param name="layout">The run's layout.</param>
-    public static void MarkDormant(SimState state, DungeonDef dungeon, NavLayout layout)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(dungeon);
-        ArgumentNullException.ThrowIfNull(layout);
-        foreach (var pull in dungeon.Pulls.Where(p => RoomActivatedPullIds.Contains(p.Id) && layout.RoomFor(p.Id) is not null))
-        {
-            foreach (var spawn in pull.Spawns)
-            {
-                if (state.Actors.TryGetValue(spawn.ActorId, out var actor) && actor.Idle)
-                {
-                    actor.Dormant = true;
-                }
-            }
-        }
-    }
-
     /// <summary>True when <paramref name="p"/> is within <paramref name="radiusMm"/> of <paramref name="center"/> in XZ (inclusive).</summary>
     public static bool InRing(Vec3 p, Vec3 center, long radiusMm)
     {
@@ -77,8 +43,7 @@ public static class Aggro
     /// <param name="dungeon">The dungeon.</param>
     /// <param name="tick">The tick (where a patrol's ring stands).</param>
     /// <param name="packs">The run's layout packs (<c>RunContent.Packs</c>), or null for none.</param>
-    /// <param name="layout">The run's layout, or null: a room-activated pull (<see cref="RoomActivatedPullIds"/>) gets its
-    /// room box as <see cref="AggroGroup.ActivateRoom"/> only when a layout gives it one.</param>
+    /// <param name="layout">The run's layout. Unused since R-SEED-2 (no room-activation mode); kept so the call sites stay stable.</param>
     /// <param name="patrols">The run's patrol packs (<c>RunContent.Patrols</c>), or null for none (MPLUS-PATROLS).</param>
     /// <returns>Pull groups, then pack groups, then patrol groups; the last two with pull index -1.</returns>
     public static IReadOnlyList<AggroGroup> GroupsOf(DungeonDef dungeon, int tick, IReadOnlyList<PackGroup>? packs = null, NavLayout? layout = null, IReadOnlyList<PatrolPack>? patrols = null)
@@ -91,8 +56,7 @@ public static class Aggro
                 p.Spawns.Select(s => s.ActorId).ToList(),
                 Pulls.RingCenter(p),
                 p.AggroMm,
-                p.Links,
-                RoomActivatedPullIds.Contains(p.Id) ? layout?.RoomFor(p.Id)?.Box : null))
+                p.Links))
             .ToList();
         if (packs is not null)
         {
@@ -134,15 +98,6 @@ public static class Aggro
             {
                 continue;
             }
-            if (g.ActivateRoom is { } room)
-            {
-                // KF3 Seed spawn gate: the room alone engages a dormant group (no ring, no damage path: it is not a target).
-                if (players.Any(p => Combat.Movement.Contains(room, p.Pos)))
-                {
-                    hit.Add(g.Id);
-                }
-                continue;
-            }
             if (EnemyAggro.Evading(after, g))
             {
                 // AGGRO-CHASE leash: a pack walking home engages on nothing until every member is back (Leash).
@@ -167,7 +122,7 @@ public static class Aggro
                     continue;
                 }
                 var linked = g.Links.Any(hit.Contains) || groups.Any(o => hit.Contains(o.Id) && o.Links.Contains(g.Id, StringComparer.Ordinal));
-                if (linked || (g.ActivateRoom is null && EnemyAggro.Assisted(after, g, groups, hit)))
+                if (linked || EnemyAggro.Assisted(after, g, groups, hit))
                 {
                     hit.Add(g.Id);
                     changed = true;
@@ -213,7 +168,6 @@ public static class Aggro
                 if (after.Actors.TryGetValue(actorId, out var a))
                 {
                     a.Idle = false;
-                    a.Dormant = false;
                 }
             }
             var actorIds = JsValue.Arr(g.ActorIds.Select(a => JsValue.Int(a)));

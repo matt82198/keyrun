@@ -37,10 +37,11 @@ public sealed class IdleWanderTests
 
     private static readonly HostRunSetup Setup = HostRunSetup.Build(ContentLoader.Load(), "hollow-vault", 2, "warden", withBots: true);
 
-    // The groups that wander: packs and pulls, never the boss, never the room-gated Seed, never a patrol (it has a route).
+    // The groups that wander: packs and pulls, never the boss, never a patrol (it has a route). R-SEED-2 (2026-10-22) removed
+    // room activation, so the prespawned Seed ("seed") is an ordinary ring-engaged group and wanders like the others.
     private static IReadOnlyList<AggroGroup> Wanderers() =>
         Aggro.GroupsOf(Setup.Dungeon, 0, Setup.Content.Packs, Setup.Content.Layout, null)
-            .Where(g => !g.Id.StartsWith("boss", StringComparison.Ordinal) && g.ActivateRoom is null)
+            .Where(g => !g.Id.StartsWith("boss", StringComparison.Ordinal))
             .ToList();
 
     private static long D2(Vec3 a, Vec3 b) => ((a.X - b.X) * (a.X - b.X)) + ((a.Z - b.Z) * (a.Z - b.Z));
@@ -107,8 +108,9 @@ public sealed class IdleWanderTests
         var tested = 0;
         foreach (var g in Wanderers())
         {
-            // The Warrior Remnant stands in the Seed's room, whose room gate wakes it from anywhere in the chamber: no approach
-            // isolates it, so it is skipped here (its walk is still held to the ring and floor by the first property).
+            // A pack with no isolated approach (no walkable straight line clear of every other ring) is skipped here; its walk is
+            // still held to its ring and the floor by the first property. R-SEED-2 (2026-10-22) removed the Seed's room gate, so
+            // the Warrior Remnant engages by its own ring like any other pack.
             if (ApproachFrom(g, grid) is not { } start)
             {
                 _out.WriteLine($"seed {seed} {g.Id}: no isolated approach, skipped");
@@ -144,10 +146,10 @@ public sealed class IdleWanderTests
             var norm = Fixed.Isqrt(((dx * dx) + (dz * dz)) * 1_000_000);
             var far = reach + 1500;
             var start = new Vec3(g.Center.X + (dx * 1000 * far / norm), 0, g.Center.Z + (dz * 1000 * far / norm));
-            // Outside every other group's ring too (and the Seed's room), so only this pack can be what wakes.
+            // Outside every other group's ring too, so only this pack can be what wakes.
             var alone = Aggro.GroupsOf(Setup.Dungeon, 0, Setup.Content.Packs, Setup.Content.Layout, null)
                 .Where(o => o.Id != g.Id)
-                .All(o => o.ActivateRoom is { } room ? !Keyrun.Sim.Combat.Movement.Contains(room, start) : D2(start, o.Center) > (o.AggroMm + 1500) * (o.AggroMm + 1500));
+                .All(o => D2(start, o.Center) > (o.AggroMm + 1500) * (o.AggroMm + 1500));
             var clear = alone && Enumerable.Range(0, 51).All(i => grid.Walkable(new Vec3(start.X + ((g.Center.X - start.X) * i / 50), 0, start.Z + ((g.Center.Z - start.Z) * i / 50))));
             if (clear)
             {
