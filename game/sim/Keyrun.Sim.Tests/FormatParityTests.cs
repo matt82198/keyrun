@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -52,6 +53,46 @@ public sealed class FormatParityTests
             Assert.Equal(f.Value.GetProperty("bytes").GetInt64(), bytes.LongLength);
             Assert.Equal(f.Value.GetProperty("fnv").GetString(), Fnv1a.Hex(Fnv1a.Hash(bytes)));
         }
+    }
+
+    [Fact]
+    public void Every_manifest_fixture_is_free_of_CR_bytes_and_exempt_from_git_text_conversion()
+    {
+        var repoRoot = ContentRoots.RepoRootAbove(OracleFixtures.Directory);
+        var manifest = JsonDocument.Parse(File.ReadAllText(PathOf("manifest.json"))).RootElement;
+        var names = manifest.GetProperty("files").EnumerateObject().Select(f => f.Name).ToList();
+        Assert.Equal(14, names.Count);
+        foreach (var name in names)
+        {
+            var bytes = File.ReadAllBytes(PathOf(name));
+            Assert.False(Array.IndexOf(bytes, (byte)0x0D) >= 0, $"{name}: contains a CR byte (0x0D); byte-pinned fixtures must be LF-only");
+
+            var relative = Path.GetRelativePath(repoRoot, PathOf(name)).Replace('\\', '/');
+            var attr = GitCheckAttrText(repoRoot, relative);
+            Assert.Equal($"{relative}: text: unset", attr);
+        }
+    }
+
+    /// <summary>Runs `git check-attr text -- path` from the repo root and returns its trimmed stdout line.</summary>
+    private static string GitCheckAttrText(string repoRoot, string relative)
+    {
+        var psi = new ProcessStartInfo("git")
+        {
+            WorkingDirectory = repoRoot,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        psi.ArgumentList.Add("check-attr");
+        psi.ArgumentList.Add("text");
+        psi.ArgumentList.Add("--");
+        psi.ArgumentList.Add(relative);
+        using var process = Process.Start(psi)!;
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        Assert.True(process.ExitCode == 0, $"git check-attr failed for {relative}: {stderr}");
+        return stdout.Trim();
     }
 
     /// <summary>Test-side reader of a projection line into actors (the inverse of the writer under test).</summary>
