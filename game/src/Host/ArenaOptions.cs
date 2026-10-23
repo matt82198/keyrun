@@ -15,7 +15,7 @@ namespace Keyrun.Host;
 /// <c>--seed N</c>, <c>--dungeon-seed N</c>, <c>--pull N</c>, <c>--solo</c>, <c>--requeue</c>, <c>--abandon-seat A@T|A@pullN+O|A@pullN.hpP+O</c>, <c>--joiner-key K</c>,
 /// <c>--press-enter N</c>, <c>--press-ping T</c>, <c>--press-yaw T:Y</c>, <c>--record-input PATH</c>,
 /// <c>--replay-input PATH</c>, <c>--bots-hold</c>, <c>--careless-seat S@T:GROUP</c>, <c>--rotation N</c>,
-/// <c>--ready-hold F</c>, <c>--talent SEAT:TALENT</c>, <c>--dungeon ID</c>.
+/// <c>--ready-hold F</c>, <c>--talent SEAT:TALENT</c>, <c>--dungeon ID</c>, <c>--capsule-class ID[,ID...]</c>.
 /// </summary>
 /// <param name="Autorun">Scripted input instead of the keyboard, and quit after <see cref="Ticks"/> ticks.</param>
 /// <param name="Ticks">Ticks to run when autorunning.</param>
@@ -94,6 +94,9 @@ namespace Keyrun.Host;
 /// <param name="DungeonId">D65 / f-61f01ca3 (<c>--dungeon ID</c>, <see cref="DungeonPick"/>): the dungeon the launch's CLI run and
 /// the pre-run screen start on. An id the registry lacks stops the launch (<see cref="DungeonPick.Resolve"/>). Null = the
 /// default, <see cref="DungeonPick.DefaultId"/>.</param>
+/// <param name="CapsuleClasses">Scene-test seam (<c>--capsule-class ID</c>, repeatable or comma-separated, e.g. <c>warden</c>):
+/// every actor whose sim class is listed skips its model binding and takes the existing fallback-capsule branch
+/// (<see cref="Keyrun.View.ActorView"/> logs <c>ACTOR fallback capsule</c>). Null or empty = every class binds its model as usual.</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -118,10 +121,14 @@ public sealed record ArenaOptions(
     CameraModeKind Camera = CameraModeKind.Chase,
     long? DungeonSeed = null,
     IReadOnlyList<SeatTalent>? TalentPicks = null,
-    string? DungeonId = null)
+    string? DungeonId = null,
+    IReadOnlyList<string>? CapsuleClasses = null)
 {
     /// <summary>The <c>--talent</c> picks in flag order (empty when none).</summary>
     public IReadOnlyList<SeatTalent> Talents => TalentPicks ?? Array.Empty<SeatTalent>();
+
+    /// <summary>The <c>--capsule-class</c> class ids in flag order (empty when none).</summary>
+    public IReadOnlyList<string> Capsules => CapsuleClasses ?? Array.Empty<string>();
 
     /// <summary>
     /// Default autorun length: 20 s, set when the lieutenant's first heal began at tick 196 at key 2, leaving room for
@@ -169,6 +176,7 @@ public sealed record ArenaOptions(
         long? dungeonSeed = null;
         var talents = new List<SeatTalent>();
         string? dungeon = null;
+        var capsules = new List<string>();
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -242,6 +250,9 @@ public sealed record ArenaOptions(
                 case CameraMode.Flag:
                     camera = CameraMode.Parse(Value(args, ref i));
                     break;
+                case "--capsule-class":
+                    capsules.AddRange(CapsuleClassIds(Value(args, ref i)));
+                    break;
                 case "--write-movie":
                     movie = Value(args, ref i);
                     autorun = true; // proof frames come from the scripted run
@@ -253,7 +264,18 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, dungeonSeed, talents, dungeon);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, dungeonSeed, talents, dungeon, capsules.Count == 0 ? null : capsules);
+    }
+
+    // --capsule-class value: comma-separated class ids. An empty id stops the launch (fail closed, never a silent no-op).
+    private static string[] CapsuleClassIds(string raw)
+    {
+        var ids = raw.Split(',', StringSplitOptions.TrimEntries);
+        if (Array.Exists(ids, string.IsNullOrEmpty))
+        {
+            throw new ArgumentException($"--capsule-class needs one or more non-empty class ids, got '{raw}'");
+        }
+        return ids;
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
