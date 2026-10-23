@@ -13,7 +13,8 @@ param(
     # R-K4-4/R-K4-13: the kit moves the hp10 anchor to tick 1266 and pull-0 clear to 1450; +1 stalls pull 0 so the party
     # never reaches the pair pull. RunFJoinerActsTests.cs:43 pins +50 (pull 1 at 1864).
     [int]$BackfillTicks = 3500,
-    [string]$AbandonSeat = '2@pull0.hp10+50'
+    # R-FACING-2 (f): +50 lets the Warden (seat 1) die to pull 0 patrol swings at tick 1779; +150 is the nearest pick where no party seat dies before pull 2 (scratchpad/lanes/s1-runf-abandon-search.txt).
+    [string]$AbandonSeat = '2@pull0.hp10+150'
 )
 $SceneName = 'HudRunF-SceneTest'
 . (Join-Path $PSScriptRoot 'HudSceneCommon.ps1')
