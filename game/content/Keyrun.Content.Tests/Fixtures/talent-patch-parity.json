@@ -3250,7 +3250,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 45,
+        "cooldownTicks": 0,
         "cost": {
           "amount": 60,
           "resource": "momentum"
@@ -3291,7 +3291,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 45,
+        "cooldownTicks": 0,
         "cost": {
           "amount": 100,
           "resource": "momentum"

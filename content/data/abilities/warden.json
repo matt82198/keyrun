@@ -61,7 +61,7 @@
       },
       {
         "op": "resource",
-        "delta": 22
+        "delta": 15
       },
       {
         "op": "threat",
@@ -118,7 +118,7 @@
     "name": "Reckoning",
     "castTicks": 0,
     "gcdTicks": 30,
-    "cooldownTicks": 45,
+    "cooldownTicks": 0,
     "charges": 1,
     "cost": {
       "resource": "momentum",
