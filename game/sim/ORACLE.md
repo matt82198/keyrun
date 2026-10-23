@@ -96,6 +96,15 @@ adapter (lane 1D) against the TS output field by field: `seed` (golden only), `p
 `runOptions`. The bot setups also carry `keyLevel`, `dungeonId`, `humanClassId`, `humanActorId`,
 `tankActorId` and `bossActorId`. Bot runs at the same key share one setup file.
 
+Effect ops in a setup are objects with an `op` key. The six C#-only ops (the C# writer and reader pair, R-K4-17) are:
+- `displace`: `distanceMm`, optional `freesBinds` and `towardTarget` (both default false).
+- `pull`: `distanceMm`.
+- `partyEffect`: `effectId`, `durationTicks`, `stacks`.
+- `cloud`: `effectId`, `durationTicks`, `radiusMm`.
+- `closerBurn`: `maxHealthBp`, `capBp`, `school`.
+- `damagePct`: `maxHealthBp`, `school` (also valid inside `periodic`).
+The reader rejects any other op key or any key not listed for its op.
+
 ## 5. Canonical JSON
 
 This is compact JSON with object keys sorted by UTF-16 code unit order (ordinal for ASCII). Members whose

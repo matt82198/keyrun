@@ -62,7 +62,7 @@ public static class AbilityAnim
         // Bulwark is a cast shield wall, not a strike: the Block pose for the bar, then the raise as it lands.
         ["warden.bulwark"] = "Spellcast_Raise",
         ["seed.slam"] = "1H_Melee_Attack_Jump_Chop",
-        ["warden.guardBreak"] = "1H_Melee_Attack_Slice_Horizontal",
+        ["warden.guardBreak"] = "2H_Melee_Attack_Slice",
         ["warden.reckoning"] = "1H_Melee_Attack_Stab",
         ["warden.shieldBash"] = "Block_Attack",
     };

@@ -79,6 +79,7 @@ public partial class ActorView : Node3D
     private StandardMaterial3D? _flash;
     private SimState? _flashSeen;
     private int _hurtTick = int.MinValue / 2;
+    private bool _hitSparkPending; // R-ANIM-2 (b): a health drop whose spark waits for the attack's contact frame
     private bool _flashOn;
     private int _flashLoggedTick = int.MinValue;
 
@@ -170,7 +171,9 @@ public partial class ActorView : Node3D
         var row = Binding.For(actor.ClassId);
         var path = row.ResPath; // res://assets/<pack folder>/<file>: kaykit-adventurers or kaykit-skeletons
         // An unimported .glb (fresh worktree, finding f-30dcbb08) can exist yet fail to load: that is a fallback too.
-        var scene = path is not null && ResourceLoader.Exists(path) ? GD.Load<PackedScene>(path) : null;
+        // --capsule-class (ArenaOptions.Capsules, a scene-test seam): a listed class takes the capsule branch even with a row.
+        var forcedCapsule = Driver.Options.Capsules.Contains(actor.ClassId);
+        var scene = !forcedCapsule && path is not null && ResourceLoader.Exists(path) ? GD.Load<PackedScene>(path) : null;
         if (scene is null)
         {
             GD.Print($"ACTOR fallback capsule id={ActorId} class={actor.ClassId}");
@@ -399,7 +402,7 @@ public partial class ActorView : Node3D
     // otherwise, under the 600 draw-call budget).
     private void Flash()
     {
-        if (_model is null || Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var now))
+        if (Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var now))
         {
             return;
         }
@@ -411,9 +414,22 @@ public partial class ActorView : Node3D
             var before = Driver.FrameStartState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
             if (stepped && now.Health < before.Health)
             {
-                _hurtTick = Driver.State.Tick;
-                HitSparkView.Spawn(this, ActorId, Driver.State.Tick); // R-ANIM-1: one hit spark and VIEW hit line per drop
+                // R-ANIM-2 (b): the hit presentation (flash, spark) waits for the attack's contact frame. The sim damage tick
+                // is unchanged; only the presentation starts later, so the flash's hurt tick is offset by that delay.
+                _hurtTick = Driver.State.Tick + HitDelayTicks();
+                _hitSparkPending = true;
             }
+        }
+        if (_hitSparkPending && Driver.State.Tick >= _hurtTick)
+        {
+            // R-ANIM-1: one hit spark and VIEW hit line per drop. Spawned on the view root (this node), before the model
+            // check, so an actor on the fallback capsule (no bound model, finding f-8a001150) sparks too.
+            _hitSparkPending = false;
+            HitSparkView.Spawn(this, ActorId, Driver.State.Tick);
+        }
+        if (_model is null)
+        {
+            return; // the flash overlay needs a bound model; the capsule has none
         }
         // ENEMY-BODY-STABLE: an enemy never flashes (its strength is 0 at every tick), so no enemy mesh gets the overlay.
         var strength = AnimRule.FlashPermilleFor(RoleOf(now), Driver.State.Tick - _hurtTick, (int)(Driver.Alpha * 1000f));
@@ -438,6 +454,9 @@ public partial class ActorView : Node3D
             Driver.HostLine(AnimRule.FlashLine(ActorId, _flashLoggedTick, strength));
         }
     }
+
+    /// <summary>R-ANIM-2 (b): the ticks this actor's hit presentation waits after its health drop (see <see cref="HitPresentation.DelayTicks"/>).</summary>
+    private int HitDelayTicks() => HitPresentation.DelayTicks(Driver?.FrameEvents, ActorId);
 
     private void SetFlashOverlay(bool on)
     {
@@ -816,4 +835,45 @@ public partial class ActorView : Node3D
 
     /// <summary>Sim mm position to a Godot position on the floor plane, metres.</summary>
     public static Vector3 ToMetres(Vec3 mm) => new(mm.X * MmToM, mm.Y * MmToM, mm.Z * MmToM);
+}
+
+/// <summary>
+/// R-ANIM-2 (b, e): the hit presentation of a health drop (the body flash and hit spark on <see cref="ActorView"/>, the
+/// floating damage number on <c>CombatText</c>) waits for the contact frame of the attack that dealt it. The sim damage
+/// tick is unchanged; this is presentation only.
+/// </summary>
+public static class HitPresentation
+{
+    /// <summary>
+    /// The sim ticks a hit presentation waits after the damage on <paramref name="victimId"/>: the contact frame of the
+    /// release clip of the ability whose source dealt the damage this step or frame (the damage event's sourceId resolved
+    /// it), rounded up to whole ticks. A hit with no resolving ability (a tick effect, an unmapped ability) waits 0 ticks.
+    /// </summary>
+    /// <param name="events">The sim events the presentation reads (one step, or every step of a frame); null means none.</param>
+    /// <param name="victimId">The actor the damage landed on.</param>
+    public static int DelayTicks(IReadOnlyList<SimEvent>? events, int victimId)
+    {
+        if (events is null)
+        {
+            return 0;
+        }
+        var delayMs = 0;
+        foreach (var hit in events)
+        {
+            if (hit.Type != StrikeCueRule.DamageEvent || hit.Get("targetId") is not JsInt target || target.Value != victimId
+                || hit.Get("sourceId") is not JsInt source)
+            {
+                continue;
+            }
+            foreach (var done in events)
+            {
+                if (done.Type == AnimRule.ResolveEvent && done.Get("actorId") is JsInt caster && caster.Value == source.Value
+                    && done.Get("abilityId") is JsString ability)
+                {
+                    delayMs = System.Math.Max(delayMs, AnimRule.HitPresentationDelayMs(AbilityClipTable.ReleaseClip(ability.Value, string.Empty)));
+                }
+            }
+        }
+        return (delayMs + AbilityAnim.TickMs - 1) / AbilityAnim.TickMs;
+    }
 }

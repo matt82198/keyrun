@@ -131,7 +131,8 @@ public sealed class AbilityClipTableTests
     }
 
     [Theory]
-    [InlineData("warden.strike", "1H_Melee_Attack_Chop")]
+    // R-ANIM-2 (b): Strike's release clip is Slice_Horizontal (contact 200 ms), so the hit lag stays under 300 ms.
+    [InlineData("warden.strike", "1H_Melee_Attack_Slice_Horizontal")]
     [InlineData("chanter.rebuke", "Unarmed_Melee_Attack_Kick")]
     [InlineData("warden.brace", "Blocking")]
     [InlineData(null, "1H_Melee_Attack_Chop")]

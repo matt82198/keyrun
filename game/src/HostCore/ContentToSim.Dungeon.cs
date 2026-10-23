@@ -143,6 +143,14 @@ public sealed partial record HostRunSetup
 
     private static IReadOnlyList<ScriptStep> ToSim(IEnumerable<C.ScriptStep> script) => script.Select(ToSim).ToList();
 
+    /// <summary>
+    /// The production script adapter as a public seam (R-K4-17, the oracle setup writer): a registry script to the sim's
+    /// <see cref="ScriptStep"/> list exactly as the dungeon, pack and boss scripts get it. Behaviour is unchanged.
+    /// </summary>
+    /// <param name="script">The registry script.</param>
+    /// <returns>The sim script.</returns>
+    public static IReadOnlyList<ScriptStep> ToSimScript(IEnumerable<C.ScriptStep> script) => ToSim(script);
+
     private static ScriptStep ToSim(C.ScriptStep s)
     {
         var step = s.At.Kind switch

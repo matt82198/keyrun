@@ -45,7 +45,7 @@
     "assistMm": 3000,
     "leashMm": 30000,
     "kinds": {
-      "hollowWarden.boss": { "aggroMm": 0, "assistMm": 0, "leashMm": 0 },
+      "hollowWarden.boss": { "aggroMm": 0, "assistMm": 0, "leashMm": 17000 },
       "bellfoundry.ommet": { "aggroMm": 0, "assistMm": 0, "leashMm": 0 },
       "bellfoundry.brineMother": { "aggroMm": 0, "assistMm": 0, "leashMm": 0 },
       "bellfoundry.greatBell": { "aggroMm": 0, "assistMm": 0, "leashMm": 0 }

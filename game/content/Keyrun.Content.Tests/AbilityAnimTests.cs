@@ -157,7 +157,8 @@ public sealed class AbilityAnimTests
     [InlineData("seed.slam", "Unarmed_Melee_Attack_Kick", "1H_Melee_Attack_Jump_Chop")]
     [InlineData("seed.lash", "Unarmed_Melee_Attack_Kick", "Unarmed_Melee_Attack_Kick")]
     [InlineData("warden.strike", "1H_Melee_Attack_Chop", "1H_Melee_Attack_Chop")]
-    [InlineData("warden.guardBreak", "1H_Melee_Attack_Chop", "1H_Melee_Attack_Slice_Horizontal")]
+    // R-ANIM-2 (e)(ii): Strike took Slice_Horizontal, so guardBreak moved to the longest unused contact at or under 300 ms.
+    [InlineData("warden.guardBreak", "1H_Melee_Attack_Chop", "2H_Melee_Attack_Slice")]
     [InlineData("warden.reckoning", "1H_Melee_Attack_Chop", "1H_Melee_Attack_Stab")]
     [InlineData("warden.shieldBash", "1H_Melee_Attack_Chop", "Block_Attack")]
     [InlineData("warden.bulwark", "1H_Melee_Attack_Chop", "Spellcast_Raise")]

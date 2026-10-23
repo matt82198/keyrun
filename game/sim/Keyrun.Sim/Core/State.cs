@@ -393,6 +393,12 @@ public sealed class ActorState
     /// <summary>IDLE-WANDER: the tick the wander began (the loop is read at the ticks since). Meaningful only with <see cref="WanderAnchor"/>.</summary>
     public int WanderEpoch { get; set; }
 
+    /// <summary>
+    /// AGGRO-CHASE: the cause of the evade this enemy is walking home from (<c>"leash"</c> or <c>"no-living-seat"</c>), so the
+    /// reset event carries the same cause as the evade. Null = not evading (every oracle run).
+    /// </summary>
+    public string? EvadeCause { get; set; }
+
     /// <summary>IDLE-WANDER: the pack's closed loop of offsets (an immutable value shared by the pack's members), or null.</summary>
     public Encounter.IdleWander.Loop? WanderLoop { get; set; }
 
