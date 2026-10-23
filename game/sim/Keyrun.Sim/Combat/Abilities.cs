@@ -191,6 +191,8 @@ public static class Abilities
         {
             case DamageOp or HealOp or ApplyEffectOp or RemoveEffectOp or InterruptOp or ResourceOp or ThreatOp or WindowOp or PayoffOp or DamagePctOp or PullOp or DisplaceOp:
                 return Array.Empty<string>();
+            case ConditionalOp cond:
+                return cond.Then.SelectMany(OpKindErrors).ToList();
             case ComboOp c when c.ComboTable is CombosTable or FieldCombosTable:
                 return Array.Empty<string>();
             case ComboOp c:
