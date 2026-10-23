@@ -209,7 +209,10 @@ public static class TankPressure
             return Array.Empty<string>();
         }
         var sustain = ReservedSpender(kit);
-        var rotation = kit.Rotation.Where(id => !string.Equals(id, sustain, StringComparison.Ordinal)).ToList();
+        // R-AOE-1: Bulwark has a cooldown now, so the rotation list reaches it; it is the group mitigation, pressed under pack
+        // pressure by PressureMitigationCommand (D48: a mitigation, not a filler), so it is not also a rotation press.
+        var mitigation = GroupMitigationAbilityId(view, kit);
+        var rotation = kit.Rotation.Where(id => !string.Equals(id, sustain, StringComparison.Ordinal) && !string.Equals(id, mitigation, StringComparison.Ordinal)).ToList();
         if (string.IsNullOrEmpty(sustain) || !UnderPackPressure(view, self))
         {
             return rotation;

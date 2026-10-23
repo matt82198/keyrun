@@ -43,12 +43,12 @@
       "fnv": "766fb4de"
     },
     "hollow-vault-k10.setup.json": {
-      "bytes": 24686,
-      "fnv": "c12aaccb"
+      "bytes": 24715,
+      "fnv": "d9b911f7"
     },
     "hollow-vault-k2.setup.json": {
-      "bytes": 24684,
-      "fnv": "888961fa"
+      "bytes": 24713,
+      "fnv": "9afc55a6"
     },
     "intdiv.vectors.json": {
       "bytes": 371573,
