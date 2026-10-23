@@ -85,7 +85,7 @@ public static class EnemyAggro
             joining ??= groups.Where(o => engaging.Contains(o.Id)).SelectMany(o => o.ActorIds).ToHashSet();
             foreach (var other in state.Actors.Values)
             {
-                if (other.Id == enemy.Id || other.Kind != ActorKind.Enemy || !other.Alive || other.Evading || other.Dormant)
+                if (other.Id == enemy.Id || other.Kind != ActorKind.Enemy || !other.Alive || other.Evading)
                 {
                     continue;
                 }
@@ -98,7 +98,7 @@ public static class EnemyAggro
         return false;
     }
 
-    // A member that can notice anything: alive, idle (not yet engaged), not dormant behind a room gate, not evading.
+    // A member that can notice anything: alive, idle (not yet engaged), not evading.
     private static ActorState? Watcher(SimState state, int id) =>
-        state.Actors.TryGetValue(id, out var a) && a.Kind == ActorKind.Enemy && a.Alive && a.Idle && !a.Dormant && !a.Evading ? a : null;
+        state.Actors.TryGetValue(id, out var a) && a.Kind == ActorKind.Enemy && a.Alive && a.Idle && !a.Evading ? a : null;
 }

@@ -63,14 +63,14 @@ public static class AbilityClipTable
         new("warden.brace", AbilityAnimKind.Block, "Blocking"),
         new("warden.charge", AbilityAnimKind.Dash, "Dodge_Forward"),
         new("warden.taunt", AbilityAnimKind.Taunt, "Cheer"),
-        new("warden.vigil", AbilityAnimKind.Spell, "Spellcast_Raise"),
+        new("warden.vigil", AbilityAnimKind.Spell, "Spellcast_Long"),
 
-        // Cinder (Mage, staff).
-        new("cinder.flare", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),
-        new("cinder.emberBolt", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),
-        new("cinder.cinderfield", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
-        new("cinder.coldSnap", AbilityAnimKind.Spell, "Spellcast_Shoot"),
-        new("cinder.detonate", AbilityAnimKind.Spell, "Spellcast_Raise"),
+        // Cinder (Mage, staff). f-a5ffb07b, S1 fact Rotation_casts_of_one_class_never_share_a_cast_loop: each cast of a class loops its own clip.
+        new("cinder.flare", AbilityAnimKind.Spell, "Spellcast_Raise", "2H_Ranged_Aiming"),
+        new("cinder.emberBolt", AbilityAnimKind.Spell, "Spellcast_Shoot", "1H_Ranged_Aiming"),
+        new("cinder.cinderfield", AbilityAnimKind.Spell, "2H_Melee_Attack_Chop", "2H_Melee_Idle"),
+        new("cinder.coldSnap", AbilityAnimKind.Spell, "Spellcast_Long"),
+        new("cinder.detonate", AbilityAnimKind.Spell, "2H_Melee_Attack_Spin"),
         new("cinder.quench", AbilityAnimKind.Kick, "1H_Melee_Attack_Slice_Horizontal"),
         new("cinder.purge", AbilityAnimKind.Spell, "Spellcast_Shoot"),
         new("cinder.ashenSkin", AbilityAnimKind.Block, "Blocking"),
@@ -78,9 +78,9 @@ public static class AbilityClipTable
 
         // Chanter (Rogue_Hooded, unarmed).
         new("chanter.cadence", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),
-        new("chanter.hymn", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
-        new("chanter.chorus", AbilityAnimKind.Spell, "Spellcast_Raise"),
-        new("chanter.dissonance", AbilityAnimKind.Spell, "Spellcast_Shoot"),
+        new("chanter.hymn", AbilityAnimKind.Spell, "2H_Melee_Attack_Spin", "2H_Melee_Idle"),
+        new("chanter.chorus", AbilityAnimKind.Spell, "Cheer"),
+        new("chanter.dissonance", AbilityAnimKind.Spell, "Spellcast_Long"),
         new("chanter.refrain", AbilityAnimKind.Spell, "Spellcast_Raise"),
         new("chanter.rebuke", AbilityAnimKind.Kick, "Unarmed_Melee_Attack_Kick"),
         new("chanter.aegis", AbilityAnimKind.Block, "Blocking"),
@@ -142,7 +142,7 @@ public static class AbilityClipTable
     public static IReadOnlyList<AbilityClipGap> Gaps { get; } = new AbilityClipGap[]
     {
         new("warden.taunt", "Knight.glb", "Taunt", "Cheer"),
-        new("cinder.cinderfield", "Mage.glb", "Spellcast_Summon", "Spellcast_Raise"),
+        new("cinder.cinderfield", "Mage.glb", "Spellcast_Summon", "2H_Melee_Attack_Chop"),
         new("warden.charge", "Knight.glb", "1H_Melee_Attack_Jump_Chop", "Dodge_Forward"),
     };
 

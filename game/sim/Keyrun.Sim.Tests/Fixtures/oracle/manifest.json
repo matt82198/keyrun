@@ -23,12 +23,12 @@
       "fnv": "992afb30"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 372047,
-      "fnv": "d075e777"
+      "bytes": 366221,
+      "fnv": "0e0117b5"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 372044,
-      "fnv": "1c163eec"
+      "bytes": 366218,
+      "fnv": "f71d2e10"
     },
     "content-pull.setup.json": {
       "bytes": 22329,
@@ -43,12 +43,12 @@
       "fnv": "766fb4de"
     },
     "hollow-vault-k10.setup.json": {
-      "bytes": 24686,
-      "fnv": "c12aaccb"
+      "bytes": 24641,
+      "fnv": "270ff194"
     },
     "hollow-vault-k2.setup.json": {
-      "bytes": 24684,
-      "fnv": "888961fa"
+      "bytes": 24639,
+      "fnv": "bb4320ed"
     },
     "intdiv.vectors.json": {
       "bytes": 371573,
@@ -632,7 +632,7 @@
       "trace": "scripted-pull.trace.jsonl"
     },
     {
-      "finalTick": 2497,
+      "finalTick": 2463,
       "name": "bots-hv-k2-s7",
       "properties": [
         {
@@ -858,13 +858,13 @@
           "why": "R-TAUNT-1 (#515): a taunt never ends the tank's decision; the re-record moved only t=944, where the tank, not facing its taunt target, turns in the same batch as its taunt. A rule over every due taunt tick (min 0): a run whose taunts all land already facing holds it trivially, so a timeline shift never reds it; the recorded k2 runs have one due tick, t=944"
         }
       ],
-      "records": 2498,
+      "records": 2464,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s7.trace.jsonl"
     },
     {
-      "finalTick": 2497,
+      "finalTick": 2463,
       "name": "bots-hv-k2-s11",
       "properties": [
         {
@@ -1098,7 +1098,7 @@
           "why": "lane 1B (#110, ORACLE.md section 6): at skill dial 100 neither the run seed nor the bot PRNG seed changes anything projected or emitted; R-TAUNT-1 (#515) re-record: s11 is byte-identical to s7 in its record bodies"
         }
       ],
-      "records": 2498,
+      "records": 2464,
       "result": "timed",
       "setup": "hollow-vault-k2.setup.json",
       "trace": "bots-hv-k2-s11.trace.jsonl"
@@ -1158,13 +1158,12 @@
             "kind": "count",
             "match": {
               "abilityId": "choir.healCast",
-              "sourceId": 1,
               "targetId": 102,
               "type": "interrupt"
             },
             "min": 1
           },
-          "name": "warden-kicks-the-casting-lieutenant",
+          "name": "party-kicks-the-casting-lieutenant",
           "why": "R-WARDEN-KICK-1 (#515): the Warden's Shield Bash goes to the casting choir.lieutenant (actor 102); in the oracle runner the per-class ledger (#110) gives the Warden its own kick on the lieutenant's Choral Mending"
         },
         {

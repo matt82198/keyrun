@@ -23,7 +23,7 @@ function Invoke-Arena([int]$n, [string[]]$extra) {
     # --view-size 1280x720 (Main.cs ApplyViewSize, as HudTooltip-SceneTest.ps1:73-75): a headless window is 64x64, too small for the timer box; render-only, the sim does not read it.
     $guard = (3 * $n) + 240
     $ErrorActionPreference = 'Continue'
-    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n --view-size 1280x720 @extra 2>&1 | Out-String
+    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n --rotation 0 --view-size 1280x720 @extra 2>&1 | Out-String
     $rc = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     Assert-GodotFound $rc $text
@@ -124,18 +124,20 @@ foreach ($t in $timerLines) {
 # R-BACKFILL-2 (the #446 lane brief's R-WIPE-RESET): the wipe released the Warden, so run A ends at the timer cap
 # (Timer.CapTicks, tick 9600 headless), depleted and uncleared, and RunEndTitle.ForRun titles it "Out of time"; the
 # wipe title "Party wiped on pull 1 of 4" belonged to the superseded rule that a lasting wipe ends the run.
-$runEnd = First $a.Lines '^HUD runend result=depleted choices=3 cleared=0 tick=\d+ title="Out of time -- key stays at \+2"$'
-if (-not $runEnd) { $failures.Add("run A: no 'HUD runend result=depleted choices=3 cleared=0 ... title=""Out of time -- key stays at +2""' line (the timer cap's end, R-BACKFILL-2; got '$(First $a.Lines '^HUD runend result=')')") }
+$runEnd = First $a.Lines '^HUD runend result=depleted roll=(item|nothing) cleared=0 tick=\d+ title="Out of time -- key stays at \+2"$'
+if (-not $runEnd) { $failures.Add("run A: no 'HUD runend result=depleted roll=<item|nothing> cleared=0 ... title=""Out of time -- key stays at +2""' line (the timer cap's end, R-BACKFILL-2; got '$(First $a.Lines '^HUD runend result=')')") }
 # Key progression (BIBLE s8, Matt 2026-10-20): the untimed key-2 run holds its key, no depletion drop, and the panel says so.
 $keyLine = First $a.Lines '^HUD runend key from=2 to=2 tier=0$'
 if (-not $keyLine) { $failures.Add("run A: no 'HUD runend key from=2 to=2 tier=0' line (an untimed key holds its level; got '$(First $a.Lines '^HUD runend key ')')") }
-$choices = @($a.Lines | Where-Object { $_ -match '^HUD runend choice n=[123] slot=(weapon|armor|charm|ring|keystone) tier=\d+ facet="[^"]+"' })
-if ($choices.Count -ne 3) { $failures.Add("run A: expected 3 'HUD runend choice' lines, got $($choices.Count)") }
-# Lane 3C-d: the cards roll over the Warden's content facet pool, so each names a real facet id and its kit ability.
-foreach ($ch in $choices) {
-    if ($ch -match ' ability=ability-[0-9]') { $failures.Add("run A: a run-end card still carries a placeholder ability id: '$ch'") }
-    elseif ($ch -notmatch '^HUD runend choice n=[123] slot=(\w+) tier=(\d+) facet="[^"]+" ability=warden\.[A-Za-z]+ charges=\d+ id=reward-\1-warden\.\1\.[A-Za-z]+-t\2-\d$') {
-        $failures.Add("run A: a run-end card does not name a Warden content facet (want ability=warden.<id> ... id=reward-<slot>-warden.<slot>.<facet>-t<t>-<i>): '$ch'")
+# R-ROLL-1 (b)(iii): the run end carries the local seat's one completion roll (an item or nothing), not a choice of three.
+$choices = @($a.Lines | Where-Object { $_ -match '^HUD runend roll seat=1 outcome=(item|nothing)' })
+if ($choices.Count -ne 1) { $failures.Add("run A: expected 1 'HUD runend roll seat=1' line, got $($choices.Count)") }
+if (@($a.Lines | Where-Object { $_ -match '^HUD runend choice ' }).Count -gt 0) { $failures.Add("run A: a 'HUD runend choice' line is back (the choice of three was removed by R-ROLL-1)") }
+# The item rolled over the Warden's class facet pool, so it names a real facet id and its kit ability.
+foreach ($ch in @($choices | Where-Object { $_ -match 'outcome=item' })) {
+    if ($ch -match ' ability=ability-[0-9]') { $failures.Add("run A: the run-end roll still carries a placeholder ability id: '$ch'") }
+    elseif ($ch -notmatch '^HUD runend roll seat=1 outcome=item slot=(\w+) tier=(\d+) facet="[^"]+" ability=warden\.[A-Za-z]+ charges=\d+ id=reward-\1-warden\.\1\.[A-Za-z]+-t\2-\d$') {
+        $failures.Add("run A: the run-end roll does not name a Warden content facet (want ability=warden.<id> ... id=reward-<slot>-warden.<slot>.<facet>-t<t>-<i>): '$ch'")
     }
 }
 $causes = @($a.Lines | Where-Object { $_ -match '^HUD runend cause ' })

@@ -25,8 +25,11 @@ public sealed record ProgressionLoad(Progression Progression, string? Error);
 /// </summary>
 public static class ProgressionSave
 {
-    /// <summary>The save format version this build reads and writes.</summary>
-    public const int Version = 1;
+    /// <summary>The save format version this build writes. It also reads version 1 (ABILITY-TREES s5.3 migration).</summary>
+    public const int Version = 2;
+
+    // The oldest save version this build still reads: a v1 save migrates its completions into tree points on load.
+    private const int OldestReadableVersion = 1;
 
     /// <summary>The save file's name inside the host's user data directory.</summary>
     public const string FileName = "progression.json";
@@ -59,8 +62,17 @@ public static class ProgressionSave
             ("last", last),
             ("talents", TalentsJs(progression.Talents)),
             ("history", JsValue.Arr(progression.History.Select(r => (JsValue)RunRecordJs(r)))),
-            ("ascensionCards", JsValue.Int(progression.AscensionCardMarks))).ToCanonicalJson();
+            ("ascensionCards", JsValue.Int(progression.AscensionCardMarks)),
+            ("trees", TreesJs(progression.Trees))).ToCanonicalJson();
     }
+
+    // One class's tree per member, in ordinal class order, nodes in the order they were taken (v2, s5.3).
+    private static JsObject TreesJs(IReadOnlyDictionary<string, TreeState> trees) => JsValue.Obj(
+        trees.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+            .Select(kv => new KeyValuePair<string, JsValue>(kv.Key, JsValue.Obj(
+                ("earned", JsValue.Int(kv.Value.Earned)),
+                ("bestKey", JsValue.Int(kv.Value.BestKey)),
+                ("nodes", JsValue.Arr(kv.Value.Nodes.Select(n => JsValue.Str(n))))))));
 
     // One banked run (f-275d47c9): the key, the result and whether the character was ascended, so marks are countable.
     private static JsObject RunRecordJs(RunRecord r) => JsValue.Obj(
@@ -75,7 +87,18 @@ public static class ProgressionSave
     /// <param name="text">The save text, or null when there is none.</param>
     /// <param name="seed">The fresh character's crafting seed (<see cref="Progression.Start"/>).</param>
     /// <returns>The load.</returns>
-    public static ProgressionLoad Load(string? text, long seed)
+    public static ProgressionLoad Load(string? text, long seed) => Load(text, seed, lastQueuedClassId: null);
+
+    /// <summary>
+    /// <see cref="Load(string?, long)"/> with the class the save last queued. A version 1 save has no class per run, so
+    /// its completions are credited as tree points to <paramref name="lastQueuedClassId"/> (ABILITY-TREES s5.3); with a
+    /// null class a v1 save migrates no points. A version 2 save names its classes itself and ignores the argument.
+    /// </summary>
+    /// <param name="text">The save text, or null when there is none.</param>
+    /// <param name="seed">The fresh character's crafting seed.</param>
+    /// <param name="lastQueuedClassId">The class the save last queued, or null.</param>
+    /// <returns>The load.</returns>
+    public static ProgressionLoad Load(string? text, long seed, string? lastQueuedClassId)
     {
         if (text is null)
         {
@@ -83,7 +106,7 @@ public static class ProgressionSave
         }
         try
         {
-            return new ProgressionLoad(Parse(text), null);
+            return new ProgressionLoad(Parse(text, lastQueuedClassId), null);
         }
         catch (Exception e)
         {
@@ -91,11 +114,20 @@ public static class ProgressionSave
         }
     }
 
-    /// <summary>Loads the save at <paramref name="path"/> (<see cref="Load"/>); a missing file is no save. Never throws.</summary>
+    /// <summary>Loads the save at <paramref name="path"/> (<see cref="Load(string?, long)"/>); a missing file is no save. Never throws.</summary>
     /// <param name="path">The save file.</param>
     /// <param name="seed">The fresh character's crafting seed.</param>
     /// <returns>The load.</returns>
-    public static ProgressionLoad LoadFile(string path, long seed)
+    public static ProgressionLoad LoadFile(string path, long seed) => LoadFile(path, seed, lastQueuedClassId: null);
+
+    /// <summary>
+    /// <see cref="LoadFile(string, long)"/> with the class the save last queued (<see cref="Load(string?, long, string?)"/>).
+    /// </summary>
+    /// <param name="path">The save file.</param>
+    /// <param name="seed">The fresh character's crafting seed.</param>
+    /// <param name="lastQueuedClassId">The class the save last queued, or null.</param>
+    /// <returns>The load.</returns>
+    public static ProgressionLoad LoadFile(string path, long seed, string? lastQueuedClassId)
     {
         string? text;
         try
@@ -106,7 +138,7 @@ public static class ProgressionSave
         {
             return new ProgressionLoad(Progression.Start(seed), $"progression save unreadable: {e.Message}");
         }
-        return Load(text, seed);
+        return Load(text, seed, lastQueuedClassId);
     }
 
     /// <summary>
@@ -201,16 +233,16 @@ public static class ProgressionSave
             ("text", JsValue.Str(item.Facet.Text)),
             ("ability", JsValue.Str(item.Facet.AbilityId)))));
 
-    private static Progression Parse(string text)
+    private static Progression Parse(string text, string? lastQueuedClassId)
     {
         if (JsValue.Parse(text) is not JsObject root)
         {
             throw new FormatException("not a JSON object");
         }
         var version = Int(root, "v");
-        if (version != Version)
+        if (version < OldestReadableVersion || version > Version)
         {
-            throw new FormatException($"version {version}, this build reads {Version}");
+            throw new FormatException($"version {version}, this build reads {OldestReadableVersion} to {Version}");
         }
         var ash = Int(root, "ash");
         var runs = Int(root, "runs");
@@ -244,7 +276,10 @@ public static class ProgressionSave
         {
             throw new FormatException(FormattableString.Invariant($"history has {history.Count} runs but only {runs} were banked"));
         }
-        return new Progression
+        var trees = version == 1
+            ? ParseV1Trees(root, history, lastQueuedClassId)
+            : ParseTrees(root.Get("trees") ?? throw new FormatException("a version 2 save needs a \"trees\" member"));
+        var progression = new Progression
         {
             AshTotal = ash,
             Runs = (int)runs,
@@ -254,6 +289,75 @@ public static class ProgressionSave
             History = history,
             AscensionCardMarks = ParseAscensionCards(root.Get("ascensionCards")),
         }.WithTalents(ParseTalents(root.Get("talents")));
+        return progression with { Trees = trees };
+    }
+
+    // ABILITY-TREES s5.3 v1 path: a v1 save has no tree member. Its timed and depleted runs become tree points credited to
+    // the class it last queued (history carries no class per run); bestKey is the highest of those keys, nodes start empty.
+    private static IReadOnlyDictionary<string, TreeState> ParseV1Trees(JsObject root, IReadOnlyList<RunRecord> history, string? lastQueuedClassId)
+    {
+        if (root.Get("trees") is not null)
+        {
+            throw new FormatException("a version 1 save has no \"trees\" member");
+        }
+        var trees = new Dictionary<string, TreeState>(StringComparer.Ordinal);
+        if (lastQueuedClassId is null)
+        {
+            return trees;
+        }
+        var state = TreeState.Empty;
+        foreach (var run in history)
+        {
+            state = state.Award(run.Result, run.KeyLevel);
+        }
+        if (state.Earned > 0)
+        {
+            trees[lastQueuedClassId] = state;
+        }
+        return trees;
+    }
+
+    // The v2 "trees" member, fail closed (s5.3): each tree is replayed through TreeState.Take, so an unknown node, a
+    // missing requires, a minKey above bestKey or more nodes than earned throws and the whole save is unusable.
+    private static IReadOnlyDictionary<string, TreeState> ParseTrees(JsValue v)
+    {
+        if (v is not JsObject o)
+        {
+            throw new FormatException("\"trees\" must be an object");
+        }
+        var trees = new Dictionary<string, TreeState>(StringComparer.Ordinal);
+        foreach (var (classId, value) in o.Members)
+        {
+            if (string.IsNullOrEmpty(classId) || value is not JsObject tree)
+            {
+                throw new FormatException("each tree must be an object keyed by a class id");
+            }
+            var earned = Int(tree, "earned");
+            var bestKey = Int(tree, "bestKey");
+            if (earned < 0 || earned > TreeState.MaxPoints)
+            {
+                throw new FormatException(FormattableString.Invariant($"tree \"{classId}\" earned {earned} outside 0..{TreeState.MaxPoints}"));
+            }
+            if (bestKey < 0 || bestKey > int.MaxValue)
+            {
+                throw new FormatException($"tree \"{classId}\" bestKey must be 0 or more");
+            }
+            var state = TreeState.Empty with { Earned = (int)earned, BestKey = (int)bestKey };
+            foreach (var node in Arr(tree, "nodes"))
+            {
+                if (node is not JsString { Value.Length: > 0 } id)
+                {
+                    throw new FormatException($"tree \"{classId}\" nodes must be non-empty strings");
+                }
+                if (!TreeNodeRules.TryGate(id.Value, out var minKey, out var requires))
+                {
+                    throw new FormatException($"tree \"{classId}\" has unknown node \"{id.Value}\"");
+                }
+                state = state.Take(id.Value, minKey, requires);
+            }
+            trees[classId] = state;
+        }
+        return trees;
     }
 
     // A save written before Ascension cards were recorded has no member: that character holds no card marks yet.

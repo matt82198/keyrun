@@ -99,6 +99,8 @@ function Test-KeyrunDotnetAssembly {
         foreach ($f in @(Get-ChildItem -LiteralPath $dir -Recurse -Filter '*.cs' -File)) {
             $segments = $f.FullName.Substring($projectDir.Length) -split '[\\/]'
             if (@($segments | Where-Object { $script:KeyrunPreflightSkipSegments -contains $_ }).Count -gt 0) { continue }
+            # R-PREFLIGHT-1: test projects (*.Tests) and tools/ never feed Keyrun.dll, so editing them must not mark it stale.
+            if (@($segments | Where-Object { $_ -like '*.Tests' -or $_ -eq 'tools' }).Count -gt 0) { continue }
             if ($null -eq $newest -or $f.LastWriteTimeUtc -gt $newest.LastWriteTimeUtc) { $newest = $f }
         }
     }

@@ -47,6 +47,7 @@ public static class ContentLoader
         ForcesFile,
         HazardsFile,
         GearFile,
+        CompletionFile,
         TrashEnemiesFile,
         MeleeAbilitiesFile,
         VaultAbilitiesFile,
@@ -78,6 +79,12 @@ public static class ContentLoader
     /// pack is a new file, never a list edit.
     /// </summary>
     public const string RosterRoot = "roster/";
+
+    /// <summary>
+    /// The improvement trees (ABILITY-TREES s5.1): one file per class, game/content/data/trees/&lt;classId&gt;.json, each a
+    /// <see cref="TreeFileDef"/> whose nodes load in file order. A new class's tree is a new file, never a list edit.
+    /// </summary>
+    public const string TreesRoot = "trees/";
 
     /// <summary>
     /// C#-only vault casts (game/content/data/abilities/vault.json, same logical root; FORCES-ROUTE-PLAN slice S1
@@ -120,6 +127,9 @@ public static class ContentLoader
 
     /// <summary>C#-only gear table (game/content/data/gear.json; BIBLE section 7 "Five slots", "Tier is power").</summary>
     public const string GearFile = "gear.json";
+
+    /// <summary>C#-only completion roll table (game/content/data/loot/completion.json; R-ROLL-1, BIBLE s1).</summary>
+    public const string CompletionFile = "loot/completion.json";
 
     /// <summary>The dungeon whose per-kind layout and forces directories the loader assembles (ruling R-LOADER-1).</summary>
     public const string LayoutDungeon = "hollow-vault";
@@ -170,7 +180,7 @@ public static class ContentLoader
     /// The directories read whole (<see cref="PerKindContent.DirectoriesFor"/>): any JSON file in them loads without a
     /// <see cref="Files"/> entry. Every other file must be listed (the frozen content/data entries stay an explicit list).
     /// </summary>
-    public static IReadOnlyList<string> Directories { get; } = PerKindContent.DirectoriesFor(LayoutDungeon).Append(RosterRoot).Append(GuidesRoot).ToArray();
+    public static IReadOnlyList<string> Directories { get; } = PerKindContent.DirectoriesFor(LayoutDungeon).Append(RosterRoot).Append(GuidesRoot).Append(TreesRoot).ToArray();
 
     /// <summary>
     /// G2.4 K3b: the per-class playtester guides (game/content/data/guides/&lt;classId&gt;.json). Known so the file set check accepts them;
@@ -246,6 +256,7 @@ public static class ContentLoader
                 ReadOne<DungeonDef>(source, "dungeons/hollow-vault.json"),
                 ReadOne<DungeonDef>(source, FoundryDungeonFile)),
             Roster = ById("roster pack", ContentDirectory.Under(source, RosterRoot).Select(p => ReadOne<RosterPack>(source, p)[0]).ToArray()),
+            Trees = ById("tree node", ContentDirectory.Under(source, TreesRoot).Select(p => ReadOne<TreeFileDef>(source, p)[0].Nodes.ToArray()).ToArray()),
             Clauses = ById("clause", ReadArray<ClauseDef>(source, "clauses.json")),
             Facets = ById("facet",
                 ReadArray<FacetDef>(source, Facets + "warden.json"),
@@ -257,9 +268,12 @@ public static class ContentLoader
             Forces = PerKindContent.AssembleForces(source, LayoutDungeon),
             Hazards = ById("hazard", ReadArray<HazardDef>(source, HazardsFile)),
             Gear = ById("gear item", ReadArray<GearItemDef>(source, GearFile)),
+            Completion = ReadOne<CompletionTable>(source, CompletionFile)[0],
             MeleeAbilities = new ValueList<string>(ReadArray<string>(source, MeleeAbilitiesFile)),
         };
 
+        // R-ROLL-1: completion.json is checked here, not in ContentRules, which pins the rule list (ContentRulesRegistryTests).
+        CompletionTable.Check(registry.Completion);
         ContentValidator.Validate(registry);
         return registry;
     }

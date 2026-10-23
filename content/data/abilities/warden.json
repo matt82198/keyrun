@@ -46,9 +46,8 @@
     "charges": 1,
     "range": 3000,
     "shape": {
-      "kind": "cone",
-      "radius": 3000,
-      "angle1024": 140
+      "kind": "circle",
+      "radius": 2500
     },
     "interruptible": false,
     "tags": [

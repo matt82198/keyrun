@@ -58,14 +58,17 @@ public sealed class GuidedTankRole : IRole
         {
             return new Command[] { Reasons.Tag(escape, "tank:floor-escape") };
         }
-        // The engage walk holds the seat until the pack is in reach. A pull cast in reach is left to the guide's rotation
-        // (the guide's Strike is the Setup), so a guided seat never pulls out of reach.
-        var walk = TankEngage.TankEngageCommands(view, self, kit)?.OfType<MoveCommand>().Cast<Command>().ToList();
-        if (walk is { Count: > 0 })
+        // The engage walk holds the seat while the pack is out of reach: an approach move (non-zero Dir) returns alone. In reach
+        // the walk is at most a yaw turn (zero Dir), which never blocks a cast (R-GUIDE-1 (b)): the guide's rotation runs the
+        // same tick and its cast goes out alongside the turn, as the scripted Tank orders move and cast in one decision.
+        var walk = TankEngage.TankEngageCommands(view, self, kit)?.OfType<MoveCommand>().Cast<Command>().ToList() ?? new List<Command>();
+        var approaching = walk.Any(c => c is MoveCommand m && (m.Dir.X != 0 || m.Dir.Z != 0));
+        if (approaching)
         {
             Reasons.TagAll(walk, "tank:engage");
             return walk;
         }
+        Reasons.TagAll(walk, "tank:engage");
 
         var ctx = new GuideContext(view, self, kit);
         foreach (var rule in _guide.Rotation)
@@ -76,8 +79,9 @@ public sealed class GuidedTankRole : IRole
             }
             var target = TargetedPresses.Contains(rule.Press) ? self.TargetId : null;
             var cast = Reasons.TagGuided(new CastCommand(tick, self.Id, rule.Press, target), $"guide:{_guide.ClassId}:{rule.Id}", rule.Reason);
-            return new Command[] { cast };
+            walk.Add(cast);
+            return walk;
         }
-        return Array.Empty<Command>();
+        return walk;
     }
 }

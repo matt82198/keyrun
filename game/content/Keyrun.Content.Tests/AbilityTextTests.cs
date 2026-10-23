@@ -79,7 +79,7 @@ public sealed class AbilityTextTests
     public void Payoff_role_names_the_windows_it_closes()
     {
         Assert.Equal("Builder | Payoff: closes Kindled for Forge, Attuned for Anthem", Tip("warden.guardBreak").Role);
-        Assert.Equal("Deals 100 physical damage in a cone, builds 15 Momentum and generates 1.5x threat.", Tip("warden.guardBreak").Body);
+        Assert.Equal("Deals 100 physical damage in an area, builds 15 Momentum and generates 1.5x threat.", Tip("warden.guardBreak").Body);
         Assert.Equal("Spender: 30 Heat | Payoff: closes Sundered for Shatter, Attuned for Flashfire", Tip("cinder.detonate").Role);
         Assert.Equal("Interrupt", Tip("chanter.rebuke").Role);
         Assert.Equal("Cast instant | Cooldown 24s | Range 25 m", Tip("chanter.rebuke").Stats);

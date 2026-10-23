@@ -10,8 +10,10 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
+    # R-K4-4/R-K4-13: the kit moves the hp10 anchor to tick 1266 and pull-0 clear to 1450; +1 stalls pull 0 so the party
+    # never reaches the pair pull. RunFJoinerActsTests.cs:43 pins +50 (pull 1 at 1864).
     [int]$BackfillTicks = 3500,
-    [string]$AbandonSeat = '2@pull0.hp10+1'
+    [string]$AbandonSeat = '2@pull0.hp10+50'
 )
 $SceneName = 'HudRunF-SceneTest'
 . (Join-Path $PSScriptRoot 'HudSceneCommon.ps1')
@@ -23,7 +25,7 @@ function Invoke-Arena([int]$n, [string[]]$extra) {
     # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
     $guard = (3 * $n) + 240
     $ErrorActionPreference = 'Continue'
-    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n @extra 2>&1 | Out-String
+    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n --rotation 0 @extra 2>&1 | Out-String
     $rc = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     Assert-GodotFound $rc $text

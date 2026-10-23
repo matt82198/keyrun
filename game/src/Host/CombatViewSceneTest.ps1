@@ -15,7 +15,7 @@
        chase step moved it; the scripted Warden never pushes enemies toward himself);
     4. "CAST start actor=<lieutenant> ability=choir.healCast name="Choral Mending"": the lieutenant's 4 s heal began
        (the cast bar's source);
-    5. an "EVENT" interrupt line from the Warden (sourceId 1) on choir.healCast: Q kicked it;
+    5. an "EVENT" interrupt line on choir.healCast from any party seat (sourceId 1-4): a seat kicked it (R-KICK-3);
     6. at least one "CAST done actor=1 ability=warden.<id> name="<Name>"" line: a player cast completed and the log
        names it with the content display name the ability bar shows.
   Before 2E the arena ran DebugCleaveEmitter against a static box and none of 2-6 appear (RED).
@@ -37,7 +37,7 @@ $failures = New-Object System.Collections.Generic.List[string]
 $ErrorActionPreference = 'Continue'
 # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
 $guardFrames = (3 * $Ticks) + 240
-$out = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guardFrames '--' --autorun --ticks $Ticks --log $logFile --solo 2>&1 | Out-String
+$out = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guardFrames '--' --autorun --ticks $Ticks --rotation 0 --log $logFile 2>&1 | Out-String
 $code = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 
@@ -93,9 +93,23 @@ if ($lieutenant) {
     }
 }
 
-$kick = First '^EVENT \{.*"abilityId":"choir\.healCast".*"sourceId":1,.*"type":"interrupt"'
+# R-KICK-3: view test, party configuration; --solo was a tank that dies at tick 285 before its first legal kick (f-d412fe7d); measured on 0913128c (main d1715072 merged): the Warden, seat 1, kicks at tick 287 (scene-combatview-kick3.log)
+# The EVENT line is one JSON object (keys in this order: abilityId, sourceId, type); a party seat is sourceId 1-4.
+# The tick is the nearest preceding "TICK <n> ..." line in the run log.
+$kick = First '^EVENT \{.*"abilityId":"choir\.healCast".*"sourceId":([1-4]),.*"type":"interrupt"'
+$kickSeat = $null
+$kickTick = $null
 if (-not $kick) {
-    $failures.Add('no interrupt EVENT from the Warden (sourceId 1) on choir.healCast')
+    $failures.Add('no interrupt EVENT on choir.healCast from a party seat (sourceId 1-4)')
+} else {
+    $kickSeat = [regex]::Match($kick, '"sourceId":([1-4]),').Groups[1].Value
+    $kickIdx = [array]::IndexOf($lines, $kick)
+    for ($i = $kickIdx; $i -ge 0; $i--) {
+        if ($lines[$i] -match '^TICK (\d+)') { $kickTick = $Matches[1]; break }
+    }
+    if (-not $kickTick) {
+        $failures.Add("no TICK line before the interrupt EVENT (seat=$kickSeat): '$kick'")
+    }
 }
 
 $playerCast = First '^CAST done actor=1 ability=warden\.[A-Za-z]+ name="[^"]+"'
@@ -116,5 +130,5 @@ if ($failures.Count -gt 0) {
     $failures | ForEach-Object { Write-Output "  - $_" }
     exit 1
 }
-Write-Output "CombatViewSceneTest: PASS ticks=$Ticks"
+Write-Output "CombatViewSceneTest: PASS interrupt seat=$kickSeat tick=$kickTick"
 exit 0

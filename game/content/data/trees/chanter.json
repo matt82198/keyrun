@@ -1,0 +1,28 @@
+{
+  "nodes": [
+    { "id": "chanter.cadence.rank2", "classId": "chanter", "abilityId": "chanter.cadence", "kind": "rank", "minKey": 0, "requires": [], "name": "Rank II", "text": "Rank II: number deltas, not yet authored." },
+    { "id": "chanter.cadence.enhanced", "classId": "chanter", "abilityId": "chanter.cadence", "kind": "enhanced", "minKey": 0, "requires": ["chanter.cadence.rank2"], "name": "Enhanced", "text": "Enhanced interaction, not yet authored." },
+    { "id": "chanter.cadence.choice", "classId": "chanter", "abilityId": "chanter.cadence", "kind": "choice", "minKey": 4, "requires": ["chanter.cadence.enhanced"], "name": "Fork", "text": "The class fork, by reference to its talents entry." },
+    { "id": "chanter.cadence.rank3", "classId": "chanter", "abilityId": "chanter.cadence", "kind": "rank", "minKey": 7, "requires": ["chanter.cadence.choice"], "name": "Rank III", "text": "Rank III: number deltas, not yet authored." },
+
+    { "id": "chanter.refrain.rank2", "classId": "chanter", "abilityId": "chanter.refrain", "kind": "rank", "minKey": 0, "requires": [], "name": "Rank II", "text": "Rank II: number deltas, not yet authored." },
+    { "id": "chanter.refrain.enhanced", "classId": "chanter", "abilityId": "chanter.refrain", "kind": "enhanced", "minKey": 0, "requires": ["chanter.refrain.rank2"], "name": "Enhanced", "text": "Enhanced interaction, not yet authored." },
+    { "id": "chanter.refrain.choice", "classId": "chanter", "abilityId": "chanter.refrain", "kind": "choice", "minKey": 4, "requires": ["chanter.refrain.enhanced"], "name": "Fork", "text": "The class fork, by reference to its talents entry." },
+    { "id": "chanter.refrain.rank3", "classId": "chanter", "abilityId": "chanter.refrain", "kind": "rank", "minKey": 7, "requires": ["chanter.refrain.choice"], "name": "Rank III", "text": "Rank III: number deltas, not yet authored." },
+
+    { "id": "chanter.chorus.rank2", "classId": "chanter", "abilityId": "chanter.chorus", "kind": "rank", "minKey": 0, "requires": [], "name": "Rank II", "text": "Rank II: number deltas, not yet authored." },
+    { "id": "chanter.chorus.enhanced", "classId": "chanter", "abilityId": "chanter.chorus", "kind": "enhanced", "minKey": 0, "requires": ["chanter.chorus.rank2"], "name": "Hymnal Chorus", "text": "While Hymn is up, Chorus also heals each ally it reaches for 60." },
+    { "id": "chanter.chorus.choice", "classId": "chanter", "abilityId": "chanter.chorus", "kind": "choice", "minKey": 4, "requires": ["chanter.chorus.enhanced"], "name": "Fork", "text": "The class fork, by reference to its talents entry." },
+    { "id": "chanter.chorus.rank3", "classId": "chanter", "abilityId": "chanter.chorus", "kind": "rank", "minKey": 7, "requires": ["chanter.chorus.choice"], "name": "Rank III", "text": "Rank III: number deltas, not yet authored." },
+
+    { "id": "chanter.dissonance.rank2", "classId": "chanter", "abilityId": "chanter.dissonance", "kind": "rank", "minKey": 0, "requires": [], "name": "Rank II", "text": "Rank II: number deltas, not yet authored." },
+    { "id": "chanter.dissonance.enhanced", "classId": "chanter", "abilityId": "chanter.dissonance", "kind": "enhanced", "minKey": 0, "requires": ["chanter.dissonance.rank2"], "name": "Discordant Verse", "text": "With a verse held, Dissonance spends it for 130 more damage." },
+    { "id": "chanter.dissonance.choice", "classId": "chanter", "abilityId": "chanter.dissonance", "kind": "choice", "minKey": 4, "requires": ["chanter.dissonance.enhanced"], "name": "Fork", "text": "The class fork, by reference to its talents entry." },
+    { "id": "chanter.dissonance.rank3", "classId": "chanter", "abilityId": "chanter.dissonance", "kind": "rank", "minKey": 7, "requires": ["chanter.dissonance.choice"], "name": "Rank III", "text": "Rank III: number deltas, not yet authored." },
+
+    { "id": "chanter.hymn.rank2", "classId": "chanter", "abilityId": "chanter.hymn", "kind": "rank", "minKey": 0, "requires": [], "name": "Rank II", "text": "Rank II: number deltas, not yet authored." },
+    { "id": "chanter.hymn.enhanced", "classId": "chanter", "abilityId": "chanter.hymn", "kind": "enhanced", "minKey": 0, "requires": ["chanter.hymn.rank2"], "name": "Enhanced", "text": "Enhanced interaction, not yet authored." },
+    { "id": "chanter.hymn.choice", "classId": "chanter", "abilityId": "chanter.hymn", "kind": "choice", "minKey": 4, "requires": ["chanter.hymn.enhanced"], "name": "Fork", "text": "The class fork, by reference to its talents entry." },
+    { "id": "chanter.hymn.rank3", "classId": "chanter", "abilityId": "chanter.hymn", "kind": "rank", "minKey": 7, "requires": ["chanter.hymn.choice"], "name": "Rank III", "text": "Rank III: number deltas, not yet authored." }
+  ]
+}

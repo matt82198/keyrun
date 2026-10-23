@@ -165,4 +165,84 @@ public sealed class SeedEngageTests
             $"the Seed never engaged: within {WithinTicks} ticks of pull_start t{played.StartTick} it stayed at {last.Pos} "
             + $"({Dist(last.Pos, doorway)} mm from the doorway, spawn {played.SeedSpawn}) and landed no damage on the party");
     }
+
+    /// <summary>
+    /// R-SEED-2: the Seed's own aggro ring (run.json enemyAggro.aggroMm, 8000 mm) is the only engage rule for a room-
+    /// activated pull; standing in seed-chamber is not an engage by itself.
+    /// </summary>
+    internal const long SeedAggroMm = 8000;
+
+    /// <summary>Builds the hollow-vault k2 run with the Seed placed in seed-chamber and seat 1 at <paramref name="seat"/>; seats 2 and 3 stand in corridor-3.</summary>
+    private static (Run Run, Vec3 SeedPos, Bounds Box) Arrange(Vec3 seat)
+    {
+        var (nav, rooms) = Layout();
+        var chamber = rooms.Single(r => r.Pull == "seed");
+        var origin = chamber.Origin!.Value;
+        var setup = RunSetup.Load(OracleFixtures.PathOf("hollow-vault-k2.setup.json"), Seed);
+        var seedPull = setup.Dungeon.Pulls.Single(p => p.Id == "seed");
+        var placed = seedPull with
+        {
+            Spawns = seedPull.Spawns.Select(s => s with { Pos = new Vec3(origin.X + s.Pos.X, s.Pos.Y, origin.Z + s.Pos.Z) }).ToList(),
+        };
+        var seedPos = Assert.Single(placed.Spawns).Pos;
+        var corridor = chamber.Box.MinX - 1000;
+        var seats = new[] { seat, new Vec3(corridor, 0, -1200), new Vec3(corridor, 0, 1200) };
+        var party = setup.Party.Take(3).Select((m, i) => m with { Pos = seats[i], Yaw = 0 }).ToList();
+        // R-SEED-2: the Seed carries its run.json enemyAggro radius (8000 mm) exactly as the host places it
+        // (HostRunSetup.WithEnemyAggro with the shipped registry), so the ring the test walks into is the ring the game uses.
+        var registry = Keyrun.Content.ContentLoader.Load();
+        var dungeon = Keyrun.Host.HostRunSetup.WithEnemyAggro(registry.Run.EnemyAggro, registry.Layout, setup.Dungeon with { Pulls = new[] { placed } }, [], []).Dungeon;
+        var content = setup.Content with { Layout = nav, Bounds = nav.Extent };
+        return (RunRoot.CreateRun(Seed, party, dungeon, content, setup.Options), seedPos, chamber.Box);
+    }
+
+    [Fact(DisplayName = "KF3 Seed room (R-SEED-2): a seat inside seed-chamber but outside the Seed's 8000 mm aggro ring does not pull it")]
+    public void A_seat_inside_the_chamber_outside_the_seed_aggro_ring_does_not_pull_the_seed()
+    {
+        var (run, seedPos, box) = Arrange(new Vec3(63500, 0, 0));
+        var seat = run.State.Actors[1];
+        Assert.True(Movement.Contains(box, seat.Pos), $"seat 1 at {seat.Pos} is not inside seed-chamber");
+        var gap = Dist(seat.Pos, seedPos);
+        Assert.True(gap > SeedAggroMm, $"seat 1 at {seat.Pos} is {gap} mm from the Seed, inside its {SeedAggroMm} mm ring");
+
+        var events = new List<SimEvent>();
+        for (var i = 0; i < 200; i++)
+        {
+            var stepped = RunRoot.StepRun(run, Array.Empty<Command>());
+            events.AddRange(stepped.Events);
+            run = stepped.Run;
+        }
+        var pull = events.FirstOrDefault(e => e.Type == "pull_start" && ((JsString)e.Get("pullId")!).Value == "seed");
+        _out.WriteLine($"seat 1 at {seat.Pos} ({gap} mm from the Seed); pull_start seed: {(pull is null ? "none in 200 ticks" : "t" + pull.Tick)}");
+        Assert.True(pull is null,
+            $"R-SEED-2: seat 1 stood at {seat.Pos} in seed-chamber, {gap} mm from the Seed (ring {SeedAggroMm} mm), and pull_start seed fired at t{pull?.Tick}");
+    }
+
+    [Fact(DisplayName = "KF3 Seed room (R-SEED-2): a seat that walks into the Seed's 8000 mm aggro ring pulls it within 20 ticks")]
+    public void A_seat_walking_into_the_seed_aggro_ring_pulls_the_seed_within_20_ticks()
+    {
+        var (run, seedPos, _) = Arrange(new Vec3(61000, 0, 0));
+        var events = new List<SimEvent>();
+        int? reach = null;
+        for (var i = 0; i < 400 && (reach is null || run.State.Tick < reach.Value + 20); i++)
+        {
+            var seat = run.State.Actors[1];
+            var walk = reach is null && seat.Alive
+                ? new Command[] { new MoveCommand(run.State.Tick, seat.Id, new Dir2(1000, 0), 0) }
+                : Array.Empty<Command>();
+            var stepped = RunRoot.StepRun(run, walk);
+            events.AddRange(stepped.Events);
+            run = stepped.Run;
+            // Measured against the Seed's live position, so an idle-wander step of the Seed around its anchor cannot move the target.
+            if (reach is null && Dist(run.State.Actors[1].Pos, run.State.Actors[SeedActorId].Pos) <= SeedAggroMm)
+            {
+                reach = run.State.Tick;
+            }
+        }
+        Assert.True(reach is not null, "seat 1 never got within the Seed's aggro ring");
+        var pull = events.FirstOrDefault(e => e.Type == "pull_start" && ((JsString)e.Get("pullId")!).Value == "seed");
+        _out.WriteLine($"seat 1 reached the ring at t{reach}; pull_start seed: {(pull is null ? "none" : "t" + pull.Tick)}");
+        Assert.True(pull is not null && pull.Tick <= reach!.Value + 20,
+            $"seat 1 reached the Seed's {SeedAggroMm} mm ring at t{reach} and pull_start seed was {(pull is null ? "never fired" : "at t" + pull.Tick)} (budget 20 ticks)");
+    }
 }

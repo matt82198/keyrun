@@ -6,9 +6,9 @@
 .DESCRIPTION
   Boots the real game (Main.tscn -> Arena.tscn) headless at --fixed-fps 60 with a fresh temp directory as
   --progression-dir (the test never reads or writes the real user:// save) and runs the between-runs screen's own
-  autorun script (bank, reward take, rerolls, talent steps), the same run ProgressionSaveSceneTest drives:
+  autorun script (bank, completion-roll take, rerolls, talent steps), the same run ProgressionSaveSceneTest drives:
 
-      godot --headless --path game --fixed-fps 60 -- --autorun --ticks 9800 --solo --progression-dir <tmp>
+      godot --headless --path game --fixed-fps 60 -- --autorun --ticks 9800 --seed 5 --solo --progression-dir <tmp>
 
   src/View/ActorView.cs (Gear) reads the Warden's equipped items live from the screen each frame and prints, on each
   change, through GD.Print (stdout) and the run log:
@@ -21,7 +21,7 @@
        ever draws a mark;
     3. the first GEAR line is "GEAR none" (launch 1 starts with nothing equipped), so the drawn gear starts empty;
     4. at least one "GEAR attach" line follows it, its slot is the slot of the reward the autorun took
-       ("HUD runend take n=1 id=reward-<slot>-"), its tier is between 1 and 10, and its shape is box or sphere: the
+       ("SCREEN roll take slot=<slot> tier=<t> id=..." from the completion roll), its tier is between 1 and 10, and its shape is box or sphere: the
        equipment change changed the drawn attachment;
     5. every GEAR attach line of the run names one of the five slots (no other mark is drawn).
   Before U6 the view prints no GEAR line at all, so launch 1 has no "GEAR none" line and the test is RED.
@@ -51,7 +51,8 @@ New-Item -ItemType Directory -Path $dir | Out-Null
 # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
 $guard = (3 * $Ticks) + 240
 $ErrorActionPreference = 'Continue'
-$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --solo --progression-dir $dir 2>&1 | Out-String
+# R-K4-16: --reward-seed 1 pins the completion roll (seat 1 raw 217 < 3500, prng.vectors.json), so the roll no longer moves with ResultTick.
+$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --seed 5 --solo --reward-seed 1 --progression-dir $dir 2>&1 | Out-String
 $rc = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
@@ -87,12 +88,13 @@ if (-not $firstGear -or $firstGear -notmatch "^GEAR none actor=$WardenId$") {
     $failures.Add("the first GEAR line is not 'GEAR none actor=$WardenId' (got '$firstGear')")
 }
 
-# 4. The reward take equips a slot and that slot is drawn.
-$take = $lines | Where-Object { $_ -match '^HUD runend take n=1 id=reward-(\w+)-' } | Select-Object -First 1
+# 4. The completion roll's item equips a slot and that slot is drawn.
+# needs a seed whose seat-1 roll is an item; orchestrator derives the seed if the current one rolls nothing
+$take = $lines | Where-Object { $_ -match '^SCREEN roll take slot=(\w+) ' } | Select-Object -First 1
 $slot = $null
-if ($take) { $null = $take -match '^HUD runend take n=1 id=reward-(\w+)-'; $slot = $Matches[1] }
+if ($take) { $null = $take -match '^SCREEN roll take slot=(\w+) '; $slot = $Matches[1] }
 if (-not $take) {
-    $failures.Add('no "HUD runend take n=1" line: the autorun took no reward, so nothing was equipped')
+    $failures.Add('no "SCREEN roll take slot=" line: the completion roll gave nothing, so nothing was equipped')
 } elseif ($slot -notmatch "^($Slots)$") {
     $failures.Add("the taken reward's slot '$slot' is not one of the five gear slots")
 }

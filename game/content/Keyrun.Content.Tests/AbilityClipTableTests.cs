@@ -142,6 +142,67 @@ public sealed class AbilityClipTableTests
     }
 
     [Fact]
+    public void Rotation_abilities_of_one_class_never_share_a_release_clip()
+    {
+        // ABILITY-ANIMS-DISTINCT (Matt 2026-10-19 "combat animation reads badly"): two rotation abilities of one class
+        // that resolve on the same clip look identical on screen. Mobility, defensive, interrupt and utility slots are
+        // exempt (one mobility or defensive clip per class is fine).
+        Assert.True(Reg.Classes.Count >= 3, "vacuity guard: content loaded too few classes");
+        var clashes = new List<string>();
+        foreach (var c in Reg.Classes.Values.OrderBy(c => c.Id, StringComparer.Ordinal))
+        {
+            var s = c.Abilities;
+            var rot = new[] { s.Rot1, s.Rot2, s.Rot3, s.Rot4, s.Rot5 };
+            Assert.True(rot.Distinct(StringComparer.Ordinal).Count() == 5, c.Id + ": rotation slots repeat an ability");
+            var rowAct = ActorBinding.Default.For(c.Id).Clips.Act;
+            var release = rot.Select(id => (Id: id, Clip: AbilityClipTable.ReleaseClip(id, rowAct))).ToList();
+            for (var i = 0; i < release.Count; i++)
+            {
+                for (var j = i + 1; j < release.Count; j++)
+                {
+                    if (release[i].Clip == release[j].Clip)
+                    {
+                        clashes.Add($"{c.Id}: {release[i].Id} and {release[j].Id} both release {release[i].Clip}");
+                    }
+                }
+            }
+        }
+        Assert.True(clashes.Count == 0, string.Join("; ", clashes));
+    }
+
+    [Fact]
+    public void Rotation_casts_of_one_class_never_share_a_cast_loop()
+    {
+        // ABILITY-ANIMS-CAST (Matt 2026-10-21 "theres still no ability animations", f-a5ffb07b; recon a8d85d6d on main
+        // d6f79fad): a cast bar loops AbilityClipTable.CastClip, else the row's Clips.Cast. Every Cinder and Chanter cast
+        // resolves to "Spellcasting" (SpellLoop or the row default), so each spell a class casts shows the same loop.
+        // Only rotation slots with a base cast bar (CastTicks > 0) are checked: an instant has no bar to loop a clip on.
+        // Warden is skipped: its casts loop "Block" by design.
+        Assert.True(Reg.Classes.Count >= 3, "vacuity guard: content loaded too few classes");
+        var clashes = new List<string>();
+        foreach (var c in Reg.Classes.Values.Where(c => c.Id is "cinder" or "chanter").OrderBy(c => c.Id, StringComparer.Ordinal))
+        {
+            var s = c.Abilities;
+            var rot = new[] { s.Rot1, s.Rot2, s.Rot3, s.Rot4, s.Rot5 };
+            var casts = rot.Where(id => Reg.Abilities[id].CastTicks > 0).ToList();
+            Assert.True(casts.Count >= 2, c.Id + ": too few casting rotation slots");
+            var rowCast = ActorBinding.Default.For(c.Id).Clips.Cast;
+            var loops = casts.Select(id => (Id: id, Clip: AbilityClipTable.CastClip(id) ?? rowCast)).ToList();
+            for (var i = 0; i < loops.Count; i++)
+            {
+                for (var j = i + 1; j < loops.Count; j++)
+                {
+                    if (loops[i].Clip == loops[j].Clip)
+                    {
+                        clashes.Add($"{c.Id}: {loops[i].Id} and {loops[j].Id} both loop {loops[i].Clip}");
+                    }
+                }
+            }
+        }
+        Assert.True(clashes.Count == 0, string.Join("; ", clashes));
+    }
+
+    [Fact]
     public void Anim_line_has_the_capture_shape()
     {
         Assert.Equal("ANIM actor=3 clip=Spellcast_Shoot ability=cinder.flare at=112",

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Bots.Shared;
 using Keyrun.Playtest;
 using Keyrun.Sim.Core;
 using Xunit;
@@ -22,6 +23,9 @@ public sealed class BotTankTakesHolderTests(ITestOutputHelper output)
     // generous margin; 20 Hz ticks, so 60 is three seconds.
     private const int TakeOverTicks = 60;
 
+    // R-K4-13 (b): taunt is the only holder change today; R-THREAT-2 will add threat-based take-over.
+    private const string TauntId = "warden.taunt";
+
     [Theory(DisplayName = "The bot Warden holds a member of every pack within 60 ticks of it engaging, human Cinder (seeds 1..5)")]
     [InlineData(1)]
     [InlineData(2)]
@@ -33,6 +37,7 @@ public sealed class BotTankTakesHolderTests(ITestOutputHelper output)
         var reg = Keyrun.Content.ContentLoader.Load();
         const int tankSeat = 2;
         var firstEngaged = new Dictionary<int, int>();
+        var tauntPivot = new Dictionary<int, int>();
         var checkedPacks = new HashSet<int>();
         var violations = new List<string>();
         var packsSeen = 0;
@@ -46,8 +51,18 @@ public sealed class BotTankTakesHolderTests(ITestOutputHelper output)
                 {
                     firstEngaged.TryAdd(e.Id, tick);
                 }
-                // A pack is the enemies that engaged on the same tick; it is judged once, TakeOverTicks later.
-                foreach (var packTick in firstEngaged.Values.Distinct().Where(t => t + TakeOverTicks == tick && checkedPacks.Add(t)))
+                // A pack is the enemies that engaged on the same tick. R-K4-13 (b) precondition: the pack is judged TakeOverTicks
+                // after the FIRST tick at or past its engage on which the Warden's taunt is castable (cooldown ready). If the
+                // taunt is on cooldown for the whole window, that tick is the taunt-ready tick, so the judge is taunt-ready + 60.
+                foreach (var packTick in firstEngaged.Values.Distinct())
+                {
+                    if (!tauntPivot.ContainsKey(packTick) && tick >= packTick
+                        && Readiness.CooldownReadyTick(run.State.Actors[tankSeat], TauntId) <= tick)
+                    {
+                        tauntPivot[packTick] = tick;
+                    }
+                }
+                foreach (var packTick in tauntPivot.Keys.Where(p => tauntPivot[p] + TakeOverTicks == tick && checkedPacks.Add(p)).ToList())
                 {
                     var living = engaged.Where(e => firstEngaged[e.Id] == packTick).ToList();
                     var tankAlive = run.State.Actors[tankSeat].Alive;

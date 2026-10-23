@@ -159,10 +159,14 @@ public sealed class SeedBonusLog
 /// <param name="Title">The banner (client/src/hud/run-end.ts OUTCOME_LABEL, plus "Party wiped on pull N of T" for a
 /// wipe, lane 3C-d).</param>
 /// <param name="Cleared">True when every pull was cleared (the sim's pull index is past the last pull).</param>
-/// <param name="Choices">The choice of three (BIBLE s7), each with its Facet text and tier.</param>
+/// <param name="Roll">The local seat's completion roll (R-ROLL-1: one roll per seat, the item won or nothing), or null when
+/// the run has no such seat. It replaced the choice of three (R-ROLL-1 (b)(iii)).</param>
 /// <param name="Causes">The local seat's own causes.</param>
-public sealed record RunEndView(RunResult Result, int ResultTick, string Title, bool Cleared, IReadOnlyList<Item> Choices, IReadOnlyList<DeathCause> Causes)
+public sealed record RunEndView(RunResult Result, int ResultTick, string Title, bool Cleared, CompletionRollResult? Roll, IReadOnlyList<DeathCause> Causes)
 {
+    /// <summary>The item the local seat won, or null when the roll gave nothing.</summary>
+    public Item? Won => Roll?.Item;
+
     /// <summary>The run's bonus rewards (the Seed's loot, lane SEED-LOOT-VIEW); empty when none was earned.</summary>
     public RunRewards Bonus { get; init; } = RunRewards.Empty;
 
@@ -185,27 +189,24 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     public IReadOnlyList<ComboBlameLine> LateCombos { get; init; } = Array.Empty<ComboBlameLine>();
 
     /// <summary>
-    /// Each card's tier bonus line, index-aligned with <see cref="Choices"/> ("Tier 2: +2% damage dealt", from the
-    /// content gear table via <see cref="GearItems.CardLines"/>; f-e880cd4c), or empty when content is not loaded.
+    /// The won item's tier bonus line ("Tier 2: +2% damage dealt", from the content gear table via
+    /// <see cref="GearItems.CardLines"/>; f-e880cd4c), or null when nothing was won or content is not loaded.
     /// </summary>
-    public IReadOnlyList<string> ChoiceBonuses { get; init; } = Array.Empty<string>();
+    public string? WonBonus { get; init; }
 
     /// <summary>
-    /// The cards' tier bonus lines from <paramref name="registry"/>'s gear table, or empty without content.
+    /// The won item's tier bonus line from <paramref name="registry"/>'s gear table, or null without content.
     /// </summary>
-    /// <param name="choices">The cards.</param>
+    /// <param name="won">The item won, or null.</param>
     /// <param name="registry">Content, or null.</param>
-    /// <returns>One line per card, or empty.</returns>
-    public static IReadOnlyList<string> ChoiceBonusesOf(IReadOnlyList<Item> choices, ContentRegistry? registry)
+    /// <returns>The line, or null.</returns>
+    public static string? WonBonusOf(Item? won, ContentRegistry? registry)
     {
-        ArgumentNullException.ThrowIfNull(choices);
-        if (registry is null || registry.Gear.Count == 0)
+        if (won is null || registry is null || registry.Gear.Count == 0)
         {
-            return Array.Empty<string>();
+            return null;
         }
-        return choices
-            .Select(c => RunEndCardLines.For(c, card => GearItems.CardLines(registry.Gear, Enum.Parse<GearSlot>(card.Slot, ignoreCase: true), card.Tier, card.Facet.Text))[0])
-            .ToList();
+        return RunEndCardLines.For(won, card => GearItems.CardLines(registry.Gear, Enum.Parse<GearSlot>(card.Slot, ignoreCase: true), card.Tier, card.Facet.Text))[0];
     }
 
     /// <summary>
@@ -232,36 +233,26 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
     }
 
     /// <summary>
-    /// The view for an ended run, else null. The choices are <see cref="Rewards.RollRewardChoices(long, int, RunResult, IReadOnlyList{string}, IReadOnlyDictionary{string, IReadOnlyList{Facet}})"/>
-    /// over all five slots with the reward seed server/src/run-end.ts uses (run seed x 1000003 + the ending tick), each
-    /// slot drawing over the human class's content facets (<see cref="Screen.SlotPool(ContentRegistry, IReadOnlySet{string}, string)"/>,
-    /// lane 3C-d), so a card names a real facet and a kit ability. Without content (<paramref name="registry"/> null) the
-    /// roll falls back to the placeholder pools.
+    /// The view for an ended run, else null. The reward is the local seat's completion roll (R-ROLL-1: the item won or
+    /// nothing), read from <see cref="CompletionRoll.ForRun"/>, the same roll the sim emitted as <c>completion_roll</c>
+    /// events and drew over the seat's own class facet pool (R-ROLL-1 (b)(iii)), so the panel cannot disagree with the sim.
     /// </summary>
     /// <param name="run">The run.</param>
     /// <param name="localSeat">The local player's seat.</param>
     /// <param name="log">The private run log.</param>
-    /// <param name="registry">Content, or null (placeholder facets; the wipe title numbers pulls within the run's dungeon).</param>
-    /// <param name="classKit">The local player's class kit ability ids (the facet pool's scope).</param>
+    /// <param name="registry">Content, or null (the wipe title numbers pulls within the run's dungeon).</param>
     /// <param name="bonus">The run's Seed bonus fold, or null (no bonus loot).</param>
     /// <param name="combos">The run's denied Combos, or null (no late-combo lines).</param>
-    /// <param name="equipped">The character's equipped gear by slot (the screen's <see cref="Progression.Equipped"/>),
-    /// or null for a fresh character: one card is then a strict upgrade over it (BIBLE s7, <see cref="EndOfRun.Offer"/>).</param>
     /// <returns>The view, or null while the run is live.</returns>
-    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log, ContentRegistry? registry, IReadOnlySet<string> classKit, SeedBonusLog? bonus = null, PrivateComboLog? combos = null, IReadOnlyDictionary<string, Item>? equipped = null)
+    public static RunEndView? Of(Run run, int localSeat, PrivateRunLog log, ContentRegistry? registry, SeedBonusLog? bonus = null, PrivateComboLog? combos = null)
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(log);
-        ArgumentNullException.ThrowIfNull(classKit);
         if (run.RunEnd.Result is not { } result || run.RunEnd.ResultTick is not { } tick)
         {
             return null;
         }
-        // BIBLE s1/s7: the one offer read (EndOfRun.Offer), the same for a timed clear, an untimed clear and a wipe.
-        var pools = registry is null
-            ? null
-            : Rewards.GearSlots.ToDictionary(s => s, s => Screen.SlotPool(registry, classKit, s), StringComparer.Ordinal);
-        var choices = EndOfRun.Offer(run, pools, equipped ?? new Dictionary<string, Item>(StringComparer.Ordinal))!;
+        var roll = CompletionRoll.ForRun(run)?.FirstOrDefault(r => r.Seat == localSeat);
         // The sim finishes a lasting wipe as "depleted" with completed forced (run-wiring.ts checkRunEnd), so the
         // result alone cannot tell a cleared depleted key from a wipe: the pull index past the last pull can.
         var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
@@ -273,25 +264,25 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
         // inside its Slack reads "over par", never "within par"; an untimed key names the level it keeps (Of ->
         // RunEndTitle.Wiped / ClearedUntimed: Matt 2026-10-20, f-7c7abdf4).
         var title = RunEndTitle.ForRun(run, lost?.Number ?? 0, lost?.Total ?? 0)!;
-        // D45: a player who leaves mid-run gets nothing -- no cards (EndOfRun.Offer is empty), no bonus loot line.
+        // D45: a player who leaves mid-run gets nothing -- the roll is "nothing" for every seat, no bonus loot line.
         var nothing = EndOfRun.HudLine(run);
         var rewards = nothing is null ? bonus?.Rewards ?? RunRewards.Empty : RunRewards.Empty;
-        return new RunEndView(result, tick, title, cleared, choices, log.CausesFor(localSeat))
+        return new RunEndView(result, tick, title, cleared, roll, log.CausesFor(localSeat))
         {
             Nothing = nothing,
             Bonus = rewards,
             BonusLabel = BonusLabelOf(rewards.BonusLoot, registry),
             LateCombos = combos?.LinesFor(localSeat) ?? Array.Empty<ComboBlameLine>(),
             Key = KeyMove.ForRun(run),
-            ChoiceBonuses = ChoiceBonusesOf(choices, registry),
+            WonBonus = WonBonusOf(roll?.Item, registry),
         };
     }
 
-    /// <summary>The header line, the three choice lines and the cause lines, for the autorun proof.</summary>
+    /// <summary>The header line, the roll lines and the cause lines, for the autorun proof.</summary>
     /// <returns>The lines.</returns>
     public IEnumerable<string> LogLines()
     {
-        yield return FormattableString.Invariant($"HUD runend result={Result.ToJs()} choices={Choices.Count} cleared={(Cleared ? 1 : 0)} tick={ResultTick} title=\"{Title}\"");
+        yield return FormattableString.Invariant($"HUD runend result={Result.ToJs()} roll={(Won is null ? "nothing" : "item")} cleared={(Cleared ? 1 : 0)} tick={ResultTick} title=\"{Title}\"");
         if (Key is { } key)
         {
             // "HUD runend key from=7 to=10 tier=3": the level the panel shows and the screen reopens at.
@@ -302,15 +293,21 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
             // D45: "HUD runend nothing result=abandoned line="Left mid-run: nothing gained"".
             yield return FormattableString.Invariant($"HUD runend nothing result={Result.ToJs()} line=\"{nothing}\"");
         }
-        for (var i = 0; i < Choices.Count; i++)
+        if (Roll is { } roll)
         {
-            var c = Choices[i];
-            yield return FormattableString.Invariant(
-                $"HUD runend choice n={i + 1} slot={c.Slot} tier={c.Tier} facet=\"{c.Facet.Text.Replace('"', '\'')}\" ability={c.Facet.AbilityId} charges={c.Charges} id={c.Id}");
-            if (i < ChoiceBonuses.Count)
+            if (roll.Item is { } c)
             {
-                // f-e880cd4c: "HUD runend choice-bonus n=1 slot=charm tier=2 bonus="Tier 2: +2% damage dealt"".
-                yield return FormattableString.Invariant($"HUD runend choice-bonus n={i + 1} slot={c.Slot} tier={c.Tier} bonus=\"{ChoiceBonuses[i]}\"");
+                yield return FormattableString.Invariant(
+                    $"HUD runend roll seat={roll.Seat} outcome=item slot={c.Slot} tier={c.Tier} facet=\"{c.Facet.Text.Replace('"', '\'')}\" ability={c.Facet.AbilityId} charges={c.Charges} id={c.Id}");
+                if (WonBonus is { } wonBonus)
+                {
+                    // f-e880cd4c: "HUD runend roll-bonus slot=charm tier=2 bonus="Tier 2: +2% damage dealt"".
+                    yield return FormattableString.Invariant($"HUD runend roll-bonus slot={c.Slot} tier={c.Tier} bonus=\"{wonBonus}\"");
+                }
+            }
+            else
+            {
+                yield return FormattableString.Invariant($"HUD runend roll seat={roll.Seat} outcome=nothing");
             }
         }
         foreach (var cause in Causes)
@@ -331,10 +328,10 @@ public sealed record RunEndView(RunResult Result, int ResultTick, string Title, 
 }
 
 /// <summary>
-/// The run-end panel (BIBLE s7 "End of every run: choose one of three"; ENGINE-PLAN 3C): the result, three reward
-/// cards with slot, tier and Facet text (keys 1-3 take one), and the local player's private "what got you" list.
-/// Enter opens the between-runs screen (SimDriver, lane 3D-c; under <c>--solo</c> it starts a fresh run). The choice is shown, not banked:
-/// progression is the screen lane's (3D). Reads the sim state only.
+/// The run-end panel (R-ROLL-1; ENGINE-PLAN 3C): the result, the local seat's completion roll (the item won with slot,
+/// tier and Facet text, or "nothing"), and the local player's private "what got you" list. Enter opens the between-runs
+/// screen (SimDriver, lane 3D-c; under <c>--solo</c> it starts a fresh run). The roll is shown, not banked: the screen
+/// banks the won item at the run end (Screen.Run.cs). Reads the sim state only.
 /// </summary>
 public partial class RunEndPanel : Control
 {
@@ -358,7 +355,6 @@ public partial class RunEndPanel : Control
     private readonly PrivateComboLog _combos = new();
     private SimDriver? _driver;
     private RunEndView? _view;
-    private int? _taken;
     private AscensionState? _ascension;
 
     /// <summary>The driver to read the run from.</summary>
@@ -368,9 +364,6 @@ public partial class RunEndPanel : Control
     /// <summary>The party frames, a HUD block the panel keeps clear of (COMBATTEXT-OVERLAP).</summary>
     [Export]
     public NodePath PartyFramesPath { get; set; } = new("../PartyFrames");
-
-    /// <summary>The choice taken this run (0-based), or null.</summary>
-    public int? Taken => _taken;
 
     /// <summary>
     /// Lane COMBATTEXT-OVERLAP: the panel's viewport rectangle for a panel <paramref name="height"/> tall, laid out by
@@ -450,32 +443,6 @@ public partial class RunEndPanel : Control
     }
 
     /// <inheritdoc />
-    public override void _UnhandledInput(InputEvent @event)
-    {
-        if (_view is null || _taken is not null || @event is not InputEventKey { Pressed: true, Echo: false } key)
-        {
-            return;
-        }
-        var n = key.Keycode switch
-        {
-            Key.Key1 or Key.Kp1 => 0,
-            Key.Key2 or Key.Kp2 => 1,
-            Key.Key3 or Key.Kp3 => 2,
-            _ => -1,
-        };
-        if (n >= 0 && n < _view.Choices.Count)
-        {
-            _taken = n;
-            Screen.OpenFrom(this, _view.Choices[n]);
-            if (_driver is not null)
-            {
-                HudNodes.Proof(_driver, FormattableString.Invariant($"HUD runend take n={n + 1} id={_view.Choices[n].Id}"));
-            }
-            GetViewport().SetInputAsHandled();
-        }
-    }
-
-    /// <inheritdoc />
     public override void _Draw()
     {
         if (_view is not { } view)
@@ -511,7 +478,7 @@ public partial class RunEndPanel : Control
         }
         // Lane 3D-c: in the interactive game Enter opens the between-runs screen; only --solo restarts at once.
         var enter = _driver?.StartsOnScreen == true ? "Enter opens the between-runs screen" : "Enter starts a fresh run";
-        var hint = _taken is null && view.Choices.Count > 0 ? "1-3 take a reward    " + enter : enter;
+        var hint = enter;
         if (view.Nothing is { } nothing)
         {
             // D45: a run the player left grants nothing; the line sits where the cards would be.
@@ -519,18 +486,21 @@ public partial class RunEndPanel : Control
         }
         HudNodes.Text(this, new Vector2(panel.End.X - HudNodes.Width(hint, CardFont) - 20, panel.Position.Y + 30), hint, CardFont, Colors.White);
 
+        // R-ROLL-1: one roll, one card (the item won), or one "nothing" line; the card is banked onto the character by the
+        // screen at the run end (Screen.Run.cs OnStepped), so there is nothing to take here.
         var cardWidth = (PanelWidth - 40 - (2 * CardGap)) / 3;
-        for (var i = 0; i < view.Choices.Count && i < 3; i++)
+        if (view.Won is null && view.Nothing is null && view.Roll is not null)
         {
-            var c = view.Choices[i];
-            var card = new Rect2(panel.Position.X + 20 + (i * (cardWidth + CardGap)), panel.Position.Y + 52 + bonusShift, cardWidth, 136);
-            var picked = _taken == i;
-            var dim = _taken is not null && !picked;
-            DrawRect(card, new Color(0.12f, 0.13f, 0.17f, dim ? 0.5f : 1f));
-            DrawRect(card, picked ? new Color(0.5f, 1f, 0.6f) : HudNodes.Edge, filled: false, width: picked ? 3f : 1f);
-            var alpha = dim ? 0.45f : 1f;
+            HudNodes.Text(this, panel.Position + new Vector2(20, 52 + bonusShift + 28), "Roll: nothing this time", CardFont + 2, new Color(0.85f, 0.88f, 0.95f));
+        }
+        if (view.Won is { } c)
+        {
+            const float alpha = 1f;
+            var card = new Rect2(panel.Position.X + 20, panel.Position.Y + 52 + bonusShift, cardWidth, 136);
+            DrawRect(card, new Color(0.12f, 0.13f, 0.17f, 1f));
+            DrawRect(card, new Color(0.5f, 1f, 0.6f), filled: false, width: 3f);
             var slot = c.Slot.Length > 0 ? char.ToUpperInvariant(c.Slot[0]) + c.Slot[1..] : c.Slot;
-            HudNodes.Text(this, card.Position + new Vector2(10, 22), FormattableString.Invariant($"{i + 1}  {slot}  Tier {c.Tier}"), 16, new Color(1f, 0.9f, 0.55f, alpha));
+            HudNodes.Text(this, card.Position + new Vector2(10, 22), FormattableString.Invariant($"{slot}  Tier {c.Tier}"), 16, new Color(1f, 0.9f, 0.55f, alpha));
             // A Facet names its ability only when content knows it (the content pool's kit ids resolve, lane 3C-d; the
             // placeholder pool's ids, used only without content, are not shown).
             if (_driver?.Registry is { } reg && reg.Abilities.TryGetValue(c.Facet.AbilityId, out _))
@@ -541,9 +511,9 @@ public partial class RunEndPanel : Control
             var y = card.Position.Y + 62;
             // f-e880cd4c: what this card's tier gives, from the content gear table (no numbers live here).
             var facetLines = 4;
-            if (i < view.ChoiceBonuses.Count)
+            if (view.WonBonus is { } wonBonus)
             {
-                HudNodes.Text(this, new Vector2(card.Position.X + 10, y), view.ChoiceBonuses[i], CardFont, new Color(0.55f, 1f, 0.65f, alpha));
+                HudNodes.Text(this, new Vector2(card.Position.X + 10, y), wonBonus, CardFont, new Color(0.55f, 1f, 0.65f, alpha));
                 y += CardFont + 4;
                 facetLines = 3;
             }
@@ -552,10 +522,7 @@ public partial class RunEndPanel : Control
                 HudNodes.Text(this, new Vector2(card.Position.X + 10, y), line, CardFont, new Color(1, 1, 1, alpha));
                 y += CardFont + 4;
             }
-            if (picked)
-            {
-                HudNodes.Text(this, new Vector2(card.Position.X + 10, card.End.Y - 8), "Taken", CardFont, new Color(0.5f, 1f, 0.6f));
-            }
+            HudNodes.Text(this, new Vector2(card.Position.X + 10, card.End.Y - 8), "Won", CardFont, new Color(0.5f, 1f, 0.6f));
         }
 
         // The private run log: only this seat's own causes.
@@ -621,7 +588,6 @@ public partial class RunEndPanel : Control
         _bonus.Clear();
         _combos.Clear();
         _view = null;
-        _taken = null;
         _ascension = null;
     }
 
@@ -639,11 +605,7 @@ public partial class RunEndPanel : Control
         {
             return;
         }
-        // The human's class kit scopes the reward facet pool (the Screen's reroll pool, Screen.SlotPool).
-        var kit = new HashSet<string>(setup.Slots.Select(s => s.AbilityId), StringComparer.Ordinal);
-        // The character the pick goes onto (the screen's progression), so one card is a strict upgrade for it (BIBLE s7).
-        var equipped = (GetTree()?.GetFirstNodeInGroup(Screen.GroupName) as Screen)?.Progression.Equipped;
-        if (RunEndView.Of(run, setup.HumanActorId, _log, registry, kit, _bonus, _combos, equipped) is { } view)
+        if (RunEndView.Of(run, setup.HumanActorId, _log, registry, _bonus, _combos) is { } view)
         {
             _view = view;
             foreach (var line in view.LogLines())

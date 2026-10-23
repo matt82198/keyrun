@@ -1,0 +1,2 @@
+- NAME: feat/aoe-trash-kit: every class gets a shaped AoE rotational (circle shape, aoe tag) and bots spread single-target presses so a pack dies together (f-c8ed3a62, f-47b1f102, R-AOE-1, R-AOE-2)
+BUILDLOG: feat/aoe-trash-kit: Guard Break, Detonate and Dissonance became circles; the bots press an AoE at two or more enemies in its shape and spread single-target presses over the cluster, proven by tools/Keyrun.Playtest.Tests/AoeRotationKitTests.cs.

@@ -87,9 +87,7 @@
     "cooldownTicks": 180,
     "charges": 1,
     "range": 25000,
-    "shape": {
-      "kind": "target"
-    },
+    "shape": { "kind": "cone", "radius": 25000, "angle1024": 85 },
     "interruptible": true,
     "tags": [],
     "effects": [

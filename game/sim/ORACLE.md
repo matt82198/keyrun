@@ -214,6 +214,10 @@ recording, and they never pin a whole-trace hash:
   every tick. It compares the lane with the C# run, never with the TS recording.
 - One whole-trace determinism check: bots-hv-k10-s7 replayed twice in-process gives the same run tick for tick,
   with the same trace hash. It compares the run with itself, so it pins no content.
+- `OracleTraceRecorder` (namespace Keyrun.Bots.Oracle, test project Keyrun.Bots.Tests): `Record(name, roles, outputDir)` drives the `RolesOracleTraceTests.Drive` loop over fixture `name`'s setup and seed and writes only `<outputDir>/<name>.trace.jsonl` in the section 3 format.
+  It reports the path, byte length and FNV-1a 32 hex of the written bytes for a manifest row; it never writes manifest.json or any fixture.
+  Re-record a stale bot trace with it after a content change; the trace's `properties` stay byte for byte, as this section requires.
+- After any re-record (OracleTraceRecorder or KEYRUN_RERECORD), re-measure the TelegraphTests count literal (total telegraph events across OracleFixtures.TraceNames plus the scripted pull) and update it with the per-trace breakdown, after a duplicate check on (tick, cast) pairs (R-K4-11).
 
 Assertion kinds (`Keyrun.Tools.Replay.OracleProperties`): `count` (min/max), `sequence` (ordered steps), `ticks`
 (exact tick list), `every` (each match also has fields), `precededBy` (an earlier matching event, same fields),

@@ -24,7 +24,7 @@ function Invoke-Arena([int]$n, [string[]]$extra) {
     # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
     $guard = (3 * $n) + 240
     $ErrorActionPreference = 'Continue'
-    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n @extra 2>&1 | Out-String
+    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n --rotation 0 @extra 2>&1 | Out-String
     $rc = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     Assert-GodotFound $rc $text
@@ -102,7 +102,7 @@ Assert-ComboBlame 'C' $c.Lines
 $runEndC = First $c.Lines '^HUD runend result='
 if (-not $runEndC) {
     $failures.Add("run C: no 'HUD runend result=' line in $PartyTicks ticks (the party's run did not end on the run-end panel)")
-} elseif ($runEndC -notmatch '^HUD runend result=timed choices=3 cleared=1 tick=\d+ title="Run cleared -- within par"$') {
+} elseif ($runEndC -notmatch '^HUD runend result=timed roll=(item|nothing) cleared=1 tick=\d+ title="Run cleared -- within par"$') {
     $failures.Add("run C: the party's run-end title is not the clear title 'Run cleared -- within par': '$runEndC'")
 }
 $bossC = First $c.Lines '^PULL spawn index=3 id=boss actors=900:hollowWarden\.boss$'

@@ -252,7 +252,8 @@ public static class OracleProperties
                     return $"no run of {other} supplied to compare against";
                 }
                 // Record bodies and result only: the trace name differs by definition.
-                var diff = facts.Run.FirstDifference(sibling(other));
+                // R-ROLL-1 (b): loot is seed-dependent by design (G2.3), so completion_roll events are not compared.
+                var diff = WithoutCompletionRolls(facts.Run).FirstDifference(WithoutCompletionRolls(sibling(other)));
                 return diff is null ? null : $"differs from {other}: {diff}";
             }
             case "leaves":
@@ -346,6 +347,15 @@ public static class OracleProperties
     }
 
     // Compact JSON of an element (manifest filters are laid out one member per line; events are canonical).
+    /// <summary>A copy of the run with every <c>completion_roll</c> event removed (R-ROLL-1 (b)); the ticks, commands and result stay.</summary>
+    /// <param name="run">The run to copy.</param>
+    /// <returns>The run without completion-roll events.</returns>
+    private static RunRecording WithoutCompletionRolls(RunRecording run) =>
+        new(run.Name,
+            run.Ticks.Select(t => new RecordedTick(t.T, t.H, t.Line, t.Commands,
+                t.Events.Where(e => !e.Contains("\"type\":\"completion_roll\"", StringComparison.Ordinal)).ToList())).ToList(),
+            run.Result);
+
     private static string Compact(JsonElement e) => JsonSerializer.Serialize(e);
 
     /// <summary>True when <paramref name="e"/> satisfies every field filter of <paramref name="match"/>.</summary>

@@ -148,6 +148,29 @@ public sealed record Progression
     public int AscensionCardMarks { get; init; }
 
     /// <summary>
+    /// Each class's ability tree (ABILITY-TREES s2, s5.3), keyed by class id in ordinal order. A class with no entry has
+    /// <see cref="TreeState.Empty"/>. Saved as the v2 "trees" member; a v1 save's completions are credited here on load.
+    /// </summary>
+    public IReadOnlyDictionary<string, TreeState> Trees { get; init; } = new Dictionary<string, TreeState>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// This progression with one tree point credited to <paramref name="classId"/> for a run ended with
+    /// <paramref name="result"/> at <paramref name="keyLevel"/> (<see cref="TreeState.Award"/>). An abandon changes nothing.
+    /// </summary>
+    /// <param name="classId">The class the run was played with.</param>
+    /// <param name="result">How the run ended.</param>
+    /// <param name="keyLevel">The key it was played at.</param>
+    /// <returns>The progression.</returns>
+    public Progression AwardTree(string classId, RunResult result, int keyLevel)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(classId);
+        var current = Trees.TryGetValue(classId, out var found) ? found : TreeState.Empty;
+        var trees = Trees.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
+        trees[classId] = current.Award(result, keyLevel);
+        return this with { Trees = trees };
+    }
+
+    /// <summary>
     /// The talent build picked on the screen (BIBLE s6; f-83c5e369): forked ability id to picked option id, in ordinal
     /// key order, empty when nothing is picked. The sim keeps only the ids; the content layer (Keyrun.Content
     /// TalentPicks.Restore) checks them against the class's forks.

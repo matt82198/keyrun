@@ -133,6 +133,12 @@ public sealed record RunContent
     public IReadOnlyDictionary<string, ClauseDef>? Clauses { get; init; }
 
     /// <summary>
+    /// The completion roll's table (game/content/data/loot/completion.json, R-ROLL-1); null = the table's values
+    /// (<see cref="CompletionRollTable.Default"/>), which the fixture runs use.
+    /// </summary>
+    public CompletionRollTable? Completion { get; init; }
+
+    /// <summary>
     /// The rooms-and-corridors layout (STATE.md D18), or null for the flat arena. Null on every oracle run: the layout
     /// rules (room-entry pull spawns, gated walkable boxes, <c>room_enter</c>) are new behaviour with no TS oracle and
     /// run only when a host sets it (<see cref="RunRoot"/>).
@@ -239,7 +245,12 @@ public sealed record Run(SimState State, EncounterState Encounter, DungeonDef Du
 /// idle actor never engages a layout group and is not in the run, so it never holds a dead party's run open
 /// (<see cref="RunWiring.IsWipe"/>, STATE.md D44). Null = none.
 /// </param>
-public sealed record StepRunOpts(bool AbandonRequested = false, IReadOnlyList<int>? OpenSeats = null);
+/// <param name="RewardSeedOverride">
+/// R-K4-16 (C#-only, host seam <c>--reward-seed</c>): the reward seed the completion rolls use in place of
+/// <see cref="EndOfRun.RewardSeedOf"/> (seed x 1000003 + the run-end tick), so a roll is independent of the tick the run
+/// ended on. Null = the run-end tick's seed (the byte-identical default).
+/// </param>
+public sealed record StepRunOpts(bool AbandonRequested = false, IReadOnlyList<int>? OpenSeats = null, long? RewardSeedOverride = null);
 
 /// <summary>One <see cref="RunRoot.StepRun"/> result: the advanced run and every event of the tick in emission order.</summary>
 /// <param name="Run">The advanced run (a new value; the input is not modified).</param>

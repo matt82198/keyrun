@@ -55,4 +55,7 @@ public static class Fnv1a
 
     /// <summary>8 lowercase hex digits, zero-padded.</summary>
     public static string Hex(uint hash) => hash.ToString("x8", CultureInfo.InvariantCulture);
+
+    /// <summary>8 lowercase hex digits of the FNV-1a 32 of raw bytes (the manifest's fnv for a written file).</summary>
+    public static string Hex(byte[] bytes) => Hex(Hash(bytes));
 }
