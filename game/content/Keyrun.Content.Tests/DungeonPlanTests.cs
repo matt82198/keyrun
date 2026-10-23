@@ -135,9 +135,13 @@ public sealed class DungeonPlanTests
     public void The_entrance_doorway_is_the_corridor_width_and_the_corridor_end_is_open()
     {
         var plan = DungeonPlan.Build(Real);
+        var boxes = DungeonPlan.BoxesOf(Real);
+        var entrance = boxes.Single(b => b.Id == "entrance");
+        var corridor = boxes.Single(b => b.Id == "corridor-1");
         var door = Assert.Single(plan.Openings, o => o.BoxId == "entrance" && o.Side == WallSide.MaxX);
-        Assert.Equal((-1500, 1500, 6000), (door.Lo, door.Hi, door.Line));
-        Assert.Equal(new[] { (-6000, -1500), (1500, 6000) },
+        // The doorway spans the corridor's width (read from the layout box, so it holds for any corridor width).
+        Assert.Equal((corridor.MinZ, corridor.MaxZ, 6000), (door.Lo, door.Hi, door.Line));
+        Assert.Equal(new[] { (entrance.MinZ, corridor.MinZ), (corridor.MaxZ, entrance.MaxZ) },
             plan.Walls.Where(w => w.BoxId == "entrance" && w.Side == WallSide.MaxX).Select(w => (w.Lo, w.Hi)).OrderBy(p => p.Lo).ToArray());
         Assert.DoesNotContain(plan.Walls, w => w.BoxId == "corridor-1" && w.Side is WallSide.MinX or WallSide.MaxX);
         Assert.Equal(new[] { (6000, 10000) },

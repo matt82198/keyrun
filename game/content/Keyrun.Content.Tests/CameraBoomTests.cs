@@ -77,13 +77,15 @@ public sealed class CameraBoomTests
     [Fact]
     public void Camera_in_a_corridor_stays_between_its_walls()
     {
-        // The Warden walks corridor-1 (z -1500..1500); a boom swung to -z must stop short of the corridor's south wall.
+        // The Warden walks corridor-1; a boom swung to -z must stop short of the corridor's south wall. The corridor's
+        // half-width is read from the layout box, so the fact holds for any corridor width.
+        var corridor = RealBoxes.Single(b => b.Id == "corridor-1");
         var pivot = (X: 8000, Z: 0);
         var desired = (X: 8000, Z: -6850);
 
         var fit = CameraBoom.Clamp(pivot, desired, RealWalls);
 
-        Assert.Equal(-1500 + CameraBoom.MarginMm, fit.Z);
+        Assert.Equal(corridor.MinZ + CameraBoom.MarginMm, fit.Z);
         Assert.Equal(8000, fit.X);
     }
 

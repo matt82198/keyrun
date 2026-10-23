@@ -3,6 +3,6 @@
   "kind": "corridor",
   "minX": 5000,
   "maxX": 11000,
-  "minZ": -1500,
-  "maxZ": 1500
+  "minZ": -4500,
+  "maxZ": 4500
 }
