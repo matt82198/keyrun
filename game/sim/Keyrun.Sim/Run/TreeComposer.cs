@@ -65,6 +65,68 @@ public static class TreeComposer
         return new ComposedAbility(ability);
     }
 
+    // ABILITY-TREES s1.2 chain order. A node set composes in this order, never in TreeState.Nodes order (R-TREES-7).
+    private static readonly string[] ChainKinds = { "rank2", "enhanced", "choice", "rank3" };
+
+    /// <summary>
+    /// Composes one class's unlocked nodes for one ability into the single <see cref="GearPatch"/> the sim applies. Each
+    /// chain kind is looked up as "&lt;baseAbility.Id&gt;.&lt;kind&gt;": an owned node with an edit contributes it. A rank
+    /// <see cref="TreeNodeEdit.Delta"/> resolves against <paramref name="baseAbility"/> into a replacement
+    /// <see cref="GearPatch.Effects"/> list; an enhanced <see cref="TreeNodeEdit.Patch"/>'s
+    /// <see cref="GearPatch.EffectsAppend"/> ops are appended in chain order. An empty set yields the identity patch.
+    /// </summary>
+    /// <param name="state">The class's tree state; only its owned nodes count.</param>
+    /// <param name="baseAbility">The base kit ability the nodes patch.</param>
+    /// <param name="edits">Node id to edit, for every node the content ships.</param>
+    /// <returns>The composed patch.</returns>
+    /// <exception cref="TreeCompositionException">A delta the sim does not run, or one with no damage op to change.</exception>
+    public static GearPatch ToGearPatch(
+        TreeState state,
+        AbilityDef baseAbility,
+        IReadOnlyDictionary<string, TreeNodeEdit> edits)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(baseAbility);
+        ArgumentNullException.ThrowIfNull(edits);
+        var owned = new HashSet<string>(state.Nodes, StringComparer.Ordinal);
+        List<EffectOp>? effects = null;
+        List<EffectOp>? append = null;
+        foreach (string kind in ChainKinds)
+        {
+            string nodeId = baseAbility.Id + "." + kind;
+            if (!owned.Contains(nodeId) || !edits.TryGetValue(nodeId, out TreeNodeEdit? edit))
+            {
+                continue;
+            }
+            if (edit.Delta is not null)
+            {
+                effects ??= baseAbility.Effects.ToList();
+                ApplyDelta(effects, edit.Delta, nodeId);
+            }
+            if (edit.Patch?.EffectsAppend is { } ops)
+            {
+                (append ??= new List<EffectOp>()).AddRange(ops);
+            }
+        }
+        return new GearPatch { Effects = effects, EffectsAppend = append };
+    }
+
+    // Applies one flat delta to the first damage op of the running ops list. Anything else is refused (fail closed).
+    private static void ApplyDelta(List<EffectOp> ops, EffectDelta delta, string nodeId)
+    {
+        if (delta.Op != "damage" || delta.Field != "amount")
+        {
+            throw new TreeCompositionException($"node \"{nodeId}\" has a delta the sim does not run: {delta.Op}.{delta.Field}");
+        }
+        int index = ops.FindIndex(op => op is DamageOp);
+        if (index < 0)
+        {
+            throw new TreeCompositionException($"node \"{nodeId}\" changes damage, but the ability has no damage op");
+        }
+        var damage = (DamageOp)ops[index];
+        ops[index] = damage with { Amount = damage.Amount + delta.Delta };
+    }
+
     // R-TREES-3 (e): two patches are the same when every field is equal and every list member matches by sequence, never by
     // reference (a GearPatch record compares its IReadOnlyList members by reference, so two content-equal patches built from
     // distinct lists would not match under record equality).

@@ -337,6 +337,104 @@ public sealed record GearPatch
     /// <summary>Ops appended after the ability's ops.</summary>
     public IReadOnlyList<EffectOp>? EffectsAppend { get; init; }
 
+    /// <summary>
+    /// Value equality (R-TREES-3 (e) precedent): every scalar field compares by value, and every list or dictionary member
+    /// compares by sequence, element by element. A <see cref="ConditionalOp"/> compares its Then body element-wise, recursing
+    /// into nested conditionals, so two content-equal patches built from distinct lists are equal.
+    /// </summary>
+    /// <param name="other">The other patch.</param>
+    /// <returns>True when every field is equal by value.</returns>
+    public bool Equals(GearPatch? other) =>
+        other is not null
+        && CastTicks == other.CastTicks
+        && GcdTicks == other.GcdTicks
+        && CooldownTicks == other.CooldownTicks
+        && Charges == other.Charges
+        && object.Equals(Cost, other.Cost)
+        && Range == other.Range
+        && object.Equals(Shape, other.Shape)
+        && Interruptible == other.Interruptible
+        && SameSeq(Tags, other.Tags, (x, y) => x == y)
+        && SameSeq(Effects, other.Effects, SameOp)
+        && SameVariants(Variants, other.Variants)
+        && SameSeq(TagAdd, other.TagAdd, (x, y) => x == y)
+        && SameSeq(TagRemove, other.TagRemove, (x, y) => x == y)
+        && SameSeq(EffectsAppend, other.EffectsAppend, SameOp);
+
+    /// <summary>
+    /// A hash over the scalar fields and the list lengths, consistent with <see cref="Equals(GearPatch?)"/>. It is a plain
+    /// fold rather than <c>HashCode</c>, which the sim bans as randomly seeded per process.
+    /// </summary>
+    /// <returns>The hash code.</returns>
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hash = 17;
+            hash = (hash * 31) + (CastTicks ?? -1);
+            hash = (hash * 31) + (GcdTicks ?? -1);
+            hash = (hash * 31) + (CooldownTicks ?? -1);
+            hash = (hash * 31) + (int)(Charges ?? -1);
+            hash = (hash * 31) + (int)(Range ?? -1);
+            hash = (hash * 31) + (Interruptible is true ? 1 : Interruptible is false ? 0 : -1);
+            hash = (hash * 31) + (Tags?.Count ?? -1);
+            hash = (hash * 31) + (Effects?.Count ?? -1);
+            hash = (hash * 31) + (Variants?.Count ?? -1);
+            hash = (hash * 31) + (TagAdd?.Count ?? -1);
+            hash = (hash * 31) + (TagRemove?.Count ?? -1);
+            hash = (hash * 31) + (EffectsAppend?.Count ?? -1);
+            return hash;
+        }
+    }
+
+    // A ConditionalOp holds its Then body as a list, so the op compares its non-list fields by value and Then element-wise.
+    private static bool SameOp(EffectOp a, EffectOp b) =>
+        a is ConditionalOp ca && b is ConditionalOp cb
+            ? ca.If.Equals(cb.If) && ca.Consume == cb.Consume && SameSeq(ca.Then, cb.Then, SameOp)
+            : a.Equals(b);
+
+    private static bool SameSeq<T>(IReadOnlyList<T>? a, IReadOnlyList<T>? b, Func<T, T, bool> same)
+    {
+        if (a is null || b is null)
+        {
+            return a is null && b is null;
+        }
+        if (a.Count != b.Count)
+        {
+            return false;
+        }
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (!same(a[i], b[i]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool SameVariants(
+        IReadOnlyDictionary<string, IReadOnlyList<EffectOp>>? a,
+        IReadOnlyDictionary<string, IReadOnlyList<EffectOp>>? b)
+    {
+        if (a is null || b is null)
+        {
+            return a is null && b is null;
+        }
+        if (a.Count != b.Count)
+        {
+            return false;
+        }
+        foreach (var (key, ops) in a)
+        {
+            if (!b.TryGetValue(key, out var other) || !SameSeq(ops, other, SameOp))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /// <summary>The patched ability; <paramref name="ability"/> itself is never changed and its id is kept.</summary>
     /// <param name="ability">The base (or already patched) ability.</param>
     /// <returns>The patched ability.</returns>
