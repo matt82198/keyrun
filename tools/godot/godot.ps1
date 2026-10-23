@@ -122,6 +122,9 @@ for ($i = 0; $i -lt ($launchArgs.Count - 1); $i++) {
     }
 }
 
+# Lock-check stamp: the moment this launcher reaches the lock. tools/godot/launch-lock-test.ps1 case A reads it to separate
+# the cold start (preflight, C# compile) from the fail-fast interval (lock check to exit). It is the only change to stdout.
+Write-Output ('launch-lock: check at ' + [DateTime]::UtcNow.ToString('o'))
 $launchLock = Enter-KeyrunLaunchLock -Owner ('godot.ps1 ' + ($godotArgs -join ' ')) -ExitCodeOnBusy 4
 try {
     # Godot writes warnings to stderr; they arrive as plain output lines, so a caller's 2>&1 under 'Stop' cannot turn
