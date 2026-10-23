@@ -33,6 +33,8 @@ public sealed record BotGuide(string ClassId, IReadOnlyList<GuideRule> Rotation)
 /// </summary>
 public sealed class GuideSet
 {
+    private static readonly string[] Responses = { "faceAway", "stepOut", "spread", "stack", "dragIntoHazard", "take" };
+
     private readonly IReadOnlyDictionary<string, BotGuide> _byClass;
 
     private GuideSet(IReadOnlyDictionary<string, BotGuide> byClass) => _byClass = byClass;
@@ -52,7 +54,7 @@ public sealed class GuideSet
         using var doc = ParseOrThrow(json);
         var root = doc.RootElement;
         RequireObject(root, "guide");
-        RejectUnknownKeys(root, "guide", "classId", "version", "rotation");
+        RejectUnknownKeys(root, "guide", "classId", "version", "rotation", "kicks", "telegraphs", "never");
         var classId = RequireString(root, "classId", "guide");
         var where = $"guide '{classId}'";
         if (RequireInt(root, "version", where) != 1)
@@ -77,9 +79,10 @@ public sealed class GuideSet
                 throw Fail(rw, $"press '{press}' is not an ability in content");
             }
             var reason = RequireString(row, "reason", rw);
-            var when = ParseWhen(RequireProperty(row, "when", rw), rw, abilityIds);
+            var when = ParseWhen(RequireProperty(row, "when", rw), rw, abilityIds, press);
             rules.Add(new GuideRule(id, press, when, reason));
         }
+        ValidateSections(root, where, abilityIds);
         return new GuideSet(new Dictionary<string, BotGuide>(StringComparer.Ordinal) { [classId] = new BotGuide(classId, rules) });
     }
 
@@ -131,11 +134,11 @@ public sealed class GuideSet
     private static JsonElement RequireProperty(JsonElement e, string name, string where) =>
         e.TryGetProperty(name, out var v) ? v : throw Fail(where, $"missing '{name}'");
 
-    private static JsonElement RequireArray(JsonElement e, string name, string where)
-    {
-        var v = RequireProperty(e, name, where);
-        return v.ValueKind == JsonValueKind.Array ? v : throw Fail(where, $"'{name}' must be an array");
-    }
+    private static JsonElement RequireArray(JsonElement e, string name, string where) =>
+        ArrayOf(RequireProperty(e, name, where), name, where);
+
+    private static JsonElement ArrayOf(JsonElement v, string name, string where) =>
+        v.ValueKind == JsonValueKind.Array ? v : throw Fail(where, $"'{name}' must be an array");
 
     private static string RequireString(JsonElement e, string name, string where)
     {
@@ -150,7 +153,93 @@ public sealed class GuideSet
     private static int IntOf(JsonElement v, string name, string where) =>
         v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n) ? n : throw Fail(where, $"'{name}' must be an integer");
 
-    private static Func<GuideContext, bool> ParseWhen(JsonElement cond, string where, IReadOnlySet<string> abilityIds)
+    private static bool BoolOf(JsonProperty p, string where) =>
+        p.Value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? p.Value.GetBoolean()
+            : throw Fail(where, $"'{p.Name}' must be true or false");
+
+    private static string StringOf(JsonProperty p, string where) =>
+        p.Value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(p.Value.GetString())
+            ? p.Value.GetString()!
+            : throw Fail(where, $"'{p.Name}' must be a non-empty string");
+
+    /// <summary>
+    /// Validates the kicks (s3.3), telegraphs (s3.4) and never (s3.5) sections in the s4 shape. They are checked at load
+    /// but not yet consumed: GuidedWardenRole does not read them in this slice, so the rotation alone drives behaviour.
+    /// </summary>
+    private static void ValidateSections(JsonElement root, string where, IReadOnlySet<string> abilityIds)
+    {
+        if (root.TryGetProperty("kicks", out var kicks))
+        {
+            foreach (var row in ArrayOf(kicks, "kicks", where).EnumerateArray())
+            {
+                var rw = $"{where} kick";
+                RequireObject(row, rw);
+                RejectUnknownKeys(row, rw, "cast", "order", "reason");
+                RequireString(row, "cast", rw);
+                RequireString(row, "reason", rw);
+                var classes = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var c in RequireArray(row, "order", rw).EnumerateArray())
+                {
+                    var id = c.ValueKind == JsonValueKind.String ? c.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(id) || !classes.Add(id))
+                    {
+                        throw Fail(rw, "'order' holds a class id that is empty or repeated");
+                    }
+                }
+            }
+        }
+        if (root.TryGetProperty("telegraphs", out var telegraphs))
+        {
+            foreach (var row in ArrayOf(telegraphs, "telegraphs", where).EnumerateArray())
+            {
+                var rw = $"{where} telegraph";
+                RequireObject(row, rw);
+                RejectUnknownKeys(row, rw, "cast", "response", "fallback", "reason");
+                RequireString(row, "cast", rw);
+                RequireString(row, "reason", rw);
+                var response = RequireString(row, "response", rw);
+                if (!Responses.Contains(response, StringComparer.Ordinal))
+                {
+                    throw Fail(rw, $"response '{response}' is not one of {string.Join(", ", Responses)}");
+                }
+                if (row.TryGetProperty("fallback", out _))
+                {
+                    var fallback = RequireString(row, "fallback", rw);
+                    if (!abilityIds.Contains(fallback))
+                    {
+                        throw Fail(rw, $"fallback '{fallback}' is not an ability in content");
+                    }
+                }
+            }
+        }
+        if (root.TryGetProperty("never", out var never))
+        {
+            foreach (var row in ArrayOf(never, "never", where).EnumerateArray())
+            {
+                var rw = $"{where} never";
+                RequireObject(row, rw);
+                RejectUnknownKeys(row, rw, "press", "when", "reason");
+                var press = RequireString(row, "press", rw);
+                if (!abilityIds.Contains(press))
+                {
+                    throw Fail(rw, $"press '{press}' is not an ability in content");
+                }
+                RequireString(row, "reason", rw);
+                _ = ParseWhen(RequireProperty(row, "when", rw), rw, abilityIds, press);
+            }
+        }
+    }
+
+    /// <summary>The Warden's kill target (s3.2 row 7): its current target when that is the engage target (the party's focus, else the lowest-health enemy it holds).</summary>
+    private static bool IsKillTarget(GuideContext ctx) =>
+        ctx.Self.TargetId is { } held && TankEngage.EngageTarget(ctx.View, ctx.Self) is { } kill && kill.Id == held;
+
+    /// <summary>Open Windows on the seat's current target (BotWindows.OpenWindowsOn), empty without a target.</summary>
+    private static List<OpenWindow> TargetWindows(GuideContext ctx) =>
+        BotWindows.OpenWindowsOn(ctx.View.State.Actors, ctx.View.State.Tick).Where(w => w.TargetId == ctx.Self.TargetId).ToList();
+
+    private static Func<GuideContext, bool> ParseWhen(JsonElement cond, string where, IReadOnlySet<string> abilityIds, string press)
     {
         if (cond.ValueKind != JsonValueKind.Object || cond.EnumerateObject().Count() != 1)
         {
@@ -160,13 +249,13 @@ public sealed class GuideSet
         switch (p.Name)
         {
             case "all":
-                var all = Conditions(p.Value, p.Name, where, abilityIds);
+                var all = Conditions(p.Value, p.Name, where, abilityIds, press);
                 return ctx => all.All(f => f(ctx));
             case "any":
-                var any = Conditions(p.Value, p.Name, where, abilityIds);
+                var any = Conditions(p.Value, p.Name, where, abilityIds, press);
                 return ctx => any.Any(f => f(ctx));
             case "not":
-                var inner = ParseWhen(p.Value, where, abilityIds);
+                var inner = ParseWhen(p.Value, where, abilityIds, press);
                 return ctx => !inner(ctx);
             case "resourceAtLeast":
                 var resource = IntOf(p.Value, p.Name, where);
@@ -191,17 +280,68 @@ public sealed class GuideSet
                 }
                 var wantKick = p.Value.ValueKind == JsonValueKind.True;
                 return ctx => (RoleShared.LedgerKickCommand(ctx.View, ctx.Self, ctx.Kit) is not null) == wantKick;
+            case "castTicksLeftAtMost":
+                // The ledger's kick target (RoleShared.LedgerKickCommand names the caster): its cast ticks left.
+                var castWindow = IntOf(p.Value, p.Name, where);
+                return ctx => RoleShared.LedgerKickCommand(ctx.View, ctx.Self, ctx.Kit) is { TargetId: { } casterId }
+                    && ctx.View.State.Actors.TryGetValue(casterId, out var caster)
+                    && caster.Cast is { } cast
+                    && cast.EndsTick - ctx.View.State.Tick <= castWindow;
+            case "effectNotUp":
+                // The seat's own effect list, read the way TankPressure.EffectTicksLeft reads it (that helper is private).
+                var notUpId = StringOf(p, where);
+                return ctx => !ctx.Self.Effects.Any(e => e.EffectId == notUpId && e.EndsTick > ctx.View.State.Tick);
+            case "effectTicksLeftAtMost":
+                // The same rule as TankPressure's EffectTicksLeft: zero when the effect is not up.
+                if (p.Value.ValueKind != JsonValueKind.Object)
+                {
+                    throw Fail(where, "'effectTicksLeftAtMost' must be { effectId, ticks }");
+                }
+                RejectUnknownKeys(p.Value, where, "effectId", "ticks");
+                var ticksEffectId = RequireString(p.Value, "effectId", where);
+                var ticksMax = RequireInt(p.Value, "ticks", where);
+                return ctx => ctx.Self.Effects
+                    .Where(e => e.EffectId == ticksEffectId)
+                    .Select(e => Math.Max(0, e.EndsTick - ctx.View.State.Tick))
+                    .DefaultIfEmpty(0)
+                    .Max() <= ticksMax;
+            case "targetIsKillTarget":
+                var killWant = BoolOf(p, where);
+                return ctx => IsKillTarget(ctx) == killWant;
+            case "targetWindowNot":
+                var windowNot = StringOf(p, where);
+                return ctx => !TargetWindows(ctx).Any(w => w.WindowId == windowNot);
+            case "targetHasAllyWindow":
+                // An ally's Window is one the Warden's payoff class may close (BotWindows.CanClose): set by another class.
+                var allyWant = BoolOf(p, where);
+                return ctx => TargetWindows(ctx).Any(w => BotWindows.CanClose(w.SetupClass, ctx.Self.ClassId)) == allyWant;
+            case "insideTelegraph":
+                var insideWant = BoolOf(p, where);
+                return ctx => ctx.View.Telegraphs.Any(t => t.Danger && t.ResolvesTick > ctx.View.State.Tick
+                    && !Positioning.IsSpent(t, ctx.View.State)
+                    && Positioning.InTelegraph(new PointMm(ctx.Self.Pos.X, ctx.Self.Pos.Z), t)) == insideWant;
+            case "enemiesInShapeAtLeast":
+                // AoeGate.EnemiesInShape against the rule's own press (the shape it would cast) on the seat's target.
+                var shapeMin = IntOf(p.Value, p.Name, where);
+                return ctx => ctx.View.Kits.Content is { } reg
+                    && reg.Abilities.TryGetValue(press, out var pressDef)
+                    && AoeGate.EnemiesInShape(ctx.View, ctx.Self, pressDef, ctx.Self.TargetId) >= shapeMin;
+            case "seatWithinMm":
+                // Any other living party seat within the distance (RoleShared.Dist, the planar distance the bots use).
+                var seatMm = IntOf(p.Value, p.Name, where);
+                return ctx => ctx.View.State.Actors.Values.Any(a =>
+                    a.Id != ctx.Self.Id && a.Kind == ActorKind.Player && a.Alive && RoleShared.Dist(ctx.Self, a) <= seatMm);
             default:
                 throw Fail(where, $"'{p.Name}' is not in the guide condition vocabulary");
         }
     }
 
-    private static List<Func<GuideContext, bool>> Conditions(JsonElement list, string op, string where, IReadOnlySet<string> abilityIds)
+    private static List<Func<GuideContext, bool>> Conditions(JsonElement list, string op, string where, IReadOnlySet<string> abilityIds, string press)
     {
         if (list.ValueKind != JsonValueKind.Array)
         {
             throw Fail(where, $"'{op}' must be an array");
         }
-        return list.EnumerateArray().Select(c => ParseWhen(c, where, abilityIds)).ToList();
+        return list.EnumerateArray().Select(c => ParseWhen(c, where, abilityIds, press)).ToList();
     }
 }

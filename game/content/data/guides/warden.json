@@ -3,6 +3,12 @@
   "version": 1,
   "rotation": [
     {
+      "id": "kick-window",
+      "press": "warden.shieldBash",
+      "when": { "all": [ { "kickDuty": true }, { "castTicksLeftAtMost": 6 } ] },
+      "reason": "The named kick window is the last 6 ticks (BIBLE s3)."
+    },
+    {
       "id": "brace-low",
       "press": "warden.brace",
       "when": { "healthBelowPct": 35 },
@@ -42,6 +48,41 @@
       "press": "warden.strike",
       "when": { "all": [] },
       "reason": "Filler Setup: opens Sundered for the Cinder's stop and the Chanter's heal."
+    },
+    {
+      "id": "guard-break-filler",
+      "press": "warden.guardBreak",
+      "when": { "all": [] },
+      "reason": "Filler: Guard Break out-damages Strike once Sundered is already up (PLAYTESTER-GUIDE.md s3.2 row 8)."
     }
+  ],
+  "kicks": [
+    { "cast": "choir.healCast", "order": [ "warden", "cinder", "chanter" ], "reason": "The Choir's lesson; the Warden stands on the Cantor (#515 kick on main)." },
+    { "cast": "bellows.stoke", "order": [ "warden", "cinder", "chanter" ], "reason": "Stoked enemies are the ones hitting the Warden." },
+    { "cast": "ash.searingHex", "order": [ "cinder", "chanter" ], "reason": "A missed kick costs an R (Purge or Cleanse), not a death; the Warden keeps its kick for Stoke." },
+    { "cast": "drowned.undertow", "order": [ "chanter", "cinder" ], "reason": "It targets the backline; deadly in the Sluice before a jet." },
+    { "cast": "choir.patrolSweep", "order": [ "warden", "chanter" ], "reason": "The patrol walks onto the tank." },
+    { "cast": "ommet.temper", "order": [ "warden", "cinder", "chanter" ], "reason": "The boss faces the tank; an uncovered heal adds a long stretch of fight." },
+    { "cast": "greatBell.resonance", "order": [ "warden", "chanter" ], "reason": "Stops a party stun." },
+    { "cast": "brineMother.drowningHymn", "order": [ "warden", "cinder" ], "reason": "The cone comes at the tank." },
+    { "cast": "furnaceThrall.stokeCore", "order": [ "warden", "chanter" ], "reason": "They stand on the tank." },
+    { "cast": "scaldHound.boilingBlood", "order": [ "warden", "chanter" ], "reason": "They stand on the tank." },
+    { "cast": "slagHexer.moltenBrand", "order": [ "cinder", "chanter", "warden" ], "reason": "Ranged casters; the Warden is last backup." },
+    { "cast": "brineMender.bronzeWard", "order": [ "cinder", "chanter", "warden" ], "reason": "Ranged casters; the Warden is last backup." },
+    { "cast": "pitTender.fanTheCoals", "order": [ "cinder", "chanter", "warden" ], "reason": "Ranged casters; the Warden is last backup." },
+    { "cast": "knellSinger.dirge", "order": [ "cinder", "chanter", "warden" ], "reason": "Ranged casters; the Warden is last backup." }
+  ],
+  "telegraphs": [
+    { "cast": "hollowWarden.cleave", "response": "faceAway", "fallback": "warden.brace", "reason": "Slow frontal cone: hold the boss facing away from the party; the Warden takes it (Cleave is 220 raw, 143 after armor)." },
+    { "cast": "vault.crushingSlam", "response": "faceAway", "fallback": "warden.brace", "reason": "90-degree, 3500 mm frontal cone, 40% max health: turn the Brute away from the party (research/06:30)." },
+    { "cast": "ingotBrute.anvilDrop", "response": "stepOut", "fallback": "warden.brace", "reason": "Telegraphed hit on the tank: step out if the shape allows and the pack stays faced away; otherwise take it." },
+    { "cast": "slagRam.moltenCharge", "response": "stepOut", "fallback": "warden.brace", "reason": "Telegraphed hit on the tank: step out if the shape allows and the pack stays faced away; otherwise take it." },
+    { "cast": "pair.spreadMark", "response": "spread", "reason": "If marked, walk out to 3000 mm from every ally." },
+    { "cast": "pair.stackCall", "response": "stack", "reason": "Stand with the party inside 1500 mm; the damage splits." },
+    { "cast": "seed.lash", "response": "stepOut", "fallback": "warden.vigil", "reason": "Caster-to-target line: step sideways out of the line." }
+  ],
+  "never": [
+    { "press": "warden.bulwark", "when": { "insideTelegraph": true }, "reason": "No Bulwark while a telegraph covers you: its 20-tick cast pins you in the shape; move first." },
+    { "press": "warden.strike", "when": { "targetHasAllyWindow": true }, "reason": "Strike is a Setup and cannot close an ally's Window; Guard Break or Reckoning can." }
   ]
 }
