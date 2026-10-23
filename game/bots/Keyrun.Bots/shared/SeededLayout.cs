@@ -195,9 +195,13 @@ public static class SeededLayout
     /// <param name="reg">Loaded content.</param>
     /// <param name="dungeonId">The dungeon.</param>
     /// <param name="seed">The run seed.</param>
+    /// <param name="leaderBranch">
+    /// The branch (0 or 1) the leader is forced onto in every segment (the playtest's LeaderBranch option), or null
+    /// (the default) for the seeded <see cref="BotBranches"/> pick.
+    /// </param>
     /// <returns>The dungeon.</returns>
     /// <exception cref="InvalidOperationException">An unknown dungeon, or a pool that cannot lift every route to the forces bar.</exception>
-    public static SegmentedDungeon BuildSegmented(C.ContentRegistry reg, string dungeonId, long seed)
+    public static SegmentedDungeon BuildSegmented(C.ContentRegistry reg, string dungeonId, long seed, int? leaderBranch = null)
     {
         ArgumentNullException.ThrowIfNull(reg);
         var bosses = SeededRoster.SegmentBosses(reg, dungeonId);
@@ -205,7 +209,9 @@ public static class SeededLayout
         var graph = RoomGraphGen.Generate(seed, p);
         var grid = WalkGridGen.Emit(graph, p);
         var fill = SegmentFill.Fill(seed, graph, bosses, SeededRoster.Pool(reg, dungeonId), reg.Forces.Required);
-        var branches = BotBranches(seed, graph.SegmentCount);
+        var branches = leaderBranch is { } forced
+            ? Enumerable.Repeat(forced, graph.SegmentCount).ToList()
+            : BotBranches(seed, graph.SegmentCount);
         // R-BRANCH-WALK-1: the run's nav set is both branches (NavLayouts.ToSim: route boxes plus NavLayout.SideBoxes), so the
         // dungeon's Walk.Boxes is the walkable set, the walked chain first; SideBoxes stays the untaken branch alone.
         var walk = Walk(graph, grid, branches);
@@ -225,13 +231,14 @@ public static class SeededLayout
     /// <param name="reg">Loaded content (the hand layout supplies the formation and the boss arena's size and ring).</param>
     /// <param name="dungeonId">A multi-segment dungeon, e.g. "sunken-bellfoundry".</param>
     /// <param name="seed">The run seed.</param>
+    /// <param name="leaderBranch">The branch forced in every segment (<see cref="BuildSegmented"/>), or null for the seeded pick.</param>
     /// <returns>The content with the seeded layout.</returns>
     /// <exception cref="C.ContentLoadException">The seeded layout breaks a layout invariant.</exception>
     /// <exception cref="InvalidOperationException">An unknown dungeon or a grid that does not cut into boxes.</exception>
-    public static C.ContentRegistry ArmSegmented(C.ContentRegistry reg, string dungeonId, long seed)
+    public static C.ContentRegistry ArmSegmented(C.ContentRegistry reg, string dungeonId, long seed, int? leaderBranch = null)
     {
         ArgumentNullException.ThrowIfNull(reg);
-        var d = BuildSegmented(reg, dungeonId, seed);
+        var d = BuildSegmented(reg, dungeonId, seed, leaderBranch);
         var dungeon = reg.Dungeons[dungeonId];
         var bossPulls = C.LayoutDef.BossPullIds(dungeon);
         var hand = reg.Layout;

@@ -161,12 +161,30 @@ public static class Pulls
     /// <summary>
     /// pulls.ts:82 checkPullAdvance: when the active pull has spawns and every one is dead or absent, emits
     /// <c>{tick, type:"pull_clear", pullIndex, pullId}</c> and returns the encounter on the next pull.
+    /// D45: once a branch is taken (<see cref="TakenBranch"/>), the index first skips forward over any pull tagged with
+    /// the other branch; untagged pulls (the boss, hand-built runs) are never skipped.
     /// </summary>
     public static EncounterState CheckPullAdvance(SimState state, DungeonDef dungeon, EncounterState encounter, int tick, Action<SimEvent> emit)
     {
         if (encounter.PullIndex < 0 || encounter.PullIndex >= dungeon.Pulls.Count)
         {
             return encounter;
+        }
+        if (TakenBranch(dungeon, encounter) is { } taken)
+        {
+            var skip = encounter.PullIndex;
+            while (skip < dungeon.Pulls.Count && dungeon.Pulls[skip].Branch is { } b && !string.Equals(b, taken, StringComparison.Ordinal))
+            {
+                skip++;
+            }
+            if (skip != encounter.PullIndex)
+            {
+                encounter = encounter with { PullIndex = skip };
+                if (skip >= dungeon.Pulls.Count)
+                {
+                    return encounter;
+                }
+            }
         }
         var pull = dungeon.Pulls[encounter.PullIndex];
         if (pull.Spawns.Count == 0)
@@ -180,6 +198,30 @@ public static class Pulls
         }
         emit(new SimEvent(tick, "pull_clear", ("pullIndex", JsValue.Int(encounter.PullIndex)), ("pullId", JsValue.Str(pull.Id))));
         return encounter with { PullIndex = encounter.PullIndex + 1 };
+    }
+
+    /// <summary>
+    /// D45: the branch the party took, the <see cref="PullDef.Branch"/> of the first engaged pull that has one, or null
+    /// while no branch pull has engaged (or the dungeon has none).
+    /// </summary>
+    /// <param name="dungeon">The dungeon.</param>
+    /// <param name="encounter">The encounter.</param>
+    /// <returns>The branch, or null.</returns>
+    public static string? TakenBranch(DungeonDef dungeon, EncounterState encounter)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        ArgumentNullException.ThrowIfNull(encounter);
+        foreach (var id in encounter.Engaged)
+        {
+            foreach (var p in dungeon.Pulls)
+            {
+                if (p.Branch is { } b && string.Equals(p.Id, id, StringComparison.Ordinal))
+                {
+                    return b;
+                }
+            }
+        }
+        return null;
     }
 
     /// <summary>
