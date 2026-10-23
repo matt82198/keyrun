@@ -170,7 +170,9 @@ public partial class ActorView : Node3D
         var row = Binding.For(actor.ClassId);
         var path = row.ResPath; // res://assets/<pack folder>/<file>: kaykit-adventurers or kaykit-skeletons
         // An unimported .glb (fresh worktree, finding f-30dcbb08) can exist yet fail to load: that is a fallback too.
-        var scene = path is not null && ResourceLoader.Exists(path) ? GD.Load<PackedScene>(path) : null;
+        // --capsule-class (ArenaOptions.Capsules, a scene-test seam): a listed class takes the capsule branch even with a row.
+        var forcedCapsule = Driver.Options.Capsules.Contains(actor.ClassId);
+        var scene = !forcedCapsule && path is not null && ResourceLoader.Exists(path) ? GD.Load<PackedScene>(path) : null;
         if (scene is null)
         {
             GD.Print($"ACTOR fallback capsule id={ActorId} class={actor.ClassId}");
@@ -399,7 +401,7 @@ public partial class ActorView : Node3D
     // otherwise, under the 600 draw-call budget).
     private void Flash()
     {
-        if (_model is null || Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var now))
+        if (Driver is null || !Driver.State.Actors.TryGetValue(ActorId, out var now))
         {
             return;
         }
@@ -412,8 +414,14 @@ public partial class ActorView : Node3D
             if (stepped && now.Health < before.Health)
             {
                 _hurtTick = Driver.State.Tick;
-                HitSparkView.Spawn(this, ActorId, Driver.State.Tick); // R-ANIM-1: one hit spark and VIEW hit line per drop
+                // R-ANIM-1: one hit spark and VIEW hit line per drop. Spawned on the view root (this node), before the model
+                // check, so an actor on the fallback capsule (no bound model, finding f-8a001150) sparks too.
+                HitSparkView.Spawn(this, ActorId, Driver.State.Tick);
             }
+        }
+        if (_model is null)
+        {
+            return; // the flash overlay needs a bound model; the capsule has none
         }
         // ENEMY-BODY-STABLE: an enemy never flashes (its strength is 0 at every tick), so no enemy mesh gets the overlay.
         var strength = AnimRule.FlashPermilleFor(RoleOf(now), Driver.State.Tick - _hurtTick, (int)(Driver.Alpha * 1000f));

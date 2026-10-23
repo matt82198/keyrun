@@ -18,7 +18,9 @@
   This test asserts:
     1. the process exits 0 and prints "AUTORUN done ticks=2400";
     2. at least one "VIEW hit" line names an enemy (actor >= 100);
-    3. at least one "VIEW hit" line names a party seat (actor 1-4).
+    3. at least one "VIEW hit" line names a party seat (actor 1-4);
+    4. the run has at least one fallback-capsule actor ("ACTOR fallback capsule id=N"), else FAIL: the fallback path is untested;
+    5. at least one fallback-capsule actor has a "VIEW hit actor=N" line (its hit spark prints, finding f-8a001150).
   Red by construction on main d1715072: no code prints the VIEW hit line yet, so the counts are zero and the test FAILS.
   The orchestrator runs the scene; lanes never launch Godot.
 
@@ -47,7 +49,7 @@ New-Item -ItemType Directory -Path $dir | Out-Null
 # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
 $guard = (3 * $Ticks) + 240
 $ErrorActionPreference = 'Continue'
-$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --seed 1 --progression-dir $dir 2>&1 | Out-String
+$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --seed 1 --progression-dir $dir --capsule-class warden 2>&1 | Out-String
 $rc = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
@@ -75,12 +77,37 @@ if ($partyHits.Count -eq 0) {
     $failures.Add("no 'VIEW hit actor=<id>' line for a party seat (actor 1-$PartyMaxSeat): no hit spark at a party target")
 }
 
+# Fallback-capsule actors (ActorView.TryBind, game/src/View/ActorView.cs:176): a bound model that is missing or fails to
+# load draws the capsule and prints "ACTOR fallback capsule id=N class=C" once. Its hit spark must still print (R-ANIM-1,
+# finding f-8a001150): at least one fallback actor must have a "VIEW hit actor=N" line.
+$fallbackIds = @()
+foreach ($line in $lines) {
+    if ($line -match '^ACTOR fallback capsule id=(\d+) class=\S+$') { $fallbackIds += [int]$Matches[1] }
+}
+$fallbackIds = @($fallbackIds | Sort-Object -Unique)
+$sparkedIds = @{}
+foreach ($hit in $hits) {
+    if ($hit -match '^VIEW hit actor=(\d+) tick=\d+$') { $sparkedIds[[int]$Matches[1]] = $true }
+}
+$fallbackSparked = @($fallbackIds | Where-Object { $sparkedIds.ContainsKey($_) })
+$fallbackVerdict = $null
+if ($fallbackIds.Count -eq 0) {
+    $fallbackVerdict = 'HitSparkSceneTest: FAIL no fallback-capsule actor in run; the fallback path is untested'
+} elseif ($fallbackSparked.Count -eq 0) {
+    $fallbackVerdict = "HitSparkSceneTest: FAIL fallback actor $($fallbackIds[0]) never sparked"
+}
+if ($fallbackVerdict) {
+    $failures | Select-Object -First 20 | ForEach-Object { Write-Output "  $_" }
+    Write-Output $fallbackVerdict
+    exit 1
+}
+
 if ($failures.Count -gt 0) {
     Write-Output 'HitSparkSceneTest: FAIL'
     $failures | Select-Object -First 20 | ForEach-Object { Write-Output "  $_" }
     exit 1
 }
-Write-Output "HitSparkSceneTest: PASS enemyHits=$($enemyHits.Count) partyHits=$($partyHits.Count) ticks=$Ticks"
+Write-Output "HitSparkSceneTest: PASS enemyHits=$($enemyHits.Count) partyHits=$($partyHits.Count) ticks=$Ticks fallbackSparked=$($fallbackSparked.Count)"
 exit 0
 } finally {
     Exit-KeyrunLaunchLock $launchLock
