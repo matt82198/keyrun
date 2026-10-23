@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Keyrun.Sim.Combat;
 
 namespace Keyrun.Sim.Runs;
@@ -46,7 +47,7 @@ public static class TreeComposer
         {
             foreach (GearPatch node in nodes)
             {
-                if (facet.Equals(node))
+                if (SamePatch(facet, node))
                 {
                     throw new TreeCompositionException("a Facet duplicates a tree node on ability \"" + baseAbility.Id + "\"");
                 }
@@ -62,5 +63,55 @@ public static class TreeComposer
             ability = facet.ApplyTo(ability);
         }
         return new ComposedAbility(ability);
+    }
+
+    // R-TREES-3 (e): two patches are the same when every field is equal and every list member matches by sequence, never by
+    // reference (a GearPatch record compares its IReadOnlyList members by reference, so two content-equal patches built from
+    // distinct lists would not match under record equality).
+    private static bool SamePatch(GearPatch a, GearPatch b) =>
+        a.CastTicks == b.CastTicks
+        && a.GcdTicks == b.GcdTicks
+        && a.CooldownTicks == b.CooldownTicks
+        && a.Charges == b.Charges
+        && Equals(a.Cost, b.Cost)
+        && a.Range == b.Range
+        && Equals(a.Shape, b.Shape)
+        && a.Interruptible == b.Interruptible
+        && SameSequence(a.Tags, b.Tags)
+        && SameSequence(a.Effects, b.Effects)
+        && SameVariants(a.Variants, b.Variants)
+        && SameSequence(a.TagAdd, b.TagAdd)
+        && SameSequence(a.TagRemove, b.TagRemove)
+        && SameSequence(a.EffectsAppend, b.EffectsAppend);
+
+    private static bool SameSequence<T>(IReadOnlyList<T>? a, IReadOnlyList<T>? b)
+    {
+        if (a is null || b is null)
+        {
+            return a is null && b is null;
+        }
+        return a.SequenceEqual(b);
+    }
+
+    private static bool SameVariants(
+        IReadOnlyDictionary<string, IReadOnlyList<EffectOp>>? a,
+        IReadOnlyDictionary<string, IReadOnlyList<EffectOp>>? b)
+    {
+        if (a is null || b is null)
+        {
+            return a is null && b is null;
+        }
+        if (a.Count != b.Count)
+        {
+            return false;
+        }
+        foreach (var (key, ops) in a)
+        {
+            if (!b.TryGetValue(key, out var other) || !SameSequence(ops, other))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 }
