@@ -31,8 +31,9 @@ public static class Leash
     /// <param name="groups">The run's aggro groups.</param>
     /// <param name="baseSpeedMmPerTick">The run's walk speed for actors without their own (the arrival step).</param>
     /// <param name="emit">Event sink.</param>
+    /// <param name="openSeats">Abandoned or unfilled seats' actor ids, or null; they never count as a living seat.</param>
     /// <returns>The encounter after the leash rules.</returns>
-    public static EncounterState Step(SimState next, EncounterState encounter, IReadOnlyList<AggroGroup> groups, long baseSpeedMmPerTick, Action<SimEvent> emit)
+    public static EncounterState Step(SimState next, EncounterState encounter, IReadOnlyList<AggroGroup> groups, long baseSpeedMmPerTick, Action<SimEvent> emit, IReadOnlyList<int>? openSeats = null)
     {
         ArgumentNullException.ThrowIfNull(next);
         ArgumentNullException.ThrowIfNull(encounter);
@@ -71,12 +72,19 @@ public static class Leash
                     // G2.5 (f-1c94a912): a reset member walks back onto its patrol loop (Patrols.Walk), it does not teleport.
                     a.ResetWalk = true;
                 }
-                emit(GroupEvent(tick, "pack_reset", g.Id, evaders, LeashCause));
+                var resetCause = evaders.Select(a => a.EvadeCause).FirstOrDefault(c => c is not null) ?? LeashCause;
+                foreach (var a in evaders)
+                {
+                    a.EvadeCause = null;
+                }
+                emit(GroupEvent(tick, "pack_reset", g.Id, evaders, resetCause));
             }
         }
 
         List<Telegraph>? keep = null;
         var engaged = encounter.Engaged;
+        // R-BOSS-6 (b): no living player seat (every seat dead or released; open seats do not count) evades every engaged group.
+        var seatless = !next.Actors.Values.Any(a => a.Kind == ActorKind.Player && a.Alive && !IsOpen(openSeats, a.Id));
         foreach (var g in groups)
         {
             if (!Pulls.IsEngaged(encounter, g.Id))
@@ -84,10 +92,12 @@ public static class Leash
                 continue;
             }
             var living = Members(next, g).ToList();
-            if (!living.Any(a => !a.Idle && a.LeashMm is { } leash && a.Home is { } home && Dist2(a.Pos, home) > Square(leash)))
+            var dragged = living.Any(a => !a.Idle && a.LeashMm is { } leash && a.Home is { } home && Dist2(a.Pos, home) > Square(leash));
+            if (living.Count == 0 || (!dragged && !seatless))
             {
                 continue;
             }
+            var cause = seatless ? NoLivingSeatCause : LeashCause;
             foreach (var a in living)
             {
                 if (a.CastId is not null)
@@ -101,12 +111,13 @@ public static class Leash
                 a.Effects.Clear();
                 a.Idle = true;
                 a.Evading = true;
+                a.EvadeCause = cause;
                 // IDLE-WANDER: the pack walks home to its anchor (Home), then wanders again from where it resets.
                 a.WanderAnchor = null;
                 a.WanderLoop = null;
             }
             engaged = engaged.Where(id => !string.Equals(id, g.Id, StringComparison.Ordinal)).ToList();
-            emit(GroupEvent(tick, "pack_evade", g.Id, living, LeashCause));
+            emit(GroupEvent(tick, "pack_evade", g.Id, living, cause));
             var ids = living.Select(a => a.Id).ToHashSet();
             keep ??= encounter.Telegraphs.ToList();
             foreach (var tg in keep.Where(t => ids.Contains(t.SourceId)).ToList())
@@ -149,6 +160,11 @@ public static class Leash
 
     /// <summary>L1 (DUNGEON-SYNERGY 2.2): the cause both leash events carry, so captures and bots can tell a leash from a later aggro drop.</summary>
     public const string LeashCause = "leash";
+
+    /// <summary>R-BOSS-6 (b): the cause an engaged group with no living player seat evades and resets with.</summary>
+    public const string NoLivingSeatCause = "no-living-seat";
+
+    private static bool IsOpen(IReadOnlyList<int>? openSeats, int id) => openSeats is not null && openSeats.Contains(id);
 
     private static SimEvent GroupEvent(int tick, string type, string groupId, IEnumerable<ActorState> members, string cause) =>
         new(tick, type, ("groupId", JsValue.Str(groupId)), ("actorIds", JsValue.Arr(members.Select(a => JsValue.Int(a.Id)))), ("cause", JsValue.Str(cause)));

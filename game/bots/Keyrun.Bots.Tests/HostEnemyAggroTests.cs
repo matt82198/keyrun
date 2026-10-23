@@ -50,13 +50,16 @@ public sealed class HostEnemyAggroTests
         });
     }
 
-    [Fact(DisplayName = "Host enemy aggro: the boss keeps its arena ring with every per-enemy rule off")]
-    public void Boss_has_every_rule_off()
+    [Fact(DisplayName = "Host enemy aggro: the boss keeps its arena ring and is leashed to its arena (half-extent plus 3000 mm, R-BOSS-6)")]
+    public void Boss_is_leashed_to_its_arena()
     {
         var boss = Assert.Single(Setup.Dungeon.Pulls.Single(p => p.Id == "boss").Spawns);
         Assert.Null(boss.AggroMm);
         Assert.Null(boss.AssistMm);
-        Assert.Null(boss.LeashMm);
+        var registry = ContentLoader.Load();
+        var arena = DungeonPlan.BoxesOf(registry.Layout).Single(b => b.Id == "warden-arena");
+        var halfExtent = (arena.MaxX - arena.MinX) / 2;
+        Assert.Equal(halfExtent + 3000, boss.LeashMm);
     }
 
     [Fact(DisplayName = "Host enemy aggro: the created run's actors carry the spawn values, and every idle enemy has a home")]
