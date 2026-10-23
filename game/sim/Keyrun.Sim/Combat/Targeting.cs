@@ -152,8 +152,7 @@ public static class Targeting
         if (shape.Kind == ShapeKind.Target)
         {
             // CAST-KEEPS-START-TARGET (f-bd8fbbb1): the cast's start target, not a mid-cast retarget (Casting.SetTarget).
-            // KF3 Seed spawn gate: a dormant enemy (Encounter/Aggro.cs room-activated group, not yet entered) is no target.
-            if (castTargetId is int tid && state.Actors.TryGetValue(tid, out var t) && t.Alive && !t.Dormant && !t.Evading && Casting.RangeMm(actor, t) <= def.Range)
+            if (castTargetId is int tid && state.Actors.TryGetValue(tid, out var t) && t.Alive && !t.Evading && Casting.RangeMm(actor, t) <= def.Range)
             {
                 return new List<ActorState> { t };
             }
@@ -168,7 +167,7 @@ public static class Targeting
         };
         var kept = new SortedSet<int>(ids.Where(id =>
             state.Actors.TryGetValue(id, out var candidate) &&
-            (affinity == Affinity.Hostile ? candidate.Kind != actor.Kind && !candidate.Dormant && !candidate.Evading : candidate.Kind == actor.Kind && !candidate.Idle)));
+            (affinity == Affinity.Hostile ? candidate.Kind != actor.Kind && !candidate.Evading : candidate.Kind == actor.Kind && !candidate.Idle)));
         if (affinity == Affinity.Friendly && actor.Alive)
         {
             kept.Add(actor.Id);

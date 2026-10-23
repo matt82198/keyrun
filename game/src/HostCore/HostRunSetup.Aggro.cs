@@ -13,7 +13,7 @@ public sealed partial record HostRunSetup
     /// (<see cref="C.EnemyAggroConfig.For"/>; 0 = off, so null on the spawn). Every enemy assists. A group whose ring the
     /// layout authors keeps that ring as its whole aggro rule, so its members carry no radius of their own: every pack and
     /// patrol (layout.json <c>aggroMm</c>, the ring LayoutValidator proves skippable or disjoint from the pulls) and a pull
-    /// whose room sets <c>aggroMm</c> (the boss arena). The other pulls (the Choir, the Pair, the Seed behind its room gate)
+    /// whose room sets <c>aggroMm</c> (the boss arena). The other pulls (the Choir, the Pair, the Seed on its own radius, R-SEED-2)
     /// aggro on each member's own radius beside the default ring. Patrol members leash too (L1): their home follows the moving
     /// loop until the pull, so the leash is measured from the node they were pulled at. Unchanged when the content has no block.
     /// </summary>
