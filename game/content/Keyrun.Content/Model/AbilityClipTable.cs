@@ -55,8 +55,8 @@ public static class AbilityClipTable
     private static readonly AbilityClipRow[] AllRows =
     {
         // Warden (Knight, sword and shield).
-        new("warden.strike", AbilityAnimKind.Strike, "1H_Melee_Attack_Chop"),
-        new("warden.guardBreak", AbilityAnimKind.Strike, "1H_Melee_Attack_Slice_Horizontal"),
+        new("warden.strike", AbilityAnimKind.Strike, "1H_Melee_Attack_Slice_Horizontal"),
+        new("warden.guardBreak", AbilityAnimKind.Strike, "2H_Melee_Attack_Slice"),
         new("warden.reckoning", AbilityAnimKind.Strike, "1H_Melee_Attack_Stab"),
         new("warden.shieldBash", AbilityAnimKind.Kick, "Block_Attack"),
         new("warden.bulwark", AbilityAnimKind.Spell, "Spellcast_Raise", "Block"),

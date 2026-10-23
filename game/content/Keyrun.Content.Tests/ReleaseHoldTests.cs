@@ -36,10 +36,17 @@ public sealed class ReleaseHoldTests
     [InlineData("Blocking")]
     public void An_instant_release_keeps_its_longer_window(string clip)
     {
+        // R-ANIM-2 (b): an instant's release starts at clip frame 0 on the resolve tick. R-ANIM-2 (f): the window is no
+        // longer bounded, because the clip runs its full length from frame 0; the readability bound is the hit presentation
+        // delay (1..300 ms, under one third of the 1500 ms shortest bar). No-contact rows (Dodge, Blocking) keep their window.
         var start = AbilityAnim.ResolveStartMs(clip, woundUp: false);
+        Assert.Equal(0, start);
         var ends = ReleaseHold.EndsMs(clip, start);
         Assert.Equal(Math.Max(AnimRule.ReleaseEndsMs(clip), start + ReleaseHold.MinReleaseMs), ends);
-        Assert.InRange(ends - start, ReleaseHold.MinReleaseMs, 500); // never longer than a third of the shortest bar
+        Assert.True(ends - start >= ReleaseHold.MinReleaseMs, $"{clip}: release window {ends - start} ms is under the minimum");
+        var delay = AnimRule.HitPresentationDelayMs(clip);
+        Assert.InRange(delay, 0, 300);
+        Assert.True(delay * 3 < 1500 || delay == 0, $"{clip}: hit presentation delay {delay} ms is not under a third of a 1500 ms bar");
     }
 
     [Theory]

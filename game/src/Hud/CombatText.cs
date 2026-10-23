@@ -175,6 +175,12 @@ public partial class CombatText : Control
         avoid.AddRange(frames);
         foreach (var n in _numbers)
         {
+            if (n.Age < 0)
+            {
+                // R-ANIM-2 (e): a hit's number waits for its attack's contact frame (its Age starts negative); not drawn yet.
+                n.Placed = null;
+                continue;
+            }
             var feet = n.World;
             if (_driver.State.Actors.TryGetValue(n.TargetId, out var target))
             {
@@ -294,7 +300,12 @@ public partial class CombatText : Control
             {
                 continue;
             }
-            _numbers.Add(new Number(targetId, amount.ToString(System.Globalization.CultureInfo.InvariantCulture), WorldOf(targetId)));
+            // R-ANIM-2 (e): the damage number waits for the attack's contact frame, like the flash and spark on the actor.
+            var delayTicks = HitPresentation.DelayTicks(events, targetId);
+            _numbers.Add(new Number(targetId, amount.ToString(System.Globalization.CultureInfo.InvariantCulture), WorldOf(targetId))
+            {
+                Age = -(delayTicks * Keyrun.Content.AbilityAnim.TickMs) / 1000f,
+            });
             HudNodes.Proof(_driver, FormattableString.Invariant($"HUD fct source={sourceId} target={targetId} amount={amount}"));
         }
     }
