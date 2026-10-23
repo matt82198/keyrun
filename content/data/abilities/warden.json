@@ -287,6 +287,11 @@
         "effectId": "stunned",
         "durationTicks": 20,
         "stacks": 1
+      },
+      {
+        "op": "displace",
+        "distanceMm": 8000,
+        "towardTarget": true
       }
     ],
     "cost": {
