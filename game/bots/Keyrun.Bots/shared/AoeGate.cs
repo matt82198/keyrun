@@ -45,6 +45,19 @@ public static class AoeGate
         CountInShape(view, self, def, targetId, idle: false);
 
     /// <summary>
+    /// R-TARGET-1 (a): true when <paramref name="def"/> is a shaped AoE damage ability whose shape, cast at
+    /// <paramref name="targetId"/>, holds at least one idle or dormant enemy. Such a cast would damage an unengaged pack,
+    /// so it is vetoed; the single-target fallback takes the press. Non-AoE abilities are never vetoed here.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">The caster.</param>
+    /// <param name="def">The ability.</param>
+    /// <param name="targetId">The cast's target, or null.</param>
+    /// <returns>Whether the idle-pack veto holds for this cast.</returns>
+    public static bool IdlePackVetoed(BotView view, ActorState self, AbilityDef def, int? targetId) =>
+        IsShapedAoeDamage(def) && CountInShape(view, self, def, targetId, idle: true) > 0;
+
+    /// <summary>
     /// The living enemies <paramref name="def"/> would hit from <paramref name="self"/> at <paramref name="targetId"/>, counted
     /// over the engaged enemies (<paramref name="idle"/> false) or over the idle and dormant ones (<paramref name="idle"/> true).
     /// </summary>
@@ -210,13 +223,16 @@ public static class AoeGate
 
     /// <summary>
     /// The candidate a shaped AoE should be cast at: the one with the most enemies in its shape, the first listed on a
-    /// tie (so a preferred candidate listed first keeps its place). Null when there are no candidates.
+    /// tie (so a preferred candidate listed first keeps its place). R-TARGET-1 (a): a candidate whose shape holds an idle
+    /// or dormant enemy (<see cref="IdlePackVetoed"/>) is excluded before the count, so ties and cluster size are decided
+    /// among the remaining candidates. Null when there are no candidates or none survives the veto; the caller then
+    /// withholds the shaped payoff this tick (R-TARGET-1 (b)).
     /// </summary>
     /// <param name="view">Bot view.</param>
     /// <param name="self">The caster.</param>
     /// <param name="def">The AoE ability.</param>
     /// <param name="candidates">Candidate targets, preferred first.</param>
-    /// <returns>The best target, or null.</returns>
+    /// <returns>The best surviving target, or null.</returns>
     public static ActorState? ClusterTarget(BotView view, ActorState self, AbilityDef def, IReadOnlyList<ActorState> candidates)
     {
         ArgumentNullException.ThrowIfNull(view);
@@ -227,6 +243,10 @@ public static class AoeGate
         var bestCount = -1;
         foreach (var c in candidates)
         {
+            if (IdlePackVetoed(view, self, def, c.Id))
+            {
+                continue;
+            }
             var n = EnemiesInShape(view, self, def, c.Id);
             if (n > bestCount)
             {
