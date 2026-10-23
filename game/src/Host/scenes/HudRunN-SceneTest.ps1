@@ -1,8 +1,10 @@
 <#
 .SYNOPSIS
-  HUD scene run N (check 41, lane TINT-RUNOVER): a non-clear run end with a living out-of-range target; three-seat
-  party, key 2.
-  -- --autorun --ticks <TintTicks> --abandon-seat <TintAbandon>   (no --joiner-key; lane S1, R-K4-13 (c))
+  HUD scene run N (check 41, lane TINT-RUNOVER): a non-clear run end with a living out-of-range target; hollow-vault
+  key 3, seed 1.
+  -- --autorun --ticks <TintTicks> --key 3 --abandon-seat <TintAbandon>   (default: all@2400, R-K4-15 (c))
+  Ticks 0-2400 run live with every seat present (the control tint happens here). At tick 2400 every seat is abandoned via
+  --abandon-seat all@2400, so nobody remains to clear and the run reaches the timer cap (CapTicks 26200); 26400 ticks passes it.
 
 .DESCRIPTION
   Split from the former game/src/Host/HudSceneTest.ps1 (module-boundary review slice S3). The check text, the abandon
@@ -11,17 +13,13 @@
   Exit 0 = PASS, 1 = FAIL, 2 = could not run (Godot missing; see tools/godot/godot.ps1).
 #>
 param(
-    # Lane S1 (R-K4-13 (c)): the seat abandon at 2@300 ends depleted at 6900 with no far living hostile while live, so the
-    # no-abandon run was used. 2@2400 (seed 1, key 2, bots on) ends depleted at 11279 with a living hostile 3651 mm away
-    # at tick 1468 (before the abandon fires), and is the smallest anchor change found that does both. 2@900 has no far
-    # hostile; 2@1500 has one but ends depleted only at 22300 (measured before the lane S1 Forces parity change). Derivation:
-    # HudRunOverTintTests Candidates[0].
-    # Lane S1 premise (scratchpad/lanes/s1-hudrunN-premise.log): key 2 clears hollow-vault on this tree, so the scene now
-    # passes --key 3 (ArenaOptions.cs:194-196, SimDriver.cs:245). Headless seed 1, key 3, abandon 2@2400, bots on, the scene's
-    # Forces plan (SimDriver.cs:254-258): ResultTick 12900 = CapTicks 26200 - PenaltyTicks 13300, Depleted, uncleared, at the
-    # timer cap. 13100 = 12900 + 200, a 200-tick margin past that end. Derivation: HudRunOverTintTests Run_N_ends_depleted_*.
-    [int]$TintTicks = 13100,
-    [string]$TintAbandon = '2@2400'
+    # R-K4-15 (c, d): ticks 0-2400 run live with every seat present (the control tint happens here). At tick 2400
+    # --abandon-seat all@2400 abandons every seat (ArenaOptions.cs:218-227), so nobody remains to clear and the run is
+    # uncleared at the timer cap (CapTicks 26200) deterministically. 26400 = 26200 + 200, a 200-tick margin past the cap.
+    # Lane S1 premise (scratchpad/lanes/s1-hudrunN-premise.log): key 2 clears hollow-vault on this tree, so the scene passes
+    # --key 3 (ArenaOptions.cs:194-196, SimDriver.cs:245).
+    [int]$TintTicks = 26400,
+    [string]$TintAbandon = 'all@2400'
 )
 $SceneName = 'HudRunN-SceneTest'
 . (Join-Path $PSScriptRoot 'HudSceneCommon.ps1')

@@ -95,6 +95,8 @@ public partial class SimDriver : Node
     private BackfillState _backfill = BackfillState.Empty;
     // R-415-D: the run tick of a pull-relative --abandon-seat plan's anchor pull_start, once this run has seen it.
     private int? _abandonAnchor;
+    /// <summary>R-K4-15 (d): set once the all@TICK all-seats abandon has fired, so it fires exactly once.</summary>
+    private bool _allSeatsAbandoned;
     private RunLog? _log;
     private int _pendingCaptures;
     // f-50d8099e: --write-movie frames are picked from the trace (MovieDirector), one director per run.
@@ -454,6 +456,13 @@ public partial class SimDriver : Node
             }
         }
         _backfill = BackfillState.Empty;
+        // R-K4-15 (c) (--abandon-seat all): every seat, human and bots, deduplicated, leaves before the first step, the
+        // RunToEnd abandonAllSeats construction (tools/Keyrun.Playtest.Tests/HudRunOverTintTests.cs).
+        // R-K4-15 (d): all@TICK (AbandonAllAtTick > 0) defers this to StepOnce, which fires it once at that tick.
+        if (Options.AbandonAllSeats && Options.AbandonAllAtTick == 0)
+        {
+            AbandonEverySeat(run, setup);
+        }
         // A pull engaged at creation (a --pull N start) drops its pull_start (see below): it started at the run's first tick.
         // A health-relative plan (f-0fd3e6fb) still waits for that pull's health to fall.
         _abandonAnchor = Options.AbandonSeat is { HealthPercent: null, AnchorPull: { } anchorPull } && anchorPull == run.Encounter.PullIndex &&
@@ -513,11 +522,30 @@ public partial class SimDriver : Node
         RunStarted?.Invoke();
     }
 
+    /// <summary>
+    /// Abandons every seat of <paramref name="setup"/>, human and bots, deduplicated, through the backfill book. Shared by the
+    /// tick-0 path (R-K4-15 (c), at run creation) and the all@TICK path (R-K4-15 (d), from <see cref="StepOnce"/>).
+    /// </summary>
+    private void AbandonEverySeat(Run run, HostRunSetup setup)
+    {
+        foreach (var seatId in setup.BotActorIds.Append(setup.HumanActorId).Distinct())
+        {
+            _backfill = Backfill.Abandon(_backfill, run, seatId);
+        }
+    }
+
     private void StepOnce()
     {
         var run = Run!;
         var preTick = run.State.Tick;
         MaybeScriptedAbandon(run);
+        // R-K4-15 (d) (--abandon-seat all@TICK): beside the single-seat plan, every seat leaves once, when the run reaches TICK.
+        if (Options.AbandonAllSeats && Options.AbandonAllAtTick > 0 && !_allSeatsAbandoned && run.State.Tick == Options.AbandonAllAtTick
+            && run.RunEnd.Result is null && Setup is { } setup)
+        {
+            _allSeatsAbandoned = true;
+            AbandonEverySeat(run, setup);
+        }
         _commands.Clear();
         // sim-runtime.ts step(): the human's commands first, then every bot seat's (one runBots call).
         _input?.Sample(preTick, run, _commands);

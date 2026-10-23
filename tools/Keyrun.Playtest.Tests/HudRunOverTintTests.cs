@@ -83,25 +83,26 @@ public sealed class HudRunOverTintTests
     /// ResultTick, clock, penalty and deaths either way, so a failure hands back numbers.
     /// </summary>
     /// <summary>
-    /// Scene N's parameters, re-derived in lane S1 premise (log scratchpad/lanes/s1-hudrunN-premise.log). The old key 2 run
-    /// clears hollow-vault on this tree, so no timer-cap end happens; key 3 ends depleted at the cap. Key: the scene passes
-    /// <c>--key 3</c>, which ArenaOptions.cs:194-196 reads into Options.KeyLevel (default 2, ArenaOptions.cs:137), and
-    /// SimDriver.cs:245 passes that to DungeonPick.BuildSetup. Seed: <c>--seed</c> (ArenaOptions.cs:203-205), default 1.
-    /// Abandon: <c>--abandon-seat</c> (ArenaOptions.cs:206-207) through SimDriver.Queue.cs:130. Bots and Warden: SimDriver.cs:254-258,
-    /// PlayerInput.cs:211-215. Measured end: ResultTick 12900 = CapTicks 26200 - PenaltyTicks 13300 (26 deaths), Depleted.
+    /// Scene N's parameters (HudRunN-SceneTest.ps1 passes the same construction). Key: <c>--key 3</c> (ArenaOptions.cs:194-196,
+    /// SimDriver.cs:245). Seed: <c>--seed</c>, default 1. Bots and Warden: SimDriver.cs:254-258, PlayerInput.cs:211-215.
+    /// The run is uncleared by construction: every seat is abandoned at tick 0, so no party is left to finish the boss and the
+    /// run must end on the timer cap. The end is NOT derived from bot deaths at a seed (the earlier seat-2 abandon at 2400
+    /// reached the boss, cleared it at 12421 and ended depleted on penalty ticks, so the cap assertion could not hold).
     /// </summary>
     private const long NSeed = 1;
     private const int NKey = 3;
-    private const string NAbandon = "2@2400";
+    // R-K4-15: uncleared-at-cap is constructed, never dependent on bot deaths at a seed.
+    private const bool NAbandonAllSeats = true;
 
     [Fact(DisplayName = "HudSceneTest run N (scene parameters, bots on): the run ends depleted and uncleared exactly at the timer cap before the horizon")]
     public void Run_N_ends_depleted_and_uncleared_before_the_horizon()
     {
-        var run = RunToEnd(NSeed, NKey, NAbandon);
+        // R-K4-15: uncleared-at-cap is constructed, never dependent on bot deaths at a seed.
+        var run = RunToEnd(NSeed, NKey, abandon: null, abandonAllSeats: NAbandonAllSeats);
         var encounter = run.Encounter;
         var end = run.RunEnd.ResultTick;
         var clockAtEnd = end is null ? -1 : Timer.ClockTicks(encounter, end.Value);
-        var message = $"run N (seed {NSeed}, key {NKey}, abandon {NAbandon}) must end by tick {Horizon}: ResultTick={end?.ToString() ?? "none"}, "
+        var message = $"run N (seed {NSeed}, key {NKey}, every seat abandoned at tick 0) must end by tick {Horizon}: ResultTick={end?.ToString() ?? "none"}, "
             + $"Result={run.RunEnd.Result?.ToString() ?? "none"}, clock at end={clockAtEnd}, PenaltyTicks={encounter.PenaltyTicks}, "
             + $"Deaths={encounter.Deaths}, CapTicks={Timer.CapTicks(encounter)}, ParTicks={encounter.ParTicks}, Depleted={encounter.Depleted}";
         Assert.True(end is not null, message);
@@ -111,7 +112,7 @@ public sealed class HudRunOverTintTests
     }
 
     /// <summary>Mirrors <see cref="FindFarTargetTick"/>'s setup and step loop, without the far-target stop, to the run's own run_end or the horizon.</summary>
-    private static Run RunToEnd(long seed, int key, string? abandon)
+    private static Run RunToEnd(long seed, int key, string? abandon, bool abandonAllSeats)
     {
         var registry = ContentLoader.Load();
         var setup = HostRunSetup.Build(registry, "hollow-vault", key, "warden", withBots: true);
@@ -127,6 +128,14 @@ public sealed class HudRunOverTintTests
         int? anchor = null;
         var book = BackfillState.Empty;
         var queue = new List<QueueRequest>();
+        // R-K4-15 (a): every seat abandoned at tick 0, so no party can finish the boss and the run ends on the timer cap.
+        if (abandonAllSeats)
+        {
+            foreach (var seatId in setup.BotActorIds.Append(setup.HumanActorId).Distinct())
+            {
+                book = Backfill.Abandon(book, run, seatId);
+            }
+        }
         while (run.State.Tick < Horizon && run.RunEnd.ResultTick is null)
         {
             var tick = run.State.Tick;
