@@ -1,0 +1,28 @@
+{
+  "nodes": [
+    { "id": "warden.strike.rank2", "classId": "warden", "abilityId": "warden.strike", "kind": "rank", "minKey": 0, "requires": [], "name": "Rank II", "text": "Rank II: number deltas, not yet authored." },
+    { "id": "warden.strike.enhanced", "classId": "warden", "abilityId": "warden.strike", "kind": "enhanced", "minKey": 0, "requires": ["warden.strike.rank2"], "name": "Braced Strike", "text": "While Bulwark's brace is up, Strike builds 15 more Momentum." },
+    { "id": "warden.strike.choice", "classId": "warden", "abilityId": "warden.strike", "kind": "choice", "minKey": 4, "requires": ["warden.strike.enhanced"], "name": "Fork", "text": "The class fork, by reference to its talents entry." },
+    { "id": "warden.strike.rank3", "classId": "warden", "abilityId": "warden.strike", "kind": "rank", "minKey": 7, "requires": ["warden.strike.choice"], "name": "Rank III", "text": "Rank III: number deltas, not yet authored." },
+
+    { "id": "warden.guardBreak.rank2", "classId": "warden", "abilityId": "warden.guardBreak", "kind": "rank", "minKey": 0, "requires": [], "name": "Rank II", "text": "Rank II: number deltas, not yet authored." },
+    { "id": "warden.guardBreak.enhanced", "classId": "warden", "abilityId": "warden.guardBreak", "kind": "enhanced", "minKey": 0, "requires": ["warden.guardBreak.rank2"], "name": "Enhanced", "text": "Enhanced interaction, not yet authored." },
+    { "id": "warden.guardBreak.choice", "classId": "warden", "abilityId": "warden.guardBreak", "kind": "choice", "minKey": 4, "requires": ["warden.guardBreak.enhanced"], "name": "Fork", "text": "The class fork, by reference to its talents entry." },
+    { "id": "warden.guardBreak.rank3", "classId": "warden", "abilityId": "warden.guardBreak", "kind": "rank", "minKey": 7, "requires": ["warden.guardBreak.choice"], "name": "Rank III", "text": "Rank III: number deltas, not yet authored." },
+
+    { "id": "warden.bulwark.rank2", "classId": "warden", "abilityId": "warden.bulwark", "kind": "rank", "minKey": 0, "requires": [], "name": "Rank II", "text": "Rank II: number deltas, not yet authored." },
+    { "id": "warden.bulwark.enhanced", "classId": "warden", "abilityId": "warden.bulwark", "kind": "enhanced", "minKey": 0, "requires": ["warden.bulwark.rank2"], "name": "Enhanced", "text": "Enhanced interaction, not yet authored." },
+    { "id": "warden.bulwark.choice", "classId": "warden", "abilityId": "warden.bulwark", "kind": "choice", "minKey": 4, "requires": ["warden.bulwark.enhanced"], "name": "Fork", "text": "The class fork, by reference to its talents entry." },
+    { "id": "warden.bulwark.rank3", "classId": "warden", "abilityId": "warden.bulwark", "kind": "rank", "minKey": 7, "requires": ["warden.bulwark.choice"], "name": "Rank III", "text": "Rank III: number deltas, not yet authored." },
+
+    { "id": "warden.reckoning.rank2", "classId": "warden", "abilityId": "warden.reckoning", "kind": "rank", "minKey": 0, "requires": [], "name": "Rank II", "text": "Rank II: number deltas, not yet authored." },
+    { "id": "warden.reckoning.enhanced", "classId": "warden", "abilityId": "warden.reckoning", "kind": "enhanced", "minKey": 0, "requires": ["warden.reckoning.rank2"], "name": "Vigilant Reckoning", "text": "While Vigil's shield is up, Reckoning spends it for 200 more damage." },
+    { "id": "warden.reckoning.choice", "classId": "warden", "abilityId": "warden.reckoning", "kind": "choice", "minKey": 4, "requires": ["warden.reckoning.enhanced"], "name": "Fork", "text": "The class fork, by reference to its talents entry." },
+    { "id": "warden.reckoning.rank3", "classId": "warden", "abilityId": "warden.reckoning", "kind": "rank", "minKey": 7, "requires": ["warden.reckoning.choice"], "name": "Rank III", "text": "Rank III: number deltas, not yet authored." },
+
+    { "id": "warden.vigil.rank2", "classId": "warden", "abilityId": "warden.vigil", "kind": "rank", "minKey": 0, "requires": [], "name": "Rank II", "text": "Rank II: number deltas, not yet authored." },
+    { "id": "warden.vigil.enhanced", "classId": "warden", "abilityId": "warden.vigil", "kind": "enhanced", "minKey": 0, "requires": ["warden.vigil.rank2"], "name": "Enhanced", "text": "Enhanced interaction, not yet authored." },
+    { "id": "warden.vigil.choice", "classId": "warden", "abilityId": "warden.vigil", "kind": "choice", "minKey": 4, "requires": ["warden.vigil.enhanced"], "name": "Fork", "text": "The class fork, by reference to its talents entry." },
+    { "id": "warden.vigil.rank3", "classId": "warden", "abilityId": "warden.vigil", "kind": "rank", "minKey": 7, "requires": ["warden.vigil.choice"], "name": "Rank III", "text": "Rank III: number deltas, not yet authored." }
+  ]
+}
