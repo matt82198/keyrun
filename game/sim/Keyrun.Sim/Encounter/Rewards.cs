@@ -88,7 +88,7 @@ public static class Rewards
 
     // rewards.ts:81 tierBand. key >= 2, so (key - 2) / 2 is a non-negative floor (ORACLE.md s8: rewards.ts:83).
     // f-baeb031a: a function of key level only; rewards.ts:85 also required a timed result for tiers 9-10.
-    private static (int Min, int Max) TierBand(int keyLevel)
+    internal static (int Min, int Max) TierBand(int keyLevel)
     {
         var key = ClampKey(keyLevel);
         var b = Math.Min(SoftTierCap, (int)IntMath.FloorDiv(key - 2, 2) + 1);
@@ -102,9 +102,13 @@ public static class Rewards
     private static IReadOnlyList<Facet> PlaceholderPool(string slot) =>
         FacetPools.TryGetValue(slot, out var f) ? f : throw new ArgumentException($"unknown gear slot \"{slot}\"", "pool");
 
+    /// <summary>The placeholder facet pool for a slot (rewards.ts:47 FACET_POOLS); throws on an unknown slot.</summary>
+    /// <param name="slot">A gear slot.</param>
+    internal static IReadOnlyList<Facet> PlaceholderFacets(string slot) => PlaceholderPool(slot);
+
     // rewards.ts:90 drawItem: slot, then facet, then tier, three PRNG draws. The facet is drawn over the list
     // facetsOf returns for the slot (the placeholder pools, or a caller-supplied content pool).
-    private static (Item Item, PrngState State) DrawItem(PrngState state, IReadOnlyList<string> pool, Func<string, IReadOnlyList<Facet>> facetsOf, (int Min, int Max) band, int suffix)
+    internal static (Item Item, PrngState State) DrawItem(PrngState state, IReadOnlyList<string> pool, Func<string, IReadOnlyList<Facet>> facetsOf, (int Min, int Max) band, int suffix)
     {
         var (slotIdx, s1) = Prng.NextInt(state, pool.Count);
         var slot = pool[(int)slotIdx];

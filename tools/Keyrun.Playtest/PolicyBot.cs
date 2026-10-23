@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Keyrun.Bots;
+using Keyrun.Bots.Guides;
 using Keyrun.Bots.Shared;
 using Keyrun.Sim.Core;
 using C = Keyrun.Content;
@@ -40,6 +41,7 @@ public sealed class PolicyBot : IBot
     private readonly PolicyContext _context;
     private readonly C.ContentRegistry _registry;
     private readonly Hands _hands;
+    private readonly RoleSet _roles;
     private readonly int _tankId;
     private int _nextActionTick;
     private int? _dodgeAt;
@@ -55,13 +57,18 @@ public sealed class PolicyBot : IBot
     /// <param name="seed">The run seed (the hands' seed).</param>
     /// <param name="actorId">The seat.</param>
     /// <param name="tankId">The tank seat (damage dealers assist its target).</param>
-    public PolicyBot(Policy policy, PolicyContext context, C.ContentRegistry registry, long seed, int actorId, int tankId)
+    /// <param name="guides">The loaded playtester guides, or null to load the embedded ones (<see cref="PlaytestRunner.LoadGuides"/>). Used by a guided plan only.</param>
+    public PolicyBot(Policy policy, PolicyContext context, C.ContentRegistry registry, long seed, int actorId, int tankId, GuideSet? guides = null)
     {
         _policy = policy ?? throw new ArgumentNullException(nameof(policy));
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _hands = new Hands(seed, actorId);
         _tankId = tankId;
+        // G2.4 K3a/K3b: a guided plan's Tank slot plays the Warden's guide (fails closed when no guide loads); a blind plan plays the scripted roles.
+        _roles = _policy.Mode == PlaytesterMode.Guided
+            ? RoleSet.Guided(guides ?? PlaytestRunner.LoadGuides(registry))
+            : RoleSet.Default;
     }
 
     /// <summary>The dodge move this seat issued on its last decision, or null (the runner keeps it for the leader).</summary>
@@ -152,7 +159,7 @@ public sealed class PolicyBot : IBot
         {
             return new BotDecision(commands, memory, prng);
         }
-        if (RoleSet.Default.For(self.Role) is not { } role)
+        if (_roles.For(self.Role) is not { } role)
         {
             return new BotDecision(commands, memory, prng);
         }
@@ -202,7 +209,7 @@ public sealed class PolicyBot : IBot
     /// </summary>
     private IReadOnlyList<Command> HeldWalk(BotView view, ActorState self, Keyrun.Bots.EffectiveKit kit, bool travelling)
     {
-        if (travelling || RoleSet.Default.For(self.Role) is not { } role)
+        if (travelling || _roles.For(self.Role) is not { } role)
         {
             _walking = false;
             return Array.Empty<Command>();

@@ -102,6 +102,9 @@ public sealed record ContentRegistry
     /// <summary>The Forces bar size, per-enemy points and the route (forces.json; C#-only, BIBLE section 9.2).</summary>
     public required ForcesTable Forces { get; init; }
 
+    /// <summary>The end-of-run completion roll's drop rates and slots (completion.json; C#-only, R-ROLL-1, BIBLE s1).</summary>
+    public required CompletionTable Completion { get; init; }
+
     /// <summary>Room hazards by id (hazards.json; C#-only, BIBLE section 9.4).</summary>
     public required ValueMap<HazardDef> Hazards { get; init; }
 

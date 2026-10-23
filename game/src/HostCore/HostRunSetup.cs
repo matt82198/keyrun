@@ -274,6 +274,8 @@ public sealed partial record HostRunSetup(
             Combos = combos,
             FieldCombos = fieldCombos,
             Clauses = clauses,
+            // R-ROLL-1: the loaded completion.json table (drop rates and slots) drives the completion roll.
+            Completion = new CompletionRollTable(registry.Completion.DropBpTimed, registry.Completion.DropBpDepleted, registry.Completion.Slots.ToList()),
             Layout = nav,
             Packs = packs,
             Patrols = patrols,

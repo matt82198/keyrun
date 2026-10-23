@@ -314,6 +314,19 @@ Lanes do not edit the lane list below or BUILDLOG.md in their PR; each lane writ
 - `src/Hud/RunEndCardLines.cs` - the per-card lines of the run-end panel's three cards (BIBLE s7, U10).
 - `src/Hud/SlackReading.cs` - the run clock as the HUD shows it (Godot-free): deaths and wipes add clock time (D46).
 - `src/Hud/TalentPanel.cs` - the Screen's talent panel (BIBLE s6: forks on the five, respec free).
+- `sim/Keyrun.Sim/Encounter/Chase.cs` - closes a melee enemy onto its target so its scripted swing can land (sim/encounter/chase.ts).
+- `sim/Keyrun.Sim/Encounter/Pulls.cs` - spawns a pull's enemies and advances the pull index once every enemy of the active pull is dead (sim/encounter/pulls.ts).
+- `sim/Keyrun.Sim/Encounter/EnemyAggro.cs` - AGGRO-CHASE per-enemy sight radius and SeesPlayer, the half of the aggro rule that `Aggro.Triggered` folds in (layout runs only).
+- `sim/Keyrun.Sim/Encounter/IdleWander.cs` - IDLE-WANDER: a layout-run pack that has not seen the party keeps milling about its post (layout runs with RunContent.IdleWander).
+- `sim/Keyrun.Sim/Encounter/TelegraphDraw.cs` - one telegraph a script draws this tick, typed end to end: `Scripts.StepEnemyScripts` produces it, `Telegraphs.Register` consumes it.
+- `sim/Keyrun.Sim/Nav/NavGrid.cs` - R-PATH-1 the sim-side walkable grid of a NavLayout, built once per layout, with the deterministic A* `FindPath`.
+- `sim/Keyrun.Sim/Nav/NavFollow.cs` - R-PATH-1 path following: an actor walks its `NavGrid.FindPath` path one waypoint at a time as a plain MoveCommand.
+- `sim/Keyrun.Sim/Combat/Casting.Start.cs` - `StartCast`, the cast-start checks: the school lockout effect id and the caster line-of-sight refusal for enemy target-shaped casts (L5). Yaw is not written in this file.
+- `bots/Keyrun.Bots/shared/ChainPull.cs` - R-AOE-1 clause (c): the tank chain-pulls the next pack, gated by `PartyLeashMm` so the party stays in reach.
+- `bots/Keyrun.Bots/Roles/TankEngage.cs` - port of tank-engage.ts, the tank's ENGAGE behaviour: pick up loose enemies, walk into melee, cast the pressure-aware rotation.
+- `bots/Keyrun.Bots/Guides/GuidedTankRole.cs` - the Guided tank role (G2.4 K3b): plays the guide's rotation in order after the kick, floor and engage answers.
+- `bots/Keyrun.Bots/Guides/GuideSet.cs` - what a guide condition reads: the bot view, the deciding seat and its effective kit.
+- `sim/Keyrun.Sim.Tests/FormatParityTests.cs` - oracle wire-format parity (ORACLE.md sections 1, 2, 3, 5) against every committed fixture: FNV-1a 32 over manifest.json and the projection and record hashes.
 
 ## CI shape
 

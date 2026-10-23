@@ -16,6 +16,7 @@ of it is `content/data/` (the frozen oracle root, see content/CLAUDE.md) and `te
 - **game/** - the Godot 4.7.2 .NET desktop game (D12, ENGINE-PLAN section 4). Read game/CLAUDE.md first.
   - **game/sim/** - Keyrun.Sim: pure net8.0 integer rules engine (no Godot reference), Keyrun.Sim.Tests (xUnit),
     oracle fixtures under Fixtures/oracle/. Parity contract: game/sim/ORACLE.md.
+    Nav/ (R-PATH-1 pathing) and Encounter/ file rows (Chase, Pulls, EnemyAggro, IdleWander, TelegraphDraw): game/CLAUDE.md "Files with no row".
   - **game/sim/Keyrun.Sim/Dungeon/** - the seeded dungeon generator (seed -> room graph -> WalkGrid -> pack slots ->
     fill), tests in Keyrun.Sim.Tests/Dungeon/. Plan of record: **game/design/ARCHITECTURE.md** (STATE.md D63).
   - **game/content/** - Keyrun.Content: JSON loader, validator and sim adapter (pure net8.0). The JSON loader,
