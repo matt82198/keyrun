@@ -124,4 +124,10 @@ public sealed record ContentRegistry
     /// a registry is built by hand.
     /// </summary>
     public ValueMap<RosterPack> Roster { get; init; } = new();
+
+    /// <summary>
+    /// Improvement-tree nodes by node id (game/content/data/trees/&lt;classId&gt;.json, one file per class; ABILITY-TREES s5.1).
+    /// Empty when a registry is built by hand.
+    /// </summary>
+    public ValueMap<TreeNodeDef> Trees { get; init; } = new();
 }

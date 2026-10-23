@@ -15,11 +15,49 @@ public sealed class TreesRule : IContentRule
     private static readonly string[] Kinds = { "rank", "enhanced", "choice" };
     private static readonly string[] Floors = { "castTicks", "gcdTicks", "cooldownTicks", "cost" };
 
-    /// <summary>No tree data is loaded into the registry in this slice; trees are checked through <see cref="Validate"/>.</summary>
+    /// <summary>
+    /// Fails closed on a loaded tree node that names no loaded class or ability, names an id outside its own ability's
+    /// prefix, has an unknown kind, or requires a node that is not in the registry. The per-kind edit rules are
+    /// <see cref="Validate"/>'s, not checked here.
+    /// </summary>
     /// <param name="reg">A loaded registry.</param>
+    /// <exception cref="ContentLoadException">The first violated invariant.</exception>
     public void Check(ContentRegistry reg)
     {
+        foreach (TreeNodeDef n in reg.Trees.Values)
+        {
+            if (!reg.Classes.ContainsKey(n.ClassId))
+            {
+                throw new ContentLoadException("content: tree node \"" + n.Id + "\" names unknown class \"" + n.ClassId + "\"");
+            }
+            if (!reg.Abilities.ContainsKey(n.AbilityId))
+            {
+                throw new ContentLoadException("content: tree node \"" + n.Id + "\" names unknown ability \"" + n.AbilityId + "\"");
+            }
+            if (!n.Id.StartsWith(n.AbilityId + ".", System.StringComparison.Ordinal))
+            {
+                throw new ContentLoadException("content: tree node \"" + n.Id + "\" is not prefixed by its ability \"" + n.AbilityId + "\"");
+            }
+            if (!Kinds.Contains(n.Kind))
+            {
+                throw new ContentLoadException("content: tree node \"" + n.Id + "\" has unknown kind \"" + n.Kind + "\"");
+            }
+            foreach (string req in n.Requires)
+            {
+                if (!reg.Trees.ContainsKey(req))
+                {
+                    throw new ContentLoadException("content: tree node \"" + n.Id + "\" requires \"" + req + "\", which is not a tree node");
+                }
+            }
+        }
     }
+
+    /// <summary>The loaded tree nodes of one class, in loaded order; empty for a class with no tree.</summary>
+    /// <param name="reg">A loaded registry.</param>
+    /// <param name="classId">The class id, e.g. <c>warden</c>.</param>
+    /// <returns>The class's nodes in the order they were loaded.</returns>
+    public static IReadOnlyList<TreeNodeDef> NodesFor(ContentRegistry reg, string classId) =>
+        reg.Trees.Values.Where(n => n.ClassId == classId).ToArray();
 
     /// <summary>Validates one tree file's JSON against the s1.2 decision rules.</summary>
     /// <param name="json">The tree file text.</param>
