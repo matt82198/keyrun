@@ -60,8 +60,8 @@ $failures = New-Object System.Collections.Generic.List[string]
 # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
 $guard = (3 * $Ticks) + 240
 $ErrorActionPreference = 'Continue'
-# --seed 5: seat 1 rolls an item at the depleted cap tick 9600 (rewardSeed = seed*1000003 + tick; sweep a1d0fdc8); seed 1 rolls nothing
-$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --seed 5 --solo 2>&1 | Out-String
+# R-K4-16: --reward-seed 1 pins the completion roll (seat 1 raw 217 < 3500, prng.vectors.json), so the roll no longer moves with ResultTick.
+$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --seed 5 --solo --reward-seed 1 2>&1 | Out-String
 $rc = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 if ($rc -eq 2 -and $text -match 'Godot binary not found') {
@@ -91,7 +91,7 @@ if (-not $bank) { $failures.Add('no "SCREEN bank result=depleted ash=30 total=30
 # The completion roll (R-ROLL-1) may give nothing: the run-end result line must print roll=item|nothing (either passes here).
 $result = First '^HUD runend result=\S+ roll=(item|nothing) '
 if (-not $result) { $failures.Add('no "HUD runend result=... roll=item|nothing" line (the run-end panel printed no completion roll)') }
-# needs a seed whose seat-1 roll is an item; orchestrator derives the seed if the current one rolls nothing
+# R-K4-16: --reward-seed 1 pins the roll (seat 1 raw 217 < 3500); see line 63.
 $take = First '^SCREEN roll take slot=(weapon|armor|charm|ring|keystone) tier=\d+ id=\S+'
 $slot = $null
 if (-not $take) {

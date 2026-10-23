@@ -560,7 +560,9 @@ public partial class SimDriver : Node
         }
         // Lane 3J (3G's hand-off): RunRoot.StepRun through the backfill book; an open seat's commands are dropped.
         var queue = _queue;
-        var step = Backfill.Step(_backfill, run, _commands, queue?.Requests ?? Array.Empty<QueueRequest>());
+        // R-K4-16: --reward-seed pins every step's completion-roll seed; no flag passes null (the byte-identical default).
+        var stepOpts = Options.RewardSeed is { } rewardSeed ? new StepRunOpts(RewardSeedOverride: rewardSeed) : null;
+        var step = Backfill.Step(_backfill, run, _commands, queue?.Requests ?? Array.Empty<QueueRequest>(), stepOpts);
         var result = step.Step;
         _backfill = step.Backfill;
         _abandonAnchor ??= Options.AbandonSeat?.AnchorAt(preTick, result.Events, result.Run.Dungeon, result.Run.State.Actors);

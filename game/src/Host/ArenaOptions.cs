@@ -99,6 +99,9 @@ namespace Keyrun.Host;
 /// <param name="DungeonId">D65 / f-61f01ca3 (<c>--dungeon ID</c>, <see cref="DungeonPick"/>): the dungeon the launch's CLI run and
 /// the pre-run screen start on. An id the registry lacks stops the launch (<see cref="DungeonPick.Resolve"/>). Null = the
 /// default, <see cref="DungeonPick.DefaultId"/>.</param>
+/// <param name="RewardSeed">R-K4-16 (<c>--reward-seed N</c>, a positive integer): the reward seed every step's completion
+/// rolls use (<see cref="StepRunOpts.RewardSeedOverride"/>), so a scene test's roll does not move with the run-end tick.
+/// Null = the run-end tick's seed (the default).</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -125,7 +128,8 @@ public sealed record ArenaOptions(
     IReadOnlyList<SeatTalent>? TalentPicks = null,
     string? DungeonId = null,
     bool AbandonAllSeats = false,
-    int AbandonAllAtTick = 0)
+    int AbandonAllAtTick = 0,
+    long? RewardSeed = null)
 {
     /// <summary>The <c>--talent</c> picks in flag order (empty when none).</summary>
     public IReadOnlyList<SeatTalent> Talents => TalentPicks ?? Array.Empty<SeatTalent>();
@@ -178,6 +182,7 @@ public sealed record ArenaOptions(
         string? dungeon = null;
         var abandonAllSeats = false;
         var abandonAllAtTick = 0;
+        long? rewardSeed = null;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -211,6 +216,10 @@ public sealed record ArenaOptions(
                     break;
                 case "--seed":
                     seed = PositiveInt(args, ref i);
+                    break;
+                case "--reward-seed":
+                    // R-K4-16: pins the completion rolls' reward seed (StepRunOpts.RewardSeedOverride); a positive integer like --seed.
+                    rewardSeed = PositiveInt(args, ref i);
                     break;
                 case "--abandon-seat":
                     // R-K4-15 (c): all abandons every seat at tick 0 so the scene twin constructs uncleared-at-cap deterministically.
@@ -277,7 +286,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, dungeonSeed, talents, dungeon, abandonAllSeats, abandonAllAtTick);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, dungeonSeed, talents, dungeon, abandonAllSeats, abandonAllAtTick, rewardSeed);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)

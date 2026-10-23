@@ -469,6 +469,12 @@ public sealed class SimState
     /// <summary>Open combo clouds in opening order (C#-only; empty on every oracle run).</summary>
     public List<FloorCloud> FloorClouds { get; set; } = new();
 
+    /// <summary>
+    /// The reward seed the run-end completion rolls used (the host's <c>StepRunOpts.RewardSeedOverride</c>, else
+    /// <c>EndOfRun.RewardSeedOf</c>). Null until the run ends; set by the run-end phase (R-K4-16 (b)).
+    /// </summary>
+    public long? RewardSeed { get; set; }
+
     /// <summary>sim/core/state.ts createState: tick 0, seeded PRNG, no actors, phase "init".</summary>
     public static SimState Create(long seed) => new()
     {
