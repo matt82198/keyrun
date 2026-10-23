@@ -35,12 +35,32 @@ function Write-SceneLog([string]$launch, $lines) {
 }
 
 # Exit 2 (could not run) when a launch found no Godot binary (tools/godot/godot.ps1 exits 2 and says so).
+# Exit 6 (godot.ps1 preflight: no .NET runtime, missing or stale game assembly, or import cache missing; nothing launched)
+# names its cause only in the launch output, which lands in the scene log. Print the verdicts and the two fix commands to
+# the console once per scene run (finding f-1f34250a). Re-runs the same three checks as tools/godot/preflight.ps1; never builds
+# or imports. The exit code and the PASS/FAIL line are unchanged.
+function Write-PreflightVerdict {
+    if ($script:PreflightVerdictShown) { return }
+    $script:PreflightVerdictShown = $true
+    . (Join-Path $repo 'tools/godot/preflight.ps1')
+    $checks = @(
+        (Test-KeyrunDotnetRuntime -DotnetRoot $env:DOTNET_ROOT),
+        (Test-KeyrunDotnetAssembly -RepoRoot $repo -ProjectRel 'game'),
+        (Test-KeyrunImportCache -RepoRoot $repo -ProjectRel 'game'))
+    foreach ($c in $checks) { foreach ($l in @($c.Lines)) { Write-Output "${SceneName}: $l" } }
+    Write-Output 'DOTNET_ROOT set and dotnet build game/Keyrun.csproj -c Debug'
+    Write-Output 'powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/import.ps1'
+}
+
+# Exit 2 (could not run) when a launch found no Godot binary (tools/godot/godot.ps1 exits 2 and says so).
+# Exit 6 (preflight refused the launch) prints the preflight verdict; the caller's run still records its failure.
 function Assert-GodotFound([int]$rc, [string]$text) {
     if ($rc -eq 2 -and $text -match 'Godot binary not found') {
         Write-Output $text
         Write-Output "${SceneName}: CANNOT RUN (Godot binary not found)"
         exit 2
     }
+    if ($rc -eq 6) { Write-PreflightVerdict }
 }
 
 function First($lines, [string]$pattern) {
