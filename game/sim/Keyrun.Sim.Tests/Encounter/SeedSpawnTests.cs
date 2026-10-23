@@ -59,6 +59,9 @@ public sealed class SeedSpawnTests
                 };
             }).ToList(),
         };
+        // R-SEED-2: the Seed is a standard prespawned enemy on its run.json enemyAggro radius (8000 mm), placed exactly as the host does.
+        var registry = Keyrun.Content.ContentLoader.Load();
+        placed = Keyrun.Host.HostRunSetup.WithEnemyAggro(registry.Run.EnemyAggro, registry.Layout, placed, [], []).Dungeon;
         var party = setup.Party.Take(3).Select((m, i) => m with { Pos = seatAt(i), Yaw = 0 }).ToList();
         var content = setup.Content with { Layout = nav, Bounds = nav.Extent };
         var run = RunRoot.CreateRun(Seed, party, placed, content, setup.Options);
@@ -97,8 +100,15 @@ public sealed class SeedSpawnTests
         Assert.DoesNotContain(events, e => e.Type == "damage" && e.Get("sourceId") is JsInt src && src.Value == SeedActorId);
     }
 
-    [Fact(DisplayName = "KF3 Seed spawn: every party member casting at the Seed from just outside the chamber lands no damage on it")]
-    public void No_party_cast_from_outside_the_room_damages_the_Seed()
+    private static long Dist(Vec3 a, Vec3 b) => Fixed.Isqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Z - b.Z) * (a.Z - b.Z)));
+
+    // Derivation (R-SEED-2 ruling (b), WoW "a ranged pull is a pull"): the Seed is a standard prespawned enemy. Room
+    // membership is not an engage; the Seed engages on its 8000 mm aggro ring, on damage, or by assist. A party cast from
+    // outside the chamber that lands damage on the Seed therefore engages it on that tick, and a cast that lands none
+    // (out of range or no target) leaves it idle. The old expectation (no damage ever from outside the room) is withdrawn.
+    // One fact asserts the rule that holds in both cases: idle until the first damage event on the Seed, engaged from it on.
+    [Fact(DisplayName = "KF3 Seed spawn (R-SEED-2): a party cast from outside the chamber engages the Seed only when it lands damage on it")]
+    public void A_party_cast_from_outside_the_room_engages_the_Seed_only_by_damage()
     {
         var (run, _, room) = SeedRunAt(Corridor);
         var health = run.State.Actors[SeedActorId].Health;
@@ -106,6 +116,7 @@ public sealed class SeedSpawnTests
         Assert.NotEmpty(abilities);
         var landed = new List<SimEvent>();
         var completed = new List<string>();
+        int? firstDamageTick = null;
         for (var i = 0; i < WaitTicks; i++)
         {
             var tick = run.State.Tick;
@@ -115,21 +126,37 @@ public sealed class SeedSpawnTests
             var stepped = RunRoot.StepRun(run, casts);
             run = stepped.Run;
             completed.AddRange(stepped.Events.Where(e => e.Type == "cast_complete").Select(e => ((JsString)e.Get("abilityId")!).Value));
-            landed.AddRange(stepped.Events.Where(e => e.Type == "damage" && e.Get("targetId") is JsInt t && t.Value == SeedActorId));
-            Assert.True(run.State.Actors[SeedActorId].Idle, $"tick {tick}: a cast from outside {room.Id} engaged the Seed");
+            var hits = stepped.Events.Where(e => e.Type == "damage" && e.Get("targetId") is JsInt t && t.Value == SeedActorId).ToList();
+            landed.AddRange(hits);
+            if (firstDamageTick is null && hits.Count > 0)
+            {
+                firstDamageTick = tick;
+            }
+            var seedNow = run.State.Actors[SeedActorId];
+            if (firstDamageTick is null)
+            {
+                Assert.True(seedNow.Idle, $"tick {tick}: the Seed engaged with no damage landed on it, from outside {room.Id}");
+            }
+            else
+            {
+                Assert.False(seedNow.Idle, $"tick {tick}: the Seed took damage from outside {room.Id} at t{firstDamageTick} and stayed idle");
+            }
         }
         _out.WriteLine($"casts completed {completed.Count} ({string.Join(",", completed.Distinct().OrderBy(c => c, StringComparer.Ordinal))}); "
-            + $"damage events on the Seed from outside the room: {landed.Count}; Seed health {health} -> {run.State.Actors[SeedActorId].Health}");
+            + $"damage events on the Seed from outside the room: {landed.Count} (first at t{firstDamageTick?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "-"}); "
+            + $"Seed health {health} -> {run.State.Actors[SeedActorId].Health}");
         Assert.NotEmpty(completed);
-        Assert.Empty(landed);
-        Assert.Equal(health, run.State.Actors[SeedActorId].Health);
     }
 
-    [Fact(DisplayName = "KF3 Seed spawn: the Seed activates on the first tick a party member stands inside the chamber, not one tick earlier")]
-    public void The_Seed_activates_on_the_tick_the_party_enters_its_room()
+    // Derivation (R-SEED-2 ruling (b)): the Seed engages on the first tick a living seat is within its own 8000 mm aggro
+    // radius (run.json enemyAggro.aggroMm, applied by HostRunSetup.WithEnemyAggro). Room entry is not the engage. The old
+    // expectation (activation equal to the room_enter tick) is withdrawn. The seats walk in from corridor-3; the expected
+    // tick is the first tick at which a seat stands within 8000 mm of the Seed's live position, read before that tick's step.
+    [Fact(DisplayName = "KF3 Seed spawn (R-SEED-2): the Seed engages on the first tick a living seat is within its 8000 mm aggro radius, not one tick earlier")]
+    public void The_Seed_engages_on_the_first_tick_a_seat_is_inside_its_aggro_radius()
     {
         var (run, _, room) = SeedRunAt(Corridor);
-        int? enteredAt = null;
+        int? ringAt = null;
         int? activatedAt = null;
         for (var i = 0; i < 600 && activatedAt is null; i++)
         {
@@ -138,21 +165,24 @@ public sealed class SeedSpawnTests
                 .Select(id => (Command)new MoveCommand(tick, id, new Dir2(1000, 0), 0)).ToList();
             var stepped = RunRoot.StepRun(run, walk);
             run = stepped.Run;
+            // The step moves the seats before the aggro check, and its events are stamped with the post-step tick (the same
+            // numbering as pull_start), so the ring is read on the post-move positions and recorded on the post-step tick.
+            var seedNow = run.State.Actors[SeedActorId].Pos;
+            if (ringAt is null && PartyIds.Any(id => run.State.Actors[id].Alive && Dist(run.State.Actors[id].Pos, seedNow) <= SeedEngageTests.SeedAggroMm))
+            {
+                ringAt = run.State.Tick;
+            }
             foreach (var e in stepped.Events)
             {
-                if (e.Type == "room_enter" && ((JsString)e.Get("room")!).Value == room.Id)
-                {
-                    enteredAt ??= e.Tick;
-                }
                 if (e.Type == "pull_start" && ((JsString)e.Get("pullId")!).Value == "seed")
                 {
                     activatedAt = e.Tick;
                 }
             }
         }
-        _out.WriteLine($"party entered {room.Id} at t{enteredAt}; Seed activated at t{activatedAt}");
-        Assert.NotNull(enteredAt);
-        Assert.Equal(enteredAt, activatedAt);
+        _out.WriteLine($"seat entered the Seed's {SeedEngageTests.SeedAggroMm} mm ring at t{ringAt}; Seed engaged at t{activatedAt} ({room.Id})");
+        Assert.NotNull(ringAt);
+        Assert.Equal(ringAt, activatedAt);
         Assert.False(run.State.Actors[SeedActorId].Idle);
     }
 

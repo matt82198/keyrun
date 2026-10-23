@@ -354,10 +354,8 @@ public sealed class ActorState
     public bool Idle { get; set; }
 
     /// <summary>
-    /// KF3 Seed spawn gate (C#-only; BIBLE section 9.6; finding f-70c82aca): true while an idle actor of a room-activated
-    /// group (<c>Encounter.Aggro.RoomActivatedPullIds</c>) waits for a party member to enter its room. A dormant enemy is
-    /// not a hostile target for any shape or target cast, so no cast from outside the room can damage it or engage it.
-    /// Cleared with <see cref="Idle"/> on the group's engage. False for every other actor, every oracle run included.
+    /// Retired by R-SEED-2 (2026-10-22): nothing sets this any more (the KF3 room-activation gate is removed). It stays only
+    /// because game/bots HostEnemyAggroTests reads it; always false. Never read it as a gate in new code.
     /// </summary>
     public bool Dormant { get; set; }
 

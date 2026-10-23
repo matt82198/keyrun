@@ -82,8 +82,6 @@ public static class RunRoot
             state = RunWiring.MergeActors(state, LayoutPacks.SpawnAllIdle(content.Packs, content.ActorRadiusMm));
             // MPLUS-PATROLS: every patrol's members stand idle on its loop from tick 0 too.
             state = RunWiring.MergeActors(state, Patrols.SpawnIdle(content.Patrols));
-            // KF3 Seed spawn gate (BIBLE section 9.6): the Seed waits dormant in its chamber until a party member enters it.
-            Aggro.MarkDormant(state, dungeon, layout);
         }
         else
         {

@@ -79,7 +79,7 @@ public sealed record PullPlan(ForcesPlan Forces, IReadOnlyList<PackGroup> Packs,
             return null;
         }
         var groups = Aggro.GroupsOf(run.Dungeon, 0, packs, run.Content.Layout)
-            .Where(g => g.ActivateRoom is null && !Keyrun.Content.LayoutDef.IsBossPull(g.Id))
+            .Where(g => !Keyrun.Content.LayoutDef.IsBossPull(g.Id))
             .ToList();
         return new PullPlan(forces, packs, run.Dungeon.Pulls.SelectMany(p => p.Spawns).Select(s => (int)s.ActorId).ToList()) { Groups = groups, Patrols = run.Content.Patrols ?? Array.Empty<PatrolPack>() };
     }
