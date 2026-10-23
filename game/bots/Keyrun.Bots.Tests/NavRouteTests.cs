@@ -131,13 +131,9 @@ public sealed class NavRouteTests
         for (var i = 0; i < r.PullStarts.Count; i++)
         {
             var s = r.PullStarts[i];
-            if (PullRooms[i] == "seed-chamber")
-            {
-                // KF3 Seed spawn gate (BIBLE section 9.6): the Seed activates on the tick the tank enters its room, not on its ring.
-                Assert.True(entries.TryGetValue((LeaderId, "seed-chamber"), out var roomEntry) && roomEntry == s.Tick,
-                    $"pull_start at tick {s.Tick}: the Seed did not activate on the tank's entry into seed-chamber ({roomEntry})");
-                continue;
-            }
+            // R-SEED-2: the Seed's room-entry activation was removed; it engages like every pull, on its aggro ring with the
+            // tank in it, on damage, or by assist. The engage distance is the pull's AggroMm (PullDef.AggroMm, the group ring
+            // Aggro.Triggered tests), so the seed-chamber branch takes the same ring rule as the other pulls below.
             Assert.False(s.InRingBefore, $"pull_start at tick {s.Tick}: a party member was already in the aggro ring the tick before");
             Assert.True(s.InRingAfter, $"pull_start at tick {s.Tick}: no party member stands in the aggro ring");
             Assert.True(Aggro.InRing(s.LeaderPos, s.Center, s.AggroMm), $"pull_start at tick {s.Tick}: the tank (leader) at {s.LeaderPos} is not in the ring; a follower pulled it");
