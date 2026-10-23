@@ -412,6 +412,7 @@ public partial class ActorView : Node3D
             if (stepped && now.Health < before.Health)
             {
                 _hurtTick = Driver.State.Tick;
+                HitSparkView.Spawn(this, ActorId, Driver.State.Tick); // R-ANIM-1: one hit spark and VIEW hit line per drop
             }
         }
         // ENEMY-BODY-STABLE: an enemy never flashes (its strength is 0 at every tick), so no enemy mesh gets the overlay.

@@ -29,5 +29,6 @@ public static class ContentRules
         new BranchTotalsRule(),
         new SkipBarRule(),
         new GearRule(),
+        new TreesRule(),
     });
 }

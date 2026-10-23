@@ -39,11 +39,13 @@ public sealed class ContentRulesRegistryTests
     [Fact]
     public void Rules_run_in_the_old_fail_fast_order()
     {
+        // R-TREES-2: the list is the ORDER contract, not a freeze on the set; a new rule is appended last so the old fail-fast order is unchanged (TreesRule, G2.2 slice 1).
         string[] expected =
         {
             "AbilitiesRule", "ClassesRule", "CombosRule", "ComboRidersRule", "EnemiesRule", "DungeonsRule", "FacetsRule",
             "RunConfigRule", "HeatOverheatRule", "ClassArmorRule", "PairMarksRule", "StunImmuneRule", "MeleeAbilitiesRule",
             "ForcesRule", "LayoutRule", "BranchTotalsRule", "SkipBarRule", "GearRule",
+            "TreesRule",
         };
         Assert.Equal(expected, ContentRules.All.Select(r => r.GetType().Name));
     }

@@ -2,14 +2,14 @@
 .SYNOPSIS
   Headless scene test for lane PROGRESSION-SAVE (BIBLE s7 "Every run banks Ash, win or lose"; the chase is gear you
   keep between runs): the between-runs screen loads the banked progression at launch and saves it after the bank, the
-  reward take and each reroll, so the next launch starts with the same Ash and the same equipped gear.
+  completion-roll take and each reroll, so the next launch starts with the same Ash and the same equipped gear.
 
 .DESCRIPTION
   Boots the real game (Main.tscn -> Arena.tscn) headless at --fixed-fps 60 twice with the same fresh temp directory
   as --progression-dir (the test never reads or writes the real user:// save; a headless run without the flag
   persists nothing, see ProgressionSavePlace), and reads Screen's own "SCREEN progression ..." lines:
 
-    Launch 1 (no save file yet):  -- --autorun --ticks 9800 --solo --progression-dir <tmp>
+    Launch 1 (no save file yet):  -- --autorun --ticks 9800 --seed 5 --solo --progression-dir <tmp>
       1. exit 0, "SCREEN progression load store=1 ash=0 runs=0 items=none path=<tmp>/progression.json": with no save
          the screen starts from Progression.Start (no Ash, no runs, nothing equipped), and the store is in <tmp>;
       2. "SCREEN progression save reason=bank ok=1 ash=30 runs=1" after "SCREEN bank result=depleted ash=30 total=30";
@@ -26,7 +26,7 @@
   class=warden saved=1 picks=1 choices=<C>" and its talent panel opens with "picks=1 applied=1". Before TALENT-SAVE
   there is no talent save and launch 2's panel opens at picks=0 (RED).
   R-446-CI (keyrun #446, f-ea16265e): under R-BACKFILL-2 (BIBLE s9.1) a wipe on a layout run is a release, not a run
-  end, so the solo Warden run (seed 1, key 2, pull 1; the same run as ScreenSceneTest) no longer ends at its wipe (old
+  end, so the solo Warden run (seed 5, key 2, pull 1; the same run as ScreenSceneTest) no longer ends at its wipe (old
   run_end 491 of 600) but at the timer cap, tick 9600, depleted and uncleared. $Ticks is 9800: the cap end plus the
   109 ticks the scene kept past the end before, for the screen's autorun script (take, three rerolls, four talent
   steps). Launch 2's run is the same run (the autorun run starts in SimDriver._Ready before HookScreen sets the
@@ -60,7 +60,8 @@ function Invoke-Launch([string]$name) {
     # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
     $guard = (3 * $Ticks) + 240
     $ErrorActionPreference = 'Continue'
-    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --solo --progression-dir $dir 2>&1 | Out-String
+    # --seed 5: seat 1 rolls an item at the depleted cap tick 9600 (rewardSeed = seed*1000003 + tick; sweep a1d0fdc8); seed 1 rolls nothing
+    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --seed 5 --solo --progression-dir $dir 2>&1 | Out-String
     $rc = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($rc -eq 2 -and $text -match 'Godot binary not found') {
@@ -95,9 +96,10 @@ $bankA = First $a '^SCREEN bank result=depleted ash=30 total=30$'
 if (-not $bankA) { $failures.Add('launch 1: no "SCREEN bank result=depleted ash=30 total=30" line') }
 $saveBank = First $a '^SCREEN progression save reason=bank ok=1 ash=30 runs=1 items=\S+$'
 if (-not $saveBank) { $failures.Add('launch 1: no "SCREEN progression save reason=bank ok=1 ash=30 runs=1" line (not saved after the bank)') }
-$take = First $a '^HUD runend take n=1 id=reward-(weapon|armor|charm|ring|keystone)-'
+# runs --seed 5: seat 1 rolls an item (armor t2) at the depleted cap tick 9600 and seed 1 rolls nothing (seed sweep a1d0fdc8); measured PASS ticks=9800 slot=armor (scene-rollhud-ProgressionSave-2.log)
+$take = First $a '^SCREEN roll take slot=(weapon|armor|charm|ring|keystone) tier=\d+ id=\S+'
 $slot = $null
-if ($take) { $null = $take -match '^HUD runend take n=1 id=reward-(\w+)-'; $slot = $Matches[1] }
+if ($take) { $null = $take -match '^SCREEN roll take slot=(\w+) '; $slot = $Matches[1] }
 $saveTake = First $a '^SCREEN progression save reason=take ok=1 ash=30 runs=1 items=\S+$'
 if (-not $saveTake) {
     $failures.Add('launch 1: no "SCREEN progression save reason=take ok=1" line (not saved after the reward take)')
