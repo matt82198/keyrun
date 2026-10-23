@@ -53,6 +53,20 @@ public sealed class TreeCompositionTests
         Assert.Contains("duplicates", error.Message);
     }
 
+    // s5.5 item 3 (R-TREES-1, f-0780069d): two content-equal patches built from distinct lists are a duplicate; RED while
+    // TreeComposer compares GearPatch members by reference (the lists in a record compare by reference, not content).
+    [Fact]
+    public void A_Facet_content_equal_to_a_tree_node_built_from_distinct_lists_is_rejected()
+    {
+        var node = new GearPatch { EffectsAppend = new EffectOp[] { new ResourceOp(15) } };
+        var facet = new GearPatch { EffectsAppend = new EffectOp[] { new ResourceOp(15) } };
+        Assert.Throws<TreeCompositionException>(() => TreeComposer.Compose(
+            baseAbility: Strike(),
+            fork: RendFork(Braced()),
+            nodes: new[] { node },
+            facets: new[] { facet }));
+    }
+
     // Literal Strike: base 80 physical damage, the same shape the host would produce from the content kit.
     private static AbilityDef Strike() => new()
     {

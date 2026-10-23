@@ -283,8 +283,9 @@ public sealed class ProgressionSaveTests : IDisposable
 
     // A save from a newer build: a valid v1 body with the version bumped. This build cannot read it, but the player's
     // character is still in it, so it must survive the fresh character being banked over it.
+    // R-TREES-3 (b): newer-than-current build; Version is 2 since the trees slice.
     private static string NewerVersionText() =>
-        ProgressionSave.Serialize(Played()).Replace("\"v\":1", "\"v\":2", StringComparison.Ordinal);
+        ProgressionSave.Serialize(Played()).Replace("\"v\":2", "\"v\":3", StringComparison.Ordinal);
 
     // Loads the unreadable save at path, banks a run on the fresh character it falls back to, saves that over it, and
     // asserts the original bytes are still on disk beside the new save, which itself loads cleanly.
