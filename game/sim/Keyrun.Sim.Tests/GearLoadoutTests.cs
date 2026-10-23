@@ -296,6 +296,10 @@ public sealed class GearLoadoutTests
         "threat" => new ThreatOp(o.TryGetProperty("amount", out var am) ? am.GetInt64() : null, o.TryGetProperty("multiplierBp", out var m) ? m.GetInt64() : null),
         "payoff" => new PayoffOp(),
         "interrupt" => new InterruptOp(),
+        "displace" => new DisplaceOp(
+            o.GetProperty("distanceMm").GetInt64(),
+            o.TryGetProperty("freesBinds", out var fb) && fb.GetBoolean(),
+            o.TryGetProperty("towardTarget", out var tt) && tt.GetBoolean()),
         "combo" => new ComboOp(o.GetProperty("comboTable").GetString()!),
         "partyEffect" => new PartyEffectOp(o.GetProperty("effectId").GetString()!, o.GetProperty("durationTicks").GetInt32(), o.GetProperty("stacks").GetInt64()),
         "cloud" => new CloudOp(o.GetProperty("effectId").GetString()!, o.GetProperty("durationTicks").GetInt32(), o.GetProperty("radiusMm").GetInt64()),

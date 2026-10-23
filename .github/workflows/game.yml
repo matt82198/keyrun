@@ -49,7 +49,8 @@ jobs:
     # Never a skip condition (required check). A failed `changes` leaves the output empty: windows, real steps.
     if: ${{ !cancelled() }}
     runs-on: ${{ needs.changes.outputs.code == 'false' && 'ubuntu-latest' || 'windows-latest' }}
-    timeout-minutes: 20
+    # R-CI-3: the full dotnet test run takes ~19.5 min on windows-latest; 20 cancelled green runs (CI-GAME-TEST-TIMEOUT)
+    timeout-minutes: 40
     steps:
       - name: Scope (from the changes job; anything but false is code)
         id: scope
