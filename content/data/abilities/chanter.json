@@ -165,11 +165,13 @@
     "charges": 1,
     "range": 25000,
     "shape": {
-      "kind": "target"
+      "kind": "circle",
+      "radius": 2500
     },
     "interruptible": false,
     "tags": [
-      "payoff"
+      "payoff",
+      "aoe"
     ],
     "effects": [
       {

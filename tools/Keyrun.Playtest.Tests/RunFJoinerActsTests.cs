@@ -19,7 +19,7 @@ namespace Keyrun.Playtest.Tests;
 /// <see cref="BossRules.Arm"/>), seat 1 the autorun <see cref="ScriptedWarden"/> and seats 2 and 3 the host's own
 /// <see cref="BotCommandSource"/>, stepped in SimDriver.StepOnce's order through <see cref="Backfill.Step"/>. Seat 2
 /// abandons during the first pull, one tick after the Choir is down to a tenth of its health (<c>--abandon-seat
-/// 2@pull0.hp10+1</c>, finding f-0fd3e6fb on RULING R-415-D: the scenario is "a seat abandons during the first pull", so
+/// 2@pull0.hp10+50</c> under R-K4-4 (abandon one tick before the only ready kick stalled pull 0 on the AoE kit; was 2@pull0.hp10+1, finding f-0fd3e6fb on RULING R-415-D): the scenario is "a seat abandons during the first pull", so
 /// the leave is pinned to the Choir's own progress, not to a run tick or an offset a pacing change moves into the Pair),
 /// and one key-2 request joins the queue (<c>--joiner-key 2</c>). The joiner
 /// must take the seat at the next pull start and then act: a <c>cast_complete</c> by seat 2 after the fill, within run
@@ -30,7 +30,7 @@ namespace Keyrun.Playtest.Tests;
 /// cleared the undisturbed Choir at 1580 so 1700 fell inside the Pair). The pull-relative form keeps that intent (the
 /// leave stays inside the Choir) and <see cref="The_abandon_falls_inside_the_first_pull"/> checks it on this tree.
 /// f-0fd3e6fb: 2@pull0+1350 still flipped whenever the Choir's fight length changed (the setup lesson, #364, #326);
-/// 2@pull0.hp10+1 leaves late in the Choir whatever its length (RunFAbandonPacingTests). Measured on this tree (seed 1,
+/// 2@pull0.hp10+50 (R-K4-4, was 2@pull0.hp10+1) leaves late in the Choir whatever its length (RunFAbandonPacingTests). Measured on this tree (seed 1,
 /// key 2, bot gear): the party reaches the Pair with the leave at 20% (tick 1343) and below, and wipes at 25% (1308, the
 /// Warden dies at 1649); a leave at the Choir's first death (1031) wipes too (the Warden dies at 1454), which is why the
 /// anchor is the Choir's health share and not its first death.
@@ -40,7 +40,7 @@ public sealed class RunFJoinerActsTests
     private const int Key = 2;
     private const long Seed = 1;
     private const int SeatId = 2;
-    internal const string Abandon = "2@pull0.hp10+1"; // HudSceneTest $AbandonSeat (f-0fd3e6fb; was 2@pull0+1350, see remarks)
+    internal const string Abandon = "2@pull0.hp10+50"; // R-K4-4 pin, HudSceneTest $AbandonSeat (was 2@pull0.hp10+1 and 2@pull0+1350, f-0fd3e6fb, see remarks)
     private const int MaxTicks = 3500; // run F's --ticks (HudSceneTest $BackfillTicks)
 
     private sealed record Drive(int? AbandonTick, int? FillTick, List<SimEvent> Events, List<string> Log, Run Final);

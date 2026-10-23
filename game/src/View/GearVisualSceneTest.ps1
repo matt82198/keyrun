@@ -51,8 +51,8 @@ New-Item -ItemType Directory -Path $dir | Out-Null
 # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
 $guard = (3 * $Ticks) + 240
 $ErrorActionPreference = 'Continue'
-# --seed 5: seat 1 rolls an item at the depleted cap tick 9600 (rewardSeed = seed*1000003 + tick; sweep a1d0fdc8); seed 1 rolls nothing
-$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --seed 5 --solo --progression-dir $dir 2>&1 | Out-String
+# R-K4-16: --reward-seed 1 pins the completion roll (seat 1 raw 217 < 3500, prng.vectors.json), so the roll no longer moves with ResultTick.
+$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --seed 5 --solo --reward-seed 1 --progression-dir $dir 2>&1 | Out-String
 $rc = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue

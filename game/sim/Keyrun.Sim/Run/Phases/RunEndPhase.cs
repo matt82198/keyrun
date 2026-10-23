@@ -31,10 +31,12 @@ internal static class RunEndPhase
     }
 
     // R-ROLL-1: one completion_roll per party seat (the player actors, in actor id order) at the run_end tick. The
-    // reward seed is the run's (EndOfRun.RewardSeedOf: seed x 1000003 + the end tick), the key level is the encounter's.
+    // reward seed is the run's (EndOfRun.RewardSeedOf: seed x 1000003 + the end tick) unless the host pins it with
+    // StepRunOpts.RewardSeedOverride (R-K4-16); the key level is the encounter's.
     private static void EmitCompletionRolls(RunStepCtx c, RunResult result, SimState state, CompletionRollTable? table)
     {
-        var rewardSeed = EndOfRun.RewardSeedOf(state.Seed, state.Tick);
+        var rewardSeed = c.Opts?.RewardSeedOverride ?? EndOfRun.RewardSeedOf(state.Seed, state.Tick);
+        state.RewardSeed = rewardSeed;
         // R-ROLL-1 (b)(iii): each seat draws over its own class's facet pool (CompletionFacets), never the placeholders.
         foreach (var roll in CompletionRoll.ForSeats(state, rewardSeed, c.Encounter.KeyLevel, result, table))
         {

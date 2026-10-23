@@ -49,11 +49,27 @@ public static class Fillers
         var closable = windows.Any(w => BotWindows.CanClose(w.SetupClass, self.ClassId));
         bool IsSetup(string id) => kit.WindowIdBySetupAbility.ContainsKey(id);
 
+        // f-c356528f: every filler is ready on every global, so the window preference alone cast the same one forever.
+        // The least recently cast filler (never cast first) goes first; the window preference below breaks ties.
+        int Age(string id)
+        {
+            for (var i = view.FillerHistory.Count - 1; i >= 0; i--)
+            {
+                if (string.Equals(view.FillerHistory[i], id, StringComparison.Ordinal))
+                {
+                    return view.FillerHistory.Count - i;
+                }
+            }
+            return int.MaxValue;
+        }
+        var oldest = fillers.Max(Age);
+        var candidates = fillers.Where(id => Age(id) == oldest).ToList();
+
         var preferred = (closable ? fillers.FirstOrDefault(id => kit.PayoffAbilityIds.Contains(id)) : null)
-            ?? (windows.Count == 0 ? fillers.FirstOrDefault(IsSetup) : fillers.FirstOrDefault(id => !IsSetup(id)))
-            ?? fillers[0];
+            ?? (windows.Count == 0 ? candidates.FirstOrDefault(IsSetup) : candidates.FirstOrDefault(id => !IsSetup(id)))
+            ?? candidates[0];
         var ordered = new List<string> { preferred };
-        ordered.AddRange(fillers.Where(id => !string.Equals(id, preferred, StringComparison.Ordinal)));
+        ordered.AddRange(fillers.Where(id => !string.Equals(id, preferred, StringComparison.Ordinal)).OrderByDescending(Age));
 
         var output = new List<string>(rotation.Count);
         var next = 0;
@@ -62,5 +78,37 @@ public static class Fillers
             output.Add(fillers.Contains(id) ? ordered[next++] : id);
         }
         return output;
+    }
+
+    /// <summary>
+    /// The seat's filler history after <paramref name="decided"/>: each filler cast in it moves to the most recent end.
+    /// Unchanged when the decision casts no filler.
+    /// </summary>
+    /// <param name="view">Bot view (its registry).</param>
+    /// <param name="self">Deciding actor.</param>
+    /// <param name="history">History before this decision, least recently cast first.</param>
+    /// <param name="decided">The role's commands this tick.</param>
+    /// <returns>The next history.</returns>
+    public static IReadOnlyList<string> RecordCasts(BotView view, ActorState self, IReadOnlyList<string> history, IReadOnlyList<Command> decided)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        ArgumentNullException.ThrowIfNull(history);
+        ArgumentNullException.ThrowIfNull(decided);
+        if (view.Kits.Content is not { } reg)
+        {
+            return history;
+        }
+        var kit = RoleShared.KitOf(view, self.ClassId);
+        var next = history;
+        foreach (var cast in decided.OfType<CastCommand>())
+        {
+            if (RoleShared.Cost(kit, cast.AbilityId) != 0 || !reg.Abilities.TryGetValue(cast.AbilityId, out var def) || def.CooldownTicks != 0)
+            {
+                continue;
+            }
+            next = next.Where(id => !string.Equals(id, cast.AbilityId, StringComparison.Ordinal)).Append(cast.AbilityId).ToList();
+        }
+        return next;
     }
 }

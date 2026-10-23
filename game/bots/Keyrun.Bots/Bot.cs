@@ -10,7 +10,11 @@ namespace Keyrun.Bots;
 /// <summary>bots/src/bot.ts BotMemory: the skill dial and the next tick the bot may act.</summary>
 /// <param name="SkillDial">0..100.</param>
 /// <param name="NextActionTick">Role dispatch waits until this tick.</param>
-public sealed record BotMemory(int SkillDial, int NextActionTick)
+/// <param name="FillerHistory">
+/// Filler abilities this seat cast, least recently cast first (null = none yet). <see cref="Roles.Fillers.ArrangeFillers"/>
+/// reads it so the least recently cast ready filler is chosen, not the same one every global (finding f-c356528f).
+/// </param>
+public sealed record BotMemory(int SkillDial, int NextActionTick, IReadOnlyList<string>? FillerHistory = null)
 {
     /// <summary>bot.ts defaultMemory: <c>{skillDial, nextActionTick: 0}</c>.</summary>
     /// <param name="skillDial">Skill dial (default 100).</param>
@@ -134,7 +138,7 @@ public static class Bot
         // KICK-LEDGER-COOLDOWN-GAP (finding f-13b5c33a, the WoW kick rotation: a melee kicker walks in to reach the caster):
         // when the party ledger names this seat to kick a cast its interrupt cannot reach yet, it walks at the caster. Every
         // tick and skill-dial-free like the walks above (the reaction delay would leave it a third of its speed, and the
-        // ledger's landing estimate is at full speed). Inert in the oracle runner (no layout).
+        // ledger's landing estimate is at full speed). Also in the oracle runner (no layout): a straight walk, KICK-APPROACH-NO-LAYOUT.
         if (avoid is null && !pingCommands.Any() && Roles.RoleShared.LedgerKickApproachCommand(view, self, Roles.RoleShared.KitOf(view, self.ClassId)) is { } kickWalk)
         {
             commands.Add(Reasons.Tag(kickWalk, "bot:kick-approach"));
@@ -205,8 +209,14 @@ public static class Bot
 
         if (!pingCast && roles.For(self.Role) is { } role)
         {
-            var decided = topOff ? Reasons.TagAll(Roles.HealerRole.TopOffCommands(view, self), "bot:healer-top-off") : role.Decide(view, self);
+            var history = memory.FillerHistory ?? Array.Empty<string>();
+            var decided = topOff ? Reasons.TagAll(Roles.HealerRole.TopOffCommands(view, self), "bot:healer-top-off") : role.Decide(view with { FillerHistory = history }, self);
             commands.AddRange(!travelling ? decided : decided.Where(c => c is not MoveCommand and not DashCommand));
+            var recorded = Roles.Fillers.RecordCasts(view, self, history, decided);
+            if (!ReferenceEquals(recorded, history))
+            {
+                nextMemory = nextMemory with { FillerHistory = recorded };
+            }
         }
 
         return new BotDecision(commands, nextMemory, roll.Next);

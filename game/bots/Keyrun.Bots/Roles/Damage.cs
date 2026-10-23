@@ -162,11 +162,11 @@ public sealed class DamageRole : IRole
         {
             return Reasons.TagAll(setup, "damage:setup");
         }
-        var arranged = Fillers.ArrangeFillers(view, self, kit, kit.Rotation, self.TargetId);
+        var arranged = AoeGate.Filter(view, self, Fillers.ArrangeFillers(view, self, kit, kit.Rotation, self.TargetId), self.TargetId);
         var rotationKit = kit with { Rotation = arranged.Where(id => !LockAnswer.HoldsSetup(view, self, self.TargetId, id) || !kit.SetupAbilityIds.Contains(id)).ToList() };
         if (PickResourceAwareRotation(rotationKit, self, tick) is { } abilityId)
         {
-            return new Command[] { Reasons.Tag(new CastCommand(tick, self.Id, abilityId, self.TargetId), "damage:rotation") };
+            return Reasons.TagAll(AoeGate.PressCommands(view, self, abilityId, self.TargetId), "damage:rotation");
         }
         if (Floor.MeleeReapproachCommand(view, self) is { } reapproach)
         {

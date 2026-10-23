@@ -114,6 +114,17 @@ public static class HealerIdle
             return new Command[] { new CastCommand(tick, self.Id, kit.StanceSwapAbilityId!) };
         }
         var target = engaged.FirstOrDefault(e => e.Id == self.TargetId) ?? engaged[0];
+        // R-AOE-1: a shaped AoE Payoff (Dissonance) goes at the engaged enemy with the most enemies around it, the current
+        // target keeping its place on a tie, so the press lands on the pack and not on the straggler.
+        if (damagingPayoffs.Select(id => reg.Abilities[id]).FirstOrDefault(AoeGate.IsShapedAoeDamage) is { } aoe)
+        {
+            var reachable = engaged.Where(e => RoleShared.Dist(self, e) <= aoe.Range).ToList();
+            if (reachable.Remove(target))
+            {
+                reachable.Insert(0, target);
+            }
+            target = AoeGate.ClusterTarget(view, self, aoe, reachable) ?? target;
+        }
         if (CastOn(target) is { } press)
         {
             return press;

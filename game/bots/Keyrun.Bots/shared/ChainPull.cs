@@ -95,8 +95,10 @@ public static class ChainPull
         }
         var blocked = plan.Forces.ChainBlocked;
         var engaged = state.Actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle).ToList();
+        // A lone straggler is the pack's last living member: the chain opens on it regardless of its health bar, so one
+        // high-HP enemy cannot hold the chain shut (WoW M+: pull when the current pack is nearly dead).
         if (engaged.Count == 0 || engaged.Any(a => blocked.Contains(a.ClassId)) ||
-            engaged.Sum(a => a.Health) * 100 > EngagedHealthPct * engaged.Sum(a => a.MaxHealth))
+            (engaged.Count > 1 && engaged.Sum(a => a.Health) * 100 > EngagedHealthPct * engaged.Sum(a => a.MaxHealth)))
         {
             return null;
         }

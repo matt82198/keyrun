@@ -24,7 +24,7 @@ function Invoke-Arena([int]$n, [string[]]$extra) {
     # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
     $guard = (3 * $n) + 240
     $ErrorActionPreference = 'Continue'
-    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n @extra 2>&1 | Out-String
+    $text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $n --rotation 0 @extra 2>&1 | Out-String
     $rc = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     Assert-GodotFound $rc $text

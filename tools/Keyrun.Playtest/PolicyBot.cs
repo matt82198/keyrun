@@ -271,6 +271,13 @@ public sealed class PolicyBot : IBot
         {
             return false;
         }
+        // R-AOE-1: Bulwark now has a cooldown, so the rotation reaches it; it is still the tank's group mitigation, pressed by
+        // a mitigate plan only (STATE.md D48: "Brace and Bulwark under pressure; without the plan neither").
+        if (!_policy.Mitigate.Contains(self.ClassId, StringComparer.Ordinal)
+            && string.Equals(id, Keyrun.Bots.Roles.TankPressure.GroupMitigationAbilityId(view, kit), StringComparison.Ordinal))
+        {
+            return false;
+        }
         var utility = _registry.Classes.TryGetValue(self.ClassId, out var cls) ? cls.Abilities.Utility : null;
         if (string.Equals(id, utility, StringComparison.Ordinal) && !_policy.Utility.Contains(self.ClassId, StringComparer.Ordinal))
         {
@@ -293,8 +300,12 @@ public sealed class PolicyBot : IBot
         {
             return null;
         }
+        var mitigation = _policy.Mitigate.Contains(self.ClassId, StringComparer.Ordinal)
+            ? null
+            : Keyrun.Bots.Roles.TankPressure.GroupMitigationAbilityId(view, kit);
         var pick = Priority.PickRotationAbility(kit.Rotation, id =>
-            !HeldHere(id) && Keyrun.Bots.Roles.RoleShared.ReadyAndAffordable(self, id, tick, kit));
+            !HeldHere(id) && !string.Equals(id, mitigation, StringComparison.Ordinal)
+            && Keyrun.Bots.Roles.RoleShared.ReadyAndAffordable(self, id, tick, kit));
         return pick is null ? null : new CastCommand(tick, self.Id, pick, target);
     }
 

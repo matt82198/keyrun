@@ -97,7 +97,7 @@ public sealed class ReplayScreenFramesTests
         Assert.Equal(expected, fired);
     }
 
-    [Fact(DisplayName = "f-6a00609e: once the run exists an event fires on its sim tick (example-enter-ping: Enter at frame 0, G at sim tick 2, the run-end Enters at 4606 and 4609)")]
+    [Fact(DisplayName = "f-6a00609e: once the run exists an event fires on its sim tick (example-enter-ping: Enter at frame 0, G at sim tick 2, the run-end Enters at 5752 and 5755)")]
     public void Events_after_the_run_starts_keep_sim_tick_semantics()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -107,7 +107,7 @@ public sealed class ReplayScreenFramesTests
         }
         Assert.NotNull(dir);
         var log = InputLogDocument.Parse(File.ReadAllText(Path.Combine(dir!.FullName, EnterPingPath)), EnterPingPath);
-        var fired = Play(log, 5400);
+        var fired = Play(log, 6000);   // R-K4-13 (c): the Enters at frame 5761/5764 need a window past them
         // Golden re-recorded 2026-10-21 on 24916b4b under the sim-tick recorder (R-CLOCK-2): Enter 0 -> 9, G 2 -> 11, Enter 694 -> 703, Enter 697 -> 706 (run starts on screen frame 9, so each run tick is +9 on the frame).
         // BOSS-TEACHES (R-BOSS-1, the Warden fight lasts 90-180 s): run K's run_end moved 691 -> 4603 (HudSceneRunsBKTests
         // measures it headlessly), so the run-end Enters moved 703/706 -> 4615/4618 (sim ticks 4606/4609). BOSS-CC-IMMUNE
@@ -116,12 +116,17 @@ public sealed class ReplayScreenFramesTests
         // Payoff): run K's boss fight changed, run_end 5170 -> 5200, Enters 5212/5215 (sim 5203/5206).
         // TEMPO-LOOP-CLAMP (f-57c04b4a, no Cleave dropped inside its cooldown), measured on the tree merged with #573:
         // run_end 5200 -> 5299, Enters 5311/5314 (sim 5302/5305).
+        // R-K4-13 (b) PR #665 (AoE kit): the kit's run K ends 54 ticks earlier in the committed example (input log updated
+        // by the kit commit), so the run-end Enters move 5311/5314 -> 5257/5260 (sim 5302/5305 -> 5248/5251); offset 9 unchanged.
+        // R-K4-13 (c) (measured 2026-10-22 on the kit tree): the headless run K of HudSceneRunsBKTests ends at run_end 5749
+        // (its Enters are run_end+12/+15 = 5761/5764), so the fixture follows the measured run: Enters 5761/5764, sim ticks
+        // 5752/5755 (= Enter tick - 9, the screen-frame offset that is unchanged).
         var expected = new[]
         {
             new Fired("Enter", 9, false, 0),
             new Fired("G", 11, true, 2),
-            new Fired("Enter", 5311, true, 5302),
-            new Fired("Enter", 5314, true, 5305),
+            new Fired("Enter", 5761, true, 5752),
+            new Fired("Enter", 5764, true, 5755),
         };
         Assert.Equal(expected, fired);
     }

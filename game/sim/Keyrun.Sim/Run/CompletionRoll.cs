@@ -108,7 +108,7 @@ public static class CompletionRoll
         {
             return null;
         }
-        return ForSeats(run.State, EndOfRun.RewardSeed(run), run.Encounter.KeyLevel, result, run.Content.Completion);
+        return ForSeats(run.State, run.State.RewardSeed ?? EndOfRun.RewardSeed(run), run.Encounter.KeyLevel, result, run.Content.Completion);
     }
 
     private static IReadOnlyList<Facet> PoolOf(IReadOnlyDictionary<string, IReadOnlyList<Facet>> pool, string slot) =>

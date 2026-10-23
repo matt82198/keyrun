@@ -176,7 +176,12 @@ public static class RoleShared
         }
         // KICK-LEDGER-COOLDOWN-GAP: a layout run's ledger may name a seat that is not ready yet (its cooldown ends before
         // the cast resolves) or not in range yet (it walks in, LedgerKickApproachCommand); it presses the tick it can.
-        if (view.Layout is not null && !CanPressInterrupt(view, self, interruptId, kit, view.State.Actors[assignment.TargetId]))
+        // KICK-APPROACH-NO-LAYOUT (R-K4-3): a no-layout run (the oracle) refuses an out-of-range cast silently in the sim, so
+        // it issues no cast out of range and walks in instead (LedgerKickApproachCommand). Its cooldown gap stays frozen.
+        var target = view.State.Actors[assignment.TargetId];
+        if (view.Layout is not null
+                ? !CanPressInterrupt(view, self, interruptId, kit, target)
+                : Casting.RangeMm(self, target) > InterruptRangeMm(view, interruptId))
         {
             return null;
         }
@@ -187,7 +192,8 @@ public static class RoleShared
     /// KICK-LEDGER-COOLDOWN-GAP (finding f-13b5c33a; the WoW kick rotation: a melee kicker walks in to reach the caster):
     /// when the ledger names <paramref name="self"/> to kick a cast but its interrupt cannot reach the caster yet, the step
     /// toward the caster along the sim's path (R-PATH-1). Null when it is not the named kicker, the kick is not open yet
-    /// (BOT-KICK-TIMING), or the caster is already in range. Layout runs only; the oracle runner keeps the frozen ledger.
+    /// (BOT-KICK-TIMING), or the caster is already in range. In a no-layout run (the oracle) the step is straight at the caster
+    /// (PathMoves.Toward), the same stop distance as the layout path (KICK-APPROACH-NO-LAYOUT, R-K4-3).
     /// </summary>
     /// <param name="view">Bot view.</param>
     /// <param name="self">Deciding actor.</param>
@@ -199,7 +205,7 @@ public static class RoleShared
         ArgumentNullException.ThrowIfNull(self);
         ArgumentNullException.ThrowIfNull(kit);
         var interruptId = kit.InterruptAbilityId;
-        if (view.Layout is null || string.IsNullOrEmpty(interruptId) || !self.Alive || AssignedKick(view, self, kit) is not { } assignment)
+        if (string.IsNullOrEmpty(interruptId) || !self.Alive || AssignedKick(view, self, kit) is not { } assignment)
         {
             return null;
         }
@@ -218,31 +224,23 @@ public static class RoleShared
     private static InterruptAssignment? AssignedKick(BotView view, ActorState self, EffectiveKit kit)
     {
         var tick = view.State.Tick;
-        var interruptId = kit.InterruptAbilityId!;
-        InterruptAssignment? assignment;
-        if (view.Layout is not null)
-        {
-            // CROSS-CLASS-KICK-ORDER: in the dungeon (a layout run) the ledger is the party's, across classes, so a mixed
-            // party kicks a cast once and rotates kicks across seats (Ledger.ResolvePartyInterrupt). The oracle runner (no
-            // layout) keeps the frozen per-class TS ledger below. Each seat carries whether its own interrupt is off the
-            // GCD (main #370, f-80b5cf16: a gcdTicks-0 interrupt never waits for the GCD).
-            var seats = view.State.Actors.Values
-                .Where(a => a.Kind == ActorKind.Player && a.Alive)
-                .Select(a => (a.Id, Kit: KitOf(view, a.ClassId)))
-                .Where(s => !string.IsNullOrEmpty(s.Kit.InterruptAbilityId))
-                .Select(s => (s.Id, s.Kit.InterruptAbilityId!, InterruptRangeMm(view, s.Kit.InterruptAbilityId!), Readiness.IsOffGcd(s.Kit, s.Kit.InterruptAbilityId!)))
-                .ToList();
-            assignment = Ledger.ResolvePartyInterrupt(view.State.Actors, seats, tick, view.Kits.PriorityInterruptAbilityIds(), view.PullPlan);
-        }
-        else
-        {
-            var eligible = view.State.Actors.Values
-                .Where(a => a.Kind == ActorKind.Player && a.Alive)
-                .Where(a => string.Equals(KitOf(view, a.ClassId).InterruptAbilityId, interruptId, StringComparison.Ordinal))
-                .Select(a => a.Id)
-                .ToList();
-            assignment = Ledger.ResolveInterrupt(view.State.Actors, interruptId, eligible, tick, view.Kits.PriorityInterruptAbilityIds(), Readiness.IsOffGcd(kit, interruptId));
-        }
+        // KICK-LEDGER-PARTY-WIDE (R-K4-5): the ledger is the party's in every setup, oracle runs included, so exactly one seat
+        // is named per enemy cast across all interrupt-capable seats (Ledger.ResolvePartyInterrupt, same tiebreak as the
+        // layout run). Each seat carries whether its own interrupt is off the GCD (main #370, f-80b5cf16: a gcdTicks-0
+        // interrupt never waits for the GCD).
+        // KICK-SEAT-ELIGIBILITY (R-K4-5, the per-class path's filters): a seat locked inside its own cast is never named, and a
+        // seat whose kick would land at or after the target's cast end is never named (the cast completes first). A seat in
+        // its spell-queue window (Readiness.IsCastLocked false) still counts, its landing being its own cast end.
+        var priority = view.Kits.PriorityInterruptAbilityIds();
+        var targetId = Ledger.SelectPriorityCastTarget(Ledger.CastingEnemies(view.State.Actors), priority);
+        var targetEnds = targetId is { } tid && view.State.Actors[tid].CastEndsTick is { } ends ? ends : int.MaxValue;
+        var seats = view.State.Actors.Values
+            .Where(a => a.Kind == ActorKind.Player && a.Alive && !Readiness.IsCastLocked(a, tick) && Readiness.LandingTick(a, tick) < targetEnds)
+            .Select(a => (a.Id, Kit: KitOf(view, a.ClassId)))
+            .Where(s => !string.IsNullOrEmpty(s.Kit.InterruptAbilityId))
+            .Select(s => (s.Id, s.Kit.InterruptAbilityId!, InterruptRangeMm(view, s.Kit.InterruptAbilityId!), Readiness.IsOffGcd(s.Kit, s.Kit.InterruptAbilityId!)))
+            .ToList();
+        var assignment = Ledger.ResolvePartyInterrupt(view.State.Actors, seats, tick, priority, view.PullPlan);
         if (assignment is null || assignment.KickerId != self.Id)
         {
             return null;

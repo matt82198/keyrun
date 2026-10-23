@@ -91,9 +91,17 @@ namespace Keyrun.Host;
 /// <param name="TalentPicks">Finding f-a3de0a01 (<c>--talent SEAT:TALENT</c>, repeatable, <see cref="SeatTalent"/>): seat SEAT,
 /// bot or human, plays every run with that talent picked (<see cref="RunRequest.Talents"/>), logged
 /// <c>TALENT seat=S id=T</c> once. A seat not in the party or a talent its class lacks stops the launch. Null = none.</param>
+/// <param name="AbandonAllSeats">R-K4-15 (c) (<c>--abandon-seat all</c>): every seat, the human and each bot, is abandoned
+/// at tick 0 before the first step (the RunToEnd abandonAllSeats construction, deduplicated). Mutually exclusive with
+/// <see cref="AbandonSeat"/>, which stays single-seat. False = no all-seats abandon.</param>
+/// <param name="AbandonAllAtTick">R-K4-15 (d) (<c>--abandon-seat all@TICK</c>): with <see cref="AbandonAllSeats"/>, the all-seats
+/// abandon fires once, when the run reaches tick TICK, not at creation (the HudRunN live phase). 0 = tick 0 (the (c) path).</param>
 /// <param name="DungeonId">D65 / f-61f01ca3 (<c>--dungeon ID</c>, <see cref="DungeonPick"/>): the dungeon the launch's CLI run and
 /// the pre-run screen start on. An id the registry lacks stops the launch (<see cref="DungeonPick.Resolve"/>). Null = the
 /// default, <see cref="DungeonPick.DefaultId"/>.</param>
+/// <param name="RewardSeed">R-K4-16 (<c>--reward-seed N</c>, a positive integer): the reward seed every step's completion
+/// rolls use (<see cref="StepRunOpts.RewardSeedOverride"/>), so a scene test's roll does not move with the run-end tick.
+/// Null = the run-end tick's seed (the default).</param>
 public sealed record ArenaOptions(
     bool Autorun,
     int Ticks,
@@ -118,7 +126,10 @@ public sealed record ArenaOptions(
     CameraModeKind Camera = CameraModeKind.Chase,
     long? DungeonSeed = null,
     IReadOnlyList<SeatTalent>? TalentPicks = null,
-    string? DungeonId = null)
+    string? DungeonId = null,
+    bool AbandonAllSeats = false,
+    int AbandonAllAtTick = 0,
+    long? RewardSeed = null)
 {
     /// <summary>The <c>--talent</c> picks in flag order (empty when none).</summary>
     public IReadOnlyList<SeatTalent> Talents => TalentPicks ?? Array.Empty<SeatTalent>();
@@ -169,6 +180,9 @@ public sealed record ArenaOptions(
         long? dungeonSeed = null;
         var talents = new List<SeatTalent>();
         string? dungeon = null;
+        var abandonAllSeats = false;
+        var abandonAllAtTick = 0;
+        long? rewardSeed = null;
         for (var i = 0; i < args.Count; i++)
         {
             switch (args[i])
@@ -203,8 +217,27 @@ public sealed record ArenaOptions(
                 case "--seed":
                     seed = PositiveInt(args, ref i);
                     break;
+                case "--reward-seed":
+                    // R-K4-16: pins the completion rolls' reward seed (StepRunOpts.RewardSeedOverride); a positive integer like --seed.
+                    rewardSeed = PositiveInt(args, ref i);
+                    break;
                 case "--abandon-seat":
-                    abandon = SeatAbandonPlan.Parse(Value(args, ref i));
+                    // R-K4-15 (c): all abandons every seat at tick 0 so the scene twin constructs uncleared-at-cap deterministically.
+                    // R-K4-15 (d): all@TICK abandons every seat once the run reaches TICK, opening the HudRunN live phase.
+                    var abandonValue = Value(args, ref i);
+                    if (abandonValue == "all")
+                    {
+                        abandonAllSeats = true;
+                    }
+                    else if (abandonValue.StartsWith("all@", StringComparison.Ordinal))
+                    {
+                        abandonAllSeats = true;
+                        abandonAllAtTick = AbandonAllTick(abandonValue);
+                    }
+                    else
+                    {
+                        abandon = SeatAbandonPlan.Parse(args[i]);
+                    }
                     break;
                 case "--joiner-key":
                     joinerKey = PositiveInt(args, ref i);
@@ -253,7 +286,7 @@ public sealed record ArenaOptions(
                     break;
             }
         }
-        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, dungeonSeed, talents, dungeon);
+        return new ArenaOptions(autorun, ticks ?? DefaultTicks, log, movie, key, seed, pull, solo, requeue, abandon, joinerKey, pressEnter, pressPing, recordInput, replayInput, pressYaw, botsHold, careless, rotation, readyHold, camera, dungeonSeed, talents, dungeon, abandonAllSeats, abandonAllAtTick, rewardSeed);
     }
 
     private static int PositiveInt(IReadOnlyList<string> args, ref int i)
@@ -265,6 +298,18 @@ public sealed record ArenaOptions(
             throw new ArgumentException($"{flag} needs a positive integer, got '{raw}'");
         }
         return n;
+    }
+
+    /// <summary>Parses the tick of <c>--abandon-seat all@TICK</c> (R-K4-15 (d)): a non-negative integer, 0 meaning tick 0.</summary>
+    /// <exception cref="ArgumentException">The tick is not a non-negative integer.</exception>
+    private static int AbandonAllTick(string value)
+    {
+        var raw = value["all@".Length..];
+        if (!int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var tick))
+        {
+            throw new ArgumentException($"--abandon-seat all@TICK needs a non-negative integer tick, got '{raw}'");
+        }
+        return tick;
     }
 
     private static string Value(IReadOnlyList<string> args, ref int i)
