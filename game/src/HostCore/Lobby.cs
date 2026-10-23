@@ -45,12 +45,13 @@ public sealed record Lobby
     /// <summary>The tabs in draw order.</summary>
     public static readonly IReadOnlyList<LobbyTab> Tabs = new[] { LobbyTab.Character, LobbyTab.Gear, LobbyTab.Build, LobbyTab.Key, LobbyTab.Queue };
 
-    private Lobby(LobbyTab tab, string classId, C.TalentPicks talents, ScreenState key)
+    private Lobby(LobbyTab tab, string classId, C.TalentPicks talents, ScreenState key, IReadOnlyList<KeyValuePair<string, string>> dungeons)
     {
         Tab = tab;
         ClassId = classId;
         Talents = talents;
         Key = key;
+        DungeonList = dungeons;
     }
 
     /// <summary>The open tab.</summary>
@@ -64,6 +65,37 @@ public sealed record Lobby
 
     /// <summary>The Key band: key, Clause, and the queue lock.</summary>
     public ScreenState Key { get; private init; }
+
+    /// <summary>The registry's dungeons as (id, display name), in registry order, captured when the lobby opened.</summary>
+    private IReadOnlyList<KeyValuePair<string, string>> DungeonList { get; init; }
+
+    /// <summary>Every dungeon id the PLAY tab can pick, in registry order (R-DUNGEONPICK-1).</summary>
+    public IReadOnlyList<string> Dungeons => DungeonList.Select(kv => kv.Key).ToList();
+
+    /// <summary>The picked dungeon's id (the Key band's pick, the one the queue request carries).</summary>
+    public string DungeonId => Key.DungeonId;
+
+    /// <summary>The picked dungeon's display name (content "name"), or its id when content lists no such dungeon.</summary>
+    public string DungeonName => DungeonList.Where(kv => string.Equals(kv.Key, DungeonId, StringComparison.Ordinal)).Select(kv => kv.Value).FirstOrDefault() ?? DungeonId;
+
+    /// <summary>The lobby on the next dungeon in registry order, wrapping; this one when locked.</summary>
+    /// <returns>The lobby.</returns>
+    public Lobby NextDungeon() => StepDungeon(1);
+
+    /// <summary>The lobby on the previous dungeon in registry order, wrapping; this one when locked.</summary>
+    /// <returns>The lobby.</returns>
+    public Lobby PrevDungeon() => StepDungeon(-1);
+
+    private Lobby StepDungeon(int delta)
+    {
+        var n = DungeonList.Count;
+        if (n == 0)
+        {
+            return this;
+        }
+        var at = Math.Max(0, DungeonList.Select(kv => kv.Key).ToList().IndexOf(DungeonId));
+        return WithDungeon(DungeonList[(((at + delta) % n) + n) % n].Key);
+    }
 
     /// <summary>True once Queue was pressed (the class and the key are locked until the next run starts).</summary>
     public bool Locked => Key.Locked;
@@ -119,7 +151,8 @@ public sealed record Lobby
             throw new InvalidOperationException($"lobby: unknown class \"{classId}\"");
         }
         var key = ScreenState.Open(dungeonId, clauseIds, keyLevel, rotationIndex, clauseStartKey);
-        return new Lobby(LobbyTab.Character, cls.Id, C.TalentPicks.Restore(cls, progression.Talents), key);
+        var dungeons = registry.Dungeons.Select(kv => new KeyValuePair<string, string>(kv.Key, kv.Value.Name)).ToList();
+        return new Lobby(LobbyTab.Character, cls.Id, C.TalentPicks.Restore(cls, progression.Talents), key, dungeons);
     }
 
     /// <summary>The classes the Character tab offers: the host roster's classes that content defines, in roster order.</summary>

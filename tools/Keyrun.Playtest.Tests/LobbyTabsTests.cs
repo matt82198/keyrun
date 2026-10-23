@@ -232,4 +232,49 @@ public sealed class LobbyTabsTests
         var run = RunRoot.CreateRun(3, setup.PartyFor(setup.Dungeon), setup.Dungeon, setup.Content, request!.ToRunOptions());
         Assert.Same(queued, queued.ReturnFrom(run));
     }
+
+    [Fact(DisplayName = "Lobby: lists every registry dungeon in registry order")]
+    public void Lobby_lists_every_registry_dungeon_in_order()
+    {
+        var lobby = Fresh();
+        Assert.Equal(Registry.Dungeons.Keys.ToList(), lobby.Dungeons);
+        Assert.Contains("hollow-vault", lobby.Dungeons);
+        Assert.Contains("sunken-bellfoundry", lobby.Dungeons);
+    }
+
+    [Fact(DisplayName = "Lobby: the dungeon pick defaults to the Hollow Vault and cycles with wrap")]
+    public void Lobby_dungeon_pick_defaults_to_hollow_vault_and_cycles_with_wrap()
+    {
+        var lobby = Fresh();
+        Assert.Equal("hollow-vault", lobby.DungeonId);
+
+        var ids = lobby.Dungeons;
+        var n = ids.Count;
+        var idx = ids.ToList().IndexOf("hollow-vault");
+        Assert.Equal(ids[(idx + 1) % n], lobby.NextDungeon().DungeonId);
+        Assert.Equal(ids[(idx + n - 1) % n], lobby.PrevDungeon().DungeonId);
+
+        // Stepping forward n times from the default comes back to it: the last step wraps past the end.
+        var walked = lobby;
+        for (var i = 0; i < n; i++)
+        {
+            walked = walked.NextDungeon();
+        }
+        Assert.Equal("hollow-vault", walked.DungeonId);
+    }
+
+    [Fact(DisplayName = "Lobby: the dungeon pick shows the dungeon's display name")]
+    public void Lobby_dungeon_pick_shows_the_display_name()
+    {
+        var lobby = Fresh();
+        Assert.Equal("Hollow Vault", lobby.DungeonName);
+
+        var cur = lobby;
+        for (var i = 0; i < lobby.Dungeons.Count && cur.DungeonId != "sunken-bellfoundry"; i++)
+        {
+            cur = cur.NextDungeon();
+        }
+        Assert.Equal("sunken-bellfoundry", cur.DungeonId);
+        Assert.Equal("The Sunken Bellfoundry", cur.DungeonName);
+    }
 }
