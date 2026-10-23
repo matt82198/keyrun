@@ -86,6 +86,15 @@ public static partial class Casting
         if (targetId is not null)
         {
             actor.TargetId = targetId;
+            // f-e0650754 (R-TELEGRAPH-1, narrowed by R-FACING-1 (e)): an ENEMY caster's Target or Circle cast faces its
+            // target from cast start, so an aggroed caster visibly faces its player. Player facing belongs to its input,
+            // and cone and line casts never write Yaw. A target standing on the caster's spot leaves Yaw as it was.
+            if (actor.Kind == ActorKind.Enemy && (def.Shape.Kind == ShapeKind.Target || def.Shape.Kind == ShapeKind.Circle) &&
+                targetId.Value != actor.Id && state.Actors.TryGetValue(targetId.Value, out var aimed) &&
+                (aimed.Pos.X != actor.Pos.X || aimed.Pos.Z != actor.Pos.Z))
+            {
+                actor.Yaw = Fixed.YawBetween(actor.Pos, aimed.Pos);
+            }
         }
         if (!overheat)
         {
