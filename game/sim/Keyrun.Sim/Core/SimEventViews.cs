@@ -134,6 +134,9 @@ public readonly record struct RespawnView(int Tick, int ActorId);
 /// <summary><c>run_end</c>, emitted at Run/Run.cs:289.</summary>
 public readonly record struct RunEndView(int Tick, string Result);
 
+/// <summary><c>completion_roll</c>, emitted at Run/Phases/RunEndPhase.cs beside <c>run_end</c> (R-ROLL-1): one per seat.</summary>
+public readonly record struct CompletionRollView(int Tick, int Seat, string Outcome, string? ItemId);
+
 /// <summary><c>room_enter</c>, emitted at Run/Run.cs:371 (an actor steps into a room box).</summary>
 public readonly record struct RoomEnterView(int Tick, int ActorId, string Room);
 
@@ -579,6 +582,19 @@ public static class SimEventViews
             return false;
         }
         v = new RunEndView(e.Tick, result);
+        return true;
+    }
+
+    /// <summary>Reads a <c>completion_roll</c> event (R-ROLL-1); <see cref="CompletionRollView.ItemId"/> is null for "nothing".</summary>
+    public static bool TryCompletionRoll(SimEvent e, out CompletionRollView v)
+    {
+        v = default;
+        if (!Is(e, "completion_roll") || !Int(e, "seat", out var seat) || !Str(e, "outcome", out var outcome))
+        {
+            return false;
+        }
+        var hasItem = Str(e, "itemId", out var itemId);
+        v = new CompletionRollView(e.Tick, seat, outcome, hasItem ? itemId : null);
         return true;
     }
 

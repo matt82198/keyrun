@@ -43,8 +43,14 @@ public static class EndOfRun
         {
             throw new ArgumentException("the run has not ended", nameof(run));
         }
-        return unchecked((run.State.Seed * 1_000_003L) + tick);
+        return RewardSeedOf(run.State.Seed, tick);
     }
+
+    /// <summary>The reward seed from a run seed and the tick the run ended (<see cref="RewardSeed(Run)"/>'s formula).</summary>
+    /// <param name="seed">The run seed.</param>
+    /// <param name="tick">The run-end tick.</param>
+    /// <returns>The seed.</returns>
+    public static long RewardSeedOf(long seed, long tick) => unchecked((seed * 1_000_003L) + tick);
 
     /// <summary>
     /// The three cards for a finished run, or null while it is live:
