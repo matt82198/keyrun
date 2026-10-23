@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Bots;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Runs;
 using C = Keyrun.Content;
@@ -35,11 +36,13 @@ public sealed class RunStats
     /// <summary>Creates the fold for <paramref name="party"/>.</summary>
     /// <param name="registry">The content (ability interruptibility, enemy names).</param>
     /// <param name="party">The seats.</param>
-    public RunStats(C.ContentRegistry registry, IReadOnlyList<PartyMemberSpec> party)
+    /// <param name="kits">The kits the seats play (rotation per class); null builds them from <paramref name="registry"/>.</param>
+    public RunStats(C.ContentRegistry registry, IReadOnlyList<PartyMemberSpec> party, KitRegistry? kits = null)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         ArgumentNullException.ThrowIfNull(party);
         _classOf = party.ToDictionary(p => p.Id, p => p.ClassId);
+        kits ??= KitRegistry.From(registry);
         foreach (var p in party)
         {
             CastsBySeat[p.Id] = new SortedDictionary<string, int>(StringComparer.Ordinal);
@@ -47,8 +50,23 @@ public sealed class RunStats
             KickPresses[p.Id] = 0;
             LateKicks[p.Id] = 0;
             Dodges[p.Id] = 0;
+            _rotation[p.Id] = kits.ResolveKit(p.ClassId, ClassKitView.Empty).Rotation;
         }
     }
+
+    private readonly Dictionary<int, IReadOnlyList<string>> _rotation = new();
+
+    /// <summary>The tick of the first seat interrupt (a kick or a stop by a party seat), or null when no seat interrupted.</summary>
+    public int? FirstKickTick { get; private set; }
+
+    /// <summary>
+    /// The first tick by which each seat has cast every ability of its rotation at least once, per seat (a seat that never
+    /// finishes its rotation is absent).
+    /// </summary>
+    public SortedDictionary<int, int> FullRotationTickBySeat { get; } = new();
+
+    /// <summary>The party's first full rotation: the earliest seat's <see cref="FullRotationTickBySeat"/>, or null when none finished.</summary>
+    public int? FirstFullRotationTick => FullRotationTickBySeat.Count == 0 ? null : FullRotationTickBySeat.Values.Min();
 
     /// <summary>Health lost by the party per enemy ability id.</summary>
     public SortedDictionary<string, long> DamageTakenByAbility { get; } = new(StringComparer.Ordinal);
@@ -138,6 +156,10 @@ public sealed class RunStats
         for (var i = 0; i < events.Count; i++)
         {
             var e = events[i];
+            if (e.Type == "interrupt" && CountsAsKick(e))
+            {
+                FirstKickTick ??= e.Tick;
+            }
             switch (e.Type)
             {
                 case "pull_start":
@@ -207,13 +229,18 @@ public sealed class RunStats
                     }
                     break;
                 }
-                case "cast_complete":
+                case "cast_complete" when SimEventViews.TryCastComplete(e, out var castView):
                 {
-                    var actor = I(e, "actorId");
-                    var ability = S(e, "abilityId");
+                    var actor = castView.ActorId;
+                    var ability = castView.AbilityId;
                     if (CastsBySeat.TryGetValue(actor, out var seat))
                     {
                         seat[ability] = (seat.TryGetValue(ability, out var n) ? n : 0) + 1;
+                        if (!FullRotationTickBySeat.ContainsKey(actor) && _rotation.TryGetValue(actor, out var rotation) &&
+                            rotation.Count > 0 && rotation.All(seat.ContainsKey))
+                        {
+                            FullRotationTickBySeat[actor] = e.Tick;
+                        }
                     }
                     else if (actors.TryGetValue(actor, out var a) && a.Kind == ActorKind.Enemy &&
                         _registry.Abilities.TryGetValue(ability, out var def) && def.Interruptible)
@@ -234,6 +261,9 @@ public sealed class RunStats
 
     /// <summary>Enemy ids the party traded damage with, to their display names (the ids a plan's focus list takes).</summary>
     public SortedDictionary<string, string> EnemiesFought { get; } = new(StringComparer.Ordinal);
+
+    // An interrupt event whose source is a party seat: a kick, or a stop a seat's ability landed.
+    private bool CountsAsKick(SimEvent e) => e.Get("sourceId") is JsInt src && _classOf.ContainsKey((int)src.Value);
 
     // Records the enemy side of a damage event between an enemy and a player.
     private void NoteFought(SortedDictionary<int, ActorState> actors, int enemyId, int playerId)
