@@ -78,11 +78,23 @@ public static class TreeComposer
         && Equals(a.Shape, b.Shape)
         && a.Interruptible == b.Interruptible
         && SameSequence(a.Tags, b.Tags)
-        && SameSequence(a.Effects, b.Effects)
+        && SameSequence(a.Effects, b.Effects, SameOp)
         && SameVariants(a.Variants, b.Variants)
         && SameSequence(a.TagAdd, b.TagAdd)
         && SameSequence(a.TagRemove, b.TagRemove)
-        && SameSequence(a.EffectsAppend, b.EffectsAppend);
+        && SameSequence(a.EffectsAppend, b.EffectsAppend, SameOp);
+
+    // R-TREES-3 (b) residual: a ConditionalOp holds its Then body as a list, so record equality would compare that list by
+    // reference. Its non-list fields compare by record equality and Then compares element-wise, recursing into nested
+    // conditionals. Every other op compares by record equality.
+    private static bool SameOp(EffectOp a, EffectOp b)
+    {
+        if (a is ConditionalOp ca && b is ConditionalOp cb)
+        {
+            return ca.If.Equals(cb.If) && ca.Consume == cb.Consume && SameSequence(ca.Then, cb.Then, SameOp);
+        }
+        return a.Equals(b);
+    }
 
     private static bool SameSequence<T>(IReadOnlyList<T>? a, IReadOnlyList<T>? b)
     {
@@ -91,6 +103,26 @@ public static class TreeComposer
             return a is null && b is null;
         }
         return a.SequenceEqual(b);
+    }
+
+    private static bool SameSequence<T>(IReadOnlyList<T>? a, IReadOnlyList<T>? b, Func<T, T, bool> same)
+    {
+        if (a is null || b is null)
+        {
+            return a is null && b is null;
+        }
+        if (a.Count != b.Count)
+        {
+            return false;
+        }
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (!same(a[i], b[i]))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static bool SameVariants(
@@ -107,7 +139,7 @@ public static class TreeComposer
         }
         foreach (var (key, ops) in a)
         {
-            if (!b.TryGetValue(key, out var other) || !SameSequence(ops, other))
+            if (!b.TryGetValue(key, out var other) || !SameSequence(ops, other, SameOp))
             {
                 return false;
             }

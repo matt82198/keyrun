@@ -67,6 +67,21 @@ public sealed class TreeCompositionTests
             facets: new[] { facet }));
     }
 
+    // R-TREES-3 (b) residual (f-25f18720): a ConditionalOp is content-equal across two patches when its Then list is
+    // element-equal, even though each Braced() call builds a distinct list instance. RED while TreeComposer.SamePatch compares
+    // EffectsAppend by record Equals, because ConditionalOp's record Equals compares Then by reference, so the duplicate is missed.
+    [Fact]
+    public void A_Facet_content_equal_to_a_node_holding_a_ConditionalOp_built_from_distinct_Then_lists_is_rejected()
+    {
+        var node = new GearPatch { EffectsAppend = new EffectOp[] { Braced() } };
+        var facet = new GearPatch { EffectsAppend = new EffectOp[] { Braced() } };
+        Assert.Throws<TreeCompositionException>(() => TreeComposer.Compose(
+            baseAbility: Strike(),
+            fork: RendFork(Braced()),
+            nodes: new[] { node },
+            facets: new[] { facet }));
+    }
+
     // Literal Strike: base 80 physical damage, the same shape the host would produce from the content kit.
     private static AbilityDef Strike() => new()
     {
