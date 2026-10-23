@@ -52,10 +52,12 @@ public static class ToolkitRule
 
             IEnumerable<EffectOp> moveOps = move is null ? Array.Empty<EffectOp>() : AllOps(move);
             bool moves = moveOps.OfType<ApplyEffectOp>().Any(a => Modifiers(reg, a.EffectId)?.MovementBp >= MobilityMinMovementBp);
-            if (!moves)
-                gaps.Add(Class(cls, "mobility-moves-caster", "movement button " + cls.Abilities.Movement + " applies no speed effect of +" + MobilityMinMovementBp + " bp and no displacement (the sim has no displace op yet)"));
+            bool displaces = moveOps.OfType<DisplaceOp>().Any(d => d.DistanceMm > 0);
+            if (!moves && !displaces)
+                gaps.Add(Class(cls, "mobility-moves-caster", "movement button " + cls.Abilities.Movement + " applies no speed effect of +" + MobilityMinMovementBp + " bp and no displace of the caster"));
 
-            bool frees = moveOps.OfType<RemoveEffectOp>().Any(r => r.EffectId == "*" || Modifiers(reg, r.EffectId)?.MovementBp < 0);
+            bool frees = moveOps.OfType<RemoveEffectOp>().Any(r => r.EffectId == "*" || Modifiers(reg, r.EffectId)?.MovementBp < 0)
+                || moveOps.OfType<DisplaceOp>().Any(d => d.FreesBinds);
             if (!frees)
                 gaps.Add(Class(cls, "mobility-frees-binds", "movement button " + cls.Abilities.Movement + " removes no slow or root"));
 
