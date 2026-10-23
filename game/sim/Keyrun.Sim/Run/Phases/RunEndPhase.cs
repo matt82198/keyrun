@@ -34,9 +34,9 @@ internal static class RunEndPhase
     // reward seed is the run's (EndOfRun.RewardSeedOf: seed x 1000003 + the end tick), the key level is the encounter's.
     private static void EmitCompletionRolls(RunStepCtx c, RunResult result, SimState state, CompletionRollTable? table)
     {
-        var seats = state.Actors.Values.Where(a => a.Kind == ActorKind.Player).Select(a => a.Id).ToList();
         var rewardSeed = EndOfRun.RewardSeedOf(state.Seed, state.Tick);
-        foreach (var roll in CompletionRoll.Roll(rewardSeed, c.Encounter.KeyLevel, result, seats, table))
+        // R-ROLL-1 (b)(iii): each seat draws over its own class's facet pool (CompletionFacets), never the placeholders.
+        foreach (var roll in CompletionRoll.ForSeats(state, rewardSeed, c.Encounter.KeyLevel, result, table))
         {
             var fields = new List<(string Key, JsValue Value)>
             {

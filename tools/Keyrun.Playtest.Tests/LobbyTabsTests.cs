@@ -202,7 +202,8 @@ public sealed class LobbyTabsTests
         Assert.Equal(RunResult.Depleted, run.RunEnd.Result);
 
         // The end-of-run choice of three over the chanter's own pools, then the pick lands on the character.
-        var offer = EndOfRun.Offer(run, Lobby.FacetPools(Registry, "chanter"), progression.Equipped);
+        // (EndOfRun.Offer was removed by R-ROLL-1; this fact needs a card to take, so it draws the Rewards primitive's.)
+        var offer = Rewards.RollRewardChoices(EndOfRun.RewardSeed(run), run.Encounter.KeyLevel, run.RunEnd.Result!.Value, Rewards.GearSlots, Lobby.FacetPools(Registry, "chanter"), progression.Equipped);
         Assert.Equal(3, offer!.Count);
         Assert.All(offer, card => Assert.StartsWith("chanter.", card.Facet.Id, StringComparison.Ordinal));
         progression = progression.BankRun(run.RunEnd.Result!.Value).Take(offer[0]);

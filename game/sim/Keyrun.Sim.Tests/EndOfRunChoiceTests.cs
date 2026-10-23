@@ -11,9 +11,10 @@ namespace Keyrun.Sim.Tests;
 /// <summary>
 /// BIBLE s1 "Screen -> Queue -> Dungeon -> End-of-run choice of three -> Screen" and s7 "End of every run: choose one of
 /// three ... every clear moves something visible". Drives real runs to each end the interactive game sees (a timed
-/// clear, an untimed clear, a lasting wipe) and checks the offer <see cref="EndOfRun.Offer"/> makes (the one the
-/// run-end panel draws): exactly three distinct cards, at least one a strict upgrade for the character, and the pick
-/// lands on the character and survives the save the screen writes. Reward quality by key level is
+/// clear, an untimed clear, a lasting wipe) and checks the completion roll (<see cref="CompletionRoll.ForRun"/>, the one
+/// the run-end panel draws; R-ROLL-1 removed <c>EndOfRun.Offer</c>): one roll per seat over the class pool, the won item
+/// lands on the character and survives the save the screen writes; the Rewards choice-of-three primitive keeps its
+/// strict-upgrade and Ascension guarantees. Reward quality by key level is
 /// <see cref="Encounter.RewardQualityFromKeyLevelTests"/> (PR #386) and the untimed key hold is #341/#385; not repeated.
 /// An abandoned run gets nothing (STATE.md D45); that is pinned in <see cref="AbandonedRunGetsNothingTests"/>.
 /// </summary>
@@ -70,67 +71,81 @@ public sealed class EndOfRunChoiceTests
 
     private static string Key(Item i) => $"{i.Slot}:{i.Facet.Id}:{i.Tier}";
 
+    // The choice-of-three reads of the removed EndOfRun.Offer (R-ROLL-1 (b)(iii)) are the Rewards primitive's, which stays:
+    // the Ascension and strict-upgrade facts below pin that primitive over the run's own reward seed.
+    private static IReadOnlyList<Item> ChoicesOf(Run run, IReadOnlyDictionary<string, Item> equipped) =>
+        Rewards.RollRewardChoices(EndOfRun.RewardSeed(run), run.Encounter.KeyLevel, run.RunEnd.Result!.Value, Rewards.GearSlots, Pools, equipped);
+
     [Theory]
     [InlineData(End.TimedClear, RunResult.Timed)]
     [InlineData(End.UntimedClear, RunResult.Depleted)]
     [InlineData(End.Wipe, RunResult.Depleted)]
-    public void Every_run_end_offers_exactly_three_distinct_cards_from_the_pool(End end, RunResult expected)
+    public void Every_run_end_rolls_every_seat_once_over_the_class_pool(End end, RunResult expected)
     {
+        // Migrated from "exactly three distinct cards" (the removed Offer): the end-of-run reward is one completion roll per
+        // seat (R-ROLL-1), each item drawn over the class facet pool (no table: the Warden fallback), never the placeholders.
         for (var seed = 1L; seed <= 40; seed++)
         {
             var run = Ended(end, keyLevel: 2 + (int)(seed % 19), seed: seed);
             Assert.Equal(expected, run.RunEnd.Result);
-            var offer = EndOfRun.Offer(run, Pools, NoGear);
-            Assert.NotNull(offer);
-            Assert.Equal(3, offer!.Count);
-            Assert.Equal(3, offer.Select(Key).Distinct(StringComparer.Ordinal).Count());
-            Assert.All(offer, c =>
+            var rolls = CompletionRoll.ForRun(run);
+            Assert.NotNull(rolls);
+            Assert.Equal(new[] { 1, 2 }, rolls!.Select(r => r.Seat).OrderBy(s => s));
+            Assert.All(rolls.Select(r => r.Item).OfType<Item>(), c =>
             {
                 Assert.Contains(c.Slot, Rewards.GearSlots);
-                Assert.Contains(c.Facet, Pools[c.Slot]);
+                Assert.Contains(c.Facet, CompletionFacets.Fallback[c.Slot]);
                 Assert.InRange(c.Tier, 1, Progression.MaxTier);
             });
         }
     }
 
     [Fact]
-    public void A_live_run_offers_nothing()
+    public void A_live_run_has_no_roll()
     {
         var (live, _) = RunTestKit.StepUntil(Live(7, 100000), 50);
-        Assert.Null(EndOfRun.Offer(live, Pools, NoGear));
+        Assert.Null(CompletionRoll.ForRun(live));
     }
 
     [Theory]
     [InlineData(End.TimedClear)]
     [InlineData(End.UntimedClear)]
     [InlineData(End.Wipe)]
-    public void The_offer_is_the_run_seeded_roll_the_panel_has_always_drawn(End end)
+    public void The_roll_is_the_run_seeded_roll_the_panel_reads(End end)
     {
-        // The panel's reward seed (server/src/run-end.ts): run seed x 1000003 + the ending tick. Moving the roll out of
-        // the HUD must not change a single card a fresh character is shown.
+        // The reward seed (server/src/run-end.ts): run seed x 1000003 + the ending tick. The panel's roll (ForRun) is the
+        // same pure roll the run-end phase emitted, over the same seed, key and pool.
         var run = Ended(end);
         var seed = unchecked((run.State.Seed * 1_000_003L) + run.RunEnd.ResultTick!.Value);
         Assert.Equal(seed, EndOfRun.RewardSeed(run));
-        var expected = Rewards.RollRewardChoices(seed, run.Encounter.KeyLevel, run.RunEnd.Result!.Value, Rewards.GearSlots, Pools);
-        Assert.Equal(expected.Select(i => i.Id), EndOfRun.Offer(run, Pools, NoGear)!.Select(i => i.Id));
+        var expected = CompletionRoll.Roll(seed, run.Encounter.KeyLevel, run.RunEnd.Result!.Value, new[] { 1, 2 }, null, _ => slot => CompletionFacets.Fallback[slot]);
+        var actual = CompletionRoll.ForRun(run)!.OrderBy(r => r.Seat).ToList();
+        Assert.Equal(expected.Select(r => (r.Seat, r.Item?.Id)), actual.Select(r => (r.Seat, r.Item?.Id)));
     }
 
     [Theory]
-    [InlineData(End.TimedClear, 0)]
-    [InlineData(End.UntimedClear, 1)]
-    [InlineData(End.Wipe, 2)]
-    public void The_pick_goes_onto_the_character_and_survives_the_screen_save(End end, int pick)
+    [InlineData(End.TimedClear)]
+    [InlineData(End.UntimedClear)]
+    [InlineData(End.Wipe)]
+    public void The_item_won_goes_onto_the_character_and_survives_the_screen_save(End end)
     {
-        var run = Ended(end);
-        var offer = EndOfRun.Offer(run, Pools, NoGear)!;
-        // The screen's order: bank at the run end (win or lose), then the take from the panel.
-        var character = Progression.Start(99).BankRun(run.RunEnd.Result!.Value).Take(offer[pick]);
-        Assert.Equal(offer[pick], character.Equipped[offer[pick].Slot]);
-        Assert.Equal(offer[pick], character.LastRun!.Taken);
+        // Migrated from "the pick": the first seed whose seat-1 roll wins an item (a roll can give nothing).
+        Item? won = null;
+        Run run = null!;
+        for (var seed = 1L; seed <= 40 && won is null; seed++)
+        {
+            run = Ended(end, seed: seed);
+            won = CompletionRoll.ForRun(run)!.Single(r => r.Seat == 1).Item;
+        }
+        Assert.NotNull(won);
+        // The screen's order: bank at the run end (win or lose), then the won item goes on (Screen.Run.cs OnStepped).
+        var character = Progression.Start(99).BankRun(run.RunEnd.Result!.Value).Take(won!);
+        Assert.Equal(won, character.Equipped[won!.Slot]);
+        Assert.Equal(won, character.LastRun!.Taken);
         var reloaded = ProgressionSave.Load(ProgressionSave.Serialize(character), 99);
         Assert.Null(reloaded.Error);
-        Assert.Equal(offer[pick].Id, reloaded.Progression.Equipped[offer[pick].Slot].Id);
-        Assert.Equal(offer[pick].Tier, reloaded.Progression.Equipped[offer[pick].Slot].Tier);
+        Assert.Equal(won.Id, reloaded.Progression.Equipped[won.Slot].Id);
+        Assert.Equal(won.Tier, reloaded.Progression.Equipped[won.Slot].Tier);
     }
 
     // A character whose every slot already holds, at the band's top tier, the facet the plain roll would offer in that
@@ -187,7 +202,7 @@ public sealed class EndOfRunChoiceTests
         for (var seed = 1L; seed <= 12; seed++)
         {
             var run = Ended(end, keyLevel: 2 + (int)(seed % 19), seed: seed);
-            var offer = EndOfRun.Offer(run, Pools, capped)!;
+            var offer = ChoicesOf(run, capped);
             Assert.Equal(3, offer.Count);
             Assert.Equal(1, offer.Count(Ascension.IsCard));
             Assert.Equal(3, offer.Select(Key).Distinct(StringComparer.Ordinal).Count());
@@ -204,7 +219,7 @@ public sealed class EndOfRunChoiceTests
         for (var seed = 1L; seed <= 12; seed++)
         {
             var run = Ended(End.TimedClear, keyLevel: 2 + (int)(seed % 19), seed: seed);
-            Assert.DoesNotContain(EndOfRun.Offer(run, Pools, almost)!, Ascension.IsCard);
+            Assert.DoesNotContain(ChoicesOf(run, almost), Ascension.IsCard);
         }
     }
 

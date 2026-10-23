@@ -24,6 +24,16 @@ public partial class Screen
         _progression = _progression.BankRun(result, played);
         Proof(FormattableString.Invariant($"SCREEN bank result={result.ToJs()} ash={Ash.ForResult(result)} total={_progression.AshTotal}"));
         Proof(AscensionReadout.LogLine("SCREEN", Ascension.Of(_progression)));
+        // R-ROLL-1 (b)(iii): the local seat's completion roll replaces the end-of-run pick; an item won goes onto the
+        // character here, after the bank (Progression.Take refuses an abandoned run, whose roll is always nothing).
+        if (_driver.Setup is { } setup
+            && CompletionRoll.ForRun(_driver.Run)?.FirstOrDefault(r => r.Seat == setup.HumanActorId) is { Item: { } won })
+        {
+            _progression = _progression.Take(won);
+            _selected = won.Slot;
+            Proof(FormattableString.Invariant($"SCREEN roll take slot={won.Slot} tier={won.Tier} id={won.Id}"));
+            SaveProgression("take"); // the rolled item is equipped: keep it before the screen opens or the launch can end
+        }
         SaveProgression("bank");
 
         // M1 TIMER-TIERS (BIBLE s8): a timed run raises the key by its tier (+1, +2 within 80% of par, +3 within 60%);
@@ -79,6 +89,11 @@ public partial class Screen
         }
         var key = AutorunKeys[_autorunStep];
         GetViewport().PushInput(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = true });
+        if (_autorunStep == 0 && !IsOpen)
+        {
+            // No reward take opens the screen any more (R-ROLL-1): the run-end Enter route does (SimDriver reopen path).
+            OpenFirst();
+        }
         if (_autorunStep == 0 && !IsOpen)
         {
             Proof("SCREEN error the run-end take did not open the screen");

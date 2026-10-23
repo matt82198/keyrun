@@ -74,18 +74,17 @@ public sealed class AbandonedRunGetsNothingTests
         new("reward-weapon-weapon.f0-t" + tier, "weapon", tier, new Facet("weapon.f0", "weapon facet 0", "ability.weapon.0"), Rewards.StartingCharges);
 
     [Fact]
-    public void An_abandoned_run_is_offered_no_cards_with_or_without_content_pools()
+    public void An_abandoned_run_rolls_nothing_for_every_seat()
     {
+        // Migrated from "offered no cards" (the removed EndOfRun.Offer): the completion roll of an abandoned run is nothing.
         for (var seed = 1L; seed <= 20; seed++)
         {
             var run = Ended(End.Abandon, seed);
             Assert.Equal(RunResult.Abandoned, run.RunEnd.Result);
-            var withPools = EndOfRun.Offer(run, Pools, NoGear);
-            var placeholder = EndOfRun.Offer(run, null, NoGear);
-            Assert.NotNull(withPools);
-            Assert.NotNull(placeholder);
-            Assert.Empty(withPools!);
-            Assert.Empty(placeholder!);
+            var rolls = CompletionRoll.ForRun(run);
+            Assert.NotNull(rolls);
+            Assert.NotEmpty(rolls!);
+            Assert.All(rolls, r => Assert.Null(r.Item));
         }
     }
 
@@ -129,7 +128,8 @@ public sealed class AbandonedRunGetsNothingTests
     {
         var run = Ended(end);
         Assert.Equal(expected, run.RunEnd.Result);
-        var offer = EndOfRun.Offer(run, Pools, NoGear)!;
+        // The Rewards choice-of-three primitive (the removed Offer's body) still gives a finished run its three cards.
+        var offer = Rewards.RollRewardChoices(EndOfRun.RewardSeed(run), run.Encounter.KeyLevel, run.RunEnd.Result!.Value, Rewards.GearSlots, Pools, NoGear);
         Assert.Equal(3, offer.Count);
         Assert.True(ash > 0);
         var banked = Progression.Start(1).BankRun(expected);
