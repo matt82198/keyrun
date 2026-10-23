@@ -57,7 +57,6 @@ public partial class RunEndRewardsProbe : Node
         var created = RunRoot.CreateRun(1, setup.PartyFor(setup.Dungeon), setup.Dungeon, setup.Content);
         var rule = created.SeedRule ?? throw new InvalidOperationException("the content run has no Seed rule (no onDeath Window)");
         var ended = created with { RunEnd = new RunEndState(RunResult.Timed, 4000, null) };
-        var kit = new HashSet<string>(setup.Slots.Select(s => s.AbilityId), StringComparer.Ordinal);
         var comboId = registry.Combos.Keys.OrderBy(k => k, StringComparer.Ordinal).First();
 
         // The Seed's Window opens at 3000 (ends 3100) and a Combo lands in it at 3050: SeedLoot.Observe awards one entry.
@@ -78,7 +77,7 @@ public partial class RunEndRewardsProbe : Node
             var run = ended with { Rewards = carried };
             var bonus = new SeedBonusLog();
             Feed(bonus, run, seen);
-            var view = RunEndView.Of(run, setup.HumanActorId, new PrivateRunLog(), registry, kit, bonus)
+            var view = RunEndView.Of(run, setup.HumanActorId, new PrivateRunLog(), registry, bonus)
                 ?? throw new InvalidOperationException("RunEndView.Of returned null for an ended run");
             var got = view.LogLines().Last();
             var want = BonusLineOf(run.Rewards, registry);

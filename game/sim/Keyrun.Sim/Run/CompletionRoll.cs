@@ -15,6 +15,12 @@ namespace Keyrun.Sim.Runs;
 /// <param name="Slots">The slots an item's slot is drawn uniformly over.</param>
 public sealed record CompletionRollTable(long DropBpTimed, long DropBpDepleted, IReadOnlyList<string> Slots)
 {
+    /// <summary>
+    /// Class id to that class's facets per gear slot (R-ROLL-1 (b)(iii)): the pool a seat of that class draws over. Null, or
+    /// a class with no entry, draws over <see cref="CompletionFacets.Fallback"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, IReadOnlyList<Facet>>>? ClassFacets { get; init; }
+
     /// <summary>The table's values with no content loaded (6000, 3500, the five gear slots).</summary>
     public static CompletionRollTable Default { get; } = new(6000, 3500, Rewards.GearSlots);
 }
@@ -46,10 +52,11 @@ public static class CompletionRoll
     /// <param name="result">The run's result.</param>
     /// <param name="seats">The party member actor ids, one roll each.</param>
     /// <param name="table">The completion table, or null for <see cref="CompletionRollTable.Default"/>.</param>
-    /// <param name="facetsOf">The facet pool per slot, or null for the placeholder pools (no class pool is passed).</param>
+    /// <param name="facetsOfSeat">The facet pool per slot of each seat (its class pool), or null for <see cref="CompletionFacets.Fallback"/>
+    /// for every seat. The placeholder pools are never used (R-ROLL-1 (b)(iii)).</param>
     /// <returns>One result per seat, in <paramref name="seats"/> order.</returns>
     /// <exception cref="ArgumentException">The table has no slots, or a slot has no facet pool.</exception>
-    public static IReadOnlyList<CompletionRollResult> Roll(long rewardSeed, int keyLevel, RunResult result, IReadOnlyList<int> seats, CompletionRollTable? table = null, Func<string, IReadOnlyList<Facet>>? facetsOf = null)
+    public static IReadOnlyList<CompletionRollResult> Roll(long rewardSeed, int keyLevel, RunResult result, IReadOnlyList<int> seats, CompletionRollTable? table = null, Func<int, Func<string, IReadOnlyList<Facet>>>? facetsOfSeat = null)
     {
         ArgumentNullException.ThrowIfNull(seats);
         var t = table ?? CompletionRollTable.Default;
@@ -57,7 +64,8 @@ public static class CompletionRoll
         {
             throw new ArgumentException("completion table has no slots", nameof(table));
         }
-        var facets = facetsOf ?? Rewards.PlaceholderFacets;
+        var fallback = CompletionFacets.Fallback;
+        var poolOf = facetsOfSeat ?? (_ => slot => PoolOf(fallback, slot));
         var dropBp = result switch
         {
             RunResult.Timed => t.DropBpTimed,
@@ -65,8 +73,46 @@ public static class CompletionRoll
             _ => 0L,
         };
         var band = Rewards.TierBand(keyLevel);
-        return seats.Select(seat => RollSeat(rewardSeed, seat, result == RunResult.Abandoned, dropBp, t.Slots, facets, band)).ToList();
+        return seats.Select(seat => RollSeat(rewardSeed, seat, result == RunResult.Abandoned, dropBp, t.Slots, poolOf(seat), band)).ToList();
     }
+
+    /// <summary>
+    /// Rolls every player seat of <paramref name="state"/> (actor id order, as the run-end phase emits them), each over its
+    /// own class's facet pool (<see cref="CompletionFacets.For"/> of the seat's class id). The one roll the sim's
+    /// <c>completion_roll</c> events and the run-end panel both read.
+    /// </summary>
+    /// <param name="state">The state at the run-end tick.</param>
+    /// <param name="rewardSeed">The run's reward seed (<see cref="EndOfRun.RewardSeedOf"/>).</param>
+    /// <param name="keyLevel">The key level.</param>
+    /// <param name="result">The run's result.</param>
+    /// <param name="table">The completion table, or null for <see cref="CompletionRollTable.Default"/>.</param>
+    /// <returns>One result per player seat.</returns>
+    public static IReadOnlyList<CompletionRollResult> ForSeats(SimState state, long rewardSeed, int keyLevel, RunResult result, CompletionRollTable? table)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var seats = state.Actors.Values.Where(a => a.Kind == ActorKind.Player).Select(a => a.Id).ToList();
+        return Roll(rewardSeed, keyLevel, result, seats, table, seat =>
+        {
+            var pool = CompletionFacets.For(table, state.Actors[seat].ClassId);
+            return slot => PoolOf(pool, slot);
+        });
+    }
+
+    /// <summary>The rolls of a finished run (the ones its <c>completion_roll</c> events carried), or null while it is live.</summary>
+    /// <param name="run">The run.</param>
+    /// <returns>One result per player seat, or null.</returns>
+    public static IReadOnlyList<CompletionRollResult>? ForRun(Run run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.RunEnd.Result is not { } result || run.RunEnd.ResultTick is null)
+        {
+            return null;
+        }
+        return ForSeats(run.State, EndOfRun.RewardSeed(run), run.Encounter.KeyLevel, result, run.Content.Completion);
+    }
+
+    private static IReadOnlyList<Facet> PoolOf(IReadOnlyDictionary<string, IReadOnlyList<Facet>> pool, string slot) =>
+        pool.TryGetValue(slot, out var facets) ? facets : throw new ArgumentException($"no facet pool for gear slot \"{slot}\"", nameof(slot));
 
     private static CompletionRollResult RollSeat(long rewardSeed, int seat, bool abandoned, long dropBp, IReadOnlyList<string> slots, Func<string, IReadOnlyList<Facet>> facets, (int Min, int Max) band)
     {

@@ -5,7 +5,8 @@
   -- --autorun --ticks <Ticks> --solo --requeue   (run E's launch: the solo Warden's run ends at the timer cap)
 
 .DESCRIPTION
-  After the run ends the run-end panel takes reward 1 (the end-of-run choice of three) and opens the screen; the
+  After the run ends the run-end panel's completion roll (R-ROLL-1, "HUD runend result=... roll=item|nothing") is
+  taken by the screen when it is an item ("SCREEN roll take"), then the screen opens; the
   screen's autorun script (Screen.cs AutorunKeys) then rerolls, steps the key to 3, opens and closes Build (T ... T),
   presses F2, F4 and F5 (Gear, Key, Queue) and Enter. Checks, on the engine's own "SCREEN ..." lines:
     S1. exit 0;
@@ -70,20 +71,31 @@ if (($tabs -join ',') -ne ($want -join ',')) {
     $failures.Add("tabs: the tab walk before Queue is '$($tabs -join ',')', expected '$($want -join ',')'")
 }
 
-# S3: the Character tab's sheet shows the taken reward.
-$take = First $lines '^HUD runend take n=1 id=reward-(weapon|armor|charm|ring|keystone)-'
+# S3: the Character tab's sheet shows the completion roll: an item won is equipped on the sheet; "nothing" leaves all five
+# slots empty. Both outcomes pass (R-ROLL-1: the roll is one per seat and can give nothing).
+$result = First $lines '^HUD runend result=\S+ roll=(item|nothing) '
+$roll = if ($result -and $result -match ' roll=(item|nothing) ') { $Matches[1] } else { '' }
+if (-not $result) { $failures.Add('tabs: no "HUD runend result=... roll=item|nothing" line (the run-end panel printed no completion roll)') }
 $sheetHead = First $window '^SCREEN sheet class=warden key=2 marks=0 ascended=0$'
 if (-not $sheetHead) { $failures.Add('tabs: no "SCREEN sheet class=warden key=2 marks=0 ascended=0" line after the open') }
-if (-not $take) {
-    $failures.Add('tabs: no "HUD runend take n=1 id=reward-<slot>-..." line (no choice-of-three reward was taken)')
-} else {
-    $null = $take -match '^HUD runend take n=1 id=reward-(\w+)-'
+$take = First $lines '^SCREEN roll take slot=(weapon|armor|charm|ring|keystone) tier=\d+ id=\S+'
+if ($roll -eq 'item' -and -not $take) {
+    $failures.Add('tabs: the run-end panel rolled an item but no "SCREEN roll take slot=<slot> tier=<t> id=..." line followed')
+} elseif ($roll -eq 'nothing' -and $take) {
+    $failures.Add("tabs: the panel said roll=nothing but the screen took an item: '$take'")
+}
+if ($roll -eq 'nothing') {
+    $allEmpty = @($window | Where-Object { $_ -match '^SCREEN sheet slot=(\w+) state=empty$' })
+    if ($sheetHead -and $allEmpty.Count -ne 5) { $failures.Add("tabs: roll=nothing, expected all 5 slots 'state=empty' on the sheet, got $($allEmpty.Count)") }
+}
+if ($take) {
+    $null = $take -match '^SCREEN roll take slot=(\w+) '
     $slot = $Matches[1]
     $item = First $window "^SCREEN item slot=$slot tier=(\d+) "
     $tier = if ($item -and $item -match " tier=(\d+) ") { [int]$Matches[1] } else { -1 }
     $equipped = First $window "^SCREEN sheet slot=$slot state=equipped tier=$tier name=`"[^`"]+`" facet=warden\.$slot\.\S+ active=1$"
-    if ($tier -lt 1 -or $tier -gt 10) { $failures.Add("tabs: the taken '$slot' item's tier is not 1-10: '$item'") }
-    if (-not $equipped) { $failures.Add("tabs: the sheet does not show the taken '$slot' item at tier $tier with a name and a Warden Facet") }
+    if ($tier -lt 1 -or $tier -gt 10) { $failures.Add("tabs: the rolled '$slot' item's tier is not 1-10: '$item'") }
+    if (-not $equipped) { $failures.Add("tabs: the sheet does not show the rolled '$slot' item at tier $tier with a name and a Warden Facet") }
     $empty = @($window | Where-Object { $_ -match '^SCREEN sheet slot=(\w+) state=empty$' -and $Matches[1] -ne $slot })
     if ($empty.Count -ne 4) { $failures.Add("tabs: expected the other 4 slots 'state=empty' on the sheet, got $($empty.Count)") }
 }

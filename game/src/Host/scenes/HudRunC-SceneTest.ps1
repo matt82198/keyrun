@@ -102,7 +102,7 @@ Assert-ComboBlame 'C' $c.Lines
 $runEndC = First $c.Lines '^HUD runend result='
 if (-not $runEndC) {
     $failures.Add("run C: no 'HUD runend result=' line in $PartyTicks ticks (the party's run did not end on the run-end panel)")
-} elseif ($runEndC -notmatch '^HUD runend result=timed choices=3 cleared=1 tick=\d+ title="Run cleared -- within par"$') {
+} elseif ($runEndC -notmatch '^HUD runend result=timed roll=(item|nothing) cleared=1 tick=\d+ title="Run cleared -- within par"$') {
     $failures.Add("run C: the party's run-end title is not the clear title 'Run cleared -- within par': '$runEndC'")
 }
 $bossC = First $c.Lines '^PULL spawn index=3 id=boss actors=900:hollowWarden\.boss$'

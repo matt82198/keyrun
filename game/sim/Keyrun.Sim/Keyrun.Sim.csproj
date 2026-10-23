@@ -24,6 +24,11 @@
     build in seconds. PurityTests stays the authoritative (IL-level) check; this is earlier,
     not instead. Analyzer: Microsoft.CodeAnalysis.BannedApiAnalyzers, MIT, build-time only.
   -->
+  <!-- R-ROLL-1: the completion roll's no-content fallback pool is the shipped Warden facet table, embedded from the one file. -->
+  <ItemGroup>
+    <EmbeddedResource Include="../../../content/data/facets/warden.json" LinkBase="data" LogicalName="Keyrun.Sim.DefaultFacets.warden.json" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
       <PrivateAssets>all</PrivateAssets>

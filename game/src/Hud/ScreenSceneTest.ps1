@@ -6,9 +6,9 @@
 .DESCRIPTION
   Boots the real game (Main.tscn -> Arena.tscn) headless at --fixed-fps 60 once and reads the screen's own
   "SCREEN ..." lines (printed under --autorun). After the run ends, Screen.cs pushes keys through the real input
-  path one per frame: 1 (the run-end panel takes reward 1 and opens the screen), R, R, R, Right, 2, Enter.
+  path one per frame: 1 (the run-end panel takes the completion roll's item, if any, and opens the screen), R, R, R, Right, 2, Enter.
 
-    -- --autorun --ticks 9800 --solo (pull 1, the Choir, solo Warden; 480 -> 600 by ROOM-LOCK-IN D27, when the
+    -- --autorun --ticks 9800 --seed 5 --solo (pull 1, the Choir, solo Warden; 480 -> 600 by ROOM-LOCK-IN D27, when the
        Warden's wipe ended the run depleted at 491; 600 -> 9800 by R-446-CI, f-ea16265e: under R-BACKFILL-2, BIBLE
        s9.1, a wipe is a release, not a run end, so the lone Warden dies, respawns and the run goes on until the timer
        cap, Timer.CapTicks, ends it depleted and uncleared at 9600, titled "Out of time -- key stays at +2"; 9800 keeps
@@ -16,7 +16,7 @@
        tools/Keyrun.Playtest.Tests/ScreenSceneWipeReleaseRunTests.cs; the same run as HudSceneTest run A):
       1. exit 0 and "AUTORUN done ticks=9800";
       2. "SCREEN bank result=depleted ash=30 total=30" (Ash banked win or lose, before any reward is taken);
-      3. "HUD runend take n=1 id=reward-<slot>-..." and "SCREEN open ash=30 runs=1 since="+30 Ash, <slot> tier <t> (new)"";
+      3. "HUD runend result=... roll=item|nothing" and "SCREEN roll take slot=<slot> ..." (item rolls only) and "SCREEN open ash=30 runs=1 since="+30 Ash, <slot> tier <t> (new)"";
       4. "SCREEN character class=Warden" and five "SCREEN ability key=<1..5> name=..." lines;
       5. "SCREEN item slot=<slot> tier=<t> ... charges=2 selected=1" for the taken reward;
       6. two "SCREEN reroll slot=<slot> ok=1 facet=warden.<slot>.* charges=1|0" lines (the class's listed pool for
@@ -60,7 +60,8 @@ $failures = New-Object System.Collections.Generic.List[string]
 # --quit-after is a hang guard only: a correct run quits by itself at frame 3N.
 $guard = (3 * $Ticks) + 240
 $ErrorActionPreference = 'Continue'
-$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --solo 2>&1 | Out-String
+# --seed 5: seat 1 rolls an item at the depleted cap tick 9600 (rewardSeed = seed*1000003 + tick; sweep a1d0fdc8); seed 1 rolls nothing
+$text = & $wrapper --headless --path (Join-Path $repo 'game') --fixed-fps 60 --quit-after $guard '--' --autorun --ticks $Ticks --seed 5 --solo 2>&1 | Out-String
 $rc = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
 if ($rc -eq 2 -and $text -match 'Godot binary not found') {
@@ -87,12 +88,16 @@ if ($err) { $failures.Add("screen script error: '$err'") }
 $bank = First '^SCREEN bank result=depleted ash=30 total=30$'
 if (-not $bank) { $failures.Add('no "SCREEN bank result=depleted ash=30 total=30" line') }
 
-$take = First '^HUD runend take n=1 id=reward-(weapon|armor|charm|ring|keystone)-'
+# The completion roll (R-ROLL-1) may give nothing: the run-end result line must print roll=item|nothing (either passes here).
+$result = First '^HUD runend result=\S+ roll=(item|nothing) '
+if (-not $result) { $failures.Add('no "HUD runend result=... roll=item|nothing" line (the run-end panel printed no completion roll)') }
+# needs a seed whose seat-1 roll is an item; orchestrator derives the seed if the current one rolls nothing
+$take = First '^SCREEN roll take slot=(weapon|armor|charm|ring|keystone) tier=\d+ id=\S+'
 $slot = $null
 if (-not $take) {
-    $failures.Add('no "HUD runend take n=1 id=reward-<slot>-..." line (the run-end panel did not take reward 1)')
+    $failures.Add('no "SCREEN roll take slot=<slot> tier=<t> id=..." line (the completion roll gave nothing, so no item was taken for the reroll checks)')
 } else {
-    $null = $take -match '^HUD runend take n=1 id=reward-(\w+)-'
+    $null = $take -match '^SCREEN roll take slot=(\w+) '
     $slot = $Matches[1]
 }
 $open = First '^SCREEN open ash=30 runs=1 since="\+30 Ash, (\w+) tier (\d+) \(new\)"$'

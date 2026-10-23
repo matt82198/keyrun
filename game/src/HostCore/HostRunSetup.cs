@@ -274,8 +274,15 @@ public sealed partial record HostRunSetup(
             Combos = combos,
             FieldCombos = fieldCombos,
             Clauses = clauses,
-            // R-ROLL-1: the loaded completion.json table (drop rates and slots) drives the completion roll.
-            Completion = new CompletionRollTable(registry.Completion.DropBpTimed, registry.Completion.DropBpDepleted, registry.Completion.Slots.ToList()),
+            // R-ROLL-1: the loaded completion.json table (drop rates and slots) drives the completion roll; (b)(iii) each seat
+            // draws over its own class's facet pool (the same kit-scoped pool the Character screen's reroll lists).
+            Completion = new CompletionRollTable(registry.Completion.DropBpTimed, registry.Completion.DropBpDepleted, registry.Completion.Slots.ToList())
+            {
+                ClassFacets = registry.Classes.Keys.ToDictionary(
+                    id => id,
+                    id => (IReadOnlyDictionary<string, IReadOnlyList<Facet>>)Lobby.FacetPools(registry, id),
+                    StringComparer.Ordinal),
+            },
             Layout = nav,
             Packs = packs,
             Patrols = patrols,
