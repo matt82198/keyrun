@@ -230,10 +230,16 @@ public static class RunWiring
     /// next press. The oracle traces bots-hv-k2-s7/k2-s11 (t=421) and k10-s7 (t=1502) record such a Cinder flare.
     /// </remarks>
     /// <param name="state">The state to fix up.</param>
-    public static void FixupTargeting(SimState state)
+    /// <param name="emit">Event sink for holder_change (f-6dbdd121), or null when the caller has none (createRun).</param>
+    public static void FixupTargeting(SimState state, Action<SimEvent>? emit = null)
     {
         ArgumentNullException.ThrowIfNull(state);
+        var holdersBefore = emit is null ? null : HolderChangeLog.Snapshot(state);
         Holder.LockHolders(state);
+        if (emit is not null && holdersBefore is not null)
+        {
+            HolderChangeLog.EmitChanges(state, holdersBefore, emit);
+        }
         var tank = state.Actors.Values.FirstOrDefault(a => a.Kind == ActorKind.Player && a.Role == ActorRole.Tank);
         // PRESPAWN-AGGRO: an idle enemy is never auto-targeted and never auto-targets (no idle actor in an oracle run).
         var enemies = state.Actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle).ToList();
