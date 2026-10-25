@@ -94,6 +94,7 @@ public partial class ActorView : Node3D
     private System.Collections.Generic.IReadOnlyList<GearMark>? _gearPlan;
     private Node3D? _gearRoot;
     private readonly System.Collections.Generic.List<MeshInstance3D> _gearMeshes = new();
+    private readonly System.Collections.Generic.List<BoneAttachment3D> _gearBones = new();
     private bool _gearFaded;
 
     /// <summary>KF1 hit flash colour (warm white, added over the body) at full strength.</summary>
@@ -671,16 +672,46 @@ public partial class ActorView : Node3D
             _gearRoot.QueueFree();
             _gearRoot = null;
         }
+        foreach (var attach in _gearBones)
+        {
+            if (IsInstanceValid(attach))
+            {
+                attach.GetParent()?.RemoveChild(attach);
+                attach.QueueFree();
+            }
+        }
+        _gearBones.Clear();
         _gearMeshes.Clear();
         _gearFaded = false;
         if (plan.Count > 0)
         {
             _gearRoot = new Node3D { Name = "Gear", Visible = now.Alive };
             AddChild(_gearRoot);
+            var skeleton = _model?.FindChildren("*", "Skeleton3D", true, false).OfType<Skeleton3D>().FirstOrDefault();
+            var scale = _model is null || _model.Scale.X <= 0f ? 1f : _model.Scale.X;
             foreach (var mark in plan)
             {
                 var mesh = BuildGearMesh(mark);
-                _gearRoot.AddChild(mesh);
+                if (skeleton is not null && skeleton.FindBone(mark.Bone) >= 0)
+                {
+                    // Ride the bone: BONE-LOCAL offsets in the model frame, undoing the model's scale so sizes stay metres.
+                    mesh.Position = new Vector3(mark.PosX, mark.PosY, mark.PosZ) / scale;
+                    mesh.Scale = Vector3.One / scale;
+                    var attach = new BoneAttachment3D { Name = "GearBone_" + mark.Slot, BoneName = mark.Bone };
+                    skeleton.AddChild(attach);
+                    attach.AddChild(mesh);
+                    _gearBones.Add(attach);
+                }
+                else
+                {
+                    // No skeleton (the capsule fallback): old root-frame parent, root X forward, Z lateral (model X negated).
+                    mesh.Position = new Vector3(mark.PosZ, RootAnchorY(mark.Bone) + mark.PosY, -mark.PosX);
+                    if (mesh.Mesh is BoxMesh box)
+                    {
+                        box.Size = new Vector3(mark.SizeZ, mark.SizeY, mark.SizeX);
+                    }
+                    _gearRoot.AddChild(mesh);
+                }
                 _gearMeshes.Add(mesh);
             }
         }
@@ -708,6 +739,15 @@ public partial class ActorView : Node3D
         Driver?.HostLine(line);
     }
 
+    // Root-frame height of a bone's rest position, for the no-skeleton fallback only.
+    private static float RootAnchorY(string bone) => bone switch
+    {
+        "head" => 1.5f,
+        "chest" => 1.15f,
+        "handslot.r" => 1.05f,
+        _ => 0.95f,
+    };
+
     // One primitive mark: a box or a sphere, unshadowed (the marks add draw calls to the Warden only), tinted by tier.
     private static MeshInstance3D BuildGearMesh(GearMark mark)
     {
@@ -718,7 +758,6 @@ public partial class ActorView : Node3D
         {
             Name = "Gear_" + mark.Slot,
             Mesh = mesh,
-            Position = new Vector3(mark.PosX, mark.PosY, mark.PosZ),
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
             MaterialOverride = new StandardMaterial3D
             {
