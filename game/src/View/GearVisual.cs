@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Keyrun.Content;
 
 namespace Keyrun.View;
 
@@ -14,12 +16,12 @@ public enum GearShape
 }
 
 /// <summary>
-/// One drawn mark for an equipped item. Positions and sizes are metres in the actor's root frame (feet at the root,
-/// facing local +x, so X is forward, Y is up and Z is lateral with positive Z on the Warden's left), so the mark turns
-/// with the body and is independent of the model's own scale. <see cref="Rgb"/> is the tier band colour, 0xRRGGBB.
+/// One drawn mark for an equipped item. Positions and sizes are metres in the named bone's frame (the model's frame: X
+/// lateral, Y up, Z forward), so the mark rides the skeleton and is independent of the model's own scale. <see cref="Rgb"/> is the tier band colour, 0xRRGGBB.
 /// </summary>
 public readonly record struct GearMark(
     string Slot,
+    string Bone,
     int Tier,
     GearShape Shape,
     float PosX,
@@ -66,20 +68,15 @@ public static class GearVisual
         ArgumentNullException.ThrowIfNull(slot);
         var rgb = TierRgb(tier);
         var clamped = ClampTier(tier);
-        return slot switch
+        var def = GearMarkDefs.All.FirstOrDefault(d => d.Slot == slot);
+        if (def is null)
         {
-            // A blade held forward from the right hand.
-            "weapon" => new GearMark(slot, clamped, GearShape.Box, 0.55f, 1.05f, -0.38f, 0.9f, 0.06f, 0.08f, rgb),
-            // A torso band over the chest.
-            "armor" => new GearMark(slot, clamped, GearShape.Box, 0f, 1.2f, 0f, 0.32f, 0.5f, 0.5f, rgb),
-            // A bead at the throat.
-            "charm" => new GearMark(slot, clamped, GearShape.Sphere, 0.18f, 1.5f, 0f, 0.1f, 0f, 0f, rgb),
-            // A stone on the right hand.
-            "ring" => new GearMark(slot, clamped, GearShape.Sphere, 0.42f, 0.95f, -0.36f, 0.06f, 0f, 0f, rgb),
-            // A block at the belt, behind the body.
-            "keystone" => new GearMark(slot, clamped, GearShape.Box, -0.22f, 0.95f, 0f, 0.18f, 0.18f, 0.18f, rgb),
-            _ => null,
-        };
+            return null;
+        }
+        return new GearMark(
+            slot, def.Bone, clamped, def.Sphere ? GearShape.Sphere : GearShape.Box,
+            def.OffXMm / 1000f, def.OffYMm / 1000f, def.OffZMm / 1000f,
+            def.SizeXMm / 1000f, def.SizeYMm / 1000f, def.SizeZMm / 1000f, rgb);
     }
 
     /// <summary>
