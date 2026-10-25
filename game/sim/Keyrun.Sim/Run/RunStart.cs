@@ -16,6 +16,12 @@ namespace Keyrun.Sim.Runs;
 public sealed record RunStart(RunOptions? Options, GearLoadout? Gear)
 {
     /// <summary>
+    /// The owned tree node ids the run skipped because the sim cannot run their delta (R-TREES-10b), in node order. Empty
+    /// when every owned node was applied.
+    /// </summary>
+    public IReadOnlyList<string> SkippedTreeNodes { get; init; } = Array.Empty<string>();
+
+    /// <summary>
     /// Composes the run options. The wearer's kit is <paramref name="baseAbilities"/> overlaid by the request's talent
     /// loadout for <paramref name="humanActorId"/>, so a Facet stacks on the talented ability rather than replacing it;
     /// <see cref="GearLoadout.ToRunOptions"/> then merges the patched kit into the request's options (Clause and every
@@ -58,7 +64,8 @@ public sealed record RunStart(RunOptions? Options, GearLoadout? Gear)
             kit = merged;
         }
         // ABILITY-TREES s5.2: the unlocked tree nodes patch the kit first; a Facet then stacks on the tree-patched ability.
-        var treePatched = TreePatches(progression, kit, nodeEdits);
+        var skipped = new List<string>();
+        var treePatched = TreePatches(progression, kit, nodeEdits, skipped);
         if (treePatched.Count > 0)
         {
             var merged = new Dictionary<string, AbilityDef>(kit, StringComparer.Ordinal);
@@ -76,16 +83,19 @@ public sealed record RunStart(RunOptions? Options, GearLoadout? Gear)
             abilities[kv.Key] = kv.Value;
         }
         var gear = new GearLoadout(humanActorId, facetGear.Gear, abilities, facetGear.UnappliedFacetIds);
-        return new RunStart(gear.ToRunOptions(options), gear);
+        return new RunStart(gear.ToRunOptions(options), gear) { SkippedTreeNodes = skipped };
     }
 
     // The abilities of the kit that an unlocked tree node changed, by kit key, each composed from the seat's nodes. The
     // seat's nodes are the union of every class's tree state: a node id is prefixed by its ability id, so only the ability
     // it names is changed. An ability no owned node edits is left out, so a seat with no unlocks yields an empty map.
+    // R-TREES-10b: an owned node the sim cannot run (TreeComposer refuses it) is skipped, not thrown, and its id is added to
+    // skipped so the run start reports it (RunStart.SkippedTreeNodes). TreeComposer itself still throws for direct callers.
     private static Dictionary<string, AbilityDef> TreePatches(
         Progression progression,
         IReadOnlyDictionary<string, AbilityDef> kit,
-        IReadOnlyDictionary<string, TreeNodeEdit>? nodeEdits)
+        IReadOnlyDictionary<string, TreeNodeEdit>? nodeEdits,
+        List<string> skipped)
     {
         var changed = new Dictionary<string, AbilityDef>(StringComparer.Ordinal);
         if (nodeEdits is null || nodeEdits.Count == 0 || progression.Trees.Count == 0)
@@ -100,11 +110,27 @@ public sealed record RunStart(RunOptions? Options, GearLoadout? Gear)
         {
             return changed;
         }
-        var state = new TreeState(0, 0, nodes);
+        var refused = new HashSet<string>(StringComparer.Ordinal);
         foreach (var key in kit.Keys.OrderBy(k => k, StringComparer.Ordinal))
         {
             var ability = kit[key];
-            var patch = TreeComposer.ToGearPatch(state, ability, nodeEdits);
+            var runnable = new List<string>();
+            foreach (var node in nodes)
+            {
+                try
+                {
+                    TreeComposer.ToGearPatch(new TreeState(0, 0, new[] { node }), ability, nodeEdits);
+                    runnable.Add(node);
+                }
+                catch (TreeCompositionException)
+                {
+                    if (refused.Add(node))
+                    {
+                        skipped.Add(node);
+                    }
+                }
+            }
+            var patch = TreeComposer.ToGearPatch(new TreeState(0, 0, runnable), ability, nodeEdits);
             if (patch.Effects is null && patch.EffectsAppend is null)
             {
                 continue;

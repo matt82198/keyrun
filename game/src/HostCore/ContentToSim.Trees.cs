@@ -16,9 +16,9 @@ public sealed partial record HostRunSetup
     /// The sim node edit of every content tree node that carries one, by node id (ABILITY-TREES s1.2): a <c>rank</c> node's
     /// single <c>effectDelta</c> becomes an <see cref="EffectDelta"/>; an <c>enhanced</c> node's <c>conditional</c> becomes a
     /// <see cref="GearPatch"/> whose <see cref="GearPatch.EffectsAppend"/> carries the <see cref="ConditionalOp"/> (R-TREES-9).
-    /// A <c>choice</c> node carries no edit and is left out. An <c>enhanced</c> node whose conditional the sim cannot run yet
-    /// is left out of this shared map, so one unshipped node cannot break every seat; <see cref="RequireOwnedEdits"/> refuses
-    /// a seat that owns it, so it is never dropped silently for the seat that holds it. A rank edit of an unknown shape throws.
+    /// A <c>choice</c> node carries no edit and is left out. An <c>enhanced</c> node whose conditional body uses an op the sim
+    /// does not run yet is left out of this shared map, so one unshipped node cannot break every seat; <see cref="StartFor"/>
+    /// then reports the owned one as skipped (RunStart.SkippedTreeNodes, R-TREES-10b). A malformed edit of either kind throws.
     /// </summary>
     /// <param name="registry">The loaded content.</param>
     /// <returns>The node edits, ordinal by node id.</returns>
@@ -37,7 +37,7 @@ public sealed partial record HostRunSetup
             {
                 edits[node.Id] = new TreeNodeEdit(Delta: RankDeltaOf(node));
             }
-            else if (node.Kind == "enhanced" && RunnableConditionalOf(node) is { } ops)
+            else if (node.Kind == "enhanced" && TryConditionalOf(node, out var ops))
             {
                 edits[node.Id] = new TreeNodeEdit(Patch: new GearPatch { EffectsAppend = ops });
             }
@@ -46,13 +46,14 @@ public sealed partial record HostRunSetup
     }
 
     /// <summary>
-    /// Fails closed when a seat owns a tree node the sim cannot apply: every owned <c>enhanced</c> node's conditional must
-    /// convert to a sim <see cref="ConditionalOp"/>, so an unknown shape is refused loudly and names the node. Called by
-    /// <see cref="StartFor"/> before a run starts.
+    /// Fails closed on malformed content: every owned <c>enhanced</c> node must carry a well-formed conditional (shape and
+    /// condition kind), so a malformed edit is refused loudly and names the node. An owned node whose conditional body uses an
+    /// op the sim does not run is not an error here; it is skipped at run start (RunStart.SkippedTreeNodes, R-TREES-10b).
+    /// Called by <see cref="StartFor"/> before a run starts.
     /// </summary>
     /// <param name="registry">The loaded content.</param>
     /// <param name="progression">The seat's progression.</param>
-    /// <exception cref="InvalidOperationException">The seat owns an enhanced node whose conditional the sim cannot run.</exception>
+    /// <exception cref="InvalidOperationException">The seat owns an enhanced node whose conditional is malformed.</exception>
     public static void RequireOwnedEdits(C.ContentRegistry registry, Progression progression)
     {
         ArgumentNullException.ThrowIfNull(registry);
@@ -61,27 +62,40 @@ public sealed partial record HostRunSetup
         {
             if (registry.Trees.TryGetValue(owned, out var node) && node.Kind == "enhanced")
             {
-                _ = ConditionalOf(node);  // throws, naming the node, when the sim cannot run it
+                _ = TryConditionalOf(node, out _);  // throws, naming the node, when the conditional is malformed
             }
         }
     }
 
-    // The conditional's sim ops, or null when the sim cannot run this node's conditional yet (see TreeEdits and RequireOwnedEdits).
-    private static IReadOnlyList<EffectOp>? RunnableConditionalOf(C.TreeNodeDef node)
+    /// <summary>
+    /// The owned tree node ids whose content edit the host could not map to a sim node edit (an <c>enhanced</c> node whose
+    /// conditional body uses an op the sim does not run, see <see cref="TreeEdits"/>). The sim never sees these, so
+    /// <see cref="StartFor"/> reports them as skipped (R-TREES-10b).
+    /// </summary>
+    /// <param name="registry">The loaded content.</param>
+    /// <param name="progression">The seat's progression.</param>
+    /// <param name="edits">The mapped node edits from <see cref="TreeEdits"/>.</param>
+    /// <returns>The unmapped owned node ids, in the seat's order.</returns>
+    public static IReadOnlyList<string> UnmappedOwnedNodes(
+        C.ContentRegistry registry,
+        Progression progression,
+        IReadOnlyDictionary<string, TreeNodeEdit> edits)
     {
-        try
-        {
-            return ConditionalOf(node);
-        }
-        catch (InvalidOperationException)
-        {
-            return null;
-        }
+        ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(progression);
+        ArgumentNullException.ThrowIfNull(edits);
+        return progression.Trees.Values
+            .SelectMany(t => t.Nodes)
+            .Distinct(StringComparer.Ordinal)
+            .Where(id => registry.Trees.TryGetValue(id, out var node) && node.Edit is not null && !edits.ContainsKey(id))
+            .ToList();
     }
 
     // An enhanced node's edit is exactly one conditional (ABILITY-TREES s5.2): "if" a closed condition, "consume", and "then"
-    // ops the sim runs. Only the resource op is in the shipped content so far; any other body op is refused.
-    private static IReadOnlyList<EffectOp> ConditionalOf(C.TreeNodeDef node)
+    // ops. Returns true with the sim ops when every body op is one the sim runs (only "resource" is shipped so far), and false
+    // when a body op is valid content the sim does not run yet. A malformed shape or an unknown condition kind throws, so bad
+    // content still fails closed.
+    private static bool TryConditionalOf(C.TreeNodeDef node, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out IReadOnlyList<EffectOp>? ops)
     {
         using var doc = JsonDocument.Parse(node.Edit ?? throw new InvalidOperationException($"run setup: tree node \"{node.Id}\" has no edit"));
         if (!doc.RootElement.TryGetProperty("conditional", out var cond) || cond.ValueKind != JsonValueKind.Object
@@ -97,14 +111,14 @@ public sealed partial record HostRunSetup
         var body = new List<EffectOp>();
         foreach (var op in then.EnumerateArray())
         {
-            var name = op.GetProperty("op").GetString();
-            if (name != "resource")
+            if (op.GetProperty("op").GetString() != "resource")
             {
-                throw new InvalidOperationException($"run setup: tree node \"{node.Id}\" conditional op \"{name}\" is not one the sim runs");
+                ops = null;
+                return false;
             }
             body.Add(new ResourceOp(op.GetProperty("amount").GetInt64()));
         }
-        return new EffectOp[]
+        ops = new EffectOp[]
         {
             new ConditionalOp
             {
@@ -113,6 +127,7 @@ public sealed partial record HostRunSetup
                 Then = body,
             },
         };
+        return true;
     }
 
     // The closed condition list (ABILITY-TREES s1.3); an unknown kind is refused.

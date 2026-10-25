@@ -54,7 +54,6 @@ public sealed class TreeApplyAtRunStartTests
         var start = RunStart.Of(null, unlocked, HumanId, Abilities, NoFacetPatches, NodeEdits);
         var run = RunRoot.CreateRun(42, Party(), Dungeon(), RunTestKit.Content(Abilities), start.Options);
 
-        // Red today: RunStart.Of never reads Progression.Trees, so the run starts with the base damage of 1.
         Assert.Equal(expected, DamageOf(run.Content.Abilities["zap"]));
     }
 
@@ -88,11 +87,41 @@ public sealed class TreeApplyAtRunStartTests
         var merged = MergeLoadouts(startOne.Options, startTwo.Options);
         var run = RunRoot.CreateRun(42, Party(), Dungeon(), RunTestKit.Content(Abilities), merged);
 
-        // Red today: both seats start with the base damage of 1, so each assertion reports Expected/Actual 1.
         Assert.Equal(expectedOne, SeatDamage(merged, HumanId));
         Assert.Equal(expectedTwo, SeatDamage(merged, SecondSeatId));
         Assert.NotEqual(SeatDamage(merged, HumanId), SeatDamage(merged, SecondSeatId));
         Assert.NotNull(run);
+    }
+
+    [Fact(DisplayName = "Tree apply: an owned node whose delta the sim does not run is skipped at run start, the seat keeps its base ability")]
+    public void A_node_the_sim_cannot_run_is_skipped_at_run_start()
+    {
+        var unrunnable = new Dictionary<string, TreeNodeEdit>(StringComparer.Ordinal)
+        {
+            ["zap.rank2"] = new TreeNodeEdit(Delta: new EffectDelta("window", "durationTicks", 16)),
+        };
+        var owned = WithTree(Progression.Start(1), new TreeState(1, 1, new[] { "zap.rank2" }));
+
+        var start = RunStart.Of(null, owned, HumanId, Abilities, NoFacetPatches, unrunnable);
+
+        Assert.Equal(new[] { "zap.rank2" }, start.SkippedTreeNodes);
+    }
+
+    [Fact(DisplayName = "Tree apply: a seat with a runnable and an unrunnable node on one ability applies the runnable edit and skips only the unrunnable id")]
+    public void A_runnable_node_applies_and_only_the_unrunnable_node_is_skipped()
+    {
+        var mixed = new Dictionary<string, TreeNodeEdit>(StringComparer.Ordinal)
+        {
+            ["zap.rank2"] = NodeEdits["zap.rank2"],
+            ["zap.rank3"] = new TreeNodeEdit(Delta: new EffectDelta("window", "durationTicks", 16)),
+        };
+        var owned = WithTree(Progression.Start(1), new TreeState(1, 1, new[] { "zap.rank2", "zap.rank3" }));
+
+        var start = RunStart.Of(null, owned, HumanId, Abilities, NoFacetPatches, mixed);
+
+        Assert.Equal(new[] { "zap.rank3" }, start.SkippedTreeNodes);
+        Assert.NotNull(start.Gear);
+        Assert.Equal(DamageOf(BaseZap) + 1, DamageOf(start.Gear!.Abilities["zap"]));
     }
 
     // The composer's result for one tree state, computed with the existing public API (the reference the start must match).

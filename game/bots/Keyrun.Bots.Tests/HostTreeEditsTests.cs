@@ -29,6 +29,14 @@ public sealed class HostTreeEditsTests
     private const string EnhancedConditionId = "braced";
     private const long EnhancedResourceDelta = 15;
 
+    // game/content/data/trees/warden.json: warden.bulwark.rank2 is a rank node whose delta is window.durationTicks, which the
+    // sim does not run (TreeComposer refuses it). ABILITY-TREES R-TREES-10b: owning it must skip the node, not throw.
+    private const string BulwarkRank2Id = "warden.bulwark.rank2";
+    private const string BulwarkAbilityId = "warden.bulwark";
+
+    // game/content/data/trees/chanter.json: chanter.cadence.enhanced, a conditional whose body op is "heal" (not a sim op).
+    private const string UnrunnableEnhancedId = "chanter.cadence.enhanced";
+
     [Fact(DisplayName = "Host tree edits: warden.strike.rank2 maps to its single content effectDelta (damage amount +8)")]
     public void Rank2_edit_matches_the_content_delta()
     {
@@ -86,12 +94,72 @@ public sealed class HostTreeEditsTests
         Assert.Null(ex);
     }
 
-    private static Progression ProgressionOwning(params string[] nodeIds) =>
+    [Fact(DisplayName = "Tree apply: a Cinder seat gets no patch from a warden node it owns (R-TREES-10a)")]
+    public void A_seat_gets_no_patch_from_another_classes_owned_node()
+    {
+        var registry = ContentLoader.Load();
+        var setup = HostRunSetup.Build(registry, "hollow-vault", 2, "cinder");
+        var progression = ProgressionOwningIn("warden", "warden.strike.rank2");
+
+        var start = setup.StartFor(null, progression, registry, "cinder");
+
+        Assert.NotNull(start.Gear);
+        Assert.Equal(BaseEffects(setup, start.Gear!, StrikeAbilityId), setup.Content.Abilities[StrikeAbilityId].Effects);
+    }
+
+    [Fact(DisplayName = "Tree apply: a Warden seat still gets the warden.strike rank2 patch it owns (guard)")]
+    public void A_seat_of_the_owning_class_still_gets_its_patch()
+    {
+        var registry = ContentLoader.Load();
+        var setup = HostRunSetup.Build(registry, "hollow-vault", 2, "warden");
+        var progression = ProgressionOwningIn("warden", "warden.strike.rank2");
+
+        var start = setup.StartFor(null, progression, registry, "warden");
+
+        Assert.NotNull(start.Gear);
+        long baseDamage = setup.Content.Abilities[StrikeAbilityId].Effects.OfType<Keyrun.Sim.Combat.DamageOp>().First().Amount;
+        Assert.Equal(baseDamage + Rank2Delta, BaseEffects(setup, start.Gear!, StrikeAbilityId).OfType<Keyrun.Sim.Combat.DamageOp>().First().Amount);
+    }
+
+    [Fact(DisplayName = "Tree apply: owning warden.bulwark.rank2 (window.durationTicks) starts the run and skips the node")]
+    public void Owning_warden_bulwark_rank2_starts_the_run_and_skips_the_node()
+    {
+        var registry = ContentLoader.Load();
+        var setup = HostRunSetup.Build(registry, "hollow-vault", 2, "warden");
+        var progression = ProgressionOwningIn("warden", BulwarkRank2Id);
+
+        var start = setup.StartFor(null, progression, registry, "warden");
+
+        Assert.NotNull(start.Gear);
+        Assert.Equal(new[] { BulwarkRank2Id }, start.SkippedTreeNodes);
+    }
+
+    [Fact(DisplayName = "Tree apply: owning chanter.cadence.enhanced (shipped conditional op heal) starts the run and skips the node (R-TREES-10b)")]
+    public void Owning_chanter_cadence_enhanced_starts_the_run_and_skips_the_node()
+    {
+        var registry = ContentLoader.Load();
+        var setup = HostRunSetup.Build(registry, "hollow-vault", 2, "chanter");
+        var progression = ProgressionOwningIn("chanter", UnrunnableEnhancedId);
+
+        // The shipped chanter.cadence.enhanced conditional body is op "heal", which ContentToSim.Trees.cs ConditionalOf refuses.
+        var start = setup.StartFor(null, progression, registry, "chanter");
+
+        Assert.NotNull(start.Gear);
+        Assert.Equal(new[] { UnrunnableEnhancedId }, start.SkippedTreeNodes);
+    }
+
+    // The effects an ability starts with: its loadout entry when the gear carries one, else the content base kit.
+    private static IReadOnlyList<Keyrun.Sim.Combat.EffectOp> BaseEffects(HostRunSetup setup, GearLoadout gear, string abilityId) =>
+        gear.Abilities.TryGetValue(abilityId, out var ability) ? ability.Effects : setup.Content.Abilities[abilityId].Effects;
+
+    private static Progression ProgressionOwning(params string[] nodeIds) => ProgressionOwningIn("warden", nodeIds);
+
+    private static Progression ProgressionOwningIn(string classId, params string[] nodeIds) =>
         Progression.Start(1) with
         {
             Trees = new Dictionary<string, TreeState>(StringComparer.Ordinal)
             {
-                ["warden"] = new TreeState(1, 1, nodeIds),
+                [classId] = new TreeState(1, 1, nodeIds),
             },
         };
 }

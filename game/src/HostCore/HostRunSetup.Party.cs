@@ -105,15 +105,29 @@ public sealed partial record HostRunSetup
         {
             return RunStart.Of(request, null, HumanActorId, Content.Abilities, new Dictionary<string, GearPatch>(StringComparer.Ordinal));
         }
-        // ABILITY-TREES R-TREES-8: an owned enhanced node is refused here (fail closed), then every rank edit is passed.
-        RequireOwnedEdits(registry, progression);
-        return RunStart.Of(
+        // R-TREES-10a: a seat composes only its own class's tree nodes; another class's owned nodes never reach its kit.
+        var seat = progression with
+        {
+            Trees = progression.Trees
+                .Where(kv => string.Equals(kv.Key, humanClassId, StringComparison.Ordinal))
+                .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal),
+        };
+        // ABILITY-TREES R-TREES-8: an owned enhanced node with a malformed conditional is refused here (fail closed); an owned
+        // node whose op the sim does not run is skipped (R-TREES-10b): the sim skips the ones it refuses, and the host adds the
+        // ones it could not map. Every other edit is passed.
+        RequireOwnedEdits(registry, seat);
+        var edits = TreeEdits(registry);
+        var start = RunStart.Of(
             request,
-            progression,
+            seat,
             HumanActorId,
             Content.Abilities,
             GearPatches(registry, humanClassId),
-            TreeEdits(registry));
+            edits);
+        var unmapped = UnmappedOwnedNodes(registry, seat, edits);
+        return unmapped.Count == 0
+            ? start
+            : start with { SkippedTreeNodes = start.SkippedTreeNodes.Concat(unmapped).Distinct(StringComparer.Ordinal).ToList() };
     }
 
     /// <summary>
