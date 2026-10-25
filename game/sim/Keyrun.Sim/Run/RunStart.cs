@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Keyrun.Sim.Combat;
 
 namespace Keyrun.Sim.Runs;
@@ -25,13 +26,19 @@ public sealed record RunStart(RunOptions? Options, GearLoadout? Gear)
     /// <param name="humanActorId">The human's actor id (the gear wearer).</param>
     /// <param name="baseAbilities">The run content's base ability map.</param>
     /// <param name="patchesByFacetId">The wearer class's Facet patches by Facet id.</param>
+    /// <param name="nodeEdits">
+    /// The tree node edits by node id (ABILITY-TREES s5.2, R-TREES-8), or null or empty for no tree edits. Each unlocked
+    /// node of the seat's <see cref="Progression.Trees"/> is composed into its ability through <see cref="TreeComposer.ToGearPatch"/>
+    /// after the talent loadout and before the Facet patches.
+    /// </param>
     /// <returns>The options and the gear they carry.</returns>
     public static RunStart Of(
         QueueRequest? request,
         Progression? progression,
         int humanActorId,
         IReadOnlyDictionary<string, AbilityDef> baseAbilities,
-        IReadOnlyDictionary<string, GearPatch> patchesByFacetId)
+        IReadOnlyDictionary<string, GearPatch> patchesByFacetId,
+        IReadOnlyDictionary<string, TreeNodeEdit>? nodeEdits = null)
     {
         ArgumentNullException.ThrowIfNull(baseAbilities);
         ArgumentNullException.ThrowIfNull(patchesByFacetId);
@@ -50,7 +57,60 @@ public sealed record RunStart(RunOptions? Options, GearLoadout? Gear)
             }
             kit = merged;
         }
-        var gear = GearLoadout.Of(progression, humanActorId, kit, patchesByFacetId);
+        // ABILITY-TREES s5.2: the unlocked tree nodes patch the kit first; a Facet then stacks on the tree-patched ability.
+        var treePatched = TreePatches(progression, kit, nodeEdits);
+        if (treePatched.Count > 0)
+        {
+            var merged = new Dictionary<string, AbilityDef>(kit, StringComparer.Ordinal);
+            foreach (var kv in treePatched)
+            {
+                merged[kv.Key] = kv.Value;
+            }
+            kit = merged;
+        }
+        var facetGear = GearLoadout.Of(progression, humanActorId, kit, patchesByFacetId);
+        // The facet loadout's abilities were patched from the tree-patched kit, so they supersede the tree-only entries.
+        var abilities = new Dictionary<string, AbilityDef>(treePatched, StringComparer.Ordinal);
+        foreach (var kv in facetGear.Abilities)
+        {
+            abilities[kv.Key] = kv.Value;
+        }
+        var gear = new GearLoadout(humanActorId, facetGear.Gear, abilities, facetGear.UnappliedFacetIds);
         return new RunStart(gear.ToRunOptions(options), gear);
+    }
+
+    // The abilities of the kit that an unlocked tree node changed, by kit key, each composed from the seat's nodes. The
+    // seat's nodes are the union of every class's tree state: a node id is prefixed by its ability id, so only the ability
+    // it names is changed. An ability no owned node edits is left out, so a seat with no unlocks yields an empty map.
+    private static Dictionary<string, AbilityDef> TreePatches(
+        Progression progression,
+        IReadOnlyDictionary<string, AbilityDef> kit,
+        IReadOnlyDictionary<string, TreeNodeEdit>? nodeEdits)
+    {
+        var changed = new Dictionary<string, AbilityDef>(StringComparer.Ordinal);
+        if (nodeEdits is null || nodeEdits.Count == 0 || progression.Trees.Count == 0)
+        {
+            return changed;
+        }
+        var nodes = progression.Trees.Values
+            .SelectMany(t => t.Nodes)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (nodes.Count == 0)
+        {
+            return changed;
+        }
+        var state = new TreeState(0, 0, nodes);
+        foreach (var key in kit.Keys.OrderBy(k => k, StringComparer.Ordinal))
+        {
+            var ability = kit[key];
+            var patch = TreeComposer.ToGearPatch(state, ability, nodeEdits);
+            if (patch.Effects is null && patch.EffectsAppend is null)
+            {
+                continue;
+            }
+            changed[key] = patch.ApplyTo(ability);
+        }
+        return changed;
     }
 }

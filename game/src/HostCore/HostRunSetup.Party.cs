@@ -99,13 +99,22 @@ public sealed partial record HostRunSetup
     /// <param name="registry">The content.</param>
     /// <param name="humanClassId">The human's class (scopes the Facets and fills an appended Window's setupClass).</param>
     /// <returns>The run start.</returns>
-    public RunStart StartFor(QueueRequest? request, Progression? progression, C.ContentRegistry registry, string humanClassId) =>
-        RunStart.Of(
+    public RunStart StartFor(QueueRequest? request, Progression? progression, C.ContentRegistry registry, string humanClassId)
+    {
+        if (progression is null)
+        {
+            return RunStart.Of(request, null, HumanActorId, Content.Abilities, new Dictionary<string, GearPatch>(StringComparer.Ordinal));
+        }
+        // ABILITY-TREES R-TREES-8: an owned enhanced node is refused here (fail closed), then every rank edit is passed.
+        RequireOwnedEdits(registry, progression);
+        return RunStart.Of(
             request,
             progression,
             HumanActorId,
             Content.Abilities,
-            progression is null ? new Dictionary<string, GearPatch>(StringComparer.Ordinal) : GearPatches(registry, humanClassId));
+            GearPatches(registry, humanClassId),
+            TreeEdits(registry));
+    }
 
     /// <summary>
     /// The sim patch of every content Facet on <paramref name="classId"/>'s kit (content/schema/facet.ts FacetPatch to
