@@ -19,8 +19,8 @@
       }
     },
     {
-      "enemyId": "choir.lieutenant",
-      "count": 1,
+      "enemyId": "remnant.cantor",
+      "count": 2,
       "spawn": {
         "x": 0,
         "z": -500

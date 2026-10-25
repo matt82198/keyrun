@@ -92,6 +92,7 @@ public static class AbilityClipTable
         new("choir.patrolSwing", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
         new("choir.patrolSweep", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
         new("choir.healCast",AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
+        new("remnant.healCast", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),
         new("pair.meleeSwing", AbilityAnimKind.Strike, "Unarmed_Melee_Attack_Punch_A"),
         new("pair.spreadMark", AbilityAnimKind.Spell, "Spellcast_Shoot", SpellLoop),
         new("pair.stackCall", AbilityAnimKind.Spell, "Spellcast_Raise", SpellLoop),

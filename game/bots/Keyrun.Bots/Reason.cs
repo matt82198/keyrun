@@ -48,6 +48,7 @@ public static class Reasons
         // Shared interrupt and floor answers that every role runs first.
         ["tank:ledger-kick"] = "interrupt the cast the ledger names",
         ["tank:floor-escape"] = "leave a floor patch",
+        ["tank:taunt-in-floor"] = "taunt a loose pack member in range before a floor escape",
         ["tank:break-bar-kick"] = "kick to break the bar",
         ["tank:melee-reapproach"] = "walk back into melee reach",
         ["tank:defensive"] = "use a defensive under pressure",
