@@ -77,7 +77,12 @@ public static partial class Casting
             landed |= ApplyEffects(state, actor, target, def.Effects, ctx, emit);
             if (taunt)
             {
+                var holderBefore = target.HolderId;
                 Holder.ApplyTaunt(actor, target); // HOLDER-LOCK (STATE.md D30): only a taunt moves a holder
+                if (target.Kind == ActorKind.Enemy && target.HolderId != holderBefore)
+                {
+                    emit(HolderChangeLog.Event(state.Tick, target.Id, target.HolderId));
+                }
             }
         }
         // C#-only (null on every oracle run): the Pair's mark_applied receipt, once per completed mark cast.

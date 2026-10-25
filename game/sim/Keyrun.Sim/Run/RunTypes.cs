@@ -232,6 +232,14 @@ public sealed record Run(SimState State, EncounterState Encounter, DungeonDef Du
     public IReadOnlyDictionary<int, SeatSpawn>? Spawns { get; init; }
 
     /// <summary>
+    /// f-6dbdd121 (R-THREAT-2 (c)/(d)): the ids of the enemies that already held a seat when the run was created or
+    /// start-engaged (createRun and EngageStartPull have no event sink). Never hashed (Projection reads none of it) and
+    /// never read by the rules. TargetingPhase drains it once, on the first step: each id still held and not already
+    /// logged that tick gets one holder_change stamped with the first step's tick. Absent from the stepped run.
+    /// </summary>
+    public IReadOnlyCollection<int>? PendingHolderLog { get; init; }
+
+    /// <summary>
     /// WIPE-IS-RELEASE: dead seats waiting to respawn, actor id to respawn tick (<see cref="Release.Step"/>). Empty on
     /// every run without a layout.
     /// </summary>

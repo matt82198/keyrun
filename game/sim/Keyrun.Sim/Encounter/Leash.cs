@@ -105,6 +105,10 @@ public static class Leash
                     Casting.Stopcast(a, emit, tick);
                 }
                 a.TargetId = null;
+                if (a.HolderId is not null)
+                {
+                    emit(HolderChangeLog.Event(tick, a.Id, null));
+                }
                 a.HolderId = null;
                 a.Threat.Clear();
                 // G2.5 (f-1c94a912): a DoT or debuff does not keep ticking on an evader walking home; it sheds at the start.
