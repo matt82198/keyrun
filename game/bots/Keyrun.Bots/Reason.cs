@@ -65,6 +65,7 @@ public static class Reasons
         ["healer:stance-back"] = "swap stance back before a heal",
         ["healer:heal"] = "heal the hurt ally",
         ["healer:dispel-approach"] = "walk into dispel range",
+        ["healer:aggro-move"] = "walk toward the tank while an enemy holds melee aggro",
         ["healer:dispel"] = "dispel the effect",
         ["damage:ledger-kick"] = "interrupt the cast the ledger names",
         ["damage:floor-escape"] = "leave a floor patch",
