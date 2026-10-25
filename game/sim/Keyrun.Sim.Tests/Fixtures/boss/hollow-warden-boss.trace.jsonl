@@ -1,5 +1,5 @@
 {"kind":"keyrun-boss-trace","lane":"3F","seed":31337,"ticks":2000,"traceHash":"1d8974d3","reason":"new behaviour (BIBLE s9 Twins + Lock), no TS oracle exists; see README.md"}
-{"t":1,"h":"089f0b74","e":[{"actorId":900,"endsTick":60,"lockIndex":1,"tick":0,"type":"lock_open"},{"actorId":901,"bossActorId":900,"classId":"hollowWarden.twinA","tick":1,"type":"boss_add_spawn"},{"actorId":902,"bossActorId":900,"classId":"hollowWarden.twinB","tick":1,"type":"boss_add_spawn"}]}
+{"t":1,"h":"089f0b74","e":[{"actorId":900,"endsTick":60,"lockIndex":1,"tick":0,"type":"lock_open"},{"actorId":901,"bossActorId":900,"classId":"hollowWarden.twinA","tick":1,"type":"boss_add_spawn"},{"actorId":902,"bossActorId":900,"classId":"hollowWarden.twinB","tick":1,"type":"boss_add_spawn"},{"enemyId":901,"holderId":1,"tick":1,"type":"holder_change"},{"enemyId":902,"holderId":1,"tick":1,"type":"holder_change"},{"enemyId":900,"holderId":1,"tick":1,"type":"holder_change"}]}
 {"t":2,"h":"bd571c43","e":[]}
 {"t":3,"h":"d378816e","e":[]}
 {"t":4,"h":"a30934e5","e":[]}
