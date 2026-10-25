@@ -1,0 +1,2 @@
+- LEASH-MAP-ROW `sim/Keyrun.Sim/Encounter/Leash.cs` - AGGRO-CHASE leash: a group with a member dragged past its leash from home, or with no living seat, evades (stops casting, drops targets and threat, walks home on the R-PATH-1 path) and resets to full health once every living member is home.
+BUILDLOG: Added the map row for sim/Keyrun.Sim/Encounter/Leash.cs (finding f-66b4d051) so sim lanes stop searching for a file that the keyrun map did not list.
