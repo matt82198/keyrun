@@ -189,11 +189,35 @@ public static class PlaytestRunner
         var maxTicks = options.MaxTicks ?? (2 * (setup.Content.ParTicks ?? 24000));
         var log = new StringBuilder();
         var stats = new RunStats(registry, setup.Party, kits);
+        // BOT-RESPAWN-RETURN (R-PATH-5 (m)): a seat seen down that is alive again has respawned; its return walk runs until it is
+        // back within Follow.ReturnReachMm of a living seat or an engaged enemy (Follow.ReturnSeat returns null).
+        var seatsDown = new HashSet<int>();
+        var returning = new HashSet<int>();
 
         while (run.State.Tick < maxTicks && run.RunEnd.ResultTick is null)
         {
             var tick = run.State.Tick;
             context.PullId = PullIdOf(run);
+            foreach (var seat in run.State.Actors.Values)
+            {
+                if (seat.Kind != ActorKind.Player)
+                {
+                    continue;
+                }
+                if (!seat.Alive)
+                {
+                    seatsDown.Add(seat.Id);
+                    continue;
+                }
+                if (seatsDown.Remove(seat.Id))
+                {
+                    returning.Add(seat.Id);
+                }
+                if (returning.Contains(seat.Id) && Follow.ReturnSeat(seat, run.State) is null)
+                {
+                    returning.Remove(seat.Id);
+                }
+            }
             var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, kits) with { Layout = run.Content.Layout, PullPlan = PullPlan.Of(run, forces) };
             var batch = Bot.RunBots(view, bots, mem, prng);
             mem = batch.Memories;
@@ -231,10 +255,20 @@ public static class PlaytestRunner
                     var chain = view.PullPlan is { } chainPlan && view.Layout is { } chainLayout
                         ? ChainPull.Move(tick, run.State, chainLayout, chainPlan, leader)
                         : null;
-                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && (chain is not null || (!Equals(c, approach) && !Equals(c, kickWalk))));
+                    // BOT-RESPAWN-RETURN (R-PATH-5 (l)): a respawned leader farther than Follow.ReturnReachMm from every living seat
+                    // and every engaged enemy walks back to the nearest living seat over the nav path; the filter admits that move
+                    // (the same move ScriptedWarden.SampleRotation issues on the host path) and strips nothing else.
+                    var back = returning.Contains(leaderId) && run.Content.Layout is { } backLayout && Follow.ReturnSeat(leader, run.State) is { } backSeat
+                        ? Follow.WalkTo(tick, leader, backLayout, backSeat.Pos)
+                        : null;
+                    commands.RemoveAll(c => c.ActorId == leaderId && c is MoveCommand or DashCommand && !Equals(c, dodge) && (chain is not null || (!Equals(c, approach) && !Equals(c, kickWalk) && !Equals(c, back))));
                     if (chain is not null)
                     {
                         commands.Add(chain);
+                    }
+                    else if (back is not null && !commands.Contains(back))
+                    {
+                        commands.Add(back);
                     }
                 }
             }

@@ -180,6 +180,9 @@ public static class Follow
     /// <summary>
     /// The lead the bots follow: <see cref="Leader"/>, or while <see cref="LeadHandedOver"/> holds, the lowest other living
     /// player seat (the bots lead, and the party follows them, while the lead seat stands still at the Entrance).
+    /// R-PATH-5 (t): while the party is engaged (<see cref="AnyLivingEnemy"/>), a returning seat (<see cref="ReturnSeat"/>
+    /// non-null) never leads; the lead goes to <see cref="LeadAfterReturn"/> instead. An idle prespawned pull is not a fight,
+    /// so a seat walking alone toward it keeps the lead (LeadCommandPrespawnTests).
     /// </summary>
     /// <param name="view">This tick's view.</param>
     /// <returns>The leader, or null when no player lives.</returns>
@@ -187,6 +190,10 @@ public static class Follow
     {
         ArgumentNullException.ThrowIfNull(view);
         var leader = Leader(view.State);
+        if (leader is not null && AnyLivingEnemy(view.State) && ReturnSeat(leader, view.State) is not null)
+        {
+            return LeadAfterReturn(view.State, leader);
+        }
         if (leader is null || !LeadHandedOver(view))
         {
             return leader;
@@ -195,6 +202,35 @@ public static class Follow
             .Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != leader.Id)
             .OrderBy(a => a.Id)
             .First();
+    }
+
+    /// <summary>
+    /// R-PATH-5 (t), WoW: the lead when the lowest living seat is a returning seat. The engaged tank (the living, non-returning
+    /// seat that holds a living, non-idle enemy's <see cref="ActorState.HolderId"/>) leads if there is one, else the lowest
+    /// other living non-returning seat. With no such seat the returning leader stands (the lead never goes unfilled).
+    /// </summary>
+    /// <param name="state">The state.</param>
+    /// <param name="returning">The returning lowest living seat.</param>
+    /// <returns>The lead seat.</returns>
+    private static ActorState LeadAfterReturn(SimState state, ActorState returning)
+    {
+        var seats = state.Actors.Values
+            .Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != returning.Id && ReturnSeat(a, state) is null)
+            .OrderBy(a => a.Id)
+            .ToList();
+        if (seats.Count == 0)
+        {
+            return returning;
+        }
+        var holders = new HashSet<int>();
+        foreach (var e in state.Actors.Values)
+        {
+            if (e.Kind == ActorKind.Enemy && e.Alive && !e.Idle && e.HolderId is { } h)
+            {
+                holders.Add(h);
+            }
+        }
+        return seats.FirstOrDefault(a => holders.Contains(a.Id)) ?? seats[0];
     }
 
     /// <summary>
@@ -567,5 +603,51 @@ public static class Follow
         var dx = a.X - b.X;
         var dz = a.Z - b.Z;
         return (dx * dx) + (dz * dz);
+    }
+
+    /// <summary>BOT-RESPAWN-RETURN: the leader counts as back with the party within this XZ distance of a living seat or an engaged enemy, mm.</summary>
+    public const long ReturnReachMm = 5000;
+
+    /// <summary>
+    /// BOT-RESPAWN-RETURN (R-PATH-5 (k), WoW: a released player runs back to the pull and rejoins): the living party seat
+    /// nearest <paramref name="me"/> when <paramref name="me"/> is farther than <see cref="ReturnReachMm"/> on XZ from every
+    /// living other player seat and every engaged (alive, not idle) enemy; null when any of them is within reach or when no
+    /// other player lives. Reads the state only; the caller walks the nav path to the seat.
+    /// </summary>
+    /// <param name="me">The leader.</param>
+    /// <param name="state">The state.</param>
+    /// <returns>The nearest living seat, or null.</returns>
+    public static ActorState? ReturnSeat(ActorState me, SimState state)
+    {
+        ArgumentNullException.ThrowIfNull(me);
+        ArgumentNullException.ThrowIfNull(state);
+        const long reachSq = ReturnReachMm * ReturnReachMm;
+        ActorState? nearest = null;
+        var best = long.MaxValue;
+        foreach (var a in state.Actors.Values)
+        {
+            if (a.Id == me.Id || !a.Alive)
+            {
+                continue;
+            }
+            var d = Distance2(me.Pos, a.Pos);
+            if (a.Kind == ActorKind.Player)
+            {
+                if (d <= reachSq)
+                {
+                    return null;
+                }
+                if (d < best)
+                {
+                    best = d;
+                    nearest = a;
+                }
+            }
+            else if (a.Kind == ActorKind.Enemy && !a.Idle && d <= reachSq)
+            {
+                return null;
+            }
+        }
+        return nearest;
     }
 }
