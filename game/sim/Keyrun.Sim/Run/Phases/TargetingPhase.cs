@@ -7,6 +7,7 @@ internal static class TargetingPhase
     /// <param name="c">The step context.</param>
     public static void Step(RunStepCtx c)
     {
-        RunWiring.FixupTargeting(c.State);
+        RunWiring.FixupTargeting(c.State, c.Emit);
+        Combat.HolderChangeLog.DrainPending(c.State, c.Before.PendingHolderLog, c.Events, c.Emit);
     }
 }
