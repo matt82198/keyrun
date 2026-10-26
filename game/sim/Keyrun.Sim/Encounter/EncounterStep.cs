@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Encounter;
@@ -50,6 +51,7 @@ public static class EncounterStep
     /// <param name="emit">Event sink.</param>
     /// <param name="breakBarWiring">Break bar sources and this tick's commands; null = no bars (index.ts:114).</param>
     /// <param name="abilities">Ability views for script targeting and chase; null = none (index.ts:115).</param>
+    /// <param name="effects">Effect definitions, so a caster's live haste shortens its cast lengths in the scripts; null = no haste.</param>
     public static StepEncounterResult Step(
         SimState state,
         EncounterState encounter,
@@ -57,7 +59,8 @@ public static class EncounterStep
         IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts,
         Action<SimEvent> emit,
         BreakBarWiring? breakBarWiring = null,
-        IReadOnlyDictionary<string, ScriptAbility>? abilities = null)
+        IReadOnlyDictionary<string, ScriptAbility>? abilities = null,
+        IReadOnlyDictionary<string, EffectDef>? effects = null)
     {
         var tick = state.Tick;
 
@@ -92,7 +95,7 @@ public static class EncounterStep
         }
 
         // index.ts:119-123: scripts, emit their telegraph events, register them.
-        var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities, encounter.PendingSteps, encounter.DeferredCasts, encounter.ScriptStarts);
+        var scripted = Scripts.StepEnemyScripts(state, scripts, encounter.FiredOnDeath, abilities, encounter.PendingSteps, encounter.DeferredCasts, encounter.ScriptStarts, effects);
         foreach (var d in scripted.Draws)
         {
             emit(d.ToEvent());
