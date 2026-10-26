@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Runs;
 
 namespace Keyrun.Playtest;
@@ -60,6 +62,82 @@ public sealed record KeyOutcome(bool Timed, int Tier, string Why)
             : (long)clearTicks * 100 <= (long)parTicks * TwoChestPct ? 2
             : 1;
         return new KeyOutcome(true, tier, "timed");
+    }
+
+    /// <summary>The sim's untimed run-end title for a layout run the timer cap ended (<see cref="RunEndTitle.OutOfTime"/>).</summary>
+    private static readonly Regex OutOfTimeTitle = TitlePattern(RunEndTitle.OutOfTime(0));
+
+    /// <summary>The sim's lasting-wipe run-end title (<see cref="RunEndTitle.Wiped"/>).</summary>
+    private static readonly Regex WipedTitle = TitlePattern(RunEndTitle.Wiped(0, 0, 0));
+
+    /// <summary>The sim's cleared-but-depleted run-end title (<see cref="RunEndTitle.ClearedUntimed"/>).</summary>
+    private static readonly Regex ClearedUntimedTitle = TitlePattern(RunEndTitle.ClearedUntimed(0));
+
+    /// <summary>
+    /// A pattern for a factory's output: its own text with every run of digits standing for any count, so the match
+    /// tracks the factory rather than a copy of its wording.
+    /// </summary>
+    /// <param name="sample">One factory output, built with sample arguments.</param>
+    /// <returns>An anchored, culture-invariant pattern.</returns>
+    private static Regex TitlePattern(string sample) =>
+        new("^" + Regex.Replace(Regex.Escape(sample), @"\d+", @"\d+") + "$", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// The outcome of a finished run from the sim's own run-end title (<see cref="RunEndTitle.ForRun"/>), the sim's
+    /// decision and the source of the label. An untimed title maps to its cause: out of time, abandoned or wiped. A
+    /// cleared title keeps the timed-tier logic of the 5-argument <see cref="Of(bool, bool, bool, int, int)"/>. A null
+    /// title (the run has not ended) is unfinished. The outcome is never inferred from elapsed, par or layout.
+    /// </summary>
+    /// <param name="runEndTitle">The sim's run-end title, or null while the run is live.</param>
+    /// <param name="cleared">True when every pull including the boss was cleared.</param>
+    /// <param name="clearTicks">The run clock at the end.</param>
+    /// <param name="parTicks">The dungeon's par.</param>
+    /// <returns>The outcome.</returns>
+    /// <exception cref="ArgumentException">The title is not one the sim produces, or disagrees with <paramref name="cleared"/>.</exception>
+    public static KeyOutcome Of(string? runEndTitle, bool cleared, int clearTicks, int parTicks)
+    {
+        if (parTicks <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(parTicks), parTicks, "par must be positive");
+        }
+        if (runEndTitle is null)
+        {
+            return new KeyOutcome(false, 0, "unfinished");
+        }
+        if (runEndTitle == RunEndTitle.Abandoned)
+        {
+            return new KeyOutcome(false, 0, "abandoned");
+        }
+        if (OutOfTimeTitle.IsMatch(runEndTitle))
+        {
+            return new KeyOutcome(false, 0, "out of time");
+        }
+        if (WipedTitle.IsMatch(runEndTitle))
+        {
+            return new KeyOutcome(false, 0, "wiped");
+        }
+        if (runEndTitle == RunEndTitle.WithinPar || runEndTitle == RunEndTitle.OverPar)
+        {
+            RequireCleared(runEndTitle, cleared);
+            return Of(ended: true, cleared: true, depleted: false, clearTicks, parTicks);
+        }
+        if (ClearedUntimedTitle.IsMatch(runEndTitle))
+        {
+            RequireCleared(runEndTitle, cleared);
+            return Of(ended: true, cleared: true, depleted: true, clearTicks, parTicks);
+        }
+        throw new ArgumentException($"unrecognised run-end title \"{runEndTitle}\"", nameof(runEndTitle));
+    }
+
+    /// <summary>Fails closed when a cleared title is given for a run that was not cleared.</summary>
+    /// <param name="title">The title.</param>
+    /// <param name="cleared">The cleared flag.</param>
+    private static void RequireCleared(string title, bool cleared)
+    {
+        if (!cleared)
+        {
+            throw new ArgumentException($"run-end title \"{title}\" is for a cleared run, but the run was not cleared", nameof(title));
+        }
     }
 
     /// <summary>The key after a run at <paramref name="key"/>: +tier when timed (capped at the top key), else the same key.</summary>

@@ -1,4 +1,5 @@
 using System.IO;
+using Keyrun.Sim.Encounter;
 using Xunit;
 
 namespace Keyrun.Playtest.Tests;
@@ -31,7 +32,6 @@ public sealed class KeyLedgerTests
     [Theory(DisplayName = "Key rule: untimed keeps the key level")]
     [InlineData(true, true, false, 14401, "over par")]
     [InlineData(true, true, true, 3000, "depleted")]
-    [InlineData(true, false, true, 3000, "wiped")]
     [InlineData(false, false, false, 28800, "unfinished")]
     public void Untimed_keeps_the_key(bool ended, bool cleared, bool depleted, int clearTicks, string why)
     {
@@ -41,6 +41,24 @@ public sealed class KeyLedgerTests
         Assert.Equal(why, o.Why);
         Assert.Equal($"untimed ({why})", o.Label);
         Assert.Equal(7, o.NextKey(7));
+    }
+
+    /// <summary>One row per sim run-end cause that is untimed and uncleared: the title the end screen shows and the ledger label.</summary>
+    public static TheoryData<string, string> UntimedRunEndCauses() => new()
+    {
+        { RunEndTitle.OutOfTime(2), "untimed (out of time)" },
+        { RunEndTitle.Abandoned, "untimed (abandoned)" },
+        { RunEndTitle.Wiped(1, 2, 2), "untimed (wiped)" },
+    };
+
+    [Theory(DisplayName = "Key rule: an untimed uncleared run is labelled by the sim's run-end title")]
+    [MemberData(nameof(UntimedRunEndCauses))]
+    public void Untimed_label_is_the_run_end_title_cause(string runEndTitle, string label)
+    {
+        // KeyOutcome.Of(runEndTitle, cleared, clearTicks, parTicks): the title is RunEndTitle's own text, the sim's decision.
+        var o = KeyOutcome.Of(runEndTitle, cleared: false, clearTicks: 3000, parTicks: Par);
+        Assert.False(o.Timed);
+        Assert.Equal(label, o.Label);
     }
 
     [Fact(DisplayName = "Key rule: the top key caps a timed raise")]

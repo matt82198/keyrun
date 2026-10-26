@@ -33,9 +33,10 @@ public static class Summary
     {
         ArgumentNullException.ThrowIfNull(result);
         var run = result.Run;
-        var ended = run.RunEnd.Result is not null;
         var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
-        return KeyOutcome.Of(ended, cleared, run.Encounter.Depleted, run.State.RunTimerTicks, run.Encounter.ParTicks);
+        // The sim's own title is the decision; the lost pull is 1-based and only read when the run was not cleared.
+        var title = RunEndTitle.ForRun(run, run.Encounter.PullIndex + 1, run.Dungeon.Pulls.Count);
+        return KeyOutcome.Of(title, cleared, run.State.RunTimerTicks, run.Encounter.ParTicks);
     }
 
     /// <summary>The summary JSON text.</summary>
