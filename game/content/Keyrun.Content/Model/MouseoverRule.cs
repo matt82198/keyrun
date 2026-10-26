@@ -40,6 +40,12 @@ public static class MouseoverRule
     /// <returns>True while captured.</returns>
     public static bool CursorCaptured(bool rightHeld) => rightHeld;
 
+    /// <summary>True when the camera turns the Warden: live right mouse held, or a replay applying recorded camera headings.</summary>
+    /// <param name="rightHeld">The right mouse button is down.</param>
+    /// <param name="replaying">A replay is applying recorded camera headings.</param>
+    /// <returns>True while mouselook is held.</returns>
+    public static bool MouselookHeld(bool rightHeld, bool replaying) => rightHeld || replaying;
+
     /// <summary>
     /// The screen box a body is hovered by: from the projected head top down to the projected feet, centred on the
     /// feet, half as wide as it is tall (at least <see cref="MinHalfWidthPx"/> each side, at least

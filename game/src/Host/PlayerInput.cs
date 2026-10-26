@@ -244,9 +244,9 @@ public partial class PlayerInput : Node, ICommandSource
             walkYaw = ToYaw1024(wx, wz);
         }
         // MOUSEOVER mouselook: while right mouse is held the Warden faces the camera heading (a zero-length move turns
-        // him in place); otherwise he faces the walk direction. No mouselook facing under replay (not in the log).
+        // him in place); otherwise he faces the walk direction. Replay applies recorded camera headings as mouselook (MouseoverRule.MouselookHeld), so a replayed turn faces the Warden as it did live.
         var actorYaw = run.State.Actors.TryGetValue(SimDriver.WardenId, out var me) ? me.Yaw : 0;
-        var face = Keyrun.Content.MouseoverRule.FacingYaw(_rightHeld && !Replaying, moving, walkYaw,
+        var face = Keyrun.Content.MouseoverRule.FacingYaw(Keyrun.Content.MouseoverRule.MouselookHeld(_rightHeld, Replaying), moving, walkYaw,
             ToYaw1024(-Mathf.Sin(yaw), -Mathf.Cos(yaw)), actorYaw);
         // A null facing means "facing unchanged": the move still carries the walk direction, with the Warden's own yaw.
         if (moving || face is not null)
