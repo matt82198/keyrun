@@ -1,6 +1,10 @@
 using System.IO;
+using Keyrun.Host;
+using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
+using Keyrun.Sim.Runs;
 using Xunit;
+using C = Keyrun.Content;
 
 namespace Keyrun.Playtest.Tests;
 
@@ -66,6 +70,52 @@ public sealed class KeyLedgerTests
     {
         var o = KeyOutcome.Of(true, true, false, 100, Par);
         Assert.Equal(20, o.NextKey(19));
+    }
+
+    [Fact(DisplayName = "Key rule: a timed tier is measured on the sim's penalty clock, not elapsed time")]
+    public void Timed_tier_uses_the_penalty_clock()
+    {
+        const int parTicks = 24000;
+        const int elapsedTicks = 12000;
+        const int penaltyTicks = 2000;
+        // The sim tiers on elapsed plus penalty (Timer.ClockTicks): 14000 against par 24000 is +3; counting the penalty twice
+        // would give 16000, which is +2.
+        var simTier = Timer.UpgradeTier(RunResult.Timed, elapsedTicks + penaltyTicks, parTicks);
+        Assert.Equal(3, simTier);
+
+        // The ledger's outcome through the public entry the ledger uses (Summary.OutcomeOf) on a cleared run within par.
+        var result = ClearedRunWithClock(parTicks, elapsedTicks, penaltyTicks);
+        var o = Summary.OutcomeOf(result);
+        Assert.True(o.Timed);
+        Assert.Equal(simTier, o.Tier);
+    }
+
+    /// <summary>
+    /// A cleared Hollow Vault run at key 2, built the way KeyOutcomeLabelTests builds one (no sim loop is played), then shaped
+    /// to the given par, elapsed run timer and penalty clock, ended within par.
+    /// </summary>
+    /// <param name="parTicks">The par the run is measured against.</param>
+    /// <param name="elapsedTicks">The elapsed run timer (State.RunTimerTicks).</param>
+    /// <param name="penaltyTicks">The penalty ticks the sim adds to the clock.</param>
+    /// <returns>The playtest result over the shaped run.</returns>
+    private static PlaytestResult ClearedRunWithClock(int parTicks, int elapsedTicks, int penaltyTicks)
+    {
+        var registry = C.ContentLoader.Load();
+        var setup = HostRunSetup.Build(registry, "hollow-vault", 2, HostRunSetup.Roster[0].ClassId, withBots: true);
+        var created = RunRoot.CreateRun(3, setup.Party, setup.Dungeon, setup.Content, null);
+        var run = created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
+        run.State.RunTimerTicks = elapsedTicks;
+        run = run with
+        {
+            Encounter = run.Encounter with
+            {
+                ParTicks = parTicks,
+                PenaltyTicks = penaltyTicks,
+                PullIndex = run.Dungeon.Pulls.Count,
+            },
+            RunEnd = new RunEndState(RunResult.Timed, elapsedTicks, null),
+        };
+        return new PlaytestResult(run, string.Empty, new RunStats(registry, setup.Party), setup, registry);
     }
 
     [Fact(DisplayName = "Ledger: a new playtester starts at key 2; timed raises it, untimed leaves it; the file round-trips")]

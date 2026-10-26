@@ -36,7 +36,12 @@ public static class Summary
         var cleared = run.Encounter.PullIndex >= run.Dungeon.Pulls.Count;
         // The sim's own title is the decision; the lost pull is 1-based and only read when the run was not cleared.
         var title = RunEndTitle.ForRun(run, run.Encounter.PullIndex + 1, run.Dungeon.Pulls.Count);
-        return KeyOutcome.Of(title, cleared, run.State.RunTimerTicks, run.Encounter.ParTicks);
+        // The sim's run clock (Timer.ClockTicks: elapsed plus death and wipe time) at the sim's finish tick; the live
+        // clock only while the run has no result yet.
+        var clock = run.RunEnd.ResultTick is { } finish
+            ? Timer.ClockTicks(run.Encounter, finish)
+            : Timer.ClockTicks(run.Encounter, run.State.RunTimerTicks);
+        return KeyOutcome.Of(title, cleared, clock, run.Encounter.ParTicks);
     }
 
     /// <summary>The summary JSON text.</summary>

@@ -32,10 +32,10 @@ public sealed record KeyOutcome(bool Timed, int Tier, string Why)
     /// <param name="ended">True when the run reached run_end.</param>
     /// <param name="cleared">True when every pull including the boss was cleared.</param>
     /// <param name="depleted">True when the Slack bank ran out.</param>
-    /// <param name="clearTicks">The run clock at the end.</param>
+    /// <param name="clearTicks">The run clock at the end (Timer.ClockTicks: elapsed plus death and wipe time).</param>
     /// <param name="parTicks">The dungeon's par.</param>
     /// <returns>The outcome.</returns>
-    public static KeyOutcome Of(bool ended, bool cleared, bool depleted, int clearTicks, int parTicks)
+    public static KeyOutcome Of(bool ended, bool cleared, bool depleted, long clearTicks, int parTicks)
     {
         if (parTicks <= 0)
         {
@@ -57,10 +57,8 @@ public sealed record KeyOutcome(bool Timed, int Tier, string Why)
         {
             return new KeyOutcome(false, 0, "over par");
         }
-        // Integer comparison: clearTicks * 100 <= parTicks * pct.
-        var tier = (long)clearTicks * 100 <= (long)parTicks * ThreeChestPct ? 3
-            : (long)clearTicks * 100 <= (long)parTicks * TwoChestPct ? 2
-            : 1;
+        // The sim's own upgrade tier on the run clock (Timer.UpgradeTier: +3 within 60% of par, +2 within 80%, else +1).
+        var tier = Timer.UpgradeTier(RunResult.Timed, clearTicks, parTicks);
         return new KeyOutcome(true, tier, "timed");
     }
 
@@ -85,16 +83,18 @@ public sealed record KeyOutcome(bool Timed, int Tier, string Why)
     /// <summary>
     /// The outcome of a finished run from the sim's own run-end title (<see cref="RunEndTitle.ForRun"/>), the sim's
     /// decision and the source of the label. An untimed title maps to its cause: out of time, abandoned or wiped. A
-    /// cleared title keeps the timed-tier logic of the 5-argument <see cref="Of(bool, bool, bool, int, int)"/>. A null
-    /// title (the run has not ended) is unfinished. The outcome is never inferred from elapsed, par or layout.
+    /// cleared title takes its timed tier from the 5-argument <see cref="Of(bool, bool, bool, long, int)"/>, which reads the
+    /// sim's <see cref="Timer.UpgradeTier"/> on the run clock the caller passes (Summary passes <see cref="Timer.ClockTicks"/>
+    /// at the sim's finish tick). A null title (the run has not ended) is unfinished. The tier is never recomputed from
+    /// elapsed time or par here, and never inferred from layout.
     /// </summary>
     /// <param name="runEndTitle">The sim's run-end title, or null while the run is live.</param>
     /// <param name="cleared">True when every pull including the boss was cleared.</param>
-    /// <param name="clearTicks">The run clock at the end.</param>
+    /// <param name="clearTicks">The run clock at the end (Timer.ClockTicks: elapsed plus death and wipe time).</param>
     /// <param name="parTicks">The dungeon's par.</param>
     /// <returns>The outcome.</returns>
     /// <exception cref="ArgumentException">The title is not one the sim produces, or disagrees with <paramref name="cleared"/>.</exception>
-    public static KeyOutcome Of(string? runEndTitle, bool cleared, int clearTicks, int parTicks)
+    public static KeyOutcome Of(string? runEndTitle, bool cleared, long clearTicks, int parTicks)
     {
         if (parTicks <= 0)
         {
