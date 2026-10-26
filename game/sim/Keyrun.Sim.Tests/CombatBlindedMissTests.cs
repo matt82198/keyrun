@@ -42,6 +42,22 @@ public sealed class CombatBlindedMissTests
     }
 
     [Fact]
+    public void A_blinded_attacker_miss_event_carries_reason_blinded_and_the_blinding_effects_ends_tick()
+    {
+        var src = Blind(Actor(1, ActorKind.Enemy), durationTicks: 80, now: 0);
+        var blindedEndsTick = src.Effects.Find(e => e.EffectId == "blinded")!.EndsTick;
+        var dst = Actor(2, ActorKind.Player, maxHealth: 100);
+        var (events, emit) = Collector();
+        Mitigation.DealDamage(5, src, dst, 30, Defs(Blinded), emit, 1);
+        var miss = Assert.Single(events);
+        Assert.Equal("miss", miss.Type);
+        Assert.NotNull(miss.Get("reason"));
+        Assert.Equal("blinded", Str(miss, "reason"));
+        Assert.NotNull(miss.Get("endsTick"));
+        Assert.Equal(blindedEndsTick, Int(miss, "endsTick"));
+    }
+
+    [Fact]
     public void A_blinded_attacker_does_not_consume_the_target_absorb()
     {
         var shield = new EffectDef("shield", 1, null, new EffectModifiers(Absorb: 50));

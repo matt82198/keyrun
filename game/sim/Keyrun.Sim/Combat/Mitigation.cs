@@ -39,14 +39,16 @@ public static class Mitigation
         DamageWeighting? weighting = null,
         string school = Damage.PhysicalSchool)
     {
-        if (source is not null && target.Alive && IsBlinded(source, tick))
+        if (source is not null && target.Alive && TryGetBlinded(source, tick, out var blindedEndsTick))
         {
             emit(new SimEvent(
                 tick,
                 "miss",
                 ("sourceId", JsValue.Int(sourceId)),
                 ("targetId", JsValue.Int(target.Id)),
-                ("rawAmount", JsValue.Int(rawAmount))));
+                ("rawAmount", JsValue.Int(rawAmount)),
+                ("reason", JsValue.Str(BlindedEffectId)),
+                ("endsTick", JsValue.Int(blindedEndsTick))));
             return new DamageResult(rawAmount, 0, 0, 0, false);
         }
         // C#-only gear stats (BIBLE s7 "Tier is power", Runs.GearPower) add to the effect bp; 0 on every oracle run.
@@ -65,15 +67,27 @@ public static class Mitigation
     /// <param name="actor">The attacker.</param>
     /// <param name="now">Current tick.</param>
     /// <returns>Whether its hits miss.</returns>
-    public static bool IsBlinded(ActorState actor, int now)
+    public static bool IsBlinded(ActorState actor, int now) => TryGetBlinded(actor, now, out _);
+
+    /// <summary>
+    /// Finds the unexpired "blinded" instance on <paramref name="actor"/> (same rule as <see cref="IsBlinded"/>) and
+    /// reports the tick it ends, so a "miss" event can say until when the attacker is blinded.
+    /// </summary>
+    /// <param name="actor">The attacker.</param>
+    /// <param name="now">Current tick.</param>
+    /// <param name="endsTick">The blinding instance's EndsTick when found, otherwise 0.</param>
+    /// <returns>Whether the actor is blinded.</returns>
+    public static bool TryGetBlinded(ActorState actor, int now, out int endsTick)
     {
         foreach (var e in actor.Effects)
         {
             if (e.EffectId == BlindedEffectId && e.EndsTick > now)
             {
+                endsTick = e.EndsTick;
                 return true;
             }
         }
+        endsTick = 0;
         return false;
     }
 
