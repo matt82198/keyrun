@@ -95,9 +95,12 @@ public sealed class PolicyBot : IBot
         var tick = view.State.Tick;
         var commands = new List<Command>();
 
-        // 1. Telegraph dodge, only by plan, after a reaction.
-        var avoid = _policy.DodgeTelegraphs ? DangerAvoid(view, self) : null;
-        if (avoid is null)
+        // 1. Telegraph escape, then telegraph dodge, only by plan, after a reaction. The escape is the scripted runner's
+        // movement tier (Bot.MovementEscapeCommands, R-GCD-1 (c) rule 1): when the walk-out cannot clear the telegraph in
+        // time, the seat presses its class movement ability (chanter.glide, cinder.blink, warden.charge) instead of walking.
+        var escape = _policy.DodgeTelegraphs ? Bot.MovementEscapeCommands(view, self) : null;
+        var avoid = _policy.DodgeTelegraphs && escape is null ? DangerAvoid(view, self) : null;
+        if (escape is null && avoid is null)
         {
             _dodgeAt = null;
         }
@@ -106,7 +109,13 @@ public sealed class PolicyBot : IBot
             _dodgeAt ??= tick + _hands.React();
             if (tick >= _dodgeAt)
             {
-                commands.Add(avoid);
+                if (escape is not null)
+                {
+                    _dodgeAt = null;
+                    commands.AddRange(escape);
+                    return new BotDecision(commands, memory, prng);
+                }
+                commands.Add(avoid!);
                 LastDodge = avoid;
                 DodgeMoves++;
             }
