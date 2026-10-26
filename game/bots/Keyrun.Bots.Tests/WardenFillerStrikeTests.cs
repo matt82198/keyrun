@@ -170,6 +170,11 @@ public sealed class WardenFillerStrikeTests
         int meleeTicks = 0, fillerTicks = 0, payoffCombos = 0, betterUntil = -1, gap = 0, maxGap = 0, maxGapEnd = -1;
         int bossGuardBreaks = 0, bossStrikes = 0, bossStrikesOverGb = 0, locksOpened = 0, locksBroken = 0, lockHoldCasts = 0;
         int? bossStart = null;
+        // The start tick of a better-button cast the human has in flight, observed from state (the sim emits no
+        // cast_start event; ActorState.CastStartTick is the cast's start). Null until observed, and cleared on its
+        // cast_complete: a cast that starts and completes inside one step never shows a start, so it falls back to
+        // its completion tick (an instant button starts and completes on one tick).
+        int? pendingBetterStart = null;
         while (run.State.Tick < MaxTicks && run.RunEnd.Result is null)
         {
             var tick = run.State.Tick;
@@ -189,6 +194,15 @@ public sealed class WardenFillerStrikeTests
             var step = Backfill.Step(backfill, run, commands, Array.Empty<QueueRequest>());
             backfill = step.Backfill;
             run = step.Step.Run;
+
+            // A better button's window starts at its cast start (CastStartTick), not at its cast_complete.
+            if (run.State.Actors.TryGetValue(HostRunSetup.HumanId, out var casting)
+                && casting is { CastId: { } startedId } && BetterButtons.Contains(startedId)
+                && casting.CastStartTick is { } began && pendingBetterStart is null)
+            {
+                pendingBetterStart = began;
+                betterUntil = began + setup.Content.Abilities[startedId].GcdTicks;
+            }
 
             locksOpened += step.Step.Events.Count(e => e.Type == "lock_open");
             locksBroken += step.Step.Events.Count(e => e.Type == "lock_broken");
@@ -229,10 +243,19 @@ public sealed class WardenFillerStrikeTests
                         struck = true;
                         strikeTicks.Add(tick);
                     }
-                    else if (BetterButtons.Contains(id.Value) || (id.Value == PayoffBuilder && combo))
+                    else if (BetterButtons.Contains(id.Value))
                     {
-                        payoffCombos += id.Value == PayoffBuilder ? 1 : 0;
-                        // A better button spent this global: its GCD is not filler time.
+                        // Its window was opened at cast start above; an instant button (no observed start) opens it here.
+                        if (pendingBetterStart is null)
+                        {
+                            betterUntil = tick + setup.Content.Abilities[id.Value].GcdTicks;
+                        }
+                        pendingBetterStart = null;
+                    }
+                    else if (id.Value == PayoffBuilder && combo)
+                    {
+                        payoffCombos++;
+                        // A Guard Break that closed a Window spent this global: its GCD is not filler time.
                         betterUntil = tick + setup.Content.Abilities[id.Value].GcdTicks;
                     }
                 }
