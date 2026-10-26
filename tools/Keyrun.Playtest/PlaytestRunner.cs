@@ -294,6 +294,9 @@ public static class PlaytestRunner
             {
                 log.Append("E ").Append(e.ToCanonicalJson()).Append('\n');
             }
+            // R-AGGRO-1 / G7: the capture lines (TICK, ACTOR, GROUP) for this step, the same shapes RunLog.cs writes in Godot.
+            var captureGroups = Aggro.GroupsOf(run.Dungeon, tick, run.Content.Packs, null, run.Content.Patrols);
+            CaptureLines.AppendLines(log, CaptureLines.StepLines(tick, TankId, run.State, run.Encounter, captureGroups, stepped.Events.Count));
             stats.ObserveStep(before, stepped.Events, PullIdOf(before));
         }
         foreach (var (id, pb) in policyBots)

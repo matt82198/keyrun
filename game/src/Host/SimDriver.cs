@@ -572,7 +572,7 @@ public partial class SimDriver : Node
         LastEvents = result.Events;
         _frameSteps.Step(Frames, run.State, result.Events);
         TicksRun++;
-        _log?.Tick(preTick, run.State, State, result.Events, result.Run.Dungeon);
+        _log?.Tick(preTick, run.State, State, result.Events, result.Run.Dungeon, result.Run);
         foreach (var fill in step.Fills)
         {
             _log?.Line(FormattableString.Invariant($"SEAT refill actor={fill.ActorId} tick={fill.FillTick} key={fill.Joiner.KeyLevel}"));

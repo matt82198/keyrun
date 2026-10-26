@@ -85,6 +85,11 @@ public sealed class NoPolicyParityTests
         return log.ToString();
     }
 
+    private static bool IsCaptureLine(string line) =>
+        line.StartsWith("TICK ", System.StringComparison.Ordinal)
+        || line.StartsWith("ACTOR ", System.StringComparison.Ordinal)
+        || line.StartsWith("GROUP ", System.StringComparison.Ordinal);
+
     [Theory(DisplayName = "No policy: the playtest log is byte-identical to the host bot driver's run")]
     [InlineData(2, 1)]
     [InlineData(5, 7)]
@@ -95,9 +100,12 @@ public sealed class NoPolicyParityTests
         var reference = ReferenceLog(key, seed, maxTicks);
         Assert.True(reference.Length > 10000, "the reference run is empty");
         Assert.Contains("\"type\":\"run_end\"", reference, System.StringComparison.Ordinal);
-        if (played.Log != reference)
+        // R-AGGRO-1 / G7: the TICK, ACTOR and GROUP capture lines are log-writer additions the reference (a command and event
+        // replica of the host driver) does not write, so parity is over the command and event lines only.
+        var playedCommandsAndEvents = string.Join('\n', played.Log.Split('\n').Where(l => !IsCaptureLine(l)));
+        if (playedCommandsAndEvents != reference)
         {
-            var a = played.Log.Split('\n');
+            var a = playedCommandsAndEvents.Split('\n');
             var b = reference.Split('\n');
             var first = Enumerable.Range(0, System.Math.Min(a.Length, b.Length)).FirstOrDefault(i => a[i] != b[i]);
             Assert.Fail($"logs differ at line {first}: playtest \"{(first < a.Length ? a[first] : "<end>")}\" vs host \"{(first < b.Length ? b[first] : "<end>")}\"");
