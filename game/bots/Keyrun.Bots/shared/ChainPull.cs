@@ -64,7 +64,10 @@ public static class ChainPull
         }
         foreach (var seat in state.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != leader.Id))
         {
-            if ((seat.MaxHealth > 0 && seat.Health * 100 < MinPartyHealthPct * seat.MaxHealth) || Dist2(seat.Pos, leader.Pos) > PartyLeashMm * PartyLeashMm)
+            // R-PATH-5 (r): a seat walking back from a respawn (Follow.ReturnSeat non-null) is not a straggler the leash
+            // waits for; the leash counts only the seats that are not returning. The health floor still applies to every seat.
+            var leashed = Follow.ReturnSeat(seat, state) is null && Dist2(seat.Pos, leader.Pos) > PartyLeashMm * PartyLeashMm;
+            if ((seat.MaxHealth > 0 && seat.Health * 100 < MinPartyHealthPct * seat.MaxHealth) || leashed)
             {
                 return null;
             }

@@ -79,6 +79,7 @@ public partial class ActorView : Node3D
     private StandardMaterial3D? _flash;
     private SimState? _flashSeen;
     private int _hurtTick = int.MinValue / 2;
+    private bool _hitSparkPending; // R-ANIM-2 (b): a health drop whose spark waits for the attack's contact frame
     private bool _flashOn;
     private int _flashLoggedTick = int.MinValue;
 
@@ -93,6 +94,7 @@ public partial class ActorView : Node3D
     private System.Collections.Generic.IReadOnlyList<GearMark>? _gearPlan;
     private Node3D? _gearRoot;
     private readonly System.Collections.Generic.List<MeshInstance3D> _gearMeshes = new();
+    private readonly System.Collections.Generic.List<(BoneAttachment3D Attach, GearMountPlacement Placement)> _gearBones = new();
     private bool _gearFaded;
 
     /// <summary>KF1 hit flash colour (warm white, added over the body) at full strength.</summary>
@@ -413,11 +415,18 @@ public partial class ActorView : Node3D
             var before = Driver.FrameStartState.Actors.TryGetValue(ActorId, out var prev) ? prev : now;
             if (stepped && now.Health < before.Health)
             {
-                _hurtTick = Driver.State.Tick;
-                // R-ANIM-1: one hit spark and VIEW hit line per drop. Spawned on the view root (this node), before the model
-                // check, so an actor on the fallback capsule (no bound model, finding f-8a001150) sparks too.
-                HitSparkView.Spawn(this, ActorId, Driver.State.Tick);
+                // R-ANIM-2 (b): the hit presentation (flash, spark) waits for the attack's contact frame. The sim damage tick
+                // is unchanged; only the presentation starts later, so the flash's hurt tick is offset by that delay.
+                _hurtTick = Driver.State.Tick + HitDelayTicks();
+                _hitSparkPending = true;
             }
+        }
+        if (_hitSparkPending && Driver.State.Tick >= _hurtTick)
+        {
+            // R-ANIM-1: one hit spark and VIEW hit line per drop. Spawned on the view root (this node), before the model
+            // check, so an actor on the fallback capsule (no bound model, finding f-8a001150) sparks too.
+            _hitSparkPending = false;
+            HitSparkView.Spawn(this, ActorId, Driver.State.Tick);
         }
         if (_model is null)
         {
@@ -446,6 +455,9 @@ public partial class ActorView : Node3D
             Driver.HostLine(AnimRule.FlashLine(ActorId, _flashLoggedTick, strength));
         }
     }
+
+    /// <summary>R-ANIM-2 (b): the ticks this actor's hit presentation waits after its health drop (see <see cref="HitPresentation.DelayTicks"/>).</summary>
+    private int HitDelayTicks() => HitPresentation.DelayTicks(Driver?.FrameEvents, ActorId);
 
     private void SetFlashOverlay(bool on)
     {
@@ -649,6 +661,14 @@ public partial class ActorView : Node3D
         {
             _gearRoot.Visible = now.Alive; // a dead body loses its gear with it
         }
+        // Bone-mounted marks sit under the Skeleton3D, outside the gear root, so each one follows the body through the rule.
+        foreach (var (attach, placement) in _gearBones)
+        {
+            if (IsInstanceValid(attach))
+            {
+                attach.Visible = GearMountRule.Visible(now.Alive, placement);
+            }
+        }
         if (_gearPlan is not null && plan.SequenceEqual(_gearPlan))
         {
             return;
@@ -660,16 +680,50 @@ public partial class ActorView : Node3D
             _gearRoot.QueueFree();
             _gearRoot = null;
         }
+        foreach (var (attach, _) in _gearBones)
+        {
+            if (IsInstanceValid(attach))
+            {
+                attach.GetParent()?.RemoveChild(attach);
+                attach.QueueFree();
+            }
+        }
+        _gearBones.Clear();
         _gearMeshes.Clear();
         _gearFaded = false;
         if (plan.Count > 0)
         {
             _gearRoot = new Node3D { Name = "Gear", Visible = now.Alive };
             AddChild(_gearRoot);
+            var skeleton = _model?.FindChildren("*", "Skeleton3D", true, false).OfType<Skeleton3D>().FirstOrDefault();
+            var scale = _model is null || _model.Scale.X <= 0f ? 1f : _model.Scale.X;
             foreach (var mark in plan)
             {
                 var mesh = BuildGearMesh(mark);
-                _gearRoot.AddChild(mesh);
+                var def = GearMarkDefs.All.First(d => d.Slot == mark.Slot);
+                var onBone = skeleton is not null && skeleton.FindBone(mark.Bone) >= 0;
+                var placement = GearMountRule.Resolve(def, onBone);
+                if (onBone)
+                {
+                    // Ride the bone: BONE-LOCAL offsets in the model frame, undoing the model's scale so sizes stay metres.
+                    mesh.Position = PlacementToMetres(placement) / scale;
+                    mesh.Scale = Vector3.One / scale;
+                    var attach = new BoneAttachment3D { Name = "GearBone_" + mark.Slot, BoneName = mark.Bone };
+                    skeleton!.AddChild(attach);
+                    attach.AddChild(mesh);
+                    attach.Visible = GearMountRule.Visible(now.Alive, placement);
+                    _gearBones.Add((attach, placement));
+                }
+                else
+                {
+                    // No skeleton (the capsule fallback): root-frame placement from GearMountRule (root X forward, Z lateral).
+                    mesh.Position = PlacementToMetres(placement);
+                    if (mesh.Mesh is BoxMesh box)
+                    {
+                        box.Size = new Vector3(mark.SizeZ, mark.SizeY, mark.SizeX);
+                    }
+                    _gearRoot.AddChild(mesh);
+                }
                 _gearMeshes.Add(mesh);
             }
         }
@@ -697,6 +751,9 @@ public partial class ActorView : Node3D
         Driver?.HostLine(line);
     }
 
+    /// <summary>Converts a gear mount placement from integer millimetres (GearMountRule) to Godot metres at the view boundary.</summary>
+    private static Vector3 PlacementToMetres(GearMountPlacement p) => new(p.X * MmToM, p.Y * MmToM, p.Z * MmToM);
+
     // One primitive mark: a box or a sphere, unshadowed (the marks add draw calls to the Warden only), tinted by tier.
     private static MeshInstance3D BuildGearMesh(GearMark mark)
     {
@@ -707,7 +764,6 @@ public partial class ActorView : Node3D
         {
             Name = "Gear_" + mark.Slot,
             Mesh = mesh,
-            Position = new Vector3(mark.PosX, mark.PosY, mark.PosZ),
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
             MaterialOverride = new StandardMaterial3D
             {
@@ -824,4 +880,45 @@ public partial class ActorView : Node3D
 
     /// <summary>Sim mm position to a Godot position on the floor plane, metres.</summary>
     public static Vector3 ToMetres(Vec3 mm) => new(mm.X * MmToM, mm.Y * MmToM, mm.Z * MmToM);
+}
+
+/// <summary>
+/// R-ANIM-2 (b, e): the hit presentation of a health drop (the body flash and hit spark on <see cref="ActorView"/>, the
+/// floating damage number on <c>CombatText</c>) waits for the contact frame of the attack that dealt it. The sim damage
+/// tick is unchanged; this is presentation only.
+/// </summary>
+public static class HitPresentation
+{
+    /// <summary>
+    /// The sim ticks a hit presentation waits after the damage on <paramref name="victimId"/>: the contact frame of the
+    /// release clip of the ability whose source dealt the damage this step or frame (the damage event's sourceId resolved
+    /// it), rounded up to whole ticks. A hit with no resolving ability (a tick effect, an unmapped ability) waits 0 ticks.
+    /// </summary>
+    /// <param name="events">The sim events the presentation reads (one step, or every step of a frame); null means none.</param>
+    /// <param name="victimId">The actor the damage landed on.</param>
+    public static int DelayTicks(IReadOnlyList<SimEvent>? events, int victimId)
+    {
+        if (events is null)
+        {
+            return 0;
+        }
+        var delayMs = 0;
+        foreach (var hit in events)
+        {
+            if (hit.Type != StrikeCueRule.DamageEvent || hit.Get("targetId") is not JsInt target || target.Value != victimId
+                || hit.Get("sourceId") is not JsInt source)
+            {
+                continue;
+            }
+            foreach (var done in events)
+            {
+                if (done.Type == AnimRule.ResolveEvent && done.Get("actorId") is JsInt caster && caster.Value == source.Value
+                    && done.Get("abilityId") is JsString ability)
+                {
+                    delayMs = System.Math.Max(delayMs, AnimRule.HitPresentationDelayMs(AbilityClipTable.ReleaseClip(ability.Value, string.Empty)));
+                }
+            }
+        }
+        return (delayMs + AbilityAnim.TickMs - 1) / AbilityAnim.TickMs;
+    }
 }

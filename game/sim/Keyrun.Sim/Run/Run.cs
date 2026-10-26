@@ -102,6 +102,7 @@ public static class RunRoot
         {
             SeedRule = SeedRuleOf(effective),
             Spawns = Release.SpawnsOf(state),
+            PendingHolderLog = HolderChangeLog.HeldIds(state),
         };
     }
 
@@ -130,7 +131,7 @@ public static class RunRoot
         // begins in the boss pull engages it through a shut door, as main's wipe-is-release rule (#446) has it.
         var encounter = Aggro.Engage(state, run.Encounter, groups, new[] { run.Dungeon.Pulls[index].Id }, state.Tick, static _ => { });
         RunWiring.FixupTargeting(state);
-        return run with { State = state, Encounter = encounter };
+        return run with { State = state, Encounter = encounter, PendingHolderLog = HolderChangeLog.HeldIds(state) };
     }
 
     /// <summary>
@@ -258,7 +259,7 @@ public static class RunRoot
         }
         // AGGRO-CHASE leash: evaders that reached home reset, and a pack dragged past its leash gives up, before the aggro
         // check (an evading pack engages on nothing).
-        encounter = Leash.Step(next, encounter, groups, run.Content.BaseSpeedMmPerTick, emit);
+        encounter = Leash.Step(next, encounter, groups, run.Content.BaseSpeedMmPerTick, emit, openSeats);
         var triggered = Aggro.Triggered(run.State, next, groups, encounter, openSeats);
         encounter = Aggro.Engage(next, encounter, groups, triggered, next.Tick, emit);
         // G2.5 L4 (R-SYNERGY-1): the skip record. A pack the party has walked past, never engaged, is a log fact, not a bug.

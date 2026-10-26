@@ -173,13 +173,18 @@ public sealed class RunFJoinerActsTests
             + string.Join(", ", acted.Select(e => $"{(e.Get("abilityId") as JsString)?.Value}@{e.Tick}")));
     }
 
-    [Fact(DisplayName = "Run F: the party reaches pull 2 with no seat dead (HudSceneTest run F check 23)")]
-    public void No_party_seat_dies_before_pull_2()
+    /// <summary>
+    /// R-FACING-2 (e): the leave tick is the seat 2 chanter's hymn endsTick (1310); the leave-tick fix stops that cast,
+    /// and the Warden's death at 1779 to patrol melee (no pull_start) is a legitimate run-F outcome, not a party death
+    /// before the leave. The old pull-2 bound pinned the pre-fix trajectory.
+    /// </summary>
+    [Fact(DisplayName = "Run F: no party seat dies before the leave tick (R-FACING-2 (e))")]
+    public void No_party_seat_dies_before_the_leave_tick()
     {
         var r = Driven.Value;
-        var pull2 = r.Events.FirstOrDefault(e => e.Type == "pull_start" && e.Get("pullIndex") is JsInt { Value: 1 })?.Tick;
-        Assert.True(pull2 is not null, $"the party never reached pull 2 after the abandon at {r.AbandonTick} (run ended {r.Final.RunEnd.Result?.ToJs() ?? "running"} at {r.Final.State.Tick})");
-        var dead = r.Events.FirstOrDefault(e => e.Type == "death" && ActorOf(e) is >= 1 and <= 3 && e.Tick <= pull2);
-        Assert.True(dead is null, $"party seat {(dead is null ? -1 : ActorOf(dead))} died at {dead?.Tick} before pull 2 at {pull2} (abandon at {r.AbandonTick})");
+        Assert.True(r.AbandonTick is not null, $"seat {SeatId} never abandoned ({Abandon})");
+        var leave = r.AbandonTick!.Value;
+        var dead = r.Events.FirstOrDefault(e => e.Type == "death" && ActorOf(e) is >= 1 and <= 3 && e.Tick < leave);
+        Assert.True(dead is null, $"party seat {(dead is null ? -1 : ActorOf(dead))} died at {dead?.Tick} before the leave tick {leave}");
     }
 }

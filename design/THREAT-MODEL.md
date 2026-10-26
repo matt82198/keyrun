@@ -3,6 +3,10 @@
 Status: design study for finding f-e6e80660, written 2026-10-22 against main 910c18fd. It is a docs-only change and
 does not implement any rule. It proposes R-TAUNT-3 for an implementation lane to build red-first.
 
+**Amended 2026-10-25 (R-THREAT-2, finding f-7b374e72, against main a5b4595d): section 7 replaces the sticky holder
+rule with WoW Mythic+ threat.** Sections 0.1, 1 and the D30 rows of section 2 describe the old rule and are marked
+superseded where they conflict. R-TAUNT-3's decision table (section 4) stands.
+
 Reading paths:
 - **Deciding the rule:** section 0, then sections 4 and 5.
 - **Implementing it:** sections 1, 4 and 5.
@@ -10,9 +14,12 @@ Reading paths:
 
 ## 0. Summary
 
-1. **Holder-lock replaces aggro in keyrun.** An enemy attacks one *holder*. The holder is the nearest living player at
-   engage. After that only a taunt moves it, and the holder's death hands it to the nearest living player. Damage,
-   healing and threat never move it (section 1). The threat table still fills, but nothing that picks a target reads it.
+1. **SUPERSEDED 2026-10-25 by R-THREAT-2 (section 7, finding f-7b374e72).** The sticky clause below describes main
+   a5b4595d and is no longer the rule: damage and healing now make threat, and a seat past 110% (melee) or 130% (range)
+   of the holder's threat takes the enemy. Original text, kept for the record: *Holder-lock replaces aggro in keyrun.
+   An enemy attacks one holder. The holder is the nearest living player at engage. After that only a taunt moves it,
+   and the holder's death hands it to the nearest living player. Damage, healing and threat never move it (section 1).
+   The threat table still fills, but nothing that picks a target reads it.*
 2. **R-TAUNT-2 did not cause the key 10 seed 7 wipe on its own.** Measured on main today with the host autorun party,
    the Warden dies at tick 557 holding all three Choir enemies under every taunt rule: the current one, R-TAUNT-2 and the
    R-TAUNT-3 prototype. No taunt is needed before that tick. The first death comes from the tank's survival and the
@@ -145,8 +152,8 @@ How this maps to keyrun under D30:
 
 | WoW | Keyrun (D30 holder-lock) | Decided here |
 |---|---|---|
-| Threat generation holds the pack | Engage locks the holder; nothing but a taunt moves it | Keep. D30 is Matt's ruling ("The warden should maintain initial threat. Once threat is initialized, it cant be taken except for abilities", PR #306) |
-| Healing threat sends loose mobs to the healer | No healing threat. A dead holder's enemies go to the **nearest** living player (Holder.cs:66-68) | Keep "nearest". Keyrun has no threat table to rank by, and nearest is deterministic and readable on the floor |
+| Threat generation holds the pack | Engage locks the holder; nothing but a taunt moves it | ~~Keep.~~ **Superseded by R-THREAT-2 (section 7):** threat generation holds the pack, as in WoW |
+| Healing threat sends loose mobs to the healer | No healing threat. A dead holder's enemies go to the **nearest** living player (Holder.cs:66-68) | ~~Keep "nearest".~~ **Superseded by R-THREAT-2:** half-value healing threat, and a dead holder's enemy goes to the highest living threat (section 7.4) |
 | Taunt forces the target for a few seconds, then threat decides | Taunt sets the holder permanently | **Keep permanent.** Under D30 nothing remains to return to after a timed fixate except the previous holder, which would undo the taunt |
 | Taunt range 30 yd | 3000 mm | Not changed by this doc. The range lever was measured and is not decisive (Appendix A.3). The question is recorded in section 6 |
 | Area threat retakes a pack after a death | No area take-threat exists, so one taunt retakes one enemy every 160 ticks | Open question Q1 (section 6) |
@@ -377,6 +384,142 @@ Recommended findings (not decided here; out of this lane's scope):
   the R-PATROL-3 Brace hold. Measure before tuning.
 - **F2 The bot tank's first taunt.** In the Playtest bot-tank run at key 10 seed 7, the first taunt is at 793 and the
   tank is dead at 359. Adopting the shared function (section 4.3) gives TankEngage the row 2 walk.
+
+## 7. Amendment R-THREAT-2: WoW Mythic+ threat (2026-10-25, finding f-7b374e72)
+
+Matt, 2026-10-25, verbatim: "Tanks very often will run ahead of the group while they wait out of LOS, and grab all
+the packs and bring them back... that is how high level m+ is played optimally actually... this maybe needs a
+punishment in gameplay, because of our aggro rules... it allows the tank to just hit something and run ahead,
+realistically if he just ditches the other guys with an existing pack tthey do need to de-aggro and kill the dps".
+Standing rule: core dungeon-loop questions defer to WoW Mythic+.
+
+**What this supersedes.** D30's sticky clause ("damage, healing and threat never move it"; Holder.cs:12-13, the
+`LockHolders` "a living holder is never replaced" rule at Holder.cs:50-70) and the nearest-player hand-off on a
+holder's death. The holder stays as the name for "the seat this enemy attacks" (WoW's current target), and ScriptTarget
+still aims at it, so section 1.3 is unchanged. R-TAUNT-3 (section 4) stands as the rule for *when* the tank taunts; its
+ban on reading the threat table is lifted, because the table is now live. Every number below is an integer in basis
+points (bp, 10000 = 100%), per BIBLE s3 ("damage is a pipeline of integers").
+
+### 7.1 Threat sources
+
+| Source | Threat written | Notes |
+|---|---|---|
+| **Damage** (every point) | `trunc(dmg * abilityBp * classBp / 100_000_000)` on the damaged enemy, to the damage's source | `dmg` is the pipeline amount after armor, before absorbs, not capped by remaining health. A DoT tick credits its applier; Combo damage credits the seat whose Payoff fired it |
+| Ability coefficient `abilityBp` | 10000 by default. An ability's existing amount-less `threat` op now sets it: Guard Break 15000, Reckoning 20000, Lock (Warden) 20000 | Those ops write 0 today (`t.Amount ?? 0`, Casting.Complete.cs:159-160); they become coefficients |
+| **Healing** | `trunc(heal * 5000 * classBp / 100_000_000)`, divided evenly (integer division, remainder dropped) across living, engaged, non-evading enemies whose table holds the healed seat | `heal` is effective healing (overheal excluded). Absorb shields make none. Healing never engages a pack. WoW: half, split |
+| Flat `threat` ops with an amount (Shield Bash 50, Taunt 1 x 100000 bp) | Unchanged amounts, then `* classBp / 10000` | |
+| **Momentum spent** (Threat.cs:29-40) | **Retired.** Reckoning's 20000 coefficient carries the spender's threat | BIBLE s5:127 "Threat is generated by Momentum spent" needs a BIBLE wording PR (not this lane) |
+| Engage (body pull) | The locked holder gets an entry of 0 | So a heal on the tank splits onto a pack he body-pulled |
+
+No decay. An entry clears on the source's death (adopts the pending fix/death-clears-threat), on evade, and on wipe.
+
+### 7.2 The tank multiplier
+
+**`classBp`: Warden 20000, Cinder 10000, Chanter 10000**, a new `threatBp` field on each class json (default 10000).
+It is a class number, not a stance, so a Facet or fork may change it later (D31 rule 3). How it holds aggro without
+ThreatOp spam, per target, using content numbers:
+
+- Warden Guard Break (circle 2500, every 30-tick GCD): 100 x 1.5 x 2 = **300 per member per GCD, 10 a tick**.
+- Warden single target, Strike x7 then Reckoning: (7 x 160 + 1600) / 240 ticks = **11.3 a tick**.
+- Cinder best single target, Ember Bolt + Detonate per 60 ticks: 340 / 60 = **5.7 a tick**. Chanter Dissonance: 2.2.
+
+A rotating Warden runs at 1.76x to 2x the Cinder, above the 1.3x range bar, so a DPS never takes an enemy from a
+tank who keeps hitting it. A Warden who presses Strike only (5.3 a tick) loses a focused enemy to the Cinder: that
+is intended, since threat is earned by playing the rotation.
+
+### 7.3 Overtake and taunt
+
+- **Melee range is 3000 mm** (`Casting.RangeMm(enemy, seat) <= 3000`), the Acolyte reach, Strike range and Taunt range.
+- **Overtake:** a seat `c` takes enemy `e` from holder `h` when `c * 10000 > h * 11000` with `c` in melee range of
+  `e`, or `c * 10000 > h * 13000` otherwise (strictly greater). Several qualifiers: highest threat, then lowest id.
+  It is checked once per tick in the holder pass (where `LockHolders` runs, RunWiring.cs:233), after the engage lock,
+  on every living, non-idle, non-evading enemy. Against a holder at 0, any positive threat qualifies.
+- **Taunt** (Holder.IsTaunt, unchanged detection; range 3000, cooldown 160): the taunter becomes holder, its entry is
+  raised to the table's top value after the taunt's own threat op lands, and the enemy is **fixated for 60 ticks**
+  (WoW's 3 s), during which no overtake is checked. After the fixate, an equal entry does not overtake, so the
+  taunter keeps it until someone passes the bar.
+- **Holder death:** the highest living entry takes it (ties lowest id), with no bar. An empty table falls back to
+  the nearest living player (the body-pull rule).
+- **Bosses** follow the same rules.
+
+### 7.4 Gather pulls and the leash
+
+- **A pack nobody else damaged follows the tank.** Its table holds only the tank (and halved, split healing), so
+  nothing passes the bar and it chases its holder. Gather check: a Guard Break tag puts 300 on each member; for the
+  healer to take a member at range she must pass 390, which takes more than 780 x (members) effective healing on the
+  tank during the gather: over 1560 for a two-member pack, nearly four times the Warden's 400 health.
+- **The leash stays 30000 mm (packs) and 17000 mm (boss), measured from each member's own post** (run.json:43-52,
+  Leash.cs:85). A gathered pack keeps following anywhere inside it. The fight spot is chosen inside every gathered
+  pack's leash, as DUNGEON-SYNERGY's "+10 chain inside the leash" already requires.
+- **Amended: the leash evades per member, not per pack.** A member past its leash evades alone (stopcast, drop holder,
+  threat and effects, walk home, reset on arrival); its pack-mates fight on. Without this, the untouched member the
+  tank drags past 30 m would evade the whole pack, including the members that turned on the DPS, and the punishment
+  in 7.5 would never land. A pack all of whose members are dragged still evades whole, as today.
+
+### 7.5 The punishment, tick by tick
+
+Setup: a two-Acolyte pack (100, 101) stacked at post P. The party waits at S, 10000 mm west of P (outside the 8000
+ring). The Cinder focuses 100 (Ember Bolt, Detonate on cooldown at 30 Heat, circle 1500 catching both); the Chanter
+casts Dissonance (circle 2500) on cooldown. Both stay inside their 25000 mm range. All are at range: the 130% bar.
+
+| Tick | Event | 100: Warden / Cinder / Chanter | 101: Warden / Cinder / Chanter | Holder |
+|---|---|---|---|---|
+| 0 | Warden Guard Break at P (300 each), then runs east at 180 mm/tick. Chanter Dissonance | 300 / 0 / 130 | 300 / 0 / 130 | Warden; the pack chases him at 207 |
+| 20 | Ember Bolt lands | 300 / 90 / 130 | 300 / 0 / 130 | Warden |
+| 50 | Ember Bolt lands (Heat 40) | 300 / 180 / 130 | 300 / 0 / 130 | Warden |
+| 60 | Detonate (250 both) and Dissonance. Bar is 390 | 300 / **430** / 260 | 300 / 250 / 260 | **100 turns onto the Cinder**; 101 stays on the Warden (10800 mm east of P) |
+| 60-160 | 100 runs about 20 m back to the Cinder at 207 mm/tick | Cinder keeps growing | 101 out of Detonate's circle; Dissonance 390 at 120 is not over 390 | 101 stays on the Warden |
+| ~160 | 100 reaches melee and swings at the Cinder (250 health), every 40 ticks | | | |
+| ~170-185 | 101 passes 30000 mm from P behind the Warden | | Evades alone, walks home (about 145 ticks), resets near tick 320 | none |
+| ~240 | At key 10 (91 a swing) the third swing kills the Cinder, unless she Blinks, uses Ashen Skin, or the tank comes back and Taunts 100 | | | |
+
+The tank reaches 40 m at tick 222, by which time he has lost the damaged enemy to the DPS and the untouched one to the
+leash. If the DPS had held fire (a gather), both Acolytes follow him; if they AoE every member, every member turns by
+the second Detonate (tick 120, 500 > 390) and nothing leashes.
+
+### 7.6 Impact and slice order
+
+**Tests re-premised (S1 owns them).**
+- game/sim/Keyrun.Sim.Tests/HolderLockTests.cs: `:74` inverts (a DPS past 130% takes the enemy); `:99` gains the
+  set-to-top value and the 60-tick fixate; `:122` the highest living threat takes it, not the nearest; `:141` a body
+  pull holds only until someone passes the bar; `:162` (holder out of range blocks the cast) is unchanged.
+- game/sim/Keyrun.Sim.Tests/WardenMomentumThreatTests.cs: rewritten as damage-coefficient tests (Momentum threat
+  retired). CombatThreatCooldownTests.cs, CoreStepTests.cs, Encounter/ScriptTargetTests.cs, ScriptTargetRandomTests.cs
+  and EncounterTraceTests.cs: threat-table values move; re-derive them, never fit.
+- game/bots/Keyrun.Bots.Tests/HolderLockBotTests.cs `:27`, `:33`, `:48`, `:83`: the table now decides.
+- tools/Keyrun.Playtest.Tests/BotTankTakesHolderTests.cs (its R-THREAT-2 comment at :26), RunCWardenPicksUpLooseTests.cs
+  `:143`, ScriptedWardenTauntTests.cs.
+
+**Bot behaviour that changes.**
+- **Bot tank threat upkeep** (Roles/TankEngage.cs, Tank.cs, game/src/Host/ScriptedWarden.cs): an engaged member on
+  which a non-tank seat holds at least 90% of its overtake bar is the next Guard Break or Strike target, ahead of the
+  rotation's damage pick. R-TAUNT-3's rows still pick the taunt.
+- **Bot tank gather** (f-7b374e72 observable 3): the tank picks a fight spot S inside every target pack's leash, tags,
+  and walks back to S where the party waits. R-BOTTANK-LEASH-1 is amended to allow running ahead only on a gather that
+  returns to the party.
+- **DPS threat awareness** (Roles/Damage.cs): open on an enemy only once the tank's entry on it is above 0; when the
+  seat's own threat reaches 90% of the bar on its target, switch target or cast a non-damaging filler.
+- **Guided bots G2.4** (Guides/GuidedTankRole.cs, game/bots/GUIDE.md, GuidedWardenGuideSectionsTests.cs): the tank
+  guide gains threat upkeep and gather lines; the DPS guides gain "let the tank tag first".
+
+**Oracle setups to re-record** (game/sim/Keyrun.Sim.Tests/Fixtures/oracle/, R-ORACLE-1: non-required, each re-record
+names the property test that moved it): bots-hv-k2-s7, bots-hv-k2-s11, bots-hv-k10-s7, content-pull and scripted-pull
+traces, plus manifest.json.
+
+**Other docs to amend later (not edited here):** DUNGEON-SYNERGY.md 2.2 (whole-pack evade becomes per member), 2.3
+(the aggro drop's receiver becomes the highest living threat in sight, not the nearest), and the ranged tag line at
+:362-363 (a Cinder tag from range now pulls the pack to the Cinder); BIBLE s5:127.
+
+**Slice order** (each slice opens with one failing test):
+1. **S1 sim threat:** sources (7.1), `classBp` (7.2), overtake and holder death (7.3), owning every re-premised test.
+   Red first: a Cinder past 130% of the Warden's threat at range takes the enemy (HolderLockTests:74 inverted).
+2. **S2 taunt fixate:** red first: a taunted enemy is not overtaken for 60 ticks, and the taunter's entry equals the top.
+3. **S3 per-member leash** (Leash.cs): red first: a split pack where the untouched member evades alone and the turned
+   member stays engaged.
+4. **S4 punishment and gather properties** (f-7b374e72 observables 1 and 2): the 7.5 scenario as a sim test (100
+   turns onto the Cinder at tick 60) and a gather where an undamaged pack follows the tank to S.
+5. **S5 bot tank upkeep and gather** (observable 3). **S6 DPS threat awareness.** **S7 guided G2.4 guides.** Each
+   re-records the oracle traces it moves.
 
 ## Appendix A. Measurements
 
