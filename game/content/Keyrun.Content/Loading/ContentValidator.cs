@@ -39,6 +39,7 @@ public static class ContentValidator
     public static void Validate(ContentRegistry reg)
     {
         System.ArgumentNullException.ThrowIfNull(reg);
+        EffectValidator.Check(reg);
         foreach (IContentRule rule in ContentRules.All)
             rule.Check(reg);
     }
