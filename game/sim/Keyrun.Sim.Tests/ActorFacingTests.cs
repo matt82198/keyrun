@@ -139,6 +139,35 @@ public class ActorFacingTests
         Assert.Equal(Backwards, ActorFacing.RenderYaw(state, caster, abilities, null, true));
     }
 
+    [Fact]
+    public void AnEngagedEnemyFacesItsHolderNotAStaleTarget()
+    {
+        const int HolderId = 3;
+        var abilities = AbilityMap(Bolt);
+        var caster = Make(CasterId, ActorKind.Enemy, "caster", maxHealth: 1000, maxResource: 100, yaw: Backwards);
+        var tank = Make(TargetId, ActorKind.Player, "target", z: 1000, maxHealth: 1000, yaw: Backwards);
+        var holder = Make(HolderId, ActorKind.Player, "holder", x: 1000, maxHealth: 1000, yaw: Backwards);
+        var state = At(0, caster, tank, holder);
+        caster.TargetId = TargetId; // stale: the tank was the cast target
+        caster.HolderId = HolderId; // the seat that holds the enemy now
+
+        Assert.Null(caster.CastId);
+        Assert.Equal(
+            Fixed.YawBetween(caster.Pos, holder.Pos),
+            ActorFacing.RenderYaw(state, caster, abilities, null, false));
+    }
+
+    [Fact]
+    public void AnEnemyWithNoHolderStillFacesItsTarget()
+    {
+        var (state, abilities) = Arena(Bolt);
+        var caster = state.Actors[CasterId];
+        caster.TargetId = TargetId;
+        caster.HolderId = null;
+
+        Assert.Equal(TowardTarget, ActorFacing.RenderYaw(state, caster, abilities, null, false));
+    }
+
     private static (SimState State, IReadOnlyDictionary<string, AbilityDef> Abilities) Arena(AbilityDef def)
     {
         var abilities = AbilityMap(def);

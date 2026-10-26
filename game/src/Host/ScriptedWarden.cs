@@ -74,7 +74,6 @@ public sealed class ScriptedWarden
                 into.Add(chain);
             }
             ApplyFrontalAnswer(CleaveAnswer(run, me, tick), me.Id, into, start);
-            ApplyFrontalAnswer(CleaveAnswer(run, me, tick), me.Id, into, start);
         }
     }
 
