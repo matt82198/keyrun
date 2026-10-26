@@ -556,7 +556,21 @@ public static class Bot
         var topOff = travelling && self.Role == ActorRole.Healer && !Follow.AnyLivingEnemy(view.State) && Roles.HealerRole.NeedsTopOff(view.State.Actors);
         if (follow is not null)
         {
-            commands.Add(Reasons.Tag(follow, "bot:follow-route"));
+            // TANK-TRAVEL-APPROACH: a travelling bot tank with an engaged enemy out of reach (aimed at a non-tank seat, the party
+            // is fighting it) closes on that enemy instead of walking the route. This move replaces the route walk this tick (one
+            // MoveCommand per seat, never two), and the tank falls through to its role decision so the taunt goes out on the same
+            // tick; the role's own moves are dropped below while travelling. The non-tank seats and an in-reach tank keep the
+            // travel behaviour below.
+            var travelApproach = avoid is null && !pingCommands.Any() && self.Role == ActorRole.Tank
+                && Roles.TankEngage.EngageTarget(view, self) is { } travelEngaged
+                && !travelEngaged.Idle && Roles.TankEngage.WithinPartyLeash(view.State, self, travelEngaged)
+                && (travelEngaged.HolderId ?? travelEngaged.TargetId) is { } travelSeatId && travelSeatId != self.Id
+                && view.State.Actors.TryGetValue(travelSeatId, out var travelSeat) && travelSeat.Kind == ActorKind.Player && travelSeat.Alive
+                    ? Roles.TankEngage.ApproachMove(view, self, Roles.RoleShared.KitOf(view, self.ClassId))
+                    : null;
+            commands.Add(travelApproach is not null
+                ? Reasons.Tag(travelApproach, "bot:tank-approach")
+                : Reasons.Tag(follow, "bot:follow-route"));
             if (!Follow.AnyLivingEnemy(view.State) && !topOff)
             {
                 return new BotDecision(commands, memory, prng);
