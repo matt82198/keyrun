@@ -198,7 +198,7 @@ public sealed class ActorAnimator
         {
             var name = AbilityClipPlayer.ReleaseName(castId, _rowAct);
             var windClip = AbilityClip(name);
-            if (windClip is not null && AbilityAnim.Windup(name, castStart, castEnds, tick, alphaPermille) is WindupPose pose)
+            if (windClip is not null && AbilityAnim.WindupFor(castId, _rowAct, castStart, castEnds, tick, alphaPermille) is WindupPose pose)
             {
                 if (_windup != windClip || _player.CurrentAnimation != windClip)
                 {

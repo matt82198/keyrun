@@ -123,6 +123,35 @@ public static class AbilityAnim
     }
 
     /// <summary>
+    /// The wind-up pose of <paramref name="abilityId"/>'s cast bar when its release clip is declared in
+    /// <see cref="AbilityClipTable"/>. Null for an unmapped id (its release depends on the row's swing: use the overload
+    /// that takes <c>rowAct</c>), and for a strike release whose cast declares its own loop (the loop owns the bar).
+    /// </summary>
+    public static WindupPose? WindupFor(string abilityId, int castStartTick, int castEndsTick, int stateTick, int alphaPermille)
+    {
+        ArgumentNullException.ThrowIfNull(abilityId);
+        return AbilityClipTable.For(abilityId) is { } row
+            ? WindupOf(abilityId, row.Release, castStartTick, castEndsTick, stateTick, alphaPermille)
+            : null;
+    }
+
+    /// <summary>
+    /// The wind-up pose of <paramref name="abilityId"/>'s cast bar, its release resolved as
+    /// <see cref="AbilityClipTable.ReleaseClip"/> does with <paramref name="rowAct"/> for an unmapped id. Same rule as
+    /// the five-argument overload; null for a strike release whose cast declares its own loop.
+    /// </summary>
+    public static WindupPose? WindupFor(string? abilityId, string rowAct, int castStartTick, int castEndsTick, int stateTick, int alphaPermille)
+    {
+        ArgumentNullException.ThrowIfNull(rowAct);
+        return WindupOf(abilityId, AbilityClipTable.ReleaseClip(abilityId, rowAct), castStartTick, castEndsTick, stateTick, alphaPermille);
+    }
+
+    private static WindupPose? WindupOf(string? abilityId, string release, int castStartTick, int castEndsTick, int stateTick, int alphaPermille) =>
+        AbilityClipTable.CastClip(abilityId) is not null && IsStrike(release)
+            ? null
+            : Windup(release, castStartTick, castEndsTick, stateTick, alphaPermille);
+
+    /// <summary>
     /// Where the swing one-shot starts on the tick its ability resolves, ms into <paramref name="clip"/>: the contact
     /// frame when the cast already wound it up (<paramref name="woundUp"/>), so the blow carries on without jumping back;
     /// otherwise <see cref="AnimRule.SwingStartMs"/> (an instant).
