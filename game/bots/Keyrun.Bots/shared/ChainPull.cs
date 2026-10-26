@@ -58,7 +58,7 @@ public static class ChainPull
     /// <returns>The move toward the next group, or null.</returns>
     public static MoveCommand? Move(int tick, SimState state, NavLayout layout, PullPlan plan, ActorState leader)
     {
-        if (Intent(state, layout, plan, leader) is not { } next)
+        if (IntentAndGather(state, layout, plan, leader, out var tagGather) is not { } next)
         {
             // G2.5 / f-7b374e72: the walk-back to a tagged gather spot skips the leash and the health floors (walking toward the
             // party and the healer is the safe move); the engaged elite and boss block is already inside GatherReturn.Spot.
@@ -66,11 +66,14 @@ public static class ChainPull
                 ? PathMoves.Along(tick, leader, layout, spot)
                 : null;
         }
+        // G3 / f-7b374e72 (R-BOTTANK-LEASH-1 amended for an open gather): while a gather's next pack is being tagged, the leash
+        // is measured from that gather spot, not from the tank, so the party waiting at the spot lets him run ahead to the pack.
+        var anchor = tagGather?.Spot ?? leader.Pos;
         foreach (var seat in state.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != leader.Id))
         {
             // R-PATH-5 (r): a seat walking back from a respawn (Follow.ReturnSeat non-null) is not a straggler the leash
             // waits for; the leash counts only the seats that are not returning. The health floor still applies to every seat.
-            var leashed = Follow.ReturnSeat(seat, state) is null && Dist2(seat.Pos, leader.Pos) > PartyLeashMm * PartyLeashMm;
+            var leashed = Follow.ReturnSeat(seat, state) is null && Dist2(seat.Pos, anchor) > PartyLeashMm * PartyLeashMm;
             if ((seat.MaxHealth > 0 && seat.Health * 100 < MinPartyHealthPct * seat.MaxHealth) || leashed)
             {
                 return null;
@@ -90,8 +93,28 @@ public static class ChainPull
     /// <param name="plan">The pull plan.</param>
     /// <param name="leader">The party leader.</param>
     /// <returns>The group, or null.</returns>
-    public static AggroGroup? Intent(SimState state, NavLayout layout, PullPlan plan, ActorState leader)
+    public static AggroGroup? Intent(SimState state, NavLayout layout, PullPlan plan, ActorState leader) =>
+        IntentAndGather(state, layout, plan, leader, out _);
+
+    /// <summary>
+    /// G3 / f-7b374e72: the open gather spot the party waits at this tick, or null. It is the spot of the gather whose next
+    /// pack <see cref="Intent"/> names (the tank is tagging that pack now); null when no gather tag is open, so the followers
+    /// keep the room-fight rule and the leash stays on the leader.
+    /// </summary>
+    /// <param name="state">The state.</param>
+    /// <param name="layout">The layout.</param>
+    /// <param name="plan">The pull plan.</param>
+    /// <param name="leader">The party leader.</param>
+    /// <returns>The open gather spot, or null.</returns>
+    internal static Vec3? OpenGatherSpot(SimState state, NavLayout layout, PullPlan plan, ActorState leader) =>
+        IntentAndGather(state, layout, plan, leader, out var tagGather) is not null ? tagGather?.Spot : null;
+
+    /// <summary>
+    /// <see cref="Intent"/> plus the gather whose tag it names (null when the group comes from <see cref="NextGroup"/>).
+    /// </summary>
+    private static AggroGroup? IntentAndGather(SimState state, NavLayout layout, PullPlan plan, ActorState leader, out GatherSpot? tagGather)
     {
+        tagGather = null;
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(plan);
@@ -109,8 +132,9 @@ public static class ChainPull
         // G2.5 / f-7b374e72: a gather spot whose engaged group is still on the field lets the tank tag the next pack of that
         // gather at once, bypassing the health hold, so the tank runs ahead to grab the gather's packs instead of fighting the
         // first pack at its post. No gather (or no engaged gather group) leaves the rule below unchanged.
-        if (GatherNext(state, layout, plan, leader, engaged) is { } gathered)
+        if (GatherNext(state, layout, plan, leader, engaged, out var gatherSpot) is { } gathered)
         {
+            tagGather = gatherSpot;
             return gathered;
         }
         // A lone straggler is the pack's last living member: the chain opens on it regardless of its health bar, so one
@@ -128,10 +152,11 @@ public static class ChainPull
     /// gather's own <see cref="GatherSpot.GroupIds"/> order that still has an idle member and holds no engaged enemy (an engaged
     /// group with an idle straggler is the current fight, never its own next gather), within the same bounds as
     /// <see cref="NextGroup"/> (not behind the leader, within <see cref="ReachMm"/>, no patrol on the way, no elite or boss).
-    /// Null when no gather applies.
+    /// Null when no gather applies. <paramref name="tagGather"/> is the gather the returned group belongs to (null otherwise).
     /// </summary>
-    internal static AggroGroup? GatherNext(SimState state, NavLayout layout, PullPlan plan, ActorState leader, IReadOnlyList<ActorState> engaged)
+    internal static AggroGroup? GatherNext(SimState state, NavLayout layout, PullPlan plan, ActorState leader, IReadOnlyList<ActorState> engaged, out GatherSpot? tagGather)
     {
+        tagGather = null;
         var reach = HighBox(layout, leader.Pos);
         var pick = ForcesPlanner.NextPackPoint(state, layout, plan, leader);
         foreach (var gather in plan.Gathers ?? Array.Empty<GatherSpot>())
@@ -160,6 +185,7 @@ public static class ChainPull
                 {
                     continue;
                 }
+                tagGather = gather;
                 return g;
             }
         }
