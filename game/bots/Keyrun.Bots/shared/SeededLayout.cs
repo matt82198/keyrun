@@ -208,7 +208,7 @@ public static class SeededLayout
         var p = Params with { Segments = bosses.Count };
         var graph = RoomGraphGen.Generate(seed, p);
         var grid = WalkGridGen.Emit(graph, p);
-        var fill = SegmentFill.Fill(seed, graph, bosses, SeededRoster.Pool(reg, dungeonId), reg.Forces.Required);
+        var fill = SegmentFill.Fill(seed, graph, bosses, SeededRoster.Pool(reg, dungeonId), reg.ForcesFor(dungeonId).Required);
         var branches = leaderBranch is { } forced
             ? Enumerable.Repeat(forced, graph.SegmentCount).ToList()
             : BotBranches(seed, graph.SegmentCount);
@@ -282,7 +282,7 @@ public static class SeededLayout
         var neededPacks = new HashSet<string>(StringComparer.Ordinal);
         foreach (var p in d.Fill.Packs)
         {
-            if (p.Branch == d.Branches[p.Segment] && required < reg.Forces.Required)
+            if (p.Branch == d.Branches[p.Segment] && required < reg.ForcesFor(dungeonId).Required)
             {
                 required += p.Points;
                 neededPacks.Add(p.InstanceId);

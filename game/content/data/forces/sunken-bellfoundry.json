@@ -1,0 +1,8 @@
+{
+  "required": 1000,
+  "route": {
+    "dungeonId": "sunken-bellfoundry",
+    "forkAfterPull": "",
+    "rejoinPull": ""
+  }
+}
