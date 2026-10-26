@@ -1,0 +1,53 @@
+#!/bin/sh
+# pre-push - block a push whose outgoing commits carry a secret (finding f-9e6f6f46).
+# Install with: git config core.hooksPath hooks   (run once in the keyrun checkout)
+# Scanner: $SECRET_SCAN, default "$HOME/scripts/secret_scan.py". Missing scanner fails closed.
+# Root-based pushes (no origin/main merge-base) scan from the empty tree so the root commit
+# itself is included; an empty root listing fails closed rather than passing as clean.
+set -eu
+
+ZERO_SHA='0000000000000000000000000000000000000000'
+EMPTY_TREE='4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+SCANNER="${SECRET_SCAN:-$HOME/scripts/secret_scan.py}"
+
+if [ ! -f "$SCANNER" ]; then
+  printf 'pre-push: secret scanner missing at %s; push blocked\n' "$SCANNER" >&2
+  exit 1
+fi
+
+# scan_range RANGE REF - run the scanner over RANGE; block the push on any failure.
+scan_range() {
+  if ! python "$SCANNER" --range "$1"; then
+    printf 'pre-push: secret scan failed for %s; push blocked\n' "$2" >&2
+    exit 1
+  fi
+}
+
+# Each stdin line: "<local ref> <local sha> <remote ref> <remote sha>".
+# The `|| [ -n "$local_ref" ]` arm also handles a final line with no trailing newline.
+while read -r local_ref local_sha remote_ref remote_sha || [ -n "$local_ref" ]; do
+  # A delete pushes the all-zero local sha: nothing to scan.
+  if [ "$local_sha" = "$ZERO_SHA" ]; then
+    continue
+  fi
+
+  if [ "$remote_sha" = "$ZERO_SHA" ]; then
+    # New branch: scan against the merge-base with origin/main when one exists.
+    if base="$(git merge-base origin/main "$local_sha" 2>/dev/null)" && [ -n "$base" ]; then
+      scan_range "$base..$local_sha" "$local_ref"
+      continue
+    fi
+    # No merge-base: the push has no shared ancestry to subtract, so scan everything
+    # from the empty tree (this includes every root commit). A push with no commits
+    # is refused rather than treated as clean.
+    if [ -z "$(git rev-list --max-parents=0 "$local_sha" 2>/dev/null)" ]; then
+      printf 'pre-push: no commits found for %s; push blocked\n' "$local_ref" >&2
+      exit 1
+    fi
+    scan_range "$EMPTY_TREE..$local_sha" "$local_ref"
+  else
+    scan_range "$remote_sha..$local_sha" "$local_ref"
+  fi
+done
+
+exit 0
