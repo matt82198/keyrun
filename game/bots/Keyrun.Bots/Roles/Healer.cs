@@ -216,7 +216,13 @@ public sealed class HealerRole : IRole
             {
                 return new Command[] { Reasons.Tag(new CastCommand(tick, self.Id, kit.StanceSwapAbilityId!), "healer:stance-back") };
             }
-            return Reasons.TagAll(HealPick.HealCommands(view, self, kit, healTarget), "healer:heal");
+            var heal = HealPick.HealCommands(view, self, kit, healTarget);
+            // R-HEALAGGRO-1 (c): no heal ready (GCD-locked) while an engaged enemy holds melee aggro on this seat, so walk to the tank.
+            if (heal.Count == 0 && HealerAggroMove.Command(view, self, heal) is { } aggroMove)
+            {
+                return new Command[] { Reasons.Tag(aggroMove, "healer:aggro-move") };
+            }
+            return Reasons.TagAll(heal, "healer:heal");
         }
 
         var abilityId = kit.DispelAbilityId ?? "dispel";

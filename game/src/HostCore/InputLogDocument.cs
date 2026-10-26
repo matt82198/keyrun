@@ -158,6 +158,60 @@ public sealed record InputLogDocument(
         }
     }
 
+    /// <summary>
+    /// The file text, Godot-free, byte-compatible with <c>InputLog.ToJson</c> (the Host writer): fixed key order, invariant
+    /// numbers, LF, a trailing newline. A <c>/2</c> document always writes its <c>camera</c> array (empty when it has no
+    /// headings, so <see cref="Parse"/> reads it back); a <c>/1</c> document writes none. <see cref="Parse"/> of the text
+    /// returns an equal document.
+    /// </summary>
+    /// <returns>The JSON text.</returns>
+    public string ToJson()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append("{\n");
+        sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"  \"schema\": \"{Schema}\",\n");
+        sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"  \"seed\": {Seed},\n");
+        sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"  \"key\": {KeyLevel},\n");
+        if (RotationIndex is { } rotation)
+        {
+            sb.Append(AffixWeek.HeaderLine(rotation));
+        }
+        if (StartHeading is { } heading)
+        {
+            sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"  \"startHeading\": {FormatYaw(heading)},\n");
+        }
+        if (ReadyKeys)
+        {
+            sb.Append("  \"readyKeys\": true,\n");
+        }
+        sb.Append("  \"events\": [");
+        for (var i = 0; i < Events.Count; i++)
+        {
+            var e = Events[i];
+            sb.Append(i == 0 ? "\n" : ",\n");
+            sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"    {{ \"tick\": {e.Tick}, \"key\": \"{e.Key}\", \"pressed\": {(e.Pressed ? "true" : "false")} }}");
+        }
+        sb.Append(Events.Count == 0 ? "]" : "\n  ]");
+        if (Schema == SchemaV2)
+        {
+            sb.Append(",\n  \"camera\": [");
+            for (var i = 0; i < Camera.Count; i++)
+            {
+                var c = Camera[i];
+                sb.Append(i == 0 ? "\n" : ",\n");
+                sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"    {{ \"tick\": {c.Tick}, \"yaw\": {FormatYaw(c.Yaw)} }}");
+            }
+            sb.Append(Camera.Count == 0 ? "]" : "\n  ]");
+        }
+        sb.Append("\n}\n");
+        return sb.ToString();
+    }
+
+    /// <summary>A yaw as the file writes it: the shortest invariant text that reads back to the same float32.</summary>
+    /// <param name="yaw">The yaw, radians.</param>
+    /// <returns>The text.</returns>
+    private static string FormatYaw(float yaw) => yaw.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+
     // Every field the writer (InputLog.ToJson) can emit; anything else is refused, so a misspelt or invented field (a
     // "frame" on an event, say) can never be silently ignored by a replay.
     private static readonly string[] HeaderFields =

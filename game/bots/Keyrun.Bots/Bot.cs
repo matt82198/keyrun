@@ -18,6 +18,7 @@ namespace Keyrun.Bots;
 /// <param name="BloomBestDistSq">Smallest squared distance (mm squared, integer) to the bloom target seen in the current walk (null = none, or reset).</param>
 /// <param name="BloomTick">Tick of the last seed-bloom decision (-1 = none); a decision on any other tick is not a bloom walk.</param>
 /// <param name="HeldPackId">R-PATH-5 (z): the held pack's enemy id a stuck bloom walk dropped for; the tank keeps approaching it (null = none).</param>
+/// <param name="LastAllyPressuredTick">R-AGGRO-1 (ab): the last tick a tank seat saw an ally pressured (-1 = never); the ally-pressure signal is sticky for 60 ticks after it.</param>
 public sealed record BotMemory(
     int SkillDial,
     int NextActionTick,
@@ -25,7 +26,8 @@ public sealed record BotMemory(
     int BloomNoProgressTicks = 0,
     long? BloomBestDistSq = null,
     int BloomTick = -1,
-    int? HeldPackId = null)
+    int? HeldPackId = null,
+    int LastAllyPressuredTick = -1)
 {
     /// <summary>bot.ts defaultMemory: <c>{skillDial, nextActionTick: 0}</c>.</summary>
     /// <param name="skillDial">Skill dial (default 100).</param>
@@ -157,17 +159,292 @@ public static class Bot
         {
             return null;
         }
+        var safe = DangerSafePoint(view, self, active);
+        if (safe is null)
+        {
+            return null;
+        }
+        return view.Layout is { } layout
+            ? PathMoves.Along(tick, self, layout, new Vec3(safe.Value.X, self.Pos.Y, safe.Value.Z))
+            : Moves.MoveToward(tick, self.Id, selfMm, safe.Value);
+    }
+
+    /// <summary>
+    /// The nearest point clear of <paramref name="active"/> that the seat may stand on: on a layout run the nearest walkable
+    /// point (LINE-DODGE), else the nearest clear point. Null when there is none.
+    /// </summary>
+    private static PointMm? DangerSafePoint(BotView view, ActorState self, IReadOnlyList<BotTelegraph> active)
+    {
+        var selfMm = PointMm.Of(self.Pos);
         if (view.Layout is { } layout)
         {
             var grid = NavGrid.Of(layout);
-            var walkable = Positioning.NearestSafePoint(
+            return Positioning.NearestSafePoint(
                 selfMm,
                 active,
                 extraCheck: p => grid.Walkable(new Vec3(p.X, self.Pos.Y, p.Z)));
-            return walkable is null ? null : PathMoves.Along(tick, self, layout, new Vec3(walkable.Value.X, self.Pos.Y, walkable.Value.Z));
         }
-        var safe = Positioning.NearestSafePoint(selfMm, active);
-        return safe is null ? null : Moves.MoveToward(tick, self.Id, selfMm, safe.Value);
+        return Positioning.NearestSafePoint(selfMm, active);
+    }
+
+    /// <summary>
+    /// R-GCD-1 (c) escape destinations: true when <paramref name="p"/> lies inside the aggro ring of a living enemy that is
+    /// still idle (an unengaged pack). The sim's rule (EnemyAggro.SeesPlayer) engages a group when a player stands inside a
+    /// member's ring, centred on its WanderAnchor (else its position) at AggroMm, so an escape landing there pulls the pack.
+    /// </summary>
+    private static bool InUnengagedAggro(BotView view, PointMm p)
+    {
+        var at = new Vec3(p.X, 0, p.Z);
+        foreach (var enemy in view.State.Actors.Values)
+        {
+            if (enemy.Kind == ActorKind.Enemy && enemy.Alive && enemy.Idle && enemy.AggroMm is { } radius
+                && Keyrun.Sim.Encounter.Aggro.InRing(at, enemy.WanderAnchor ?? enemy.Pos, radius))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// The escape's destination: the nearest point clear of <paramref name="active"/> danger that is also outside every
+    /// unengaged pack's aggro ring (and walkable on a layout run). Falls back to the next candidate ring by ring, so a null
+    /// result sends the caller to the danger-dodge walk.
+    /// </summary>
+    private static PointMm? EscapeSafePoint(BotView view, ActorState self, IReadOnlyList<BotTelegraph> active)
+    {
+        var selfMm = PointMm.Of(self.Pos);
+        var grid = view.Layout is { } layout ? NavGrid.Of(layout) : null;
+        return Positioning.NearestSafePoint(
+            selfMm,
+            active,
+            extraCheck: p => !InUnengagedAggro(view, p)
+                && (grid is null || grid.Walkable(new Vec3(p.X, self.Pos.Y, p.Z))));
+    }
+
+    /// <summary>
+    /// True when <paramref name="self"/> is the tank seat and is taking a pack (its TankEngage target is set) or holding one
+    /// (a living enemy names it as holder). Always false for a non-tank seat.
+    /// </summary>
+    private static bool IsTankTakingOrHolding(BotView view, ActorState self)
+    {
+        if (self.Role != ActorRole.Tank)
+        {
+            return false;
+        }
+        if (Roles.TankEngage.EngageTarget(view, self) is not null)
+        {
+            return true;
+        }
+        return view.State.Actors.Values.Any(e => e.Kind == ActorKind.Enemy && e.Alive && e.HolderId == self.Id);
+    }
+
+    /// <summary>
+    /// R-GCD-1 (c) escape trigger: a telegraph threatens <paramref name="self"/> when it has no enemy source (a floor
+    /// telegraph or a non-enemy source) or its enemy source is held by the seat itself (the cast is aimed at it). An enemy
+    /// cast aimed at another seat, such as a pack the tank holds, does not move this seat.
+    /// </summary>
+    private static bool CastAimedAtSeat(BotView view, ActorState self, BotTelegraph t)
+    {
+        if (t.SourceId is not { } sid || !view.State.Actors.TryGetValue(sid, out var src) || src.Kind != ActorKind.Enemy)
+        {
+            return true;
+        }
+        return src.HolderId == self.Id;
+    }
+
+    /// <summary>Walk speed of <paramref name="self"/> in mm per tick: its own speed, else the content default (180).</summary>
+    private static long WalkSpeedMmPerTick(ActorState self) => self.SpeedMmPerTick ?? Ledger.DefaultWalkMmPerTick;
+
+    /// <summary>
+    /// R-GCD-1 (c) rule 1, the escape tier: when the seat stands in an active danger telegraph whose walk-out to the nearest
+    /// safe point takes longer than the telegraph has left to resolve, it presses its class movement ability (the kit's
+    /// MovementAbilityId) only when that ability clears the danger before the telegraph resolves, using the ability's own
+    /// movement: chanter.glide (self buff) at the walk speed scaled by its movementBp; cinder.blink (displace along facing)
+    /// only to a landing outside the danger, turning first when the current facing lands inside; warden.charge (displace
+    /// toward a target) only with a living enemy target and a landing outside the danger, never aimed at a point. Returns the
+    /// commands to issue (a turn then a cast, or a single cast), or null, and the walk <see cref="DangerAvoidCommand"/> stands.
+    /// Only a telegraph that threatens the seat triggers it (<see cref="CastAimedAtSeat"/>), and a tank seat that is taking
+    /// or holding a pack never escapes (<see cref="IsTankTakingOrHolding"/>).
+    /// The walk-out is the straight distance to the safe point at the seat's walk speed, rounded up to whole ticks (a lower
+    /// bound on a layout run). Skill-dial-free like the danger dodge it replaces. Fails closed without a content registry.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">Deciding actor (alive).</param>
+    /// <returns>The escape commands, or null.</returns>
+    public static IReadOnlyList<Command>? MovementEscapeCommands(BotView view, ActorState self)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        var tick = view.State.Tick;
+        var selfMm = PointMm.Of(self.Pos);
+        var active = view.Telegraphs.Where(t => t.Danger && t.ResolvesTick > tick && !Positioning.IsSpent(t, view.State)).ToList();
+        var threatening = active.Where(t => Positioning.IsInAnyDanger(selfMm, new[] { t }) && CastAimedAtSeat(view, self, t)).ToList();
+        if (threatening.Count == 0)
+        {
+            return null;
+        }
+        // The tank seat never escapes while it is taking or holding a pack: its job is to take the pack, so the danger
+        // dodge walk (DangerAvoidCommand) stands and the TankEngage decision keeps the pack.
+        if (IsTankTakingOrHolding(view, self))
+        {
+            return null;
+        }
+        var remainingTicks = threatening.Min(t => t.ResolvesTick) - tick;
+        if (EscapeSafePoint(view, self, active) is not { } safe)
+        {
+            return null;
+        }
+        // The movement slot lives on the content-derived ClassKit (Kits.cs MovementAbilityId); no registry means no movement cast.
+        if (view.Kits.GetClassKit(self.ClassId)?.MovementAbilityId is not { } movementId)
+        {
+            return null;
+        }
+        var kit = Roles.RoleShared.KitOf(view, self.ClassId);
+        if (!Roles.RoleShared.ReadyAndAffordable(self, movementId, tick, kit))
+        {
+            return null;
+        }
+        var dx = safe.X - selfMm.X;
+        var dz = safe.Z - selfMm.Z;
+        var distance = Math.Sqrt((double)((dx * dx) + (dz * dz)));
+        var walkOutTicks = (long)Math.Ceiling(distance / WalkSpeedMmPerTick(self));
+        if (walkOutTicks <= remainingTicks)
+        {
+            return null;
+        }
+        // Fail closed without the content registry: the ability's own movement cannot be read, so no escape is cast.
+        if (view.Kits.Content is not { } registry || !registry.Abilities.TryGetValue(movementId, out var def))
+        {
+            return null;
+        }
+        var input = new EscapeInput(view, self, selfMm, active, safe, remainingTicks, distance, movementId, def, registry);
+        var displace = def.Effects.OfType<Keyrun.Content.DisplaceOp>().FirstOrDefault();
+        if (displace is not null)
+        {
+            return displace.TowardTarget ? ChargeEscape(input, displace) : BlinkEscape(input, displace);
+        }
+        return def.Shape.Kind == Keyrun.Content.ShapeKind.Self ? GlideEscape(input) : null;
+    }
+
+    /// <summary>Inputs the escape-tier helpers share, computed once by <see cref="MovementEscapeCommands"/>.</summary>
+    /// <param name="View">Bot view.</param>
+    /// <param name="Self">Deciding actor.</param>
+    /// <param name="SelfMm">The seat's position.</param>
+    /// <param name="Active">Live danger telegraphs.</param>
+    /// <param name="Safe">The nearest safe point.</param>
+    /// <param name="RemainingTicks">Ticks until the earliest telegraph the seat stands in resolves.</param>
+    /// <param name="Distance">Straight distance from the seat to the safe point, mm.</param>
+    /// <param name="MovementId">The kit's movement ability id.</param>
+    /// <param name="Def">The movement ability's content definition.</param>
+    /// <param name="Registry">The content registry.</param>
+    private sealed record EscapeInput(
+        BotView View,
+        ActorState Self,
+        PointMm SelfMm,
+        IReadOnlyList<BotTelegraph> Active,
+        PointMm Safe,
+        long RemainingTicks,
+        double Distance,
+        string MovementId,
+        Keyrun.Content.AbilityDef Def,
+        Keyrun.Content.ContentRegistry Registry);
+
+    /// <summary>
+    /// Glide (a self-shaped buff, chanter.glide): the seat moves at its walk speed scaled by the applied effect's movementBp
+    /// (walk * (10000 + bp) / 10000, so 180 becomes 270 at bp 5000). Cast only when that glide speed reaches the safe point
+    /// before the telegraph resolves. Null otherwise.
+    /// </summary>
+    private static IReadOnlyList<Command>? GlideEscape(EscapeInput input)
+    {
+        var bp = input.Def.Effects.OfType<Keyrun.Content.ApplyEffectOp>()
+            .Select(op => input.Registry.Effects.TryGetValue(op.EffectId, out var effect) ? (effect.Modifiers.MovementBp ?? 0) : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+        if (bp <= 0)
+        {
+            return null;
+        }
+        var glideMmPerTick = WalkSpeedMmPerTick(input.Self) * (10000 + bp) / 10000;
+        var glideTicks = (long)Math.Ceiling(input.Distance / glideMmPerTick);
+        if (glideTicks > input.RemainingTicks)
+        {
+            return null;
+        }
+        return new Command[] { Reasons.Tag(new CastCommand(input.View.State.Tick, input.Self.Id, input.MovementId), "bot:movement-escape") };
+    }
+
+    /// <summary>
+    /// Blink (a self-shaped displace along the seat's facing, cinder.blink). Blink is instant, so the cast clears the danger
+    /// when its landing (the facing's displacement) is outside every active danger. When the current facing lands inside,
+    /// the seat first turns to a yaw whose landing is clear, preferring the yaw toward the safe point, and blink follows the
+    /// turn in the same decision (the sim applies a move's yaw before a later command in the list). Null when no yaw clears.
+    /// </summary>
+    private static IReadOnlyList<Command>? BlinkEscape(EscapeInput input, Keyrun.Content.DisplaceOp displace)
+    {
+        var tick = input.View.State.Tick;
+        var self = input.Self;
+        var cast = Reasons.Tag(new CastCommand(tick, self.Id, input.MovementId), "bot:movement-escape");
+        if (BlinkLandingClear(input, self.Yaw, displace.DistanceMm))
+        {
+            return new Command[] { cast };
+        }
+        var toward = Moves.YawToward(input.SelfMm, input.Safe);
+        // Candidate yaws: the yaw toward the safe point, then alternating outward in 64-step (22.5 degree) increments.
+        for (var i = 0; i < 16; i++)
+        {
+            var offset = (i % 2 == 0 ? 1 : -1) * ((i + 1) / 2) * 64;
+            var yaw = ((toward + offset) % 1024 + 1024) % 1024;
+            if (BlinkLandingClear(input, yaw, displace.DistanceMm))
+            {
+                var turn = Reasons.Tag(new MoveCommand(tick, self.Id, new Dir2(0, 0), yaw), "bot:movement-escape");
+                return new Command[] { turn, cast };
+            }
+        }
+        return null;
+    }
+
+    /// <summary>True when a displacement of <paramref name="distanceMm"/> along <paramref name="yaw"/> lands outside every active danger.</summary>
+    private static bool BlinkLandingClear(EscapeInput input, long yaw, long distanceMm)
+    {
+        var face = Facing.FaceDir(yaw);
+        var landing = new PointMm(
+            input.SelfMm.X + (face.X * distanceMm / Facing.Q),
+            input.SelfMm.Z + (face.Z * distanceMm / Facing.Q));
+        return !Positioning.IsInAnyDanger(landing, input.Active) && !InUnengagedAggro(input.View, landing);
+    }
+
+    /// <summary>
+    /// Charge (a target-displacing move, warden.charge): needs a living enemy target within the ability's range, since it does
+    /// nothing without one and is never aimed at a point. Cast only when the seat's landing (moved toward the target by the
+    /// displacement, never past it) is outside every active danger. Null otherwise.
+    /// </summary>
+    private static IReadOnlyList<Command>? ChargeEscape(EscapeInput input, Keyrun.Content.DisplaceOp displace)
+    {
+        var self = input.Self;
+        if (self.TargetId is not { } targetId
+            || !input.View.State.Actors.TryGetValue(targetId, out var target)
+            || !target.Alive
+            || target.Kind != ActorKind.Enemy)
+        {
+            return null;
+        }
+        var targetMm = PointMm.Of(target.Pos);
+        var dx = targetMm.X - input.SelfMm.X;
+        var dz = targetMm.Z - input.SelfMm.Z;
+        var toTarget = Math.Sqrt((double)((dx * dx) + (dz * dz)));
+        if (toTarget <= 0 || toTarget > input.Def.Range)
+        {
+            return null;
+        }
+        var step = Math.Min(displace.DistanceMm, (long)Math.Floor(toTarget));
+        var f = step / toTarget;
+        var landing = new PointMm(input.SelfMm.X + (long)Math.Round(dx * f), input.SelfMm.Z + (long)Math.Round(dz * f));
+        if (Positioning.IsInAnyDanger(landing, input.Active) || InUnengagedAggro(input.View, landing))
+        {
+            return null;
+        }
+        return new Command[] { Reasons.Tag(new CastCommand(input.View.State.Tick, self.Id, input.MovementId, targetId), "bot:movement-escape") };
     }
 
     private static BotDecision DecideForActor(RoleSet roles, BotView view, BotMemory memory, int actorId, BotPrngState prng, IReadOnlyList<PingEvent> pings)
@@ -180,8 +457,20 @@ public static class Bot
         }
         var tick = view.State.Tick;
         memory = ResolveHeldPack(view, self, memory);
+        // R-AGGRO-1 (ab): a tank seat records every tick an ally is pressured (every tick, not only deciding ticks), so the
+        // sticky ally-pressure signal is read from the role's view below.
+        if (self.Role == ActorRole.Tank && Roles.TankPressure.AnyAllyPressuredNow(view, self))
+        {
+            memory = memory with { LastAllyPressuredTick = tick };
+        }
 
         var commands = new List<Command>();
+        // R-GCD-1 (c) rule 1: a walk-out that cannot fit before the telegraph resolves is replaced by the class movement cast.
+        if (MovementEscapeCommands(view, self) is { } escape)
+        {
+            commands.AddRange(escape);
+            return new BotDecision(commands, memory, prng);
+        }
         var avoid = DangerAvoidCommand(view, self);
         if (avoid is not null)
         {
@@ -306,7 +595,7 @@ public static class Bot
         if (!pingCast && roles.For(self.Role) is { } role)
         {
             var history = memory.FillerHistory ?? Array.Empty<string>();
-            var decided = topOff ? Reasons.TagAll(Roles.HealerRole.TopOffCommands(view, self), "bot:healer-top-off") : role.Decide(view with { FillerHistory = history }, self);
+            var decided = topOff ? Reasons.TagAll(Roles.HealerRole.TopOffCommands(view, self), "bot:healer-top-off") : role.Decide(view with { FillerHistory = history, LastAllyPressuredTick = memory.LastAllyPressuredTick }, self);
             commands.AddRange(!travelling ? decided : decided.Where(c => c is not MoveCommand and not DashCommand));
             var recorded = Roles.Fillers.RecordCasts(view, self, history, decided);
             if (!ReferenceEquals(recorded, history))

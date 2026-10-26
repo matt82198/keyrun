@@ -85,8 +85,12 @@ public static class HealerIdle
             .ToList();
         List<Command>? CastOn(ActorState target)
         {
+            // R-TARGET-1 (b): a shaped AoE whose shape holds an idle or dormant enemy at this target is withheld this tick, so
+            // the press falls through to a non-AoE damaging Payoff or, failing that, the filler. The veto lives in AoeGate.
             var abilityId = damagingPayoffs.FirstOrDefault(id =>
-                RoleShared.ReadyAndAffordable(self, id, tick, kit) && RoleShared.Dist(self, target) <= reg.Abilities[id].Range);
+                RoleShared.ReadyAndAffordable(self, id, tick, kit)
+                && RoleShared.Dist(self, target) <= reg.Abilities[id].Range
+                && !AoeGate.IdlePackVetoed(view, self, reg.Abilities[id], target.Id));
             if (abilityId is null)
             {
                 return null;
