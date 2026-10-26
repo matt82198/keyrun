@@ -38,6 +38,10 @@ public sealed class ActorAnimator
     private const float Blend = 0.15f;
 
     private readonly AnimationPlayer _player;
+    // R-IDLEANIM-1: the run-log sink the VIEW proof lines go to (null: console only, as AbilityClipPlayer falls back).
+    private readonly Action<string>? _log;
+    // R-IDLEANIM-1: the locomotion clip chosen on the last frame that chose one, so LocoLine prints only on a change.
+    private string? _lastLoco;
     private readonly string? _idle;
     private readonly string? _move;
     private readonly string? _cast;
@@ -56,20 +60,22 @@ public sealed class ActorAnimator
     private readonly int _scalePermille;
     // ABILITY-ANIMS: every ability's own release and cast loop (AbilityClipTable) and the ANIM run-log line per start.
     private readonly AbilityClipPlayer _abilities;
-    // ANIM run log: the same sink the ABILITY-ANIMS lines go to (null: console only).
-    private readonly Action<string>? _log;
     private readonly Dictionary<string, string?> _castLoops = new(StringComparer.Ordinal);
     private string? _castAbility;
     // ANIMS-READABLE-2: where the playing release started (ms into its clip; its window is ReleaseHold.EndsMs from here)
     // and the abilities one step resolved after the first, played in turn once each release has shown.
     private int _releaseStartMs;
     private readonly Queue<string> _queued = new();
+    // MOVE-HOLD: the tick of the last sim position change (-1: never moved), read through MoveHold.Holds.
+    private int _lastMovedTick = -1;
+    // MOVE-HOLD: the interpolated speed (m/s) of the last frame that read above MoveSpeedMps, the gait rate during a hold.
+    private float _keptMoveSpeedMps;
 
     private ActorAnimator(AnimationPlayer player, ActorClips clips, int scalePermille, Action<string>? log)
     {
         _player = player;
-        _abilities = new AbilityClipPlayer(log);
         _log = log;
+        _abilities = new AbilityClipPlayer(log);
         _moveClip = clips.Move;
         _scalePermille = scalePermille;
         var names = player.GetAnimationList();
@@ -152,7 +158,7 @@ public sealed class ActorAnimator
                 Play(_death);
                 if (_death is not null)
                 {
-                    GD.Print(AnimRule.ViewLine(now.Id, _death, tick) + " kind=Death");
+                    Emit(AnimRule.ViewLine(now.Id, _death, tick) + " kind=Death");
                     _abilities.Started(now.Id, _death, null, tick);
                 }
             }
@@ -163,6 +169,13 @@ public sealed class ActorAnimator
         {
             _dead = false; // a fresh run reuses the static Warden's view
             _player.Stop();
+        }
+
+        // MOVE-HOLD: the sim steps a body's position every few ticks, so the interpolated speed reads zero between steps.
+        // The tick of the last position change keeps the Move clip through those gaps (MoveHold.HoldTicks).
+        if (newTick && !before.Pos.Equals(now.Pos))
+        {
+            _lastMovedTick = tick;
         }
 
         // ANIMS-READABLE-2: every ability this step resolved for this actor, in order. The first releases now; the rest
@@ -188,6 +201,7 @@ public sealed class ActorAnimator
         // its strike wind-up waits; the wind-up is posed from sim time, so it resumes at the right point).
         if (resolvedId is null && now.CastId is not null && ReleaseHold.HoldsOffWindup(PlayingKind(), InReleaseNow()))
         {
+            _lastLoco = null; // R-IDLEANIM-1: a held release over a cast is a cast frame, not a locomotion frame
             return;
         }
 
@@ -198,7 +212,7 @@ public sealed class ActorAnimator
         {
             var name = AbilityClipPlayer.ReleaseName(castId, _rowAct);
             var windClip = AbilityClip(name);
-            if (windClip is not null && AbilityAnim.Windup(name, castStart, castEnds, tick, alphaPermille) is WindupPose pose)
+            if (windClip is not null && AbilityAnim.WindupFor(castId, _rowAct, castStart, castEnds, tick, alphaPermille) is WindupPose pose)
             {
                 if (_windup != windClip || _player.CurrentAnimation != windClip)
                 {
@@ -207,18 +221,19 @@ public sealed class ActorAnimator
                     var windBlend = Blend;
                     if (_spawning && _spawn is not null && _player.IsPlaying() && _player.CurrentAnimation == _spawn)
                     {
-                        GD.Print(FormattableString.Invariant(
+                        Emit(FormattableString.Invariant(
                             $"ANIM risecut actor={now.Id} tick={tick} at={_player.CurrentAnimationPosition:0.00} moving={(speedMps > MoveSpeedMps ? 1 : 0)} casting=1 acted=0 staggered=0"));
                         windBlend = HoldAnim.RiseCutBlendMs / 1000f;
                     }
                     _spawning = false;
                     _player.Play(windClip, windBlend);
-                    GD.Print(FormattableString.Invariant(
+                    Emit(FormattableString.Invariant(
                         $"ANIM windup actor={now.Id} tick={tick} clip={windClip} ability={castId} ends={castEnds} from={pose.ClipMs} speed={pose.SpeedPermille}"));
                     _abilities.Started(now.Id, windClip, castId, tick);
                 }
                 _windup = windClip;
                 _oneShot = null;
+                _lastLoco = null; // R-IDLEANIM-1: a wind-up is a cast frame; the return to idle or move after it prints
                 _player.SpeedScale = pose.SpeedPermille / 1000f;
                 _player.Seek(pose.ClipMs / 1000f, true);
                 return;
@@ -237,10 +252,16 @@ public sealed class ActorAnimator
         var released = actClip is not null && resolvedId is not null;
         // ABILITY-ANIMS: the cast bar shows the ability's own loop (a spell's Spellcasting, Bulwark's Block), else the row's.
         _castAbility = now.CastId;
+        // MOVE-HOLD: a moving body keeps its Move clip (and the speed it walked at) through the gaps between sim steps.
+        var holding = speedMps <= MoveSpeedMps && MoveHold.Holds(tick, _lastMovedTick);
+        if (speedMps > MoveSpeedMps)
+        {
+            _keptMoveSpeedMps = speedMps;
+        }
         var facts = new AnimFacts(
             Alive: true,
             NewTick: newTick || queuedStart,
-            Moving: speedMps > MoveSpeedMps,
+            Moving: speedMps > MoveSpeedMps || holding,
             Casting: now.CastId is not null && CastLoop() is not null,
             Acted: actClip is not null && (released || now.GcdReadyTick > before.GcdReadyTick),
             Hurt: _hit is not null && now.Health < before.Health,
@@ -263,7 +284,7 @@ public sealed class ActorAnimator
                 {
                     return;
                 }
-                GD.Print(FormattableString.Invariant(
+                Emit(FormattableString.Invariant(
                     $"ANIM risecut actor={now.Id} tick={tick} at={_player.CurrentAnimationPosition:0.00} moving={(facts.Moving ? 1 : 0)} casting={(facts.Casting ? 1 : 0)} acted={(facts.Acted ? 1 : 0)} staggered={(facts.Staggered ? 1 : 0)}"));
                 blend = HoldAnim.RiseCutBlendMs / 1000f;
             }
@@ -274,6 +295,7 @@ public sealed class ActorAnimator
         var clip = decision.Clip == AnimClip.Act ? actClip : ClipFor(decision.Clip);
         if (decision.OneShot && clip is not null)
         {
+            _lastLoco = null; // R-IDLEANIM-1: a one-shot resets the loco change check, so the settle back to idle or move prints
             _oneShot = clip;
             _oneShotKind = decision.Clip;
             if (decision.Restart)
@@ -299,7 +321,7 @@ public sealed class ActorAnimator
                 _player.Play(clip, blend);
                 _player.Seek(from, true);
                 // Proof line (like ACTOR): which one-shot started, on whom, on which tick, from where in the clip.
-                GD.Print(AnimRule.ViewLine(now.Id, clip, tick) + FormattableString.Invariant(
+                Emit(AnimRule.ViewLine(now.Id, clip, tick) + FormattableString.Invariant(
                     $" kind={decision.Clip} from={from:0.00} moving={(facts.Moving ? 1 : 0)} casting={(facts.Casting ? 1 : 0)}"));
                 // ABILITY-ANIMS proof: a swing names the ability it resolves, a flinch the cast its kick cut.
                 _abilities.Started(now.Id, clip, decision.Clip == AnimClip.Act
@@ -312,12 +334,26 @@ public sealed class ActorAnimator
         var next = clip ?? _idle;
         if (decision.Clip == AnimClip.Cast && next is not null && !(_player.CurrentAnimation == next && _player.IsPlaying()))
         {
-            GD.Print(AnimRule.ViewLine(now.Id, next, tick) + " kind=Cast");
+            Emit(AnimRule.ViewLine(now.Id, next, tick) + " kind=Cast");
             _abilities.Started(now.Id, next, now.CastId, tick);
         }
+        // R-IDLEANIM-1: an idle or move frame logs its clip only when the chosen locomotion clip changes, not every frame.
+        // The kind names the clip actually played (a move with no move clip plays idle), and moving is the flag Decide read.
+        if (decision.Clip is AnimClip.Idle or AnimClip.Move && next is not null && next != _lastLoco)
+        {
+            _lastLoco = next;
+            Emit(AnimRule.LocoLine(now.Id, next == _move ? AnimClip.Move : AnimClip.Idle, tick, facts.Moving));
+        }
+        else if (decision.Clip == AnimClip.Cast)
+        {
+            _lastLoco = null; // R-IDLEANIM-1: a cast frame is not a locomotion frame; the settle back to idle or move prints
+        }
         // KF1-GAIT: the run or walk loop steps at the body's speed, so the planted foot stays still on the floor.
+        // MOVE-HOLD: inside the hold window the raw speed reads zero between steps, so the loop keeps the last moving speed
+        // instead of freezing mid-stride at rate 0.
+        var gaitSpeedMps = holding ? _keptMoveSpeedMps : speedMps;
         _player.SpeedScale = next is not null && next == _move
-            ? GaitRule.PlaybackPermille(_moveClip, (int)(speedMps * 1000f), _scalePermille) / 1000f
+            ? GaitRule.PlaybackPermille(_moveClip, (int)(gaitSpeedMps * 1000f), _scalePermille) / 1000f
             : 1f;
         Play(next, blend, now.Id, tick);
     }
@@ -400,6 +436,17 @@ public sealed class ActorAnimator
         return ends;
     }
 
+    // Writes one proof line through the run-log sink, or to the console when there is none (AbilityClipPlayer's fallback).
+    private void Emit(string line)
+    {
+        if (_log is null)
+        {
+            GD.Print(line);
+            return;
+        }
+        _log(line);
+    }
+
     private void Play(string? clip, float blend = Blend, int actorId = -1, int tick = -1)
     {
         if (clip is null || (_player.CurrentAnimation == clip && _player.IsPlaying()))
@@ -421,14 +468,7 @@ public sealed class ActorAnimator
         var line = actorId >= 0 && kind != AnimClip.None ? AnimRunLog.Line(actorId, previous, kind, tick) : null;
         if (line is not null)
         {
-            if (_log is null)
-            {
-                GD.Print(line);
-            }
-            else
-            {
-                _log(line);
-            }
+            Emit(line);
         }
     }
 

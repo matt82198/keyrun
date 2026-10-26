@@ -150,6 +150,50 @@ public sealed class AbilityAnimTests
         Assert.Null(AbilityAnim.Windup("2H_Melee_Attack_Chop", 5, 5, 6, 0));
     }
 
+    [Fact]
+    public void Cinderfield_bar_shows_declared_cast_loop_not_strike_windup()
+    {
+        // S1 spec (fix/cast-loop-wins): the table declares the Cinderfield bar loop 2H_Melee_Idle. Its release is the
+        // chop, but mid-bar the declared loop owns the bar, so the chop's strike wind-up must not be posed for it.
+        // WindupFor takes the ability id, so the seam knows the declared loop and returns null for the whole bar.
+        Assert.Equal("2H_Melee_Idle", AbilityClipTable.CastClip("cinder.cinderfield"));
+        var castTicks = Reg.Abilities["cinder.cinderfield"].CastTicks;
+        Assert.True(castTicks > 0, "cinder.cinderfield must be a cast with a bar");
+        const int start = 100;
+        var ends = start + castTicks;
+        var mid = start + (castTicks / 2);
+        var pose = AbilityAnim.WindupFor("cinder.cinderfield", start, ends, mid, 0);
+        Assert.True(pose is null,
+            $"cinder.cinderfield mid-bar: WindupFor returned clipMs={pose?.ClipMs} speed={pose?.SpeedPermille}; " +
+            "the declared cast loop 2H_Melee_Idle should own the bar");
+    }
+
+    [Fact]
+    public void WindupFor_strike_matches_windup_of_its_release_clip()
+    {
+        // Contrast: hollowWarden.slam declares no cast loop of its own, so its bar winds up its release strike exactly as
+        // Windup does for that clip, and the pose is non-null.
+        var rowAct = ActorBinding.Default.For("hollowWarden.boss").Clips.Act;
+        var release = AbilityClipTable.ReleaseClip("hollowWarden.slam", rowAct);
+        var expected = AbilityAnim.Windup(release, 0, 10, 1, 0);
+        var actual = AbilityAnim.WindupFor("hollowWarden.slam", 0, 10, 1, 0);
+        Assert.NotNull(actual);
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void Hymn_contrast_windup_is_null()
+    {
+        // Contrast: chanter.hymn's declared loop 2H_Melee_Idle keeps the bar with no strike wind-up today.
+        Assert.Equal("2H_Melee_Idle", AbilityClipTable.CastClip("chanter.hymn"));
+        var castTicks = Reg.Abilities["chanter.hymn"].CastTicks;
+        var rowAct = ActorBinding.Default.For("chanter").Clips.Act;
+        var release = AbilityClipTable.ReleaseClip("chanter.hymn", rowAct);
+        const int start = 100;
+        var ends = start + castTicks;
+        Assert.Null(AbilityAnim.Windup(release, start, ends, start + (castTicks / 2), 0));
+    }
+
     [Theory]
     [InlineData("hollowWarden.cleave", "2H_Melee_Attack_Chop", "2H_Melee_Attack_Slice")]
     [InlineData("hollowWarden.slam", "2H_Melee_Attack_Chop", "2H_Melee_Attack_Chop")]
