@@ -150,6 +150,7 @@ public sealed class CinderfieldCloserCostTests
             [Vulnerable.Id] = Vulnerable,
             ["braceSelf"] = PlayerEffect("braceSelf"),
             ["bracedSelf"] = PlayerEffect("bracedSelf"),
+            ["aegisShield"] = PlayerEffect("aegisShield"),
         };
         var (combos, field) = GameComboTables();
         var pactDef = Pact();
@@ -254,6 +255,22 @@ public sealed class CinderfieldCloserCostTests
 
         Assert.True(braced > 0);
         Assert.True(braced < open, $"braced burn {braced} is not below the open burn {open}");
+    }
+
+    [Fact(DisplayName = "R-DEFCAP-1 red: a combo burn on a fully stacked defensive closer still lands at least 25% of the open burn")]
+    public void Full_defensive_stack_combo_burn_keeps_a_floor()
+    {
+        // Brace (-4000) + Vigil (-3000) + Aegis (-3500) = -10500 total damageTakenBp, past the -7500 player floor.
+        // The Combos.cs closer path sums damageTakenBp itself, so the floor must hold on this path too.
+        var (_, _, open) = Close(HighestKey, pact: true, ChanterId);
+        var (health, alive, stacked) = Close(HighestKey, pact: true, ChanterId, "braceSelf", "bracedSelf", "aegisShield");
+
+        Assert.True(open > 0, "precondition: the open closer is burned, so the floor comparison is not vacuous");
+        Assert.True(alive, "a stacked closer survives its own burn");
+        Assert.True(
+            stacked >= open / 4,
+            $"stacked burn {stacked} is below 25% of the open burn {open}: total damageTakenBp -10500 reached the combo path unfloored");
+        Assert.True(health <= SupportMaxHealth, $"health {health} exceeds max {SupportMaxHealth}");
     }
 
     [Fact(DisplayName = "CINDERFIELD-CLOSER-COST: at key 2 closing a Cinderfield still burns the closer, 15% of its max health")]

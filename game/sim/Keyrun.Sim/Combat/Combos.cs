@@ -302,6 +302,12 @@ public static class Combos
                 }
             }
         }
+        // R-DEFCAP-1: the player's total damageTakenBp is floored at -7500, the same floor Mitigation.DealDamage applies.
+        // The reduction stage is lifted so that takenUp + takenDown lands on the floor; a total already above it is untouched.
+        if (closer.Kind == ActorKind.Player)
+        {
+            takenDown = Math.Max(takenUp + takenDown, Effects.PlayerDamageTakenFloorBp) - takenUp;
+        }
         var weighted = weighting is null ? raw : weighting(raw);
         var doneBp = Effects.AggregateModifiers(closer, effectDefs).DamageDoneBp;
         var capped = Math.Min(cap, Damage.ApplyModifiers(weighted, doneBp, takenUp));
