@@ -23,6 +23,9 @@ public static class CameraHeadroomBody
     /// <summary>Cosine of the view-cone half-angle, permille (700 = about 46 degrees either side of the view heading).</summary>
     public const int ConeCosPermille = 700;
 
+    /// <summary>Pivot radius, mm: an engaged hostile this close to the Warden's pivot is eligible regardless of the view cone.</summary>
+    public const int PivotHeadroomMm = 1500;
+
     /// <summary>
     /// The index in <paramref name="bodies"/> of the headroom body, or null when no body is an engaged hostile inside the
     /// view cone and within reach. The tallest such body wins; on a tie the earlier index wins.
@@ -56,8 +59,11 @@ public static class CameraHeadroomBody
             {
                 continue;
             }
-            if (!InCone(body.X - cameraX, body.Z - cameraZ, forwardX, forwardZ)
-                || !InReach(body.X - pivotX, body.Z - pivotZ, reachMm))
+            var offX = body.X - pivotX;
+            var offZ = body.Z - pivotZ;
+            var atPivot = InReach(offX, offZ, PivotHeadroomMm);
+            if ((!atPivot && !InCone(body.X - cameraX, body.Z - cameraZ, forwardX, forwardZ))
+                || !InReach(offX, offZ, reachMm))
             {
                 continue;
             }
