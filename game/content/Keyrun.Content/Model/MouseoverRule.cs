@@ -40,6 +40,12 @@ public static class MouseoverRule
     /// <returns>True while captured.</returns>
     public static bool CursorCaptured(bool rightHeld) => rightHeld;
 
+    /// <summary>True when the camera turns the Warden: live right mouse held, or a replay applying recorded camera headings.</summary>
+    /// <param name="rightHeld">The right mouse button is down.</param>
+    /// <param name="replaying">A replay is applying recorded camera headings.</param>
+    /// <returns>True while mouselook is held.</returns>
+    public static bool MouselookHeld(bool rightHeld, bool replaying) => rightHeld || replaying;
+
     /// <summary>
     /// The screen box a body is hovered by: from the projected head top down to the projected feet, centred on the
     /// feet, half as wide as it is tall (at least <see cref="MinHalfWidthPx"/> each side, at least
@@ -124,8 +130,9 @@ public static class MouseoverRule
         interrupt && mouseover is { } m ? m : fallback;
 
     /// <summary>
-    /// The yaw a move command carries this tick, or null for no move: walking faces the walk direction; during
-    /// mouselook the Warden faces the camera heading, walking or standing (standing, only when he does not already).
+    /// The yaw a move command carries this tick, or null for no move. Movement never turns the Warden: with the right
+    /// mouse button free (A/D strafe, W forward, S back) the result is null. During mouselook the Warden faces the
+    /// camera heading, walking or standing (standing, only when he does not already).
     /// </summary>
     /// <param name="rightHeld">The right mouse button is down.</param>
     /// <param name="moving">A walk key is down.</param>
@@ -139,7 +146,8 @@ public static class MouseoverRule
         {
             return moving || actorYaw != cameraYaw ? cameraYaw : null;
         }
-        return moving ? walkYaw : null;
+        // R-STRAFE-1 (c) seq 474, Matt f-d0a22d13: walking never sets facing; only right mouse turns the Warden.
+        return null;
     }
 
     private static bool Holds(PixelRect r, PixelPoint p) => p.X >= r.X && p.X < r.Right && p.Y >= r.Y && p.Y < r.Bottom;

@@ -23,8 +23,8 @@ namespace Keyrun.Host;
 /// cursor again. <see cref="Mouseover"/> is the live enemy whose body is under the cursor (none during mouselook), and Q
 /// sends the class kick at it when there is one, else at the target <see cref="CastTargeting"/> picks; the kick is an
 /// ordinary cast command, so the sim's intended-tick interrupt path resolves it unchanged. Under
-/// <c>--replay-input</c> there is no mouseover and no mouselook facing (the input log records keys and the camera
-/// heading only), so a replay sends what a keyboard-only recording sent.
+/// <c>--replay-input</c> there is no mouseover, but replay is treated as mouselook (<see cref="Keyrun.Content.MouseoverRule"/>.MouselookHeld):
+/// the input log records keys and the camera heading, and the recorded camera heading faces the Warden as it did live.
 /// </para>
 /// <para>
 /// STACKED-PLATES (ledger f-e933a2b7, "hover to interrupt like WoW"): a name plate is a hover target too. The live
@@ -244,13 +244,14 @@ public partial class PlayerInput : Node, ICommandSource
             walkYaw = ToYaw1024(wx, wz);
         }
         // MOUSEOVER mouselook: while right mouse is held the Warden faces the camera heading (a zero-length move turns
-        // him in place); otherwise he faces the walk direction. No mouselook facing under replay (not in the log).
+        // him in place); otherwise he faces the walk direction. Replay applies recorded camera headings as mouselook (MouseoverRule.MouselookHeld), so a replayed turn faces the Warden as it did live.
         var actorYaw = run.State.Actors.TryGetValue(SimDriver.WardenId, out var me) ? me.Yaw : 0;
-        var face = Keyrun.Content.MouseoverRule.FacingYaw(_rightHeld && !Replaying, moving, walkYaw,
+        var face = Keyrun.Content.MouseoverRule.FacingYaw(Keyrun.Content.MouseoverRule.MouselookHeld(_rightHeld, Replaying), moving, walkYaw,
             ToYaw1024(-Mathf.Sin(yaw), -Mathf.Cos(yaw)), actorYaw);
-        if (face is { } f)
+        // A null facing means "facing unchanged": the move still carries the walk direction, with the Warden's own yaw.
+        if (moving || face is not null)
         {
-            into.Add(new MoveCommand(tick, SimDriver.WardenId, dir, f));
+            into.Add(new MoveCommand(tick, SimDriver.WardenId, dir, face ?? actorYaw));
         }
     }
 

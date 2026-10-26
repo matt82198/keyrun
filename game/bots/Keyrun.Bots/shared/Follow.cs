@@ -482,6 +482,21 @@ public static class Follow
         }
         if (AnyLivingEnemy(view.State))
         {
+            // G3 / f-7b374e72 (Matt 2026-10-25: the tank runs ahead and tags the gather's next pack while the party waits at the
+            // gather spot): with a gather tag open the party holds at the spot instead of walking into the room the tank fights in.
+            // G3 walk-back: the tank walking a tagged gather back to its spot (GatherReturn.Spot) holds the party at that spot too,
+            // but only while he is walking a pack back: never when he is chaining a NextGroup (ChainPull.Intent non-null), which
+            // the followers walk with him to their slots (R-AOE-1 (c)).
+            if (view.PullPlan is { } gatherPlan &&
+                (ChainPull.OpenGatherSpot(view.State, layout, gatherPlan, leader)
+                    ?? (ChainPull.Intent(view.State, layout, gatherPlan, leader) is null
+                        ? GatherReturn.Spot(view.State, layout, gatherPlan, leader)
+                        : null)) is { } waitSpot)
+            {
+                return Distance2(self.Pos, waitSpot) <= GatherReturn.ArriveMm * GatherReturn.ArriveMm
+                    ? null
+                    : WalkTo(view.State.Tick, self, layout, waitSpot);
+            }
             // R-AOE-1 (c), f-c8ed3a62: the tank is chain-pulling the next pack, so the party goes with him to its slot behind
             // him (its casts stay: Bot.cs keeps a travelling bot's casts) instead of holding the room he is leaving.
             if (view.PullPlan is { } chainPlan && ChainPull.Intent(view.State, layout, chainPlan, leader) is not null)

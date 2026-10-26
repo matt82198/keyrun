@@ -29,7 +29,7 @@ verbatim (2026-10-22): "something the bible got wrong is dungeon length was 15-2
 
 ## 2. Controls: the ten-keybind budget (D4)
 
-WASD and mouse-look are the body; they are not keybinds. The ten are:
+A/D strafe, W forward, S back, hold right mouse to turn are the body; they are not keybinds. The ten are:
 
 | Key | Slot | Rule |
 |---|---|---|
