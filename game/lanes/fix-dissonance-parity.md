@@ -1,0 +1,2 @@
+- FIX-DISSONANCE-PARITY (bible s6): buffs the Chanter Dissonance Amplify option numbers in content/data/classes/chanter.json so Discord no longer dominates it beyond noise in ForkParityTests; no test, threshold or assertion edited.
+BUILDLOG: FIX-DISSONANCE-PARITY: Amplify was dominated by Discord in 40 of 40 measured cases; its numbers were raised so the fork is a real choice again, proven by ForkParityTests.
