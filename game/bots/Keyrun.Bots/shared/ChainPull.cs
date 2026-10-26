@@ -60,7 +60,11 @@ public static class ChainPull
     {
         if (Intent(state, layout, plan, leader) is not { } next)
         {
-            return null;
+            // G2.5 / f-7b374e72: the walk-back to a tagged gather spot skips the leash and the health floors (walking toward the
+            // party and the healer is the safe move); the engaged elite and boss block is already inside GatherReturn.Spot.
+            return GatherReturn.Spot(state, layout, plan, leader) is { } spot
+                ? PathMoves.Along(tick, leader, layout, spot)
+                : null;
         }
         foreach (var seat in state.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != leader.Id))
         {
@@ -126,11 +130,11 @@ public static class ChainPull
     /// <see cref="NextGroup"/> (not behind the leader, within <see cref="ReachMm"/>, no patrol on the way, no elite or boss).
     /// Null when no gather applies.
     /// </summary>
-    private static AggroGroup? GatherNext(SimState state, NavLayout layout, PullPlan plan, ActorState leader, IReadOnlyList<ActorState> engaged)
+    internal static AggroGroup? GatherNext(SimState state, NavLayout layout, PullPlan plan, ActorState leader, IReadOnlyList<ActorState> engaged)
     {
         var reach = HighBox(layout, leader.Pos);
         var pick = ForcesPlanner.NextPackPoint(state, layout, plan, leader);
-        foreach (var gather in plan.Gathers)
+        foreach (var gather in plan.Gathers ?? Array.Empty<GatherSpot>())
         {
             var holdsEngaged = plan.Groups.Any(g => gather.GroupIds.Contains(g.Id) && g.ActorIds.Any(id => engaged.Any(e => e.Id == id)));
             if (!holdsEngaged)
@@ -266,10 +270,10 @@ public static class ChainPull
     /// </summary>
     private static bool Wanted(AggroGroup g, Vec3? pick) => g.PullIndex >= 0 || (pick is { } p && g.Center.Equals(p));
 
-    private static bool Pending(SimState state, AggroGroup g) =>
+    internal static bool Pending(SimState state, AggroGroup g) =>
         g.ActorIds.Any(id => state.Actors.TryGetValue(id, out var a) && a.Alive && a.Idle);
 
-    private static bool HoldsBlocked(SimState state, AggroGroup g, IReadOnlySet<string> blocked) =>
+    internal static bool HoldsBlocked(SimState state, AggroGroup g, IReadOnlySet<string> blocked) =>
         g.ActorIds.Any(id => state.Actors.TryGetValue(id, out var a) && blocked.Contains(a.ClassId));
 
     private static int HighBox(NavLayout layout, Vec3 p)
