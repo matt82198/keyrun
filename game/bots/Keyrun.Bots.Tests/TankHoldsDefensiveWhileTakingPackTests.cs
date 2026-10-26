@@ -82,7 +82,7 @@ public sealed class TankHoldsDefensiveWhileTakingPackTests
         self.Cooldowns[kit.TauntAbilityId!] = view.State.Tick + 1000;
 
         Assert.True((double)self.Health / self.MaxHealth >= TankRole.DefensiveThresholdPct, "precondition: the Warden is under the defensive threshold");
-        Assert.True(TankEngage.PickLooseEnemy(view.State.Actors, self) is not null, "precondition: no loose enemy, so the fixture is wrong, not the rule");
+        Assert.True(TankEngage.PickLooseEnemy(view.State.Actors, self, TankEngage.GroupMapOf(view)) is not null, "precondition: no loose enemy, so the fixture is wrong, not the rule");
         Assert.True(!RoleShared.AbilityReady(self, kit.TauntAbilityId!, view.State.Tick, kit), "precondition: the taunt is still ready, so the fixture is wrong, not the rule");
         Assert.True(TankEngage.ApproachMove(view, self, kit) is null, "precondition: the approach move is not null (pack out of reach), so the fixture is wrong, not the rule");
         Assert.True(TankPressure.UnderPackPressure(view, self), "precondition: the pack is not read as pressure, so the fixture cannot reach the pressure chain");
