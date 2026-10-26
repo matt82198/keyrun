@@ -48,7 +48,10 @@ public sealed partial record HostRunSetup
             var boss = slot.Def;
             pulls.Add(new PullDef(slot.PullId, new[]
             {
-                new PullSpawn(slot.ActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp)),
+                new PullSpawn(slot.ActorId, boss.Id, Vec3.Zero, BossYaw, Affixes.ScaleHealth(Tempo.ScaleHealth(boss.MaxHealth, keyLevel), bossHealthBp))
+                {
+                    RadiusMm = boss.RadiusMm,
+                },
             }));
             scripts[slot.ActorId] = Tempo.ScaleScript(ToSim(boss.Script), keyLevel, CastFloors(registry, keyLevel));
         }
@@ -96,6 +99,7 @@ public sealed partial record HostRunSetup
         {
             SpeedMmPerTick = def.SpeedMmPerTick,
             ChaseMarginMm = def.ChaseMarginMm,
+            RadiusMm = def.RadiusMm,
         };
         var scaled = Tempo.ScaleSpawn(spawn, keyLevel);
         return scaled with { Health = Affixes.ScaleHealth(scaled.Health, trashHealthBp) };

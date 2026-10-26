@@ -444,6 +444,11 @@
             "stacks": 1
           },
           {
+            "distanceMm": 8000,
+            "op": "displace",
+            "towardTarget": true
+          },
+          {
             "durationTicks": 60,
             "onTarget": true,
             "op": "window",
@@ -644,9 +649,8 @@
         "name": "Guard Break",
         "range": 3000,
         "shape": {
-          "angle1024": 140,
-          "kind": "cone",
-          "radius": 3000
+          "kind": "circle",
+          "radius": 2500
         },
         "tags": [
           "payoff",
@@ -854,9 +858,8 @@
         "name": "Guard Break",
         "range": 3000,
         "shape": {
-          "angle1024": 140,
-          "kind": "cone",
-          "radius": 3000
+          "kind": "circle",
+          "radius": 2500
         },
         "tags": [
           "payoff",
@@ -1033,7 +1036,8 @@
           "radius": 1800
         },
         "tags": [
-          "payoff"
+          "payoff",
+          "aoe"
         ]
       },
       "abilityId": "cinder.detonate",
@@ -1249,7 +1253,7 @@
       "abilityId": "cinder.emberBolt",
       "classId": "cinder",
       "facetId": "cinder.charm.overloadedBolt",
-      "loadout": "applyLoadout: class \"cinder\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: cinder.emberBolt=[payoff], cinder.flare=[setup:kindled], cinder.coldSnap=[payoff,control], cinder.detonate=[payoff], cinder.cinderfield=[setup:cinderfield]"
+      "loadout": "applyLoadout: class \"cinder\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: cinder.emberBolt=[payoff], cinder.flare=[setup:kindled], cinder.coldSnap=[payoff,control], cinder.detonate=[payoff,aoe], cinder.cinderfield=[setup:cinderfield]"
     },
     {
       "ability": {
@@ -1262,8 +1266,9 @@
         },
         "effects": [
           {
-            "delta": 0,
-            "op": "resource"
+            "distanceMm": 8000,
+            "freesBinds": true,
+            "op": "displace"
           },
           {
             "durationTicks": 100,
@@ -1542,10 +1547,12 @@
         "name": "Detonate",
         "range": 25000,
         "shape": {
-          "kind": "target"
+          "kind": "circle",
+          "radius": 1500
         },
         "tags": [
           "payoff",
+          "aoe",
           "cheap-cast"
         ]
       },
@@ -1601,7 +1608,7 @@
       "abilityId": "cinder.flare",
       "classId": "cinder",
       "facetId": "cinder.keystone.eternalFlare",
-      "loadout": "applyLoadout: class \"cinder\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: cinder.emberBolt=[], cinder.flare=[setup:kindled,payoff], cinder.coldSnap=[payoff,control], cinder.detonate=[payoff], cinder.cinderfield=[setup:cinderfield]"
+      "loadout": "applyLoadout: class \"cinder\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: cinder.emberBolt=[], cinder.flare=[setup:kindled,payoff], cinder.coldSnap=[payoff,control], cinder.detonate=[payoff,aoe], cinder.cinderfield=[setup:cinderfield]"
     },
     {
       "ability": {
@@ -1729,10 +1736,12 @@
         "name": "Detonate",
         "range": 25000,
         "shape": {
-          "kind": "target"
+          "kind": "circle",
+          "radius": 1500
         },
         "tags": [
           "payoff",
+          "aoe",
           "execute"
         ]
       },
@@ -1949,7 +1958,8 @@
           "radius": 3500
         },
         "tags": [
-          "payoff"
+          "payoff",
+          "aoe"
         ],
         "variants": {
           "mend": [
@@ -2018,9 +2028,9 @@
         "id": "chanter.aegis",
         "interruptible": false,
         "name": "Aegis",
-        "range": 0,
+        "range": 25000,
         "shape": {
-          "kind": "self"
+          "kind": "target"
         },
         "tags": [
           "defensive"
@@ -2242,7 +2252,7 @@
       "abilityId": "chanter.refrain",
       "classId": "chanter",
       "facetId": "chanter.charm.refrainsEdge",
-      "loadout": "applyLoadout: class \"chanter\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: chanter.cadence=[setup:attuned], chanter.refrain=[payoff], chanter.chorus=[payoff], chanter.dissonance=[payoff], chanter.hymn=[setup:hymn]"
+      "loadout": "applyLoadout: class \"chanter\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: chanter.cadence=[setup:attuned], chanter.refrain=[payoff], chanter.chorus=[payoff], chanter.dissonance=[payoff,aoe], chanter.hymn=[setup:hymn]"
     },
     {
       "ability": {
@@ -2259,6 +2269,14 @@
             "effectId": "gliding",
             "op": "applyEffect",
             "stacks": 1
+          },
+          {
+            "effectId": "rooted",
+            "op": "removeEffect"
+          },
+          {
+            "effectId": "slowed",
+            "op": "removeEffect"
           },
           {
             "durationTicks": 80,
@@ -2509,10 +2527,12 @@
         "name": "Dissonance",
         "range": 25000,
         "shape": {
-          "kind": "target"
+          "kind": "circle",
+          "radius": 2500
         },
         "tags": [
           "payoff",
+          "aoe",
           "cheap-cast"
         ],
         "variants": {
@@ -2685,7 +2705,7 @@
       "abilityId": "chanter.hymn",
       "classId": "chanter",
       "facetId": "chanter.keystone.eternalHymn",
-      "loadout": "applyLoadout: class \"chanter\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: chanter.cadence=[setup:attuned], chanter.refrain=[], chanter.chorus=[payoff], chanter.dissonance=[payoff], chanter.hymn=[setup:hymn,payoff]"
+      "loadout": "applyLoadout: class \"chanter\" loadout would leave 2 setup / 3 payoff rotational abilities (bible invariant requires exactly 2/2). Rotational tags: chanter.cadence=[setup:attuned], chanter.refrain=[], chanter.chorus=[payoff], chanter.dissonance=[payoff,aoe], chanter.hymn=[setup:hymn,payoff]"
     },
     {
       "ability": {
@@ -2783,9 +2803,9 @@
         "id": "chanter.aegis",
         "interruptible": false,
         "name": "Aegis",
-        "range": 0,
+        "range": 25000,
         "shape": {
-          "kind": "self"
+          "kind": "target"
         },
         "tags": [
           "defensive"
@@ -2826,10 +2846,12 @@
         "name": "Dissonance",
         "range": 25000,
         "shape": {
-          "kind": "target"
+          "kind": "circle",
+          "radius": 2500
         },
         "tags": [
           "payoff",
+          "aoe",
           "amplified"
         ],
         "variants": {

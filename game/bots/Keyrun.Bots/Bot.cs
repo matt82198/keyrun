@@ -447,6 +447,15 @@ public static class Bot
         return new Command[] { Reasons.Tag(new CastCommand(input.View.State.Tick, self.Id, input.MovementId, targetId), "bot:movement-escape") };
     }
 
+    /// <summary>
+    /// True when <paramref name="self"/> is a tank whose taunt is ready on an in-range loose enemy other than the enemy its held-pack
+    /// walk is heading for (<paramref name="walkTargetId"/>; null when no walk is set). That taunt is the role's take-the-pack cast.
+    /// </summary>
+    private static bool TauntReadyOnLooseEnemy(BotView view, ActorState self, int? walkTargetId = null) =>
+        self.Role == ActorRole.Tank
+        && Roles.TankEngage.TauntTarget(view, self, Roles.RoleShared.KitOf(view, self.ClassId)) is { } taunt
+        && taunt.Id != walkTargetId;
+
     private static BotDecision DecideForActor(RoleSet roles, BotView view, BotMemory memory, int actorId, BotPrngState prng, IReadOnlyList<PingEvent> pings)
     {
         ArgumentNullException.ThrowIfNull(view);
@@ -497,7 +506,10 @@ public static class Bot
         // (persist, below) until it holds the pack. A walk that improves keeps priority.
         // R-PATH-5 (z) persist: while a dropped-for pack is still held by another seat, the tank's approach runs ahead of the
         // bloom branch (and of travel and role) until it holds the pack; a null approach (in reach) falls through.
-        if (avoid is null && !pingCommands.Any() && memory.HeldPackId is not null && TankApproach(view, self) is { } persisted)
+        // Taunt-first (BotTankTakesHolderTests seed 3): a ready taunt on an in-range loose enemy goes before the persisted approach,
+        // so a tank that can taunt a loose pack does not walk past it toward a pack another seat already holds.
+        if (avoid is null && !pingCommands.Any() && memory.HeldPackId is not null && !TauntReadyOnLooseEnemy(view, self, memory.HeldPackId)
+            && TankApproach(view, self) is { } persisted)
         {
             commands.Add(Reasons.Tag(persisted, "bot:tank-approach"));
             return new BotDecision(commands, memory, prng);
@@ -510,14 +522,21 @@ public static class Bot
             var dist = DistSq(self.Pos, centre);
             var improved = memory.BloomBestDistSq is not { } best || dist < best;
             var noProgress = improved ? 0 : memory.BloomNoProgressTicks + 1;
-            if (noProgress >= BloomStuckLimit && HeldPackTarget(view, self) is { } held && TankApproach(view, self) is { } drop)
+            // R-PATH-5 (z): a stuck walk is dropped whether or not a pack is held. A held pack keeps the take-the-pack yield;
+            // with none the bloom commands are skipped for this decision and the role decision below runs (the wrapper in
+            // Decide clears the walk progress because this decision does not set BloomTick). Taunt-first: a ready taunt on a
+            // loose engaged pack is never replaced by the drop walk, so the role's taunt runs instead (BotTankTakesHolderTests seed 3).
+            if (noProgress < BloomStuckLimit)
+            {
+                commands.AddRange(Reasons.TagAll(bloom, "bot:seed-bloom"));
+                var bestNow = improved ? dist : memory.BloomBestDistSq;
+                return new BotDecision(commands, memory with { BloomNoProgressTicks = noProgress, BloomBestDistSq = bestNow, BloomTick = tick }, prng);
+            }
+            if (HeldPackTarget(view, self) is { } held && !TauntReadyOnLooseEnemy(view, self, held.Id) && TankApproach(view, self) is { } drop)
             {
                 commands.Add(Reasons.Tag(drop, "bot:tank-approach"));
                 return new BotDecision(commands, ClearBloomWalk(memory) with { HeldPackId = held.Id }, prng);
             }
-            commands.AddRange(Reasons.TagAll(bloom, "bot:seed-bloom"));
-            var bestNow = improved ? dist : memory.BloomBestDistSq;
-            return new BotDecision(commands, memory with { BloomNoProgressTicks = noProgress, BloomBestDistSq = bestNow, BloomTick = tick }, prng);
         }
 
         // KICK-LEDGER-COOLDOWN-GAP (finding f-13b5c33a, the WoW kick rotation: a melee kicker walks in to reach the caster):

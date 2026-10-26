@@ -80,6 +80,7 @@ public partial class CameraRig : Node3D
     private float _pitchLift;
     private bool _headroomOn;
     private bool _headroomUnsolved;
+    private bool _partyOn;
     private int _fitMm;
     private int _framedPermille = -1;
     private bool _headed;
@@ -291,6 +292,18 @@ public partial class CameraRig : Node3D
     // view heading (-sin Yaw, -cos Yaw). A body that is small or far returns the zoom and the mouse pitch.
     private (int BoomMm, float Pitch) HeadroomTarget()
     {
+        var (boomMm, pitch) = HeadroomFit();
+        if (boomMm != ZoomMm || pitch != Pitch)
+        {
+            // The engaged-hostile headroom rule wins whenever it applies (combat readability).
+            _partyOn = false;
+            return (boomMm, pitch);
+        }
+        return PartyOccludedTarget() ?? (boomMm, pitch);
+    }
+
+    private (int BoomMm, float Pitch) HeadroomFit()
+    {
         var follow = (BoomMm: ZoomMm, Pitch);
         if (!CameraMode.ChaseRules(Mode))
         {
@@ -327,6 +340,63 @@ public partial class CameraRig : Node3D
         }
         _headroomUnsolved = !fit.Fits;
         return (fit.BoomMm, fit.PitchMrad == pitchMrad ? Pitch : fit.PitchMrad / 1000f);
+    }
+
+    // CAMERA-PARTY-OCCLUSION: a living ally (same faction as the Warden, the Warden excluded) whose body stands on the
+    // sight line between the lens and the pivot hides the Warden. The nearest such body to the lens is framed with
+    // CameraFraming.FrameForBody at the wheel zoom and the mouse pitch: it pulls the boom back or steepens the pitch
+    // until its screen height fits. Only chase rules apply (the vertical camera is above the party). No body on the
+    // segment returns null, and the caller keeps the player values.
+    private (int BoomMm, float Pitch)? PartyOccludedTarget()
+    {
+        if (!CameraMode.ChaseRules(Mode) || Driver is null || Camera is null
+            || !Driver.State.Actors.TryGetValue(SimDriver.WardenId, out var me))
+        {
+            return null;
+        }
+        var cam = Camera.GlobalPosition;
+        var pivot = GlobalPosition;
+        var camMm = ToMm3(cam);
+        var pivotMm = ToMm3(pivot);
+        Vector3? nearestFeet = null;
+        var nearestLens = float.MaxValue;
+        int nearestId = 0;
+        foreach (var (id, actor) in Driver.State.Actors)
+        {
+            if (id == SimDriver.WardenId || !actor.Alive || actor.Kind != me.Kind)
+            {
+                continue;
+            }
+            var before = Driver.PreviousState.Actors.TryGetValue(id, out var prev) ? prev : actor;
+            var feet = ActorView.ToMetres(before.Pos).Lerp(ActorView.ToMetres(actor.Pos), Driver.Alpha);
+            var chest = feet + new Vector3(0, PartyFade.BodyCentreMm * MmToM, 0);
+            if (!CameraNearFade.Occludes(FadeRole.Ally, camMm, pivotMm, ToMm3(chest)))
+            {
+                continue;
+            }
+            var lens = cam.DistanceTo(chest);
+            if (lens < nearestLens)
+            {
+                nearestLens = lens;
+                nearestFeet = feet;
+                nearestId = id;
+            }
+        }
+        if (nearestFeet is not { } blocker)
+        {
+            _partyOn = false;
+            return null;
+        }
+        var distanceMm = Mathf.RoundToInt(blocker.DistanceTo(pivot) / MmToM);
+        var (boomMm, pitchMrad) = CameraFraming.FrameForBody(
+            ZoomMm, PitchMrad, CameraFraming.VerticalFovDeg, distanceMm, CameraFraming.PlayerHeightMm, true);
+        if (!_partyOn)
+        {
+            GD.Print(FormattableString.Invariant(
+                $"CAMERA party-occlusion id={nearestId} distance={distanceMm} boom={boomMm} pitch={pitchMrad}"));
+        }
+        _partyOn = true;
+        return (boomMm, pitchMrad / 1000f);
     }
 
     // The body CAMERA-HEADROOM frames (CameraHeadroomBody.Select, the pure rule): the tallest engaged hostile inside the view

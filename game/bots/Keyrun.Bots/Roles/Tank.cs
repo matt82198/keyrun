@@ -107,6 +107,13 @@ public sealed class TankRole : IRole
         }
         if (Floor.FloorEscapeCommand(view, self) is { } escape)
         {
+            // R-PACK-TAUNT-FIRST: the taunt is off the GCD, so a loose pack member in taunt range is taunted from inside the floor
+            // patch and the escape walk still goes. Without it a Warden standing in a dead seed's patch walked out for 50 ticks
+            // with the Taunt ready while the pack that engaged at tick 16436 hit the party (BotTankTakesHolderTests seed 2).
+            if (TankEngage.TauntCommand(view, self, kit) is { } taunt)
+            {
+                return new Command[] { Reasons.Tag(taunt, "tank:taunt-in-floor"), Reasons.Tag(escape, "tank:floor-escape") };
+            }
             return new Command[] { Reasons.Tag(escape, "tank:floor-escape") };
         }
         if (BreakBarKick.Command(view, self, kit) is { } barKick && !TankPressure.PoolsForAllySpender(view, self, kit, barKick.AbilityId))

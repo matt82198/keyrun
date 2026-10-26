@@ -56,6 +56,10 @@ public sealed class RunStats
 
     private readonly Dictionary<int, IReadOnlyList<string>> _rotation = new();
 
+    // The most recent combo per payoff actor (ComboView.PayoffActorId -> ComboId). A closer burn is the payoff actor
+    // damaging itself, so its hit is attributed to the combo that named it, not to an enemy source.
+    private readonly Dictionary<int, string> _comboByPayoff = new();
+
     /// <summary>The tick of the first seat interrupt (a kick or a stop by a party seat), or null when no seat interrupted.</summary>
     public int? FirstKickTick { get; private set; }
 
@@ -153,6 +157,13 @@ public sealed class RunStats
         ArgumentNullException.ThrowIfNull(events);
         var actors = before.State.Actors;
         var lastHit = new Dictionary<int, (string Ability, string Source)>();
+        foreach (var ev in events)
+        {
+            if (SimEventViews.TryCombo(ev, out var comboView))
+            {
+                _comboByPayoff[comboView.PayoffActorId] = comboView.ComboId;
+            }
+        }
         for (var i = 0; i < events.Count; i++)
         {
             var e = events[i];
@@ -184,11 +195,20 @@ public sealed class RunStats
                         break;
                     }
                     actors.TryGetValue(source, out var s);
-                    if (s is null || s.Kind != ActorKind.Enemy)
+                    string ability;
+                    if (source == target && s is { Kind: ActorKind.Player } && _comboByPayoff.TryGetValue(source, out var burnCombo))
+                    {
+                        // A combo payoff actor burning itself (Cinderfield closer): attributed to the combo.
+                        ability = burnCombo;
+                    }
+                    else if (s is not null && s.Kind == ActorKind.Enemy)
+                    {
+                        ability = AbilityOfHit(events, i, source, s);
+                    }
+                    else
                     {
                         break;
                     }
-                    var ability = AbilityOfHit(events, i, source, s);
                     var amount = e.Get("healthDamage") is JsInt hd ? hd.Value : 0;
                     DamageTakenByAbility[ability] = (DamageTakenByAbility.TryGetValue(ability, out var sum) ? sum : 0) + amount;
                     lastHit[target] = (ability, NameOf(s));

@@ -171,6 +171,17 @@ public static class Movement
         ResolveCollision(a, b, config.ActorRadiusMm);
     }
 
+    /// <summary>Mover-only push-out at the config actor radius (each actor's own <see cref="ActorState.RadiusMm"/> when set).</summary>
+    public static void ResolveCollisionMoverOnly(ActorState anchor, ActorState mover, MovementConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ResolveCollisionMoverOnly(anchor, mover, config.ActorRadiusMm);
+    }
+
+    /// <summary>Contact distance of a pair: the sum of the two radii, each <see cref="ActorState.RadiusMm"/> ?? the default.</summary>
+    private static long ContactDistance(ActorState a, ActorState b, long defaultRadiusMm) =>
+        (a.RadiusMm ?? defaultRadiusMm) + (b.RadiusMm ?? defaultRadiusMm);
+
     /// <summary>Clamp into the config arena bounds.</summary>
     public static void ClampToBounds(ActorState actor, MovementConfig config)
     {
@@ -184,7 +195,7 @@ public static class Movement
         var dx = b.Pos.X - a.Pos.X;
         var dz = b.Pos.Z - a.Pos.Z;
         var dist2 = (dx * dx) + (dz * dz);
-        var minDist = radiusMm * 2;
+        var minDist = ContactDistance(a, b, radiusMm);
         if (dist2 >= minDist * minDist)
         {
             return;
@@ -223,7 +234,7 @@ public static class Movement
         var dx = b.Pos.X - a.Pos.X;
         var dz = b.Pos.Z - a.Pos.Z;
         var dist2 = (dx * dx) + (dz * dz);
-        var minDist = radiusMm * 2;
+        var minDist = ContactDistance(a, b, radiusMm);
         if (dist2 >= minDist * minDist)
         {
             return;
@@ -267,7 +278,7 @@ public static class Movement
         var dx = mover.Pos.X - anchor.Pos.X;
         var dz = mover.Pos.Z - anchor.Pos.Z;
         var dist2 = (dx * dx) + (dz * dz);
-        var minDist = radiusMm * 2;
+        var minDist = ContactDistance(anchor, mover, radiusMm);
         if (dist2 >= minDist * minDist)
         {
             return;

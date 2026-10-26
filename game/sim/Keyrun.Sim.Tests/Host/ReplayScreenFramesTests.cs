@@ -121,12 +121,15 @@ public sealed class ReplayScreenFramesTests
         // R-K4-13 (c) (measured 2026-10-22 on the kit tree): the headless run K of HudSceneRunsBKTests ends at run_end 5749
         // (its Enters are run_end+12/+15 = 5761/5764), so the fixture follows the measured run: Enters 5761/5764, sim ticks
         // 5752/5755 (= Enter tick - 9, the screen-frame offset that is unchanged).
+        // BOSS-RADIUS (branch test/boss-radius): boss radius shortens run K's walk, so run K ends earlier on this branch.
+        // The Enters still sit at run end + 12 frames, as before, now at frames 5581/5584 (sim ticks 5572/5575).
+        // Re-pinned here; the fixture itself is unchanged.
         var expected = new[]
         {
             new Fired("Enter", 9, false, 0),
             new Fired("G", 11, true, 2),
-            new Fired("Enter", 5761, true, 5752),
-            new Fired("Enter", 5764, true, 5755),
+            new Fired("Enter", 5581, true, 5572),
+            new Fired("Enter", 5584, true, 5575),
         };
         Assert.Equal(expected, fired);
     }

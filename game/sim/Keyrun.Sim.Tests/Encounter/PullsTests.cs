@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
@@ -103,5 +105,29 @@ public sealed class PullsTests
         Assert.Equal(300, spawned[0].ChaseMarginMm);
         Assert.Null(spawned[1].SpeedMmPerTick);
         Assert.Null(spawned[1].ChaseMarginMm);
+    }
+
+    /// <summary>
+    /// R-BOSSROOM-1 (b): the Hollow Warden's loaded content def carries radiusMm 900, and its spawned boss actor carries
+    /// it as <see cref="ActorState.RadiusMm"/> while a trash actor with no radius stays null (the run default).
+    /// The spawn half reads radiusMm from the dungeon spawn JSON, the only spawn-side route the parser exposes today.
+    /// </summary>
+    [Fact]
+    public void SpawnPull_carries_the_hollow_warden_radius_onto_the_boss_and_leaves_trash_null()
+    {
+        string enemyFile = ContentRoots.KindFiles(AppContext.BaseDirectory, "enemies")
+            .Single(f => Path.GetFileName(f) == "hollow-warden.json");
+        var defs = (JsArray)JsValue.Parse(File.ReadAllText(enemyFile));
+        var boss = defs.Items.OfType<JsObject>().Single(o => o.Get("id") is JsString { Value: "hollowWarden.boss" });
+        long? defRadius = (boss.Get("radiusMm") as JsInt)?.Value;
+        Assert.Equal<long?>(900, defRadius);
+
+        var dungeon = EncounterJson.ParseDungeon(JsValue.Parse(
+            "{\"id\":\"radius\",\"pulls\":[{\"id\":\"boss\",\"spawns\":["
+            + "{\"actorId\":1,\"classId\":\"hollowWarden.boss\",\"pos\":{\"x\":0,\"y\":0,\"z\":0},\"yaw\":512,\"health\":100,\"radiusMm\":900},"
+            + "{\"actorId\":2,\"classId\":\"melee_add\",\"pos\":{\"x\":3000,\"y\":0,\"z\":0},\"yaw\":0,\"health\":100}]}]}"));
+        var spawned = Pulls.SpawnPull(dungeon, 0, 0, _ => { });
+        Assert.Equal<long?>(900, spawned.Single(a => a.Id == 1).RadiusMm);
+        Assert.Null(spawned.Single(a => a.Id == 2).RadiusMm);
     }
 }

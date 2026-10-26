@@ -136,11 +136,22 @@ public static class OracleSetupWriter
         var boss = Enemy(registry, dungeon.Boss.EnemyId, $"dungeon \"{dungeon.Id}\" boss");
         pulls.Add(JsValue.Obj(
             ("id", JsValue.Str(C.LayoutDef.BossPullId)),
-            ("spawns", JsValue.Arr(SpawnJson(boss, HostRunSetup.BossActorId, Vec3.Zero, HostRunSetup.BossYaw, keyLevel)))));
+            ("spawns", JsValue.Arr(SpawnJson(boss, HostRunSetup.BossActorId, BossOrigin(registry), HostRunSetup.BossYaw, keyLevel)))));
         scripts[HostRunSetup.BossActorId] = Tempo.ScaleScript(HostRunSetup.ToSimScript(boss.Script), keyLevel);
 
         var json = JsValue.Obj(("id", JsValue.Str(dungeon.Id)), ("pulls", JsValue.Arr(pulls)));
         return (json, scripts);
+    }
+
+    /// <summary>
+    /// The boss's spawn position: the Origin of the layout box holding the boss pull, at floor level, as NavLayouts.PlaceDungeon
+    /// stands the boss pull at the arena origin. Fails closed when the boss box is missing or carries no origin.
+    /// </summary>
+    private static Vec3 BossOrigin(C.ContentRegistry registry)
+    {
+        var box = registry.Layout.Boxes.Single(b => b.Pull == C.LayoutDef.BossPullId);
+        var origin = box.Origin ?? throw new InvalidOperationException($"oracle setup writer: the boss layout box \"{box.Id}\" has no spawn origin");
+        return new Vec3(origin.X, 0, origin.Z);
     }
 
     private static JsValue SpawnJson(C.EnemyDef def, int actorId, Vec3 pos, int yaw, int keyLevel)
