@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Keyrun.Sim.Core;
 
 namespace Keyrun.Sim.Combat;
@@ -79,4 +81,89 @@ public static class Threat
     /// <param name="actor">The actor.</param>
     /// <param name="sourceId">The source to forget.</param>
     public static void ClearThreat(ActorState actor, int sourceId) => actor.Threat.Remove(sourceId);
+
+    /// <summary>The default ability and class coefficient, 10000 bp (100%).</summary>
+    public const long DefaultBp = Effects.BpDenom;
+
+    /// <summary>THREAT-MODEL 7.1: a healing pass writes 5000 bp of its effective amount, split across the enemies.</summary>
+    public const long HealingCoefficientBp = 5000;
+
+    /// <summary>The denominator of a damage threat: amount x ability bp x class bp, over 10^8 (two bp factors).</summary>
+    private const long DamageThreatDenom = Effects.BpDenom * Effects.BpDenom;
+
+    /// <summary>
+    /// THREAT-MODEL 7.1 ability coefficient: the MultiplierBp of the ability's first amount-less threat op (Guard Break
+    /// 15000, Reckoning 20000), else 10000. An amount-less threat op sets the coefficient instead of adding threat.
+    /// </summary>
+    /// <param name="ops">The ability's effect ops.</param>
+    /// <returns>The coefficient in bp.</returns>
+    public static long AbilityCoefficientBp(IReadOnlyList<EffectOp> ops)
+    {
+        foreach (var op in ops)
+        {
+            if (op is ThreatOp { Amount: null, MultiplierBp: { } bp })
+            {
+                return bp;
+            }
+        }
+        return DefaultBp;
+    }
+
+    /// <summary>
+    /// THREAT-MODEL 7.1 damage: a player's hit on an enemy adds <c>trunc(amount x abilityBp x classBp / 10^8)</c> to
+    /// that enemy's entry for the attacker. <paramref name="amount"/> is the hit after armor, before absorbs (0 for a
+    /// miss, so a missed hit makes no threat). Only a player hitting an enemy generates it.
+    /// </summary>
+    /// <param name="target">The actor hit.</param>
+    /// <param name="source">The attacker, or null when it is gone.</param>
+    /// <param name="amount">The hit's modified amount.</param>
+    /// <param name="abilityBp">The ability coefficient (<see cref="AbilityCoefficientBp"/>).</param>
+    public static void AddDamageThreat(ActorState target, ActorState? source, long amount, long abilityBp)
+    {
+        if (source is null || amount <= 0 || target.Kind != ActorKind.Enemy || source.Kind != ActorKind.Player)
+        {
+            return;
+        }
+        Accumulate(target, source.Id, IntMath.TruncDiv(amount * abilityBp * source.ThreatBp, DamageThreatDenom));
+    }
+
+    /// <summary>
+    /// THREAT-MODEL 7.1 healing: a player's effective heal makes <c>trunc(applied x 5000 x classBp / 10^8)</c> threat,
+    /// divided evenly (integer division, remainder dropped) across the living, engaged, non-evading enemies whose table
+    /// holds the healed seat. Healing never engages a pack: an enemy with no entry for the seat gets nothing.
+    /// </summary>
+    /// <param name="state">Sim state (the enemy lookup).</param>
+    /// <param name="healer">The healer.</param>
+    /// <param name="healed">The seat healed.</param>
+    /// <param name="applied">The effective heal (overheal excluded).</param>
+    public static void AddHealingThreat(SimState state, ActorState healer, ActorState healed, long applied)
+    {
+        if (applied <= 0 || healer.Kind != ActorKind.Player)
+        {
+            return;
+        }
+        var eligible = state.Actors.Values
+            .Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle && !a.Evading && a.Threat.ContainsKey(healed.Id))
+            .OrderBy(a => a.Id)
+            .ToList();
+        if (eligible.Count == 0)
+        {
+            return;
+        }
+        var share = IntMath.TruncDiv(applied * HealingCoefficientBp * healer.ThreatBp, DamageThreatDenom) / eligible.Count;
+        foreach (var enemy in eligible)
+        {
+            Accumulate(enemy, healer.Id, share);
+        }
+    }
+
+    /// <summary>Adds a computed threat delta to one entry; a zero delta writes no entry.</summary>
+    private static void Accumulate(ActorState actor, int sourceId, long delta)
+    {
+        if (delta == 0)
+        {
+            return;
+        }
+        actor.Threat[sourceId] = (actor.Threat.TryGetValue(sourceId, out var cur) ? cur : 0) + delta;
+    }
 }

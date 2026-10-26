@@ -49,8 +49,12 @@ internal static class RunTestKit
         EnemyScripts = new Dictionary<int, IReadOnlyList<ScriptStep>>(),
     };
 
+    /// <summary>
+    /// A party member. The threat class number stands in for content/data/classes/&lt;id&gt;.json threatBp (THREAT-MODEL
+    /// 7.2): the content loader does not carry threatBp yet, so the test kit maps it here ("warden" 20000, others 10000).
+    /// </summary>
     public static PartyMemberSpec Member(int id, string classId, ActorRole role, long x, long z, long maxHealth, long maxResource) =>
-        new(id, classId, role, new Vec3(x, 0, z), maxHealth, maxResource);
+        new(id, classId, role, new Vec3(x, 0, z), maxHealth, maxResource) { ThreatBp = classId == "warden" ? 20000 : 10000 };
 
     public static DungeonDef OnePull(string dungeonId, string pullId, params PullSpawn[] spawns) =>
         new(dungeonId, new[] { new PullDef(pullId, spawns) });
