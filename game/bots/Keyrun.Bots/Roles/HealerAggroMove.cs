@@ -39,8 +39,11 @@ public static class HealerAggroMove
             return null;
         }
         var actors = view.State.Actors;
+        // Ruling seq 225 (f-c0201273): an enemy is on this healer when it holds the healer seat (HolderId) or targets it
+        // (TargetId). The TargetId sync can lag the holder, so either marks the healer as engaged.
         var threatened = actors.Values.Any(a =>
-            a.Kind == ActorKind.Enemy && a.Alive && !a.Idle && a.TargetId == self.Id
+            a.Kind == ActorKind.Enemy && a.Alive && !a.Idle
+            && (a.HolderId == self.Id || a.TargetId == self.Id)
             && RoleShared.Dist(a, self) <= MeleeThreatRangeMm);
         if (!threatened || TankSeat(actors, self) is not { } tank)
         {

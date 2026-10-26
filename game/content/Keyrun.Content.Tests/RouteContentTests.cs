@@ -113,7 +113,7 @@ public sealed class RouteContentTests
         ContentRegistry reg = ContentLoader.Load();
         DungeonDef vault = reg.Dungeons["hollow-vault"];
 
-        // Shipped: choir = 600 teaching + 240 hall (neutral, required) + 400 cantor; seed = 600 + 240 + 392 warrior (R-REMNANT-2: 6 Pair melee + 1 Cantor, was 5 + 2 at 420).
+        // Shipped: choir = 600 teaching + 240 hall (neutral, required) + 400 cantor; seed = 600 + 240 + 392 warrior (R-REMNANT-3: 6 Pair melee + 2 Remnant Cantors at 40 each, 312 + 80; was 6 Pair melee + 1 Choir Cantor at 80, R-REMNANT-2; was 5 + 2 at 420).
         Assert.Equal(1240, RouteForces.BranchTotalPoints(reg.Forces, vault, reg.Layout.Packs, "choir-room"));
         Assert.Equal(1232, RouteForces.BranchTotalPoints(reg.Forces, vault, reg.Layout.Packs, "seed-chamber"));
 

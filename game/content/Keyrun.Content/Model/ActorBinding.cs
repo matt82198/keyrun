@@ -169,6 +169,11 @@ public sealed class ActorBinding
         new ActorBindingRow("choir.lieutenant", "Skeleton_Mage.glb", 2630, 684, 0xB070E0, Array.Empty<string>(),
             ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
 
+        // Remnant Cantor (R-REMNANT-3): the Warrior Remnant's own healer, the Choir Cantor's robed Skeleton Mage washed
+        // a different tint so the pack's two healers read as their own enemy.
+        new ActorBindingRow("remnant.cantor", "Skeleton_Mage.glb", 2630, 684, 0x70B0E0, Array.Empty<string>(),
+            ActorClips.Skeleton with { Act = "Spellcast_Shoot" }, Folder: SkeletonsFolder),
+
         // Hall Sentry (Mythic+ trash only the Hall Sentries pack fields, game/content/data/enemies/hall.json): the same
         // CC0 Skeleton Warrior as the Choir Acolyte, washed bronze so the pack reads as its own enemy.
         new ActorBindingRow("hall.sentry", "Skeleton_Warrior.glb", 2590, 695, 0xD0A060, Array.Empty<string>(),

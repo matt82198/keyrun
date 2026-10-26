@@ -343,6 +343,9 @@ public sealed class ActorState
     /// <summary>Per-actor walk speed (mm/tick) for move commands; null = RulesConfig.baseSpeedMmPerTick.</summary>
     public long? SpeedMmPerTick { get; set; }
 
+    /// <summary>Per-actor collision cylinder radius (mm); null = the run default (MovementConfig.ActorRadiusMm). A pair separates to the sum of the two radii (R-BOSSROOM-1 b).</summary>
+    public long? RadiusMm { get; set; }
+
     /// <summary>Per-actor chase margin override; null = encounter/chase.ts CHASE_MARGIN_MM.</summary>
     public long? ChaseMarginMm { get; set; }
 

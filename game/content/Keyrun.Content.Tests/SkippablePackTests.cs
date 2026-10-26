@@ -110,7 +110,9 @@ public sealed class SkippablePackTests
         {
             foreach (JsonObject p in n["packs"]!.AsArray().Select(x => x!.AsObject()).Where(x => (string)x["id"]! != keep))
             {
-                string member = p["enemies"]!.AsArray().Any(e => (string)e!["enemyId"]! == "hall.sentry") ? "hall.sentry" : "choir.melee";
+                // R-REMNANT-3: remnant.cantor is likewise placed only by the Warrior Remnant pack, so that pack keeps one Cantor.
+                string member = p["enemies"]!.AsArray().Any(e => (string)e!["enemyId"]! == "hall.sentry") ? "hall.sentry"
+                    : p["enemies"]!.AsArray().Any(e => (string)e!["enemyId"]! == "remnant.cantor") ? "remnant.cantor" : "choir.melee";
                 p["enemies"] = JsonNode.Parse("[{\"enemyId\":\"" + member + "\",\"count\":1,\"spawn\":{\"x\":0,\"z\":0}}]");
             }
         }));

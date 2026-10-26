@@ -56,6 +56,8 @@ public sealed class ActorAnimator
     private readonly int _scalePermille;
     // ABILITY-ANIMS: every ability's own release and cast loop (AbilityClipTable) and the ANIM run-log line per start.
     private readonly AbilityClipPlayer _abilities;
+    // ANIM run log: the same sink the ABILITY-ANIMS lines go to (null: console only).
+    private readonly Action<string>? _log;
     private readonly Dictionary<string, string?> _castLoops = new(StringComparer.Ordinal);
     private string? _castAbility;
     // ANIMS-READABLE-2: where the playing release started (ms into its clip; its window is ReleaseHold.EndsMs from here)
@@ -67,6 +69,7 @@ public sealed class ActorAnimator
     {
         _player = player;
         _abilities = new AbilityClipPlayer(log);
+        _log = log;
         _moveClip = clips.Move;
         _scalePermille = scalePermille;
         var names = player.GetAnimationList();
@@ -316,7 +319,7 @@ public sealed class ActorAnimator
         _player.SpeedScale = next is not null && next == _move
             ? GaitRule.PlaybackPermille(_moveClip, (int)(speedMps * 1000f), _scalePermille) / 1000f
             : 1f;
-        Play(next, blend, now.Id);
+        Play(next, blend, now.Id, tick);
     }
 
     private string? ClipFor(AnimClip clip) => clip switch
@@ -397,12 +400,14 @@ public sealed class ActorAnimator
         return ends;
     }
 
-    private void Play(string? clip, float blend = Blend, int actorId = -1)
+    private void Play(string? clip, float blend = Blend, int actorId = -1, int tick = -1)
     {
         if (clip is null || (_player.CurrentAnimation == clip && _player.IsPlaying()))
         {
             return;
         }
+        // ANIM run log: the looping clip this start changes from, read before the player moves on.
+        var previous = _player.IsPlaying() ? LoopKindOf(_player.CurrentAnimation) : AnimClip.None;
         _player.Play(clip, blend);
         // KF1-SPAWN-HOLD: an idle loop starts at the actor's own phase (HoldAnim.IdlePhaseMs), so a pack bound on one
         // frame (every pack at run start under prespawn) does not breathe in lockstep while it holds.
@@ -411,7 +416,25 @@ public sealed class ActorAnimator
             var phaseMs = HoldAnim.IdlePhaseMs(actorId, (int)(anim.Length * 1000f));
             _player.Seek(phaseMs / 1000f, true);
         }
+        // ANIM run log: a change to the idle or move loop writes one proof line, through the same sink as AbilityClipPlayer.
+        var kind = LoopKindOf(clip);
+        var line = actorId >= 0 && kind != AnimClip.None ? AnimRunLog.Line(actorId, previous, kind, tick) : null;
+        if (line is not null)
+        {
+            if (_log is null)
+            {
+                GD.Print(line);
+            }
+            else
+            {
+                _log(line);
+            }
+        }
     }
+
+    // ANIM run log: which looping clip a clip name is (Idle or Move), or None for any other clip.
+    private AnimClip LoopKindOf(string? name) =>
+        name is null ? AnimClip.None : name == _idle ? AnimClip.Idle : name == _move ? AnimClip.Move : AnimClip.None;
 
     // Exact name first, then a case-insensitive substring; loops the looping states on the shared animation resource.
     private string? Match(IReadOnlyList<string> names, string wanted, bool loop)

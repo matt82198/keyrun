@@ -130,6 +130,7 @@ public static class EncounterJson
         {
             SpeedMmPerTick = OptLong(o, "speedMmPerTick", what),
             ChaseMarginMm = OptLong(o, "chaseMarginMm", what),
+            RadiusMm = OptLong(o, "radiusMm", what),
         };
     }
 

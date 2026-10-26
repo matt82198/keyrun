@@ -49,6 +49,15 @@ public static class CameraFraming
 
     private const long Million = 1_000_000;
 
+    /// <summary>Steepest pitch FrameForBody will try, mrad (about 86 degrees look-down).</summary>
+    private const int SteepestPitchMrad = -1500;
+
+    /// <summary>Pitch change per search step in FrameForBody, mrad.</summary>
+    private const int PitchStepMrad = 10;
+
+    /// <summary>Boom change per search step in FrameForBody, mm.</summary>
+    private const int BoomStepMm = 50;
+
     /// <summary>The boom after <paramref name="notches"/> wheel notches (negative zooms in), clamped to the zoom range.</summary>
     /// <param name="boomMm">The boom before the notches, mm.</param>
     /// <param name="notches">Wheel notches: -1 per wheel-up (in), +1 per wheel-down (out).</param>
@@ -148,5 +157,82 @@ public static class CameraFraming
         return sum;
     }
 
+    /// <summary>
+    /// The permille a body standing on the ground <paramref name="bodyDistanceFromPivotMm"/> in front of the pivot
+    /// (toward the camera, horizontally) is drawn at, <paramref name="bodyHeightMm"/> tall, feet at the ground under
+    /// the pivot's height (R-CAMERA-OCC-1, ruling seq 273). The body's feet are <see cref="PivotHeightMm"/> below the pivot.
+    /// </summary>
+    /// <param name="boomMm">Boom, mm.</param>
+    /// <param name="pitchMrad">Pitch, mrad.</param>
+    /// <param name="fovDeg">Vertical field of view, degrees.</param>
+    /// <param name="bodyDistanceFromPivotMm">The body's horizontal distance from the pivot toward the camera, mm.</param>
+    /// <param name="bodyHeightMm">Body height, mm.</param>
+    /// <returns>The drawn height, permille of the frame height (rounded).</returns>
+    public static int BodyScreenPermilleAt(int boomMm, int pitchMrad, int fovDeg, int bodyDistanceFromPivotMm, int bodyHeightMm)
+    {
+        var tanV = TanHalfFovPpm(fovDeg);
+        var head = TanToPointPpm(boomMm, pitchMrad, bodyHeightMm - PivotHeightMm, bodyDistanceFromPivotMm);
+        var feet = TanToPointPpm(boomMm, pitchMrad, -PivotHeightMm, bodyDistanceFromPivotMm);
+        return (int)RoundDiv((head - feet) * 1000, 2 * tanV);
+    }
+
+    /// <summary>
+    /// The boom and pitch that keep a party body standing on the camera-to-pivot segment at or under the Ally
+    /// screen-height limit (R-CAMERA-OCC-1). Pitch steepens first, in 10 mrad steps from the default down to -1500 mrad,
+    /// and only when that is not enough does the boom lengthen, in 50 mm steps at the steepest pitch, up to
+    /// <see cref="MaxZoomMm"/>; the first setting that passes is returned, so the change is the smallest of that order.
+    /// A body off the segment returns the defaults unchanged.
+    /// </summary>
+    /// <param name="defaultBoomMm">Default boom, mm.</param>
+    /// <param name="defaultPitchMrad">Default pitch, mrad.</param>
+    /// <param name="fovDeg">Vertical field of view, degrees.</param>
+    /// <param name="bodyDistanceFromPivotMm">The body's distance from the pivot, mm.</param>
+    /// <param name="bodyHeightMm">Body height, mm.</param>
+    /// <param name="bodyOnSegment">True when the body stands on the camera-to-pivot segment.</param>
+    /// <returns>The boom, mm, and pitch, mrad.</returns>
+    public static (int BoomMm, int PitchMrad) FrameForBody(
+        int defaultBoomMm, int defaultPitchMrad, int fovDeg, int bodyDistanceFromPivotMm, int bodyHeightMm, bool bodyOnSegment)
+    {
+        if (!bodyOnSegment)
+        {
+            return (defaultBoomMm, defaultPitchMrad);
+        }
+
+        const int limit = CameraNearFade.ScreenHeightLimitPermille;
+        for (var pitch = defaultPitchMrad; pitch >= SteepestPitchMrad; pitch -= PitchStepMrad)
+        {
+            if (BodyScreenPermilleAt(defaultBoomMm, pitch, fovDeg, bodyDistanceFromPivotMm, bodyHeightMm) <= limit)
+            {
+                return (defaultBoomMm, pitch);
+            }
+        }
+
+        for (var boom = defaultBoomMm; boom <= MaxZoomMm; boom += BoomStepMm)
+        {
+            if (BodyScreenPermilleAt(boom, SteepestPitchMrad, fovDeg, bodyDistanceFromPivotMm, bodyHeightMm) <= limit)
+            {
+                return (boom, SteepestPitchMrad);
+            }
+        }
+
+        return (MaxZoomMm, SteepestPitchMrad);
+    }
+
     private static long RoundDiv(long a, long b) => a >= 0 ? (a + b / 2) / b : -((-a + b / 2) / b);
+
+    // tan of the angle above (positive) or below the view axis at which a point yMm above the pivot and zMm toward the
+    // camera from the pivot is drawn, ppm. Same frame as AxisTanPpm (depth = X.f + boom, height = X.u with
+    // f = (sin p, -cos p) and u = (cos p, sin p) in (y, z)); with zMm = 0 the two agree exactly.
+    private static long TanToPointPpm(int boomMm, int pitchMrad, int yMm, int zMm)
+    {
+        var sin = SinUrad(pitchMrad * 1000L);
+        var cos = CosUrad(pitchMrad * 1000L);
+        var depth = (long)yMm * sin - (long)zMm * cos + (long)boomMm * Million;
+        if (depth <= 0)
+        {
+            throw new ArgumentException("the point is behind the camera");
+        }
+        var height = (long)yMm * cos + (long)zMm * sin;
+        return height * Million / depth;
+    }
 }

@@ -3,6 +3,7 @@
     "id": "hollowWarden.boss",
     "name": "The Hollow Warden",
     "maxHealth": 27000,
+    "radiusMm": 900,
     "role": "boss",
     "abilities": ["hollowWarden.slam", "hollowWarden.cleave", "hollowWarden.lock"],
     "script": [
