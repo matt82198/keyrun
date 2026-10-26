@@ -54,6 +54,11 @@ public static class Mitigation
         // C#-only gear stats (BIBLE s7 "Tier is power", Runs.GearPower) add to the effect bp; 0 on every oracle run.
         var sourceModBp = source is not null ? Effects.AggregateModifiers(source, defs).DamageDoneBp + source.GearDamageDoneBp : 0;
         var targetModBp = Effects.AggregateModifiers(target, defs).DamageTakenBp + target.GearDamageTakenBp;
+        // R-DEFCAP-1: the player's total damageTakenBp (effects plus gear) is floored at -7500, never invulnerability.
+        if (target.Kind == ActorKind.Player)
+        {
+            targetModBp = Math.Max(targetModBp, Effects.PlayerDamageTakenFloorBp);
+        }
         return Damage.ApplyDamage(tick, target, rawAmount, sourceModBp, targetModBp, defs, emit, sourceId, weighting, school);
     }
 
