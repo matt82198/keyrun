@@ -86,16 +86,25 @@ public sealed class RunLog : IDisposable
     /// <param name="after">The state after the step.</param>
     /// <param name="events">The step's events, in emission order.</param>
     /// <param name="dungeon">The dungeon (names the pulls a pull_start spawns).</param>
-    public void Tick(int tick, SimState before, SimState after, IReadOnlyList<SimEvent> events, SimDungeon dungeon)
+    /// <param name="run">The run after the step, or null. When given, the step's ACTOR and GROUP capture lines follow the TICK
+    /// line in the file (R-AGGRO-1 / G7); they are not echoed to the console, which would flood at 20 lines a second.</param>
+    public void Tick(int tick, SimState before, SimState after, IReadOnlyList<SimEvent> events, SimDungeon dungeon, Keyrun.Sim.Runs.Run? run = null)
     {
-        var line = after.Actors.TryGetValue(SimDriver.WardenId, out var w)
-            ? FormattableString.Invariant($"TICK {tick} warden=({w.Pos.X},{w.Pos.Z}) yaw={w.Yaw} hp={w.Health} res={w.Resource} events={events.Count}")
-            : FormattableString.Invariant($"TICK {tick} events={events.Count}");
+        // The TICK, ACTOR and GROUP shapes come from the Godot-free formatter (game/src/HostCore/CaptureLines.cs), the same
+        // one the headless playtest log uses.
+        var captureLines = run is null
+            ? new[] { CaptureLines.TickLine(tick, after, SimDriver.WardenId, events.Count) }
+            : CaptureLines.StepLines(tick, SimDriver.WardenId, after, run.Encounter, Keyrun.Sim.Encounter.Aggro.GroupsOf(run.Dungeon, tick, run.Content.Packs, null, run.Content.Patrols), events.Count);
+        var line = captureLines[0];
         if (_ticksToConsole)
         {
             GD.Print(line);
         }
         Write(line);
+        for (var i = 1; i < captureLines.Count; i++)
+        {
+            Write(captureLines[i]);
+        }
         foreach (var e in events)
         {
             Line("EVENT " + e.ToCanonicalJson());
