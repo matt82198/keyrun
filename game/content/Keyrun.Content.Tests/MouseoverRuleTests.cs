@@ -98,9 +98,10 @@ public sealed class MouseoverRuleTests
     }
 
     [Fact]
-    public void Walking_without_mouselook_faces_the_walk_direction()
+    public void Walking_without_mouselook_keeps_facing()
     {
-        Assert.Equal(300, MouseoverRule.FacingYaw(rightHeld: false, moving: true, walkYaw: 300, cameraYaw: 768, actorYaw: 0));
+        // R-STRAFE-1 (c) seq 474, Matt f-d0a22d13
+        Assert.Null(MouseoverRule.FacingYaw(rightHeld: false, moving: true, walkYaw: 300, cameraYaw: 768, actorYaw: 0));
         Assert.Null(MouseoverRule.FacingYaw(rightHeld: false, moving: false, walkYaw: 300, cameraYaw: 768, actorYaw: 0));
     }
 
