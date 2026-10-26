@@ -49,7 +49,7 @@ public sealed class SegmentedFillContentTests
             {
                 var pick = new[] { mask & 1, (mask >> 1) & 1, (mask >> 2) & 1 };
                 var points = d.Fill.RoutePoints(pick);
-                Assert.True(points >= reg.Forces.Required, $"seed {seed} route {string.Join("", pick)}: {points} of {reg.Forces.Required}");
+                Assert.True(points >= reg.ForcesFor(Dungeon).Required, $"seed {seed} route {string.Join("", pick)}: {points} of {reg.ForcesFor(Dungeon).Required}");
             }
             Assert.True(d.Fill.TotalPoints > d.Fill.MaxRoutePoints, $"seed {seed}: the untaken branches add nothing");
         }
