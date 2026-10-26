@@ -17,12 +17,14 @@ namespace Keyrun.Bots.Tests;
 /// <see cref="BotView"/> must carry the packs and the forces table (<see cref="BotView.PullPlan"/>) so the same
 /// <see cref="ForcesPlanner"/> the scripted Warden uses (<see cref="Follow.LeadRoute"/>) makes the bot leader pull the bar
 /// to 100% before it walks into the boss arena. Driven through <see cref="BotCommandSource"/> with every seat a bot at
-/// key 2, seed 1; <see cref="BotCommandSource.Forces"/> is the switch, and without it the leader walks past the optional
+/// key 2, seed 3; <see cref="BotCommandSource.Forces"/> is the switch, and without it the leader walks past the optional
 /// packs (the control).
 /// </summary>
 public sealed class LeadCommandPullPlanTests
 {
-    private const long Seed = 1;
+    // R-UNITAGGRO-3: with the earlier-aggro fix, seeds 1 and 2 both clear the bar on the route without the plan (1072/1000),
+    // so the control's premise (the bar is short without the forces table) only holds on seed 3.
+    private const long Seed = 3;
     private const int Key = 2;
     private const string DungeonId = "hollow-vault";
     private const string HumanClassId = "warden";
@@ -71,7 +73,7 @@ public sealed class LeadCommandPullPlanTests
         return new Drive(atBoss, bossTick, run.RunEnd.Result, run.RunEnd.ResultTick, par);
     }
 
-    [Fact(DisplayName = "Bot-led pull plan: a bot leader seat pulls the forces bar to 100% before the boss engages (key 2, seed 1)")]
+    [Fact(DisplayName = "Bot-led pull plan: a bot leader seat pulls the forces bar to 100% before the boss engages (key 2, seed 3)")]
     public void A_bot_leader_fills_the_bar_before_the_boss()
     {
         var r = WithPlan.Value;

@@ -42,7 +42,7 @@ public static class EnemyAggro
         ArgumentNullException.ThrowIfNull(players);
         foreach (var id in g.ActorIds)
         {
-            if (Watcher(state, id) is { AggroMm: { } radius } enemy && players.Any(p => Aggro.InRing(p.Pos, enemy.WanderAnchor ?? enemy.Pos, radius)))
+            if (Watcher(state, id) is { AggroMm: { } radius } enemy && players.Any(p => Aggro.InRing(p.Pos, enemy.Pos, radius)))
             {
                 return true;
             }
@@ -98,7 +98,7 @@ public static class EnemyAggro
                 {
                     continue;
                 }
-                if ((!other.Idle || joining.Contains(other.Id)) && Aggro.InRing(other.Pos, enemy.WanderAnchor ?? enemy.Pos, radius))
+                if ((!other.Idle || joining.Contains(other.Id)) && Aggro.InRing(other.Pos, enemy.Pos, radius))
                 {
                     return true;
                 }

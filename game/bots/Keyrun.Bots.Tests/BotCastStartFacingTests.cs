@@ -46,7 +46,7 @@ public sealed class BotCastStartFacingTests
     /// <param name="AbilityId">The ability that started.</param>
     /// <param name="ClassId">The seat's class.</param>
     /// <param name="SeatYaw">The seat yaw at that tick.</param>
-    /// <param name="ExpectedYaw">Fixed.YawBetween(seat position, target position) at that tick.</param>
+    /// <param name="ExpectedYaw">Fixed.YawBetween(seat position, target position) as they stood when the bot decided the cast (before the step).</param>
     private sealed record Start(int Tick, string AbilityId, string ClassId, int SeatYaw, int ExpectedYaw);
 
     /// <summary>The probe result: the seat and its targeted cast starts.</summary>
@@ -92,19 +92,27 @@ public sealed class BotCastStartFacingTests
             bots.TakeReactions();
             var issued = commands.OfType<CastCommand>().Where(c => c.ActorId == seatId && c.TargetId is not null).ToList();
             issuedTargeted += issued.Count;
+            // The bot decides its face command and cast from the pre-step state, so the expected yaw is the bearing
+            // between the seat and its target as they stood at decision time. Reading them after the step would
+            // measure a moved target against a yaw that was correct when it was set.
+            var decidedSeat = run.State.Actors.TryGetValue(seatId, out var seatAtDecision) ? seatAtDecision.Pos : (Vec3?)null;
+            var decidedTarget = issued.Count > 0 && run.State.Actors.TryGetValue(issued[0].TargetId!.Value, out var targetAtDecision)
+                ? targetAtDecision.Pos
+                : (Vec3?)null;
+
             var step = Backfill.Step(backfill, run, commands, Array.Empty<QueueRequest>());
             backfill = step.Backfill;
             run = step.Step.Run;
 
             // A targeted cast the seat issued this tick is a cast start when the seat's CastStartTick advanced.
             if (issued.Count > 0 &&
+                decidedSeat is Vec3 seatPos && decidedTarget is Vec3 targetPos &&
                 run.State.Actors.TryGetValue(seatId, out var after) &&
                 after.CastStartTick is int castStart && castStart != lastCastStart &&
-                run.State.Actors.TryGetValue(issued[0].TargetId!.Value, out var target) &&
-                (target.Pos.X != after.Pos.X || target.Pos.Z != after.Pos.Z))
+                (targetPos.X != seatPos.X || targetPos.Z != seatPos.Z))
             {
                 lastCastStart = castStart;
-                starts.Add(new Start(run.State.Tick, issued[0].AbilityId, after.ClassId, after.Yaw, Fixed.YawBetween(after.Pos, target.Pos)));
+                starts.Add(new Start(run.State.Tick, issued[0].AbilityId, after.ClassId, after.Yaw, Fixed.YawBetween(seatPos, targetPos)));
             }
         }
 
