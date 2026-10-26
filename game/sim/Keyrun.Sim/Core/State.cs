@@ -176,7 +176,18 @@ public sealed record QueuedPress(string AbilityId, int? TargetId, Vec3? Point, i
 /// CAST-KEEPS-START-TARGET (f-bd8fbbb1): a mid-cast retarget pinned the target the cast started on. Separate from
 /// <paramref name="PinnedTargetId"/> because a cast begun with no target can pin "no target".
 /// </param>
-public readonly record struct CastInFlight(string AbilityId, int StartTick, int EndsTick, bool IsOverheat, int? PinnedTargetId, bool TargetPinned);
+/// <param name="AimOrigin">A cone cast's origin at cast start (the telegraph's origin); null for every other shape.</param>
+/// <param name="AimYaw">A cone cast's yaw at cast start (the telegraph's yaw); null for every other shape.</param>
+public readonly record struct CastInFlight(string AbilityId, int StartTick, int EndsTick, bool IsOverheat, int? PinnedTargetId, bool TargetPinned, Vec3? AimOrigin = null, int? AimYaw = null);
+
+/// <summary>
+/// A cone or line telegraph's drawn pose as it lands (<see cref="SimState.LandedAims"/>): the cast it warns of, and the
+/// origin and yaw it resolved on, after any Tide drift.
+/// </summary>
+/// <param name="Cast">The ability the telegraph warns of.</param>
+/// <param name="Origin">The telegraph origin on its resolve tick.</param>
+/// <param name="Yaw">The telegraph yaw (copied from the caster at draw time).</param>
+public readonly record struct LandedAim(string Cast, Vec3 Origin, int Yaw);
 
 /// <summary>
 /// One actor (sim/core/state.ts ActorState). Mutable: rules mutate the clone that <see cref="Tick.Step"/>
@@ -483,6 +494,14 @@ public sealed class SimState
 
     /// <summary>Open combo clouds in opening order (C#-only; empty on every oracle run).</summary>
     public List<FloorCloud> FloorClouds { get; set; } = new();
+
+    /// <summary>
+    /// The drawn pose of each cone or line telegraph that resolved on this tick, by caster id (C#-only; empty on every
+    /// oracle run). The encounter step writes it from the registry telegraph's origin and yaw after Tide drift, so a cast
+    /// that lands on this tick resolves on the pose its telegraph showed, not the caster's live pose (Targeting.AimOf).
+    /// Replaced whole each tick, never mutated in place, so a shallow <see cref="Clone"/> is enough.
+    /// </summary>
+    public IReadOnlyDictionary<int, LandedAim> LandedAims { get; set; } = new Dictionary<int, LandedAim>();
 
     /// <summary>
     /// The reward seed the run-end completion rolls used (the host's <c>StepRunOpts.RewardSeedOverride</c>, else
