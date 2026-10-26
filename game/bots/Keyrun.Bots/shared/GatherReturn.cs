@@ -48,7 +48,7 @@ public static class GatherReturn
         }
         var gather = gathers.FirstOrDefault(g => plan.Groups.Any(grp =>
             g.GroupIds.Contains(grp.Id) && grp.ActorIds.Any(id => engaged.Any(e => e.Id == id))));
-        if (gather is null || PendingBlocked(state, plan, gather) || ChainPull.GatherNext(state, layout, plan, leader, engaged) is not null)
+        if (gather is null || PendingBlocked(state, plan, gather) || ChainPull.GatherNext(state, layout, plan, leader, engaged, out _) is not null)
         {
             return null;
         }

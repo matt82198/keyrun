@@ -146,12 +146,13 @@ public sealed class TankGatherTests
         Assert.Null(ChainPull.Move(Tick, state, Layout, blocked, tank));
     }
 
-    /// <summary>F4 (b): a seat beyond the 12000 mm leash wins over a gather move.</summary>
-    [Fact(DisplayName = "Tank gather F4b: a seat beyond the 12000 mm leash holds the tank, the gather move does not go")]
-    public void Seat_beyond_the_leash_wins_over_a_gather_move()
+    /// <summary>F4 (b): while a gather is open the leash is measured from the gather spot, so a seat 13000 mm from the tank but within 12000 mm of the spot does not hold him.</summary>
+    [Fact(DisplayName = "Tank gather F4b: a seat 13000 mm from the tank but within 12000 mm of the open gather spot does not hold the tank (gather move goes)")]
+    public void Seat_within_the_spot_leash_but_beyond_the_tank_does_not_hold_the_gather_move()
     {
-        // The far seat (13000 mm from the tank) has a living neighbour within ReturnReachMm, so it is a straggler and not a seat
-        // walking back from a respawn (Follow.ReturnSeat would exempt it from the leash). The neighbour is inside the leash.
+        // Geometry: tank (14000,-6000); gather spot (8000,0). The far seat (14000,7000) is 13000 mm from the tank but 9220 mm from
+        // the spot (inside 12000). The far seat has a living neighbour (14000,5000) within ReturnReachMm, so it is a straggler and not
+        // a seat walking back from a respawn (Follow.ReturnSeat would exempt it from the leash). The neighbour is inside the spot leash.
         var state = StateWith();
         var farSeat = RolesTestKit.Actor(id: 4, kind: ActorKind.Player, classId: "cinder", role: ActorRole.Damage, x: 14000, z: 7000, health: 300, maxHealth: 300);
         var neighbour = RolesTestKit.Actor(id: 5, kind: ActorKind.Player, classId: "chanter", role: ActorRole.Healer, x: 14000, z: 5000, health: 300, maxHealth: 300);
@@ -162,7 +163,53 @@ public sealed class TankGatherTests
             new[] { new GatherSpot("g", new Vec3(8000, 0, 0), new[] { "A", "B" }) },
             new[] { GroupA(new[] { PackAFirstId, PackASecondId }), GroupB(PackBFirstId, PackBSecondId) });
 
-        // Anti-vacuity: the gather path is live (it names pack B), so the null move below is the leash at work.
+        // Anti-vacuity: the gather path is live (it names pack B), so the non-null move below is the spot leash at work.
+        Assert.Equal("B", ChainPull.Intent(state, Layout, plan, tank)?.Id);
+        var move = ChainPull.Move(Tick, state, Layout, plan, tank);
+        Assert.NotNull(move);
+        Assert.True(move!.Dir.X > 0,
+            $"the tank's move points away from pack B (dir {move.Dir.X},{move.Dir.Z}); a seat inside the spot leash must not hold him");
+    }
+
+    /// <summary>F4 (c): while a gather is open, a seat more than 12000 mm from the gather spot holds the tank (no gather move).</summary>
+    [Fact(DisplayName = "Tank gather F4c: a seat more than 12000 mm from the open gather spot holds the tank (gather move does not go)")]
+    public void Seat_beyond_the_spot_leash_holds_the_gather_move()
+    {
+        // Geometry: gather spot (8000,0). The far seat (22000,7000) is 15652 mm from the spot (2000+ mm beyond 12000) and 15264 mm
+        // from the tank. Its neighbour (22000,5000) is within ReturnReachMm, so the far seat is a straggler, not a respawn return.
+        var state = StateWith();
+        var farSeat = RolesTestKit.Actor(id: 4, kind: ActorKind.Player, classId: "cinder", role: ActorRole.Damage, x: 22000, z: 7000, health: 300, maxHealth: 300);
+        var neighbour = RolesTestKit.Actor(id: 5, kind: ActorKind.Player, classId: "chanter", role: ActorRole.Healer, x: 22000, z: 5000, health: 300, maxHealth: 300);
+        state.Actors[farSeat.Id] = farSeat;
+        state.Actors[neighbour.Id] = neighbour;
+        var tank = state.Actors[TankId];
+        var plan = PlanOf(
+            new[] { new GatherSpot("g", new Vec3(8000, 0, 0), new[] { "A", "B" }) },
+            new[] { GroupA(new[] { PackAFirstId, PackASecondId }), GroupB(PackBFirstId, PackBSecondId) });
+
+        // Anti-vacuity: the gather path is live (it names pack B), so the null move below is the spot leash at work.
+        Assert.Equal("B", ChainPull.Intent(state, Layout, plan, tank)?.Id);
+        Assert.Null(ChainPull.Move(Tick, state, Layout, plan, tank));
+    }
+
+    /// <summary>F4c (discriminator): the leash is measured from the spot, not from the tank.</summary>
+    [Fact(DisplayName = "Tank gather F4c-discriminator: a seat beyond the spot leash but within 12000 mm of the tank holds the tank (gather move does not go)")]
+    public void Seat_beyond_the_spot_leash_but_within_the_tank_leash_holds_the_gather_move()
+    {
+        // Geometry: gather spot (8000,0); tank (14000,-6000). The far seat (20000,-6000) is 13416 mm from the spot (beyond 12000) and
+        // 6000 mm from the tank (inside 12000), so only a leash measured from the spot holds him. Its neighbour (17000,-6000) is 3000 mm
+        // from the seat and inside the spot leash, so the far seat is a straggler, not a seat returning from a respawn (Follow.ReturnSeat).
+        var state = StateWith();
+        var farSeat = RolesTestKit.Actor(id: 4, kind: ActorKind.Player, classId: "cinder", role: ActorRole.Damage, x: 20000, z: -6000, health: 300, maxHealth: 300);
+        var neighbour = RolesTestKit.Actor(id: 5, kind: ActorKind.Player, classId: "chanter", role: ActorRole.Healer, x: 17000, z: -6000, health: 300, maxHealth: 300);
+        state.Actors[farSeat.Id] = farSeat;
+        state.Actors[neighbour.Id] = neighbour;
+        var tank = state.Actors[TankId];
+        var plan = PlanOf(
+            new[] { new GatherSpot("g", new Vec3(8000, 0, 0), new[] { "A", "B" }) },
+            new[] { GroupA(new[] { PackAFirstId, PackASecondId }), GroupB(PackBFirstId, PackBSecondId) });
+
+        // Anti-vacuity: the gather path is live (it names pack B), so the null move below is the spot leash at work.
         Assert.Equal("B", ChainPull.Intent(state, Layout, plan, tank)?.Id);
         Assert.Null(ChainPull.Move(Tick, state, Layout, plan, tank));
     }
