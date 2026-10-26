@@ -484,6 +484,8 @@ public static class Follow
         {
             // R-AOE-1 (c), f-c8ed3a62: the tank is chain-pulling the next pack, so the party goes with him to its slot behind
             // him (its casts stay: Bot.cs keeps a travelling bot's casts) instead of holding the room he is leaving.
+            // R-PULLBACK-1: a gather walk-back takes precedence over that chain inside ChainPull.Move; this branch keys on
+            // ChainPull.Intent (the next pack he means to pull), which is unchanged.
             if (view.PullPlan is { } chainPlan && ChainPull.Intent(view.State, layout, chainPlan, leader) is not null)
             {
                 return WalkTo(view.State.Tick, self, layout, slot);

@@ -58,13 +58,17 @@ public static class ChainPull
     /// <returns>The move toward the next group, or null.</returns>
     public static MoveCommand? Move(int tick, SimState state, NavLayout layout, PullPlan plan, ActorState leader)
     {
+        // R-PULLBACK-1 (amends R-AOE-1 (c), G2.5 / f-7b374e72): while a tagged gather still has an engaged pack, the walk-back to
+        // its spot wins over chaining the next pack (NextGroup). The walk-back skips the leash and the health floors (walking
+        // toward the party and the healer is the safe move); the engaged elite and boss block is already inside GatherReturn.Spot.
+        // GatherReturn.Spot is null whenever a gather tag is still open (ChainPull.GatherNext), so a gather tag is never pre-empted.
+        if (GatherReturn.Spot(state, layout, plan, leader) is { } spot)
+        {
+            return PathMoves.Along(tick, leader, layout, spot);
+        }
         if (Intent(state, layout, plan, leader) is not { } next)
         {
-            // G2.5 / f-7b374e72: the walk-back to a tagged gather spot skips the leash and the health floors (walking toward the
-            // party and the healer is the safe move); the engaged elite and boss block is already inside GatherReturn.Spot.
-            return GatherReturn.Spot(state, layout, plan, leader) is { } spot
-                ? PathMoves.Along(tick, leader, layout, spot)
-                : null;
+            return null;
         }
         foreach (var seat in state.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != leader.Id))
         {
