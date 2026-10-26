@@ -229,6 +229,9 @@ public sealed record EnemyDef : IContentItem
     /// <summary>Chase stop margin, mm; null = the sim default.</summary>
     public int? ChaseMarginMm { get; init; }
 
+    /// <summary>Collision cylinder radius, mm (R-BOSSROOM-1 b); null = the run default actor radius.</summary>
+    public long? RadiusMm { get; init; }
+
     /// <summary>Id of a <see cref="BreakBarDef"/> declared on another enemy.</summary>
     public string? BreakBarId { get; init; }
 
