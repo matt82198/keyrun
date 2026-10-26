@@ -19,16 +19,16 @@
       "fnv": "1c427004"
     },
     "bots-hv-k10-s7.trace.jsonl": {
-      "bytes": 447960,
-      "fnv": "992afb30"
+      "bytes": 523917,
+      "fnv": "6acb1ae4"
     },
     "bots-hv-k2-s11.trace.jsonl": {
-      "bytes": 366221,
-      "fnv": "0e0117b5"
+      "bytes": 391522,
+      "fnv": "203e6d41"
     },
     "bots-hv-k2-s7.trace.jsonl": {
-      "bytes": 366218,
-      "fnv": "f71d2e10"
+      "bytes": 391469,
+      "fnv": "3d67a2c5"
     },
     "content-pull.setup.json": {
       "bytes": 22329,
