@@ -99,13 +99,36 @@ public sealed partial record HostRunSetup
     /// <param name="registry">The content.</param>
     /// <param name="humanClassId">The human's class (scopes the Facets and fills an appended Window's setupClass).</param>
     /// <returns>The run start.</returns>
-    public RunStart StartFor(QueueRequest? request, Progression? progression, C.ContentRegistry registry, string humanClassId) =>
-        RunStart.Of(
+    public RunStart StartFor(QueueRequest? request, Progression? progression, C.ContentRegistry registry, string humanClassId)
+    {
+        if (progression is null)
+        {
+            return RunStart.Of(request, null, HumanActorId, Content.Abilities, new Dictionary<string, GearPatch>(StringComparer.Ordinal));
+        }
+        // R-TREES-10a: a seat composes only its own class's tree nodes; another class's owned nodes never reach its kit.
+        var seat = progression with
+        {
+            Trees = progression.Trees
+                .Where(kv => string.Equals(kv.Key, humanClassId, StringComparison.Ordinal))
+                .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal),
+        };
+        // ABILITY-TREES R-TREES-8: an owned enhanced node with a malformed conditional is refused here (fail closed); an owned
+        // node whose op the sim does not run is skipped (R-TREES-10b): the sim skips the ones it refuses, and the host adds the
+        // ones it could not map. Every other edit is passed.
+        RequireOwnedEdits(registry, seat);
+        var edits = TreeEdits(registry);
+        var start = RunStart.Of(
             request,
-            progression,
+            seat,
             HumanActorId,
             Content.Abilities,
-            progression is null ? new Dictionary<string, GearPatch>(StringComparer.Ordinal) : GearPatches(registry, humanClassId));
+            GearPatches(registry, humanClassId),
+            edits);
+        var unmapped = UnmappedOwnedNodes(registry, seat, edits);
+        return unmapped.Count == 0
+            ? start
+            : start with { SkippedTreeNodes = start.SkippedTreeNodes.Concat(unmapped).Distinct(StringComparer.Ordinal).ToList() };
+    }
 
     /// <summary>
     /// The sim patch of every content Facet on <paramref name="classId"/>'s kit (content/schema/facet.ts FacetPatch to

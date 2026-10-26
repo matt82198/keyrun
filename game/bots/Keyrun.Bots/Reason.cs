@@ -44,6 +44,7 @@ public static class Reasons
         ["bot:chain-pull"] = "chain-pull the next pack",
         ["bot:tank-approach"] = "approach the engaged pack",
         ["bot:healer-top-off"] = "top off a hurt ally between pulls",
+        ["bot:cast-face"] = "turn to face the target before the cast starts",
         // Shared interrupt and floor answers that every role runs first.
         ["tank:ledger-kick"] = "interrupt the cast the ledger names",
         ["tank:floor-escape"] = "leave a floor patch",
@@ -64,6 +65,7 @@ public static class Reasons
         ["healer:stance-back"] = "swap stance back before a heal",
         ["healer:heal"] = "heal the hurt ally",
         ["healer:dispel-approach"] = "walk into dispel range",
+        ["healer:aggro-move"] = "walk toward the tank while an enemy holds melee aggro",
         ["healer:dispel"] = "dispel the effect",
         ["damage:ledger-kick"] = "interrupt the cast the ledger names",
         ["damage:floor-escape"] = "leave a floor patch",

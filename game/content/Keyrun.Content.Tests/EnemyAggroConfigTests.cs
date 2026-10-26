@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json.Nodes;
 using Xunit;
 
@@ -17,14 +18,20 @@ public sealed class EnemyAggroConfigTests
 
     private static JsonObject Block(JsonNode root) => root["enemyAggro"]!.AsObject();
 
+    /// <summary>R-BOSS-6 (a)/(c): the boss leash is the warden arena's half-extent plus a 3000 mm margin, read from the layout box.</summary>
+    private const int BossLeashMarginMm = 3000;
+
     [Fact]
-    public void Shipped_values_give_trash_a_radius_assist_and_leash_and_switch_the_boss_off()
+    public void Shipped_values_give_trash_a_radius_assist_and_leash_and_bind_the_boss_to_its_arena()
     {
-        var aggro = ContentLoader.Load().Run.EnemyAggro;
+        var registry = ContentLoader.Load();
+        var aggro = registry.Run.EnemyAggro;
         Assert.NotNull(aggro);
         Assert.Equal((8000, 3000, 30000), aggro!.For("choir.melee"));
         Assert.Equal((8000, 3000, 30000), aggro.For("pair.melee"));
-        Assert.Equal((0, 0, 0), aggro.For("hollowWarden.boss"));
+        var arena = DungeonPlan.BoxesOf(registry.Layout).Single(b => b.Id == "warden-arena");
+        var halfExtent = (arena.MaxX - arena.MinX) / 2;
+        Assert.Equal((0, 0, halfExtent + BossLeashMarginMm), aggro.For("hollowWarden.boss"));
     }
 
     [Fact]

@@ -180,15 +180,37 @@ public sealed class ScriptedWarden
         return (dx * dx) + (dz * dz) <= r * r;
     }
 
+    /// <summary>BOT-RESPAWN-RETURN: the seat was observed down (not alive) on its last sample.</summary>
+    private bool _seatDown;
+
+    /// <summary>BOT-RESPAWN-RETURN: the seat respawned and has not yet rejoined the party (cleared once <see cref="Follow.ReturnSeat"/> is null).</summary>
+    private bool _returning;
+
     /// <summary>Brace's buff (content/data/abilities/warden.json, warden.brace applyEffect).</summary>
     private const string BraceEffect = "braceSelf";
 
     private void SampleRotation(int tick, Run run, List<Command> into, IReadOnlyList<int>? openSeats)
     {
         var state = run.State;
-        if (!state.Actors.TryGetValue(HostRunSetup.HumanId, out var me) || !me.Alive)
+        if (!state.Actors.TryGetValue(HostRunSetup.HumanId, out var me))
         {
             return;
+        }
+        if (!me.Alive)
+        {
+            _seatDown = true;
+            return;
+        }
+        // BOT-RESPAWN-RETURN (R-PATH-5 (m)): the return walk is for a seat that has respawned (seen here as the seat coming back
+        // alive after it was down), and only until it is back within ReturnReachMm of a living seat or an engaged enemy.
+        if (_seatDown)
+        {
+            _seatDown = false;
+            _returning = true;
+        }
+        if (_returning && Follow.ReturnSeat(me, state) is null)
+        {
+            _returning = false;
         }
         if (run.Content.Layout is not null && !Follow.AnyLivingEnemy(state))
         {
@@ -198,6 +220,18 @@ public sealed class ScriptedWarden
             }
             return;
         }
+        // BOT-RESPAWN-RETURN (R-PATH-5 (k), WoW: a released player runs back to the pull and rejoins): while an enemy is engaged
+        // elsewhere, a leader farther than ReturnReachMm from every living party seat and every engaged enemy walks to the
+        // nearest living seat over the nav path and issues nothing else; within ReturnReachMm the fight branch applies unchanged.
+        if (_returning && run.Content.Layout is { } returnLayout && Follow.AnyLivingEnemy(state) && Follow.ReturnSeat(me, state) is { } returnSeat)
+        {
+            if (Follow.WalkTo(tick, me, returnLayout, returnSeat.Pos) is { } back)
+            {
+                into.Add(back);
+            }
+            return;
+        }
+
         var abilities = run.Content.Abilities;
         var lieutenant = state.Actors.Values.FirstOrDefault(a => a.ClassId == LieutenantClass && EngagedTargets.IsEngagedHostile(me, a));
 

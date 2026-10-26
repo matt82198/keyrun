@@ -275,8 +275,8 @@ public sealed class ActorAnimator
             _oneShotKind = decision.Clip;
             if (decision.Restart)
             {
-                // KF1: an instant starts just before contact so its blow lands on the hit tick; KF1-WINDUP: a swing the
-                // cast already wound up carries on from contact.
+                // R-ANIM-2 (b): an instant's swing starts at frame 0 on the resolve tick (AnimRule.SwingStartMs); the hit
+                // presentation waits for contact (ActorView). KF1-WINDUP: a swing the cast already wound up carries on from contact.
                 var from = decision.Clip == AnimClip.Act
                     ? AbilityAnim.ResolveStartMs(actName, woundUp is not null && woundUp == clip) / 1000f
                     : 0f;

@@ -49,11 +49,12 @@ public sealed class WardenFillerStrikeTests
     private const int MinTicks = 3000;
 
     /// <summary>
-    /// Non-vacuity floor for trash filler-window ticks. R-K4-13 (b) PR #665 (AoE kit): the kit's faster hollow-vault run
-    /// measures 992 filler-window ticks in 7000 (was 1000+ on main), so the floor is 900 with margin; still a third of
-    /// the run is not allowed to be skipped, the cadence rule is measured, never skipped.
+    /// Non-vacuity floor for trash filler-window ticks, now 800 (R-FACING-2 (c): measured 1011 without bot facing, 885
+    /// with it). R-K4-13 (b) PR #665 (AoE kit): the kit's faster hollow-vault run measured 992 filler-window ticks in 7000
+    /// (was 1000+ on main). A third of the run is still not allowed to be skipped; the cadence rule is measured, never skipped.
     /// </summary>
-    private const int MinFillerTicks = 900;
+    // R-FACING-2 (c): filler ticks measure 1011 without bot facing (HEAD) and 885 with it, so the floor is 800 for both.
+    private const int MinFillerTicks = 800;
 
     /// <summary>The run stops here at the latest (past the boss pull of the default run, which clears near tick 5800).</summary>
     private const int MaxTicks = 7000;

@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Nav;
@@ -34,8 +36,36 @@ internal static class CombatPhase
         }
         var merged = c.Commands.Concat(enemyCommands).ToList();
         // BIBLE.md:156 Tide: floor patches drift with the telegraphs, before combat reads them this tick.
-        var stepped = Tick.Step(Clauses.DriftFloorWindows(run.State, run.Encounter.Rules), merged, rules);
+        var stepped = Tick.Step(Clauses.DriftFloorWindows(StopOpenSeatCastsEndingNow(c, run.State), run.Encounter.Rules), merged, rules);
         c.Events.AddRange(stepped.Events);
         c.State = stepped.State;
+    }
+
+    /// <summary>
+    /// The leave tick (WoW: a player who leaves is gone, and their cast does not land). <see cref="Rules"/> completes
+    /// casts before the command loop, so an open seat's cast that ends on this tick would resolve before the backfill's
+    /// stopcast runs. Such a cast is stopped here, on a clone, before the tick steps. An open seat whose cast ends later
+    /// is left to the backfill's stopcast command, and a tick with no open seat is unchanged.
+    /// </summary>
+    /// <param name="c">The step context (its <see cref="RunStepCtx.Opts"/> carry the open seats).</param>
+    /// <param name="state">The run's state at the start of the tick (read only).</param>
+    /// <returns><paramref name="state"/> itself when no open seat's cast ends on this tick.</returns>
+    private static SimState StopOpenSeatCastsEndingNow(RunStepCtx c, SimState state)
+    {
+        if (c.Opts?.OpenSeats is not { Count: > 0 } openSeats)
+        {
+            return state;
+        }
+        var stopped = new List<ActorState>();
+        foreach (var id in openSeats)
+        {
+            if (state.Actors.TryGetValue(id, out var actor) && actor.CastId is not null && actor.CastEndsTick == state.Tick)
+            {
+                var copy = actor.Clone();
+                Casting.Stopcast(copy, c.Emit, state.Tick);
+                stopped.Add(copy);
+            }
+        }
+        return RunWiring.MergeActors(state, stopped);
     }
 }

@@ -14,7 +14,18 @@ namespace Keyrun.Bots;
 /// Filler abilities this seat cast, least recently cast first (null = none yet). <see cref="Roles.Fillers.ArrangeFillers"/>
 /// reads it so the least recently cast ready filler is chosen, not the same one every global (finding f-c356528f).
 /// </param>
-public sealed record BotMemory(int SkillDial, int NextActionTick, IReadOnlyList<string>? FillerHistory = null)
+/// <param name="BloomNoProgressTicks">R-PATH-5 (z): consecutive seed-bloom decisions that did not set a new best distance (0 = none).</param>
+/// <param name="BloomBestDistSq">Smallest squared distance (mm squared, integer) to the bloom target seen in the current walk (null = none, or reset).</param>
+/// <param name="BloomTick">Tick of the last seed-bloom decision (-1 = none); a decision on any other tick is not a bloom walk.</param>
+/// <param name="HeldPackId">R-PATH-5 (z): the held pack's enemy id a stuck bloom walk dropped for; the tank keeps approaching it (null = none).</param>
+public sealed record BotMemory(
+    int SkillDial,
+    int NextActionTick,
+    IReadOnlyList<string>? FillerHistory = null,
+    int BloomNoProgressTicks = 0,
+    long? BloomBestDistSq = null,
+    int BloomTick = -1,
+    int? HeldPackId = null)
 {
     /// <summary>bot.ts defaultMemory: <c>{skillDial, nextActionTick: 0}</c>.</summary>
     /// <param name="skillDial">Skill dial (default 100).</param>
@@ -65,8 +76,69 @@ public static class Bot
 
         public RunnerBot(RoleSet roles) => _roles = roles;
 
-        public BotDecision Decide(BotView view, BotMemory memory, int actorId, BotPrngState prng, IReadOnlyList<PingEvent>? pings = null) =>
-            DecideForActor(_roles, view, memory, actorId, prng, pings ?? Array.Empty<PingEvent>());
+        public BotDecision Decide(BotView view, BotMemory memory, int actorId, BotPrngState prng, IReadOnlyList<PingEvent>? pings = null)
+        {
+            var decision = DecideForActor(_roles, view, memory, actorId, prng, pings ?? Array.Empty<PingEvent>());
+            // R-PATH-5 (y): a decision that was not a seed-bloom walk on this tick ends any stuck-bloom run.
+            return decision.Memory.BloomTick == view.State.Tick
+                ? decision
+                : decision with { Memory = ClearBloomWalk(decision.Memory) };
+        }
+    }
+
+    /// <summary>R-PATH-5 (z): decisions that set no new best distance to the bloom target before a held-pack tank drops the walk.</summary>
+    private const int BloomStuckLimit = 10;
+
+    /// <summary>R-PATH-5 (z): the memory with the seed-bloom walk progress cleared (the held-pack id is kept).</summary>
+    private static BotMemory ClearBloomWalk(BotMemory memory) =>
+        memory with { BloomNoProgressTicks = 0, BloomBestDistSq = null, BloomTick = -1 };
+
+    /// <summary>R-PATH-5 (z): squared distance in mm (integer) between two points on the floor plane.</summary>
+    private static long DistSq(Vec3 a, Vec3 b)
+    {
+        var dx = a.X - b.X;
+        var dz = a.Z - b.Z;
+        return (dx * dx) + (dz * dz);
+    }
+
+    /// <summary>
+    /// R-PATH-5 (y): true when <paramref name="enemy"/> is a live, engaged enemy held by another living party seat (not self).
+    /// An idle (unheld) pack is never held by another seat.
+    /// </summary>
+    private static bool IsHeldByAnother(BotView view, ActorState self, ActorState enemy)
+    {
+        if (!enemy.Alive || enemy.Idle || enemy.Kind != ActorKind.Enemy || enemy.HolderId is not { } holderId || holderId == self.Id)
+        {
+            return false;
+        }
+        return view.State.Actors.TryGetValue(holderId, out var holder) && holder.Kind == ActorKind.Player && holder.Alive;
+    }
+
+    /// <summary>
+    /// R-PATH-5 (y): the tank's engage target when it is a pack already held by another living party seat. Null for a
+    /// non-tank or an unheld target.
+    /// </summary>
+    private static ActorState? HeldPackTarget(BotView view, ActorState self) =>
+        self.Role == ActorRole.Tank && Roles.TankEngage.EngageTarget(view, self) is { } target && IsHeldByAnother(view, self, target)
+            ? target
+            : null;
+
+    /// <summary>R-PATH-5 (y): the tank's TankEngage approach move (null for a non-tank or no approach move).</summary>
+    private static MoveCommand? TankApproach(BotView view, ActorState self) =>
+        self.Role == ActorRole.Tank ? Roles.TankEngage.ApproachMove(view, self, Roles.RoleShared.KitOf(view, self.ClassId)) : null;
+
+    /// <summary>
+    /// R-PATH-5 (z): clears the held-pack id when the tank is the holder or the held enemy no longer qualifies (dead, idle,
+    /// gone, or held by nobody else). Returns <paramref name="memory"/> unchanged otherwise.
+    /// </summary>
+    private static BotMemory ResolveHeldPack(BotView view, ActorState self, BotMemory memory)
+    {
+        if (memory.HeldPackId is not { } heldId)
+        {
+            return memory;
+        }
+        var stillHeld = view.State.Actors.TryGetValue(heldId, out var enemy) && IsHeldByAnother(view, self, enemy);
+        return stillHeld ? memory : memory with { HeldPackId = null };
     }
 
     /// <summary>
@@ -107,6 +179,7 @@ public static class Bot
             return new BotDecision(Array.Empty<Command>(), memory, prng);
         }
         var tick = view.State.Tick;
+        memory = ResolveHeldPack(view, self, memory);
 
         var commands = new List<Command>();
         var avoid = DangerAvoidCommand(view, self);
@@ -129,10 +202,33 @@ public static class Bot
         // SEED-BLOOM-TEACHES (BIBLE s9.6 item 3): while an encounter floor Window (the Seed's Death Bloom) is open, a bot
         // that can land a Payoff in it walks into the ring and lands it, ahead of travel and its role; skill-dial-free like
         // travel. Inert in the oracle runner (no layout), like the travel it outranks. See EncounterWindow.
-        if (avoid is null && !pingCommands.Any() && EncounterWindow.Decide(view, self) is { } bloom)
+        // R-PATH-5 (z): a bloom walk is measured by its best (smallest, integer mm squared) distance to the bloom target. A
+        // decision that sets no new best counts as no progress; BloomStuckLimit of them in a row drop the walk for the held
+        // pack when one is held by another living seat, and the held pack's id is kept so the tank keeps approaching it
+        // (persist, below) until it holds the pack. A walk that improves keeps priority.
+        // R-PATH-5 (z) persist: while a dropped-for pack is still held by another seat, the tank's approach runs ahead of the
+        // bloom branch (and of travel and role) until it holds the pack; a null approach (in reach) falls through.
+        if (avoid is null && !pingCommands.Any() && memory.HeldPackId is not null && TankApproach(view, self) is { } persisted)
         {
-            commands.AddRange(Reasons.TagAll(bloom, "bot:seed-bloom"));
+            commands.Add(Reasons.Tag(persisted, "bot:tank-approach"));
             return new BotDecision(commands, memory, prng);
+        }
+
+        // While a held pack is set the bloom walk yields: inside the approach's reach the tank's role decides (its TankEngage casts
+        // take the pack), so the walk never pulls the tank back out of reach.
+        if (avoid is null && !pingCommands.Any() && memory.HeldPackId is null && EncounterWindow.Decide(view, self) is { } bloom && EncounterWindow.BloomTarget(view) is { } centre)
+        {
+            var dist = DistSq(self.Pos, centre);
+            var improved = memory.BloomBestDistSq is not { } best || dist < best;
+            var noProgress = improved ? 0 : memory.BloomNoProgressTicks + 1;
+            if (noProgress >= BloomStuckLimit && HeldPackTarget(view, self) is { } held && TankApproach(view, self) is { } drop)
+            {
+                commands.Add(Reasons.Tag(drop, "bot:tank-approach"));
+                return new BotDecision(commands, ClearBloomWalk(memory) with { HeldPackId = held.Id }, prng);
+            }
+            commands.AddRange(Reasons.TagAll(bloom, "bot:seed-bloom"));
+            var bestNow = improved ? dist : memory.BloomBestDistSq;
+            return new BotDecision(commands, memory with { BloomNoProgressTicks = noProgress, BloomBestDistSq = bestNow, BloomTick = tick }, prng);
         }
 
         // KICK-LEDGER-COOLDOWN-GAP (finding f-13b5c33a, the WoW kick rotation: a melee kicker walks in to reach the caster):
@@ -259,7 +355,8 @@ public static class Bot
         {
             var memory = memories.TryGetValue(id, out var m) ? m : BotMemory.Default();
             var result = bots[id].Decide(view, memory, id, nextPrng, live);
-            commands.AddRange(result.Commands);
+            // R-FACING-2 (b): a targeted cast is preceded by the seat's turn to its target (CastFacing).
+            commands.AddRange(CastFacing.Apply(result.Commands, view.State));
             nextMemories[id] = result.Memory;
             nextPrng = result.Prng;
         }

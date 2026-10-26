@@ -77,14 +77,19 @@ public sealed class AnimReadableTests
     }
 
     [Fact]
-    public void Release_is_short_against_a_cast_bar()
+    public void Hit_presentation_reads_short_against_a_cast_bar()
     {
-        // The shortest chained cast is Flare, 30 ticks (1500 ms): the release may take at most a third of its bar, so
-        // the cast pose still reads for the rest of it.
+        // The shortest chained cast is Flare, 30 ticks (1500 ms). R-ANIM-2 (f): the readability intent (an instant never
+        // reads like a cast) is carried by the hit presentation delay, not by the window: under (b) the clip plays from
+        // frame 0 for its full length, so the window from start to release end is no longer bounded. The delay must be
+        // in 1..300 and under one third of the shortest bar (1500 / 3 = 500).
         foreach (var row in ActorBinding.DefaultRows)
         {
-            var shown = AnimRule.ReleaseEndsMs(row.Clips.Act) - AnimRule.SwingStartMs(row.Clips.Act);
-            Assert.InRange(shown, 1, 500);
+            var clip = row.Clips.Act;
+            Assert.Equal(0, AnimRule.SwingStartMs(clip));
+            var delay = AnimRule.HitPresentationDelayMs(clip);
+            Assert.InRange(delay, 1, 300);
+            Assert.True(delay * 3 < 1500, $"{clip}: hit presentation delay {delay} ms is not under a third of a 1500 ms bar");
         }
     }
 

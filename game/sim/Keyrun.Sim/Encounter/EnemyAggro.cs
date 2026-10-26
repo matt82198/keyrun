@@ -76,6 +76,7 @@ public static class EnemyAggro
         ArgumentNullException.ThrowIfNull(groups);
         ArgumentNullException.ThrowIfNull(engaging);
         HashSet<int>? joining = null;
+        Dictionary<int, string>? groupOf = null;
         foreach (var id in g.ActorIds)
         {
             if (Watcher(state, id) is not { AssistMm: { } radius } enemy)
@@ -83,9 +84,17 @@ public static class EnemyAggro
                 continue;
             }
             joining ??= groups.Where(o => engaging.Contains(o.Id)).SelectMany(o => o.ActorIds).ToHashSet();
+            groupOf ??= GroupOf(groups);
             foreach (var other in state.Actors.Values)
             {
                 if (other.Id == enemy.Id || other.Kind != ActorKind.Enemy || !other.Alive || other.Evading)
+                {
+                    continue;
+                }
+                // R-PATH-5 (p), WoW: an engaged boss group never social-aggros another group's room trash. A boss-group member
+                // is skipped as the source when it is engaged (not idle) or engaging this tick (joining, its idle flag not yet
+                // cleared), and only for a member of a different group.
+                if ((!other.Idle || joining.Contains(other.Id)) && groupOf.TryGetValue(other.Id, out var otherGroup) && IdleWander.IsBossGroup(otherGroup) && otherGroup != g.Id)
                 {
                     continue;
                 }
@@ -96,6 +105,20 @@ public static class EnemyAggro
             }
         }
         return false;
+    }
+
+    // Actor id -> the id of the group it belongs to (every group, boss or trash).
+    private static Dictionary<int, string> GroupOf(IReadOnlyList<AggroGroup> groups)
+    {
+        var map = new Dictionary<int, string>();
+        foreach (var o in groups)
+        {
+            foreach (var id in o.ActorIds)
+            {
+                map[id] = o.Id;
+            }
+        }
+        return map;
     }
 
     // A member that can notice anything: alive, idle (not yet engaged), not evading.

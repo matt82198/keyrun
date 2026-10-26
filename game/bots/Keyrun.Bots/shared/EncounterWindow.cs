@@ -65,13 +65,12 @@ public static class EncounterWindow
             {
                 return null;
             }
-            var selfMm = PointMm.Of(self.Pos);
             var dx = patch.Pos.X - self.Pos.X;
             var dz = patch.Pos.Z - self.Pos.Z;
             var inside = patch.RadiusMm * InsideBp / 10000;
             if ((dx * dx) + (dz * dz) > inside * inside || Shadowed(state, key, self))
             {
-                var move = Moves.MoveToward(tick, self.Id, selfMm, PointMm.Of(patch.Pos));
+                var move = PathMoves.Toward(view, tick, self, patch.Pos);
                 return move is null ? Array.Empty<Command>() : new Command[] { move };
             }
             foreach (var (id, target) in usable)
@@ -82,6 +81,28 @@ public static class EncounterWindow
                 }
             }
             return Array.Empty<Command>();
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// R-PATH-5 (z): the centre of the encounter floor Window <see cref="Decide"/> acts on: the first open encounter Window in
+    /// JS key order (<see cref="Decide"/> returns on that Window whether or not it walks), or null when none is open.
+    /// Read-only; it does not change the decision.
+    /// </summary>
+    /// <param name="view">This tick's view.</param>
+    /// <returns>The Window centre, or null.</returns>
+    public static Vec3? BloomTarget(BotView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        var state = view.State;
+        foreach (var key in state.FloorWindows.Keys)
+        {
+            var patch = state.FloorWindows[key];
+            if (patch.EndsTick > state.Tick && string.Equals(patch.SetupClass, EncounterSetupClass, StringComparison.Ordinal))
+            {
+                return patch.Pos;
+            }
         }
         return null;
     }

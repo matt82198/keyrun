@@ -311,6 +311,24 @@ public sealed record RunSetup(long Seed, IReadOnlyList<PartyMemberSpec> Party, D
             case "combo":
                 OnlyKeys(o, what, "op", "comboTable");
                 return new ComboOp(S("comboTable"));
+            case "displace":
+                OnlyKeys(o, what, "op", "distanceMm", "freesBinds", "towardTarget");
+                return new DisplaceOp(L("distanceMm"), OptBool(o, "freesBinds", what) ?? false, OptBool(o, "towardTarget", what) ?? false);
+            case "pull":
+                OnlyKeys(o, what, "op", "distanceMm");
+                return new PullOp(L("distanceMm"));
+            case "partyEffect":
+                OnlyKeys(o, what, "op", "effectId", "durationTicks", "stacks");
+                return new PartyEffectOp(S("effectId"), I("durationTicks"), L("stacks"));
+            case "cloud":
+                OnlyKeys(o, what, "op", "effectId", "durationTicks", "radiusMm");
+                return new CloudOp(S("effectId"), I("durationTicks"), L("radiusMm"));
+            case "closerBurn":
+                OnlyKeys(o, what, "op", "maxHealthBp", "capBp", "school");
+                return new CloserBurnOp(L("maxHealthBp"), L("capBp"), S("school"));
+            case "damagePct":
+                OnlyKeys(o, what, "op", "maxHealthBp", "school");
+                return new DamagePctOp(L("maxHealthBp"), S("school"));
             default:
                 throw new FormatException($"{what}.op '{kind}' is not an op this reader knows");
         }
