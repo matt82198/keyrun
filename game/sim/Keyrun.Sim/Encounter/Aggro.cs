@@ -53,7 +53,7 @@ public static class Aggro
             .Select((p, i) => new AggroGroup(
                 p.Id,
                 i,
-                p.Spawns.Select(s => s.ActorId).ToList(),
+                p.Spawns.Select(s => s.ActorId).Concat(p.Adds).ToList(),
                 Pulls.RingCenter(p),
                 p.AggroMm,
                 p.Links))

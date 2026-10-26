@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Keyrun.Content;
 using Keyrun.Sim.Core;
@@ -51,7 +52,9 @@ public sealed record ObjectiveLine(int Number, int Total, string PullId, string 
             ? Focus == ObjectiveFocus.Pull
                 ? FormattableString.Invariant($"Boss {Segment}/{Segments}: {Name}")
                 : FormattableString.Invariant($"Segment {Segment}/{Segments}: toward {Name}")
-            : new PullHeader(Number, Total, Name).Title;
+            : Focus == ObjectiveFocus.Pack
+                ? Name
+                : new PullHeader(Number, Total, Name).Title;
 
     /// <summary>
     /// The task under it: "Defeat the pull: 3 of 3 remain", or "Defeat the pack" while an engaged trash pack is what
@@ -129,27 +132,59 @@ public static class ObjectiveModel
         var remaining = run.State.Actors.Values.Count(a => ids.Contains(a.Id) && a.Alive && a.Kind == ActorKind.Enemy);
         // An actor not spawned yet is still owed: count the spawns the state does not hold yet.
         remaining += ids.Count(id => !run.State.Actors.ContainsKey(id));
+        // R-HUD-PULL-1 (d) (P0, wrong data, event seq 409): the boss header never shows while engaged live non-boss trash
+        // exists. The header names the pull or pack that trash belongs to instead. Boss adds still count as the boss pull.
+        if (LayoutDef.IsBossPull(pull.Id) && EngagedLiveTrashOwner(run, registry, content, contentIds, total, name, segment, segments) is { } owner)
+        {
+            return owner;
+        }
         // f-c5fb7b31 (P0, wrong data): while the next boss pull is not engaged, its header names the boss but its count
-        // must not describe the boss. Trash is what the party fights: count the engaged pack's living enemies, or hide
-        // the count while trash is alive and no pack is engaged. Never "1 of 1 remain" while trash is alive.
+        // must not describe the boss. Trash is what the party fights: the engaged owner names the header (above); with no
+        // engaged living trash, hide the count while trash is alive. Never "1 of 1 remain" while trash is alive.
         if (LayoutDef.IsBossPull(pull.Id) && !run.Encounter.Engaged.Contains(pull.Id, StringComparer.Ordinal))
         {
             var trash = Aggro.GroupsOf(run.Dungeon, run.State.Tick, run.Content.Packs, run.Content.Layout, run.Content.Patrols)
                 .Where(g => g.PullIndex < 0)
                 .ToList();
-            var engaged = trash.Where(g => run.Encounter.Engaged.Contains(g.Id, StringComparer.Ordinal)).ToList();
-            var engagedSpawned = engaged.Sum(g => g.ActorIds.Count);
-            var engagedLiving = engaged.SelectMany(g => g.ActorIds).Count(id => IsLivingEnemy(run, id));
-            if (engagedLiving > 0)
-            {
-                return new ObjectiveLine(number, total, pull.Id, name, engagedLiving, engagedSpawned, false, ObjectiveFocus.Pack, segment, segments);
-            }
             if (trash.SelectMany(g => g.ActorIds).Any(id => IsLivingEnemy(run, id)))
             {
                 return new ObjectiveLine(number, total, pull.Id, name, remaining, ids.Count, false, ObjectiveFocus.Hidden, segment, segments);
             }
         }
         return new ObjectiveLine(number, total, pull.Id, name, remaining, ids.Count, false, ObjectiveFocus.Pull, segment, segments);
+    }
+
+    /// <summary>
+    /// R-HUD-PULL-1 (d): the first engaged group with a living enemy that is not the boss pull, as the header line that
+    /// names it. Trash pulls come first in route order, then engaged packs and patrols. Null when no engaged non-boss enemy
+    /// is alive. A pack or patrol owner has no pull number (ruling seq 415 F3); the owner is the FIRST engaged living group in GroupsOf order (F2).
+    /// </summary>
+    private static ObjectiveLine? EngagedLiveTrashOwner(Run run, ContentRegistry? registry, Keyrun.Content.DungeonDef? content, List<string> contentIds, int total, string bossName, int segment, int segments)
+    {
+        var groups = Aggro.GroupsOf(run.Dungeon, run.State.Tick, run.Content.Packs, run.Content.Layout, run.Content.Patrols)
+            .Where(g => !LayoutDef.IsBossPull(g.Id) && run.Encounter.Engaged.Contains(g.Id, StringComparer.Ordinal));
+        foreach (var group in groups)
+        {
+            var living = group.ActorIds.Count(id => IsLivingEnemy(run, id));
+            if (living == 0)
+            {
+                continue;
+            }
+            if (group.PullIndex >= 0)
+            {
+                var number = contentIds.IndexOf(group.Id) + 1;
+                var name = content is not null && registry is not null && PullHeader.Of(registry, content, group.Id) is { } header ? header.Name : group.Id;
+                return new ObjectiveLine(number > 0 ? number : group.PullIndex + 1, total, group.Id, name, living, group.ActorIds.Count, false, ObjectiveFocus.Pull);
+            }
+            // Packs carry a display name in the layout; patrols have none, so they read as "Patrol".
+            var packName = registry?.Layout.Packs.FirstOrDefault(p => p.Id == group.Id)?.Name ?? "Patrol";
+            // Ruling seq 415 F1: a multi-segment dungeon keeps "Segment k/n: toward <boss>" (Name stays the boss; only the count is the
+            // owner's). F3: a single-segment pack or patrol line has no pull number (Number 0), it reads the owner name with its count.
+            return segment > 0
+                ? new ObjectiveLine(0, total, group.Id, bossName, living, group.ActorIds.Count, false, ObjectiveFocus.Pack, segment, segments)
+                : new ObjectiveLine(0, total, group.Id, packName, living, group.ActorIds.Count, false, ObjectiveFocus.Pack);
+        }
+        return null;
     }
 
     private static bool IsLivingEnemy(Run run, int actorId) =>

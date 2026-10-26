@@ -21,4 +21,13 @@ public sealed class AnimRunLogTests
         var unchanged = AnimRunLog.Line(actorId: 7, previous: AnimClip.Idle, clip: AnimClip.Idle, tick: 413);
         Assert.Null(unchanged);
     }
+
+    [Fact]
+    public void Bind_time_Idle_is_logged_for_a_boss_that_has_not_moved()
+    {
+        // A boss bound alive with no spawn clip starts Idle from no prior loop (previous None). The line must name the
+        // real actor id at the bind tick, so a pre-engage boss shows one ANIM line instead of silence.
+        var bind = AnimRunLog.Line(actorId: 900, previous: AnimClip.None, clip: AnimClip.Idle, tick: 0);
+        Assert.Equal("ANIM actor=900 clip=Idle ability=- at=0", bind);
+    }
 }
