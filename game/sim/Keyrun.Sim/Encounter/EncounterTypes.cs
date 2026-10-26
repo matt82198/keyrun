@@ -174,6 +174,9 @@ public sealed record PullSpawn(int ActorId, string ClassId, Vec3 Pos, int Yaw, l
     /// <summary>Copied onto ActorState only when present.</summary>
     public long? ChaseMarginMm { get; init; }
 
+    /// <summary>Copied onto ActorState only when present: the collision cylinder radius, mm (R-BOSSROOM-1 b).</summary>
+    public long? RadiusMm { get; init; }
+
     /// <summary>AGGRO-CHASE: the enemy's own aggro radius (<see cref="ActorState.AggroMm"/>), mm; null = the group ring only.</summary>
     public long? AggroMm { get; init; }
 
