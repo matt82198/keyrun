@@ -210,6 +210,13 @@ public sealed record PullDef(string Id, IReadOnlyList<PullSpawn> Spawns)
     /// other branch's pulls are skipped as the pull index reaches them (<see cref="Pulls.CheckPullAdvance"/>).
     /// </summary>
     public string? Branch { get; init; }
+
+    /// <summary>
+    /// R-BOSS-IDLE-ADDS (b): actor ids that belong to this group but are not spawned with it. A boss's Twins spawn on the
+    /// boss's engage (<c>BossRules.AfterCombat</c>), so the boss pull lists them here: they are in the boss's aggro group
+    /// and are engaged exactly when the boss group is. Empty on every pull that spawns all its members.
+    /// </summary>
+    public IReadOnlyList<int> Adds { get; init; } = System.Array.Empty<int>();
 }
 
 /// <summary>A dungeon as the encounter sees it (sim/encounter/pulls.ts:33 DungeonDef).</summary>

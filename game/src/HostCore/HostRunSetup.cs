@@ -226,6 +226,8 @@ public sealed partial record HostRunSetup(
         var clauses = registry.Clauses.ToDictionary(kv => kv.Key, kv => ToSim(kv.Value), StringComparer.Ordinal);
         var bossConfigs = bossSlots.Select(s => BuildBossConfig(registry, s.Def, keyLevel, Affixes.HealthBp(affixTable, affixes, bossSide: true), s.ActorId)).ToList();
         var boss = bossConfigs[0];
+        // R-BOSS-IDLE-ADDS (b): each boss's Twins belong to its pull's aggro group, so they engage with the boss.
+        dungeon = WithBossAdds(dungeon, bossConfigs);
 
         // Lane NAV-CORE (STATE.md D18): the dungeon's rooms and corridors. Pulls stand in their rooms, the party in the
         // Entrance; every pull stands idle from tick 0 and engages on its aggro ring, along one open path (STATE.md D44).
