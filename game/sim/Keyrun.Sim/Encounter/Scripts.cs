@@ -354,6 +354,9 @@ public static class Scripts
                 fired.Add((j, starts));
                 if (!starts)
                 {
+                    // SAME-TICK-STEPS (f-7947b969, ruling R-STEP-1): a refused step is delayed, never skipped. It is re-queued
+                    // exactly as the busy path re-queues it, so it fires on the first tick WillStart allows.
+                    waiting.Add(j);
                     continue;
                 }
                 if (def is not null && def.CooldownTicks > 0 && def.Charges <= 1)
