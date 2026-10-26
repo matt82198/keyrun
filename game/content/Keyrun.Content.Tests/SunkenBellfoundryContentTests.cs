@@ -91,10 +91,11 @@ public sealed class SunkenBellfoundryContentTests
         Assert.All(points, p => Assert.True(p > 0));
         var shortest = Segments * MinRoomsPerBranch;
         var worst = points.Min() * shortest;
-        Assert.True(worst > Reg.Forces.Required,
-            $"{shortest} rooms of the smallest pack ({points.Min()}) give {worst}, not above the {Reg.Forces.Required} bar");
+        int required = Reg.ForcesFor(Id).Required;
+        Assert.True(worst > required,
+            $"{shortest} rooms of the smallest pack ({points.Min()}) give {worst}, not above the {required} bar");
         // And no pack is a whole segment on its own: big pulls are chosen by chaining, not handed out by one pack.
-        Assert.True(points.Max() * Segments < Reg.Forces.Required, $"the biggest pack ({points.Max()}) clears a third of the bar alone");
+        Assert.True(points.Max() * Segments < required, $"the biggest pack ({points.Max()}) clears a third of the bar alone");
     }
 
     [Fact(DisplayName = "D66 huge pulls: at least three pack pairs are built to be chain-pulled, both ways, with a note")]

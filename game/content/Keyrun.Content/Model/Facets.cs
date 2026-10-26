@@ -102,6 +102,26 @@ public sealed record ContentRegistry
     /// <summary>The Forces bar size, per-enemy points and the route (forces.json; C#-only, BIBLE section 9.2).</summary>
     public required ForcesTable Forces { get; init; }
 
+    /// <summary>
+    /// Every dungeon's forces table by dungeon id (forces/&lt;dungeon&gt;.json; the Hollow Vault's entry is <see cref="Forces"/>).
+    /// Empty when a registry is built by hand; <see cref="ForcesFor"/> then answers only for the Hollow Vault.
+    /// </summary>
+    public ValueMap<ForcesTable> ForcesByDungeon { get; init; } = new();
+
+    /// <summary>
+    /// The forces table of <paramref name="dungeonId"/>: the bar size and route that dungeon fills. The Sunken Bellfoundry's bar
+    /// is its own file, so editing the Hollow Vault's Required never moves it.
+    /// </summary>
+    /// <param name="dungeonId">The dungeon, e.g. <c>hollow-vault</c> or <c>sunken-bellfoundry</c>.</param>
+    /// <exception cref="System.Collections.Generic.KeyNotFoundException">No forces table for that dungeon.</exception>
+    public ForcesTable ForcesFor(string dungeonId)
+    {
+        System.ArgumentNullException.ThrowIfNull(dungeonId);
+        if (ForcesByDungeon.TryGetValue(dungeonId, out ForcesTable? table)) return table;
+        if (Forces.Route.DungeonId == dungeonId) return Forces;
+        throw new System.Collections.Generic.KeyNotFoundException("no forces table for dungeon \"" + dungeonId + "\"");
+    }
+
     /// <summary>The end-of-run completion roll's drop rates and slots (completion.json; C#-only, R-ROLL-1, BIBLE s1).</summary>
     public required CompletionTable Completion { get; init; }
 
