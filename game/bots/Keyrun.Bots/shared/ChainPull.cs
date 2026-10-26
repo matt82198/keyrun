@@ -98,14 +98,68 @@ public static class ChainPull
         }
         var blocked = plan.Forces.ChainBlocked;
         var engaged = state.Actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle).ToList();
+        if (engaged.Count == 0 || engaged.Any(a => blocked.Contains(a.ClassId)))
+        {
+            return null;
+        }
+        // G2.5 / f-7b374e72: a gather spot whose engaged group is still on the field lets the tank tag the next pack of that
+        // gather at once, bypassing the health hold, so the tank runs ahead to grab the gather's packs instead of fighting the
+        // first pack at its post. No gather (or no engaged gather group) leaves the rule below unchanged.
+        if (GatherNext(state, layout, plan, leader, engaged) is { } gathered)
+        {
+            return gathered;
+        }
         // A lone straggler is the pack's last living member: the chain opens on it regardless of its health bar, so one
         // high-HP enemy cannot hold the chain shut (WoW M+: pull when the current pack is nearly dead).
-        if (engaged.Count == 0 || engaged.Any(a => blocked.Contains(a.ClassId)) ||
-            (engaged.Count > 1 && engaged.Sum(a => a.Health) * 100 > EngagedHealthPct * engaged.Sum(a => a.MaxHealth)))
+        if (engaged.Count > 1 && engaged.Sum(a => a.Health) * 100 > EngagedHealthPct * engaged.Sum(a => a.MaxHealth))
         {
             return null;
         }
         return NextGroup(state, layout, plan, leader);
+    }
+
+    /// <summary>
+    /// G2.5 / f-7b374e72: the next pending group of the first gather whose engaged group is on the field. A gather is engaged
+    /// when one of its <see cref="GatherSpot.GroupIds"/> holds a living engaged enemy. Its next group is the first group in the
+    /// gather's own <see cref="GatherSpot.GroupIds"/> order that still has an idle member and holds no engaged enemy (an engaged
+    /// group with an idle straggler is the current fight, never its own next gather), within the same bounds as
+    /// <see cref="NextGroup"/> (not behind the leader, within <see cref="ReachMm"/>, no patrol on the way, no elite or boss).
+    /// Null when no gather applies.
+    /// </summary>
+    private static AggroGroup? GatherNext(SimState state, NavLayout layout, PullPlan plan, ActorState leader, IReadOnlyList<ActorState> engaged)
+    {
+        var reach = HighBox(layout, leader.Pos);
+        var pick = ForcesPlanner.NextPackPoint(state, layout, plan, leader);
+        foreach (var gather in plan.Gathers)
+        {
+            var holdsEngaged = plan.Groups.Any(g => gather.GroupIds.Contains(g.Id) && g.ActorIds.Any(id => engaged.Any(e => e.Id == id)));
+            if (!holdsEngaged)
+            {
+                continue;
+            }
+            foreach (var id in gather.GroupIds)
+            {
+                var g = plan.Groups.FirstOrDefault(x => x.Id == id);
+                // F3: a gather never returns a pending pack the forces plan does not want (the same predicate NextGroup uses).
+                if (g is null || !Wanted(g, pick) || !Pending(state, g) || HoldsBlocked(state, g, plan.Forces.ChainBlocked))
+                {
+                    continue;
+                }
+                // F1: a group with an engaged member is the current fight, not the next gather.
+                if (g.ActorIds.Any(aid => engaged.Any(e => e.Id == aid)))
+                {
+                    continue;
+                }
+                var box = layout.BoxIndexAt(g.Center);
+                var d = Dist2(g.Center, leader.Pos);
+                if (box < 0 || box < reach || d > ReachMm * ReachMm || PatrolOnPath(state, plan, leader.Pos, g.Center))
+                {
+                    continue;
+                }
+                return g;
+            }
+        }
+        return null;
     }
 
     /// <summary>
@@ -130,8 +184,7 @@ public static class ChainPull
         var bestDist = long.MaxValue;
         foreach (var g in plan.Groups)
         {
-            var wanted = g.PullIndex >= 0 || (pick is { } p && g.Center.Equals(p));
-            if (!wanted || !Pending(state, g) || HoldsBlocked(state, g, plan.Forces.ChainBlocked))
+            if (!Wanted(g, pick) || !Pending(state, g) || HoldsBlocked(state, g, plan.Forces.ChainBlocked))
             {
                 continue;
             }
@@ -206,6 +259,12 @@ public static class ChainPull
         var ez = p.Z - (a.Z + (dz * t / len2));
         return (ex * ex) + (ez * ez);
     }
+
+    /// <summary>
+    /// The forces plan wants a group when it is one of the dungeon's own pulls (PullIndex at or above zero) or the planner's
+    /// next pick, the pack whose centre is <paramref name="pick"/>. Shared by <see cref="NextGroup"/> and <see cref="GatherNext"/>.
+    /// </summary>
+    private static bool Wanted(AggroGroup g, Vec3? pick) => g.PullIndex >= 0 || (pick is { } p && g.Center.Equals(p));
 
     private static bool Pending(SimState state, AggroGroup g) =>
         g.ActorIds.Any(id => state.Actors.TryGetValue(id, out var a) && a.Alive && a.Idle);
