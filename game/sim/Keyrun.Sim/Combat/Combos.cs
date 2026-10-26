@@ -305,7 +305,7 @@ public static class Combos
                 }
             }
         }
-        var reduction = closer.Kind == ActorKind.Player ? Math.Max(down, Effects.PlayerDamageTakenFloorBp) : down;
+        var reduction = closer.Kind == ActorKind.Player ? Effects.FloorPlayerDamageTakenBp(closer, effectDefs, down) : down;
         var weighted = weighting is null ? raw : weighting(raw);
         var doneBp = Effects.AggregateModifiers(closer, effectDefs).DamageDoneBp;
         var amplified = Math.Min(cap, Damage.ApplyModifiers(weighted, doneBp, up));

@@ -39,6 +39,37 @@ public static class Effects
     /// </summary>
     public const long PlayerDamageTakenFloorBp = -7500;
 
+    /// <summary>
+    /// f-fe32ef35 (Matt 2026-10-25): an ability with a cooldown of at least 2400 ticks (120 s at 20 Hz, the shortest
+    /// WoW tank major, Ardent Defender) is a major cooldown; the damageTakenBp of the effects its cast applies is exempt
+    /// from <see cref="PlayerDamageTakenFloorBp"/>. Routine defensives and any stack of them stay floored.
+    /// </summary>
+    public const int MajorCooldownTicks = 2400;
+
+    /// <summary>
+    /// The player floor on a damageTakenBp total (f-fe32ef35): the non-major part is floored at
+    /// <see cref="PlayerDamageTakenFloorBp"/>, then the negative bp of <see cref="EffectInstance.Major"/> effects is
+    /// added back unfloored.
+    /// </summary>
+    /// <param name="actor">The player hit.</param>
+    /// <param name="defs">Effect definitions by id.</param>
+    /// <param name="totalBp">Its damageTakenBp total (or reduction part), which includes every major effect's bp.</param>
+    /// <returns>The floored total.</returns>
+    public static long FloorPlayerDamageTakenBp(ActorState actor, IReadOnlyDictionary<string, EffectDef> defs, long totalBp)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(defs);
+        long majorBp = 0;
+        foreach (var inst in actor.Effects)
+        {
+            if (inst.Major && defs.TryGetValue(inst.EffectId, out var def) && def.Modifiers.DamageTakenBp is { } bp && bp < 0)
+            {
+                majorBp += bp * inst.Stacks;
+            }
+        }
+        return Math.Max(totalBp - majorBp, PlayerDamageTakenFloorBp) + majorBp;
+    }
+
     /// <summary>The <see cref="DamagePctOp"/> amount: floor(maxHealth * bp / 10000), never negative.</summary>
     /// <param name="target">The actor hit.</param>
     /// <param name="maxHealthBp">Share of its max health, bp.</param>
@@ -68,7 +99,8 @@ public static class Effects
     /// <param name="durationTicks">Duration.</param>
     /// <param name="stacks">Stacks to add.</param>
     /// <param name="now">Current tick.</param>
-    public static void ApplyEffectInstance(ActorState actor, EffectDef def, int sourceId, int durationTicks, long stacks, int now)
+    /// <param name="major">Whether a major-cooldown cast applies it (f-fe32ef35); the latest application sets the flag.</param>
+    public static void ApplyEffectInstance(ActorState actor, EffectDef def, int sourceId, int durationTicks, long stacks, int now, bool major = false)
     {
         var delayedEvent = def.Periodic is not null && durationTicks <= def.Periodic.EveryTicks;
         var existing = delayedEvent ? null : actor.Effects.Find(e => e.EffectId == def.Id && e.SourceId == sourceId);
@@ -76,6 +108,7 @@ public static class Effects
         {
             existing.Stacks = Math.Min(def.MaxStacks, existing.Stacks + stacks);
             existing.EndsTick = now + durationTicks;
+            existing.Major = major;
             if (def.Periodic is not null && existing.NextPeriodicTick is null)
             {
                 existing.NextPeriodicTick = now + def.Periodic.EveryTicks;
@@ -89,6 +122,7 @@ public static class Effects
             Stacks = Math.Min(def.MaxStacks, Math.Max(1, stacks)),
             EndsTick = now + durationTicks,
             NextPeriodicTick = def.Periodic is not null ? now + def.Periodic.EveryTicks : null,
+            Major = major,
         });
     }
 

@@ -74,7 +74,7 @@ public static partial class Casting
         var isKick = false;
         foreach (var target in targets)
         {
-            landed |= ApplyEffects(state, actor, target, def.Effects, ctx, emit);
+            landed |= ApplyEffects(state, actor, target, def.Effects, ctx, emit, def.CooldownTicks >= Effects.MajorCooldownTicks);
             if (taunt)
             {
                 var holderBefore = target.HolderId;
@@ -122,7 +122,7 @@ public static partial class Casting
     /// mixed area resolves hostile, so the Chanter's Cadence (Mend) HoT ticked on the Choir Acolyte and the Pair in
     /// policy playtests. Every other op on the same ability (damage, the Attuned Window, a slow) still lands.
     /// </summary>
-    private static bool ApplyEffects(SimState state, ActorState source, ActorState target, IReadOnlyList<EffectOp> ops, CastContext ctx, Action<SimEvent> emit)
+    private static bool ApplyEffects(SimState state, ActorState source, ActorState target, IReadOnlyList<EffectOp> ops, CastContext ctx, Action<SimEvent> emit, bool major)
     {
         var interrupted = false;
         var abilityBp = Threat.AbilityCoefficientBp(ops);
@@ -149,7 +149,7 @@ public static partial class Casting
                     if (ctx.Effects.TryGetValue(a.EffectId, out var effDef) &&
                         (target.Kind == source.Kind || EffectsRemove.PolarityOf(effDef) != EffectPolarity.Beneficial))
                     {
-                        Effects.ApplyEffectInstance(target, effDef, source.Id, a.DurationTicks, a.Stacks, state.Tick);
+                        Effects.ApplyEffectInstance(target, effDef, source.Id, a.DurationTicks, a.Stacks, state.Tick, major);
                     }
                     break;
                 case RemoveEffectOp r:

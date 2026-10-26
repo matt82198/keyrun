@@ -88,6 +88,12 @@ public sealed class EffectInstance
     /// <summary>Next periodic tick, or null for a non-periodic effect.</summary>
     public int? NextPeriodicTick { get; set; }
 
+    /// <summary>
+    /// f-fe32ef35: true when the latest application came from a cast of an ability whose cooldown is at least
+    /// <see cref="Combat.Effects.MajorCooldownTicks"/>. Only such effects' damageTakenBp may pass the player floor.
+    /// </summary>
+    public bool Major { get; set; }
+
     /// <summary>A field-for-field copy.</summary>
     public EffectInstance Clone() => (EffectInstance)MemberwiseClone();
 }
