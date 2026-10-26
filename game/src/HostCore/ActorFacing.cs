@@ -70,9 +70,12 @@ public static class ActorFacing
     /// keeps the sim facing (they resolve along <see cref="ActorState.Yaw"/>, so any other facing would misreport where
     /// they land). A target or circle cast faces its live cast target (<see cref="CastFacing"/>). Otherwise a seat the
     /// player steers (<paramref name="followsInput"/>) keeps <see cref="SwingFacing"/>'s rule (its facing is the player's
-    /// camera), and every other actor with a live target other than itself faces it, whether it is attacking, between
-    /// attacks or just aggroed. An actor with no usable target keeps <see cref="ActorState.Yaw"/>, which is its movement
-    /// facing while it moves and its last facing while it stands still.
+    /// camera). Every other actor with a live <see cref="ActorState.HolderId"/> other than itself faces that holder, the
+    /// actor its threat is held by, so an aggroed enemy faces the player it is engaged with even when its
+    /// <see cref="ActorState.TargetId"/> is a stale target. Failing that, an actor with a live target other than itself
+    /// faces the target, whether it is attacking, between attacks or just aggroed. An actor with no usable holder or
+    /// target keeps <see cref="ActorState.Yaw"/>, which is its movement facing while it moves and its last facing while
+    /// it stands still.
     /// </summary>
     /// <param name="state">The sim state the actor is in.</param>
     /// <param name="actor">The actor drawn.</param>

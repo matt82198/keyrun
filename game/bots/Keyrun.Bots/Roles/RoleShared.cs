@@ -224,6 +224,28 @@ public static class RoleShared
     private static InterruptAssignment? AssignedKick(BotView view, ActorState self, EffectiveKit kit)
     {
         var tick = view.State.Tick;
+        if (ResolveKickAssignment(view) is not { } assignment || assignment.KickerId != self.Id)
+        {
+            return null;
+        }
+        // BOT-KICK-TIMING: in the dungeon (a layout run) the assigned kicker holds until Ledger.KickOpensTick, after a
+        // human reaction and into the back half of the cast, so its bar is seen. Inert in the oracle runner (no layout).
+        if (view.Layout is not null && tick < Ledger.KickOpensTick(view.State.Actors[assignment.TargetId]))
+        {
+            return null;
+        }
+        return assignment;
+    }
+
+    /// <summary>
+    /// The party-wide kick ledger's assignment for the current tick, regardless of which seat it names and whether the kick
+    /// window has opened. Null when no enemy cast is kickable by an eligible seat.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <returns>The assignment, or null.</returns>
+    private static InterruptAssignment? ResolveKickAssignment(BotView view)
+    {
+        var tick = view.State.Tick;
         // KICK-LEDGER-PARTY-WIDE (R-K4-5): the ledger is the party's in every setup, oracle runs included, so exactly one seat
         // is named per enemy cast across all interrupt-capable seats (Ledger.ResolvePartyInterrupt, same tiebreak as the
         // layout run). Each seat carries whether its own interrupt is off the GCD (main #370, f-80b5cf16: a gcdTicks-0
@@ -240,19 +262,86 @@ public static class RoleShared
             .Where(s => !string.IsNullOrEmpty(s.Kit.InterruptAbilityId))
             .Select(s => (s.Id, s.Kit.InterruptAbilityId!, InterruptRangeMm(view, s.Kit.InterruptAbilityId!), Readiness.IsOffGcd(s.Kit, s.Kit.InterruptAbilityId!)))
             .ToList();
-        var assignment = Ledger.ResolvePartyInterrupt(view.State.Actors, seats, tick, priority, view.PullPlan);
-        if (assignment is null || assignment.KickerId != self.Id)
-        {
-            return null;
-        }
-        // BOT-KICK-TIMING: in the dungeon (a layout run) the assigned kicker holds until Ledger.KickOpensTick, after a
-        // human reaction and into the back half of the cast, so its bar is seen. Inert in the oracle runner (no layout).
-        if (view.Layout is not null && tick < Ledger.KickOpensTick(view.State.Actors[assignment.TargetId]))
-        {
-            return null;
-        }
-        return assignment;
+        return Ledger.ResolvePartyInterrupt(view.State.Actors, seats, tick, priority, view.PullPlan);
     }
+
+    /// <summary>
+    /// R-KICKLOCK-1 (G2.4): the latest kick offset into an enemy cast, in ticks. A kick landing later than this many ticks
+    /// into the cast is too late; the seed 6 Choir heal (80 ticks) is kickable through its 60th tick.
+    /// </summary>
+    public const int KickLatestOffsetTicks = 60;
+
+    /// <summary>
+    /// R-KICKLOCK-1: the tick by which <paramref name="self"/>'s own casts must complete while it is the ledger's named kicker
+    /// of an owed kick whose window has not opened yet (the seat holds the kick, so its own cast must not run past it). Null
+    /// when the seat is not the named kicker, the kick is already open, or there is no layout (the oracle runner keeps its
+    /// frozen behaviour). The deadline is the cast start plus <see cref="KickLatestOffsetTicks"/>.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">Deciding actor.</param>
+    /// <returns>The completion deadline tick, or null.</returns>
+    public static int? OwedKickDeadline(BotView view, ActorState self)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        if (view.Layout is null || !self.Alive || ResolveKickAssignment(view) is not { } assignment || assignment.KickerId != self.Id)
+        {
+            return null;
+        }
+        var caster = view.State.Actors[assignment.TargetId];
+        if (view.State.Tick >= Ledger.KickOpensTick(caster) || caster.CastStartTick is not { } start || !CastInterruptible(view, caster))
+        {
+            return null;
+        }
+        return start + KickLatestOffsetTicks;
+    }
+
+    /// <summary>
+    /// R-KICKLOCK-1 (KICK-HOLD-UNINTERRUPTIBLE): whether the cast <paramref name="caster"/> is casting can be kicked, read from the
+    /// same content flag the sim applies (<c>AbilityDef.Interruptible</c>, Casting.Stop). A cast with no content entry is treated as
+    /// kickable, as before this flag was read.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="caster">Enemy whose cast is tested.</param>
+    /// <returns>False only when the content marks the cast <c>interruptible: false</c>.</returns>
+    private static bool CastInterruptible(BotView view, ActorState caster) =>
+        caster.CastId is not { } castId
+        || view.Kits.Content is not { } content
+        || !content.Abilities.TryGetValue(castId, out var def)
+        || def.Interruptible;
+
+    /// <summary>
+    /// R-KICKLOCK-1: whether <paramref name="command"/> may be issued without its own cast completing past the owed kick's
+    /// deadline (<see cref="OwedKickDeadline"/>). Non-cast commands always pass; a cast passes when it completes by the
+    /// deadline, its duration read from the content registry (zero when the ability has no content entry).
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">Deciding actor.</param>
+    /// <param name="command">Candidate command.</param>
+    /// <returns>True when the command may be issued.</returns>
+    public static bool FitsOwedKick(BotView view, ActorState self, Command command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command is not CastCommand cast || OwedKickDeadline(view, self) is not { } deadline)
+        {
+            return true;
+        }
+        var castTicks = view.Kits.Content is { } content && content.Abilities.TryGetValue(cast.AbilityId, out var def)
+            ? Math.Max(0, def.CastTicks)
+            : 0;
+        return view.State.Tick + castTicks <= deadline;
+    }
+
+    /// <summary>
+    /// R-KICKLOCK-1: whether ability <paramref name="abilityId"/> may be cast now (its completion tick is at or before the owed
+    /// kick's deadline). Used by the rotation pickers to skip a candidate that would run past the kick.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">Deciding actor.</param>
+    /// <param name="abilityId">Candidate ability.</param>
+    /// <returns>True when the cast fits.</returns>
+    public static bool FitsOwedKick(BotView view, ActorState self, string abilityId) =>
+        FitsOwedKick(view, self, new CastCommand(view.State.Tick, self.Id, abilityId));
 
     /// <summary>The tier-one test of <see cref="Ledger.ResolvePartyInterrupt"/>: cooldown ended, off the GCD, in range.</summary>
     private static bool CanPressInterrupt(BotView view, ActorState self, string interruptId, EffectiveKit kit, ActorState target) =>

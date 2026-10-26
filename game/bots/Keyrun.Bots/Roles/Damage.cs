@@ -40,7 +40,7 @@ public sealed class DamageRole : IRole
         {
             return commands;
         }
-        var payoffId = kit.PayoffAbilityIds.FirstOrDefault(id => RoleShared.ReadyAndAffordable(self, id, tick, kit));
+        var payoffId = kit.PayoffAbilityIds.FirstOrDefault(id => RoleShared.ReadyAndAffordable(self, id, tick, kit) && RoleShared.FitsOwedKick(view, self, id));
         if (payoffId is null)
         {
             return commands;
@@ -75,7 +75,7 @@ public sealed class DamageRole : IRole
         {
             return commands;
         }
-        var setupId = kit.SetupAbilityIds.FirstOrDefault(id => RoleShared.ReadyAndAffordable(self, id, tick, kit));
+        var setupId = kit.SetupAbilityIds.FirstOrDefault(id => RoleShared.ReadyAndAffordable(self, id, tick, kit) && RoleShared.FitsOwedKick(view, self, id));
         if (setupId is null)
         {
             return commands;
@@ -163,7 +163,14 @@ public sealed class DamageRole : IRole
             return Reasons.TagAll(setup, "damage:setup");
         }
         var arranged = AoeGate.Filter(view, self, Fillers.ArrangeFillers(view, self, kit, kit.Rotation, self.TargetId), self.TargetId);
-        var rotationKit = kit with { Rotation = arranged.Where(id => !LockAnswer.HoldsSetup(view, self, self.TargetId, id) || !kit.SetupAbilityIds.Contains(id)).ToList() };
+        // R-KICKLOCK-1: a rotation ability (or resource dump) that would complete past an owed kick's deadline is skipped, so
+        // the rotation picks the next ability that fits, or holds.
+        var rotationKit = kit with
+        {
+            Rotation = arranged.Where(id => (!LockAnswer.HoldsSetup(view, self, self.TargetId, id) || !kit.SetupAbilityIds.Contains(id))
+                && RoleShared.FitsOwedKick(view, self, id)).ToList(),
+            ResourceDumpAbilityIds = kit.ResourceDumpAbilityIds.Where(id => RoleShared.FitsOwedKick(view, self, id)).ToList(),
+        };
         if (PickResourceAwareRotation(rotationKit, self, tick) is { } abilityId)
         {
             return Reasons.TagAll(AoeGate.PressCommands(view, self, abilityId, self.TargetId), "damage:rotation");
