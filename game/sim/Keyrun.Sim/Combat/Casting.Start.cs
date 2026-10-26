@@ -96,10 +96,7 @@ public static partial class Casting
                 actor.Yaw = Fixed.YawBetween(actor.Pos, aimed.Pos);
             }
         }
-        if (!overheat)
-        {
-            Threat.AddMomentumSpentThreat(state, actor, def.Cost);
-        }
+        // R-THREAT-2 (THREAT-MODEL 7.1): Momentum spent makes no threat. Reckoning's coefficient carries the spender's threat.
         return null;
     }
 

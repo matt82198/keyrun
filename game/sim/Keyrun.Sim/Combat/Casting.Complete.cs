@@ -125,15 +125,16 @@ public static partial class Casting
     private static bool ApplyEffects(SimState state, ActorState source, ActorState target, IReadOnlyList<EffectOp> ops, CastContext ctx, Action<SimEvent> emit)
     {
         var interrupted = false;
+        var abilityBp = Threat.AbilityCoefficientBp(ops);
         foreach (var op in ops)
         {
             switch (op)
             {
                 case DamageOp d:
-                    Mitigation.DealDamage(state.Tick, source, target, d.Amount, ctx.Effects, emit, source.Id, ctx.Hooks.Weighting, d.School);
+                    Threat.AddDamageThreat(target, source, Mitigation.DealDamage(state.Tick, source, target, d.Amount, ctx.Effects, emit, source.Id, ctx.Hooks.Weighting, d.School).ModifiedAmount, abilityBp);
                     break;
                 case DamagePctOp p:
-                    Mitigation.DealDamage(state.Tick, source, target, Effects.PctOfMaxHealth(target, p.MaxHealthBp), ctx.Effects, emit, source.Id, ctx.Hooks.Weighting, p.School);
+                    Threat.AddDamageThreat(target, source, Mitigation.DealDamage(state.Tick, source, target, Effects.PctOfMaxHealth(target, p.MaxHealthBp), ctx.Effects, emit, source.Id, ctx.Hooks.Weighting, p.School).ModifiedAmount, abilityBp);
                     break;
                 case PullOp pull:
                     Movement.PullToward(target, source, pull.DistanceMm);
@@ -141,7 +142,7 @@ public static partial class Casting
                 case HealOp h:
                     if (target.Kind == source.Kind)
                     {
-                        Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit);
+                        Threat.AddHealingThreat(state, source, target, Damage.ApplyHeal(state.Tick, target, h.Amount, source.Id, emit));
                     }
                     break;
                 case ApplyEffectOp a:
@@ -161,8 +162,8 @@ public static partial class Casting
                         Effects.RemoveEffectInstances(RemoveEffectHolder(source, target, r.EffectId, ctx.Overheat), r.EffectId);
                     }
                     break;
-                case ThreatOp t:
-                    Threat.AddThreat(target, source.Id, t.Amount ?? 0, t.MultiplierBp);
+                case ThreatOp t when t.Amount is not null:
+                    Threat.AddThreat(target, source.Id, t.Amount.Value, t.MultiplierBp);
                     break;
                 case InterruptOp:
                     interrupted |= InterruptCast(state, target, source.Id, ctx, emit);

@@ -100,6 +100,61 @@ public static class TankPressure
         return AttackersOf(view, ally) > 0 || (double)ally.Health / ally.MaxHealth < HealerRole.HealThresholdPct;
     }
 
+    /// <summary>R-AGGRO-1 (ab): ally pressure is sticky for this many ticks after the last tick an ally was pressured.</summary>
+    public const int AllyPressureStickyTicks = 60;
+
+    /// <summary>True when any living party member other than the tank is pressured on this tick (<see cref="AllyPressured"/>).</summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">The tank.</param>
+    /// <returns>True while an ally is pressured right now.</returns>
+    public static bool AnyAllyPressuredNow(BotView view, ActorState self)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        return view.State.Actors.Values.Any(a => a.Kind == ActorKind.Player && a.Alive && a.Id != self.Id && AllyPressured(view, a));
+    }
+
+    /// <summary>
+    /// ALLY-VIGIL pool (R-AGGRO-1 ab): true when an ally is pressured now, or was within the last
+    /// <see cref="AllyPressureStickyTicks"/> ticks (<see cref="BotView.LastAllyPressuredTick"/>, kept in <see cref="BotMemory"/>).
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">The tank.</param>
+    /// <returns>True while ally pressure is live or sticky.</returns>
+    public static bool AnyAllyPressured(BotView view, ActorState self)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        return StickyAllyPressure(view) || AnyAllyPressuredNow(view, self);
+    }
+
+    private static bool StickyAllyPressure(BotView view) =>
+        view.LastAllyPressuredTick >= 0 && view.State.Tick - view.LastAllyPressuredTick <= AllyPressureStickyTicks;
+
+    /// <summary>
+    /// ALLY-VIGIL pool (WoW M+: a tank pools resource for its ally save): true when casting <paramref name="abilityId"/>
+    /// now would wait, because an ally is pressured and the cast would leave the tank below the ally-shield spender's cost.
+    /// Free casts (cost 0) and the spender itself are never pooled, and with no ally-shield talent nothing is pooled.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">The tank.</param>
+    /// <param name="kit">Its kit.</param>
+    /// <param name="abilityId">The ability the tank would cast.</param>
+    /// <returns>True when the cast must wait for the pool.</returns>
+    public static bool PoolsForAllySpender(BotView view, ActorState self, EffectiveKit kit, string abilityId)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        ArgumentNullException.ThrowIfNull(kit);
+        if (string.IsNullOrEmpty(kit.AllyShieldAbilityId) || string.Equals(abilityId, kit.AllyShieldAbilityId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+        var reserve = RoleShared.Cost(kit, kit.AllyShieldAbilityId);
+        var cost = RoleShared.Cost(kit, abilityId);
+        return cost > 0 && self.Resource - cost < reserve && AnyAllyPressured(view, self);
+    }
+
     /// <summary>
     /// ALLY-VIGIL: the ally-shield spender (<see cref="EffectiveKit.AllyShieldAbilityId"/>, Vigil with the "ally"
     /// talent) cast on the most pressured ally other than the tank: alive, within the run def's range, not already
@@ -122,11 +177,15 @@ public static class TankPressure
             return null;
         }
         var shieldEffects = new HashSet<string>(def.Effects.OfType<S.ApplyEffectOp>().Select(e => e.EffectId), StringComparer.Ordinal);
-        var target = view.State.Actors.Values
+        var candidates = view.State.Actors.Values
             .Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != self.Id)
             .Where(a => S.Casting.RangeMm(self, a) <= def.Range)
             .Where(a => !a.Effects.Any(e => shieldEffects.Contains(e.EffectId) && e.EndsTick > tick))
-            .Where(a => AllyPressured(view, a))
+            .ToList();
+        // R-AGGRO-1 (ab): an ally pressured now is shielded first; inside the sticky window with nobody pressured this tick,
+        // the lowest-health ally in range is.
+        var pressuredNow = candidates.Where(a => AllyPressured(view, a)).ToList();
+        var target = (pressuredNow.Count > 0 ? pressuredNow : StickyAllyPressure(view) ? candidates : pressuredNow)
             .OrderBy(a => (double)a.Health / a.MaxHealth)
             .ThenBy(a => a.Id)
             .FirstOrDefault();
@@ -180,7 +239,7 @@ public static class TankPressure
         ArgumentNullException.ThrowIfNull(kit);
         var tick = view.State.Tick;
         var id = GroupMitigationAbilityId(view, kit);
-        if (id is null || !UnderPackPressure(view, self) || self.CastId is not null)
+        if (id is null || !UnderPackPressure(view, self) || self.CastId is not null || PoolsForAllySpender(view, self, kit, id))
         {
             return null;
         }
@@ -212,7 +271,10 @@ public static class TankPressure
         // R-AOE-1: Bulwark has a cooldown now, so the rotation list reaches it; it is the group mitigation, pressed under pack
         // pressure by PressureMitigationCommand (D48: a mitigation, not a filler), so it is not also a rotation press.
         var mitigation = GroupMitigationAbilityId(view, kit);
-        var rotation = kit.Rotation.Where(id => !string.Equals(id, sustain, StringComparison.Ordinal) && !string.Equals(id, mitigation, StringComparison.Ordinal)).ToList();
+        var rotation = kit.Rotation
+            .Where(id => !string.Equals(id, sustain, StringComparison.Ordinal) && !string.Equals(id, mitigation, StringComparison.Ordinal))
+            .Where(id => !PoolsForAllySpender(view, self, kit, id))
+            .ToList();
         if (string.IsNullOrEmpty(sustain) || !UnderPackPressure(view, self))
         {
             return rotation;

@@ -236,7 +236,7 @@ public static class TankEngage
     /// distance, id). R-TAUNT-4a (doomed-enemy ordering) was removed by R-TAUNT-5 ship: it broke BotTankTakesHolderTests seed 3
     /// and the tutorial Cinder run. Null when the taunt is not ready, has no ability id, or no loose enemy is in taunt range.
     /// </summary>
-    private static ActorState? TauntTarget(BotView view, ActorState self, EffectiveKit kit)
+    internal static ActorState? TauntTarget(BotView view, ActorState self, EffectiveKit kit)
     {
         if (string.IsNullOrEmpty(kit.TauntAbilityId) || !RoleShared.AbilityReady(self, kit.TauntAbilityId, view.State.Tick, kit))
         {

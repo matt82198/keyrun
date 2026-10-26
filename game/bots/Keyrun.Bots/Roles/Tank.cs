@@ -34,12 +34,28 @@ public sealed class TankRole : IRole
         // names the tank (the sim's default), so UnderPackPressure read it as three attackers and the Warden spent the ticks
         // before the taunt on casts (Brace, then Bulwark's cast time) while the pack hit the party. A healthy tank takes the
         // loose pack first; the pressure casts resume once he holds it.
+        // ALLY-VIGIL priority over take-the-pack: a pressured ally's Vigil shield (AllyShieldCommand) runs before the taunt.
+        // Take-the-pack never returns an empty list: the taunt when ready and in range, else the approach move.
         if (healthPct >= DefensiveThresholdPct && TankEngage.PickLooseEnemy(view.State.Actors, self) is not null)
         {
+            if (TankPressure.AllyShieldCommand(view, self, kit) is { } allyShield)
+            {
+                return new List<Command> { allyShield };
+            }
+            if (TankEngage.TauntTarget(view, self, kit) is { } tauntAt)
+            {
+                return new List<Command> { new CastCommand(tick, self.Id, kit.TauntAbilityId!, tauntAt.Id) };
+            }
+            if (TankEngage.ApproachMove(view, self, kit) is { } approach)
+            {
+                return new List<Command> { approach };
+            }
             return new List<Command>();
         }
         var pressured =healthPct < DefensiveThresholdPct || TankPressure.UnderPackPressure(view, self);
-        if (!string.IsNullOrEmpty(kit.DefensiveAbilityId) && pressured && RoleShared.AbilityReady(self, kit.DefensiveAbilityId, tick, kit))
+        // ALLY-VIGIL pool: a resource-spending defensive waits while an ally is pressured and would drop the tank below Vigil's cost.
+        if (!string.IsNullOrEmpty(kit.DefensiveAbilityId) && pressured && RoleShared.AbilityReady(self, kit.DefensiveAbilityId, tick, kit)
+            && !TankPressure.PoolsForAllySpender(view, self, kit, kit.DefensiveAbilityId))
         {
             return new List<Command> { new CastCommand(tick, self.Id, kit.DefensiveAbilityId) };
         }
@@ -57,12 +73,21 @@ public sealed class TankRole : IRole
         }
         if (!string.IsNullOrEmpty(kit.SelfSustainAbilityId)
             && healthPct < SustainThresholdPct
-            && RoleShared.ReadyAndAffordable(self, kit.SelfSustainAbilityId, tick, kit))
+            && RoleShared.ReadyAndAffordable(self, kit.SelfSustainAbilityId, tick, kit)
+            && !TankPressure.PoolsForAllySpender(view, self, kit, kit.SelfSustainAbilityId))
         {
             return new List<Command> { new CastCommand(tick, self.Id, kit.SelfSustainAbilityId) };
         }
         return new List<Command>();
     }
+
+    /// <summary>True when <paramref name="command"/> repeats a taunt cast or a move already in <paramref name="issued"/>.</summary>
+    private static bool AlreadyIssued(IReadOnlyList<Command> issued, Command command) => command switch
+    {
+        CastCommand cast => issued.OfType<CastCommand>().Any(c => c.AbilityId == cast.AbilityId && c.TargetId == cast.TargetId),
+        MoveCommand => issued.OfType<MoveCommand>().Any(),
+        _ => false,
+    };
 
     /// <summary>tank.ts tankDecide.</summary>
     /// <param name="view">Bot view.</param>
@@ -75,7 +100,8 @@ public sealed class TankRole : IRole
         var tick = view.State.Tick;
         var kit = RoleShared.KitOf(view, self.ClassId);
 
-        if (RoleShared.LedgerKickCommand(view, self, kit) is { } kick)
+        // ALLY-VIGIL pool: a resource-spending kick waits while an ally is pressured and would drop the tank below Vigil's cost.
+        if (RoleShared.LedgerKickCommand(view, self, kit) is { } kick && !TankPressure.PoolsForAllySpender(view, self, kit, kick.AbilityId))
         {
             return new Command[] { Reasons.Tag(kick, "tank:ledger-kick") };
         }
@@ -90,7 +116,7 @@ public sealed class TankRole : IRole
             }
             return new Command[] { Reasons.Tag(escape, "tank:floor-escape") };
         }
-        if (BreakBarKick.Command(view, self, kit) is { } barKick)
+        if (BreakBarKick.Command(view, self, kit) is { } barKick && !TankPressure.PoolsForAllySpender(view, self, kit, barKick.AbilityId))
         {
             return new Command[] { Reasons.Tag(barKick, "tank:break-bar-kick") };
         }
@@ -105,7 +131,8 @@ public sealed class TankRole : IRole
         if (TankEngage.TankEngageCommands(view, self, kit) is { } engage)
         {
             Reasons.TagAll(engage, "tank:engage");
-            defensive.AddRange(engage);
+            // A take-the-pack taunt or approach move already issued from the defensive stage is not repeated by ENGAGE.
+            defensive.AddRange(engage.Where(c => !AlreadyIssued(defensive, c)));
             return defensive;
         }
 
