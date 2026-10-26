@@ -104,13 +104,14 @@ public sealed class ActorAnimator
 
     /// <summary>
     /// Plays the row's spawn clip once from its first frame (the body rising where it spawned); a row without one, or
-    /// whose clip the model lacks, starts in idle instead.
+    /// whose clip the model lacks, starts in idle instead. The idle start passes the actor id and bind tick, so its one
+    /// ANIM line names the actor (an unengaged boss would otherwise log nothing until its first loop change).
     /// </summary>
-    public void PlaySpawn()
+    public void PlaySpawn(int actorId = -1, int tick = -1)
     {
         if (_spawn is null)
         {
-            Play(_idle);
+            Play(_idle, actorId: actorId, tick: tick);
             return;
         }
         _spawning = true;
