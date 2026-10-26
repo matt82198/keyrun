@@ -183,7 +183,8 @@ public sealed class ScoreboardLiveTests
             {
                 continue;
             }
-            var dead = d.Deaths.Count(x => x.Tick <= r.Tick && d.PullActors[current].Contains(x.ActorId));
+            // A reading at state.Tick T is the state before the step tagged T, so events tagged T are not yet visible.
+            var dead = d.Deaths.Count(x => x.Tick < r.Tick && d.PullActors[current].Contains(x.ActorId));
             Assert.True(d.PullActors[current].Count - dead == r.Remain,
                 $"tick {r.Tick}: header says {r.Remain} remain of {current}, the death events say {d.PullActors[current].Count - dead}");
         }
@@ -201,7 +202,8 @@ public sealed class ScoreboardLiveTests
         var total = CountedEnemies(table);
         foreach (var r in d.Readings)
         {
-            var counted = d.Deaths.Where(x => x.Tick <= r.Tick && x.Kind == ActorKind.Enemy && table.ContainsKey(x.ClassId)).ToList();
+            // A reading at state.Tick T is the state before the step tagged T, so events tagged T are not yet visible.
+            var counted = d.Deaths.Where(x => x.Tick < r.Tick && x.Kind == ActorKind.Enemy && table.ContainsKey(x.ClassId)).ToList();
             var points = counted.Sum(x => table[x.ClassId]);
             Assert.True(points * 10000 / required == r.ForcesBp, $"tick {r.Tick}: forces {r.ForcesBp} bp, the death events bank {points} points");
             Assert.True(counted.Count == r.Kills.Killed, $"tick {r.Tick}: kills {r.Kills.Killed}, the death events say {counted.Count}");
