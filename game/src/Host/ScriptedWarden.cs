@@ -235,6 +235,10 @@ public sealed class ScriptedWarden
 
         var abilities = run.Content.Abilities;
         var lieutenant = state.Actors.Values.FirstOrDefault(a => a.ClassId == LieutenantClass && EngagedTargets.IsEngagedHostile(me, a));
+        // f-2b38938f (G7 D66 R-REMNANT-3): the walk goes to the lieutenant as before; with no lieutenant alive it goes to the
+        // nearest engaged caster of a must-kick cast (the same predicate as the kick, minus the range), so the Warden walks to
+        // a remnant.cantor mid Remnant Mending instead of idling on the nearer quiet enemy.
+        var walkTarget = lieutenant ?? NearestMustKickCaster(state, me, tick, abilities);
 
         // R-WARDEN-KICK-1 (core loop defers to WoW: the tank interrupts the caster that is casting): the kick goes to the
         // engaged lieutenant that is mid-way through an interruptible cast inside Shield Bash range, the one whose cast
@@ -269,9 +273,9 @@ public sealed class ScriptedWarden
         {
             into.Add(Toward(tick, me, chaser));
         }
-        else if (lieutenant is not null && Casting.RangeMm(me, lieutenant) > ApproachMm)
+        else if (walkTarget is not null && Casting.RangeMm(me, walkTarget) > ApproachMm)
         {
-            into.Add(Toward(tick, me, lieutenant));
+            into.Add(Toward(tick, me, walkTarget));
         }
         else if (lieutenant is null && NearestEnemy(state, me) is { } foe)
         {
@@ -648,10 +652,7 @@ public sealed class ScriptedWarden
         long bestEnd = long.MaxValue;
         foreach (var a in state.Actors.Values)
         {
-            if (!EngagedTargets.IsEngagedHostile(me, a) || a.CastId is not { } castId
-                || a.CastStartTick is not { } start || !abilities.TryGetValue(castId, out var cast) || !cast.Interruptible
-                || !cast.Effects.Any(op => op is HealOp)
-                || tick < start + (cast.CastTicks / 2) || Casting.RangeMm(me, a) > abilities[Kick].Range)
+            if (!IsMustKickCast(state, me, a, tick, abilities) || Casting.RangeMm(me, a) > abilities[Kick].Range)
             {
                 continue;
             }
@@ -664,4 +665,36 @@ public sealed class ScriptedWarden
         }
         return best;
     }
+
+    /// <summary>
+    /// f-2b38938f: the nearest (lowest id on a tie) engaged caster whose cast <see cref="IsMustKickCast"/>, regardless of
+    /// Shield Bash range: the walk target when no lieutenant is alive. Null when there is none.
+    /// </summary>
+    private static ActorState? NearestMustKickCaster(SimState state, ActorState me, int tick, IReadOnlyDictionary<string, AbilityDef> abilities)
+    {
+        ActorState? best = null;
+        foreach (var a in state.Actors.Values)
+        {
+            if (!IsMustKickCast(state, me, a, tick, abilities))
+            {
+                continue;
+            }
+            if (best is null || Casting.RangeMm(me, a) < Casting.RangeMm(me, best)
+                || (Casting.RangeMm(me, a) == Casting.RangeMm(me, best) && a.Id < best.Id))
+            {
+                best = a;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// f-2b38938f (G7 D66 R-REMNANT-3): the kick predicate, shared by the kick and the walk. An engaged hostile mid-way
+    /// through an interruptible cast that heals, at or past half its cast time. Any class (no ClassId check).
+    /// </summary>
+    private static bool IsMustKickCast(SimState state, ActorState me, ActorState a, int tick, IReadOnlyDictionary<string, AbilityDef> abilities) =>
+        EngagedTargets.IsEngagedHostile(me, a) && a.CastId is { } castId
+        && a.CastStartTick is { } start && abilities.TryGetValue(castId, out var cast) && cast.Interruptible
+        && cast.Effects.Any(op => op is HealOp)
+        && tick >= start + (cast.CastTicks / 2);
 }
