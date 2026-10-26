@@ -149,6 +149,19 @@ public static class EncounterStep
             }
         }
 
+        // TELEGRAPH-AIM: the cone and line telegraphs that land this tick hand their drawn pose (after Tide drift) to their
+        // casters, so the cast they warn of resolves on what was drawn. Last tick's poses are dropped here, each tick.
+        var landedAims = new Dictionary<int, LandedAim>();
+        foreach (var t in advance.Landed.Where(t => t.Shape != "circle"))
+        {
+            landedAims[t.SourceId] = new LandedAim(t.AbilityId, t.Origin, t.Yaw);
+        }
+        if (landedAims.Count > 0 || state.LandedAims.Count > 0)
+        {
+            state = state.Clone();
+            state.LandedAims = landedAims;
+        }
+
         // index.ts:159-160.
         var next = encounter with
         {
