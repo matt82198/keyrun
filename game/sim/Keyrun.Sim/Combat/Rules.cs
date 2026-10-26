@@ -187,6 +187,12 @@ public static class Rules
                         Casting.Stopcast(actor, emit, state.Tick);
                         break;
                     case MoveCommand m:
+                        // WoW M+ caster rule (ConeCasterFreezeTests): an enemy with a cast in flight holds its Pos and Yaw
+                        // until the cast ends. Player move rules are unchanged.
+                        if (actor.Kind == ActorKind.Enemy && actor.CastId is not null)
+                        {
+                            break;
+                        }
                         Movement.ApplyMovement(actor, m.Dir, actor.SpeedMmPerTick ?? cfg.BaseSpeedMmPerTick, Effects.AggregateModifiers(actor, cfg.Effects).MovementBp, m.Yaw);
                         break;
                     case DashCommand d:
