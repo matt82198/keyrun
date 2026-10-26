@@ -218,8 +218,9 @@ public sealed class BellfoundryBibleTests
     {
         var vault = JsonNode.Parse(EmbeddedContentSource.Instance.Read("enemies/vault.json"))!.AsArray()
             .Select(n => n!["id"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
-        // The five reused kinds plus the corridor Patroller (R-PATROL-4), which only the Hollow Vault's layout patrols field.
-        Assert.Equal(ReusedVaultKinds.Append("vault.patroller").OrderBy(i => i, StringComparer.Ordinal), vault.OrderBy(i => i, StringComparer.Ordinal));
+        // The five reused kinds plus the corridor Patroller (R-PATROL-4), which only the Hollow Vault's layout patrols field,
+        // plus the Warrior Remnant's own Cantor (R-REMNANT-3), which only that Hollow Vault pack fields.
+        Assert.Equal(ReusedVaultKinds.Append("vault.patroller").Append("remnant.cantor").OrderBy(i => i, StringComparer.Ordinal), vault.OrderBy(i => i, StringComparer.Ordinal));
         var offenders = Reg.Roster.Values.Where(p => p.Dungeon == "sunken-bellfoundry")
             .SelectMany(p => p.Enemies.Where(g => vault.Contains(g.EnemyId)).Select(g => p.Id + " -> " + g.EnemyId)).ToList();
         Assert.True(offenders.Count == 0, string.Join(", ", offenders));

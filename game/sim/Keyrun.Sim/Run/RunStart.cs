@@ -37,6 +37,11 @@ public sealed record RunStart(RunOptions? Options, GearLoadout? Gear)
     /// node of the seat's <see cref="Progression.Trees"/> is composed into its ability through <see cref="TreeComposer.ToGearPatch"/>
     /// after the talent loadout and before the Facet patches.
     /// </param>
+    /// <param name="classId">
+    /// The seat's class id (G2.2 finding f-e624e14b, R-TREES-8 (b)). When set, only the <see cref="Progression.Trees"/> entry
+    /// keyed by this class contributes owned nodes, so a seat never applies another class's node to its ability. Null keeps
+    /// the union of every class's nodes.
+    /// </param>
     /// <returns>The options and the gear they carry.</returns>
     public static RunStart Of(
         QueueRequest? request,
@@ -44,7 +49,8 @@ public sealed record RunStart(RunOptions? Options, GearLoadout? Gear)
         int humanActorId,
         IReadOnlyDictionary<string, AbilityDef> baseAbilities,
         IReadOnlyDictionary<string, GearPatch> patchesByFacetId,
-        IReadOnlyDictionary<string, TreeNodeEdit>? nodeEdits = null)
+        IReadOnlyDictionary<string, TreeNodeEdit>? nodeEdits = null,
+        string? classId = null)
     {
         ArgumentNullException.ThrowIfNull(baseAbilities);
         ArgumentNullException.ThrowIfNull(patchesByFacetId);
@@ -65,7 +71,7 @@ public sealed record RunStart(RunOptions? Options, GearLoadout? Gear)
         }
         // ABILITY-TREES s5.2: the unlocked tree nodes patch the kit first; a Facet then stacks on the tree-patched ability.
         var skipped = new List<string>();
-        var treePatched = TreePatches(progression, kit, nodeEdits, skipped);
+        var treePatched = TreePatches(progression, kit, nodeEdits, skipped, classId);
         if (treePatched.Count > 0)
         {
             var merged = new Dictionary<string, AbilityDef>(kit, StringComparer.Ordinal);
@@ -87,22 +93,27 @@ public sealed record RunStart(RunOptions? Options, GearLoadout? Gear)
     }
 
     // The abilities of the kit that an unlocked tree node changed, by kit key, each composed from the seat's nodes. The
-    // seat's nodes are the union of every class's tree state: a node id is prefixed by its ability id, so only the ability
-    // it names is changed. An ability no owned node edits is left out, so a seat with no unlocks yields an empty map.
+    // seat's nodes are the tree state of its own class (classId, R-TREES-8 (b)), or the union of every class's tree state
+    // when no class id is given. A node id is prefixed by its ability id, so only the ability it names is changed. An
+    // ability no owned node edits is left out, so a seat with no unlocks yields an empty map.
     // R-TREES-10b: an owned node the sim cannot run (TreeComposer refuses it) is skipped, not thrown, and its id is added to
     // skipped so the run start reports it (RunStart.SkippedTreeNodes). TreeComposer itself still throws for direct callers.
     private static Dictionary<string, AbilityDef> TreePatches(
         Progression progression,
         IReadOnlyDictionary<string, AbilityDef> kit,
         IReadOnlyDictionary<string, TreeNodeEdit>? nodeEdits,
-        List<string> skipped)
+        List<string> skipped,
+        string? classId)
     {
         var changed = new Dictionary<string, AbilityDef>(StringComparer.Ordinal);
         if (nodeEdits is null || nodeEdits.Count == 0 || progression.Trees.Count == 0)
         {
             return changed;
         }
-        var nodes = progression.Trees.Values
+        IEnumerable<TreeState> owned = classId is null
+            ? progression.Trees.Values
+            : progression.Trees.TryGetValue(classId, out var seatTree) ? new[] { seatTree } : Array.Empty<TreeState>();
+        var nodes = owned
             .SelectMany(t => t.Nodes)
             .Distinct(StringComparer.Ordinal)
             .ToList();

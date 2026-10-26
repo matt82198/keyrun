@@ -291,6 +291,23 @@ public static class TankEngage
     }
 
     /// <summary>
+    /// R-PACK-TAUNT-FIRST (held-pack approach): the taunt the tank casts this tick on a loose enemy inside taunt range, or null
+    /// (the same choice <see cref="TankEngageCommands"/> makes). The taunt reaches past melee, so a tank walking at a held
+    /// pack takes it from range instead of walking in while the pack's Taunt sits ready.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">The tank.</param>
+    /// <param name="kit">Its kit.</param>
+    /// <returns>The taunt cast, or null.</returns>
+    public static CastCommand? TauntCommand(BotView view, ActorState self, EffectiveKit kit)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(self);
+        ArgumentNullException.ThrowIfNull(kit);
+        return TauntTarget(view, self, kit) is { } target ? new CastCommand(view.State.Tick, self.Id, kit.TauntAbilityId!, target.Id) : null;
+    }
+
+    /// <summary>
     /// The loose-enemy taunt target: the first in-range enemy in <see cref="LooseEnemies"/> order (seat HP, hurting its seat,
     /// distance, id). R-TAUNT-4a (doomed-enemy ordering) was removed by R-TAUNT-5 ship: it broke BotTankTakesHolderTests seed 3
     /// and the tutorial Cinder run. Null when the taunt is not ready, has no ability id, or no loose enemy is in taunt range.
