@@ -29,5 +29,7 @@ internal static class EncounterPrePhase
             c.Tables.ScriptAbilities);
         c.Pre = enc;
         c.Encounter = enc.Encounter;
+        // The encounter step changes no actor; it stamps the landed telegraph poses (TELEGRAPH-AIM), which combat must read.
+        c.State = enc.State;
     }
 }

@@ -82,7 +82,15 @@ public static partial class Casting
         Cooldowns.StartGcd(actor, now, Riposte.GcdTicksFor(actor, def, now));
         // CAST-KEEPS-START-TARGET: a new cast starts unpinned; it resolves on the target set here unless a mid-cast
         // SetTarget pins it. Mirrors casting.ts startCast. Written whole (R2), so no field of a replaced cast survives.
-        actor.Cast = new CastInFlight(def.Id, now, now + HastedCastTicks(actor, def.CastTicks, rule, ctx, now), overheat, null, false);
+        // Cone and line casts keep the pose they are aimed on, so cast_complete resolves on it and not on the caster's live
+        // position and facing (ConeCastOriginTests, LineCastOriginTests). A telegraphed cast takes its telegraph's landed
+        // pose (Targeting.AimOf, read again at completion); an untelegraphed one takes the pose at cast start.
+        // A player's cone or line is never aimed at cast start: players get no stored aim, so Targeting.AimOf falls back to the
+        // live pose at completion (PlayerConeCompletionFacingTests). Only enemy casts keep the aim they start on.
+        var isAimed = (def.Shape.Kind is ShapeKind.Cone or ShapeKind.Line) && actor.Kind != ActorKind.Player;
+        var landed = isAimed && state.LandedAims.TryGetValue(actor.Id, out var la) && la.Cast == def.Id ? la : (LandedAim?)null;
+        actor.Cast = new CastInFlight(def.Id, now, now + HastedCastTicks(actor, def.CastTicks, rule, ctx, now), overheat, null, false,
+            landed?.Origin ?? (isAimed ? actor.Pos : null), landed?.Yaw ?? (isAimed ? actor.Yaw : null));
         if (targetId is not null)
         {
             actor.TargetId = targetId;

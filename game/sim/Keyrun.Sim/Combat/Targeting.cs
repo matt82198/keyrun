@@ -48,20 +48,34 @@ public static class Targeting
     /// <param name="radiusMm">Radius.</param>
     /// <param name="actors">Candidates.</param>
     /// <returns>Matching ids, in input order.</returns>
-    public static List<int> InCone(ActorState caster, long angle1024, long radiusMm, IEnumerable<ActorState> actors)
+    public static List<int> InCone(ActorState caster, long angle1024, long radiusMm, IEnumerable<ActorState> actors) =>
+        InConeFrom(caster.Id, caster.Pos, caster.Yaw, angle1024, radiusMm, actors);
+
+    /// <summary>
+    /// <see cref="InCone(ActorState, long, long, IEnumerable{ActorState})"/> with the cone's origin and yaw given
+    /// explicitly: a cone cast resolves on the origin and yaw its telegraph stored at cast start (ConeCastOriginTests).
+    /// </summary>
+    /// <param name="casterId">The caster's id, excluded from the cone.</param>
+    /// <param name="origin">Cone origin.</param>
+    /// <param name="yaw">Cone facing, 1/1024 turn.</param>
+    /// <param name="angle1024">Full cone angle.</param>
+    /// <param name="radiusMm">Radius.</param>
+    /// <param name="actors">Candidates.</param>
+    /// <returns>Matching ids, in input order.</returns>
+    public static List<int> InConeFrom(int casterId, Vec3 origin, int yaw, long angle1024, long radiusMm, IEnumerable<ActorState> actors)
     {
-        var face = Facing.FaceDir(caster.Yaw);
+        var face = Facing.FaceDir(yaw);
         var cosHalf = Facing.Cos(Facing.TableIndexOfHalf(angle1024));
         var r2 = radiusMm * radiusMm;
         return actors
             .Where(a =>
             {
-                if (a.Id == caster.Id)
+                if (a.Id == casterId)
                 {
                     return false;
                 }
-                var dx = a.Pos.X - caster.Pos.X;
-                var dz = a.Pos.Z - caster.Pos.Z;
+                var dx = a.Pos.X - origin.X;
+                var dz = a.Pos.Z - origin.Z;
                 var dist2 = (dx * dx) + (dz * dz);
                 if (dist2 == 0 || dist2 > r2)
                 {
@@ -85,18 +99,32 @@ public static class Targeting
     /// <param name="radiusMm">Half-width.</param>
     /// <param name="actors">Candidates.</param>
     /// <returns>Matching ids, in input order.</returns>
-    public static List<int> InLine(ActorState caster, long length, long radiusMm, IEnumerable<ActorState> actors)
+    public static List<int> InLine(ActorState caster, long length, long radiusMm, IEnumerable<ActorState> actors) =>
+        InLineFrom(caster.Id, caster.Pos, caster.Yaw, length, radiusMm, actors);
+
+    /// <summary>
+    /// <see cref="InLine(ActorState, long, long, IEnumerable{ActorState})"/> with the line's origin and yaw given
+    /// explicitly: a line cast resolves on the pose its telegraph drew (LineCastOriginTests, <see cref="AimOf"/>).
+    /// </summary>
+    /// <param name="casterId">The caster's id, excluded from the line.</param>
+    /// <param name="origin">Line origin.</param>
+    /// <param name="yaw">Line facing, 1/1024 turn.</param>
+    /// <param name="length">Line length.</param>
+    /// <param name="radiusMm">Half-width.</param>
+    /// <param name="actors">Candidates.</param>
+    /// <returns>Matching ids, in input order.</returns>
+    public static List<int> InLineFrom(int casterId, Vec3 origin, int yaw, long length, long radiusMm, IEnumerable<ActorState> actors)
     {
-        var face = Facing.FaceDir(caster.Yaw);
+        var face = Facing.FaceDir(yaw);
         return actors
             .Where(a =>
             {
-                if (a.Id == caster.Id)
+                if (a.Id == casterId)
                 {
                     return false;
                 }
-                var dx = a.Pos.X - caster.Pos.X;
-                var dz = a.Pos.Z - caster.Pos.Z;
+                var dx = a.Pos.X - origin.X;
+                var dz = a.Pos.Z - origin.Z;
                 var forward = IntMath.TruncDiv((face.X * dx) + (face.Z * dz), FacingQ);
                 var perp = IntMath.TruncDiv((face.X * dz) - (face.Z * dx), FacingQ);
                 return forward >= 0 && forward <= length && System.Math.Abs(perp) <= radiusMm;
@@ -129,7 +157,30 @@ public static class Targeting
     /// <param name="affinity">The ability's affinity (affinity.ts abilityAffinity).</param>
     /// <returns>The actors it applies to.</returns>
     public static List<ActorState> ResolveTargets(SimState state, ActorState actor, AbilityDef def, Affinity affinity) =>
-        ResolveTargetsOn(state, actor, def, affinity, Casting.CastTargetOf(actor));
+        ResolveTargetsOn(state, actor, def, affinity, Casting.CastTargetOf(actor), actor.Cast);
+
+    /// <summary>
+    /// The pose a cone or line cast resolves on (one source of truth, read by cone and line alike): the telegraph that
+    /// landed this tick for this cast (<see cref="SimState.LandedAims"/>, after Tide drift), else the pose the cast stored
+    /// at cast start. Null when the cast stored none, so the caster's live origin and yaw are used.
+    /// </summary>
+    /// <param name="state">Sim state.</param>
+    /// <param name="actor">The caster.</param>
+    /// <param name="def">The ability being resolved.</param>
+    /// <param name="cast">The cast in flight (or the ended cast), or null.</param>
+    /// <returns>The origin and yaw to resolve on, or null.</returns>
+    public static (Vec3 Origin, int Yaw)? AimOf(SimState state, ActorState actor, AbilityDef def, CastInFlight? cast)
+    {
+        if (state.LandedAims.TryGetValue(actor.Id, out var landed) && landed.Cast == def.Id)
+        {
+            return (landed.Origin, landed.Yaw);
+        }
+        if (cast is { } c && c.AbilityId == def.Id && c.AimOrigin is { } origin && c.AimYaw is { } yaw)
+        {
+            return (origin, yaw);
+        }
+        return null;
+    }
 
     /// <summary>
     /// <see cref="ResolveTargets"/> with the "target" shape resolving on
@@ -141,8 +192,9 @@ public static class Targeting
     /// <param name="def">The ability.</param>
     /// <param name="affinity">The ability's affinity (affinity.ts abilityAffinity).</param>
     /// <param name="castTargetId">The target the cast resolves on, or null.</param>
+    /// <param name="cast">The cast in flight (or the ended cast), whose stored aim a cone or line resolves on (<see cref="AimOf"/>).</param>
     /// <returns>The actors it applies to.</returns>
-    public static List<ActorState> ResolveTargetsOn(SimState state, ActorState actor, AbilityDef def, Affinity affinity, int? castTargetId)
+    public static List<ActorState> ResolveTargetsOn(SimState state, ActorState actor, AbilityDef def, Affinity affinity, int? castTargetId, CastInFlight? cast = null)
     {
         var shape = def.Shape;
         if (shape.Kind == ShapeKind.Self)
@@ -159,11 +211,16 @@ public static class Targeting
             return new List<ActorState>();
         }
         var all = state.Actors.Values.Where(a => a.Alive).ToList();
+        var aim = AimOf(state, actor, def, cast);
         var ids = shape.Kind switch
         {
             ShapeKind.Circle => InCircle(CircleOrigin(state, actor, def, affinity), shape.Radius ?? 0, all),
-            ShapeKind.Cone => InCone(actor, shape.Angle1024 ?? 0, shape.Radius ?? 0, all),
-            _ => InLine(actor, shape.Length ?? 0, shape.Radius ?? 0, all),
+            ShapeKind.Cone => aim is { } c
+                ? InConeFrom(actor.Id, c.Origin, c.Yaw, shape.Angle1024 ?? 0, shape.Radius ?? 0, all)
+                : InCone(actor, shape.Angle1024 ?? 0, shape.Radius ?? 0, all),
+            _ => aim is { } l
+                ? InLineFrom(actor.Id, l.Origin, l.Yaw, shape.Length ?? 0, shape.Radius ?? 0, all)
+                : InLine(actor, shape.Length ?? 0, shape.Radius ?? 0, all),
         };
         var kept = new SortedSet<int>(ids.Where(id =>
             state.Actors.TryGetValue(id, out var candidate) &&
