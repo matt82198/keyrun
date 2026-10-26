@@ -62,6 +62,11 @@ public sealed record PullPlan(ForcesPlan Forces, IReadOnlyList<PackGroup> Packs,
     public IReadOnlyList<AggroGroup> Groups { get; init; } = Array.Empty<AggroGroup>();
 
     /// <summary>
+    /// The gather spots the party fights at (the tank carries packs back to them). Empty unless the plan names some.
+    /// </summary>
+    public IReadOnlyList<GatherSpot> Gathers { get; init; } = Array.Empty<GatherSpot>();
+
+    /// <summary>
     /// R-AOE-1 (c) with R-PATROL-1: the run's patrol packs. The tank never chains along a path a still-idle patrol walks (a
     /// patrol is a timing read, never a hidden add), see <see cref="ChainPull"/>. Empty when the run has none.
     /// </summary>
