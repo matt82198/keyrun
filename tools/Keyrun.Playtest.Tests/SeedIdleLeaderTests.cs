@@ -21,7 +21,6 @@ public sealed class SeedIdleLeaderTests
     private const string Dungeon = "sunken-bellfoundry";
     private const int WindowStart = 12000;
     private const int WindowTicks = 400;
-    private const string LogPath = "C:/Users/Mattt/AppData/Local/Temp/claude/C--Users-Mattt-aesop/0198324a-b702-41b5-882f-d2628aac95cc/scratchpad/lanes/s1-seed4-idle.log";
 
     [Theory(DisplayName = "Seeded branch 0 (key 2): a leader with a reachable unengaged active pull walks toward it within 400 ticks")]
     [InlineData(4L)]
@@ -88,7 +87,6 @@ public sealed class SeedIdleLeaderTests
         PlaytestRunner.Play(options, armed);
 
         var line = $"seed {seed}: tick {WindowStart}..{WindowStart + WindowTicks} target={targetId} leaderMoveCommands={moves} distStart={startDist:F0} distEnd={endDist:F0}";
-        System.IO.File.AppendAllText(LogPath, line + "\n");
         Assert.True(seen, $"seed {seed}: no living active-pull member at tick {WindowStart} (control would be vacuous)");
         Assert.True(
             moves > 0 || endDist < startDist,
