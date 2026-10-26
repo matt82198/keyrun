@@ -319,21 +319,25 @@ public static class Rules
         {
             case DamageOp d:
                 state.Actors.TryGetValue(sourceId, out var source);
-                Mitigation.DealDamage(state.Tick, source, target, d.Amount, effectDefs, emit, sourceId, hooks.Weighting, d.School);
+                Threat.AddDamageThreat(target, source, Mitigation.DealDamage(state.Tick, source, target, d.Amount, effectDefs, emit, sourceId, hooks.Weighting, d.School).ModifiedAmount, Threat.DefaultBp);
                 break;
             case DamagePctOp p:
                 // BIBLE 9.3 Searing Hex: a share of the carrier's max health per tick (C#-only, no oracle content).
                 state.Actors.TryGetValue(sourceId, out var pctSource);
-                Mitigation.DealDamage(state.Tick, pctSource, target, Effects.PctOfMaxHealth(target, p.MaxHealthBp), effectDefs, emit, sourceId, hooks.Weighting, p.School);
+                Threat.AddDamageThreat(target, pctSource, Mitigation.DealDamage(state.Tick, pctSource, target, Effects.PctOfMaxHealth(target, p.MaxHealthBp), effectDefs, emit, sourceId, hooks.Weighting, p.School).ModifiedAmount, Threat.DefaultBp);
                 break;
             case HealOp h:
-                Damage.ApplyHeal(state.Tick, target, h.Amount, sourceId, emit);
+                var applied = Damage.ApplyHeal(state.Tick, target, h.Amount, sourceId, emit);
+                if (state.Actors.TryGetValue(sourceId, out var healer))
+                {
+                    Threat.AddHealingThreat(state, healer, target, applied);
+                }
                 break;
             case ResourceOp r:
                 target.Resource = Math.Max(0, Math.Min(target.MaxResource, target.Resource + r.Delta));
                 break;
-            case ThreatOp t:
-                Threat.AddThreat(target, sourceId, t.Amount ?? 0, t.MultiplierBp);
+            case ThreatOp t when t.Amount is not null:
+                Threat.AddThreat(target, sourceId, t.Amount.Value, t.MultiplierBp);
                 break;
         }
     }

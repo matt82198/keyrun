@@ -56,6 +56,7 @@ public static class RunRoot
                 var actor = Actors.Create(m.Id, ActorKind.Player, m.ClassId, m.Role, m.Pos, m.MaxHealth, m.MaxResource, m.Yaw ?? 0);
                 actor.Resource = Actors.StartingResource(m.ClassId, m.MaxResource, content.Overheat);
                 actor.ArmorBp = m.ArmorBp;
+                actor.ThreatBp = m.ThreatBp;
                 return actor;
             })
             .ToList();

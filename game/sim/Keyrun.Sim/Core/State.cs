@@ -429,6 +429,12 @@ public sealed class ActorState
     /// </summary>
     public long ArmorBp { get; set; }
 
+    /// <summary>
+    /// The class's threat multiplier, bp (design/THREAT-MODEL.md section 7.2: Warden 20000, Cinder and Chanter 10000).
+    /// Scales every threat this actor generates. 10000 (100%) unless the party spec carries another class number.
+    /// </summary>
+    public long ThreatBp { get; set; } = 10000;
+
     /// <summary>A deep copy (effects, cooldowns and threat are copied, not shared).</summary>
     public ActorState Clone()
     {
