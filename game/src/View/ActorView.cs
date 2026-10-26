@@ -71,6 +71,12 @@ public partial class ActorView : Node3D
     private SimState? _facingState;
     private FacingHold? _hold;
     private FacingHold? _holdBefore;
+    // TURN-CAP: the yaw this body was last drawn facing (null until its first tick), the yaw it turns from and to this tick,
+    // and the run the carry belongs to.
+    private int? _carriedYaw;
+    private int _carriedFrom;
+    private int _carriedTo;
+    private object? _carriedRun;
     private Vector3 _lastPosition;
     private bool _hasLastPosition;
     private int _measureIn = -1;
@@ -836,18 +842,27 @@ public partial class ActorView : Node3D
         // KF1-FACING: an instant swing resolves inside one step, so the swinger is held facing whom it struck
         // (SwingFacing) until it moves, the target dies, or it resolves a cone, line or self ability.
         var abilities = Driver.Run?.Content.Abilities;
+        // FACE-TARGET (f-e0650754): every frame, an actor with a live target faces it while casting, attacking or aggroed
+        // (ActorFacing); the seat the human steers keeps the camera's facing. The sim Yaw alone left packs looking away.
+        var steered = ActorId == (Driver.Setup?.HumanActorId ?? SimDriver.WardenId);
         if (!ReferenceEquals(Driver.State, _facingState))
         {
             _facingState = Driver.State;
             _holdBefore = _hold;
             _hold = SwingFacing.After(Driver.State, now, Driver.LastEvents, abilities, _hold);
+            // TURN-CAP: the drawn yaw is carried tick to tick and a body turns at most ActorFacing.TurnCapPerTick per sim
+            // tick, so a target flipping 180 degrees behind the body turns it over several ticks, not in one (the head
+            // glitch while moving). The carry restarts on a new run, so a new run never turns from the last run's yaw.
+            if (!ReferenceEquals(Driver.Run, _carriedRun))
+            {
+                _carriedRun = Driver.Run;
+                _carriedYaw = null;
+            }
+            var rawYaw = ActorFacing.RenderYaw(Driver.State, now, abilities, _hold, steered);
+            (_carriedFrom, _carriedTo) = ActorFacing.CarryStep(_carriedYaw, rawYaw, ActorFacing.TurnCapPerTick);
+            _carriedYaw = _carriedTo;
         }
-        // FACE-TARGET (f-e0650754): every frame, an actor with a live target faces it while casting, attacking or aggroed
-        // (ActorFacing); the seat the human steers keeps the camera's facing. The sim Yaw alone left packs looking away.
-        var steered = ActorId == (Driver.Setup?.HumanActorId ?? SimDriver.WardenId);
-        var fromYaw = ActorFacing.RenderYaw(Driver.PreviousState, before, abilities, _holdBefore, steered);
-        var toYaw = ActorFacing.RenderYaw(Driver.State, now, abilities, _hold, steered);
-        Rotation = new Vector3(0, -YawRadians(fromYaw, toYaw, t), 0);
+        Rotation = new Vector3(0, -YawRadians(_carriedFrom, _carriedTo, t), 0);
     }
 
     // A dead body lies on the floor as a bone pile or a fallen hero: it stops casting shadows, which take most of a
