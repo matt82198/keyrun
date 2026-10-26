@@ -23,8 +23,8 @@ namespace Keyrun.Host;
 /// cursor again. <see cref="Mouseover"/> is the live enemy whose body is under the cursor (none during mouselook), and Q
 /// sends the class kick at it when there is one, else at the target <see cref="CastTargeting"/> picks; the kick is an
 /// ordinary cast command, so the sim's intended-tick interrupt path resolves it unchanged. Under
-/// <c>--replay-input</c> there is no mouseover and no mouselook facing (the input log records keys and the camera
-/// heading only), so a replay sends what a keyboard-only recording sent.
+/// <c>--replay-input</c> there is no mouseover, but replay is treated as mouselook (<see cref="Keyrun.Content.MouseoverRule"/>.MouselookHeld):
+/// the input log records keys and the camera heading, and the recorded camera heading faces the Warden as it did live.
 /// </para>
 /// <para>
 /// STACKED-PLATES (ledger f-e933a2b7, "hover to interrupt like WoW"): a name plate is a hover target too. The live

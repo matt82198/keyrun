@@ -60,7 +60,7 @@ $ErrorActionPreference = 'Stop'
 # Entrance walls stop the replayed walk, so every TICK line moved; the fixture is unchanged.
 $ReplayFrames = 900
 $ReplayTicks = 240
-$ReplayTickDigest = 'b950474eff2d9967'  # D28 recording; re-measured for "D27 room lock-in": unchanged (2 runs)
+$ReplayTickDigest = 'f29abd501b2ac8b3'  # R-STRAFE-1 re-pin: replay is mouselook, so the tick-60 camera turn in example-yaw-walk now turns the Warden; measured by CI run 40329960387 (2 runs agree)
 
 $failures = New-Object System.Collections.Generic.List[string]
 
