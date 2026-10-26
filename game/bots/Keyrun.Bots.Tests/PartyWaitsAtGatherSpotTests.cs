@@ -124,10 +124,39 @@ public sealed class PartyWaitsAtGatherSpotTests
             $"dir ({move?.Dir.X},{move?.Dir.Z}) toward the fight room");
     }
 
+    [Fact(DisplayName = "Party waits on the walk-back: the tank walks a tagged gather back to its spot with packs A and B engaged, so a cinder at the spot holds there")]
+    public void Party_waits_at_the_gather_spot_while_the_tank_walks_back_from_the_packs()
+    {
+        // G3 walk-back (R-THREAT-2 (o)): the tank is in the room at (18000,0), walking the tagged gather back to (8000,0). Packs A and
+        // B are both engaged, so no pack is pending and the tag is closed (ChainPull.OpenGatherSpot is null). The gather spot is
+        // still the walk-back target (GatherReturn.Spot), so the cinder at the spot must hold instead of walking into the room.
+        var tank = RolesTestKit.Actor(id: TankId, classId: "warden", role: ActorRole.Tank, x: 18000, z: 0, health: 400, maxHealth: 400);
+        var state = BotTestKit.MakeState(
+            Tick,
+            tank,
+            Chanter(),
+            Cinder(x: 8000, z: 0),
+            EngagedMember(PackAFirstId, 14000, -5000),
+            EngagedMember(PackASecondId, 14000, -7000),
+            EngagedMember(PackBFirstId, 21500, 1000),
+            EngagedMember(PackBSecondId, 21500, -1000));
+        var plan = Plan(new[] { new GatherSpot("g", Spot, new[] { "A", "B" }) });
+
+        // Anti-vacuity: the walk-back condition holds (the leader is outside the spot and the tag is closed), so the hold below is the rule at work.
+        Assert.NotNull(GatherReturn.Spot(state, Layout, plan, state.Actors[TankId]));
+        Assert.Null(ChainPull.Intent(state, Layout, plan, state.Actors[TankId]));
+
+        var cinder = state.Actors[CinderId];
+        var move = Follow.FollowCommand(View(state, plan), cinder);
+        Assert.True(move is null,
+            $"expected the cinder at the gather spot (8000,0,0) to hold while the tank walks back from the packs, but FollowCommand walked it " +
+            $"dir ({move?.Dir.X},{move?.Dir.Z}) toward the fight room");
+    }
+
     [Fact(DisplayName = "Gather leash: the tank's leash is measured from the open gather spot, so a seat within 12000 mm of the spot lets him run ahead to the next pack")]
     public void Leash_is_measured_from_the_open_gather_spot()
     {
-        // The cinder stands 12311 mm from the tank (over the 12000 mm leash), 3840 mm from the gather spot (inside it), and 4800 mm
+        // The cinder stands 12311 mm from the tank (over the 12000 mm leash), 3840 mm from the gather spot (inside it), and 4665 mm
         // from the chanter: inside Follow.ReturnReachMm (5000) of a living seat, so she is not a returning seat (R-PATH-5 (r)).
         var state = State(Chanter(), Cinder(x: 5600, z: 3000));
         var tank = state.Actors[TankId];

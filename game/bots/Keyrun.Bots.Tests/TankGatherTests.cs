@@ -175,11 +175,33 @@ public sealed class TankGatherTests
     [Fact(DisplayName = "Tank gather F4c: a seat more than 12000 mm from the open gather spot holds the tank (gather move does not go)")]
     public void Seat_beyond_the_spot_leash_holds_the_gather_move()
     {
-        // Geometry: gather spot (8000,0). The far seat (22000,7000) is 15652 mm from the spot (2000+ mm beyond 12000) and 18000 mm
+        // Geometry: gather spot (8000,0). The far seat (22000,7000) is 15652 mm from the spot (2000+ mm beyond 12000) and 15264 mm
         // from the tank. Its neighbour (22000,5000) is within ReturnReachMm, so the far seat is a straggler, not a respawn return.
         var state = StateWith();
         var farSeat = RolesTestKit.Actor(id: 4, kind: ActorKind.Player, classId: "cinder", role: ActorRole.Damage, x: 22000, z: 7000, health: 300, maxHealth: 300);
         var neighbour = RolesTestKit.Actor(id: 5, kind: ActorKind.Player, classId: "chanter", role: ActorRole.Healer, x: 22000, z: 5000, health: 300, maxHealth: 300);
+        state.Actors[farSeat.Id] = farSeat;
+        state.Actors[neighbour.Id] = neighbour;
+        var tank = state.Actors[TankId];
+        var plan = PlanOf(
+            new[] { new GatherSpot("g", new Vec3(8000, 0, 0), new[] { "A", "B" }) },
+            new[] { GroupA(new[] { PackAFirstId, PackASecondId }), GroupB(PackBFirstId, PackBSecondId) });
+
+        // Anti-vacuity: the gather path is live (it names pack B), so the null move below is the spot leash at work.
+        Assert.Equal("B", ChainPull.Intent(state, Layout, plan, tank)?.Id);
+        Assert.Null(ChainPull.Move(Tick, state, Layout, plan, tank));
+    }
+
+    /// <summary>F4c (discriminator): the leash is measured from the spot, not from the tank.</summary>
+    [Fact(DisplayName = "Tank gather F4c-discriminator: a seat beyond the spot leash but within 12000 mm of the tank holds the tank (gather move does not go)")]
+    public void Seat_beyond_the_spot_leash_but_within_the_tank_leash_holds_the_gather_move()
+    {
+        // Geometry: gather spot (8000,0); tank (14000,-6000). The far seat (20000,-6000) is 13416 mm from the spot (beyond 12000) and
+        // 6000 mm from the tank (inside 12000), so only a leash measured from the spot holds him. Its neighbour (17000,-6000) is 3000 mm
+        // from the seat and inside the spot leash, so the far seat is a straggler, not a seat returning from a respawn (Follow.ReturnSeat).
+        var state = StateWith();
+        var farSeat = RolesTestKit.Actor(id: 4, kind: ActorKind.Player, classId: "cinder", role: ActorRole.Damage, x: 20000, z: -6000, health: 300, maxHealth: 300);
+        var neighbour = RolesTestKit.Actor(id: 5, kind: ActorKind.Player, classId: "chanter", role: ActorRole.Healer, x: 17000, z: -6000, health: 300, maxHealth: 300);
         state.Actors[farSeat.Id] = farSeat;
         state.Actors[neighbour.Id] = neighbour;
         var tank = state.Actors[TankId];

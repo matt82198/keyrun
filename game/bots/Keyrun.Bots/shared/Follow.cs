@@ -484,7 +484,14 @@ public static class Follow
         {
             // G3 / f-7b374e72 (Matt 2026-10-25: the tank runs ahead and tags the gather's next pack while the party waits at the
             // gather spot): with a gather tag open the party holds at the spot instead of walking into the room the tank fights in.
-            if (view.PullPlan is { } gatherPlan && ChainPull.OpenGatherSpot(view.State, layout, gatherPlan, leader) is { } waitSpot)
+            // G3 walk-back: the tank walking a tagged gather back to its spot (GatherReturn.Spot) holds the party at that spot too,
+            // but only while he is walking a pack back: never when he is chaining a NextGroup (ChainPull.Intent non-null), which
+            // the followers walk with him to their slots (R-AOE-1 (c)).
+            if (view.PullPlan is { } gatherPlan &&
+                (ChainPull.OpenGatherSpot(view.State, layout, gatherPlan, leader)
+                    ?? (ChainPull.Intent(view.State, layout, gatherPlan, leader) is null
+                        ? GatherReturn.Spot(view.State, layout, gatherPlan, leader)
+                        : null)) is { } waitSpot)
             {
                 return Distance2(self.Pos, waitSpot) <= GatherReturn.ArriveMm * GatherReturn.ArriveMm
                     ? null
