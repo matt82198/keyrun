@@ -12,6 +12,8 @@ internal static class BossDeathClearsPhase
     public static void Step(RunStepCtx c)
     {
         var run = c.Before;
+        // PACK-CLEAR (R-WOW-2, seq 857): a pack's last member dying emits pack_clear, in or out of pull order.
+        Pulls.EmitPackClears(c.State, run.Dungeon, c.Events, run.State.Tick, c.Encounter.Boss?.Config.BossActorId, c.Emit);
         // BOSS-DEATH-ENDS-ENCOUNTER (f-77fcfca4, Matt 2026-10-20: "boss death ends the encounter, adds despawn, like
         // WoW"): the step the armed boss dies, its adds have just despawned above, so its pull is cleared on this same
         // step rather than on the next step's pre-combat check, and run-end detection below sees the encounter over.
