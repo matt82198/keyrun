@@ -287,31 +287,29 @@ public static class Combos
         }
         var raw = IntMath.TruncDiv(closer.MaxHealth * op.MaxHealthBp, Effects.BpDenom);
         var cap = IntMath.TruncDiv(closer.MaxHealth * op.CapBp, Effects.BpDenom);
-        long takenUp = 0, takenDown = 0;
+        // R-DEFCAP-7: up = positive damageTakenBp effects; down = negative effects plus GearDamageTakenBp. The up part
+        // amplifies the burn under the cap (as before); the reduction is the down part, floored at -7500 for players
+        // (the Mitigation.DealDamage floor), and it multiplies the capped burn.
+        long up = 0, down = closer.GearDamageTakenBp;
         foreach (var inst in closer.Effects)
         {
             if (effectDefs.TryGetValue(inst.EffectId, out var def) && def.Modifiers.DamageTakenBp is { } bp)
             {
                 if (bp > 0)
                 {
-                    takenUp += bp * inst.Stacks;
+                    up += bp * inst.Stacks;
                 }
                 else
                 {
-                    takenDown += bp * inst.Stacks;
+                    down += bp * inst.Stacks;
                 }
             }
         }
-        // R-DEFCAP-1: the player's total damageTakenBp is floored at -7500, the same floor Mitigation.DealDamage applies.
-        // The reduction stage is lifted so that takenUp + takenDown lands on the floor; a total already above it is untouched.
-        if (closer.Kind == ActorKind.Player)
-        {
-            takenDown = Math.Max(takenUp + takenDown, Effects.PlayerDamageTakenFloorBp) - takenUp;
-        }
+        var reduction = closer.Kind == ActorKind.Player ? Math.Max(down, Effects.PlayerDamageTakenFloorBp) : down;
         var weighted = weighting is null ? raw : weighting(raw);
         var doneBp = Effects.AggregateModifiers(closer, effectDefs).DamageDoneBp;
-        var capped = Math.Min(cap, Damage.ApplyModifiers(weighted, doneBp, takenUp));
-        var modified = Damage.ApplyModifiers(capped, 0, takenDown);
+        var amplified = Math.Min(cap, Damage.ApplyModifiers(weighted, doneBp, up));
+        var modified = Math.Max(0, IntMath.TruncDiv(amplified * (Effects.BpDenom + reduction), Effects.BpDenom));
         Damage.ResolveModified(tick, closer, raw, modified, effectDefs, emit, closer.Id);
     }
 

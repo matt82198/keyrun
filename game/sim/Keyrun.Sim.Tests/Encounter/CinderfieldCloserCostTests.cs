@@ -133,6 +133,16 @@ public sealed class CinderfieldCloserCostTests
         return new EffectDef(id, 1, null, new EffectModifiers(DamageTakenBp: taken));
     }
 
+    /// <summary>A stackable vulnerability as game/content/data/effects/vault.json defines it (maxStacks and damageTakenBp).</summary>
+    private static EffectDef VaultEffect(string id)
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllText(FindUp("game", "content", "data", "effects", "vault.json")));
+        var e = doc.RootElement.EnumerateArray().Single(x => x.GetProperty("id").GetString() == id);
+        var taken = e.GetProperty("modifiers").GetProperty("damageTakenBp").GetInt64();
+        Assert.True(taken > 0, $"{id} must increase damage taken");
+        return new EffectDef(id, e.GetProperty("maxStacks").GetInt64(), null, new EffectModifiers(DamageTakenBp: taken));
+    }
+
     private static Run CreateRun(int keyLevel, bool pact)
     {
         var abilities = new Dictionary<string, AbilityDef>(StringComparer.Ordinal)
@@ -151,6 +161,7 @@ public sealed class CinderfieldCloserCostTests
             ["braceSelf"] = PlayerEffect("braceSelf"),
             ["bracedSelf"] = PlayerEffect("bracedSelf"),
             ["aegisShield"] = PlayerEffect("aegisShield"),
+            ["cleaved"] = VaultEffect("cleaved"),
         };
         var (combos, field) = GameComboTables();
         var pactDef = Pact();
@@ -183,10 +194,18 @@ public sealed class CinderfieldCloserCostTests
     /// id in <paramref name="closerEffects"/> is on the closer before the close. Returns the closer's health after the
     /// close and the health the burn took.
     /// </summary>
-    private static (long Health, bool Alive, long Burn) Close(int keyLevel, bool pact, int closerId, params string[] closerEffects)
+    private static (long Health, bool Alive, long Burn) Close(int keyLevel, bool pact, int closerId, params string[] closerEffects) =>
+        CloseWith(keyLevel, pact, closerId, 0, closerEffects);
+
+    /// <summary>
+    /// <see cref="Close(int, bool, int, string[])"/> with the closer's gear damage-taken bp (<c>ActorState.GearDamageTakenBp</c>,
+    /// the C#-only gear stat Mitigation.DealDamage adds to the target's modifiers) set before the close.
+    /// </summary>
+    private static (long Health, bool Alive, long Burn) CloseWith(int keyLevel, bool pact, int closerId, long gearTakenBp, params string[] closerEffects)
     {
         var run = CreateRun(keyLevel, pact);
         var closer = run.State.Actors[closerId]!;
+        closer.GearDamageTakenBp = gearTakenBp;
         foreach (var id in closerEffects)
         {
             var def = run.Content.Effects[id];
@@ -271,6 +290,38 @@ public sealed class CinderfieldCloserCostTests
             stacked >= open / 4,
             $"stacked burn {stacked} is below 25% of the open burn {open}: total damageTakenBp -10500 reached the combo path unfloored");
         Assert.True(health <= SupportMaxHealth, $"health {health} exceeds max {SupportMaxHealth}");
+    }
+
+    [Theory(DisplayName = "R-DEFCAP-1 red: a combo burn on a closer with stacked Cleaved (+2500 each) and full defensives still lands at least 25% of the open burn")]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Cleaved_stacks_with_full_defensive_stack_combo_burn_keeps_a_floor(int cleaveStacks)
+    {
+        // Cleaved (vault.json, +2500 damageTakenBp per stack) on the closer, then Brace (-4000) + Vigil (-3000) + Aegis (-3500).
+        // The net total is +5000 - 10500 = -5500, above the -7500 floor, so the floor never engages; the reduction stage
+        // then multiplies the capped burn by (10000 - 10500) and the burn reaches 0. A defensive stack must not zero it.
+        var (_, _, open) = Close(HighestKey, pact: true, ChanterId);
+        var ids = Enumerable.Repeat("cleaved", cleaveStacks).Concat(new[] { "braceSelf", "bracedSelf", "aegisShield" }).ToArray();
+        var (health, alive, burn) = Close(HighestKey, pact: true, ChanterId, ids);
+
+        Assert.True(open > 0, "precondition: the open closer is burned, so the floor comparison is not vacuous");
+        Assert.True(alive, "a closer with stacked Cleaved and full defensives survives its own burn");
+        Assert.True(
+            burn >= open / 4,
+            $"{cleaveStacks} Cleaved stack(s) + full defensives: burn {burn} is below 25% of the open burn {open}");
+        Assert.True(health <= SupportMaxHealth, $"health {health} exceeds max {SupportMaxHealth}");
+    }
+
+    [Fact(DisplayName = "R-DEFCAP-1 red: gear damage-taken reduction on the closer lowers the combo burn, as it does on the Mitigation path, and keeps the 25% floor")]
+    public void Gear_damage_taken_reduction_applies_to_the_combo_burn()
+    {
+        // GearDamageTakenBp -3000 (a gear stat, Runs.GearPower) is read by Mitigation.DealDamage but not by BurnCloser.
+        var (_, _, open) = Close(HighestKey, pact: true, ChanterId);
+        var (_, _, geared) = CloseWith(HighestKey, pact: true, ChanterId, -3000);
+
+        Assert.True(open > 0, "precondition: the open closer is burned, so the comparison is not vacuous");
+        Assert.True(geared < open, $"gear-reduced burn {geared} is not below the open burn {open}: GearDamageTakenBp is ignored on the combo path");
+        Assert.True(geared >= open / 4, $"gear-reduced burn {geared} is below 25% of the open burn {open}");
     }
 
     [Fact(DisplayName = "CINDERFIELD-CLOSER-COST: at key 2 closing a Cinderfield still burns the closer, 15% of its max health")]
