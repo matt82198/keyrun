@@ -156,7 +156,8 @@ public sealed class BossTeachesTests
                 run.State.Actors.TryGetValue(BossId, out var b) && b.Alive && b.CastId == Cleave &&
                 run.State.Actors.TryGetValue(careless, out var me) && me.Alive)
             {
-                commands.RemoveAll(c => c.ActorId == careless && c is MoveCommand or DashCommand);
+                commands.RemoveAll(c => c.ActorId == careless && (c is MoveCommand or DashCommand
+                    || c is CastCommand && Keyrun.Bots.Reasons.Of(c).RuleId == "bot:movement-escape"));
                 var spot = InFront(b, 1500);
                 if (Math.Abs(spot.X - me.Pos.X) + Math.Abs(spot.Z - me.Pos.Z) > 300 &&
                     Moves.MoveToward(tick, careless, new PointMm(me.Pos.X, me.Pos.Z), new PointMm(spot.X, spot.Z)) is { } walk)
