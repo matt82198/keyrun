@@ -14,8 +14,8 @@ internal sealed class BranchTotalsRule : IContentRule
     /// </summary>
     public void Check(ContentRegistry reg)
     {
-        ForcesTable forces = reg.Forces;
-        DungeonDef dungeon = reg.Dungeons[forces.Route.DungeonId];
+        DungeonDef dungeon = reg.Dungeons[reg.Layout.Dungeon];
+        ForcesTable forces = reg.ForcesFor(dungeon.Id);
         foreach (string branch in reg.Layout.Packs.Where(p => p.Branch is not null).Select(p => p.Branch!).Distinct(System.StringComparer.Ordinal))
         {
             int total = RouteForces.BranchTotalPoints(forces, dungeon, reg.Layout.Packs, branch);

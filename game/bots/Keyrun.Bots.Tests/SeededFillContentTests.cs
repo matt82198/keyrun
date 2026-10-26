@@ -24,7 +24,7 @@ public sealed class SeededFillContentTests
     {
         var teaching = SeededRoster.Teaching(reg);
         var optional = SeededRoster.Optional(reg);
-        var p = SeededRoster.Params(reg);
+        var p = SeededRoster.Params(reg, reg.Forces.Route.DungeonId);
         foreach (var seed in Seeds)
         {
             yield return (seed, BranchFill.Fill(seed, RoomGraphGen.Generate(seed, DungeonGenParams.Default), teaching, optional, p));
@@ -41,9 +41,9 @@ public sealed class SeededFillContentTests
         Assert.Equal(
             new[] { ("cantor-vigil", 400), ("hall-sentries", 240), ("warrior-remnant", 392) },
             optional.Select(o => (o.Id, o.Points)).OrderBy(o => o.Id, StringComparer.Ordinal).ToArray());
-        Assert.Equal(reg.Forces.Required, SeededRoster.Params(reg).ForcesRequired);
+        Assert.Equal(reg.Forces.Required, SeededRoster.Params(reg, reg.Forces.Route.DungeonId).ForcesRequired);
         // The branch target is the bar plus the biggest optional pack (400, the Cantor Vigil; R-REMNANT-2 took the Remnant from 420 to 392), so any one optional pack is skippable.
-        Assert.Equal(1400, SeededRoster.Params(reg).TargetPoints);
+        Assert.Equal(1400, SeededRoster.Params(reg, reg.Forces.Route.DungeonId).TargetPoints);
     }
 
     [Fact(DisplayName = "Seeded fill content: per seed every branch still reaches the bar with any one optional pack skipped")]

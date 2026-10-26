@@ -357,7 +357,7 @@ public static class SeededLayout
         ArgumentNullException.ThrowIfNull(reg);
         var graph = RoomGraphGen.Generate(seed, Params);
         var grid = WalkGridGen.Emit(graph, Params);
-        var fill = BranchFill.Fill(seed, graph, SeededRoster.Teaching(reg), SeededRoster.Optional(reg), SeededRoster.Params(reg));
+        var fill = BranchFill.Fill(seed, graph, SeededRoster.Teaching(reg), SeededRoster.Optional(reg), SeededRoster.Params(reg, reg.Forces.Route.DungeonId));
         var branch = BotBranch(seed);
         var corridors = Corridors(graph, grid);
         var hand = reg.Layout;
