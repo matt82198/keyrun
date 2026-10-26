@@ -587,9 +587,23 @@ public static class Bot
                 && view.State.Actors.TryGetValue(travelSeatId, out var travelSeat) && travelSeat.Kind == ActorKind.Player && travelSeat.Alive
                     ? Roles.TankEngage.ApproachMove(view, self, Roles.RoleShared.KitOf(view, self.ClassId))
                     : null;
-            commands.Add(travelApproach is not null
-                ? Reasons.Tag(travelApproach, "bot:tank-approach")
-                : Reasons.Tag(follow, "bot:follow-route"));
+            // R-TANKFLIP-1 (2): a bot tank with an engaged enemy within the party leash, or one that already holds aggro (the
+            // enemy's holder, else its target, is the tank), is never given bot:follow-route until that engage resolves. Walking
+            // the route pulls it back inside the leader's room inset while the role's melee reapproach steps it out, so the two
+            // alternate every tick. It keeps the tank-approach move above when that applies, and otherwise falls through to its
+            // role decision with the route walk dropped. Out of combat, an engage the tank has not taken on, and every non-tank
+            // seat keep the route.
+            var tankLeashed = self.Role == ActorRole.Tank && avoid is null && !pingCommands.Any()
+                && Roles.TankEngage.EngageTarget(view, self) is { Idle: false } leashEngaged
+                && (Roles.TankEngage.WithinPartyLeash(view.State, self, leashEngaged) || (leashEngaged.HolderId ?? leashEngaged.TargetId) == self.Id);
+            if (travelApproach is not null)
+            {
+                commands.Add(Reasons.Tag(travelApproach, "bot:tank-approach"));
+            }
+            else if (!tankLeashed)
+            {
+                commands.Add(Reasons.Tag(follow, "bot:follow-route"));
+            }
             if (!Follow.AnyLivingEnemy(view.State) && !topOff)
             {
                 return new BotDecision(commands, memory, prng);

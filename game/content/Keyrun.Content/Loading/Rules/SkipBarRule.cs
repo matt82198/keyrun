@@ -17,7 +17,7 @@ internal sealed class SkipBarRule : IContentRule
     {
         LayoutDef layout = reg.Layout;
         if (!layout.Packs.Any(p => p.Optional)) return;
-        ForcesTable forces = reg.Forces;
+        ForcesTable forces = reg.ForcesFor(layout.Dungeon);
         DungeonDef dungeon = reg.Dungeons[layout.Dungeon];
         int line = RouteForces.CriticalPathPoints(forces, dungeon)
             + layout.Packs.Where(p => !p.Optional).Sum(p => RouteForces.LayoutPackPoints(forces, p));

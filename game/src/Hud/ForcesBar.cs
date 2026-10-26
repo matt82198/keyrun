@@ -92,9 +92,10 @@ public partial class ForcesBar : Control
     {
         _logged = null;
         _table = null;
-        if (_driver?.Registry?.Forces is not null)
+        // No run, no dungeon to read a bar for: the table stays null and the bar draws nothing rather than another dungeon's.
+        if (_driver?.Registry?.Forces is not null && _driver.Run is { } run)
         {
-            (_table, _required) = ScoreboardReading.ForcesOf(_driver.Registry);
+            (_table, _required) = ScoreboardReading.ForcesOf(_driver.Registry, run.Dungeon.Id);
         }
         Log();
         LogScoreboard();
@@ -114,7 +115,7 @@ public partial class ForcesBar : Control
         {
             return;
         }
-        var (table, required) = _table is null ? ScoreboardReading.ForcesOf(null) : (_table, _required);
+        var (table, required) = _table is null ? ScoreboardReading.ForcesOf(null, run.Dungeon.Id) : (_table, _required);
         _driver.HostLine(ScoreboardReading.Of(run, _driver.Registry, table, required).LogLine());
     }
 

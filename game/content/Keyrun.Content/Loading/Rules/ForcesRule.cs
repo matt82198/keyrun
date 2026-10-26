@@ -16,7 +16,8 @@ internal sealed class ForcesRule : IContentRule
     public void Check(ContentRegistry reg)
     {
         ForcesTable forces = reg.Forces;
-        if (forces.Required <= 0) Fail("forces required must be positive, got " + forces.Required);
+        ForcesTable own = reg.ForcesFor(forces.Route.DungeonId);
+        if (own.Required <= 0) Fail("forces required must be positive, got " + own.Required);
 
         var valued = new HashSet<string>(System.StringComparer.Ordinal);
         foreach (ForcesValue value in forces.Values)

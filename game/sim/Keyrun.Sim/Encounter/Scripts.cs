@@ -374,6 +374,40 @@ public static class Scripts
         }
     }
 
+    /// <summary>
+    /// SLAM-TELEGRAPH-HASTE: the ability views as one actor casts them. A cast takes the hasted length the caster would
+    /// get (<see cref="Casting.HastedTicks"/>, the formula StartCast applies to a cast it starts), so the cast queue's
+    /// busy window, the spansCast lead and the held casts all match the cast that really lands. Returns
+    /// <paramref name="abilities"/> itself when the actor has no live haste or no effect definitions are given.
+    /// </summary>
+    private static IReadOnlyDictionary<string, ScriptAbility> HastedAbilities(ActorState actor, IReadOnlyDictionary<string, ScriptAbility> abilities, IReadOnlyDictionary<string, EffectDef>? effects, int now)
+    {
+        if (effects is null)
+        {
+            return abilities;
+        }
+        long haste = 0;
+        foreach (var inst in actor.Effects)
+        {
+            if (inst.EndsTick > now && effects.TryGetValue(inst.EffectId, out var def))
+            {
+                haste += (def.Modifiers.HasteBp ?? 0) * inst.Stacks;
+            }
+        }
+        if (haste == 0)
+        {
+            return abilities;
+        }
+        var views = new Dictionary<string, ScriptAbility>(StringComparer.Ordinal);
+        foreach (var kv in abilities)
+        {
+            views[kv.Key] = kv.Value.CastTicks > 0
+                ? kv.Value with { CastTicks = Casting.HastedTicks(kv.Value.CastTicks, haste) }
+                : kv.Value;
+        }
+        return views;
+    }
+
     // A spansCast telegraph's cast time (it resolves as the bar lands), else 0 (it resolves as the cast starts).
     private static int SpannedCastTicks(ScriptStep step, IReadOnlyDictionary<string, ScriptAbility> abilities) =>
         step.Telegraph is { SpansCast: true } && abilities.TryGetValue(step.Cast, out var a) && a.CastTicks > 0 ? a.CastTicks : 0;
@@ -444,6 +478,7 @@ public static class Scripts
     /// <param name="pendingSteps">The previous call's <see cref="StepEnemyScriptsResult.PendingSteps"/>; null = none waiting.</param>
     /// <param name="deferredCasts">The previous call's <see cref="StepEnemyScriptsResult.DeferredCasts"/>; null = none held.</param>
     /// <param name="scriptStarts">The previous call's <see cref="StepEnemyScriptsResult.ScriptStarts"/>; null = none carried (no first-tick shift).</param>
+    /// <param name="effects">Effect definitions by id, for a caster's live haste on its cast lengths (SLAM-TELEGRAPH-HASTE); null = no haste.</param>
     public static StepEnemyScriptsResult StepEnemyScripts(
         SimState state,
         IReadOnlyDictionary<int, IReadOnlyList<ScriptStep>> scripts,
@@ -451,9 +486,10 @@ public static class Scripts
         IReadOnlyDictionary<string, ScriptAbility>? abilities = null,
         IReadOnlyDictionary<int, IReadOnlyList<int>>? pendingSteps = null,
         IReadOnlyList<DeferredCast>? deferredCasts = null,
-        IReadOnlyDictionary<int, int>? scriptStarts = null)
+        IReadOnlyDictionary<int, int>? scriptStarts = null,
+        IReadOnlyDictionary<string, EffectDef>? effects = null)
     {
-        var abil = abilities ?? NoAbilities;
+        var baseAbil = abilities ?? NoAbilities;
         var held = deferredCasts ?? Array.Empty<DeferredCast>();
         var nextHeld = new List<DeferredCast>();
         var nextPending = new SortedDictionary<int, List<int>>();
@@ -477,6 +513,9 @@ public static class Scripts
             {
                 continue;
             }
+
+            // SLAM-TELEGRAPH-HASTE: every cast length this actor's steps read is the hasted one it will really cast.
+            var abil = HastedAbilities(actor, baseAbil, effects, tick);
 
             // SCRIPT-FIRST-TICK: the tick this actor's script first ran, carried by the caller (no carry: 0, no shift).
             var scriptStart = 0;
@@ -649,7 +688,7 @@ public static class Scripts
             }
         }
 
-        commands.AddRange(Chase.ChaseCommands(state, scripts, abil));
+        commands.AddRange(Chase.ChaseCommands(state, scripts, baseAbil));
         var fired2 = new SortedDictionary<int, IReadOnlyList<string>>();
         foreach (var kv in nextFired)
         {

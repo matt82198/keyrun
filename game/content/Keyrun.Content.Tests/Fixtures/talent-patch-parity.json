@@ -4477,7 +4477,7 @@
       "ability": {
         "castTicks": 0,
         "charges": 1,
-        "cooldownTicks": 60,
+        "cooldownTicks": 40,
         "cost": {
           "amount": 0,
           "resource": "none"

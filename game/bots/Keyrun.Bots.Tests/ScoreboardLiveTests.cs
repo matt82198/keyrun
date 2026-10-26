@@ -82,7 +82,7 @@ public sealed class ScoreboardLiveTests
         }
     }
 
-    private static (IReadOnlyDictionary<string, int> Table, int Required) ForcesTable() => ScoreboardReading.ForcesOf(Registry.Value);
+    private static (IReadOnlyDictionary<string, int> Table, int Required) ForcesTable() => ScoreboardReading.ForcesOf(Registry.Value, DungeonId);
 
     /// <summary>
     /// Counted enemies in the dungeon, derived from content by KillCount's rule (an enemy with a forces.json entry is
