@@ -411,16 +411,17 @@ if ($saved.Count -eq 0) {
 
 $mp4Out = 'none'
 if (-not $NoVideo) {
-    $ffmpegFallback = 'C:/Users/Mattt/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build/bin/ffmpeg.exe'
     $ffmpeg = $null
-    $ffCmd = Get-Command ffmpeg -ErrorAction SilentlyContinue
-    if ($ffCmd) {
-        $ffmpeg = $ffCmd.Source
-    } elseif (Test-Path -LiteralPath $ffmpegFallback -PathType Leaf) {
-        $ffmpeg = $ffmpegFallback
+    if ($env:FFMPEG) {
+        $ffmpeg = $env:FFMPEG
+    } else {
+        $ffCmd = Get-Command ffmpeg -ErrorAction SilentlyContinue
+        if ($ffCmd) {
+            $ffmpeg = $ffCmd.Source
+        }
     }
     if (-not $ffmpeg) {
-        Write-Output ("FAILED: ffmpeg not on PATH and not at {0}; frames kept in {1}" -f $ffmpegFallback, $outDirFull)
+        Write-Output ("FAILED: ffmpeg not found; set `$env:FFMPEG to the full path of ffmpeg.exe, or put ffmpeg on PATH; frames kept in {0}" -f $outDirFull)
         Write-Output ("SCREENS frames={0} mp4=none dir={1}" -f $saved.Count, $outDirFull)
         exit 3
     }
