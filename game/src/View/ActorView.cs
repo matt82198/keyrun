@@ -94,7 +94,7 @@ public partial class ActorView : Node3D
     private System.Collections.Generic.IReadOnlyList<GearMark>? _gearPlan;
     private Node3D? _gearRoot;
     private readonly System.Collections.Generic.List<MeshInstance3D> _gearMeshes = new();
-    private readonly System.Collections.Generic.List<BoneAttachment3D> _gearBones = new();
+    private readonly System.Collections.Generic.List<(BoneAttachment3D Attach, GearMountPlacement Placement)> _gearBones = new();
     private bool _gearFaded;
 
     /// <summary>KF1 hit flash colour (warm white, added over the body) at full strength.</summary>
@@ -661,6 +661,14 @@ public partial class ActorView : Node3D
         {
             _gearRoot.Visible = now.Alive; // a dead body loses its gear with it
         }
+        // Bone-mounted marks sit under the Skeleton3D, outside the gear root, so each one follows the body through the rule.
+        foreach (var (attach, placement) in _gearBones)
+        {
+            if (IsInstanceValid(attach))
+            {
+                attach.Visible = GearMountRule.Visible(now.Alive, placement);
+            }
+        }
         if (_gearPlan is not null && plan.SequenceEqual(_gearPlan))
         {
             return;
@@ -672,7 +680,7 @@ public partial class ActorView : Node3D
             _gearRoot.QueueFree();
             _gearRoot = null;
         }
-        foreach (var attach in _gearBones)
+        foreach (var (attach, _) in _gearBones)
         {
             if (IsInstanceValid(attach))
             {
@@ -692,20 +700,24 @@ public partial class ActorView : Node3D
             foreach (var mark in plan)
             {
                 var mesh = BuildGearMesh(mark);
-                if (skeleton is not null && skeleton.FindBone(mark.Bone) >= 0)
+                var def = GearMarkDefs.All.First(d => d.Slot == mark.Slot);
+                var onBone = skeleton is not null && skeleton.FindBone(mark.Bone) >= 0;
+                var placement = GearMountRule.Resolve(def, onBone);
+                if (onBone)
                 {
                     // Ride the bone: BONE-LOCAL offsets in the model frame, undoing the model's scale so sizes stay metres.
-                    mesh.Position = new Vector3(mark.PosX, mark.PosY, mark.PosZ) / scale;
+                    mesh.Position = PlacementToMetres(placement) / scale;
                     mesh.Scale = Vector3.One / scale;
                     var attach = new BoneAttachment3D { Name = "GearBone_" + mark.Slot, BoneName = mark.Bone };
-                    skeleton.AddChild(attach);
+                    skeleton!.AddChild(attach);
                     attach.AddChild(mesh);
-                    _gearBones.Add(attach);
+                    attach.Visible = GearMountRule.Visible(now.Alive, placement);
+                    _gearBones.Add((attach, placement));
                 }
                 else
                 {
-                    // No skeleton (the capsule fallback): old root-frame parent, root X forward, Z lateral (model X negated).
-                    mesh.Position = new Vector3(mark.PosZ, RootAnchorY(mark.Bone) + mark.PosY, -mark.PosX);
+                    // No skeleton (the capsule fallback): root-frame placement from GearMountRule (root X forward, Z lateral).
+                    mesh.Position = PlacementToMetres(placement);
                     if (mesh.Mesh is BoxMesh box)
                     {
                         box.Size = new Vector3(mark.SizeZ, mark.SizeY, mark.SizeX);
@@ -739,14 +751,8 @@ public partial class ActorView : Node3D
         Driver?.HostLine(line);
     }
 
-    // Root-frame height of a bone's rest position, for the no-skeleton fallback only.
-    private static float RootAnchorY(string bone) => bone switch
-    {
-        "head" => 1.5f,
-        "chest" => 1.15f,
-        "handslot.r" => 1.05f,
-        _ => 0.95f,
-    };
+    /// <summary>Converts a gear mount placement from integer millimetres (GearMountRule) to Godot metres at the view boundary.</summary>
+    private static Vector3 PlacementToMetres(GearMountPlacement p) => new(p.X * MmToM, p.Y * MmToM, p.Z * MmToM);
 
     // One primitive mark: a box or a sphere, unshadowed (the marks add draw calls to the Warden only), tinted by tier.
     private static MeshInstance3D BuildGearMesh(GearMark mark)
