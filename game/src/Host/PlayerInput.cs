@@ -248,9 +248,10 @@ public partial class PlayerInput : Node, ICommandSource
         var actorYaw = run.State.Actors.TryGetValue(SimDriver.WardenId, out var me) ? me.Yaw : 0;
         var face = Keyrun.Content.MouseoverRule.FacingYaw(_rightHeld && !Replaying, moving, walkYaw,
             ToYaw1024(-Mathf.Sin(yaw), -Mathf.Cos(yaw)), actorYaw);
-        if (face is { } f)
+        // A null facing means "facing unchanged": the move still carries the walk direction, with the Warden's own yaw.
+        if (moving || face is not null)
         {
-            into.Add(new MoveCommand(tick, SimDriver.WardenId, dir, f));
+            into.Add(new MoveCommand(tick, SimDriver.WardenId, dir, face ?? actorYaw));
         }
     }
 

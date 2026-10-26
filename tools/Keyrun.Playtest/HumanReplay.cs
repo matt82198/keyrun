@@ -211,9 +211,10 @@ public static class HumanReplay
         }
         var actorYaw = run.State.Actors.TryGetValue(HostRunSetup.HumanId, out var me) ? me.Yaw : 0;
         var face = C.MouseoverRule.FacingYaw(false, moving, walkYaw, ToYaw1024(-Sin(yaw), -Cos(yaw)), actorYaw);
-        if (face is { } f)
+        // A null facing means "facing unchanged": the move still carries the walk direction, with the actor's own yaw.
+        if (moving || face is not null)
         {
-            into.Add(new MoveCommand(tick, HostRunSetup.HumanId, dir, f));
+            into.Add(new MoveCommand(tick, HostRunSetup.HumanId, dir, face ?? actorYaw));
         }
     }
 
