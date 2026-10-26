@@ -36,7 +36,7 @@ internal static class CombatPhase
         }
         var merged = c.Commands.Concat(enemyCommands).ToList();
         // BIBLE.md:156 Tide: floor patches drift with the telegraphs, before combat reads them this tick.
-        var stepped = Tick.Step(Clauses.DriftFloorWindows(StopOpenSeatCastsEndingNow(c, run.State), run.Encounter.Rules), merged, rules);
+        var stepped = Tick.Step(Clauses.DriftFloorWindows(StopOpenSeatCastsEndingNow(c, c.State), run.Encounter.Rules), merged, rules);
         c.Events.AddRange(stepped.Events);
         c.State = stepped.State;
     }
