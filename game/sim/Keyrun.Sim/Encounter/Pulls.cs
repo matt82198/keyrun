@@ -202,6 +202,45 @@ public static class Pulls
     }
 
     /// <summary>
+    /// PACK-CLEAR (R-WOW-2, event seq 857): emits one <c>{tick, type:"pack_clear", packId}</c> for each pack that had a member
+    /// die in <paramref name="events"/> this tick and has no living member left, whether or not it is the active pull.
+    /// A pack holding <paramref name="skipActorId"/> (the armed boss) is the boss pull, not trash, and is skipped.
+    /// </summary>
+    /// <param name="state">The post-combat state.</param>
+    /// <param name="dungeon">The dungeon.</param>
+    /// <param name="events">The tick's events so far.</param>
+    /// <param name="tick">The tick.</param>
+    /// <param name="skipActorId">An actor id whose pack is not credited, or null.</param>
+    /// <param name="emit">Event sink.</param>
+    public static void EmitPackClears(SimState state, DungeonDef dungeon, IReadOnlyList<SimEvent> events, int tick, int? skipActorId, Action<SimEvent> emit)
+    {
+        var dead = new HashSet<long>();
+        foreach (var e in events)
+        {
+            if (e.Type == "death" && e.Get("actorId") is JsInt id)
+            {
+                dead.Add(id.Value);
+            }
+        }
+        if (dead.Count == 0)
+        {
+            return;
+        }
+        foreach (var pull in dungeon.Pulls)
+        {
+            if (pull.Spawns.Count == 0 || !pull.Spawns.Any(s => dead.Contains(s.ActorId)) ||
+                (skipActorId is { } skip && pull.Spawns.Any(s => s.ActorId == skip)))
+            {
+                continue;
+            }
+            if (pull.Spawns.All(s => !state.Actors.TryGetValue(s.ActorId, out var a) || !a.Alive))
+            {
+                emit(new SimEvent(tick, "pack_clear", ("packId", JsValue.Str(pull.Id))));
+            }
+        }
+    }
+
+    /// <summary>
     /// D45: the branch the party took, the <see cref="PullDef.Branch"/> of the first engaged pull that has one, or null
     /// while no branch pull has engaged (or the dungeon has none).
     /// </summary>
