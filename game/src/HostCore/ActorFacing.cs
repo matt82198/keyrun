@@ -95,6 +95,13 @@ public static class ActorFacing
         {
             return SwingFacing.RenderYaw(state, actor, abilities, hold);
         }
+        if (actor.HolderId is int holderId &&
+            holderId != actor.Id &&
+            state.Actors.TryGetValue(holderId, out var holder) &&
+            holder.Alive)
+        {
+            return YawToward(actor.Pos, holder.Pos, actor.Yaw);
+        }
         if (actor.TargetId is int targetId &&
             targetId != actor.Id &&
             state.Actors.TryGetValue(targetId, out var target) &&
