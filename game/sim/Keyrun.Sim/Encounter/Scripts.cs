@@ -538,8 +538,12 @@ public static class Scripts
                 pendingSteps?.TryGetValue(actorId, out waitingIn);
                 var queue = new CastQueue(state, actorId, actor, script, abil, waitingIn);
                 var firing = queue.Advance(tick);
-                foreach (var (j, _) in firing)
+                foreach (var (j, starts) in firing)
                 {
+                    if (!starts)
+                    {
+                        continue;
+                    }
                     if (CastCommandFor(state, actorId, actor, script[j], abil) is { } queuedCast)
                     {
                         commands.Add(queuedCast);
