@@ -122,6 +122,8 @@ public partial class WindowRingView : Node3D
         _seen.Clear();
         var state = Driver.State;
         var now = state.Tick + Driver.Alpha;
+        // GROUND-MARK: persistent Window rings are not drawn (GroundMarkRule); the Window state shows on party frames.
+        var drawActorWindows = GroundMarkRule.Draws(GroundMarkKind.ActorWindow);
         foreach (var (id, actor) in state.Actors)
         {
             if (!actor.Alive)
@@ -144,9 +146,13 @@ public partial class WindowRingView : Node3D
                 var radius = ActorRingRadiusM + (ring * 0.2f);
                 if (parsed.Alternate)
                 {
-                    DrawRing(centre, radius, width, left, LockView.ToColor(LockRule.OpenColor, 850));
+                    // GROUND-MARK: the Lock carrier ring is a mechanic mark, gated by its own kind (GroundMarkRule).
+                    if (GroundMarkRule.Draws(GroundMarkKind.LockRing))
+                    {
+                        DrawRing(centre, radius, width, left, LockView.ToColor(LockRule.OpenColor, 850));
+                    }
                 }
-                else
+                else if (drawActorWindows)
                 {
                     DrawBand(centre, radius, width, left, BandOf(parsed.SetupClass, floor: false), 850, ColorOf(parsed.WindowId));
                 }
@@ -155,7 +161,7 @@ public partial class WindowRingView : Node3D
         }
         foreach (var (windowId, patch) in state.FloorWindows)
         {
-            if (patch.EndsTick <= state.Tick)
+            if (patch.EndsTick <= state.Tick || !GroundMarkRule.Draws(GroundMarkKind.FloorWindow))
             {
                 continue;
             }
