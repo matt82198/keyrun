@@ -26,6 +26,45 @@ public static class ActorFacing
     public static int YawToward(Vec3 from, Vec3 to, int lastYaw) =>
         from.X == to.X && from.Z == to.Z ? lastYaw : Fixed.YawBetween(from, to);
 
+    /// <summary>The most a drawn body may turn in one render tick: 90 degrees, 256 of 1024 yaw units.</summary>
+    public const int TurnCapPerTick = 256;
+
+    /// <summary>
+    /// <paramref name="targetYaw"/> reached from <paramref name="prevYaw"/> along the shorter arc, but no further than
+    /// <paramref name="capPerTick"/> yaw units. A flip of the faced target by 180 degrees in one tick therefore turns
+    /// the drawn body by at most the cap, and the rest of the turn lands on the following ticks. Render only.
+    /// </summary>
+    /// <param name="prevYaw">The yaw drawn on the previous tick, 1/1024 turn.</param>
+    /// <param name="targetYaw">The yaw the body should reach, 1/1024 turn.</param>
+    /// <param name="capPerTick">The largest turn allowed, in yaw units, zero or more.</param>
+    /// <returns>The yaw to draw, normalised to 0..1023.</returns>
+    public static int TurnToward(int prevYaw, int targetYaw, int capPerTick)
+    {
+        var diff = Fixed.AngleDiff(prevYaw, targetYaw);
+        var limited = System.Math.Clamp(diff, -capPerTick, capPerTick);
+        return (int)(((prevYaw + limited) % 1024 + 1024) % 1024);
+    }
+
+    /// <summary>
+    /// One render tick of the carried turn. The body keeps the yaw it was last drawn at (<paramref name="prevCarried"/>);
+    /// on a new sim tick it turns toward <paramref name="rawTarget"/> by at most <paramref name="capPerTick"/>. Returns the
+    /// yaw to interpolate from (the previous carried yaw) and the yaw to interpolate to (the new carried yaw). With no
+    /// carried yaw yet (a new actor or a new run) the body starts facing the raw target, so it never turns from 0.
+    /// Render only.
+    /// </summary>
+    /// <param name="prevCarried">The yaw carried from the previous tick, or null before the first tick.</param>
+    /// <param name="rawTarget">The uncapped yaw the body should reach this tick, 1/1024 turn.</param>
+    /// <param name="capPerTick">The largest turn allowed in one tick, in yaw units.</param>
+    /// <returns>The yaw to draw from and the carried yaw to draw to, both normalised to 0..1023.</returns>
+    public static (int From, int To) CarryStep(int? prevCarried, int rawTarget, int capPerTick)
+    {
+        if (prevCarried is not int prev)
+        {
+            return (rawTarget, rawTarget);
+        }
+        return (prev, TurnToward(prev, rawTarget, capPerTick));
+    }
+
     /// <summary>
     /// The yaw to draw <paramref name="actor"/> with in <paramref name="state"/>, 1/1024 turn. A cone, line or self cast
     /// keeps the sim facing (they resolve along <see cref="ActorState.Yaw"/>, so any other facing would misreport where
