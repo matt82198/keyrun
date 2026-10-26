@@ -74,6 +74,7 @@ public sealed class ScriptedWarden
                 into.Add(chain);
             }
             ApplyFrontalAnswer(CleaveAnswer(run, me, tick), me.Id, into, start);
+            ApplyFrontalAnswer(CleaveAnswer(run, me, tick), me.Id, into, start);
         }
     }
 
@@ -649,6 +650,7 @@ public sealed class ScriptedWarden
         {
             if (!EngagedTargets.IsEngagedHostile(me, a) || a.CastId is not { } castId
                 || a.CastStartTick is not { } start || !abilities.TryGetValue(castId, out var cast) || !cast.Interruptible
+                || !cast.Effects.Any(op => op is HealOp)
                 || tick < start + (cast.CastTicks / 2) || Casting.RangeMm(me, a) > abilities[Kick].Range)
             {
                 continue;

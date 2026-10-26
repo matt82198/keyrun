@@ -70,5 +70,16 @@
       { "at": 60, "every": 240, "cast": "choir.patrolSweep",
         "telegraph": { "shape": "cone", "radius": 3500, "angle1024": 256, "leadTicks": 40, "spansCast": true } }
     ]
+  },
+  {
+    "id": "remnant.cantor",
+    "name": "Remnant Cantor",
+    "maxHealth": 3000,
+    "role": "lieutenant",
+    "abilities": ["remnant.healCast"],
+    "script": [
+      { "at": 60, "every": 300, "cast": "remnant.healCast",
+        "telegraph": { "shape": "circle", "radius": 2000, "leadTicks": 40, "spansCast": true } }
+    ]
   }
 ]

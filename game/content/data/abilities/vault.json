@@ -138,5 +138,32 @@
       "resource": "none",
       "amount": 0
     }
+  },
+  {
+    "id": "remnant.healCast",
+    "name": "Remnant Mending",
+    "castTicks": 80,
+    "gcdTicks": 0,
+    "cooldownTicks": 300,
+    "charges": 1,
+    "range": 25000,
+    "shape": {
+      "kind": "circle",
+      "radius": 25000
+    },
+    "interruptible": true,
+    "tags": [
+      "healer"
+    ],
+    "effects": [
+      {
+        "op": "heal",
+        "amount": 3000
+      }
+    ],
+    "cost": {
+      "resource": "none",
+      "amount": 0
+    }
   }
 ]
