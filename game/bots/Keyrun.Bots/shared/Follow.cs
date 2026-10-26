@@ -190,7 +190,9 @@ public static class Follow
     {
         ArgumentNullException.ThrowIfNull(view);
         var leader = Leader(view.State);
-        if (leader is not null && AnyLivingEnemy(view.State) && ReturnSeat(leader, view.State) is not null)
+        // The lead passes on only while a real fight is on at another seat (an engaged enemy within ReturnReachMm of it): a
+        // leader merely ahead of lagging followers, with an engaged enemy standing off from everyone, keeps the lead (seed 4).
+        if (leader is not null && AnyLivingEnemy(view.State) && ReturnSeat(leader, view.State) is not null && FightAtOtherSeat(view.State, leader))
         {
             return LeadAfterReturn(view.State, leader);
         }
@@ -204,6 +206,12 @@ public static class Follow
             .First();
     }
 
+    private static bool FightAtOtherSeat(SimState state, ActorState leader) =>
+        state.Actors.Values.Any(e => e.Kind == ActorKind.Enemy && e.Alive && !e.Idle &&
+            (state.Actors.Values.Any(p => p.Kind == ActorKind.Player && p.Alive && p.Id != leader.Id && Distance2(p.Pos, e.Pos) <= ReturnReachMm * ReturnReachMm) ||
+             // A ranged enemy holds a seat from beyond ReturnReachMm (seed 4): an engaged enemy whose holder is a living non-leader seat counts, whatever its distance.
+             (e.HolderId is { } holder && state.Actors.Values.Any(p => p.Kind == ActorKind.Player && p.Alive && p.Id != leader.Id && p.Id == holder))));
+
     /// <summary>
     /// R-PATH-5 (t), WoW: the lead when the lowest living seat is a returning seat. The engaged tank (the living, non-returning
     /// seat that holds a living, non-idle enemy's <see cref="ActorState.HolderId"/>) leads if there is one, else the lowest
@@ -214,14 +222,6 @@ public static class Follow
     /// <returns>The lead seat.</returns>
     private static ActorState LeadAfterReturn(SimState state, ActorState returning)
     {
-        var seats = state.Actors.Values
-            .Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != returning.Id && ReturnSeat(a, state) is null)
-            .OrderBy(a => a.Id)
-            .ToList();
-        if (seats.Count == 0)
-        {
-            return returning;
-        }
         var holders = new HashSet<int>();
         foreach (var e in state.Actors.Values)
         {
@@ -229,6 +229,15 @@ public static class Follow
             {
                 holders.Add(h);
             }
+        }
+        // A seat an engaged enemy holds is never "returning" (seed 4): a ranged holder stands beyond ReturnReachMm of it.
+        var seats = state.Actors.Values
+            .Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != returning.Id && (ReturnSeat(a, state) is null || holders.Contains(a.Id)))
+            .OrderBy(a => a.Id)
+            .ToList();
+        if (seats.Count == 0)
+        {
+            return returning;
         }
         return seats.FirstOrDefault(a => holders.Contains(a.Id)) ?? seats[0];
     }
