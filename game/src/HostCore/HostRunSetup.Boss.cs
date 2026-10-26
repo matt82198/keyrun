@@ -18,6 +18,29 @@ public sealed partial record HostRunSetup
     public const int MaxBossAdds = 4;
 
     /// <summary>
+    /// R-BOSS-IDLE-ADDS (b): each armed boss's Twins join the aggro group of the pull that spawns that boss
+    /// (<see cref="PullDef.Adds"/>), so an add is engaged exactly when its boss group is. The Twins are not spawned with
+    /// the pull (they spawn on the boss's engage), so the pull lists their ids only.
+    /// </summary>
+    /// <param name="dungeon">The dungeon the run is built on.</param>
+    /// <param name="configs">The armed boss configs, one per boss slot.</param>
+    /// <returns>The dungeon with each boss pull's <see cref="PullDef.Adds"/> set to its Twins' ids.</returns>
+    public static DungeonDef WithBossAdds(DungeonDef dungeon, IReadOnlyList<BossConfig> configs)
+    {
+        ArgumentNullException.ThrowIfNull(dungeon);
+        ArgumentNullException.ThrowIfNull(configs);
+        var pulls = dungeon.Pulls.Select(pull =>
+        {
+            var adds = configs
+                .Where(c => pull.Spawns.Any(s => s.ActorId == c.BossActorId))
+                .SelectMany(c => c.Twins.Select(t => t.ActorId))
+                .ToList();
+            return adds.Count == 0 ? pull : pull with { Adds = adds };
+        }).ToList();
+        return dungeon with { Pulls = pulls };
+    }
+
+    /// <summary>
     /// Add spawn offsets from the boss, in content id order: the Hollow Warden's Twins at +x and -x
     /// (<see cref="TwinOffsetMm"/>, unchanged), then +z and -z for a third and fourth add.
     /// </summary>
