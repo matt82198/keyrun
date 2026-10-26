@@ -47,6 +47,8 @@ public sealed class ContentCountTests
         // read by AbilityTextLoader for the HUD), so 33 -> 34: an inventory raise for a real new file.
         // D66 (the Sunken Bellfoundry) adds the C#-only abilities/, effects/ and enemies/bellfoundry.json and its dungeon
         // definition dungeons/sunken-bellfoundry.json, so 34 -> 38; its roster packs live under roster/ (a directory).
+        // D66 forces per dungeon (ForcesPerDungeonTests): the Sunken Bellfoundry's bar is its own file forces/sunken-bellfoundry.json,
+        // listed like forces/hollow-vault.json (its enemy values stay in the shared forces/values/ directory), so 39 -> 40.
         // R-ROLL-1: +1 loot/completion.json (the completion roll table, C#-only), so 38 -> 39.
         string[] csharpOnly =
         {
@@ -54,12 +56,12 @@ public sealed class ContentCountTests
             "gear.json", "enemies/hall.json", "melee-abilities.json", "palette.json",
             "abilities/vault.json", "effects/vault.json", "enemies/vault.json", "abilities/patrol.json", "ability-text.json",
             "abilities/bellfoundry.json", "effects/bellfoundry.json", "enemies/bellfoundry.json", "dungeons/sunken-bellfoundry.json",
-            "loot/completion.json",
+            "loot/completion.json", "forces/sunken-bellfoundry.json",
         };
         bool UnderDirectory(string p) => ContentLoader.Directories.Any(d => p.StartsWith(d, System.StringComparison.Ordinal));
         string[] listedEmbedded = embedded.Where(p => !UnderDirectory(p)).ToArray();
         // +1 loot/completion.json (R-ROLL-1)
-        Assert.Equal(39, listedEmbedded.Length);
+        Assert.Equal(40, listedEmbedded.Length);
         Assert.Equal(19, listedEmbedded.Count(p => !csharpOnly.Contains(p)));
         Assert.Equal(listedEmbedded, loaded);
         Assert.Contains(embedded, UnderDirectory);

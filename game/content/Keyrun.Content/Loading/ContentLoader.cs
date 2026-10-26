@@ -46,6 +46,7 @@ public static class ContentLoader
         AbilityTextFile,
         ComboRidersFile,
         ForcesFile,
+        FoundryForcesFile,
         HazardsFile,
         GearFile,
         CompletionFile,
@@ -142,6 +143,15 @@ public static class ContentLoader
     /// </summary>
     public const string ForcesFile = PerKindContent.ForcesRoot + LayoutDungeon + ".json";
 
+    /// <summary>The Sunken Bellfoundry's id (D66): the seeded dungeon whose forces bar is its own file, not the Hollow Vault's.</summary>
+    public const string FoundryDungeon = "sunken-bellfoundry";
+
+    /// <summary>
+    /// The Sunken Bellfoundry's forces bar size and route (game/content/data/forces/sunken-bellfoundry.json). Its enemy values
+    /// are the shared forces/values/ files, so a new value is still a new file. Read per dungeon by <see cref="ContentRegistry.ForcesFor"/>.
+    /// </summary>
+    public const string FoundryForcesFile = PerKindContent.ForcesRoot + FoundryDungeon + ".json";
+
     /// <summary>C#-only room hazards (game/content/data/hazards.json; BIBLE section 9.4).</summary>
     public const string HazardsFile = "hazards.json";
 
@@ -225,6 +235,9 @@ public static class ContentLoader
         ArgumentNullException.ThrowIfNull(source);
         CheckFileSet(source);
 
+        ForcesTable hollowForces = PerKindContent.AssembleForces(source, LayoutDungeon);
+        ForcesTable foundryForces = PerKindContent.AssembleForces(source, FoundryDungeon);
+
         var registry = new ContentRegistry
         {
             Abilities = ById("ability",
@@ -266,7 +279,12 @@ public static class ContentLoader
             Run = ReadOne<RunConfig>(source, RunFile)[0],
             Layout = PerKindContent.AssembleLayout(source, LayoutDungeon),
             ComboRiders = ById("combo rider", ReadArray<ComboRider>(source, ComboRidersFile)),
-            Forces = PerKindContent.AssembleForces(source, LayoutDungeon),
+            Forces = hollowForces,
+            ForcesByDungeon = new ValueMap<ForcesTable>(new[]
+            {
+                new KeyValuePair<string, ForcesTable>(LayoutDungeon, hollowForces),
+                new KeyValuePair<string, ForcesTable>(FoundryDungeon, foundryForces),
+            }),
             Hazards = ById("hazard", ReadArray<HazardDef>(source, HazardsFile)),
             Gear = ById("gear item", ReadArray<GearItemDef>(source, GearFile)),
             Completion = ReadOne<CompletionTable>(source, CompletionFile)[0],
