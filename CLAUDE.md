@@ -32,6 +32,7 @@ of it is `content/data/` (the frozen oracle root, see content/CLAUDE.md) and `te
   it: its one step fails only if a TypeScript e2e suite directory returns, and otherwise it passes.
 - **content/data/** - the frozen oracle root: the JSON game content that the C# loader embeds (one csproj glob,
   game/content/Keyrun.Content/Keyrun.Content.csproj). It stays verbatim. See content/CLAUDE.md.
+- **tools/Keyrun.Playtest** (playtest CLI) — headless playtest. Off-ledger guided run: `dotnet run --project tools/Keyrun.Playtest -- run --key K --seed S --dungeon hollow-vault --policy PLAN.json --out DIR` (PLAN.json `{"mode":"guided"}`; omit --player so nothing is recorded). Writes DIR/run.log and DIR/summary.json. Player runs: `run --player ID --policy FILE --seed S --out DIR`. Details: tools/Keyrun.Playtest/GUIDE.md.
 
 ## Invariants
 1. Determinism: the sim is a pure function of (seed, command stream); replays must reproduce exactly.
