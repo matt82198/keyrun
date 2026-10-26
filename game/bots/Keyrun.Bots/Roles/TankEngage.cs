@@ -212,6 +212,33 @@ public static class TankEngage
     }
 
     /// <summary>
+    /// R-BOTTANK-LEASH-1: true when <paramref name="target"/> stands within <see cref="ChainPull.PartyLeashMm"/> of every
+    /// living player seat other than the tank (the chain leader of <see cref="ChainPull.Move"/> is one of them). No seat is
+    /// exempt: a seat far from every other living player is still a seat the tank must not out-run.
+    /// </summary>
+    /// <param name="state">The state.</param>
+    /// <param name="self">The tank.</param>
+    /// <param name="target">The enemy the tank would approach.</param>
+    /// <returns>True when no living party seat is beyond the leash from the enemy.</returns>
+    public static bool WithinPartyLeash(SimState state, ActorState self, ActorState target)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(self);
+        ArgumentNullException.ThrowIfNull(target);
+        const long leash = ChainPull.PartyLeashMm;
+        foreach (var seat in state.Actors.Values.Where(a => a.Kind == ActorKind.Player && a.Alive && a.Id != self.Id))
+        {
+            var dx = seat.Pos.X - target.Pos.X;
+            var dz = seat.Pos.Z - target.Pos.Z;
+            if (dx * dx + dz * dz > leash * leash)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
     /// The out-of-reach approach move <see cref="TankEngageCommands"/> issues: a <see cref="MoveCommand"/> toward
     /// <see cref="EngageTarget"/>, issued whenever the tank is not casting and the target is beyond reach less the margin.
     /// A firing taunt does not suppress it (DOOR-100, R-DOOR-1): the taunt reaches from 3000 mm, past melee reach, so a
