@@ -31,6 +31,9 @@ public sealed class NoPolicyParityTests
         var kits = KitRegistry.From(registry);
         var source = new BotCommandSource(setup.Party.Select(p => p.Id), kits, seed);
         var log = new StringBuilder();
+        // BOT-RESPAWN-RETURN (R-PATH-5 (m)): the same seat-down and returning tracking as PlaytestRunner, run before each sample.
+        var seatsDown = new HashSet<int>();
+        var returning = new HashSet<int>();
         // f-3dcc702c: the host's autorun leader counts the forces bar to 100% (PlayerInput hands ScriptedWarden this plan).
         var forces = ForcesPlan.Of(registry);
         // The host (SimDriver) sets the forces table on its bot source, so every view carries the run's PullPlan.
@@ -38,6 +41,26 @@ public sealed class NoPolicyParityTests
         while (run.State.Tick < maxTicks && run.RunEnd.ResultTick is null)
         {
             var tick = run.State.Tick;
+            foreach (var seat in run.State.Actors.Values)
+            {
+                if (seat.Kind != ActorKind.Player)
+                {
+                    continue;
+                }
+                if (!seat.Alive)
+                {
+                    seatsDown.Add(seat.Id);
+                    continue;
+                }
+                if (seatsDown.Remove(seat.Id))
+                {
+                    returning.Add(seat.Id);
+                }
+                if (returning.Contains(seat.Id) && Follow.ReturnSeat(seat, run.State) is null)
+                {
+                    returning.Remove(seat.Id);
+                }
+            }
             var commands = new List<Command>();
             source.Sample(tick, run, commands);
             if (Follow.Leader(run.State) is { } leader)
@@ -64,10 +87,18 @@ public sealed class NoPolicyParityTests
                     // R-AOE-1 (c), f-c8ed3a62: the lead-seat bot also passes ChainPull.Move (Bot.cs); while it holds it replaces the
                     // leader's other moves, exactly as PlaytestRunner does, so the byte-identical assertion below is unchanged.
                     var chain = view.PullPlan is { } chainPlan && view.Layout is { } chainLayout ? ChainPull.Move(tick, run.State, chainLayout, chainPlan, leader) : null;
-                    commands.RemoveAll(c => c.ActorId == leader.Id && c is MoveCommand or DashCommand && (chain is not null || (!Equals(c, approach) && !Equals(c, kickWalk))));
+                    // BOT-RESPAWN-RETURN (R-PATH-5 (l)): the respawned leader's walk back to the nearest living seat, as PlaytestRunner.
+                    var back = returning.Contains(leader.Id) && run.Content.Layout is { } backLayout && Follow.ReturnSeat(leader, run.State) is { } backSeat
+                        ? Follow.WalkTo(tick, leader, backLayout, backSeat.Pos)
+                        : null;
+                    commands.RemoveAll(c => c.ActorId == leader.Id && c is MoveCommand or DashCommand && (chain is not null || (!Equals(c, approach) && !Equals(c, kickWalk) && !Equals(c, back))));
                     if (chain is not null)
                     {
                         commands.Add(chain);
+                    }
+                    else if (back is not null && !commands.Contains(back))
+                    {
+                        commands.Add(back);
                     }
                 }
             }
