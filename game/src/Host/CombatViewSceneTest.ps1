@@ -49,6 +49,18 @@ if ($code -eq 2 -and $out -match 'Godot binary not found') {
 if ($code -ne 0) {
     $failures.Add("godot exited $code (expected 0)")
 }
+# Exit 6 (godot.ps1 preflight refused the launch): print the preflight verdicts and the fix commands to the console. This
+# script does not dot-source HudSceneCommon.ps1, so it calls the preflight functions itself (finding f-1f34250a).
+if ($code -eq 6) {
+    . (Join-Path $repo 'tools/godot/preflight.ps1')
+    $checks = @(
+        (Test-KeyrunDotnetRuntime -DotnetRoot $env:DOTNET_ROOT),
+        (Test-KeyrunDotnetAssembly -RepoRoot $repo -ProjectRel 'game'),
+        (Test-KeyrunImportCache -RepoRoot $repo -ProjectRel 'game'))
+    foreach ($c in $checks) { foreach ($l in @($c.Lines)) { Write-Output "CombatViewSceneTest: $l" } }
+    Write-Output 'DOTNET_ROOT set and dotnet build game/Keyrun.csproj -c Debug'
+    Write-Output 'powershell -NoProfile -ExecutionPolicy Bypass -File tools/godot/import.ps1'
+}
 
 $lines = @()
 if (Test-Path -LiteralPath $logFile) {

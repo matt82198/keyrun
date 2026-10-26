@@ -29,6 +29,15 @@ public sealed class GuidedTankRole : IRole
     /// <summary>Margin added to each named telegraph's radius when choosing the step-out point, mm (the Floor escape margin).</summary>
     private const long StepOutMarginMm = 500;
 
+    /// <summary>The Warden's charge ability (warden.json; its cast range comes from the content registry).</summary>
+    private const string ChargeAbilityId = "warden.charge";
+
+    /// <summary>Melee reach, mm (Floor.MeleeRangeMm, private there, mirrored as HealerAggroMove does).</summary>
+    private const long MeleeReachMm = 5000;
+
+    /// <summary>R-GCD-1 (c) rule 2: a charge is cast only when the held target is farther than melee reach plus this, mm.</summary>
+    private const long ChargeThresholdMm = 2000;
+
     private readonly BotGuide _guide;
     private readonly IReadOnlySet<string> _kickCasts;
     private readonly IReadOnlySet<string> _stepOutTelegraphs;
@@ -75,6 +84,12 @@ public sealed class GuidedTankRole : IRole
         {
             return new Command[] { Reasons.Tag(escape, "tank:floor-escape") };
         }
+        // R-GCD-1 (c) rule 2: a held target out of melee reach by more than the charge threshold is closed with warden.charge
+        // (within its cast range) instead of walking the gap.
+        if (ChargeCommand(view, self, kit) is { } charge)
+        {
+            return new Command[] { Reasons.Tag(charge, "tank:charge") };
+        }
         // The engage walk holds the seat while the pack is out of reach: an approach move (non-zero Dir) returns alone. In reach
         // the walk is at most a yaw turn (zero Dir), which never blocks a cast (R-GUIDE-1 (b)): the guide's rotation runs the
         // same tick and its cast goes out alongside the turn, as the scripted Tank orders move and cast in one decision.
@@ -99,6 +114,37 @@ public sealed class GuidedTankRole : IRole
             return walk;
         }
         return walk;
+    }
+
+    /// <summary>
+    /// R-GCD-1 (c) rule 2: the Warden's warden.charge on its held target, when the target is alive, farther than melee reach
+    /// plus <see cref="ChargeThresholdMm"/>, within the charge's content cast range, and the charge is ready and affordable.
+    /// Null otherwise (the seat then walks as before). Fails closed without a content registry.
+    /// </summary>
+    /// <param name="view">Bot view.</param>
+    /// <param name="self">Deciding actor.</param>
+    /// <param name="kit">The seat's effective kit.</param>
+    /// <returns>The charge cast, or null.</returns>
+    private static CastCommand? ChargeCommand(BotView view, ActorState self, EffectiveKit kit)
+    {
+        if (self.TargetId is not { } targetId
+            || !view.State.Actors.TryGetValue(targetId, out var target)
+            || !target.Alive
+            || target.Kind != ActorKind.Enemy
+            || view.Kits.Content is not { } registry
+            || !registry.Abilities.TryGetValue(ChargeAbilityId, out var charge))
+        {
+            return null;
+        }
+        var distance = RoleShared.Dist(self, target);
+        if (distance <= MeleeReachMm + ChargeThresholdMm || distance > charge.Range)
+        {
+            return null;
+        }
+        var tick = view.State.Tick;
+        return RoleShared.ReadyAndAffordable(self, ChargeAbilityId, tick, kit)
+            ? new CastCommand(tick, self.Id, ChargeAbilityId, targetId)
+            : null;
     }
 
     /// <summary>

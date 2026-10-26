@@ -116,4 +116,11 @@ public sealed record BotView(SimState State, IReadOnlyList<BotTelegraph> Telegra
     /// runner before role dispatch. <see cref="Roles.Fillers.ArrangeFillers"/> casts the least recently cast ready filler.
     /// </summary>
     public IReadOnlyList<string> FillerHistory { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// R-AGGRO-1 (ab): the last tick an ally of the deciding tank was pressured (<see cref="BotMemory.LastAllyPressuredTick"/>),
+    /// set by the bot runner before role dispatch; -1 = never. <see cref="Roles.TankPressure.AnyAllyPressured"/> holds true for
+    /// <see cref="Roles.TankPressure.AllyPressureStickyTicks"/> ticks after it.
+    /// </summary>
+    public int LastAllyPressuredTick { get; init; } = -1;
 }
