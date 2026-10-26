@@ -211,7 +211,7 @@ public partial class ActorView : Node3D
         // A body bound while its actor is alive rises with its spawn clip (enemies; party rows have none and idle).
         if (actor.Alive)
         {
-            _animator?.PlaySpawn();
+            _animator?.PlaySpawn(ActorId, Driver.State.Tick);
         }
         GD.Print($"ACTOR model id={ActorId} class={actor.ClassId} file={row.ModelFile} scale={s:0.000} " +
                  (_animator is null ? "clips=static" : _animator.Matched));
