@@ -32,6 +32,13 @@ public static class Effects
     /// <summary>Basis-point denominator (sim/combat/effects.ts:31 BP_DENOM).</summary>
     public const long BpDenom = 10000;
 
+    /// <summary>
+    /// R-DEFCAP-1 (ruling 735): the floor of a PLAYER's total damageTakenBp, -7500 = at most 75% reduction, so a
+    /// fully stacked defensive set never makes a player invulnerable. Enemies and boss rules (lockShield -10000) are
+    /// not floored.
+    /// </summary>
+    public const long PlayerDamageTakenFloorBp = -7500;
+
     /// <summary>The <see cref="DamagePctOp"/> amount: floor(maxHealth * bp / 10000), never negative.</summary>
     /// <param name="target">The actor hit.</param>
     /// <param name="maxHealthBp">Share of its max health, bp.</param>
