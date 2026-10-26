@@ -100,6 +100,17 @@ public static class AnimRule
         return FormattableString.Invariant($"VIEW anim actor={actorId} clip={clip} tick={tick}");
     }
 
+    /// <summary>
+    /// R-IDLEANIM-1: the locomotion proof line for an idle or move clip starting on an actor, sharing <see cref="ViewLine"/>'s
+    /// prefix so one grep catches both: <c>VIEW anim actor=N clip=Idle tick=T kind=Loco moving=0|1</c>.
+    /// </summary>
+    /// <param name="actorId">The sim actor id.</param>
+    /// <param name="clip">The locomotion clip chosen (<see cref="AnimClip.Idle"/> or <see cref="AnimClip.Move"/>).</param>
+    /// <param name="tick">The sim tick the clip starts on.</param>
+    /// <param name="moving">The same moving flag <see cref="Decide"/> reads for the frame.</param>
+    public static string LocoLine(int actorId, AnimClip clip, long tick, bool moving) =>
+        FormattableString.Invariant($"VIEW anim actor={actorId} clip={clip} tick={tick} kind=Loco moving={(moving ? 1 : 0)}");
+
     /// <summary>KF1 hit flash: a health drop lights the victim for this many sim ticks, fading linearly.</summary>
     public const int FlashTicks = 3;
 
