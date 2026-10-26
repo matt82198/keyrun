@@ -200,7 +200,7 @@ public static class Windows
     /// <param name="ctx">Tables, registry and hooks.</param>
     /// <param name="emit">Event sink.</param>
     public static void ApplyWindowsAndCombos(SimState state, ActorState actor, AbilityDef def, WindowsContext ctx, Action<SimEvent> emit) =>
-        ApplyWindowsAndCombosAt(state, actor, def, Casting.CastTargetOf(actor), ctx, emit);
+        ApplyWindowsAndCombosAt(state, actor, def, Casting.CastTargetOf(actor), actor.Cast, ctx, emit);
 
     /// <summary>
     /// <see cref="ApplyWindowsAndCombos(SimState, ActorState, AbilityDef, WindowsContext, Action{SimEvent})"/> for a
@@ -214,9 +214,9 @@ public static class Windows
     /// <param name="ctx">Tables, registry and hooks.</param>
     /// <param name="emit">Event sink.</param>
     public static void ApplyWindowsAndCombos(SimState state, ActorState actor, AbilityDef def, CastInFlight? ended, WindowsContext ctx, Action<SimEvent> emit) =>
-        ApplyWindowsAndCombosAt(state, actor, def, Casting.TargetOfEnded(actor, ended), ctx, emit);
+        ApplyWindowsAndCombosAt(state, actor, def, Casting.TargetOfEnded(actor, ended), ended, ctx, emit);
 
-    private static void ApplyWindowsAndCombosAt(SimState state, ActorState actor, AbilityDef def, int? castTargetId, WindowsContext ctx, Action<SimEvent> emit)
+    private static void ApplyWindowsAndCombosAt(SimState state, ActorState actor, AbilityDef def, int? castTargetId, CastInFlight? cast, WindowsContext ctx, Action<SimEvent> emit)
     {
         ArgumentNullException.ThrowIfNull(def);
         ArgumentNullException.ThrowIfNull(ctx);
@@ -224,7 +224,7 @@ public static class Windows
         {
             return;
         }
-        ApplyWindowsAndCombosOn(state, actor, def, Targeting.ResolveTargetsOn(state, actor, def, Affinities.Of(def, ctx.Effects), castTargetId), castTargetId, ctx, emit);
+        ApplyWindowsAndCombosOn(state, actor, def, Targeting.ResolveTargetsOn(state, actor, def, Affinities.Of(def, ctx.Effects), castTargetId, cast), castTargetId, ctx, emit);
     }
 
     /// <summary>

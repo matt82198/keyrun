@@ -56,7 +56,11 @@ public sealed record TelegraphHit(int TelegraphId, IReadOnlyList<int> HitActorId
 /// <param name="Telegraphs">Still-pending telegraphs, in registry order.</param>
 /// <param name="NextTelegraphId">The next id to mint.</param>
 /// <param name="Hits">Telegraphs resolved this tick.</param>
-public sealed record TelegraphAdvance(IReadOnlyList<Telegraph> Telegraphs, int NextTelegraphId, IReadOnlyList<TelegraphHit> Hits);
+public sealed record TelegraphAdvance(IReadOnlyList<Telegraph> Telegraphs, int NextTelegraphId, IReadOnlyList<TelegraphHit> Hits)
+{
+    /// <summary>The telegraphs resolved this tick, as they stood on the resolve tick (after drift), in registry order.</summary>
+    public IReadOnlyList<Telegraph> Landed { get; init; } = Array.Empty<Telegraph>();
+}
 
 /// <summary>
 /// Port of sim/encounter/telegraphs.ts (integer geometry and resolution) plus the telegraph part of
@@ -325,7 +329,8 @@ public static class Telegraphs
         }
         var resolved = new HashSet<int>(hits.Select(h => h.TelegraphId));
         var remaining = all.Where(t => !resolved.Contains(t.Id)).ToList();
-        return new TelegraphAdvance(remaining, nextTelegraphId + registered.Count, hits);
+        var landed = all.Where(t => resolved.Contains(t.Id)).ToList();
+        return new TelegraphAdvance(remaining, nextTelegraphId + registered.Count, hits) { Landed = landed };
     }
 
     /// <summary>
