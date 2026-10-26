@@ -140,7 +140,7 @@ public static class LayoutValidator
     /// </summary>
     private static void CheckPatrols(ContentRegistry reg, LayoutDef layout, List<string> pullOrder, HashSet<string> boxIds)
     {
-        ForcesTable forces = reg.Forces;
+        ForcesTable forces = reg.ForcesFor(layout.Dungeon);
         var patrolIds = new HashSet<string>(System.StringComparer.Ordinal);
         foreach (LayoutPatrol patrol in layout.Patrols)
         {
@@ -291,7 +291,7 @@ public static class LayoutValidator
     /// </summary>
     private static void CheckPacks(ContentRegistry reg, DungeonDef dungeon, LayoutDef layout, List<string> pullOrder, HashSet<string> boxIds)
     {
-        ForcesTable forces = reg.Forces;
+        ForcesTable forces = reg.ForcesFor(dungeon.Id);
         var packIds = new HashSet<string>(System.StringComparer.Ordinal);
         long widestSlot = layout.Formation.Select(s => (long)System.Math.Abs(s.SideMm)).DefaultIfEmpty(0).Max();
         var line = new List<LayoutPoint> { layout.Start };

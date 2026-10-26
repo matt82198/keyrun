@@ -21,7 +21,8 @@ public static class SeededRoster
     {
         ArgumentNullException.ThrowIfNull(reg);
         var dungeon = reg.Dungeons[reg.Forces.Route.DungeonId];
-        return dungeon.Pulls.Select((pull, i) => new TeachingPull(pull.Id, i, C.RouteForces.PullPoints(reg.Forces, pull))).ToList();
+        var forces = reg.ForcesFor(dungeon.Id);
+        return dungeon.Pulls.Select((pull, i) => new TeachingPull(pull.Id, i, C.RouteForces.PullPoints(forces, pull))).ToList();
     }
 
     /// <summary>The layout's optional packs, in layout order, priced by forces values.</summary>
@@ -29,7 +30,8 @@ public static class SeededRoster
     public static IReadOnlyList<RosterPack> Optional(C.ContentRegistry reg)
     {
         ArgumentNullException.ThrowIfNull(reg);
-        return reg.Layout.Packs.Where(p => p.Optional).Select(p => new RosterPack(p.Id, C.RouteForces.LayoutPackPoints(reg.Forces, p))).ToList();
+        var forces = reg.ForcesFor(reg.Layout.Dungeon);
+        return reg.Layout.Packs.Where(p => p.Optional).Select(p => new RosterPack(p.Id, C.RouteForces.LayoutPackPoints(forces, p))).ToList();
     }
 
     /// <summary>
@@ -43,9 +45,10 @@ public static class SeededRoster
     {
         ArgumentNullException.ThrowIfNull(reg);
         var dungeon = Dungeon(reg, dungeonId);
+        var forces = reg.ForcesFor(dungeon.Id);
         return dungeon.PackPool
             .Select(id => reg.Roster.TryGetValue(id, out var pack)
-                ? new RosterPack(id, pack.Enemies.Sum(g => g.Count * reg.Forces.PointsOf(g.EnemyId)))
+                ? new RosterPack(id, pack.Enemies.Sum(g => g.Count * forces.PointsOf(g.EnemyId)))
                 : throw new InvalidOperationException($"seeded roster: dungeon \"{dungeonId}\" pool names unknown pack \"{id}\""))
             .ToList();
     }
@@ -69,10 +72,11 @@ public static class SeededRoster
     /// bar without it) while the party still pulls most of its branch (1000 of at least 1420 with today's roster).
     /// </summary>
     /// <param name="reg">Loaded content.</param>
-    public static BranchFillParams Params(C.ContentRegistry reg)
+    /// <param name="dungeonId">The dungeon whose bar fills the branch (its own forces table, <see cref="C.ContentRegistry.ForcesFor"/>).</param>
+    public static BranchFillParams Params(C.ContentRegistry reg, string dungeonId)
     {
         ArgumentNullException.ThrowIfNull(reg);
-        var required = reg.Forces.Required;
+        var required = reg.ForcesFor(dungeonId).Required;
         var target = (long)required + Optional(reg).Max(o => o.Points);
         return BranchFillParams.Default with { ForcesRequired = required, BranchTargetBp = (int)((target * 10000) + required - 1) / required };
     }

@@ -140,16 +140,18 @@ public sealed partial record HostRunSetup(
     /// the bar). The goal's constructor rejects a non-positive requirement, so a broken table fails the run setup.
     /// </summary>
     /// <param name="registry">Content.</param>
+    /// <param name="dungeonId">The dungeon whose own forces bar the goal carries (<see cref="C.ContentRegistry.ForcesFor"/>).</param>
     /// <returns>The goal.</returns>
-    public static ForcesGoal ForcesGoalOf(C.ContentRegistry registry)
+    public static ForcesGoal ForcesGoalOf(C.ContentRegistry registry, string dungeonId)
     {
         ArgumentNullException.ThrowIfNull(registry);
+        var forces = registry.ForcesFor(dungeonId);
         var table = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var v in registry.Forces.Values)
+        foreach (var v in forces.Values)
         {
             table[v.EnemyId] = v.Points;
         }
-        return new ForcesGoal(table, registry.Forces.Required);
+        return new ForcesGoal(table, forces.Required);
     }
 
     /// <summary>
@@ -239,7 +241,7 @@ public sealed partial record HostRunSetup(
         var nav = NavLayouts.ToSim(layout);
         dungeon = NavLayouts.PlaceDungeon(layout, dungeon);
         // FINISH-NEEDS-FORCES (f-8c50a787, WoW Mythic+): the key completes only at 100% Enemy Forces and the boss dead.
-        dungeon = dungeon with { ForcesGoal = ForcesGoalOf(registry) };
+        dungeon = dungeon with { ForcesGoal = ForcesGoalOf(registry, dungeonDef.Id) };
         // PATH-PACKS (BIBLE s9.1): the layout's trash packs, required and optional, idle on the path from tick 0 and each
         // pulled whole by proximity, like a pull.
         // Mythic+ trash only a pack fields (hall.sentry) is scaled here exactly as a pull spawn is (ScaledTrashSpawn).

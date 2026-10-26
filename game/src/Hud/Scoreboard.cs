@@ -110,14 +110,16 @@ public sealed record ScoreboardReading(int Tick, long TimerSeconds, int ForcesBp
 
     /// <summary>The forces table and requirement from content (forces.json), or an empty table when content has none.</summary>
     /// <param name="registry">Content, or null.</param>
+    /// <param name="dungeonId">The dungeon whose bar is read (its own forces table, <see cref="ContentRegistry.ForcesFor"/>).</param>
     /// <returns>Enemy id to points, and the required points.</returns>
-    public static (IReadOnlyDictionary<string, int> Table, int Required) ForcesOf(ContentRegistry? registry)
+    public static (IReadOnlyDictionary<string, int> Table, int Required) ForcesOf(ContentRegistry? registry, string dungeonId)
     {
         var table = new Dictionary<string, int>(StringComparer.Ordinal);
-        if (registry?.Forces is not { } forces)
+        if (registry?.Forces is not { })
         {
             return (table, 0);
         }
+        ForcesTable forces = registry.ForcesFor(dungeonId);
         foreach (var v in forces.Values)
         {
             table[v.EnemyId] = v.Points;
