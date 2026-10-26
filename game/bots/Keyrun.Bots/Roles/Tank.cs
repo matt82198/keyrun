@@ -36,7 +36,7 @@ public sealed class TankRole : IRole
         // loose pack first; the pressure casts resume once he holds it.
         // ALLY-VIGIL priority over take-the-pack: a pressured ally's Vigil shield (AllyShieldCommand) runs before the taunt.
         // Take-the-pack never returns an empty list: the taunt when ready and in range, else the approach move.
-        if (healthPct >= DefensiveThresholdPct && TankEngage.PickLooseEnemy(view.State.Actors, self) is not null)
+        if (healthPct >= DefensiveThresholdPct && TankEngage.PickLooseEnemy(view.State.Actors, self, TankEngage.GroupMapOf(view)) is not null)
         {
             if (TankPressure.AllyShieldCommand(view, self, kit) is { } allyShield)
             {
