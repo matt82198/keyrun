@@ -25,6 +25,12 @@ public sealed record PartyMemberSpec(int Id, string ClassId, ActorRole Role, Vec
     /// 0 (no armor) on every oracle run; a host builds it from content run.json <c>classArmorBp</c>.
     /// </summary>
     public long ArmorBp { get; init; }
+
+    /// <summary>
+    /// The class's threat multiplier, bp (THREAT-MODEL section 7.2); CreateRun puts it on the actor. 10000 (100%)
+    /// unless the host supplies the class number (Warden 20000).
+    /// </summary>
+    public long ThreatBp { get; init; } = 10000;
 }
 
 /// <summary>

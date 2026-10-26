@@ -18,6 +18,7 @@ namespace Keyrun.Bots;
 /// <param name="BloomBestDistSq">Smallest squared distance (mm squared, integer) to the bloom target seen in the current walk (null = none, or reset).</param>
 /// <param name="BloomTick">Tick of the last seed-bloom decision (-1 = none); a decision on any other tick is not a bloom walk.</param>
 /// <param name="HeldPackId">R-PATH-5 (z): the held pack's enemy id a stuck bloom walk dropped for; the tank keeps approaching it (null = none).</param>
+/// <param name="LastAllyPressuredTick">R-AGGRO-1 (ab): the last tick a tank seat saw an ally pressured (-1 = never); the ally-pressure signal is sticky for 60 ticks after it.</param>
 public sealed record BotMemory(
     int SkillDial,
     int NextActionTick,
@@ -25,7 +26,8 @@ public sealed record BotMemory(
     int BloomNoProgressTicks = 0,
     long? BloomBestDistSq = null,
     int BloomTick = -1,
-    int? HeldPackId = null)
+    int? HeldPackId = null,
+    int LastAllyPressuredTick = -1)
 {
     /// <summary>bot.ts defaultMemory: <c>{skillDial, nextActionTick: 0}</c>.</summary>
     /// <param name="skillDial">Skill dial (default 100).</param>
@@ -180,6 +182,12 @@ public static class Bot
         }
         var tick = view.State.Tick;
         memory = ResolveHeldPack(view, self, memory);
+        // R-AGGRO-1 (ab): a tank seat records every tick an ally is pressured (every tick, not only deciding ticks), so the
+        // sticky ally-pressure signal is read from the role's view below.
+        if (self.Role == ActorRole.Tank && Roles.TankPressure.AnyAllyPressuredNow(view, self))
+        {
+            memory = memory with { LastAllyPressuredTick = tick };
+        }
 
         var commands = new List<Command>();
         var avoid = DangerAvoidCommand(view, self);
@@ -306,7 +314,7 @@ public static class Bot
         if (!pingCast && roles.For(self.Role) is { } role)
         {
             var history = memory.FillerHistory ?? Array.Empty<string>();
-            var decided = topOff ? Reasons.TagAll(Roles.HealerRole.TopOffCommands(view, self), "bot:healer-top-off") : role.Decide(view with { FillerHistory = history }, self);
+            var decided = topOff ? Reasons.TagAll(Roles.HealerRole.TopOffCommands(view, self), "bot:healer-top-off") : role.Decide(view with { FillerHistory = history, LastAllyPressuredTick = memory.LastAllyPressuredTick }, self);
             commands.AddRange(!travelling ? decided : decided.Where(c => c is not MoveCommand and not DashCommand));
             var recorded = Roles.Fillers.RecordCasts(view, self, history, decided);
             if (!ReferenceEquals(recorded, history))
