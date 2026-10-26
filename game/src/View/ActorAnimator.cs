@@ -66,6 +66,10 @@ public sealed class ActorAnimator
     // and the abilities one step resolved after the first, played in turn once each release has shown.
     private int _releaseStartMs;
     private readonly Queue<string> _queued = new();
+    // MOVE-HOLD: the tick of the last sim position change (-1: never moved), read through MoveHold.Holds.
+    private int _lastMovedTick = -1;
+    // MOVE-HOLD: the interpolated speed (m/s) of the last frame that read above MoveSpeedMps, the gait rate during a hold.
+    private float _keptMoveSpeedMps;
 
     private ActorAnimator(AnimationPlayer player, ActorClips clips, int scalePermille, Action<string>? log)
     {
@@ -168,6 +172,13 @@ public sealed class ActorAnimator
             _player.Stop();
         }
 
+        // MOVE-HOLD: the sim steps a body's position every few ticks, so the interpolated speed reads zero between steps.
+        // The tick of the last position change keeps the Move clip through those gaps (MoveHold.HoldTicks).
+        if (newTick && !before.Pos.Equals(now.Pos))
+        {
+            _lastMovedTick = tick;
+        }
+
         // ANIMS-READABLE-2: every ability this step resolved for this actor, in order. The first releases now; the rest
         // queue and release in turn once the playing release has shown for ReleaseHold.MinReleaseMs (a cast and the
         // instant fired on its resolve, Flare then Cold Snap, used to draw only the first).
@@ -202,7 +213,7 @@ public sealed class ActorAnimator
         {
             var name = AbilityClipPlayer.ReleaseName(castId, _rowAct);
             var windClip = AbilityClip(name);
-            if (windClip is not null && AbilityAnim.Windup(name, castStart, castEnds, tick, alphaPermille) is WindupPose pose)
+            if (windClip is not null && AbilityAnim.WindupFor(castId, _rowAct, castStart, castEnds, tick, alphaPermille) is WindupPose pose)
             {
                 if (_windup != windClip || _player.CurrentAnimation != windClip)
                 {
@@ -242,10 +253,16 @@ public sealed class ActorAnimator
         var released = actClip is not null && resolvedId is not null;
         // ABILITY-ANIMS: the cast bar shows the ability's own loop (a spell's Spellcasting, Bulwark's Block), else the row's.
         _castAbility = now.CastId;
+        // MOVE-HOLD: a moving body keeps its Move clip (and the speed it walked at) through the gaps between sim steps.
+        var holding = speedMps <= MoveSpeedMps && MoveHold.Holds(tick, _lastMovedTick);
+        if (speedMps > MoveSpeedMps)
+        {
+            _keptMoveSpeedMps = speedMps;
+        }
         var facts = new AnimFacts(
             Alive: true,
             NewTick: newTick || queuedStart,
-            Moving: speedMps > MoveSpeedMps,
+            Moving: speedMps > MoveSpeedMps || holding,
             Casting: now.CastId is not null && CastLoop() is not null,
             Acted: actClip is not null && (released || now.GcdReadyTick > before.GcdReadyTick),
             Hurt: _hit is not null && now.Health < before.Health,
@@ -333,8 +350,11 @@ public sealed class ActorAnimator
             _lastLoco = null; // R-IDLEANIM-1: a cast frame is not a locomotion frame; the settle back to idle or move prints
         }
         // KF1-GAIT: the run or walk loop steps at the body's speed, so the planted foot stays still on the floor.
+        // MOVE-HOLD: inside the hold window the raw speed reads zero between steps, so the loop keeps the last moving speed
+        // instead of freezing mid-stride at rate 0.
+        var gaitSpeedMps = holding ? _keptMoveSpeedMps : speedMps;
         _player.SpeedScale = next is not null && next == _move
-            ? GaitRule.PlaybackPermille(_moveClip, (int)(speedMps * 1000f), _scalePermille) / 1000f
+            ? GaitRule.PlaybackPermille(_moveClip, (int)(gaitSpeedMps * 1000f), _scalePermille) / 1000f
             : 1f;
         Play(next, blend, now.Id, tick);
     }
