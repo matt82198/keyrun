@@ -188,6 +188,7 @@
           "name": "Amplify",
           "text": "Hits noticeably harder.",
           "patch": {
+            "cooldownTicks": 40,
             "tags": [
               "payoff",
               "amplified"
