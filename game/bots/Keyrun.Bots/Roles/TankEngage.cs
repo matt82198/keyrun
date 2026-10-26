@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Keyrun.Bots.Shared;
 using Keyrun.Sim.Core;
+using Keyrun.Sim.Encounter;
 
 namespace Keyrun.Bots.Roles;
 
@@ -21,6 +22,13 @@ public static class TankEngage
 
     /// <summary>R-AOE-1: the tank spreads its filler only across a small pack; a big pack keeps the tank on its target.</summary>
     public const int TankSpreadMaxCluster = 3;
+
+    /// <summary>
+    /// LOOSE-SWITCH: the threat lead that makes a mob one the tank "holds" for the loose-mob switch. The tank's threat on
+    /// the mob must be at least this many times the highest threat of any other entry (the next seat). A tank at 2x or
+    /// more is well ahead: a tank with a safe lead stays on that mob only while no other loose mob is hurting a party seat.
+    /// </summary>
+    public const long SafeLeadRatio = 2;
 
     private static long? RangeOf(BotView view, string? abilityId)
     {
@@ -64,6 +72,26 @@ public static class TankEngage
         return enemy.Threat.Values.All(v => v <= mine);
     }
 
+    /// <summary>
+    /// LOOSE-SWITCH: true when <paramref name="tankId"/>'s threat on <paramref name="enemy"/> is at least
+    /// <see cref="SafeLeadRatio"/> times the highest threat of any other entry (the next seat), so the tank holds the mob
+    /// with a safe lead. Threat-based only: a holder lock does not change the lead, which is what
+    /// <see cref="LooseEnemies"/> sorts on.
+    /// </summary>
+    /// <param name="enemy">Enemy.</param>
+    /// <param name="tankId">Tank.</param>
+    /// <returns>True when the tank holds the enemy with a safe lead.</returns>
+    public static bool HoldsWithSafeLead(ActorState enemy, int tankId)
+    {
+        ArgumentNullException.ThrowIfNull(enemy);
+        if (!enemy.Threat.TryGetValue(tankId, out var mine) || mine <= 0)
+        {
+            return false;
+        }
+        var next = enemy.Threat.Where(kv => kv.Key != tankId).Select(kv => kv.Value).DefaultIfEmpty(0).Max();
+        return mine >= next * SafeLeadRatio;
+    }
+
     private static bool AimedAtOtherPlayer(SortedDictionary<int, ActorState> actors, ActorState enemy, int tankId)
     {
         // CHASE-HOLDER (f-2f6982e9): a locked enemy goes at its holder (HOLDER-LOCK, ScriptTarget), so the holder is who it is
@@ -83,29 +111,77 @@ public static class TankEngage
     public static bool HurtsItsSeat(SortedDictionary<int, ActorState> actors, ActorState enemy) =>
         (enemy.HolderId ?? enemy.TargetId) is { } tid && actors.TryGetValue(tid, out var seat) && RoleShared.Dist(enemy, seat) <= DefaultReachMm;
 
+    /// <summary>
+    /// The enemy-id to Aggro-group-id map the loose-enemy pack tier reads, built from <see cref="AggroGroup"/> records (the
+    /// shape <c>Aggro.GroupsOf</c> returns). An enemy absent from the map belongs to no known group.
+    /// </summary>
+    /// <param name="groups">The aggro groups.</param>
+    /// <returns>Enemy id to group id.</returns>
+    public static IReadOnlyDictionary<int, string> GroupMap(IEnumerable<AggroGroup> groups)
+    {
+        ArgumentNullException.ThrowIfNull(groups);
+        var map = new Dictionary<int, string>();
+        foreach (var g in groups)
+        {
+            foreach (var id in g.ActorIds)
+            {
+                map[id] = g.Id;
+            }
+        }
+        return map;
+    }
+
+    /// <summary>The group map for a bot view: built from its pull plan's groups, or empty when the host gives no plan (no group knowledge).</summary>
+    /// <param name="view">Bot view.</param>
+    /// <returns>Enemy id to group id.</returns>
+    public static IReadOnlyDictionary<int, string> GroupMapOf(BotView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        return GroupMap(view.PullPlan?.Groups ?? Array.Empty<AggroGroup>());
+    }
+
     /// <summary>tank-engage.ts pickLooseEnemy: the nearest alive enemy the tank does not hold that is aimed at another player, ties to the lowest id.</summary>
     /// <param name="actors">Actor table.</param>
     /// <param name="tank">The tank.</param>
+    /// <param name="groupOf">Enemy id to Aggro group id (see <see cref="GroupMap"/>).</param>
     /// <returns>The enemy, or null.</returns>
-    public static ActorState? PickLooseEnemy(SortedDictionary<int, ActorState> actors, ActorState tank) =>
-        LooseEnemies(actors, tank).FirstOrDefault();
+    public static ActorState? PickLooseEnemy(SortedDictionary<int, ActorState> actors, ActorState tank, IReadOnlyDictionary<int, string> groupOf) =>
+        LooseEnemies(actors, tank, groupOf).FirstOrDefault();
 
-    /// <summary>The loose enemies in pickup order (R-TAUNT-4c seat HP, then R-TAUNT-3 row 1, distance, id); see <see cref="PickLooseEnemy"/>.</summary>
+    /// <summary>The loose enemies in pickup order (R-TAUNT-4c seat HP, then R-TAUNT-3 row 1, pack group, lead, distance, id); see <see cref="PickLooseEnemy"/>.</summary>
     /// <param name="actors">Actor table.</param>
     /// <param name="tank">The tank.</param>
+    /// <param name="groupOf">Enemy id to Aggro group id (see <see cref="GroupMap"/>).</param>
     /// <returns>Loose enemies, best first.</returns>
-    public static IEnumerable<ActorState> LooseEnemies(SortedDictionary<int, ActorState> actors, ActorState tank)
+    public static IEnumerable<ActorState> LooseEnemies(SortedDictionary<int, ActorState> actors, ActorState tank, IReadOnlyDictionary<int, string> groupOf)
     {
         ArgumentNullException.ThrowIfNull(actors);
         ArgumentNullException.ThrowIfNull(tank);
+        ArgumentNullException.ThrowIfNull(groupOf);
+        var engaged = actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle).ToList();
+        // LOOSE-SWITCH pack tier (R-PACK-HOLD-1; G7 R-BOSS-6 amendment ac): a pack is its Aggro group, never a proximity proxy.
+        // A loose mob of a group the tank holds no member of is taunted before a loose mob of a group the tank already holds a
+        // member of, so a taunt never goes to a second pack while the first has no holder.
+        var tankHeldGroups = engaged
+            .Where(m => HoldsThreat(m, tank.Id) && groupOf.ContainsKey(m.Id))
+            .Select(m => groupOf[m.Id])
+            .ToHashSet(StringComparer.Ordinal);
+        bool InHeldGroup(ActorState a) => groupOf.TryGetValue(a.Id, out var g) && tankHeldGroups.Contains(g);
+        // LOOSE-SWITCH (WoW: the tank grabs loose mobs off squishies): within a pack tier, a mob the tank holds with a safe
+        // lead sorts after every other loose mob, so a loose mob hurting a party seat is picked up instead of the lead mob.
+        var leadHeld = engaged.Where(m => HoldsWithSafeLead(m, tank.Id)).Select(m => m.Id).ToHashSet();
         return actors.Values
             .Where(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle && !HoldsThreat(a, tank.Id) && AimedAtOtherPlayer(actors, a, tank.Id))
-            // R-TAUNT-3 row 1 (design/THREAT-MODEL.md section 4; LOOSE-PICKUP): the enemy hurting its seat now (in melee reach of
-            // the seat it is aimed at) comes before a nearer one standing off from its holder and hurting nobody, so where an idle
-            // caster stands (a wander, a held post) never decides which enemy the Taunt goes to while a seat dies.
-            // R-TAUNT-4c: the enemy aimed at the lowest-HP non-tank seat goes first, so the opening taunt lands on it.
+            // R-TAUNT-4c: the enemy aimed at the lowest-HP non-tank seat goes first, so the opening taunt lands on it. This is the
+            // primary key (main order).
             .OrderBy(a => SeatHealthKey(actors, a, tank.Id))
+            // R-TAUNT-3 row 1 (design/THREAT-MODEL.md section 4; LOOSE-PICKUP; R-BOSS-6 amendment y): the enemy hurting its seat now
+            // (in melee reach of the seat it is aimed at) comes before a nearer one standing off from its holder and hurting nobody,
+            // so where an idle caster stands (a wander, a held post) never decides which enemy the Taunt goes to while a seat dies.
+            // It sorts ahead of the pack and lead tiers below, which only break ties among enemies not hurting a seat.
             .ThenBy(a => HurtsItsSeat(actors, a) ? 0 : 1)
+            .ThenBy(a => HurtsItsSeat(actors, a) || !InHeldGroup(a) ? 0 : 1)
+            .ThenBy(a => HurtsItsSeat(actors, a) || !leadHeld.Contains(a.Id) ? 0 : 1)
             .ThenBy(a => RoleShared.Dist(a, tank))
             .ThenBy(a => a.Id);
     }
@@ -122,7 +198,7 @@ public static class TankEngage
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(self);
         var actors = view.State.Actors;
-        var loose = PickLooseEnemy(actors, self);
+        var loose = PickLooseEnemy(actors, self, GroupMapOf(view));
         if (loose is not null)
         {
             return loose;
@@ -226,7 +302,7 @@ public static class TankEngage
             return null;
         }
         var tauntRange = RangeOf(view, kit.TauntAbilityId) ?? DefaultReachMm;
-        var inRange = LooseEnemies(view.State.Actors, self).Where(e => RoleShared.Dist(self, e) <= tauntRange).ToList();
+        var inRange = LooseEnemies(view.State.Actors, self, GroupMapOf(view)).Where(e => RoleShared.Dist(self, e) <= tauntRange).ToList();
         return inRange.FirstOrDefault();
     }
 

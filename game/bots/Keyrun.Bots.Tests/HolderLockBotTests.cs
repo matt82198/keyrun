@@ -50,7 +50,7 @@ public sealed class HolderLockBotTests
         var enemy = Enemy(3);
         enemy.TargetId = 1;
         var actors = Party(enemy);
-        Assert.Same(enemy, TankEngage.PickLooseEnemy(actors, actors[1]));
+        Assert.Same(enemy, TankEngage.PickLooseEnemy(actors, actors[1], new System.Collections.Generic.Dictionary<int, string>()));
     }
 
     // R-TAUNT-3 row 1 (LOOSE-PICKUP): the enemy hurting its seat (in melee reach of it) is picked before a nearer one that
@@ -67,7 +67,7 @@ public sealed class HolderLockBotTests
         Assert.True(RoleShared.Dist(quiet, actors[1]) < RoleShared.Dist(hurting, actors[1]));
         Assert.True(TankEngage.HurtsItsSeat(actors, hurting));
         Assert.False(TankEngage.HurtsItsSeat(actors, quiet));
-        Assert.Same(hurting, TankEngage.PickLooseEnemy(actors, actors[1]));
+        Assert.Same(hurting, TankEngage.PickLooseEnemy(actors, actors[1], new System.Collections.Generic.Dictionary<int, string>()));
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed class HolderLockBotTests
         var enemy = Enemy(1);
         enemy.TargetId = 3;
         var actors = Party(enemy);
-        Assert.Null(TankEngage.PickLooseEnemy(actors, actors[1]));
+        Assert.Null(TankEngage.PickLooseEnemy(actors, actors[1], new System.Collections.Generic.Dictionary<int, string>()));
     }
 
     [Fact]

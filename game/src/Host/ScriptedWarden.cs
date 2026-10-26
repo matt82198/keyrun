@@ -247,7 +247,7 @@ public sealed class ScriptedWarden
         // LOOSE-PICKUP (BIBLE section 3, the bot tank's TankEngage rule): an engaged enemy aimed at another seat that the
         // Warden does not hold is taunted back (Taunt is off the GCD); with Taunt ready but the enemy out of its range he
         // walks at it first. Run C at key 2: the Choir melee chased the careless Cinder and killed it, and he never taunted.
-        var loose = TankEngage.PickLooseEnemy(state.Actors, me);
+        var loose = TankEngage.PickLooseEnemy(state.Actors, me, TankEngage.GroupMap(Keyrun.Sim.Encounter.Aggro.GroupsOf(run.Dungeon, tick, run.Content.Packs, run.Content.Layout, run.Content.Patrols)));
         var tauntReady = loose is not null && abilities.TryGetValue(Taunt, out var taunt) && Ready(me, taunt, tick);
         var tauntInRange = tauntReady && Casting.RangeMm(me, loose!) <= abilities[Taunt].Range;
         if (tauntInRange)
