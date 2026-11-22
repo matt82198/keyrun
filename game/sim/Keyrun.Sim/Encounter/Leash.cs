@@ -72,9 +72,11 @@ public static class Leash
                     // G2.5 (f-1c94a912): a reset member walks back onto its patrol loop (Patrols.Walk), it does not teleport.
                     a.ResetWalk = true;
                 }
-                // f-ef77ad17: the label is the seats occupied at RESET time, not the evade's cause. A seat-less evade that a
-                // respawned seat walked home from resets as a leash, never as no-living-seat.
-                var resetCause = NoLivingSeat(next, openSeats) ? NoLivingSeatCause : LeashCause;
+                // f-ef77ad17 / R-BOSS-6 (b): no-living-seat only when the evade STARTED for that reason AND no seat is alive at
+                // reset. A leash evade whose seats die before the reset still resets as a leash; a seat-less evade that a
+                // respawned seat walked home from resets as a leash.
+                var firstCause = evaders.Select(a => a.EvadeCause).FirstOrDefault(c => c is not null);
+                var resetCause = firstCause == NoLivingSeatCause && NoLivingSeat(next, openSeats) ? NoLivingSeatCause : LeashCause;
                 foreach (var a in evaders)
                 {
                     a.EvadeCause = null;

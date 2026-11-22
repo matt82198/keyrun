@@ -73,4 +73,27 @@ public sealed class LeashResetCauseTests
 
         Assert.Equal(Leash.NoLivingSeatCause, ResetCause(emitted));
     }
+
+    /// <summary>
+    /// Regression (R-BOSS-6 (b), verifier finding on PR #783): a group that evades as a LEASH (a seat is alive, the boss is
+    /// dragged) must reset labelled leash even when every seat has died before the reset. The label is no-living-seat only
+    /// when the evade started for that reason AND no seat is alive at reset.
+    /// </summary>
+    [Fact(DisplayName = "f-ef77ad17 regression: a leash evade whose seats die before the reset resets as leash, not no-living-seat")]
+    public void Leash_evade_with_seats_dead_at_reset_resets_as_leash()
+    {
+        var emitted = new List<SimEvent>();
+        var evadeState = EncounterTestKit.State(1, Seat1(alive: true, new Vec3(36000, 0, 0)), Boss(new Vec3(5000, 0, 0)));
+        var encounter = Leash.Step(evadeState, Engaged(), new[] { Group1() }, 200, EncounterTestKit.Sink(emitted));
+        var evade = emitted.Find(e => e.Type == "pack_evade");
+        Assert.True(evade is not null && evade.Get("cause") is JsString { Value: Leash.LeashCause }, "setup: the evade must start as leash");
+
+        emitted.Clear();
+        var resetState = EncounterTestKit.State(2, Seat1(alive: false, new Vec3(36000, 0, 0)), Boss(new Vec3(0, 0, 0)));
+        resetState.Actors[Enemy].Evading = true;
+        resetState.Actors[Enemy].EvadeCause = Leash.LeashCause;
+        Leash.Step(resetState, encounter, new[] { Group1() }, 200, EncounterTestKit.Sink(emitted));
+
+        Assert.Equal(Leash.LeashCause, ResetCause(emitted));
+    }
 }
