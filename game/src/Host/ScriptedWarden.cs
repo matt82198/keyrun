@@ -12,7 +12,7 @@ namespace Keyrun.Host;
 
 /// <summary>
 /// The autorun Warden (Godot-free, deterministic): walks at the Choir Cantor (the lieutenant) until his kick is in
-/// range, kicks the Cantor's heal once it is half cast (so the cast bar is on screen for two seconds first), and spends
+/// range, kicks an interruptible heal as soon as Shield Bash is ready and in range, and spends
 /// the GCD on his rotation against whatever is in reach: Reckoning at full Momentum, Vigil at 50, Guard Break when it
 /// closes an ally's Window, else Strike (the filler, every free global; trash pulls only, R-WARDEN-FILLER-3: in the boss
 /// pull Guard Break whenever ready, as on main), and Brace below half health. Every command goes through the same <see cref="CastTargeting"/> rule as a key press.
@@ -240,7 +240,7 @@ public sealed class ScriptedWarden
         var walkTarget = lieutenant ?? NearestMustKickCaster(state, me, tick, abilities);
 
         // R-WARDEN-KICK-1 (core loop defers to WoW: the tank interrupts the caster that is casting): the kick goes to the
-        // engaged lieutenant that is mid-way through an interruptible cast inside Shield Bash range, the one whose cast
+        // engaged caster of an interruptible heal inside Shield Bash range, the one whose cast
         // resolves sooner, not the first lieutenant in list order (a healer casting beside an idle Cantor was never kicked).
         var kickable = KickableLieutenant(state, me, tick, abilities);
         if (kickable is not null && Ready(me, abilities[Kick], tick))
@@ -642,7 +642,7 @@ public sealed class ScriptedWarden
         state.Actors.Values.Count(a => a.Kind == ActorKind.Enemy && a.Alive && !a.Idle && a.TargetId == me.Id);
 
     /// <summary>
-    /// R-WARDEN-KICK-1: the engaged lieutenant mid-way through an interruptible cast, inside Shield Bash range at
+    /// R-WARDEN-KICK-1: the engaged caster of an interruptible heal inside Shield Bash range at
     /// <paramref name="tick"/>, whose cast ends soonest (lowest id on a tie); null when none is kickable.
     /// </summary>
     private static ActorState? KickableLieutenant(SimState state, ActorState me, int tick, IReadOnlyDictionary<string, AbilityDef> abilities)
@@ -688,12 +688,12 @@ public sealed class ScriptedWarden
     }
 
     /// <summary>
-    /// f-2b38938f (G7 D66 R-REMNANT-3): the kick predicate, shared by the kick and the walk. An engaged hostile mid-way
-    /// through an interruptible cast that heals, at or past half its cast time. Any class (no ClassId check).
+    /// f-2b38938f (G7 D66 R-REMNANT-3): the kick predicate, shared by the kick and the walk. An engaged hostile
+    /// casting an interruptible heal. Any class (no ClassId check).
     /// </summary>
     private static bool IsMustKickCast(SimState state, ActorState me, ActorState a, int tick, IReadOnlyDictionary<string, AbilityDef> abilities) =>
         EngagedTargets.IsEngagedHostile(me, a) && a.CastId is { } castId
         && a.CastStartTick is { } start && abilities.TryGetValue(castId, out var cast) && cast.Interruptible
         && cast.Effects.Any(op => op is HealOp)
-        && tick >= start + (cast.CastTicks / 2);
+        && tick >= start;
 }
