@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using Keyrun.Bots.Shared;
+using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
+using Keyrun.Sim.Encounter;
 using Xunit;
 using static Keyrun.Bots.Tests.BotTestKit;
 
@@ -70,6 +72,29 @@ public sealed class SharedSeamTests
         var view = View(MakeState(10, self), null, ordinary, patch);
         Assert.Null(Floor.FloorEscapeCommand(view, self));
         Assert.Single(Bot.MakeBot().Decide(view, BotMemory.Default(100), 1, Skill.SeedPrng(1)).Commands.OfType<MoveCommand>());
+    }
+
+    [Fact]
+    public void ListedStepOutEscapesAlongWalkableCorridor()
+    {
+        var self = MakeActor();
+        var corridor = new Bounds(-200, 200, -1500, 5000);
+        var layout = new NavLayout(new[] { new NavBox("corridor", corridor, true, null) },
+            new[] { new NavTrigger("p1", corridor) }, new[] { self.Pos });
+        var listed = Patch("boss-slam", 0, 0, 1200) with { Danger = true };
+        var unlisted = Patch("boss-storm", 0, 0, 12000) with { Danger = true };
+        var floor = Patch("floor:fire", 0, 0, 12000);
+        var view = View(MakeState(10, self), null, listed, unlisted, floor) with { Layout = layout };
+        var options = new FloorEscapeOptions { StepOutTelegraphIds = new HashSet<string> { listed.Id } };
+
+        Assert.Null(Floor.FloorEscapeCommand(view, self));
+        var move = Floor.FloorEscapeCommand(view, self, options);
+        Assert.NotNull(move);
+        // The 500 mm margin rules out the south end at -1500. Only the north exit is walkable.
+        Assert.Equal(new Dir2(0, 1000), move.Dir);
+
+        SetPos(self, new PointMm(0, 1500));
+        Assert.Null(Floor.FloorEscapeCommand(view, self, options));
     }
 
     [Fact(DisplayName = "extra floor > meleeReapproachCommand: a warden beyond 5 m walks back in; a cinder does not")]
