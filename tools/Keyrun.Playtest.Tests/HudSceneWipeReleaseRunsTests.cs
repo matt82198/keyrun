@@ -30,7 +30,7 @@ namespace Keyrun.Playtest.Tests;
 /// reaches the end fails here, headless, before it fails in game-e2e.
 /// </para>
 /// </summary>
-public sealed class HudSceneWipeReleaseRunsTests
+public sealed class HudSceneWipeReleaseRunsTests : IClassFixture<HudSceneWipeReleaseRunsTests.RunFixture>
 {
     private const long Seed = 1;   // ArenaOptions.DefaultSeed
     private const int Key = 2;     // ArenaOptions.DefaultKeyLevel
@@ -73,22 +73,25 @@ public sealed class HudSceneWipeReleaseRunsTests
     /// <summary>A hang guard far past any cap end (the cap is 28800 on the run clock, which deaths only shorten).</summary>
     private const int Horizon = 40000;
 
+    private readonly RunFixture _fixture;
     private readonly ITestOutputHelper _output;
 
     /// <summary>Creates the test with xUnit's output sink (each run's measured ticks are printed for the PR).</summary>
     /// <param name="output">The sink.</param>
-    public HudSceneWipeReleaseRunsTests(ITestOutputHelper output) => _output = output;
+    /// <param name="fixture">The shared run for this test class.</param>
+    public HudSceneWipeReleaseRunsTests(ITestOutputHelper output, RunFixture fixture)
+    {
+        _output = output;
+        _fixture = fixture;
+    }
 
     /// <summary>One driven run: the run as it ended (null if it never did), its events, and the run at the budget.</summary>
     internal sealed record Drive(Run? AtEnd, List<SimEvent> Events, Run AtBudget);
 
-    private static readonly Lazy<Drive> RunA = new(() => DriveRun(solo: true, startPull: 1, request: null, progression: null, abandon: null, idle: false, budget: RunATicks));
-
-    private static readonly Lazy<Drive> RunN = new(() => DriveRun(solo: false, startPull: 1, request: null, progression: null, abandon: RunNAbandon, idle: false, budget: RunNTicks));
-
-    // Run I: the screen's Queue starts key 2 with Clause echo (game-e2e: "RUN start autorun=0 ... key=2 clause=echo"),
-    // the human never presses a key and --bots-hold keeps the bot seats from acting.
-    private static readonly Lazy<Drive> RunI = new(() => DriveRun(solo: false, startPull: 2, request: new QueueRequest("hollow-vault", Key, "echo"), progression: Progression.Start(Seed), abandon: null, idle: true, budget: 0));
+    public sealed class RunFixture
+    {
+        internal Drive RunA { get; } = DriveRun(solo: true, startPull: 1, request: null, progression: null, abandon: null, idle: false, budget: RunATicks);
+    }
 
     /// <summary>
     /// Steps one host run as SimDriver does until it has both ended and reached <paramref name="budget"/> (the autorun keeps
@@ -180,7 +183,7 @@ public sealed class HudSceneWipeReleaseRunsTests
     [Fact(DisplayName = "HudSceneTest run A: the solo wipe releases, the run ends at the timer cap, inside $Ticks")]
     public void Run_a_reaches_its_cap_end_inside_its_budget()
     {
-        var r = RunA.Value;
+        var r = _fixture.RunA;
         var death = r.Events.First(e => e.Type == "death" && Int(e, "actorId") == WardenId).Tick;
         var respawn = r.Events.First(e => e.Type == "respawn" && Int(e, "actorId") == WardenId).Tick;
         var end = AssertCapEnd("A", r);
@@ -210,7 +213,7 @@ public sealed class HudSceneWipeReleaseRunsTests
     [Fact(DisplayName = "HudSceneTest run A: seat 1's distinct combo_denied at the run end are all the autorun prints")]
     public void Run_a_combo_denied_set_is_closed_at_the_end()
     {
-        var r = RunA.Value;
+        var r = _fixture.RunA;
         var end = AssertCapEnd("A", r);
         static string Pair(SimEvent e) => (e.Get("windowId") is JsString w ? w.Value : string.Empty) + "|" + (e.Get("reason") is JsString s ? s.Value : string.Empty);
         var own = r.Events.Where(e => e.Type == "combo_denied" && Int(e, "payoffActorId") == WardenId && e.Tick < RunATicks).ToList();
@@ -229,7 +232,7 @@ public sealed class HudSceneWipeReleaseRunsTests
     [Fact(DisplayName = "HudSceneTest run E: the first run (run A's) ends at the timer cap inside $QueueTicks with room for the queued run")]
     public void Run_e_first_run_ends_inside_its_budget()
     {
-        var end = AssertCapEnd("E", RunA.Value);
+        var end = AssertCapEnd("E", _fixture.RunA);
         _output.WriteLine($"run E: first run end={end} budget={RunETicks}");
         Assert.True(end + EndHeadroomTicks <= RunETicks,
             $"run E's first run ends at {end}; HudSceneTest $QueueTicks {RunETicks} must leave {EndHeadroomTicks} ticks for the queued run");
@@ -243,7 +246,7 @@ public sealed class HudSceneWipeReleaseRunsTests
     [Fact(DisplayName = "HudSceneTest run N: the run ends at the timer cap inside $TintTicks")]
     public void Run_n_reaches_its_cap_end_inside_its_budget()
     {
-        var end = AssertCapEnd("N", RunN.Value);
+        var end = AssertCapEnd("N", DriveRun(solo: false, startPull: 1, request: null, progression: null, abandon: RunNAbandon, idle: false, budget: RunNTicks));
         _output.WriteLine($"run N: end={end} budget={RunNTicks}");
         Assert.True(end + EndHeadroomTicks <= RunNTicks,
             $"run N ends at the timer cap at {end}; HudSceneTest $TintTicks {RunNTicks} must reach it with {EndHeadroomTicks} ticks to spare");
@@ -257,7 +260,9 @@ public sealed class HudSceneWipeReleaseRunsTests
     [Fact(DisplayName = "HudSceneTest run I: the idle party's run ends at the timer cap inside $WipeFrames")]
     public void Run_i_reaches_its_cap_end_inside_its_budget()
     {
-        var end = AssertCapEnd("I", RunI.Value);
+        // Run I: the screen's Queue starts key 2 with Clause echo (game-e2e: "RUN start autorun=0 ... key=2 clause=echo"),
+        // the human never presses a key and --bots-hold keeps the bot seats from acting.
+        var end = AssertCapEnd("I", DriveRun(solo: false, startPull: 2, request: new QueueRequest("hollow-vault", Key, "echo"), progression: Progression.Start(Seed), abandon: null, idle: true, budget: 0));
         _output.WriteLine($"run I: end={end} frames needed={(FramesPerTick * end) + RunIHeadroomFrames} budget={RunIFrames}");
         Assert.True((FramesPerTick * end) + RunIHeadroomFrames <= RunIFrames,
             $"run I ends at the timer cap at tick {end}; HudSceneTest $WipeFrames {RunIFrames} must cover {FramesPerTick} frames per tick plus {RunIHeadroomFrames}");

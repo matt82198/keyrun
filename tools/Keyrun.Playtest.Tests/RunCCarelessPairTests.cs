@@ -24,7 +24,7 @@ namespace Keyrun.Playtest.Tests;
 /// 1630. A careless player runs ahead between pulls (<see cref="Careless.StrayTarget"/>), so the Pair engages only after
 /// the Choir is cleared, on the careless seat, a Pair enemy hits a bot seat, and the party still clears the dungeon.
 /// </summary>
-public sealed class RunCCarelessPairTests
+public sealed class RunCCarelessPairTests : IClassFixture<RunCCarelessPairTests.RunFixture>
 {
     private const int Key = 2;
     private const long Seed = 1;
@@ -35,7 +35,7 @@ public sealed class RunCCarelessPairTests
     private const int E2eFixtureTicks = 3700; // game/fixtures/input/walk-kick.json run.ticks (E2eAssert.ps1)
     private const int CarelessFromTick = 300; // HudSceneTest $CarelessSeat '3@300:pair'
 
-    private sealed record Drive(
+    internal sealed record Drive(
         int? ChoirClear,
         int? PairEngage,
         Vec3? CarelessAtPairEngage,
@@ -72,16 +72,22 @@ public sealed class RunCCarelessPairTests
         public int? MarkStoppedTick { get; init; }
     }
 
-    private static readonly Lazy<Drive> Driven = new(() => DriveRunC(carelessSeat: true));
+    public sealed class RunFixture
+    {
+        internal Drive Driven { get; } = DriveRunC(carelessSeat: true);
+    }
 
-    /// <summary>E2eAssert.ps1's bot run: the default three-seat autorun with no careless seat (fixture walk-kick.json, 3700 ticks).</summary>
-    private static readonly Lazy<Drive> DefaultRun = new(() => DriveRunC(carelessSeat: false));
-
+    private readonly RunFixture _fixture;
     private readonly ITestOutputHelper _output;
 
     /// <summary>Creates the test with xUnit's output sink.</summary>
     /// <param name="output">The sink.</param>
-    public RunCCarelessPairTests(ITestOutputHelper output) => _output = output;
+    /// <param name="fixture">The shared run for this test class.</param>
+    public RunCCarelessPairTests(ITestOutputHelper output, RunFixture fixture)
+    {
+        _output = output;
+        _fixture = fixture;
+    }
 
     private static long Int(SimEvent e, string key) => ((JsInt)e.Get(key)!).Value;
 
@@ -209,7 +215,7 @@ public sealed class RunCCarelessPairTests
     [Fact(DisplayName = "Run C: a SPREAD or STACK call is up, or a Pair mark cast is interrupted, while the run is live (HudSceneTest run C check 11)")]
     public void A_mark_call_or_a_stopped_mark_while_the_run_is_live()
     {
-        var d = Driven.Value;
+        var d = _fixture.Driven;
         Print("run C", d);
         Assert.True(
             Before(d.FirstPingTick, d.WipeTick) || Before(d.MarkStoppedTick, d.WipeTick),
@@ -223,7 +229,8 @@ public sealed class RunCCarelessPairTests
     [Fact(DisplayName = "Default bot run (E2eAssert check 6): a SPREAD or STACK call is up while the run is live")]
     public void The_default_bot_run_has_a_live_mark_call()
     {
-        var d = DefaultRun.Value;
+        // E2eAssert.ps1's bot run: the default three-seat autorun with no careless seat (fixture walk-kick.json, 3700 ticks).
+        var d = DriveRunC(carelessSeat: false);
         Print("default", d);
         Assert.True(Before(d.FirstPingTick, d.WipeTick) && d.FirstPingTick < Math.Min(d.EndTick, E2eFixtureTicks),
             $"the default bot run has no SPREAD or STACK call before the wipe and run_end inside {E2eFixtureTicks} ticks");
@@ -236,7 +243,7 @@ public sealed class RunCCarelessPairTests
         // to show the design's centre (BIBLE s4: a Setup opens a Window, another class's Payoff closes it), so the
         // Chanter's default loadout must keep Cadence target-shaped: with chanter.weapon.wideningCadence (Cadence a
         // party-wide circle) the healer never sets up an enemy and no Attuned combo closes in the host's run.
-        var d = Driven.Value;
+        var d = _fixture.Driven;
         _output.WriteLine($"chanter attuned setups on enemies={d.ChanterSetupsOnEnemy} attuned combos={d.AttunedCombos} " +
             $"result={d.Result?.ToString() ?? "none"} endTick={d.EndTick}");
 
@@ -247,7 +254,7 @@ public sealed class RunCCarelessPairTests
     [Fact(DisplayName = "Run C careless seat (3@300:pair): the Pair engages only after the Choir clears, on the careless seat, hits a bot seat, and the party clears the run")]
     public void Careless_seat_pulls_the_pair_after_the_choir_and_the_party_clears()
     {
-        var d = Driven.Value;
+        var d = _fixture.Driven;
         var pair = d.Dungeon.Pulls.Single(p => p.Id == "pair");
         var center = Pulls.RingCenter(pair);
         _output.WriteLine($"choir pull_clear={d.ChoirClear?.ToString() ?? "none"} pair pull_start={d.PairEngage?.ToString() ?? "none"} " +

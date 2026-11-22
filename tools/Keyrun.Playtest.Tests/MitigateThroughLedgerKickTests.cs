@@ -56,7 +56,7 @@ public sealed class MitigateThroughLedgerKickTests
     private static readonly System.Lazy<int> FirstCleavePlus11 = new(() =>
     {
         var content = ContentLoader.Load();
-        var log = PlaytestRunner.Play(new PlaytestOptions(2, 1, PolicyReader.Parse(KickPlan, content)), content).Log;
+        var log = PlaytestRunner.Play(new PlaytestOptions(2, 1, PolicyReader.Parse(KickPlan, content)) { LogMode = PlaytestLogMode.Events }, content).Log;
         var first = log.Split('\n')
             .Where(l => l.StartsWith("E ", System.StringComparison.Ordinal) && l.Contains("\"type\":\"telegraph\"") &&
                         l.Contains("\"cast\":\"hollowWarden.cleave\"") && l.Contains($"\"actorId\":{Boss},"))
@@ -88,7 +88,7 @@ public sealed class MitigateThroughLedgerKickTests
         var content = ContentLoader.Load();
         var policy = PolicyReader.Parse(KickPlan, content);
         var registry = PlaytestRunner.WithTalents(content, policy);
-        var run = PlaytestRunner.Play(new PlaytestOptions(2, 1, policy) { MaxTicks = at }, content).Run;
+        var run = PlaytestRunner.Play(new PlaytestOptions(2, 1, policy) { MaxTicks = at, LogMode = PlaytestLogMode.None }, content).Run;
         Assert.Equal(at, run.State.Tick);
         var state = run.State.Clone();
         foreach (var enemy in state.Actors.Values.Where(a => a.Kind == ActorKind.Enemy && a.Alive))
@@ -183,6 +183,7 @@ public sealed class MitigateThroughLedgerKickTests
             PlaytestRunner.Play(new PlaytestOptions(2, seed, policy)
             {
                 MaxTicks = 6000,
+                LogMode = PlaytestLogMode.None,
                 Observe = (tick, run, commands) =>
                 {
                     if (teaching.Count == 0 && PullPlan.Of(run, ForcesPlan.Of(content)) is { } pulls)

@@ -53,6 +53,7 @@ public sealed class BotChainPullTests
         var finalBoss = string.Empty;
         var result = PlaytestRunner.Play(new PlaytestOptions(2, seed, null)
         {
+            LogMode = PlaytestLogMode.None,
             DungeonId = dungeonId,
             Observe = (tick, run, _) =>
             {
@@ -93,10 +94,6 @@ public sealed class BotChainPullTests
         return new Timeline(lives, result, wipes, finalBoss);
     }
 
-    private static readonly Lazy<Timeline> HollowVault = new(() => Drive("hollow-vault", 1));
-
-    private static readonly Lazy<Timeline> Bellfoundry = new(() => Drive("sunken-bellfoundry", 7));
-
     private void Check(Timeline t, bool requireStack)
     {
         foreach (var l in t.Lives.OrderBy(l => l.Engaged < 0 ? int.MaxValue : l.Engaged))
@@ -127,11 +124,11 @@ public sealed class BotChainPullTests
     }
 
     [Fact(DisplayName = "Chain pull: on the Hollow Vault the next trash pack engages before the last enemy of the current one dies (key 2, seed 1, no wipe, the boss still falls)")]
-    public void The_next_pack_engages_before_the_current_one_is_clear() => Check(HollowVault.Value, requireStack: true);
+    public void The_next_pack_engages_before_the_current_one_is_clear() => Check(Drive("hollow-vault", 1), requireStack: true);
 
     // The Bellfoundry's packs stand 43000 mm and more apart (layout centres in the seed 7 run), beyond ChainPull.ReachMm, so
     // nothing stacks there until the pack-density work (R-PACKDENSITY-2) closes the gaps; this pins that the chain does no
     // harm there: no wipe, the final boss falls, and no segment boss is ever chained into.
     [Fact(DisplayName = "Chain pull: on the Sunken Bellfoundry no segment boss is chained into, nobody wipes and the final boss still falls (key 2, seed 7)")]
-    public void The_bellfoundry_still_finishes_and_never_chains_into_a_boss() => Check(Bellfoundry.Value, requireStack: false);
+    public void The_bellfoundry_still_finishes_and_never_chains_into_a_boss() => Check(Drive("sunken-bellfoundry", 7), requireStack: false);
 }

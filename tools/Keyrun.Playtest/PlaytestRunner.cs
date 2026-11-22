@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using Keyrun.Bots;
 using Keyrun.Bots.Guides;
@@ -13,6 +16,17 @@ using Keyrun.Sim.Runs;
 using C = Keyrun.Content;
 
 namespace Keyrun.Playtest;
+
+/// <summary>The text retained in <see cref="PlaytestResult.Log"/> after a run.</summary>
+public enum PlaytestLogMode
+{
+    /// <summary>Commands, events and per-tick capture lines.</summary>
+    Full,
+    /// <summary>Only canonical event lines.</summary>
+    Events,
+    /// <summary>Keep only the run and its statistics.</summary>
+    None,
+}
 
 /// <summary>What to play.</summary>
 /// <param name="Key">The key level (2-20).</param>
@@ -37,6 +51,9 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
     /// seeded pick (<c>SeededLayout.BotBranches</c>); a hand-built dungeon ignores it.
     /// </summary>
     public int? LeaderBranch { get; init; }
+
+    /// <summary>The retained log detail. Full preserves the host capture format.</summary>
+    public PlaytestLogMode LogMode { get; init; } = PlaytestLogMode.Full;
 
     /// <summary>Hard stop, ticks; a run still going is "unfinished". Default: twice par.</summary>
     public int? MaxTicks { get; init; }
@@ -71,11 +88,32 @@ public sealed record PlaytestOptions(int Key, long Seed, Policy? Policy)
 
 /// <summary>A finished playtest: the final run, the event/command log and the stats the summary reads.</summary>
 /// <param name="Run">The run at the last step.</param>
-/// <param name="Log">One line per command ("C ...") and per event ("E {...}") in step order.</param>
+/// <param name="Log">The requested log lines in step order, or an empty string when logging is disabled.</param>
 /// <param name="Stats">What the observer counted.</param>
 /// <param name="Setup">The host setup the run was built from.</param>
 /// <param name="Registry">The content the run used (talents applied).</param>
-public sealed record PlaytestResult(Run Run, string Log, RunStats Stats, HostRunSetup Setup, C.ContentRegistry Registry);
+public sealed record PlaytestResult(Run Run, string Log, RunStats Stats, HostRunSetup Setup, C.ContentRegistry Registry)
+{
+    private readonly Lazy<string> _log = new(Log);
+
+    /// <summary>The requested log text. Large captures expand on first access.</summary>
+    public string Log
+    {
+        get => _log.Value;
+        init => _log = new(value);
+    }
+
+    internal PlaytestResult(Run run, Lazy<string> log, RunStats stats, HostRunSetup setup, C.ContentRegistry registry)
+        : this(run, string.Empty, stats, setup, registry) => _log = log;
+
+    /// <summary>Compares the positional fields, including the log text.</summary>
+    public bool Equals(PlaytestResult? other) => ReferenceEquals(this, other) ||
+        (other is not null && Run == other.Run && Stats == other.Stats && Setup == other.Setup &&
+            Registry == other.Registry && string.Equals(Log, other.Log, StringComparison.Ordinal));
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => HashCode.Combine(Run, Log, Stats, Setup, Registry);
+}
 
 /// <summary>
 /// Plays one Hollow Vault run headlessly with the three host seats (Warden 1, Chanter 2, Cinder 3 by default; seat 1 is
@@ -89,6 +127,65 @@ public sealed record PlaytestResult(Run Run, string Log, RunStats Stats, HostRun
 /// </summary>
 public static class PlaytestRunner
 {
+    // Full captures can be tens of millions of characters. Keep only the current batch
+    // in plain text while stepping. Small logs never allocate a compression stream.
+    private sealed class RunLogBuffer : IDisposable
+    {
+        private const int BatchChars = 32 * 1024;
+        private readonly MemoryStream _storage = new();
+        private DeflateStream? _writer;
+        private int _flushedChars;
+
+        internal StringBuilder Text { get; } = new();
+
+        internal void FlushBatch()
+        {
+            if (Text.Length < BatchChars)
+            {
+                return;
+            }
+            _writer ??= new DeflateStream(_storage, CompressionLevel.Fastest, leaveOpen: true);
+            WriteText(_writer);
+        }
+
+        private void WriteText(Stream stream)
+        {
+            foreach (var chunk in Text.GetChunks())
+            {
+                stream.Write(MemoryMarshal.AsBytes(chunk.Span));
+            }
+            _flushedChars = checked(_flushedChars + Text.Length);
+            Text.Clear();
+        }
+
+        internal Lazy<string> Finish()
+        {
+            if (_writer is null)
+            {
+                return new Lazy<string>(Text.ToString());
+            }
+            WriteText(_writer);
+            _writer.Dispose();
+            _writer = null;
+            var bytes = _storage.GetBuffer();
+            var byteCount = checked((int)_storage.Length);
+            var charCount = _flushedChars;
+            return new Lazy<string>(() =>
+            {
+                using var data = new MemoryStream(bytes, 0, byteCount, writable: false);
+                using var reader = new DeflateStream(data, CompressionMode.Decompress);
+                return string.Create(charCount, reader, static (chars, source) =>
+                    source.ReadExactly(MemoryMarshal.AsBytes(chars)));
+            });
+        }
+
+        public void Dispose()
+        {
+            _writer?.Dispose();
+            _storage.Dispose();
+        }
+    }
+
     /// <summary>The tank seat (the host human seat, the Warden); the damage dealers assist its target.</summary>
     public const int TankId = HostRunSetup.HumanId;
 
@@ -187,7 +284,8 @@ public static class PlaytestRunner
         IReadOnlyDictionary<int, BotMemory> mem = memories;
         var prng = Skill.SeedPrng(options.Seed);
         var maxTicks = options.MaxTicks ?? (2 * (setup.Content.ParTicks ?? 24000));
-        var log = new StringBuilder();
+        using var buffer = options.LogMode == PlaytestLogMode.None ? null : new RunLogBuffer();
+        var log = buffer?.Text;
         var stats = new RunStats(registry, setup.Party, kits);
         // BOT-RESPAWN-RETURN (R-PATH-5 (m)): a seat seen down that is alive again has respawned; its return walk runs until it is
         // back within Follow.ReturnReachMm of a living seat or an engaged enemy (Follow.ReturnSeat returns null).
@@ -273,9 +371,12 @@ public static class PlaytestRunner
                 }
             }
 
-            foreach (var c in commands)
+            if (log is not null && options.LogMode == PlaytestLogMode.Full)
             {
-                log.Append("C ").Append(c).Append('\n');
+                foreach (var c in commands)
+                {
+                    log.Append("C ").Append(c).Append('\n');
+                }
             }
             var receipts = options.Receipts ?? Keyrun.Bots.Shared.NullBotReceiptSink.Instance;
             foreach (var c in commands)
@@ -290,20 +391,27 @@ public static class PlaytestRunner
             var before = run;
             var stepped = RunRoot.StepRun(run, commands);
             run = stepped.Run;
-            foreach (var e in stepped.Events)
+            if (log is not null)
             {
-                log.Append("E ").Append(e.ToCanonicalJson()).Append('\n');
+                foreach (var e in stepped.Events)
+                {
+                    log.Append("E ").Append(e.ToCanonicalJson()).Append('\n');
+                }
             }
-            // R-AGGRO-1 / G7: the capture lines (TICK, ACTOR, GROUP) for this step, the same shapes RunLog.cs writes in Godot.
-            var captureGroups = Aggro.GroupsOf(run.Dungeon, tick, run.Content.Packs, null, run.Content.Patrols);
-            CaptureLines.AppendLines(log, CaptureLines.StepLines(tick, TankId, run.State, run.Encounter, captureGroups, stepped.Events.Count));
+            if (log is not null && options.LogMode == PlaytestLogMode.Full)
+            {
+                // R-AGGRO-1 / G7: the capture lines (TICK, ACTOR, GROUP) for this step, the same shapes RunLog.cs writes in Godot.
+                var captureGroups = Aggro.GroupsOf(run.Dungeon, tick, run.Content.Packs, null, run.Content.Patrols);
+                CaptureLines.AppendLines(log, CaptureLines.StepLines(tick, TankId, run.State, run.Encounter, captureGroups, stepped.Events.Count));
+            }
+            buffer?.FlushBatch();
             stats.ObserveStep(before, stepped.Events, PullIdOf(before));
         }
         foreach (var (id, pb) in policyBots)
         {
             stats.NoteHands(id, pb.LateKicks, pb.DodgeMoves);
         }
-        return new PlaytestResult(run, log.ToString(), stats, setup, registry);
+        return new PlaytestResult(run, buffer?.Finish() ?? new Lazy<string>(string.Empty), stats, setup, registry);
     }
 
     /// <summary>

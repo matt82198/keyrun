@@ -15,7 +15,7 @@ namespace Keyrun.Playtest.Tests;
 /// enemies in its shape, and over the first 1200 ticks of combat each bot's cast log cycles at least four buttons with no
 /// button over half of its casts.
 /// </summary>
-public sealed class AoeRotationKitTests
+public sealed class AoeRotationKitTests : IClassFixture<AoeRotationKitTests.RunFixture>
 {
     private const int PartyIds = 3;
     private const int TogetherTicks = 60;
@@ -23,22 +23,32 @@ public sealed class AoeRotationKitTests
 
     private static string ClassOf(int actor) => actor switch { 1 => "warden", 2 => "chanter", _ => "cinder" };
 
+    private readonly RunFixture _fixture;
     private readonly ITestOutputHelper _out;
 
-    public AoeRotationKitTests(ITestOutputHelper output) => _out = output;
+    public AoeRotationKitTests(ITestOutputHelper output, RunFixture fixture)
+    {
+        _out = output;
+        _fixture = fixture;
+    }
 
-    private sealed record Trace(IReadOnlyList<JsonElement> Events, ContentRegistry Registry);
+    internal sealed record Trace(IReadOnlyList<JsonElement> Events, ContentRegistry Registry);
 
-    private static readonly Lazy<Trace> Run = new(() =>
+    public sealed class RunFixture
+    {
+        internal Trace Run { get; } = DriveAutorun();
+    }
+
+    private static Trace DriveAutorun()
     {
         var reg = ContentLoader.Load();
-        var result = PlaytestRunner.Play(new PlaytestOptions(2, 1, null) { MaxTicks = 4000 }, reg);
+        var result = PlaytestRunner.Play(new PlaytestOptions(2, 1, null) { MaxTicks = 4000, LogMode = PlaytestLogMode.Events }, reg);
         var events = result.Log.Split('\n')
             .Where(line => line.StartsWith("E ", StringComparison.Ordinal))
             .Select(line => JsonDocument.Parse(line.AsSpan(2).ToString()).RootElement)
             .ToList();
         return new Trace(events, reg);
-    });
+    }
 
     private static string? Str(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
@@ -55,10 +65,26 @@ public sealed class AoeRotationKitTests
     private static IEnumerable<JsonElement> PartyCasts(Trace t) =>
         t.Events.Where(e => Str(e, "type") == "cast_complete" && Int(e, "actorId") <= PartyIds);
 
+    [Fact]
+    public void Events_only_log_matches_the_full_capture_event_lines()
+    {
+        var options = new PlaytestOptions(2, 1, null) { MaxTicks = 300 };
+        var capture = PlaytestRunner.Play(options);
+        var full = capture.Log;
+        var events = PlaytestRunner.Play(options with { LogMode = PlaytestLogMode.Events }).Log;
+        var expected = full.Split('\n').Where(line => line.StartsWith("E ", StringComparison.Ordinal)).ToArray();
+        var copy = capture with { Log = full };
+        Assert.Equal(capture, copy);
+        Assert.Equal(capture.GetHashCode(), copy.GetHashCode());
+        Assert.NotEqual(capture, capture with { Log = string.Empty });
+        Assert.NotEmpty(expected);
+        Assert.Equal(string.Join('\n', expected) + "\n", events);
+    }
+
     [Fact(DisplayName = "AoE kit (k2 seed 1): the first trash pack dies together and every bot class casts a shaped AoE on it")]
     public void First_pack_dies_together_and_each_class_casts_its_aoe()
     {
-        var t = Run.Value;
+        var t = _fixture.Run;
         var pull = t.Events.First(e => Str(e, "type") == "pull_start");
         var packIds = pull.GetProperty("actorIds").EnumerateArray().Select(x => x.GetInt32()).ToHashSet();
         var start = Int(pull, "tick");
@@ -84,7 +110,7 @@ public sealed class AoeRotationKitTests
     [Fact(DisplayName = "AoE kit (k2 seed 1): over the first 1200 combat ticks each bot casts four or more distinct abilities and none is over half its casts")]
     public void Each_bot_cycles_its_buttons()
     {
-        var t = Run.Value;
+        var t = _fixture.Run;
         var start = Int(t.Events.First(e => Str(e, "type") == "pull_start"), "tick");
         var casts = PartyCasts(t).Where(e => Int(e, "tick") >= start && Int(e, "tick") < start + WindowTicks).ToList();
         var failures = new List<string>();
@@ -110,7 +136,7 @@ public sealed class AoeRotationKitTests
     [Fact(DisplayName = "AoE kit: every playable class has a shaped AoE rotational, and no AoE builder has a cooldown (R-AOE-2, R-AOE-3)")]
     public void Every_class_has_an_aoe_rotational_and_no_aoe_builder_has_a_cooldown()
     {
-        var reg = Run.Value.Registry;
+        var reg = _fixture.Run.Registry;
         foreach (var cls in new[] { "warden", "chanter", "cinder" })
         {
             var rot = reg.Classes[cls].Abilities;

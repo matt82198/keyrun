@@ -35,14 +35,15 @@ public sealed class HolderChangeEventTests
     /// <summary>An enemy that went from no holder to <paramref name="HolderId"/> at <paramref name="Tick"/> (first observed).</summary>
     private sealed record Engage(int EnemyId, int HolderId, int Tick);
 
-    private sealed record Trace(PlaytestResult Result, IReadOnlyList<Engage> Engages, IReadOnlyList<JsonElement> Events);
+    private sealed record Trace(HostRunSetup Setup, IReadOnlyList<Engage> Engages, IReadOnlyList<JsonElement> Events);
 
-    private static readonly Lazy<Trace> Autorun = new(() =>
+    private static Trace DriveAutorun()
     {
         // Pre-step snapshot per tick: enemy id -> holder id (null when no holder).
         var holders = new SortedDictionary<int, Dictionary<int, int?>>();
         var result = PlaytestRunner.Play(new PlaytestOptions(2, 1, null)
         {
+            LogMode = PlaytestLogMode.Events,
             PullToForces = false,
             Observe = (tick, run, _) => holders[tick] = run.State.Actors.Values
                 .Where(a => a.Kind == ActorKind.Enemy)
@@ -67,8 +68,8 @@ public sealed class HolderChangeEventTests
             .Where(line => line.StartsWith("E ", StringComparison.Ordinal))
             .Select(line => JsonDocument.Parse(line.AsSpan(2).ToString()).RootElement)
             .ToList();
-        return new Trace(result, engages, events);
-    });
+        return new Trace(result.Setup, engages, events);
+    }
 
     private static string? Str(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
@@ -81,8 +82,8 @@ public sealed class HolderChangeEventTests
     [Fact(DisplayName = "Holder change is logged: every enemy that engages gets a holder_change event naming the enemy, the seat and the tick")]
     public void Engage_is_logged_as_a_holder_change_naming_enemy_seat_and_tick()
     {
-        var t = Autorun.Value;
-        var seats = t.Result.Setup.Party.Select(p => p.Id).ToHashSet();
+        var t = DriveAutorun();
+        var seats = t.Setup.Party.Select(p => p.Id).ToHashSet();
         _out.WriteLine($"engages (enemy -> seat @tick): {string.Join(", ", t.Engages.Select(e => $"{e.EnemyId} -> {e.HolderId} @{e.Tick}"))}");
 
         // Precondition: the autorun does engage enemies, and every holder is a party seat (the body pull locks a player).
