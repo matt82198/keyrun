@@ -39,10 +39,18 @@ public sealed class QueueReadoutBranchesTests
         Assert.Equal("Bots filling 2 open seat(s) in 5s", QueueWait.Describe(state));
     }
 
-    [Fact(DisplayName = "B58: a live run with every seat filled reads the seats-filled form")]
-    public void AllSeatsFilledReadsSeatsFilledForm()
+    [Fact(DisplayName = "f-92118949: a live run with every seat filled shows no seats-filled line (hidden once live)")]
+    public void AllSeatsFilledInLiveRunReadsEmpty()
     {
         var state = QueueWait.StateFor(null, false, 0, false, 0, false, 3, 0, 0);
+
+        Assert.Equal(string.Empty, QueueWait.Describe(state));
+    }
+
+    [Fact(DisplayName = "f-92118949: a queued party with every seat filled reads the seats-filled form (shown while queued)")]
+    public void AllSeatsFilledWhileQueuedReadsSeatsFilledForm()
+    {
+        var state = new QueueGateState(null, 3, false, 0, 0, 0);
 
         Assert.Equal("Seats filled 3 of 3.", QueueWait.Describe(state));
     }
