@@ -17,6 +17,9 @@ public sealed record FloorEscapeOptions
     /// <summary>Margin added to each patch radius, mm (null = 500).</summary>
     public long? MarginMm { get; init; }
 
+    /// <summary>When supplied, step out of live danger telegraphs with these IDs. The margin applies only to the destination.</summary>
+    public IReadOnlySet<string>? StepOutTelegraphIds { get; init; }
+
     /// <summary>Range-keeping preference, or null.</summary>
     public KeepNear? KeepNear { get; init; }
 }
@@ -66,7 +69,8 @@ public static class Floor
     /// floor.ts floorEscapeCommand: a move clearing the hostile floor patch <paramref name="self"/> stands in
     /// (radius plus margin), or null. Defers (null) while an ordinary danger telegraph is active, since bot.ts's
     /// reflex tier already moves the bot. With <see cref="FloorEscapeOptions.KeepNear"/>, prefers a point inside
-    /// the anchor radius and falls back to the plain nearest safe point.
+    /// the anchor radius and falls back to the plain nearest safe point. With <see cref="FloorEscapeOptions.StepOutTelegraphIds"/>,
+    /// answers the listed danger directly when it covers the seat.
     /// </summary>
     /// <param name="view">Bot view.</param>
     /// <param name="self">Deciding actor.</param>
@@ -77,21 +81,35 @@ public static class Floor
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(self);
         var options = opts ?? new FloorEscapeOptions();
-        if (OrdinaryTelegraphDangerActive(view, self))
-        {
-            return null;
-        }
         var tick = view.State.Tick;
-        var patches = HostileFloorPatches(view.Telegraphs, tick);
-        if (patches.Count == 0)
-        {
-            return null;
-        }
         var selfMm = PointMm.Of(self.Pos);
-        var danger = Inflated(patches, options.MarginMm ?? DefaultMarginMm);
-        if (!Positioning.IsInAnyDanger(selfMm, danger))
+        var margin = options.MarginMm ?? DefaultMarginMm;
+        List<BotTelegraph> danger;
+        if (options.StepOutTelegraphIds is { } ids)
         {
-            return null;
+            if (ids.Count == 0)
+            {
+                return null;
+            }
+            var listed = view.Telegraphs.Where(t => t.Danger && t.ResolvesTick > tick
+                && ids.Contains(t.Id) && !Positioning.IsSpent(t, view.State)).ToList();
+            if (!Positioning.IsInAnyDanger(selfMm, listed))
+            {
+                return null;
+            }
+            danger = Inflated(listed, margin);
+        }
+        else
+        {
+            if (OrdinaryTelegraphDangerActive(view, self))
+            {
+                return null;
+            }
+            danger = Inflated(HostileFloorPatches(view.Telegraphs, tick), margin);
+            if (!Positioning.IsInAnyDanger(selfMm, danger))
+            {
+                return null;
+            }
         }
 
         // FLOOR-ESCAPE WALKABLE (finding f-4250969b, R-DODGE-2): on a layout run the safe point must be walkable and the

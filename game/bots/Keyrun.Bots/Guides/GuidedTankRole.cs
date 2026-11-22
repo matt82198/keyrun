@@ -4,7 +4,6 @@ using System.Linq;
 using Keyrun.Bots.Roles;
 using Keyrun.Bots.Shared;
 using Keyrun.Sim.Core;
-using Keyrun.Sim.Nav;
 
 namespace Keyrun.Bots.Guides;
 
@@ -26,9 +25,6 @@ public sealed class GuidedTankRole : IRole
         "warden.reckoning",
     };
 
-    /// <summary>Margin added to each named telegraph's radius when choosing the step-out point, mm (the Floor escape margin).</summary>
-    private const long StepOutMarginMm = 500;
-
     /// <summary>The Warden's charge ability (warden.json; its cast range comes from the content registry).</summary>
     private const string ChargeAbilityId = "warden.charge";
 
@@ -40,7 +36,7 @@ public sealed class GuidedTankRole : IRole
 
     private readonly BotGuide _guide;
     private readonly IReadOnlySet<string> _kickCasts;
-    private readonly IReadOnlySet<string> _stepOutTelegraphs;
+    private readonly FloorEscapeOptions _stepOutOptions;
 
     /// <summary>Builds the role over one class guide.</summary>
     /// <param name="guide">The guide; its class is the only class this role decides for.</param>
@@ -49,10 +45,11 @@ public sealed class GuidedTankRole : IRole
         ArgumentNullException.ThrowIfNull(guide);
         _guide = guide;
         _kickCasts = guide.Kicks.Select(k => k.Cast).ToHashSet(StringComparer.Ordinal);
-        _stepOutTelegraphs = guide.Telegraphs
-            .Where(t => t.Response == "stepOut")
-            .Select(t => t.Cast)
-            .ToHashSet(StringComparer.Ordinal);
+        _stepOutOptions = new FloorEscapeOptions
+        {
+            StepOutTelegraphIds = guide.Telegraphs.Where(t => t.Response == "stepOut")
+                .Select(t => t.Cast).ToHashSet(StringComparer.Ordinal),
+        };
     }
 
     /// <summary>The guide's answers for <paramref name="self"/>; empty when no entry is castable and holding.</summary>
@@ -72,7 +69,7 @@ public sealed class GuidedTankRole : IRole
         var kit = RoleShared.KitOf(view, self.ClassId);
         var ctx = new GuideContext(view, self, kit, _kickCasts);
 
-        if (ListedStepOut(view, self) is { } stepOut)
+        if (Floor.FloorEscapeCommand(view, self, _stepOutOptions) is { } stepOut)
         {
             return new Command[] { Reasons.Tag(stepOut, "tank:floor-escape") };
         }
@@ -144,44 +141,6 @@ public sealed class GuidedTankRole : IRole
         var tick = view.State.Tick;
         return RoleShared.ReadyAndAffordable(self, ChargeAbilityId, tick, kit)
             ? new CastCommand(tick, self.Id, ChargeAbilityId, targetId)
-            : null;
-    }
-
-    /// <summary>
-    /// The step-out for a live telegraph the guide's telegraphs section names with response stepOut, when it covers the seat:
-    /// the nearest point clear of every such telegraph (plus the margin), walked to along the sim's path on a layout run
-    /// (the Floor escape point rule). Null when the seat is clear of them. Unlike the Floor escape, this is not deferred by an
-    /// ordinary danger telegraph: the guide names the telegraph, so the guide's answer comes first.
-    /// </summary>
-    /// <param name="view">Bot view.</param>
-    /// <param name="self">Deciding actor.</param>
-    /// <returns>The move, or null.</returns>
-    private MoveCommand? ListedStepOut(BotView view, ActorState self)
-    {
-        if (_stepOutTelegraphs.Count == 0)
-        {
-            return null;
-        }
-        var tick = view.State.Tick;
-        var selfMm = PointMm.Of(self.Pos);
-        var listed = view.Telegraphs
-            .Where(t => t.Danger && t.ResolvesTick > tick && _stepOutTelegraphs.Contains(t.Id) && !Positioning.IsSpent(t, view.State))
-            .ToList();
-        if (!Positioning.IsInAnyDanger(selfMm, listed))
-        {
-            return null;
-        }
-        var danger = listed.Select(t => t with { Radius = (t.Radius ?? 0) + StepOutMarginMm }).ToList();
-        if (view.Layout is { } layout)
-        {
-            var grid = NavGrid.Of(layout);
-            var walkable = Positioning.NearestSafePoint(selfMm, danger, extraCheck: p => grid.Walkable(new Vec3(p.X, self.Pos.Y, p.Z)));
-            return walkable is { } point
-                ? PathMoves.Along(tick, self, layout, new Vec3(point.X, self.Pos.Y, point.Z))
-                : null;
-        }
-        return Positioning.NearestSafePoint(selfMm, danger) is { } safe
-            ? Moves.MoveToward(tick, self.Id, selfMm, safe)
             : null;
     }
 }
