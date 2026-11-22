@@ -31,6 +31,33 @@ public sealed class ScriptedWardenKickTests
         return created with { Encounter = BossRules.Arm(created.Encounter, setup.Boss) };
     }
 
+    [Fact]
+    public void Shield_bash_interrupts_on_the_first_tick_after_mending_starts()
+    {
+        var run = Build();
+        var state = run.State;
+        var warden = state.Actors[WardenId];
+        var caster = state.Actors.Values.First(a => a.ClassId == ScriptedWarden.LieutenantClass);
+        caster.Idle = false;
+        caster.Pos = warden.Pos;
+        caster.TargetId = WardenId;
+        caster.CastId = Mending;
+        caster.CastStartTick = state.Tick;
+        caster.CastEndsTick = state.Tick + run.Content.Abilities[Mending].CastTicks;
+
+        // The host first sees the cast in the snapshot after the step that started it.
+        state.Tick++;
+        Assert.True(state.Tick < caster.CastStartTick + run.Content.Abilities[Mending].CastTicks / 2);
+        var commands = new List<Command>();
+        new ScriptedWarden().Sample(state.Tick, run, commands);
+        var step = RunRoot.StepRun(run, commands);
+        Assert.True(step.Events.Any(e => e.Type == "interrupt" && e.Tick == state.Tick
+            && e.Get("sourceId") is JsInt { Value: WardenId }
+            && e.Get("targetId") is JsInt target && target.Value == caster.Id
+            && e.Get("abilityId") is JsString { Value: Mending }),
+            "Shield Bash did not interrupt Choral Mending on the first legal tick.");
+    }
+
     [Fact(DisplayName = "R-WARDEN-KICK-1: with two engaged lieutenants and only the second casting Choral Mending, the Warden's Shield Bash lands on the caster")]
     public void Warden_kicks_the_lieutenant_that_is_casting_not_the_first_in_list()
     {
@@ -52,7 +79,7 @@ public sealed class ScriptedWardenKickTests
             e.Pos = new Vec3(warden.Pos.X + 1500, warden.Pos.Y, warden.Pos.Z);
             e.TargetId = WardenId;
         }
-        // The second lieutenant is halfway through Choral Mending: the kick opens at the cast's midpoint.
+        // Only the second lieutenant is casting.
         caster.CastId = Mending;
         caster.CastStartTick = tick - (mending.CastTicks / 2) - 1;
         caster.CastEndsTick = caster.CastStartTick + mending.CastTicks;
