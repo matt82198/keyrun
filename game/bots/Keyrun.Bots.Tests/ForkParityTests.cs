@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using Keyrun.Host;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
 using Keyrun.Sim.Runs;
@@ -166,7 +167,14 @@ public sealed class ForkParityTests
             Assert.True(loadouts.Count > 0, $"{scenario.Name}: no party member of class {classId}");
             options = options with { Loadouts = loadouts };
         }
-        var run = RunRoot.CreateRun(setup.Seed, setup.Party, setup.Dungeon, setup.Content, options);
+        // The fixture supplies the encounter. The bots and sim play the same live base kit,
+        // with the chosen fork applied by CreateRun before the bots see the run's ability map.
+        var content = setup.Content with
+        {
+            Abilities = Registry.Value.Abilities.ToDictionary(p => p.Key, p => HostRunSetup.ToSimAbility(p.Value), StringComparer.Ordinal),
+            Effects = Registry.Value.Effects.ToDictionary(p => p.Key, p => HostRunSetup.ToSimEffect(p.Value), StringComparer.Ordinal),
+        };
+        var run = RunRoot.CreateRun(setup.Seed, setup.Party, setup.Dungeon, content, options);
         var partyIds = new HashSet<int>(setup.Party.Select(p => p.Id));
         var bots = new SortedDictionary<int, IBot>();
         var initial = new SortedDictionary<int, BotMemory>();
@@ -212,7 +220,7 @@ public sealed class ForkParityTests
     /// <summary>
     /// A content ability as the sim runs it: game/src/Host/HostRunSetup.cs ToSim (the host's own converter, which the
     /// Godot-only assembly keeps private). A stance ability's static Effects are its "mend" variant; the variants ride
-    /// along. <see cref="Base_kit_through_the_converter_runs_identically"/> proves this matches the setup's kit.
+    /// along. <see cref="Base_kit_through_the_converter_runs_identically"/> compares this talent converter with the host's live base kit.
     /// </summary>
     internal static S.AbilityDef ToSim(C.AbilityDef a)
     {
@@ -634,7 +642,7 @@ public sealed class ForkParityTests
         Assert.True(ok, "the bots must cast Reserve in every fork-parity run and shield at least two party members (R-FORK-RETUNE-1), measured: " + string.Join("; ", perRun));
     }
 
-    [Fact(DisplayName = "fork parity > the base kit through the converter runs identically to the setup's kit")]
+    [Fact(DisplayName = "fork parity > the base kit through the talent converter runs identically to the live base kit")]
     public void Base_kit_through_the_converter_runs_identically()
     {
         var registry = Registry.Value;

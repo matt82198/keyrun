@@ -3,10 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using Keyrun.Content;
 using Keyrun.Sim.Core;
-using Keyrun.Sim.Encounter;
-using Keyrun.Sim.Runs;
 using Keyrun.Tools.Replay;
 using Xunit;
 using Xunit.Abstractions;
@@ -24,15 +21,9 @@ namespace Keyrun.Bots.Tests;
 /// </summary>
 public sealed class FiveButtonsTests
 {
-    private const int MaxTicks = 24000;
-
     private readonly ITestOutputHelper _output;
 
     public FiveButtonsTests(ITestOutputHelper output) => _output = output;
-
-    private static readonly Lazy<ContentRegistry> Registry = new(() => ContentLoader.Load());
-
-    private static readonly Lazy<KitRegistry> Kits = new(() => KitRegistry.From(Registry.Value));
 
     /// <summary>Runs <paramref name="scenario"/> with the real bots and counts completed casts per actor and ability.</summary>
     /// <param name="scenario">Bot oracle trace name.</param>
@@ -41,28 +32,15 @@ public sealed class FiveButtonsTests
     {
         var dir = RolesOracleTraceTests.OracleDir();
         var trace = OracleTrace.Load(Path.Combine(dir, scenario + ".trace.jsonl"));
-        var setup = RunSetup.Load(Path.Combine(dir, trace.SetupFile), trace.Seed);
-        var run = RunRoot.CreateRun(setup.Seed, setup.Party, setup.Dungeon, setup.Content, setup.Options);
-        var bots = new SortedDictionary<int, IBot>();
-        var initial = new SortedDictionary<int, BotMemory>();
+        var seeded = ForkParityTests.LoadScenario((scenario, trace.SetupFile, trace.Seed, 100));
         var party = new SortedDictionary<int, (string ClassId, SortedDictionary<string, int> Casts)>();
-        foreach (var p in setup.Party)
+        foreach (var p in seeded.Setup.Party)
         {
-            bots[p.Id] = Bot.MakeBot(RoleSet.Default);
-            initial[p.Id] = BotMemory.Default(100);
             party[p.Id] = (p.ClassId, new SortedDictionary<string, int>(StringComparer.Ordinal));
         }
-        IReadOnlyDictionary<int, BotMemory> memories = initial;
-        var prng = Skill.SeedPrng(trace.Seed);
-        while (run.RunEnd.Result is null && run.State.Tick < MaxTicks)
+        var measured = ForkParityTests.Measure(seeded, null, null, events =>
         {
-            var view = BotViews.BuildBotView(run.State, run.Encounter.Telegraphs.Select(BotViews.ToBotTelegraph), ClassKitView.Empty, Kits.Value);
-            var batch = Bot.RunBots(view, bots, memories, prng);
-            memories = batch.Memories;
-            prng = batch.Prng;
-            var stepped = RunRoot.StepRun(run, batch.Commands);
-            run = stepped.Run;
-            foreach (var e in stepped.Events)
+            foreach (var e in events)
             {
                 if (e.Type != "cast_complete" || e.Get("actorId") is not JsInt id || e.Get("abilityId") is not JsString ability)
                 {
@@ -73,10 +51,28 @@ public sealed class FiveButtonsTests
                     member.Casts[ability.Value] = member.Casts.TryGetValue(ability.Value, out var n) ? n + 1 : 1;
                 }
             }
-        }
-        var resultJs = run.RunEnd.Result?.ToJs();
-        var result = resultJs is null ? "none" : string.Create(CultureInfo.InvariantCulture, $"{resultJs}@{run.RunEnd.ResultTick}");
+        });
+        var result = measured.Result == "none" ? "none" : string.Create(CultureInfo.InvariantCulture, $"{measured.Result}@{measured.ClearTick}");
         return (party, result);
+    }
+
+    [Fact]
+    public void Guard_break_uses_the_live_kit_cooldown_when_the_oracle_differs()
+    {
+        const string id = "warden.guardBreak";
+        var scenario = ForkParityTests.LoadScenario(("kit-parity", "hollow-vault-k2.setup.json", 7, 100));
+        var setup = scenario.Setup;
+        var liveCooldown = ForkParityTests.Registry.Value.Abilities[id].CooldownTicks;
+        var abilities = setup.Content.Abilities.ToDictionary(pair => pair.Key, pair => pair.Value);
+        abilities[id] = abilities[id] with { CooldownTicks = liveCooldown + 37 };
+        var staleSetup = setup with { Content = setup.Content with { Abilities = abilities } };
+
+        int? simCooldown = null;
+        ForkParityTests.Measure(scenario with { Setup = staleSetup, MaxTicks = 1 }, null, null,
+            beforeStep: run => simCooldown = run.Content.Abilities[id].CooldownTicks);
+
+        Assert.True(simCooldown == liveCooldown,
+            $"{id} cooldown ticks: bot kit {liveCooldown}, sim {simCooldown}, oracle {abilities[id].CooldownTicks}");
     }
 
     [Theory(DisplayName = "five buttons > every real-role bot casts all five rotational abilities over a seeded key-2 run")]
@@ -88,7 +84,7 @@ public sealed class FiveButtonsTests
         var missing = new List<string>();
         foreach (var (actorId, member) in party)
         {
-            Assert.True(Registry.Value.Classes.TryGetValue(member.ClassId, out var cls), $"{scenario}: actor {actorId} class {member.ClassId} is not in content");
+            Assert.True(ForkParityTests.Registry.Value.Classes.TryGetValue(member.ClassId, out var cls), $"{scenario}: actor {actorId} class {member.ClassId} is not in content");
             var slots = cls!.Abilities;
             var rotation = new[] { slots.Rot1, slots.Rot2, slots.Rot3, slots.Rot4, slots.Rot5 };
             var counts = rotation.Select(id => (Id: id, N: member.Casts.TryGetValue(id, out var n) ? n : 0)).ToList();
