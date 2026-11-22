@@ -281,17 +281,19 @@ public static class Scripts
         private readonly int _actorId;
         private readonly ActorState _actor;
         private readonly IReadOnlyList<ScriptStep> _script;
+        private readonly int _scriptStart;
         private readonly IReadOnlyDictionary<string, ScriptAbility> _abilities;
         private readonly Dictionary<string, int> _readyAt = new(StringComparer.Ordinal);
         private int _busyUntil;
         private int _gcdUntil;
 
-        public CastQueue(SimState state, int actorId, ActorState actor, IReadOnlyList<ScriptStep> script, IReadOnlyDictionary<string, ScriptAbility> abilities, IReadOnlyList<int>? pending)
+        public CastQueue(SimState state, int actorId, ActorState actor, IReadOnlyList<ScriptStep> script, IReadOnlyDictionary<string, ScriptAbility> abilities, IReadOnlyList<int>? pending, int scriptStart)
         {
             _state = state;
             _actorId = actorId;
             _actor = actor;
             _script = script;
+            _scriptStart = scriptStart;
             _abilities = abilities;
             Pending = pending?.Where(j => j >= 0 && j < script.Count).ToList() ?? new List<int>();
             _busyUntil = actor.CastId is not null && actor.CastEndsTick is { } ends && ends > state.Tick ? ends : state.Tick;
@@ -319,7 +321,7 @@ public static class Scripts
             {
                 var s = _script[j];
                 // SCRIPT-GATE: judged on this call's state, for the tick due and for the look-ahead ticks alike.
-                if (s.Trigger != StepTrigger.OnDeath && !s.TsCastReplace && FiresAt(s, t) && GateOpen(s, _actor, _state.Tick) && !queue.Contains(j))
+                if (s.Trigger != StepTrigger.OnDeath && !s.TsCastReplace && ScriptFiresAt(s, t, _scriptStart) && GateOpen(s, _actor, _state.Tick) && !queue.Contains(j))
                 {
                     queue.Add(j);
                 }
@@ -536,7 +538,7 @@ public static class Scripts
             {
                 IReadOnlyList<int>? waitingIn = null;
                 pendingSteps?.TryGetValue(actorId, out waitingIn);
-                var queue = new CastQueue(state, actorId, actor, script, abil, waitingIn);
+                var queue = new CastQueue(state, actorId, actor, script, abil, waitingIn, scriptStart);
                 var firing = queue.Advance(tick);
                 foreach (var (j, starts) in firing)
                 {
