@@ -40,9 +40,9 @@ public sealed class ScriptClockFirstCastTelegraphTests
     /// Runs the boss script over ticks 1150..1500 with the boss present only from <paramref name="spawnTick"/>, and
     /// returns the casts issued and the telegraphs drawn (tick, cast).
     /// </summary>
-    private static (List<(int Tick, string Cast)> Casts, List<(int Tick, string Cast)> Telegraphs) Drive(int spawnTick)
+    private static (List<(int Tick, string Cast)> Casts, List<(int Tick, string Cast)> Telegraphs) Drive(int spawnTick, ScriptStep step)
     {
-        var scripts = EncounterTestKit.Scripts(Boss, SlamStep);
+        var scripts = EncounterTestKit.Scripts(Boss, step);
         var casts = new List<(int, string)>();
         var telegraphs = new List<(int, string)>();
         IReadOnlyDictionary<int, int> starts = new SortedDictionary<int, int>();
@@ -65,7 +65,7 @@ public sealed class ScriptClockFirstCastTelegraphTests
     [InlineData(1251)]
     public void No_plain_telegraph_cast_starts_without_an_earlier_telegraph_of_its_own(int spawnTick)
     {
-        var (casts, telegraphs) = Drive(spawnTick);
+        var (casts, telegraphs) = Drive(spawnTick, SlamStep);
         Assert.NotEmpty(casts);
         var unannounced = casts
             .Select(c => (Land: c.Tick + Abilities[c.Cast].CastTicks, c.Cast, c.Tick))
@@ -73,5 +73,17 @@ public sealed class ScriptClockFirstCastTelegraphTests
             .Select(c => $"{c.Cast} started at tick {c.Tick} and lands at {c.Land} (boss spawned at {spawnTick}) with no earlier telegraph")
             .ToList();
         Assert.True(unannounced.Count == 0, string.Join("; ", unannounced));
+    }
+
+    [Fact]
+    public void Queued_slam_gives_its_full_warning_when_the_original_draw_precedes_spawn()
+    {
+        const int spawnTick = 4 * Period - 3;
+        var (casts, telegraphs) = Drive(spawnTick, SlamStep with { TsCastReplace = false });
+
+        var firstCast = casts.First();
+        Assert.Contains((firstCast.Tick - Lead, firstCast.Cast), telegraphs);
+        Assert.Equal(new[] { (spawnTick, Slam), (5 * Period - Lead, Slam) }, telegraphs);
+        Assert.Equal(new[] { (spawnTick + Lead, Slam), (5 * Period, Slam) }, casts);
     }
 }
