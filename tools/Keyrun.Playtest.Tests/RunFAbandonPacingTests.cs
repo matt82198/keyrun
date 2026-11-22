@@ -11,22 +11,21 @@ namespace Keyrun.Playtest.Tests;
 /// <summary>
 /// Finding f-0fd3e6fb: run F's abandon must land inside the Choir whatever the party's pacing. A fixed run tick (1500,
 /// 1700) and a fixed offset from the Choir's pull_start (2@pull0+1350, R-415-D) each fell outside it when a pacing
-/// change moved the Choir (the setup lesson, #364 and #326 each flipped it). This is a pacing test double: the Choir
-/// run F records on main (pull_start 76; enemy 102 worn down from the engage to its death at 1030, 100 to 1157, then 101
-/// from 1157 to 1608; pull_clear 1609; RunFJoinerActsTests) with its engage shifted by <c>engageShift</c> ticks and every
-/// kill moved by <c>fightShift</c> more, fed step by step to <see cref="SeatAbandonPlan"/> exactly as SimDriver.StepOnce
-/// does. Run F now leaves one tick after the Choir is down to a tenth of its health (<c>2@pull0.hp10+1</c>), which stays
-/// inside the Choir for every move; the old fixtures are kept here to show the double does move them out.
+/// change moved the Choir. The current plan uses the first-damage, death and pull ticks from the headless Run F.
+/// The old fixed plans replay the historical Choir they were tuned against. Both traces shift the engage by
+/// <c>engageShift</c> and each kill by <c>engageShift</c> plus <c>fightShift</c>.
 /// </summary>
 public sealed class RunFAbandonPacingTests
 {
-    private const int ChoirStart = 76;
-    private const int PairStart = 1722;
     private const long ChoirHealth = 6180;
     private const int MaxTicks = 3500;
 
-    // Each Choir enemy: worn down linearly from tick From to its death at tick Death (run F's undisturbed trace on main).
-    private static readonly (int ActorId, int From, int Death)[] ChoirKills = { (102, 76, 1030), (100, 76, 1157), (101, 1157, 1608) };
+    private sealed record Recording(int Start, int PairStart, (int ActorId, int From, int Death)[] Kills);
+
+    private static readonly Recording MeasuredTrace = new(51, 1866,
+        new[] { (101, 51, 1330), (102, 51, 1368), (100, 51, 1480) });
+    private static readonly Recording HistoricalTrace = new(76, 1722,
+        new[] { (102, 76, 1030), (100, 76, 1157), (101, 1157, 1608) });
 
     private sealed record Trace(int Start, int Clear, Dictionary<int, List<SimEvent>> Events, (int ActorId, int From, int Death)[] Kills);
 
@@ -38,7 +37,7 @@ public sealed class RunFAbandonPacingTests
     });
 
     // The double: run F's Choir, its engage moved by engageShift and every kill (and the clear) by engageShift + fightShift.
-    private static Trace Choir(int engageShift, int fightShift)
+    private static Trace Choir(Recording recording, int engageShift, int fightShift)
     {
         var events = new Dictionary<int, List<SimEvent>>();
         void Add(SimEvent e)
@@ -49,9 +48,9 @@ public sealed class RunFAbandonPacingTests
             }
             list.Add(e);
         }
-        var start = ChoirStart + engageShift;
-        var kills = ChoirKills
-            .Select(k => (k.ActorId, From: k.From == ChoirStart ? start : k.From + engageShift + fightShift, Death: k.Death + engageShift + fightShift))
+        var start = recording.Start + engageShift;
+        var kills = recording.Kills
+            .Select(k => (k.ActorId, From: k.From == recording.Start ? start : k.From + engageShift + fightShift, Death: k.Death + engageShift + fightShift))
             .ToArray();
         var clear = kills.Max(k => k.Death) + 1;
         Add(new SimEvent(start, "pull_start", ("pullIndex", JsValue.Int(0)), ("pullId", JsValue.Str("choir")),
@@ -61,7 +60,7 @@ public sealed class RunFAbandonPacingTests
             Add(new SimEvent(k.Death, "death", ("actorId", JsValue.Int(k.ActorId)), ("sourceId", JsValue.Int(1))));
         }
         Add(new SimEvent(clear, "pull_clear", ("pullIndex", JsValue.Int(0)), ("pullId", JsValue.Str("choir"))));
-        Add(new SimEvent(PairStart + engageShift + fightShift, "pull_start", ("pullIndex", JsValue.Int(1)), ("pullId", JsValue.Str("pair")),
+        Add(new SimEvent(recording.PairStart + engageShift + fightShift, "pull_start", ("pullIndex", JsValue.Int(1)), ("pullId", JsValue.Str("pair")),
             ("actorIds", JsValue.Arr(new[] { JsValue.Int(103), JsValue.Int(104) }))));
         return new Trace(start, clear, events, kills);
     }
@@ -124,7 +123,7 @@ public sealed class RunFAbandonPacingTests
     [MemberData(nameof(Pacings))]
     public void Run_F_abandon_stays_inside_the_choir(int engageShift, int fightShift)
     {
-        var trace = Choir(engageShift, fightShift);
+        var trace = Choir(MeasuredTrace, engageShift, fightShift);
         var at = AbandonTick(SeatAbandonPlan.Parse(RunFJoinerActsTests.Abandon), trace);
         Assert.True(at is not null && at > trace.Start && at < trace.Clear,
             $"{RunFJoinerActsTests.Abandon} abandons at {at?.ToString() ?? "never"}, outside the Choir ({trace.Start}..{trace.Clear}) with engage {engageShift:+0;-0;0} and fight {fightShift:+0;-0;0}");
@@ -139,7 +138,7 @@ public sealed class RunFAbandonPacingTests
         var real = SeatAbandonZeroOffsetTests.RunReal("2@pull0+0");
         Assert.True(real.PullStart is not null && real.EmittedAtPreTick is not null, "the real sim never started pull 0");
         var lag = real.PullStart!.Value - real.EmittedAtPreTick!.Value;
-        var trace = Choir(0, 0);
+        var trace = Choir(MeasuredTrace, 0, 0);
         static bool HasPullStart(List<SimEvent> events) =>
             events.Any(e => e.Type == "pull_start" && e.Get("pullIndex") is JsInt { Value: 0 });
         var carrying = Enumerable.Range(0, MaxTicks).Where(t => HasPullStart(StepEvents(trace, t))).ToList();
@@ -168,7 +167,7 @@ public sealed class RunFAbandonPacingTests
         });
         Assert.True(realLags.All(kv => kv.Value.Count == 1),
             $"the real sim must emit every Choir death and pull 0's pull_clear with one lag per kind; it gave {string.Join("; ", realLags.Select(kv => $"{kv.Key} [{string.Join(", ", kv.Value)}]"))}");
-        var trace = Choir(0, 0);
+        var trace = Choir(MeasuredTrace, 0, 0);
         var mismatches = new List<string>();
         void Check(string what, int stamp, int lag, Func<SimEvent, bool> match)
         {
@@ -195,7 +194,7 @@ public sealed class RunFAbandonPacingTests
         var real = SeatAbandonZeroOffsetTests.RunReal(abandon);
         Assert.True(real.PullStart is not null && real.Abandon is not null,
             $"the real sim never started pull 0 or never abandoned {abandon} (pull_start {real.PullStart?.ToString() ?? "none"}, abandon {real.Abandon?.ToString() ?? "never"})");
-        var trace = Choir(0, 0);
+        var trace = Choir(MeasuredTrace, 0, 0);
         var at = AbandonTick(SeatAbandonPlan.Parse(abandon), trace);
         Assert.True(at - trace.Start == real.Abandon - real.PullStart,
             $"{abandon}: the real sim abandons {real.Abandon - real.PullStart} ticks after pull_start ({real.PullStart} -> {real.Abandon}), the double {(at is null ? "never" : (at - trace.Start).ToString())} ({trace.Start} -> {at?.ToString() ?? "never"})");
@@ -208,11 +207,11 @@ public sealed class RunFAbandonPacingTests
     [InlineData("2@pull0+1350", 250, -250)]
     public void The_old_fixtures_flip_under_a_pacing_change(string abandon, int engageShift, int fightShift)
     {
-        var undisturbed = Choir(0, 0);
+        var undisturbed = Choir(HistoricalTrace, 0, 0);
         var plan = SeatAbandonPlan.Parse(abandon);
         var before = AbandonTick(plan, undisturbed);
         Assert.True(before > undisturbed.Start && before < undisturbed.Clear, $"{abandon} at {before} is not inside the undisturbed Choir");
-        var moved = Choir(engageShift, fightShift);
+        var moved = Choir(HistoricalTrace, engageShift, fightShift);
         var after = AbandonTick(plan, moved);
         Assert.False(after > moved.Start && after < moved.Clear,
             $"{abandon} at {after} stayed inside the moved Choir ({moved.Start}..{moved.Clear}): this double no longer shows the fragility");
@@ -242,7 +241,7 @@ public sealed class RunFAbandonPacingTests
             }
         });
         Assert.True(deathActor is not null, "the real sim never killed a Choir enemy");
-        var trace = Choir(0, 0);
+        var trace = Choir(MeasuredTrace, 0, 0);
         var kill = trace.Kills.OrderBy(k => k.Death).First();
         var mismatches = new List<string>();
         for (var o = -1; o <= 1; o++)

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Keyrun.Bots;
 using Keyrun.Bots.Shared;
 using Keyrun.Content;
@@ -18,10 +20,8 @@ namespace Keyrun.Playtest.Tests;
 /// abandonment"): the run SimDriver builds at key 2, seed 1 (<see cref="HostRunSetup.Build"/>, then
 /// <see cref="BossRules.Arm"/>), seat 1 the autorun <see cref="ScriptedWarden"/> and seats 2 and 3 the host's own
 /// <see cref="BotCommandSource"/>, stepped in SimDriver.StepOnce's order through <see cref="Backfill.Step"/>. Seat 2
-/// abandons during the first pull, one tick after the Choir is down to a tenth of its health (<c>--abandon-seat
-/// 2@pull0.hp10+50</c> under R-K4-4 (abandon one tick before the only ready kick stalled pull 0 on the AoE kit; was 2@pull0.hp10+1, finding f-0fd3e6fb on RULING R-415-D): the scenario is "a seat abandons during the first pull", so
-/// the leave is pinned to the Choir's own progress, not to a run tick or an offset a pacing change moves into the Pair),
-/// and one key-2 request joins the queue (<c>--joiner-key 2</c>). The joiner
+/// abandons after the Choir reaches a tenth of its health, using run F's default <c>--abandon-seat</c> plan.
+/// One key-2 request joins the queue (<c>--joiner-key 2</c>). The joiner
 /// must take the seat at the next pull start and then act: a <c>cast_complete</c> by seat 2 after the fill, within run
 /// F's 3500 ticks.
 /// </summary>
@@ -30,7 +30,7 @@ namespace Keyrun.Playtest.Tests;
 /// cleared the undisturbed Choir at 1580 so 1700 fell inside the Pair). The pull-relative form keeps that intent (the
 /// leave stays inside the Choir) and <see cref="The_abandon_falls_inside_the_first_pull"/> checks it on this tree.
 /// f-0fd3e6fb: 2@pull0+1350 still flipped whenever the Choir's fight length changed (the setup lesson, #364, #326);
-/// 2@pull0.hp10+50 (R-K4-4, was 2@pull0.hp10+1) leaves late in the Choir whatever its length (RunFAbandonPacingTests). Measured on this tree (seed 1,
+/// the scene now anchors the leave to the Choir's health share. In the original health-share search (seed 1,
 /// key 2, bot gear): the party reaches the Pair with the leave at 20% (tick 1343) and below, and wipes at 25% (1308, the
 /// Warden dies at 1649); a leave at the Choir's first death (1031) wipes too (the Warden dies at 1454), which is why the
 /// anchor is the Choir's health share and not its first death.
@@ -40,7 +40,7 @@ public sealed class RunFJoinerActsTests
     private const int Key = 2;
     private const long Seed = 1;
     private const int SeatId = 2;
-    internal const string Abandon = "2@pull0.hp10+50"; // R-K4-4 pin, HudSceneTest $AbandonSeat (was 2@pull0.hp10+1 and 2@pull0+1350, f-0fd3e6fb, see remarks)
+    internal const string Abandon = "2@pull0.hp10+150";
     private const int MaxTicks = 3500; // run F's --ticks (HudSceneTest $BackfillTicks)
 
     private sealed record Drive(int? AbandonTick, int? FillTick, List<SimEvent> Events, List<string> Log, Run Final);
@@ -52,6 +52,23 @@ public sealed class RunFJoinerActsTests
     /// <summary>Creates the test with xUnit's output sink (the post-fill trace is printed for the PR).</summary>
     /// <param name="output">The sink.</param>
     public RunFJoinerActsTests(ITestOutputHelper output) => _output = output;
+
+    [Fact]
+    public void The_abandon_plan_matches_the_scene_default()
+    {
+        const string scene = "game/src/Host/scenes/HudRunF-SceneTest.ps1";
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, scene)))
+        {
+            dir = dir.Parent;
+        }
+        Assert.NotNull(dir);
+        var script = File.ReadAllText(Path.Combine(dir!.FullName, scene));
+        var parameter = Assert.Single(Regex.Matches(script,
+            """(?im)^[ \t]*\[string\]\s*\$AbandonSeat\s*=\s*(['"])(?<plan>[^'"\r\n]+)\1[ \t]*,?[ \t]*(?:#.*)?\r?$"""));
+        var scenePlan = parameter.Groups["plan"].Value;
+        Assert.True(scenePlan == Abandon, $"Run F scene default is {scenePlan}, headless fixture uses {Abandon}");
+    }
 
     private static Drive DriveRunF()
     {
@@ -128,6 +145,15 @@ public sealed class RunFJoinerActsTests
     public void The_refilled_seat_acts_after_the_fill()
     {
         var r = Driven.Value;
+        var damagedChoir = new HashSet<int>();
+        foreach (var e in r.Events)
+        {
+            if (SimEventViews.TryDamage(e, out var hit) && hit.HealthDamage > 0
+                && hit.TargetId is >= 100 and <= 102 && damagedChoir.Add(hit.TargetId))
+            {
+                _output.WriteLine($"{hit.Tick} first damage actor={hit.TargetId}");
+            }
+        }
         foreach (var line in r.Log)
         {
             _output.WriteLine(line);
@@ -174,7 +200,7 @@ public sealed class RunFJoinerActsTests
     }
 
     /// <summary>
-    /// R-FACING-2 (e): the leave tick is the seat 2 chanter's hymn endsTick (1310); the leave-tick fix stops that cast,
+    /// R-FACING-2 (e): with the former +50 offset, the leave tick was the seat 2 chanter's hymn endsTick (1310); the leave-tick fix stops that cast,
     /// and the Warden's death at 1779 to patrol melee (no pull_start) is a legitimate run-F outcome, not a party death
     /// before the leave. The old pull-2 bound pinned the pre-fix trajectory.
     /// </summary>
