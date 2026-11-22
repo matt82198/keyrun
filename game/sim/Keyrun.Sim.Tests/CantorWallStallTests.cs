@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Keyrun.Bots.Shared;
+using C = Keyrun.Content;
 using Keyrun.Sim.Combat;
 using Keyrun.Sim.Core;
 using Keyrun.Sim.Encounter;
@@ -16,10 +18,16 @@ namespace Keyrun.Sim.Tests;
 /// </summary>
 public sealed class CantorWallStallTests
 {
-    private static readonly Bounds Corridor1 = new(5000, 11000, -4500, 4500);
-    private static readonly Bounds ChoirRoom = new(10000, 26000, -8000, 8000);
-    private static readonly Bounds Corridor3 = new(55000, 63000, -4500, 4500);
-    private static readonly Bounds SeedChamber = new(62000, 76000, -7000, 7000);
+    private static NavLayout RealLayoutWithWalls()
+    {
+        var registry = C.ContentLoader.Load();
+        var boxes = C.DungeonPlan.BoxesOf(registry.Layout);
+        var walls = C.DungeonPlan.WallBoxes(boxes)
+            .Concat(C.DungeonPlan.FrameBoxes(boxes))
+            .Select(w => new Bounds(w.MinX, w.MaxX, w.MinZ, w.MaxZ))
+            .ToList();
+        return NavLayouts.ToSim(registry.Layout) with { Obstacles = walls };
+    }
 
     private static AbilityDef MeleeSwing() => new()
     {
@@ -185,10 +193,7 @@ public sealed class CantorWallStallTests
     [Fact(DisplayName = "f-fee76c81: Cantor Vigil engaged beside choir-room south wall deals and takes damage within 200 ticks")]
     public void Cantor_vigil_beside_choir_room_south_wall_exchanges_damage_within_200_ticks()
     {
-        var layout = new NavLayout(
-            new[] { new NavBox("corridor-1", Corridor1, false, null), new NavBox("choir-room", ChoirRoom, true, null) },
-            new[] { new NavTrigger("boss", new Bounds(24000, 26000, -8000, 8000)) },
-            new[] { new Vec3(6000, 0, 0), new Vec3(18000, 0, 0) });
+        var layout = RealLayoutWithWalls();
         var pack = CantorVigil(new Vec3(14000, 0, -6000), 500);
 
         var (playerDealt, enemyDealt, engageTick) = RunEngagement(layout, pack, new Vec3(14000, 0, -2500));
@@ -201,10 +206,7 @@ public sealed class CantorWallStallTests
     [Fact(DisplayName = "f-fee76c81: Cantor Vigil engaged beside seed-chamber south wall from entrance corner deals and takes damage within 200 ticks")]
     public void Cantor_vigil_beside_seed_chamber_south_wall_from_entrance_exchanges_damage_within_200_ticks()
     {
-        var layout = new NavLayout(
-            new[] { new NavBox("corridor-3", Corridor3, false, null), new NavBox("seed-chamber", SeedChamber, true, null) },
-            new[] { new NavTrigger("boss", new Bounds(74000, 76000, -7000, 7000)) },
-            new[] { new Vec3(56000, 0, 0), new Vec3(68000, 0, 0) });
+        var layout = RealLayoutWithWalls();
         var pack = CantorVigil(new Vec3(63500, 0, -6000), 500);
 
         var (playerDealt, enemyDealt, engageTick) = RunEngagement(layout, pack, new Vec3(61500, 0, -4500));
@@ -217,10 +219,7 @@ public sealed class CantorWallStallTests
     [Fact(DisplayName = "f-fee76c81: Cantor Vigil flush on choir-room south wall with idle wander and leash exchanges damage within 200 ticks")]
     public void Cantor_vigil_flush_on_wall_with_wander_and_leash_exchanges_damage_within_200_ticks()
     {
-        var layout = new NavLayout(
-            new[] { new NavBox("corridor-1", Corridor1, false, null), new NavBox("choir-room", ChoirRoom, true, null) },
-            new[] { new NavTrigger("boss", new Bounds(24000, 26000, -8000, 8000)) },
-            new[] { new Vec3(6000, 0, 0), new Vec3(18000, 0, 0) });
+        var layout = RealLayoutWithWalls();
         var pack = CantorVigil(new Vec3(14000, 0, -7000), 500, leashMm: 12000);
 
         var (playerDealt, enemyDealt, engageTick) = RunEngagement(layout, pack, new Vec3(14000, 0, -3500), idleWander: true);
