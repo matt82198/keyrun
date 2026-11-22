@@ -14,13 +14,15 @@ namespace Keyrun.Bots.Shared;
 /// <param name="TicksLeft">Ticks left to answer the open check.</param>
 /// <param name="OpenSeats">Party seats waiting for a bot to fill them.</param>
 /// <param name="TicksUntilFill">Ticks until the bots fill the open seats.</param>
+/// <param name="Live">True once the party's run is live (f-92118949: the seats-filled line shows only while queued).</param>
 public sealed record QueueGateState(
     ReadyPhase? Phase,
     int SeatsTotal,
     bool HumanReady,
     int TicksLeft,
     int OpenSeats,
-    int TicksUntilFill);
+    int TicksUntilFill,
+    bool Live = false);
 
 /// <summary>
 /// The Queue node's wait readout as a pure function of the gate state (BIBLE s10 "while queued" readout). The node only
@@ -52,7 +54,8 @@ public static class QueueWait
                 ? $"Bots filling {state.OpenSeats} open seat(s) in {Seconds(state.TicksUntilFill)}s"
                 : $"Bots filling {state.OpenSeats} open seat(s) at the next pull";
         }
-        return state.SeatsTotal > 0 ? $"Seats filled {state.SeatsTotal} of {state.SeatsTotal}." : string.Empty;
+        // f-92118949: the seats-filled line belongs to the queue only; once the run is live it is hidden.
+        return state.SeatsTotal > 0 && !state.Live ? $"Seats filled {state.SeatsTotal} of {state.SeatsTotal}." : string.Empty;
     }
 
     /// <summary>
@@ -95,7 +98,7 @@ public static class QueueWait
         {
             return new QueueGateState(phase, checkSeats, humanReady, ticksLeft, 0, 0);
         }
-        return new QueueGateState(null, partySeats, false, 0, openSeats, ticksUntilFill);
+        return new QueueGateState(null, partySeats, false, 0, openSeats, ticksUntilFill, Live: partySeats > 0);
     }
 
     /// <summary>Whole seconds left for <paramref name="ticks"/>, rounded up (the node never shows 0s while time is left).</summary>
