@@ -148,10 +148,13 @@ $laneMatch = [regex]::Match(($laneOut -join "`n"), 'Tests\s+(\d+) passed')
 $laneCount = if ($laneMatch.Success) { $laneMatch.Groups[1].Value } else { '?' }
 $counts += "lanes $laneCount"
 if ($laneCode -ne 0) { $failed += 'tests/lanes' }
+# Keep assertion details in the console and let VSTest name and report each retained TRX.
+$testLoggers = @('--logger', 'console;verbosity=minimal', '--logger', 'trx',
+    '--results-directory', (Join-Path $repo 'build/fastcheck'))
 foreach ($proj in $selected) {
     # Category=Balance facts (fork parity) are reported below, not gated; every other assertion gates.
     $testOut = @()
-    & $dotnet test $proj --no-build --nologo -v q --filter 'Category!=Balance' | Tee-Object -Variable testOut
+    & $dotnet test $proj --no-build --nologo -v q --filter 'Category!=Balance' @testLoggers | Tee-Object -Variable testOut
     $code = $LASTEXITCODE
     # Short suite name for the summary line: Keyrun.<Name>.Tests -> <Name>. A missing count prints "?".
     $short = [IO.Path]::GetFileNameWithoutExtension($proj) -replace '^Keyrun\.', '' -replace '\.Tests$', ''
@@ -164,7 +167,7 @@ $suites = if ($counts.Count) { " ($($counts -join ', '))" } else { ' (build only
 $balanceRed = $false
 if ($selected.Contains($Bots)) {
     Write-Output 'balance: (reported, not a gate) Keyrun.Bots.Tests --filter Category=Balance'
-    & $dotnet test $Bots --no-build --nologo -v q --filter 'Category=Balance'
+    & $dotnet test $Bots --no-build --nologo -v q --filter 'Category=Balance' @testLoggers
     if ($LASTEXITCODE -ne 0) { $balanceRed = $true }
     Write-Output "balance: $(if ($balanceRed) { 'RED (reported, not a gate failure: open a finding)' } else { 'green' })"
 }
