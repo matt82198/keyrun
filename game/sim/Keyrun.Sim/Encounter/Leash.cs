@@ -72,7 +72,11 @@ public static class Leash
                     // G2.5 (f-1c94a912): a reset member walks back onto its patrol loop (Patrols.Walk), it does not teleport.
                     a.ResetWalk = true;
                 }
-                var resetCause = evaders.Select(a => a.EvadeCause).FirstOrDefault(c => c is not null) ?? LeashCause;
+                // f-ef77ad17 / R-BOSS-6 (b): no-living-seat only when the evade STARTED for that reason AND no seat is alive at
+                // reset. A leash evade whose seats die before the reset still resets as a leash; a seat-less evade that a
+                // respawned seat walked home from resets as a leash.
+                var firstCause = evaders.Select(a => a.EvadeCause).FirstOrDefault(c => c is not null);
+                var resetCause = firstCause == NoLivingSeatCause && NoLivingSeat(next, openSeats) ? NoLivingSeatCause : LeashCause;
                 foreach (var a in evaders)
                 {
                     a.EvadeCause = null;
@@ -84,7 +88,7 @@ public static class Leash
         List<Telegraph>? keep = null;
         var engaged = encounter.Engaged;
         // R-BOSS-6 (b): no living player seat (every seat dead or released; open seats do not count) evades every engaged group.
-        var seatless = !next.Actors.Values.Any(a => a.Kind == ActorKind.Player && a.Alive && !IsOpen(openSeats, a.Id));
+        var seatless = NoLivingSeat(next, openSeats);
         foreach (var g in groups)
         {
             if (!Pulls.IsEngaged(encounter, g.Id))
@@ -169,6 +173,10 @@ public static class Leash
     public const string NoLivingSeatCause = "no-living-seat";
 
     private static bool IsOpen(IReadOnlyList<int>? openSeats, int id) => openSeats is not null && openSeats.Contains(id);
+
+    /// <summary>R-BOSS-6 (b): no living player seat in <paramref name="state"/> (open seats do not count).</summary>
+    private static bool NoLivingSeat(SimState state, IReadOnlyList<int>? openSeats) =>
+        !state.Actors.Values.Any(a => a.Kind == ActorKind.Player && a.Alive && !IsOpen(openSeats, a.Id));
 
     private static SimEvent GroupEvent(int tick, string type, string groupId, IEnumerable<ActorState> members, string cause) =>
         new(tick, type, ("groupId", JsValue.Str(groupId)), ("actorIds", JsValue.Arr(members.Select(a => JsValue.Int(a.Id)))), ("cause", JsValue.Str(cause)));
