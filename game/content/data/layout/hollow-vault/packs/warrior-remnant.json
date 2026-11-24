@@ -1,21 +1,21 @@
 {
   "id": "warrior-remnant",
   "name": "Warrior Remnant",
-  "room": "seed-chamber",
+  "room": "corridor-4",
   "optional": true,
   "branch": "seed-chamber",
   "center": {
-    "x": 69000,
-    "z": 5500
+    "x": 79000,
+    "z": 4100
   },
-  "aggroMm": 4000,
+  "aggroMm": 3000,
   "enemies": [
     {
       "enemyId": "pair.melee",
       "count": 6,
       "spawn": {
         "x": 0,
-        "z": 500
+        "z": 400
       }
     },
     {
@@ -23,7 +23,7 @@
       "count": 2,
       "spawn": {
         "x": 0,
-        "z": -500
+        "z": -400
       }
     }
   ]
