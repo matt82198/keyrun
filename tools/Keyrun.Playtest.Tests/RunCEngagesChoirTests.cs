@@ -52,8 +52,6 @@ public sealed class RunCEngagesChoirTests
         int KicksLanded,
         List<string> Log);
 
-    private static readonly Lazy<Tally> Driven = new(DriveRunC);
-
     private readonly ITestOutputHelper _output;
 
     /// <summary>Creates the test with xUnit's output sink (the trace is printed for the PR).</summary>
@@ -170,7 +168,7 @@ public sealed class RunCEngagesChoirTests
     [Fact(DisplayName = "Run C (KF2): from the Entrance the party starts combat with the Choir within 218 ticks and kicks a Choral Mending")]
     public void Run_c_party_engages_the_choir_and_kicks_its_heal()
     {
-        var t = Driven.Value;
+        var t = DriveRunC();
         foreach (var line in t.Log)
         {
             _output.WriteLine(line);

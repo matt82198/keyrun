@@ -19,7 +19,7 @@ namespace Keyrun.Playtest.Tests;
 /// within <see cref="ReachMm"/> of a living seat within <see cref="ReturnWindowTicks"/> ticks. The per-tick trace for
 /// <see cref="TraceTicks"/> ticks after the respawn is written to the test output.
 /// </summary>
-public sealed class BotRespawnReturnHostTests
+public sealed class BotRespawnReturnHostTests : IClassFixture<BotRespawnReturnHostTests.RunFixture>
 {
     /// <summary>The route leader (the autorun Warden, the lowest seat).</summary>
     private const int LeaderId = 1;
@@ -32,17 +32,26 @@ public sealed class BotRespawnReturnHostTests
     private const int TraceTicks = 200;
 
     /// <summary>One post-step observation of the leader: alive, position, nearest living other seat, and its move this tick.</summary>
-    private sealed record Sample(int Tick, bool Alive, Vec3 Self, Vec3? Party, long Distance, MoveCommand? Move);
+    internal sealed record Sample(int Tick, bool Alive, Vec3 Self, Vec3? Party, long Distance, MoveCommand? Move);
 
-    private sealed record Drive(int KillTick, int RespawnTick, Vec3 SpawnPos, List<Sample> Samples, PlaytestResult Result);
+    internal sealed record Drive(int KillTick, int RespawnTick, Vec3 SpawnPos, List<Sample> Samples, PlaytestResult Result);
 
-    private static readonly Lazy<Drive> Driven = new(DriveRun);
+    public sealed class RunFixture
+    {
+        internal Drive Driven { get; } = DriveRun();
+    }
 
+    private readonly RunFixture _fixture;
     private readonly ITestOutputHelper _output;
 
     /// <summary>Creates the test with xUnit's output sink (the per-tick trace is written there).</summary>
     /// <param name="output">The sink.</param>
-    public BotRespawnReturnHostTests(ITestOutputHelper output) => _output = output;
+    /// <param name="fixture">The shared run for this test class.</param>
+    public BotRespawnReturnHostTests(ITestOutputHelper output, RunFixture fixture)
+    {
+        _output = output;
+        _fixture = fixture;
+    }
 
     private static Drive DriveRun()
     {
@@ -54,6 +63,7 @@ public sealed class BotRespawnReturnHostTests
 
         var result = PlaytestRunner.Play(new PlaytestOptions(2, Seed, null)
         {
+            LogMode = PlaytestLogMode.None,
             DungeonId = "hollow-vault",
             Observe = (tick, run, commands) =>
             {
@@ -97,7 +107,7 @@ public sealed class BotRespawnReturnHostTests
     [Fact(DisplayName = "Host path bot respawn return: the respawned route leader moves toward the party within 100 ticks")]
     public void Respawned_leader_moves_toward_the_party_within_100_ticks()
     {
-        var d = Driven.Value;
+        var d = _fixture.Driven;
         WriteTrace(d);
         Assert.True(d.KillTick >= 0, $"leader {LeaderId} was never killed: no tick had it {FarMm} mm from the entrance with an engaged enemy alive");
         Assert.True(d.RespawnTick >= 0, $"leader {LeaderId} was killed at tick {d.KillTick} and never respawned before the run ended");
@@ -124,7 +134,7 @@ public sealed class BotRespawnReturnHostTests
     [Fact(DisplayName = "Host path bot respawn return: the respawned route leader gets back within 5000 mm of a living seat within 2000 ticks")]
     public void Respawned_leader_rejoins_the_party_within_5000_mm()
     {
-        var d = Driven.Value;
+        var d = _fixture.Driven;
         Assert.True(d.KillTick >= 0, $"leader {LeaderId} was never killed: no tick had it {FarMm} mm from the entrance with an engaged enemy alive");
         Assert.True(d.RespawnTick >= 0, $"leader {LeaderId} was killed at tick {d.KillTick} and never respawned before the run ended");
 

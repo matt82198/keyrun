@@ -60,8 +60,6 @@ public sealed class RunCWardenPicksUpLooseTests
         int? EngageTick, int? LooseTick, IReadOnlyDictionary<int, int> LooseHolders, List<(int Tick, int Enemy)> TauntsBack,
         int? ChoirClear, List<string> SeatDeaths, int EndTick);
 
-    private static readonly Lazy<Drive> Driven = new(DriveLateTank);
-
     private readonly ITestOutputHelper _output;
 
     /// <summary>Creates the test with xUnit's output sink.</summary>
@@ -142,7 +140,7 @@ public sealed class RunCWardenPicksUpLooseTests
     [Fact(DisplayName = "LOOSE-PICKUP (R-PILE-9, late tank): every Choir enemy the Cinder body-pulled is taunted back, and no seat dies to the Choir")]
     public void Warden_taunts_a_loose_choir_enemy_and_the_party_clears_the_choir()
     {
-        var d = Driven.Value;
+        var d = DriveLateTank();
         _output.WriteLine($"engage={d.EngageTick?.ToString() ?? "none"} loose={string.Join(",", d.LooseHolders.Select(kv => $"{kv.Key}:held-by-{kv.Value}"))}@{d.LooseTick?.ToString() ?? "-"} " +
             $"tauntsBack=[{string.Join(", ", d.TauntsBack.Select(t => $"{t.Enemy}@{t.Tick}"))}] choirClear={d.ChoirClear?.ToString() ?? "none"} " +
             $"deaths=[{string.Join("; ", d.SeatDeaths)}] endTick={d.EndTick}");

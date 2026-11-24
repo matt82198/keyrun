@@ -52,8 +52,6 @@ public sealed class LeaderClosesToReachTests
         public readonly List<string> Log = new();
     }
 
-    private static readonly Lazy<Probe> Driven = new(Drive);
-
     private readonly ITestOutputHelper _output;
 
     /// <summary>Creates the test with xUnit's output sink (the trace is printed for the PR).</summary>
@@ -72,6 +70,7 @@ public sealed class LeaderClosesToReachTests
         var probe = new Probe();
         var options = new PlaytestOptions(2, 1, null)
         {
+            LogMode = PlaytestLogMode.None,
             MaxTicks = MaxTicks,
             Observe = (tick, run, _) => Observe(probe, tick, run),
         };
@@ -133,7 +132,7 @@ public sealed class LeaderClosesToReachTests
     [Fact(DisplayName = "R-SEED-1a: a leader outside the strike reach of every engaged enemy closes to reach within 600 ticks, and the stationary caster dies within 3000 of its engagement")]
     public void Leader_closes_to_reach_and_the_stationary_caster_dies()
     {
-        var t = Driven.Value;
+        var t = Drive();
         foreach (var line in t.Log)
         {
             _output.WriteLine(line);

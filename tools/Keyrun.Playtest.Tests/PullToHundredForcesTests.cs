@@ -18,14 +18,21 @@ namespace Keyrun.Playtest.Tests;
 /// packs skipped and, once a key completes only at 100% forces and boss dead, never finishes. Driven through
 /// <see cref="PlaytestRunner"/> at key 2, seed 1, the headless replica of the autorun.
 /// </summary>
-public sealed class PullToHundredForcesTests
+public sealed class PullToHundredForcesTests : IClassFixture<PullToHundredForcesTests.RunFixture>
 {
+    private readonly RunFixture _fixture;
+
+    public PullToHundredForcesTests(RunFixture fixture) => _fixture = fixture;
+
     private static readonly ContentRegistry Registry = ContentLoader.Load();
 
     /// <summary>The run, and the bar the tick the boss first engaged (null when it never did).</summary>
-    private sealed record Autorun(PlaytestResult Result, ForcesReading? AtBossEngage, int BossEngageTick);
+    internal sealed record Autorun(PlaytestResult Result, ForcesReading? AtBossEngage, int BossEngageTick);
 
-    private static readonly Lazy<Autorun> Default = new(() => Drive(pullToForces: true));
+    public sealed class RunFixture
+    {
+        internal Autorun Default { get; } = Drive(pullToForces: true);
+    }
 
     private static Autorun Drive(bool pullToForces)
     {
@@ -36,6 +43,7 @@ public sealed class PullToHundredForcesTests
         var bossTick = -1;
         var result = PlaytestRunner.Play(new PlaytestOptions(2, 1, null)
         {
+            LogMode = PlaytestLogMode.None,
             PullToForces = pullToForces,
             Observe = (tick, run, _) =>
             {
@@ -54,10 +62,18 @@ public sealed class PullToHundredForcesTests
         return new Autorun(result, atBoss, bossTick);
     }
 
+    [Fact]
+    public void Forces_observation_retains_no_run_log()
+    {
+        var result = _fixture.Default.Result;
+        Assert.NotNull(result.Run.RunEnd.ResultTick);
+        Assert.Equal(0, result.Log.Length);
+    }
+
     [Fact(DisplayName = "Pull to 100: the autorun fills the forces bar before the boss engages (key 2, seed 1)")]
     public void The_bar_is_full_before_the_boss_engages()
     {
-        var r = Default.Value;
+        var r = _fixture.Default;
         Assert.NotNull(r.AtBossEngage);
         Assert.True(r.AtBossEngage!.Full, $"forces at boss engage (tick {r.BossEngageTick}): {r.AtBossEngage.LogLine()}");
     }
@@ -65,7 +81,7 @@ public sealed class PullToHundredForcesTests
     [Fact(DisplayName = "Pull to 100: the run ends with the boss dead, not abandoned and not unfinished")]
     public void The_run_ends_with_the_boss_dead()
     {
-        var r = Default.Value.Result.Run;
+        var r = _fixture.Default.Result.Run;
         Assert.NotNull(r.RunEnd.ResultTick);
         Assert.Contains(r.RunEnd.Result?.ToJs(), new[] { "timed", "depleted" });
         var boss = r.Dungeon.Pulls[^1].Spawns.Select(s => s.ActorId).ToList();
@@ -75,7 +91,7 @@ public sealed class PullToHundredForcesTests
     [Fact(DisplayName = "Pull to 100: the run ends within twice par (the pulls cost time, not the run)")]
     public void The_run_ends_within_twice_par()
     {
-        var r = Default.Value.Result;
+        var r = _fixture.Default.Result;
         var par = r.Setup.Content.ParTicks ?? 24000;
         Assert.True(r.Run.RunEnd.ResultTick <= 2 * par, $"run_end at tick {r.Run.RunEnd.ResultTick}, par {par}");
     }

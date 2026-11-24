@@ -35,7 +35,7 @@ namespace Keyrun.Playtest.Tests;
 /// Warden dies at 1649); a leave at the Choir's first death (1031) wipes too (the Warden dies at 1454), which is why the
 /// anchor is the Choir's health share and not its first death.
 /// </remarks>
-public sealed class RunFJoinerActsTests
+public sealed class RunFJoinerActsTests : IClassFixture<RunFJoinerActsTests.RunFixture>
 {
     private const int Key = 2;
     private const long Seed = 1;
@@ -43,15 +43,24 @@ public sealed class RunFJoinerActsTests
     internal const string Abandon = "2@pull0.hp10+150";
     private const int MaxTicks = 3500; // run F's --ticks (HudSceneTest $BackfillTicks)
 
-    private sealed record Drive(int? AbandonTick, int? FillTick, List<SimEvent> Events, List<string> Log, Run Final);
+    internal sealed record Drive(int? AbandonTick, int? FillTick, List<SimEvent> Events, List<string> Log, Run Final);
 
-    private static readonly Lazy<Drive> Driven = new(DriveRunF);
+    public sealed class RunFixture
+    {
+        internal Drive Driven { get; } = DriveRunF();
+    }
 
+    private readonly RunFixture _fixture;
     private readonly ITestOutputHelper _output;
 
     /// <summary>Creates the test with xUnit's output sink (the post-fill trace is printed for the PR).</summary>
     /// <param name="output">The sink.</param>
-    public RunFJoinerActsTests(ITestOutputHelper output) => _output = output;
+    /// <param name="fixture">The shared run for this test class.</param>
+    public RunFJoinerActsTests(ITestOutputHelper output, RunFixture fixture)
+    {
+        _output = output;
+        _fixture = fixture;
+    }
 
     [Fact]
     public void The_abandon_plan_matches_the_scene_default()
@@ -144,7 +153,7 @@ public sealed class RunFJoinerActsTests
     [Fact(DisplayName = "Run F: the refilled seat casts after its fill (a joiner's commands reach the run)")]
     public void The_refilled_seat_acts_after_the_fill()
     {
-        var r = Driven.Value;
+        var r = _fixture.Driven;
         var damagedChoir = new HashSet<int>();
         foreach (var e in r.Events)
         {
@@ -171,7 +180,7 @@ public sealed class RunFJoinerActsTests
     [Fact(DisplayName = "Run F: the seat abandons during the first pull (after its pull_start, before its pull_clear)")]
     public void The_abandon_falls_inside_the_first_pull()
     {
-        var r = Driven.Value;
+        var r = _fixture.Driven;
         var start = r.Events.First(e => e.Type == "pull_start" && e.Get("pullIndex") is JsInt { Value: 0 }).Tick;
         var clear = r.Events.FirstOrDefault(e => e.Type == "pull_clear")?.Tick;
         _output.WriteLine($"abandon={r.AbandonTick} pull0 start={start} clear={clear?.ToString() ?? "none"}");
@@ -189,7 +198,7 @@ public sealed class RunFJoinerActsTests
     [Fact(DisplayName = "Run F: the open seat stands idle between the abandon and the refill (HudSceneTest run F check 23)")]
     public void The_open_seat_stands_idle_until_the_refill()
     {
-        var r = Driven.Value;
+        var r = _fixture.Driven;
         Assert.True(r.AbandonTick is not null && r.FillTick is not null, $"run F never abandoned and refilled seat {SeatId} (abandon {r.AbandonTick}, fill {r.FillTick})");
         var acted = r.Events.Where(e => e.Type == "cast_complete" && ActorOf(e) == SeatId && e.Tick >= r.AbandonTick!.Value && e.Tick < r.FillTick!.Value).ToList();
         _output.WriteLine($"abandon={r.AbandonTick} fill={r.FillTick} seat{SeatId} casts between={acted.Count}");
@@ -207,7 +216,7 @@ public sealed class RunFJoinerActsTests
     [Fact(DisplayName = "Run F: no party seat dies before the leave tick (R-FACING-2 (e))")]
     public void No_party_seat_dies_before_the_leave_tick()
     {
-        var r = Driven.Value;
+        var r = _fixture.Driven;
         Assert.True(r.AbandonTick is not null, $"seat {SeatId} never abandoned ({Abandon})");
         var leave = r.AbandonTick!.Value;
         var dead = r.Events.FirstOrDefault(e => e.Type == "death" && ActorOf(e) is >= 1 and <= 3 && e.Tick < leave);

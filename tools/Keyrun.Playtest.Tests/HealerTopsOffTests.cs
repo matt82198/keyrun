@@ -29,8 +29,6 @@ public sealed class HealerTopsOffTests
 
     private sealed record Drive(List<SimEvent> Events, Run Final, List<string> Log);
 
-    private static readonly Lazy<Drive> Driven = new(DriveRun);
-
     private readonly ITestOutputHelper _output;
 
     /// <summary>Creates the test with xUnit's output sink (the pull and death ticks are printed for the PR).</summary>
@@ -82,7 +80,7 @@ public sealed class HealerTopsOffTests
     [Fact(DisplayName = "Healer tops off: a full key-2 party walks into the Pair healed and clears it with nobody dead (D54)")]
     public void A_full_party_survives_the_pair()
     {
-        var r = Driven.Value;
+        var r = DriveRun();
         foreach (var line in r.Log)
         {
             _output.WriteLine(line);
